@@ -247,9 +247,9 @@ class ChannelsDAO(ChannelsDAOInterface):
         #
         connection_id: UUID,
         #
-        expected_archived_at: Optional[datetime] = None,
-        guard_artifact_ids: Optional[Dict[UUID, UUID]] = None,
-        guard_user_id: Optional[UUID] = None,
+        expected_archived_at: Optional[datetime],
+        guard_artifact_ids: Dict[UUID, UUID],
+        guard_user_id: Optional[UUID],
     ) -> Optional[ChannelConnection]:
         async with self.engine.session() as session:
             # Locked: the archive the caller read the restored bindings of is the one
@@ -273,11 +273,13 @@ class ChannelsDAO(ChannelsDAOInterface):
             if archived_at != expected_archived_at:
                 raise ChannelConnectionRestoreStale(connection_id=connection_id)
 
-            # The artifact locks come first (the lock order of `set_agent_policy`).
-            # A restored binding of a private agent its owner is not restoring comes
-            # back off: the restore never activates what the owner guard refuses.
+            # The connection row is locked first, then each agent's artifact in id
+            # order, so two restores never wait on each other in a cycle. A restored
+            # binding of a private agent its owner is not restoring comes back off.
             refused = []
-            for binding_id, artifact_id in (guard_artifact_ids or {}).items():
+            for binding_id, artifact_id in sorted(
+                guard_artifact_ids.items(), key=lambda item: str(item[1])
+            ):
                 try:
                     await guard_agent_activation(
                         session,

@@ -99,9 +99,9 @@ class ChannelsDAOInterface(ABC):
         #
         connection_id: UUID,
         #
-        expected_archived_at: Optional[datetime] = None,
-        guard_artifact_ids: Optional[Dict[UUID, UUID]] = None,
-        guard_user_id: Optional[UUID] = None,
+        expected_archived_at: Optional[datetime],
+        guard_artifact_ids: Dict[UUID, UUID],
+        guard_user_id: Optional[UUID],
     ) -> Optional[ChannelConnection]:
         """Clear `deleted_at`/`deleted_by_id` on this row and restore the bindings
         archived with it. The row is locked; when its `deleted_at` is not

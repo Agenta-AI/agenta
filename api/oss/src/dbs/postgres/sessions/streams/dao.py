@@ -202,6 +202,7 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
             "channel_threads",
             sa_column("project_id", PG_UUID(as_uuid=True)),
             sa_column("session_id", table.c.session_id.type),
+            sa_column("agent_id", PG_UUID(as_uuid=True)),
         )
         in_channel = exists().where(
             threads.c.project_id == project_id,
@@ -220,18 +221,11 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
         if stream.channel_binding_id is None:
             source = source.where(~in_channel)
         else:
-            threads_agent = sa_column("agent_id", PG_UUID(as_uuid=True))
-            foreign = sa_table(
-                "channel_threads",
-                sa_column("project_id", PG_UUID(as_uuid=True)),
-                sa_column("session_id", table.c.session_id.type),
-                threads_agent,
-            )
             source = source.where(
                 ~exists().where(
-                    foreign.c.project_id == project_id,
-                    foreign.c.session_id == stream.session_id,
-                    foreign.c.agent_id != stream.channel_binding_id,
+                    threads.c.project_id == project_id,
+                    threads.c.session_id == stream.session_id,
+                    threads.c.agent_id != stream.channel_binding_id,
                 )
             )
         has_channel_thread = in_channel.label("has_channel_thread")

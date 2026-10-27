@@ -249,14 +249,20 @@ async def test_reinstall_after_disconnect_restores_the_archived_row_in_place():
     project_id, user_id = uuid4(), uuid4()
 
     first = await service.install_connection(
-        project_id=project_id, user_id=user_id, connection=_hosted("xoxb-old")
+        project_id=project_id,
+        user_id=user_id,
+        guard_user_id=None,
+        connection=_hosted("xoxb-old"),
     )
     await service.archive_connection(
         project_id=project_id, user_id=user_id, connection_id=first.id
     )
 
     again = await service.install_connection(
-        project_id=project_id, user_id=user_id, connection=_hosted("xoxb-new")
+        project_id=project_id,
+        user_id=user_id,
+        guard_user_id=None,
+        connection=_hosted("xoxb-new"),
     )
 
     assert again.id == first.id
@@ -276,7 +282,10 @@ async def test_reinstall_refuses_an_archived_identity_held_by_another_project():
     other_project, user_id = uuid4(), uuid4()
 
     held = await service.install_connection(
-        project_id=other_project, user_id=user_id, connection=_hosted()
+        project_id=other_project,
+        user_id=user_id,
+        guard_user_id=None,
+        connection=_hosted(),
     )
     await service.archive_connection(
         project_id=other_project, user_id=user_id, connection_id=held.id
@@ -284,7 +293,10 @@ async def test_reinstall_refuses_an_archived_identity_held_by_another_project():
 
     with pytest.raises(ChannelConnectionIdentityConflict):
         await service.install_connection(
-            project_id=uuid4(), user_id=user_id, connection=_hosted()
+            project_id=uuid4(),
+            user_id=user_id,
+            guard_user_id=None,
+            connection=_hosted(),
         )
 
     assert dao.inserts == 1
@@ -297,7 +309,10 @@ async def test_install_that_loses_an_insert_race_upserts_onto_the_winner():
     project_id, user_id = uuid4(), uuid4()
 
     winner = await service.install_connection(
-        project_id=project_id, user_id=user_id, connection=_hosted("xoxb-winner")
+        project_id=project_id,
+        user_id=user_id,
+        guard_user_id=None,
+        connection=_hosted("xoxb-winner"),
     )
     winner_row = dao.rows.pop(winner.id)
 
@@ -305,7 +320,10 @@ async def test_install_that_loses_an_insert_race_upserts_onto_the_winner():
     dao.before_insert = lambda: dao.seed(project_id=project_id, row=winner_row)
 
     loser = await service.install_connection(
-        project_id=project_id, user_id=user_id, connection=_hosted("xoxb-loser")
+        project_id=project_id,
+        user_id=user_id,
+        guard_user_id=None,
+        connection=_hosted("xoxb-loser"),
     )
 
     assert loser.id == winner.id
@@ -326,7 +344,10 @@ async def test_custom_reconnect_after_disconnect_restores_the_archived_row():
     project_id, user_id = uuid4(), uuid4()
 
     first = await service.create_connection(
-        project_id=project_id, user_id=user_id, connection=_custom("xoxb-old")
+        project_id=project_id,
+        user_id=user_id,
+        guard_user_id=None,
+        connection=_custom("xoxb-old"),
     )
     await service.archive_connection(
         project_id=project_id, user_id=user_id, connection_id=first.id
@@ -339,6 +360,7 @@ async def test_custom_reconnect_after_disconnect_restores_the_archived_row():
     again = await service.create_connection(
         project_id=project_id,
         user_id=user_id,
+        guard_user_id=None,
         connection=_custom("xoxb-new").model_copy(update={"name": "Renamed bot"}),
     )
 
@@ -357,7 +379,10 @@ async def test_custom_create_refuses_an_archived_identity_in_another_project():
     other_project, user_id = uuid4(), uuid4()
 
     held = await service.create_connection(
-        project_id=other_project, user_id=user_id, connection=_custom()
+        project_id=other_project,
+        user_id=user_id,
+        guard_user_id=None,
+        connection=_custom(),
     )
     await service.archive_connection(
         project_id=other_project, user_id=user_id, connection_id=held.id
@@ -365,7 +390,10 @@ async def test_custom_create_refuses_an_archived_identity_in_another_project():
 
     with pytest.raises(ChannelConnectionIdentityConflict):
         await service.create_connection(
-            project_id=uuid4(), user_id=user_id, connection=_custom()
+            project_id=uuid4(),
+            user_id=user_id,
+            guard_user_id=None,
+            connection=_custom(),
         )
 
     assert dao.inserts == 1
@@ -377,12 +405,15 @@ async def test_custom_create_over_an_active_row_in_this_project_still_conflicts(
     project_id, user_id = uuid4(), uuid4()
 
     await service.create_connection(
-        project_id=project_id, user_id=user_id, connection=_custom()
+        project_id=project_id, user_id=user_id, guard_user_id=None, connection=_custom()
     )
 
     with pytest.raises(EntityCreationConflict):
         await service.create_connection(
-            project_id=project_id, user_id=user_id, connection=_custom()
+            project_id=project_id,
+            user_id=user_id,
+            guard_user_id=None,
+            connection=_custom(),
         )
 
 
@@ -392,7 +423,10 @@ async def test_custom_create_that_races_a_disconnected_row_restores_it():
     project_id, user_id = uuid4(), uuid4()
 
     first = await service.create_connection(
-        project_id=project_id, user_id=user_id, connection=_custom("xoxb-old")
+        project_id=project_id,
+        user_id=user_id,
+        guard_user_id=None,
+        connection=_custom("xoxb-old"),
     )
     archived = dao.rows.pop(first.id).model_copy(
         update={"deleted_at": datetime.now(timezone.utc)}
@@ -400,7 +434,10 @@ async def test_custom_create_that_races_a_disconnected_row_restores_it():
     dao.before_insert = lambda: dao.seed(project_id=project_id, row=archived)
 
     again = await service.create_connection(
-        project_id=project_id, user_id=user_id, connection=_custom("xoxb-new")
+        project_id=project_id,
+        user_id=user_id,
+        guard_user_id=None,
+        connection=_custom("xoxb-new"),
     )
 
     assert again.id == first.id

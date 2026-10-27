@@ -63,7 +63,6 @@ def map_session_state_row_to_dto(row) -> SessionPolicyState:
         stream_id=row.stream_id,
         session_id=row.session_id,
         policy=map_agent_access_dbe_to_dto(row),
-        is_channel=row.channel_binding_id is not None,
         channel_binding_id=row.channel_binding_id,
         references_agent=bool(row.references_agent),
     )

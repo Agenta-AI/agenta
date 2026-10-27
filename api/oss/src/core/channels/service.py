@@ -55,7 +55,6 @@ from oss.src.core.channels.dtos import (
     ChannelTriggerState,
     ChannelTurnInput,
 )
-from oss.src.core.access.context import get_request_access
 from oss.src.core.access.dtos import PrincipalKind, PrincipalRef
 from oss.src.core.access.service import invalidate_principals_after_write
 from oss.src.core.channels.fill import select_forwardfill_range
@@ -64,7 +63,6 @@ from oss.src.core.channels.types import (
     ChannelAgentNotFound,
     ChannelConnectionIdentityConflict,
     ChannelConnectionNotFound,
-    ChannelConnectionRestoreStale,
     ChannelConnectionVerificationFailed,
     ChannelGrantRuleInvalid,
     ChannelLocatorIncomplete,
@@ -168,6 +166,7 @@ class ChannelsService:
         *,
         project_id: UUID,
         user_id: UUID,
+        guard_user_id: Optional[UUID],
         #
         connection: ChannelConnectionCreate,
     ) -> ChannelConnection:
@@ -236,6 +235,7 @@ class ChannelsService:
         reused = await self._reuse_existing_identity(
             project_id=project_id,
             user_id=user_id,
+            guard_user_id=guard_user_id,
             connection=connection,
             capabilities=capabilities,
             locator_input=locator_input,
@@ -289,6 +289,7 @@ class ChannelsService:
                 reused = await self._reuse_existing_identity(
                     project_id=project_id,
                     user_id=user_id,
+                    guard_user_id=guard_user_id,
                     connection=connection,
                     capabilities=capabilities,
                     locator_input=locator_input,
@@ -349,6 +350,7 @@ class ChannelsService:
         *,
         project_id: UUID,
         user_id: UUID,
+        guard_user_id: Optional[UUID],
         connection: ChannelConnectionCreate,
         capabilities: ChannelCapabilities,
         locator_input: Dict[str, Any],
@@ -421,6 +423,7 @@ class ChannelsService:
             reconnected = await self.unarchive_connection(
                 project_id=project_id,
                 user_id=user_id,
+                guard_user_id=guard_user_id,
                 connection_id=reconnected.id,
             )
             if reconnected is None:
@@ -438,6 +441,7 @@ class ChannelsService:
         *,
         project_id: UUID,
         user_id: UUID,
+        guard_user_id: Optional[UUID],
         #
         connection: ChannelConnectionCreate,
     ) -> ChannelConnection:
@@ -551,6 +555,7 @@ class ChannelsService:
                     restored = await self.unarchive_connection(
                         project_id=project_id,
                         user_id=user_id,
+                        guard_user_id=guard_user_id,
                         connection_id=edited.id,
                     )
                     if restored is None:
@@ -862,6 +867,7 @@ class ChannelsService:
         *,
         project_id: UUID,
         user_id: UUID,
+        guard_user_id: Optional[UUID],
         references: Dict[str, Any],
     ) -> ChannelConnection:
         """Create or reuse the one hosted Telegram connection for this project,
@@ -882,6 +888,7 @@ class ChannelsService:
             connection = await self.create_connection(
                 project_id=project_id,
                 user_id=user_id,
+                guard_user_id=guard_user_id,
                 connection=ChannelConnectionCreate(
                     channel="telegram_hosted",
                     slug="agenta-telegram",
@@ -895,6 +902,7 @@ class ChannelsService:
                 await self.unarchive_connection(
                     project_id=project_id,
                     user_id=user_id,
+                    guard_user_id=guard_user_id,
                     connection_id=connection.id,
                 )
                 or connection
@@ -909,6 +917,7 @@ class ChannelsService:
             await self.create_agent(
                 project_id=project_id,
                 user_id=user_id,
+                guard_user_id=guard_user_id,
                 agent=ChannelAgentCreate(
                     connection_id=connection.id,
                     slug="default",
@@ -918,18 +927,14 @@ class ChannelsService:
                 ),
             )
         else:
-            # Per-project connection, retargeted by agent: the connect action
-            # points this project's Telegram at the CALLING agent. If it is a
-            # different agent, this retargets it ("disconnect from agent X and
-            # connect here"). One shared connection, one answering agent. The write
-            # runs also when the answering agent already matches: it is the guarded
-            # write, so a bind link for a private agent's connection is issued only to
-            # its owner (no write would let another caller reuse that binding), also
-            # while the binding is off.
+            # Points this project's one Telegram connection at the calling agent.
+            # Always written, also when the agent already matches: the write is the
+            # owner guard of the bind link.
             answering = next((a for a in active if a.flags.is_default), active[0])
             await self.edit_agent(
                 project_id=project_id,
                 user_id=user_id,
+                guard_user_id=guard_user_id,
                 agent=ChannelAgentEdit(
                     id=answering.id,
                     data=ChannelAgentDataEdit(references=references),
@@ -971,58 +976,61 @@ class ChannelsService:
         *,
         project_id: UUID,
         user_id: UUID,
+        guard_user_id: Optional[UUID],
         #
         connection_id: UUID,
     ) -> Optional[ChannelConnection]:
-        binding_ids = await self._connection_binding_ids(
-            project_id=project_id, connection_id=connection_id
-        )
-        restored = None
-        for attempt in range(2):
-            archived_at, guarded = await self._restored_binding_agents(
-                project_id=project_id, connection_id=connection_id
-            )
-            try:
-                restored = await self.channels_dao.unarchive_connection(
-                    project_id=project_id,
-                    user_id=user_id,
-                    #
-                    connection_id=connection_id,
-                    #
-                    expected_archived_at=archived_at,
-                    guard_artifact_ids=guarded,
-                    guard_user_id=_guard_user_id(),
-                )
-                break
-            except ChannelConnectionRestoreStale:
-                # Archived or restored again since the read: read the bindings again.
-                if attempt == 1:
-                    raise
-        await self._invalidate_bindings(
-            binding_ids=binding_ids, source="channels.unarchive_connection"
-        )
-        return restored
-
-    async def _restored_binding_agents(
-        self, *, project_id: UUID, connection_id: UUID
-    ) -> Tuple[Optional[datetime], Dict[UUID, UUID]]:
-        """The archive instant of this connection, and the agent of each active binding
-        an unarchive restores (archived with it), for the owner guard of the restore.
-        The restore writes only when the connection still has that archive instant. A
-        binding whose agent no longer resolves is left out: it answers nothing."""
+        """Restore the connection and the bindings archived with it. `guard_user_id` is
+        the person who restores (None for any other principal): a restored binding of a
+        private agent that is not theirs comes back off. Raises
+        `ChannelConnectionRestoreStale` when the connection was archived or restored
+        again after the read."""
 
         connection = await self.channels_dao.fetch_connection(
             project_id=project_id, connection_id=connection_id
         )
-        if connection is None or connection.deleted_at is None:
-            return None, {}
+        if connection is None:
+            return None
         agents = await self.channels_dao.query_agents(
             project_id=project_id,
             agent=ChannelAgentQuery(connection_id=connection_id, include_archived=True),
         )
+        restored = await self.channels_dao.unarchive_connection(
+            project_id=project_id,
+            user_id=user_id,
+            #
+            connection_id=connection_id,
+            #
+            expected_archived_at=connection.deleted_at,
+            guard_artifact_ids=await self._restored_binding_guards(
+                project_id=project_id,
+                archived_at=connection.deleted_at,
+                agents=agents,
+            ),
+            guard_user_id=guard_user_id,
+        )
+        await self._invalidate_bindings(
+            binding_ids=[agent.id for agent in agents],
+            source="channels.unarchive_connection",
+        )
+        return restored
+
+    async def _restored_binding_guards(
+        self,
+        *,
+        project_id: UUID,
+        archived_at: Optional[datetime],
+        agents: List[ChannelAgent],
+    ) -> Dict[UUID, UUID]:
+        """The agent of each active binding the restore brings back (archived with the
+        connection), for the owner guard. A binding whose agent no longer resolves is
+        left out: it answers nothing."""
+
         guarded: Dict[UUID, UUID] = {}
+        if archived_at is None:
+            return guarded
         for agent in agents:
-            if agent.deleted_at != connection.deleted_at or not agent.flags.is_active:
+            if agent.deleted_at != archived_at or not agent.flags.is_active:
                 continue
             try:
                 artifact_id = await self._activation_guard(
@@ -1034,7 +1042,7 @@ class ChannelsService:
                 continue
             if artifact_id is not None:
                 guarded[agent.id] = artifact_id
-        return connection.deleted_at, guarded
+        return guarded
 
     async def describe_connection_restore(
         self,
@@ -1334,6 +1342,7 @@ class ChannelsService:
         *,
         project_id: UUID,
         user_id: UUID,
+        guard_user_id: Optional[UUID],
         #
         agent: ChannelAgentEdit,
         guard_inactive: bool = False,
@@ -1374,7 +1383,7 @@ class ChannelsService:
             agent=agent,
             #
             guard_artifact_id=guard_artifact_id,
-            guard_user_id=_guard_user_id(),
+            guard_user_id=guard_user_id,
         )
 
     async def create_agent(
@@ -1382,6 +1391,7 @@ class ChannelsService:
         *,
         project_id: UUID,
         user_id: UUID,
+        guard_user_id: Optional[UUID],
         #
         agent: ChannelAgentCreate,
     ) -> ChannelAgent:
@@ -1404,7 +1414,7 @@ class ChannelsService:
             agent=agent,
             #
             guard_artifact_id=guard_artifact_id,
-            guard_user_id=_guard_user_id(),
+            guard_user_id=guard_user_id,
         )
 
     async def fetch_agent(
@@ -1425,6 +1435,7 @@ class ChannelsService:
         *,
         project_id: UUID,
         user_id: UUID,
+        guard_user_id: Optional[UUID],
         #
         agent: ChannelAgentEdit,
         guard_inactive: bool = False,
@@ -1439,6 +1450,7 @@ class ChannelsService:
         edited = await self._edit_agent_row(
             project_id=project_id,
             user_id=user_id,
+            guard_user_id=guard_user_id,
             #
             agent=_layer_agent_edit(existing=existing, edit=agent),
             guard_inactive=guard_inactive,
@@ -1486,6 +1498,7 @@ class ChannelsService:
         *,
         project_id: UUID,
         user_id: UUID,
+        guard_user_id: Optional[UUID],
         #
         agent_id: UUID,
     ) -> ChannelAgent:
@@ -1514,6 +1527,7 @@ class ChannelsService:
         updated = await self._edit_agent_row(
             project_id=project_id,
             user_id=user_id,
+            guard_user_id=guard_user_id,
             #
             agent=ChannelAgentEdit(
                 id=agent.id,
@@ -3106,15 +3120,3 @@ def _channel_defaults(capabilities: ChannelCapabilities):
         backfill=capabilities.fill.backfill.supported,
         forwardfill=capabilities.fill.forwardfill.supported,
     )
-
-
-def _guard_user_id() -> Optional[UUID]:
-    """The person whose request writes the binding: only a human principal can be the
-    owner a private agent's binding needs. An API key, a run credential of an
-    installation or any other non-human principal, and a write outside a request, get
-    None, so they never activate a private agent's binding (`guard_agent_activation`)."""
-
-    access = get_request_access()
-    if access is None or access.principal.kind != PrincipalKind.HUMAN:
-        return None
-    return access.principal.id

@@ -960,6 +960,7 @@ async def test_flags_only_reactivation_is_guarded(monkeypatch):
                 await write(
                     project_id=project_id,
                     user_id=bob,
+                    guard_user_id=bob,
                     agent=ChannelAgentEdit(
                         id=inactive.id, flags=ChannelAgentFlags(is_active=True)
                     ),
@@ -978,6 +979,7 @@ async def test_flags_only_reactivation_is_guarded(monkeypatch):
         edited = await _service(shared).edit_agent(
             project_id=project_id,
             user_id=alice,
+            guard_user_id=alice,
             agent=ChannelAgentEdit(
                 id=inactive.id, flags=ChannelAgentFlags(is_active=True)
             ),

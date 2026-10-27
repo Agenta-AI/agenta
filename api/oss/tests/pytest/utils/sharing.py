@@ -114,8 +114,7 @@ class InMemorySharingDAO(SharingDAOInterface):
             stream_id=stream_id or uuid4(),
             session_id=session_id or f"s-{uuid4().hex}",
             policy=policy,
-            is_channel=is_channel or channel_binding_id is not None,
-            channel_binding_id=channel_binding_id,
+            channel_binding_id=channel_binding_id or (uuid4() if is_channel else None),
             references_agent=references_agent,
         )
         target = self.legacy_sessions if legacy else self.sessions

@@ -157,7 +157,10 @@ async def test_absent_owner_memberships_are_kept_for_the_request(fake_cache, mem
 
 async def test_a_channel_session_entry_says_so_at_creation(fake_cache):
     world = SharingWorld()
-    state = world.add_session(policy=AccessPolicy(visibility=Visibility.PROJECT))
+    binding = uuid4()
+    state = world.add_session(
+        policy=AccessPolicy(visibility=Visibility.PROJECT), channel_binding_id=binding
+    )
     world.dao.reads.clear()
     await cache_created_session_access(
         project_id=world.project_id,
@@ -165,6 +168,7 @@ async def test_a_channel_session_entry_says_so_at_creation(fake_cache):
         stream_id=state.stream_id,
         policy=AccessPolicy(visibility=Visibility.PROJECT),
         is_channel=True,
+        channel_binding_id=binding,
     )
 
     sharing = await world.service.cached_session_sharing(
@@ -176,3 +180,30 @@ async def test_a_channel_session_entry_says_so_at_creation(fake_cache):
 
     assert sharing.not_shareable_reason.value == "channel"
     assert world.dao.reads == []  # no fallback read of the row
+
+
+async def test_a_channel_entry_without_its_binding_is_read_again(fake_cache, memo):
+    """An entry cached before entries carried the channel binding (`is_channel` only)
+    is a miss: the row is read, so the session's own binding is not refused while the
+    old entry lives."""
+    world = SharingWorld()
+    alice = world.add_member(uuid4())
+    binding = uuid4()
+    policy = AccessPolicy(visibility=Visibility.PRIVATE, owner_user_id=alice)
+    state = world.add_session(policy=policy, channel_binding_id=binding)
+    await cache_created_session_access(
+        project_id=world.project_id,
+        session_id=state.session_id,
+        stream_id=state.stream_id,
+        policy=policy,
+        is_channel=True,
+    )
+    prefetch.forget(session_access_entry(world.project_id, state.session_id))
+    world.dao.reads.clear()
+
+    access = await world.service._session_access(
+        project_id=world.project_id, session_id=state.session_id
+    )
+
+    assert access.channel_binding_id == binding
+    assert world.dao.reads != []  # the row was read

@@ -148,6 +148,7 @@ async def test_a_policy_only_edit_keeps_the_agent_the_default():
     await service.edit_agent(
         project_id=uuid4(),
         user_id=uuid4(),
+        guard_user_id=None,
         agent=ChannelAgentEdit(
             id=existing.id,
             data={"policy": {"forwardfill": False}},
@@ -168,6 +169,7 @@ async def test_a_rename_keeps_the_agent_references_and_policy():
     await service.edit_agent(
         project_id=uuid4(),
         user_id=uuid4(),
+        guard_user_id=None,
         agent=ChannelAgentEdit(id=existing.id, name="Triage"),
     )
 
@@ -184,6 +186,7 @@ async def test_editing_an_unknown_agent_returns_none():
     result = await service.edit_agent(
         project_id=uuid4(),
         user_id=uuid4(),
+        guard_user_id=None,
         agent=ChannelAgentEdit(id=uuid4(), name="x"),
     )
 
@@ -198,6 +201,7 @@ async def test_an_explicit_null_policy_clears_it():
     await service.edit_agent(
         project_id=uuid4(),
         user_id=uuid4(),
+        guard_user_id=None,
         agent=ChannelAgentEdit(id=existing.id, data={"policy": None}),
     )
 
@@ -372,6 +376,7 @@ async def test_connect_here_retargets_the_answering_agent_to_this_app():
     await service.ensure_hosted_telegram_connection(
         project_id=uuid4(),
         user_id=uuid4(),
+        guard_user_id=None,
         references={"application": {"id": str(app_b)}},
     )
 
@@ -385,10 +390,8 @@ async def test_connect_here_retargets_the_answering_agent_to_this_app():
 async def test_connect_here_is_guarded_when_this_agent_already_answers():
     """The answering agent already matches: the write still runs, because it is the
     guarded write. A bind link for a private agent's connection is issued only to its
-    owner as a person; outside a person's request the guard gets no user, so the DAO
-    refuses a private agent."""
-    from oss.src.core.access.context import reset_request_access, set_request_access
-    from oss.tests.pytest.utils.principals import make_envelope, make_request_access
+    owner as a person: the guard user is the one the route passes (None for an API
+    key), so the DAO refuses a private agent that is not theirs."""
 
     conn = _hosted_conn()
     app_a = uuid4()
@@ -398,6 +401,7 @@ async def test_connect_here_is_guarded_when_this_agent_already_answers():
     await service.ensure_hosted_telegram_connection(
         project_id=uuid4(),
         user_id=uuid4(),
+        guard_user_id=None,
         references={"application": {"id": str(app_a)}},
     )
     dao.edit_agent.assert_awaited_once()
@@ -408,20 +412,12 @@ async def test_connect_here_is_guarded_when_this_agent_already_answers():
 
     alice = uuid4()
     service, dao = _ensure_service(conn, agent)
-    token = set_request_access(
-        make_request_access(
-            envelope=make_envelope(principal_id=alice),
-            credential_kind="bearer_session",
-        )
+    await service.ensure_hosted_telegram_connection(
+        project_id=uuid4(),
+        user_id=alice,
+        guard_user_id=alice,
+        references={"application": {"id": str(app_a)}},
     )
-    try:
-        await service.ensure_hosted_telegram_connection(
-            project_id=uuid4(),
-            user_id=alice,
-            references={"application": {"id": str(app_a)}},
-        )
-    finally:
-        reset_request_access(token)
     assert dao.edit_agent.await_args.kwargs["guard_user_id"] == alice
 
     # An inactive answering binding is guarded too: a link issued now would reach
@@ -433,6 +429,7 @@ async def test_connect_here_is_guarded_when_this_agent_already_answers():
     await service.ensure_hosted_telegram_connection(
         project_id=uuid4(),
         user_id=uuid4(),
+        guard_user_id=None,
         references={"application": {"id": str(app_a)}},
     )
     assert dao.edit_agent.await_args.kwargs["guard_artifact_id"] is not None
@@ -469,6 +466,7 @@ async def test_reconnect_after_disconnect_reuses_the_restored_agent():
     result = await service.ensure_hosted_telegram_connection(
         project_id=uuid4(),
         user_id=uuid4(),
+        guard_user_id=None,
         references={"application": {"id": str(app_b)}},
     )
 
@@ -480,49 +478,44 @@ async def test_reconnect_after_disconnect_reuses_the_restored_agent():
     assert str(written.data.references["application"].id) == str(app_b)
 
 
-async def test_a_stale_restore_reads_and_guards_the_bindings_again():
-    """The connection was archived again after the restore read its bindings: the DAO
-    refuses (stale), and the service reads the new archive instant and the agents of
-    the bindings archived with it, then restores once more with those."""
-    from datetime import datetime, timedelta, timezone
+async def test_a_restore_reads_once_and_a_stale_one_is_refused():
+    """The restore reads the bindings once and writes only for the archive it read,
+    as the person the route names. When the connection was archived again since, the
+    DAO refuses (stale) and nothing is retried: the route answers 409."""
+    from datetime import datetime, timezone
 
     from oss.src.core.channels.types import ChannelConnectionRestoreStale
 
-    first_at = datetime.now(timezone.utc)
-    second_at = first_at + timedelta(seconds=1)
-    conn = _hosted_conn()
+    archived_at = datetime.now(timezone.utc)
+    conn = _hosted_conn().model_copy(update={"deleted_at": archived_at})
     app = uuid4()
-    first = _agent_with_ref(conn.id, str(app)).model_copy(
-        update={"deleted_at": first_at}
-    )
-    second = _agent_with_ref(conn.id, str(app)).model_copy(
-        update={"deleted_at": second_at}
+    binding = _agent_with_ref(conn.id, str(app)).model_copy(
+        update={"deleted_at": archived_at}
     )
     dao = MagicMock()
-    dao.query_agents = AsyncMock(side_effect=[[first], [first], [second]])
-    dao.fetch_connection = AsyncMock(
-        side_effect=[
-            conn.model_copy(update={"deleted_at": first_at}),
-            conn.model_copy(update={"deleted_at": second_at}),
-        ]
-    )
-    restored = conn.model_copy(update={"deleted_at": None})
+    dao.query_agents = AsyncMock(return_value=[binding])
+    dao.fetch_connection = AsyncMock(return_value=conn)
     dao.unarchive_connection = AsyncMock(
-        side_effect=[ChannelConnectionRestoreStale(connection_id=conn.id), restored]
+        side_effect=ChannelConnectionRestoreStale(connection_id=conn.id)
     )
-    resolver = ProjectAgentResolver()
     service = ChannelsService(
         channels_dao=dao,
         adapter_registry=ChannelAdapterRegistry(adapters={}),
-        workflows_service=resolver,
+        workflows_service=ProjectAgentResolver(),
     )
+    alice = uuid4()
 
-    result = await service.unarchive_connection(
-        project_id=uuid4(), user_id=uuid4(), connection_id=conn.id
-    )
+    with pytest.raises(ChannelConnectionRestoreStale):
+        await service.unarchive_connection(
+            project_id=uuid4(),
+            user_id=alice,
+            guard_user_id=alice,
+            connection_id=conn.id,
+        )
 
-    assert result == restored
-    calls = [c.kwargs for c in dao.unarchive_connection.await_args_list]
-    assert [c["expected_archived_at"] for c in calls] == [first_at, second_at]
-    assert list(calls[0]["guard_artifact_ids"]) == [first.id]
-    assert list(calls[1]["guard_artifact_ids"]) == [second.id]
+    dao.query_agents.assert_awaited_once()
+    call = dao.unarchive_connection.await_args.kwargs
+    assert call["expected_archived_at"] == archived_at
+    assert list(call["guard_artifact_ids"]) == [binding.id]
+    assert call["guard_user_id"] == alice
+    dao.unarchive_connection.assert_awaited_once()

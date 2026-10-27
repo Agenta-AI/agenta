@@ -80,11 +80,15 @@ class SessionPolicyState(BaseModel):
     stream_id: UUID
     session_id: str
     policy: AccessPolicy
-    is_channel: bool  # a channel_threads row names this session
     # The channel binding (installation) of the session's newest thread; None when no
     # thread names it. Every thread of a session has the same binding.
     channel_binding_id: Optional[UUID] = None
     references_agent: bool  # session_streams.references names an agent
+
+    @property
+    def is_channel(self) -> bool:
+        """A channel_threads row names this session."""
+        return self.channel_binding_id is not None
 
 
 class SessionTombstone(BaseModel):

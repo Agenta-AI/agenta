@@ -199,7 +199,7 @@ async def test_create_composes_the_key_from_declared_locator_plus_discovered_fie
     )
 
     result = await service.create_connection(
-        project_id=uuid4(), user_id=uuid4(), connection=connection
+        project_id=uuid4(), user_id=uuid4(), guard_user_id=None, connection=connection
     )
 
     expected_key = compose_external_key(
@@ -235,7 +235,7 @@ async def test_create_writes_a_credential_secret_and_a_connection_row_on_success
     )
 
     result = await service.create_connection(
-        project_id=uuid4(), user_id=uuid4(), connection=connection
+        project_id=uuid4(), user_id=uuid4(), guard_user_id=None, connection=connection
     )
 
     assert len(vault.create_calls) == 1
@@ -279,7 +279,7 @@ async def test_verify_runs_before_the_secret_and_the_connection_are_written():
     )
 
     await service.create_connection(
-        project_id=uuid4(), user_id=uuid4(), connection=connection
+        project_id=uuid4(), user_id=uuid4(), guard_user_id=None, connection=connection
     )
 
     assert order == ["verify", "secret", "connection"]
@@ -305,7 +305,10 @@ async def test_failed_verification_writes_neither_row():
 
     with pytest.raises(ChannelConnectionVerificationFailed):
         await service.create_connection(
-            project_id=uuid4(), user_id=uuid4(), connection=connection
+            project_id=uuid4(),
+            user_id=uuid4(),
+            guard_user_id=None,
+            connection=connection,
         )
 
     dao.create_connection.assert_not_awaited()
@@ -326,7 +329,7 @@ async def test_a_channel_with_no_credentials_verifies_trivially_and_writes_no_se
     )
 
     result = await service.create_connection(
-        project_id=uuid4(), user_id=uuid4(), connection=connection
+        project_id=uuid4(), user_id=uuid4(), guard_user_id=None, connection=connection
     )
 
     assert "credential_secret_id" not in result.data
@@ -348,7 +351,7 @@ async def test_no_response_body_contains_a_secret_value():
     )
 
     result = await service.create_connection(
-        project_id=uuid4(), user_id=uuid4(), connection=connection
+        project_id=uuid4(), user_id=uuid4(), guard_user_id=None, connection=connection
     )
 
     payload = ChannelConnectionResponse(count=1, connection=result).model_dump_json()
@@ -389,6 +392,7 @@ async def test_custom_telegram_reconnect_reuses_an_archived_bot_connection():
     result = await service.create_connection(
         project_id=project_id,
         user_id=user_id,
+        guard_user_id=None,
         connection=ChannelConnectionCreate(
             channel="telegram", credentials={"bot_token": "unit-test-token"}
         ),
@@ -434,7 +438,10 @@ async def test_two_projects_one_installation_collide_on_a_domain_error_not_a_500
 
     with pytest.raises(EntityCreationConflict):
         await service.create_connection(
-            project_id=uuid4(), user_id=uuid4(), connection=connection
+            project_id=uuid4(),
+            user_id=uuid4(),
+            guard_user_id=None,
+            connection=connection,
         )
 
 
@@ -522,7 +529,7 @@ async def test_create_derives_the_slug_from_the_name_with_a_short_suffix():
     )
 
     result = await service.create_connection(
-        project_id=uuid4(), user_id=uuid4(), connection=connection
+        project_id=uuid4(), user_id=uuid4(), guard_user_id=None, connection=connection
     )
 
     base, _, suffix = result.slug.rpartition("-")
@@ -543,7 +550,7 @@ async def test_create_names_the_connection_after_the_workspace_when_no_name_is_s
     )
 
     result = await service.create_connection(
-        project_id=uuid4(), user_id=uuid4(), connection=connection
+        project_id=uuid4(), user_id=uuid4(), guard_user_id=None, connection=connection
     )
 
     assert result.name == "Agenta"
@@ -567,7 +574,10 @@ async def test_two_creates_with_the_same_name_get_different_slugs():
             credentials={"bot_token": _CANARY_TOKEN, "signing_secret": "sec"},
         )
         result = await service.create_connection(
-            project_id=uuid4(), user_id=uuid4(), connection=connection
+            project_id=uuid4(),
+            user_id=uuid4(),
+            guard_user_id=None,
+            connection=connection,
         )
         slugs.add(result.slug)
 
@@ -588,7 +598,7 @@ async def test_a_caller_supplied_slug_and_name_are_kept_as_given():
     )
 
     result = await service.create_connection(
-        project_id=uuid4(), user_id=uuid4(), connection=connection
+        project_id=uuid4(), user_id=uuid4(), guard_user_id=None, connection=connection
     )
 
     assert (result.slug, result.name) == ("acme", "Acme")
@@ -623,7 +633,10 @@ async def test_a_failed_insert_discards_the_secret_it_just_wrote():
 
     with pytest.raises(EntityCreationConflict):
         await service.create_connection(
-            project_id=uuid4(), user_id=uuid4(), connection=connection
+            project_id=uuid4(),
+            user_id=uuid4(),
+            guard_user_id=None,
+            connection=connection,
         )
 
     assert len(vault.create_calls) == 1
@@ -654,7 +667,10 @@ async def test_an_unrelated_integrity_error_names_the_constraint_not_a_duplicate
 
     with pytest.raises(EntityCreationConflict) as caught:
         await service.create_connection(
-            project_id=uuid4(), user_id=uuid4(), connection=connection
+            project_id=uuid4(),
+            user_id=uuid4(),
+            guard_user_id=None,
+            connection=connection,
         )
 
     assert "already exists" not in str(caught.value)
@@ -688,5 +704,8 @@ async def test_a_failed_secret_cleanup_still_surfaces_the_conflict():
     # the cleanup is best effort: the caller sees the real error, never the cleanup's
     with pytest.raises(EntityCreationConflict):
         await service.create_connection(
-            project_id=uuid4(), user_id=uuid4(), connection=connection
+            project_id=uuid4(),
+            user_id=uuid4(),
+            guard_user_id=None,
+            connection=connection,
         )

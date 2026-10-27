@@ -17,10 +17,8 @@ from typing import Any, Awaitable, Callable, Dict, Iterable, List, Optional, Tup
 from uuid import UUID
 
 from oss.src.core.access.dtos import (
-    PrincipalKind,
     PrincipalRef,
     RunEnvelope,
-    RunOrigin,
 )
 from oss.src.utils.logging import get_module_logger
 
@@ -94,6 +92,7 @@ from oss.src.core.sharing.types import AdmissionDenied
 from oss.src.core.workflows.types import AgentReferenceUnresolved
 from oss.src.core.sharing.service import (
     cache_created_session_access,
+    channel_binding_of,
     channel_session_policy,
     created_session_access,
     get_sharing_service,
@@ -1056,10 +1055,7 @@ class SessionStreamsService:
             # A channel session is the one its installation's run creates: private to the
             # agent's owner when the agent is private. One memo for both: the policy read
             # takes the agent entry the admission read (no round trip).
-            by_channel_run = (
-                envelope.context.origin == RunOrigin.INSTALLATION
-                and envelope.authority.principal.kind == PrincipalKind.INSTALLATION
-            )
+            channel_binding_id = channel_binding_of(envelope)
             with request_memo_scope():
                 agent_artifact_id = await run_admission.admit_turn(
                     envelope=admission_envelope,
@@ -1067,7 +1063,7 @@ class SessionStreamsService:
                     project_id=project_id,
                     references=request.references,
                 )
-                if by_channel_run:
+                if channel_binding_id is not None:
                     access = await channel_session_policy(
                         project_id=project_id, agent_artifact_id=agent_artifact_id
                     )
@@ -1086,9 +1082,7 @@ class SessionStreamsService:
                         name=normalize_session_name(request.name),
                         references=request.references or None,
                         access=access,
-                        channel_binding_id=(
-                            envelope.authority.principal.id if by_channel_run else None
-                        ),
+                        channel_binding_id=channel_binding_id,
                     ),
                 )
             except SessionStreamAlreadyExists:

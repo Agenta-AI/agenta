@@ -68,6 +68,7 @@ from oss.src.core.channels.dtos import (
 from oss.src.core.channels.types import (
     ChannelAgentNotFound,
     ChannelConnectionIdentityConflict,
+    ChannelConnectionRestoreStale,
     ChannelConnectionIncomplete,
     ChannelConnectionKeyUndeclared,
     ChannelConnectionNotFound,
@@ -80,6 +81,7 @@ from oss.src.core.channels.types import (
     ChannelThreadNotFound,
 )
 from oss.src.core.gateway.connections.utils import decode_oauth_state, make_oauth_state
+from oss.src.core.access.dtos import PrincipalKind
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
@@ -558,12 +560,15 @@ class ChannelsRouter:
             connection = await self.channels_service.ensure_hosted_telegram_connection(
                 project_id=project_id,
                 user_id=user_id,
+                guard_user_id=_human_user_id(request),
                 references=body.references,
             )
         except SharedItemNotFound as e:
             # An unknown or unresolvable agent, or a private agent of someone else, cannot
             # answer a channel.
             raise not_found_exception() from e
+        except ChannelConnectionRestoreStale as e:
+            raise _restore_conflict() from e
         url = await self.telegram_binding_service.issue_bind_link(
             project_id=project_id,
             user_id=user_id,
@@ -692,6 +697,8 @@ class ChannelsRouter:
             project_id=UUID(request.state.project_id),
             user_id=UUID(str(request.state.user_id)),
             secret_key=env.agenta.crypt_key,
+            # The callback restores bindings as this person only when a person started it.
+            is_human=_human_user_id(request) is not None,
         )
 
         return RedirectResponse(
@@ -800,6 +807,7 @@ class ChannelsRouter:
             await self.channels_service.install_connection(
                 project_id=project_id,
                 user_id=user_id,
+                guard_user_id=user_id if state_payload.get("human") is True else None,
                 connection=ChannelConnectionCreate(
                     channel="slack",
                     data={"scopes": scopes, "api_app_id": exchange.app_id},
@@ -852,6 +860,7 @@ class ChannelsRouter:
             connection = await self.channels_service.create_connection(
                 project_id=UUID(request.state.project_id),
                 user_id=UUID(str(request.state.user_id)),
+                guard_user_id=_human_user_id(request),
                 #
                 connection=body.connection,
             )
@@ -866,6 +875,8 @@ class ChannelsRouter:
             raise HTTPException(status_code=400, detail=str(e)) from e
         except ChannelConnectionIdentityConflict as e:
             raise HTTPException(status_code=409, detail=str(e)) from e
+        except ChannelConnectionRestoreStale as e:
+            raise _restore_conflict() from e
 
         setup = None
         one_time_secret = getattr(connection, "one_time_secret", None)
@@ -989,12 +1000,16 @@ class ChannelsRouter:
     ) -> ChannelConnectionTeardownResponse:
         await self._check(request, Permission.EDIT_CHANNELS)
 
-        connection = await self.channels_service.unarchive_connection(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(str(request.state.user_id)),
-            #
-            connection_id=connection_id,
-        )
+        try:
+            connection = await self.channels_service.unarchive_connection(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(str(request.state.user_id)),
+                guard_user_id=_human_user_id(request),
+                #
+                connection_id=connection_id,
+            )
+        except ChannelConnectionRestoreStale as e:
+            raise _restore_conflict() from e
         if connection is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -1062,6 +1077,7 @@ class ChannelsRouter:
             agent = await self.channels_service.create_agent(
                 project_id=UUID(request.state.project_id),
                 user_id=UUID(str(request.state.user_id)),
+                guard_user_id=_human_user_id(request),
                 #
                 agent=body.agent,
             )
@@ -1143,6 +1159,7 @@ class ChannelsRouter:
             agent = await self.channels_service.edit_agent(
                 project_id=UUID(request.state.project_id),
                 user_id=UUID(str(request.state.user_id)),
+                guard_user_id=_human_user_id(request),
                 #
                 agent=body.agent,
             )
@@ -1189,6 +1206,7 @@ class ChannelsRouter:
             agent = await self.channels_service.set_agent_default(
                 project_id=UUID(request.state.project_id),
                 user_id=UUID(str(request.state.user_id)),
+                guard_user_id=_human_user_id(request),
                 #
                 agent_id=agent_id,
             )
@@ -1657,3 +1675,20 @@ class ChannelsRouter:
         items.sort(key=lambda item: (item.created_at or _epoch, item.id))
 
         return AgentaConversationResponse(count=len(items), items=items)
+
+
+def _human_user_id(request: Request) -> Optional[UUID]:
+    """The person who makes the request: only a person activates a binding of their own
+    private agent. None for an API key or a channel run credential."""
+
+    principal = getattr(request.state, "principal", None)
+    if principal is None or principal.kind != PrincipalKind.HUMAN:
+        return None
+    return principal.id
+
+
+def _restore_conflict() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail="The channel connection changed during the restore. Try again.",
+    )

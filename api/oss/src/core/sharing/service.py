@@ -26,6 +26,7 @@ from oss.src.core.access.dtos import (
     ResourceKind,
     ResourceRef,
     RunContext,
+    RunEnvelope,
     RunOrigin,
 )
 from oss.src.core.access.interfaces import ResourcePolicyInterface
@@ -423,14 +424,6 @@ class SharingService(ResourcePolicyInterface):
         """The agent's policy through `sharing_agent_access`. "No row"
         (`policy=None`) is cached too."""
 
-        # Kept in the request memo whatever the cache answers, so a later read in this
-        # request (the channel session policy after the admission) makes no round trip
-        # even when the cache write failed.
-        memo = get_request_memo()
-        memo_key = (AGENT_ACCESS_NAMESPACE, str(project_id), str(artifact_id))
-        if memo is not None and memo_key in memo:
-            return memo[memo_key]
-
         key = {"a": str(artifact_id)}
         cached = await _get(
             namespace=AGENT_ACCESS_NAMESPACE,
@@ -450,8 +443,6 @@ class SharingService(ResourcePolicyInterface):
                 key=key,
                 value=cached,
             )
-        if memo is not None:
-            memo[memo_key] = cached
         return cached
 
     async def _session_access(
@@ -485,7 +476,11 @@ class SharingService(ResourcePolicyInterface):
             key=key,
             model=CachedSessionAccess,
         )
-        if cached is not None and not cached.missing:
+        if (
+            cached is not None
+            and not cached.missing
+            and not _is_old_channel_entry(cached)
+        ):
             return cached, None
 
         # "No row" is never cached: a cached absence would authorize a row an insert
@@ -712,14 +707,14 @@ class SharingService(ResourcePolicyInterface):
         )
         if access is None:
             return None
-        is_channel = access.is_channel
-        if is_channel is None:  # an ownerless session's first read of this field
+        binding_id = access.channel_binding_id
+        if access.is_channel is None:  # an ownerless session's first read of this field
             state = await self._dao.fetch_session_policy(
                 project_id=project_id, session_id=session_id
             )
             if state is None:
                 return None
-            is_channel = state.is_channel
+            binding_id = state.channel_binding_id
             # Kept in the entry, so the next read of the session makes no SQL read.
             await _set(
                 namespace=SESSION_ACCESS_NAMESPACE,
@@ -727,8 +722,8 @@ class SharingService(ResourcePolicyInterface):
                 key={"s": session_id},
                 value=access.model_copy(
                     update={
-                        "is_channel": is_channel,
-                        "channel_binding_id": state.channel_binding_id,
+                        "is_channel": state.is_channel,
+                        "channel_binding_id": binding_id,
                     }
                 ),
             )
@@ -736,7 +731,7 @@ class SharingService(ResourcePolicyInterface):
             stream_id=access.stream_id,
             session_id=session_id,
             policy=access.policy,
-            is_channel=is_channel,
+            channel_binding_id=binding_id,
             references_agent=references_agent,
         )
         try:
@@ -1219,6 +1214,12 @@ def prefetch_session_read_scope(*, project_id: UUID, principal: PrincipalRef) ->
         prefetch.register(user_grants_entry(project_id, user_id))
 
 
+def channel_binding_of(envelope: RunEnvelope) -> Optional[UUID]:
+    """The channel binding whose own channel turn this run is; None for any other run."""
+    principal = envelope.authority.principal
+    return principal.id if _is_channel_turn(principal, envelope.context) else None
+
+
 async def channel_session_policy(
     *, project_id: UUID, agent_artifact_id: Optional[UUID]
 ) -> AccessPolicy:
@@ -1298,12 +1299,19 @@ async def cache_created_session_access(
         value=value,
     )
     if written is False:
-        # A cached "no row" must not survive the row: delete it instead.
+        # A cached "no row" must not survive the row: delete it instead. The entry was
+        # built here, not read from the row, so this request does not keep it either.
+        prefetch.forget(session_access_entry(project_id, session_id))
         await _invalidate(
             namespace=SESSION_ACCESS_NAMESPACE,
             project_id=project_id,
             key={"s": session_id},
         )
+
+
+def _is_old_channel_entry(entry: CachedSessionAccess) -> bool:
+    """A channel entry written before entries carried the binding: read the row again."""
+    return bool(entry.is_channel) and entry.channel_binding_id is None
 
 
 def _human_id(principal: PrincipalRef) -> Optional[UUID]:
@@ -1379,8 +1387,9 @@ async def _set(
     nx: bool = False,
 ) -> bool:
     """True when the entry was written or caching is off; False on a Redis error (and
-    on an `nx` write that found a value)."""
-    written: Optional[bool] = False
+    on an `nx` write that found a value). The request keeps the value, except when an
+    `nx` write found another one."""
+    written: Optional[bool] = None
     try:
         written = await set_cache(
             namespace=namespace,
@@ -1393,10 +1402,9 @@ async def _set(
             release_lock=False,
         )
     except Exception:  # pylint: disable=broad-exception-caught
-        written = False
-    if written is False or (written is None and _caching_enabled()):
-        # Not stored (a Redis error, or an `nx` write that found a value): this request
-        # must not treat its value as what the cache holds.
+        written = None
+    if written is False:
+        # An `nx` write found a newer value: this request must not keep its own.
         prefetch.forget(
             _entry(
                 namespace=namespace,
