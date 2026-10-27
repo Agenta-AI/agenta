@@ -310,12 +310,56 @@ export async function isMounted(
   }
 }
 
+/** One started geesefs process. `alive` is true when the attempt itself already saw the mount serve I/O. */
+export interface GeesefsAttempt {
+  stop: () => Promise<void>;
+  alive?: boolean;
+}
+
+/** The line geesefs writes to stderr once the FUSE mount is attached. */
+const GEESEFS_MOUNTED_LINE = /successfully mounted/i;
+
+export interface WaitForMountReadyOptions {
+  /** One readiness probe (production: `isMounted`). */
+  check: () => Promise<boolean>;
+  /** Waits up to `ms`; production resolves early when geesefs reports the mount or exits. */
+  sleep: (ms: number) => Promise<void>;
+  /** True once the geesefs process exited: a foreground geesefs that exited serves nothing. */
+  exited?: () => boolean;
+  timeoutMs?: number;
+  firstIntervalMs?: number;
+  maxIntervalMs?: number;
+  now?: () => number;
+}
+
+/**
+ * Probe until the mount serves I/O, geesefs exits, or the timeout passes. The interval starts
+ * short and doubles to a cap, so a mount that attaches in under a second is seen within ~50 ms
+ * instead of on the next 500 ms tick, while a slow mount is not probed in a tight loop.
+ */
+export async function waitForMountReady(
+  opts: WaitForMountReadyOptions,
+): Promise<boolean> {
+  const now = opts.now ?? Date.now;
+  const deadline = now() + (opts.timeoutMs ?? 15_000);
+  const maxInterval = opts.maxIntervalMs ?? 500;
+  let interval = opts.firstIntervalMs ?? 50;
+  for (;;) {
+    if (await opts.check()) return true;
+    if (opts.exited?.()) return false;
+    const remaining = deadline - now();
+    if (remaining <= 0) return false;
+    await opts.sleep(Math.min(interval, remaining));
+    interval = Math.min(interval * 2, maxInterval);
+  }
+}
+
 export interface MountStorageDeps {
   /** Injectable mount attempt for tests; the returned stop handle prevents a late FUSE attach. */
   runGeesefs?: (
     args: string[],
     env: Record<string, string>,
-  ) => Promise<{ stop: () => Promise<void> } | void>;
+  ) => Promise<GeesefsAttempt | void>;
   checkMounted?: (cwd: string) => Promise<boolean>;
   /** Opt-in geesefs behaviors; absent keeps today's argv. */
   geesefs?: GeesefsOptions;
@@ -385,24 +429,60 @@ export async function mountStorage(
         stdio: ["ignore", "ignore", "pipe"],
       });
       let processExited = false;
+      // Wakes a pending readiness sleep early. `pendingWake` covers a signal that arrives while a
+      // probe is running, so the next sleep returns at once instead of waiting out its interval.
+      let wake: (() => void) | undefined;
+      let pendingWake = false;
+      const signalReady = () => {
+        if (wake) wake();
+        else pendingWake = true;
+      };
+      const sleep = (ms: number) =>
+        new Promise<void>((resolve) => {
+          if (pendingWake) {
+            pendingWake = false;
+            resolve();
+            return;
+          }
+          const timer = setTimeout(() => {
+            wake = undefined;
+            resolve();
+          }, ms);
+          wake = () => {
+            clearTimeout(timer);
+            wake = undefined;
+            resolve();
+          };
+        });
       const exited = new Promise<void>((resolve) => {
         child.once("exit", () => {
           processExited = true;
+          signalReady();
           resolve();
         });
       });
+      // A chunk can split the line, so match against the tail of what was read so far.
+      let stderrTail = "";
       child.stderr?.on("data", (d) => {
-        const s = String(d).trim();
+        const raw = String(d);
+        stderrTail = (stderrTail + raw).slice(-512);
+        if (GEESEFS_MOUNTED_LINE.test(stderrTail)) {
+          stderrTail = "";
+          signalReady();
+        }
+        const s = raw.trim();
         if (s) log(`geesefs stderr: ${s.slice(0, 400)}`);
       });
       child.unref();
-      // Poll up to ~15s for the mountpoint to serve I/O; geesefs logs "successfully mounted"
-      // within ~1s normally. Resolve as soon as it's alive; the caller re-verifies after.
-      for (let i = 0; i < 30; i++) {
-        if (await isMounted(cwd, () => {})) break;
-        await new Promise((r) => setTimeout(r, 500));
-      }
+      // Wait up to ~15s for the mountpoint to serve I/O; geesefs logs "successfully mounted"
+      // within ~1s normally, and that line (or the process exiting) wakes the wait at once.
+      const alive = await waitForMountReady({
+        check: () => isMounted(cwd, () => {}),
+        sleep,
+        exited: () => processExited,
+      });
       return {
+        alive,
         stop: async () => {
           const waitForExit = async (): Promise<boolean> => {
             if (processExited) return true;
@@ -424,7 +504,7 @@ export async function mountStorage(
       };
     });
 
-  let attempt: { stop: () => Promise<void> } | undefined;
+  let attempt: GeesefsAttempt | undefined;
   let failure: unknown;
   try {
     log(`geesefs mount argv: ${args.join(" ")}`);
@@ -437,7 +517,14 @@ export async function mountStorage(
     attempt = started || undefined;
     // Confirm the new mount actually serves I/O — a still-not-alive cwd means geesefs failed
     // to mount (invalid STS creds, store unreachable) or did not come up within the poll window.
-    if (!(await waitForAcquire(() => checkMounted(cwd), signal))) {
+    // The default attempt already ran this same probe and saw the mount alive, so a second probe
+    // adds only latency; an attempt that did not report `alive` is still checked here. The abort
+    // check keeps the skipped probe's one other effect: an abort that landed meanwhile still wins.
+    if (attempt?.alive === true) throwIfAcquireAborted(signal);
+    const alive =
+      attempt?.alive === true ||
+      (await waitForAcquire(() => checkMounted(cwd), signal));
+    if (!alive) {
       failure = new Error(
         `mount reported success but cwd is NOT alive ${creds.bucket}:${creds.prefix} -> ${cwd} ` +
           `— likely expired/invalid STS creds or store unreachable`,

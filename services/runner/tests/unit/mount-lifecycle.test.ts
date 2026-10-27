@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { lstatSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "vitest";
@@ -92,6 +92,70 @@ describe("local mount cancellation", () => {
 
       assert.equal(mounted, false);
       assert.deepEqual(commits, ["agent"]);
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+      rmSync(`${cwd}-agent`, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("agent mount alongside the cwd mount", () => {
+  const linkPath = (cwd: string) => join(cwd, "agent-files");
+  const exists = (path: string) => {
+    try {
+      lstatSync(path);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  it("mounts at once but links agent-files only after the cwd mount settles", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "agenta-mount-parallel-"));
+    const commits: string[] = [];
+    let releaseCwd!: () => void;
+    const cwdReady = new Promise<void>((resolve) => {
+      releaseCwd = resolve;
+    });
+    const mountedPaths: string[] = [];
+    try {
+      const agent = mountLocalAgentCwd(
+        // Guidance already active, so the call stops after the link (guidance has its own tests).
+        { ...contextFor(cwd, commits), guidanceActive: true } as AcquireContext,
+        depsFor(new AbortController().signal, async (path) => {
+          mountedPaths.push(path);
+          return true;
+        }),
+        { cwdReady },
+      );
+      for (let i = 0; i < 10; i++) await new Promise((r) => setTimeout(r, 0));
+      // The agent home is a sibling of the cwd and is mounted without waiting.
+      assert.deepEqual(mountedPaths, [`${cwd}-agent`]);
+      assert.deepEqual(commits, ["agent"]);
+      assert.equal(exists(linkPath(cwd)), false, "no link before the cwd mount");
+      releaseCwd();
+      assert.equal(await agent, true);
+      assert.equal(exists(linkPath(cwd)), true, "linked after the cwd mount");
+    } finally {
+      rmSync(cwd, { recursive: true, force: true });
+      rmSync(`${cwd}-agent`, { recursive: true, force: true });
+    }
+  });
+
+  it("skips the link when the cwd mount fails, keeping the agent mount committed", async () => {
+    const cwd = mkdtempSync(join(tmpdir(), "agenta-mount-parallel-fail-"));
+    const commits: string[] = [];
+    const cwdReady = Promise.reject(new Error("detach could not be confirmed"));
+    try {
+      const mounted = await mountLocalAgentCwd(
+        contextFor(cwd, commits),
+        depsFor(new AbortController().signal, async () => true),
+        { cwdReady },
+      );
+      assert.equal(mounted, false);
+      // Committed, so teardown still unmounts it.
+      assert.deepEqual(commits, ["agent"]);
+      assert.equal(exists(linkPath(cwd)), false);
     } finally {
       rmSync(cwd, { recursive: true, force: true });
       rmSync(`${cwd}-agent`, { recursive: true, force: true });

@@ -672,7 +672,8 @@ async function acquireEnvironmentOnce(
   };
   const mountLocalDurableCwd = (reason: string) =>
     mountLocalDurableCwdUnit(ctx, mountDeps, reason);
-  const mountLocalAgentCwd = () => mountLocalAgentCwdUnit(ctx, mountDeps);
+  const mountLocalAgentCwd = (cwdReady?: Promise<unknown>) =>
+    mountLocalAgentCwdUnit(ctx, mountDeps, cwdReady ? { cwdReady } : {});
   const reSignAndRemountLocalCwd = () =>
     reSignAndRemountLocalCwdUnit(ctx, mountDeps);
   const activateAgentMountGuidance = () =>
@@ -756,15 +757,29 @@ async function acquireEnvironmentOnce(
     // Local geesefs runs on the host, so mount before spawning the daemon. This lets the
     // mount-success path add guidance/env atomically, while a failed mount starts a normal
     // scratch-only harness with no false durable-storage signal.
-    if (environment.mountCreds && plan.driveOnRunner) {
-      const mounted = await mountLocalDurableCwd("initial");
-      if (mounted && piSessionDir) environment.nativeHistoryDurable = true;
+    // The two mounts run at the same time: the agent home is a sibling of the cwd, not inside it,
+    // so neither mount waits on the other. Only the agent mount's `agent-files` link, which lives
+    // in the cwd, waits for the cwd mount (see `cwdReady`). Both are settled before any error is
+    // rethrown, so a failure in one never leaves the other still attaching behind the teardown.
+    const cwdMount =
+      environment.mountCreds && plan.driveOnRunner
+        ? mountLocalDurableCwd("initial")
+        : undefined;
+    const agentMount =
+      environment.agentMountCreds && plan.driveOnRunner
+        ? mountLocalAgentCwd(cwdMount)
+        : undefined;
+    const [cwdResult, agentResult] = await Promise.allSettled([
+      cwdMount,
+      agentMount,
+    ]);
+    if (cwdResult.status === "rejected") throw cwdResult.reason;
+    if (cwdMount) {
+      if (cwdResult.value && piSessionDir) environment.nativeHistoryDurable = true;
       throwIfAcquireAborted(signal);
     }
-    if (environment.agentMountCreds && plan.driveOnRunner) {
-      await mountLocalAgentCwd();
-      throwIfAcquireAborted(signal);
-    }
+    if (agentResult.status === "rejected") throw agentResult.reason;
+    if (agentMount) throwIfAcquireAborted(signal);
     // A harness in the runner (`inprocess`) mounts the drive in its own command sandbox when a
     // tool first needs it, so nothing is mounted here. The credentials' expiry bounds this
     // environment as a remote mount's does; the harness keeps the conversation file in the drive

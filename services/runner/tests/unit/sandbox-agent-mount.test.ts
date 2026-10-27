@@ -22,6 +22,7 @@ import {
   mountHarnessSessionDirs,
   storeReachableFromSandbox,
   shellQuote,
+  waitForMountReady,
   type MountCredentials,
 } from "../../src/engines/sandbox_agent/mount.ts";
 
@@ -465,6 +466,148 @@ describe("mountStorage", () => {
       },
     );
   }
+});
+
+describe("mountStorage readiness", () => {
+  it("skips the second probe when the attempt already saw the mount alive", async () => {
+    let checks = 0;
+    const ok = await mountStorage("/work/cwd", CREDS, {
+      checkMounted: async () => {
+        checks += 1;
+        return false;
+      },
+      runGeesefs: async () => ({ alive: true, stop: async () => {} }),
+      unmountDeps: {
+        runUnmount: async () => {},
+        checkMountpoint: async () => "gone",
+      },
+      log: SILENT,
+    });
+    assert.equal(ok, true);
+    // Only the already-mounted probe ran; the post-start probe was skipped.
+    assert.equal(checks, 1);
+  });
+
+  it("still probes after an attempt that did not report alive, and fails when not alive", async () => {
+    let checks = 0;
+    const calls: string[] = [];
+    const ok = await mountStorage("/work/cwd", CREDS, {
+      checkMounted: async () => {
+        checks += 1;
+        return false;
+      },
+      runGeesefs: async () => ({
+        alive: false,
+        stop: async () => {
+          calls.push("stop");
+        },
+      }),
+      unmountDeps: {
+        runUnmount: async () => {},
+        checkMountpoint: async () => "gone",
+      },
+      log: SILENT,
+    });
+    assert.equal(ok, false);
+    assert.equal(checks, 2);
+    assert.deepEqual(calls, ["stop"]);
+  });
+
+  it("an abort during an alive attempt still stops it and throws", async () => {
+    const controller = new AbortController();
+    const calls: string[] = [];
+    const mount = mountStorage("/work/cwd", CREDS, {
+      signal: controller.signal,
+      checkMounted: async () => false,
+      runGeesefs: async () => {
+        controller.abort();
+        return {
+          alive: true,
+          stop: async () => {
+            calls.push("stop");
+          },
+        };
+      },
+      unmountDeps: {
+        runUnmount: async () => {
+          calls.push("unmount");
+        },
+        checkMountpoint: async () => "gone",
+      },
+      log: SILENT,
+    });
+    await assert.rejects(mount, /acquisition was aborted/);
+    for (let i = 0; i < 10 && !calls.includes("stop"); i++) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    }
+    assert.ok(calls.includes("stop"), "the alive attempt is stopped on abort");
+  });
+});
+
+describe("waitForMountReady", () => {
+  const clock = () => {
+    let t = 0;
+    const sleeps: number[] = [];
+    return {
+      now: () => t,
+      sleep: async (ms: number) => {
+        sleeps.push(ms);
+        t += ms;
+      },
+      sleeps,
+    };
+  };
+
+  it("returns at the first alive probe with no sleep", async () => {
+    const c = clock();
+    const ok = await waitForMountReady({
+      check: async () => true,
+      sleep: c.sleep,
+      now: c.now,
+    });
+    assert.equal(ok, true);
+    assert.deepEqual(c.sleeps, []);
+  });
+
+  it("starts at 50 ms and doubles to a 500 ms cap", async () => {
+    const c = clock();
+    let probes = 0;
+    const ok = await waitForMountReady({
+      check: async () => ++probes === 8,
+      sleep: c.sleep,
+      now: c.now,
+    });
+    assert.equal(ok, true);
+    assert.deepEqual(c.sleeps, [50, 100, 200, 400, 500, 500, 500]);
+  });
+
+  it("gives up after the 15 s timeout", async () => {
+    const c = clock();
+    const ok = await waitForMountReady({
+      check: async () => false,
+      sleep: c.sleep,
+      now: c.now,
+    });
+    assert.equal(ok, false);
+    assert.equal(
+      c.sleeps.reduce((a, b) => a + b, 0),
+      15_000,
+    );
+  });
+
+  it("stops at once when geesefs exited", async () => {
+    const c = clock();
+    let probes = 0;
+    const ok = await waitForMountReady({
+      check: async () => (probes++, false),
+      sleep: c.sleep,
+      now: c.now,
+      exited: () => probes >= 2,
+    });
+    assert.equal(ok, false);
+    assert.equal(probes, 2);
+    assert.deepEqual(c.sleeps, [50]);
+  });
 });
 
 describe("unmountStorage", () => {
