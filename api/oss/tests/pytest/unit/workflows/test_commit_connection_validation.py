@@ -46,8 +46,14 @@ def test_runnable_connections_commit(connection):
         {"mode": "agenta", "scope": "organization", "namespace": "organization"},
         {"mode": "agenta", "slug": "openai-company", "scope": "organization"},
         {"mode": "agenta", "slug": "openai-company", "namespace": "organization"},
+        {
+            "mode": "agenta",
+            "slug": {"name": "openai-company"},
+            "scope": "organization",
+            "namespace": "organization",
+        },
     ],
-    ids=["no-slug", "no-namespace", "no-scope"],
+    ids=["no-slug", "no-namespace", "no-scope", "non-string-slug"],
 )
 def test_an_incomplete_organization_connection_is_refused(connection):
     with pytest.raises(InvalidAgentConnectionError) as excinfo:

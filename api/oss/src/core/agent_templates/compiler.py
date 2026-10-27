@@ -145,7 +145,7 @@ class TemplateCompiler:
         # revision names none (M5): it keeps the connection it was created with.
         # Any other `llm` value is left for the schema check below to judge.
         llm = agent.get("llm", {})
-        if isinstance(llm, dict) and not isinstance(llm.get("connection"), dict):
+        if isinstance(llm, dict) and llm.get("connection") is None:
             agent["llm"] = {**llm, "connection": {"mode": "agenta", "scope": "project"}}
 
         try:

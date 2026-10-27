@@ -345,7 +345,8 @@ def _reject_unrunnable_agent_connection(data: Any) -> None:
     connection = llm.get("connection") if isinstance(llm, dict) else None
     if not isinstance(connection, dict):
         return
-    slug = str(connection.get("slug") or "").strip()
+    slug = connection.get("slug")
+    slug = slug.strip() if isinstance(slug, str) else ""
     if connection.get("scope") == "organization" or (
         connection.get("namespace") == "organization"
     ):

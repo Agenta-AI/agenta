@@ -55,7 +55,7 @@ Scope: backend first. OpenSpec `tasks.md` sections 1 (schema), 2 (core), 3 (acce
 
 - SDK (`sdks/python/agenta/sdk/agents/**`): `Connection.scope`, the `organization` namespace, `connection_scope` on resolve, `OrganizationConnectionUnavailableError` on every plaintext path, `WireConnection.scope` (interfaces 3.9).
 - Web (`web/packages/agenta-entities`, `agenta-entity-ui`): every save path writes the connection explicitly (`explicitAgentConnection`, `withExplicitAgentConnection`, `composeModelValue`).
-- Runner: no change (it holds no provider key in gateway mode, and routing comes from the resolved base URL).
+- Runner: no change for a key or custom provider (it holds no provider key in gateway mode, and routing comes from the resolved base URL). For an organization subscription login: the `organizationSubscription` wire field and the fence check in `run-plan.ts`, `subscriptionOwner: "organization"`, the `?scope=organization` upkeep URLs and `organizationId` on device login attempts (section 2.8, interfaces 4.5).
 
 ## 2. Key flows
 

@@ -207,6 +207,22 @@ def test_compiler_does_not_replace_a_non_object_model_setting():
     assert error.value.code == "native_agent_invalid"
 
 
+def test_compiler_does_not_replace_a_malformed_connection():
+    base = _base_revision()
+    base.parameters["agent"]["llm"] = {"model": "openai/gpt-5", "connection": "agenta"}
+
+    with pytest.raises(TemplatePackageInvalid) as error:
+        TemplateCompiler().compile(
+            package=_package(),
+            base_revision=base,
+            bindings=TemplateBindingPlan(),
+            installed_skills=[],
+            first_message="Configure the agent.",
+        )
+
+    assert error.value.code == "native_agent_invalid"
+
+
 def test_compiler_keeps_a_connection_the_base_revision_names():
     """A connection the base revision already names is written through unchanged."""
     named = {"mode": "agenta", "slug": "openai-sales", "scope": "project"}
