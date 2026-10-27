@@ -202,6 +202,7 @@ import {
   reopen as reopenHarnessSession,
   teardown as teardownHarnessSession,
 } from "../../environment/harness-session-lifecycle.ts";
+import { sandboxSnapshotOf } from "./created-sandboxes.ts";
 import {
   activateAgentMountGuidance as activateAgentMountGuidanceUnit,
   activateAgentMountUnavailableGuidance as activateAgentMountUnavailableGuidanceUnit,
@@ -1401,6 +1402,7 @@ async function acquireEnvironmentOnce(
       plan.sandboxId,
       plan.acpAgent,
       binaryPath,
+      sandboxSnapshotOf(environment.sandbox.sandboxId),
     );
     const probed = await probeHarness(
       {

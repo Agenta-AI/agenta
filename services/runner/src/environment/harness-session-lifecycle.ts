@@ -89,18 +89,26 @@ export function resetCapabilityProbeCache(): void {
 /**
  * The reuse key for a probe, or undefined when the answer cannot be reused safely.
  *
- * Only `local` qualifies: its daemon is the `binaryPath` binary and its adapters come from this
- * runner's own `node_modules`, so every local daemon this process starts is the same build. A
- * Daytona sandbox can be a parked one created from an earlier snapshot, so its build is not known
- * from the runner config, and it is probed every time.
+ * - `local`: the daemon is the `binaryPath` binary and its adapters come from this runner's own
+ *   `node_modules`, so every local daemon this process starts is the same build.
+ * - `daytona`: the daemon and adapters come from the sandbox's snapshot. The key uses the
+ *   snapshot THIS sandbox was built from (`sandboxSnapshot`, see `sandboxSnapshotOf`), not the
+ *   configured one, so a parked sandbox from an older snapshot misses the cache. Without a known
+ *   snapshot (an image build, or a sandbox this process neither created nor reconnected) there
+ *   is no key and the probe runs.
+ * - anything else probes every time.
  */
 export function capabilityProbeCacheKey(
   sandboxId: string,
   acpAgent: string,
   binaryPath: string | undefined,
+  sandboxSnapshot?: string,
 ): string | undefined {
-  if (sandboxId !== "local") return undefined;
-  return `local|${binaryPath ?? ""}|${acpAgent}`;
+  if (sandboxId === "local") return `local|${binaryPath ?? ""}|${acpAgent}`;
+  if (sandboxId === "daytona" && sandboxSnapshot) {
+    return `daytona|${sandboxSnapshot}|${acpAgent}`;
+  }
+  return undefined;
 }
 
 export interface OpenSessionInput {

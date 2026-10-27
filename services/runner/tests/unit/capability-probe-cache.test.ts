@@ -1,7 +1,7 @@
 /**
- * The capability probe is reused per harness for local daemons: a second acquire with the same
- * key does not ask the daemon again, a failed probe is never kept, and a run without a key (every
- * Daytona run) probes each time.
+ * The capability probe is reused per harness: for local daemons, and for Daytona sandboxes keyed
+ * by the snapshot each sandbox was built from. A second acquire with the same key does not ask the
+ * daemon again, a failed probe is never kept, and a run without a key probes each time.
  */
 import { afterEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
@@ -84,7 +84,23 @@ describe("capability probe reuse", () => {
     assert.equal(other.calls(), 1);
   });
 
-  it("gives no key for daytona or inprocess, so those probe every time", async () => {
+  it("keys a daytona probe on the sandbox's own snapshot and the harness", async () => {
+    const v9 = capabilityProbeCacheKey("daytona", "claude", undefined, "agenta-agent-sandbox-v9");
+    const v8 = capabilityProbeCacheKey("daytona", "claude", undefined, "agenta-agent-sandbox-v8");
+    const v9pi = capabilityProbeCacheKey("daytona", "pi", undefined, "agenta-agent-sandbox-v9");
+    assert.ok(v9 && v8 && v9pi);
+    assert.equal(new Set([v9, v8, v9pi]).size, 3);
+    await run(fakeSandbox([PROBED]).sandbox, v9);
+    const fresh = fakeSandbox([PROBED]);
+    await run(fresh.sandbox, v9);
+    assert.equal(fresh.calls(), 0, "a second sandbox from the same snapshot reuses the answer");
+    // A parked sandbox from an older snapshot misses the cache.
+    const parked = fakeSandbox([PROBED]);
+    await run(parked.sandbox, v8);
+    assert.equal(parked.calls(), 1);
+  });
+
+  it("gives no key for a daytona sandbox of unknown snapshot, or for inprocess", async () => {
     assert.equal(capabilityProbeCacheKey("daytona", "pi", undefined), undefined);
     assert.equal(capabilityProbeCacheKey("inprocess", "pi", undefined), undefined);
     const first = fakeSandbox([PROBED]);
