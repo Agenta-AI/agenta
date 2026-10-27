@@ -101,15 +101,6 @@ class ChannelSignatureInvalid(ChannelsError):
         super().__init__(f"Invalid signature for channel: {channel}")
 
 
-class ChannelConnectionRestoreStale(ChannelsError):
-    """The connection was archived or restored again after the restore read which
-    bindings it brings back: the caller reads them again."""
-
-    def __init__(self, *, connection_id: UUID):
-        self.connection_id = connection_id
-        super().__init__(f"Connection changed during restore: {connection_id}")
-
-
 class ChannelConnectionNotFound(ChannelsError):
     def __init__(self, *, connection_id: UUID):
         self.connection_id = connection_id

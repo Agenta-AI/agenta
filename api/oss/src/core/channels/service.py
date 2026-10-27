@@ -16,6 +16,7 @@ from oss.src.core.channels.dtos import (
     ChannelAgentFlags,
     ChannelAgentEdit,
     ChannelAgentQuery,
+    ChannelBindingRestore,
     ChannelCapabilities,
     ChannelConnection,
     ChannelConnectionCreate,
@@ -927,9 +928,9 @@ class ChannelsService:
                 ),
             )
         else:
-            # Points this project's one Telegram connection at the calling agent.
-            # Always written, also when the agent already matches: the write is the
-            # owner guard of the bind link.
+            # Points this project's one Telegram connection at the calling agent and
+            # turns it on. Always written, also when the agent already matches: the
+            # write is the owner guard of the bind link.
             answering = next((a for a in active if a.flags.is_default), active[0])
             await self.edit_agent(
                 project_id=project_id,
@@ -938,8 +939,8 @@ class ChannelsService:
                 agent=ChannelAgentEdit(
                     id=answering.id,
                     data=ChannelAgentDataEdit(references=references),
+                    flags=answering.flags.model_copy(update={"is_active": True}),
                 ),
-                guard_inactive=True,
             )
 
         return connection
@@ -982,9 +983,7 @@ class ChannelsService:
     ) -> Optional[ChannelConnection]:
         """Restore the connection and the bindings archived with it. `guard_user_id` is
         the person who restores (None for any other principal): a restored binding of a
-        private agent that is not theirs comes back off. Raises
-        `ChannelConnectionRestoreStale` when the connection was archived or restored
-        again after the read."""
+        private agent that is not theirs comes back off."""
 
         connection = await self.channels_dao.fetch_connection(
             project_id=project_id, connection_id=connection_id
@@ -1001,8 +1000,7 @@ class ChannelsService:
             #
             connection_id=connection_id,
             #
-            expected_archived_at=connection.deleted_at,
-            guard_artifact_ids=await self._restored_binding_guards(
+            guard_bindings=await self._restored_binding_guards(
                 project_id=project_id,
                 archived_at=connection.deleted_at,
                 agents=agents,
@@ -1021,14 +1019,14 @@ class ChannelsService:
         project_id: UUID,
         archived_at: Optional[datetime],
         agents: List[ChannelAgent],
-    ) -> Dict[UUID, UUID]:
-        """The agent of each active binding the restore brings back (archived with the
-        connection), for the owner guard. A binding whose agent no longer resolves is
-        left out: it answers nothing."""
+    ) -> Dict[UUID, ChannelBindingRestore]:
+        """Each active binding the restore brings back (archived with the connection),
+        with the agent its references resolve to. The DAO checks the bindings it locks
+        against these."""
 
-        guarded: Dict[UUID, UUID] = {}
+        guards: Dict[UUID, ChannelBindingRestore] = {}
         if archived_at is None:
-            return guarded
+            return guards
         for agent in agents:
             if agent.deleted_at != archived_at or not agent.flags.is_active:
                 continue
@@ -1039,10 +1037,11 @@ class ChannelsService:
                     is_active=True,
                 )
             except SharedItemNotFound:
-                continue
-            if artifact_id is not None:
-                guarded[agent.id] = artifact_id
-        return guarded
+                artifact_id = None  # resolves to no agent: it answers nothing
+            guards[agent.id] = ChannelBindingRestore(
+                references=agent.data.references, artifact_id=artifact_id
+            )
+        return guards
 
     async def describe_connection_restore(
         self,
@@ -1345,15 +1344,12 @@ class ChannelsService:
         guard_user_id: Optional[UUID],
         #
         agent: ChannelAgentEdit,
-        guard_inactive: bool = False,
     ) -> Optional[ChannelAgent]:
         """Every binding write. The write names its references and its whole flags,
         taken from the stored row when the edit sends none, and it is guarded when
         those flags leave the binding active. The references the guard checks are
         the references the write stores, so a write that sends only flags (or
-        nothing) cannot activate a binding of someone else's private agent.
-        `guard_inactive` guards a write that leaves the binding inactive too (a bind
-        link for a connection must not reach someone else's private agent later)."""
+        nothing) cannot activate a binding of someone else's private agent."""
 
         if agent.data is None or agent.data.references is None or agent.flags is None:
             stored = await self.channels_dao.fetch_agent(
@@ -1374,7 +1370,7 @@ class ChannelsService:
         guard_artifact_id = await self._activation_guard(
             project_id=project_id,
             references=agent.data.references,
-            is_active=agent.flags.is_active or guard_inactive,
+            is_active=agent.flags.is_active,
         )
         return await self.channels_dao.edit_agent(
             project_id=project_id,
@@ -1438,7 +1434,6 @@ class ChannelsService:
         guard_user_id: Optional[UUID],
         #
         agent: ChannelAgentEdit,
-        guard_inactive: bool = False,
     ) -> Optional[ChannelAgent]:
         existing = await self.channels_dao.fetch_agent(
             project_id=project_id,
@@ -1453,7 +1448,6 @@ class ChannelsService:
             guard_user_id=guard_user_id,
             #
             agent=_layer_agent_edit(existing=existing, edit=agent),
-            guard_inactive=guard_inactive,
         )
         await self._invalidate_bindings(
             binding_ids=[existing.id], source="channels.edit_agent"

@@ -31,6 +31,7 @@ from oss.src.core.channels.dtos import (
     ChannelAgentCreate,
     ChannelAgentEdit,
     ChannelAgentQuery,
+    ChannelBindingRestore,
     ChannelConnection,
     ChannelConnectionCreate,
     ChannelConnectionEdit,
@@ -62,7 +63,6 @@ from oss.src.core.channels.dtos import (
     ChannelTriggerState,
 )
 from oss.src.core.channels.interfaces import ChannelsDAOInterface
-from oss.src.core.channels.types import ChannelConnectionRestoreStale
 from oss.src.core.shared.dtos import Status, Windowing
 from oss.src.dbs.postgres.channels.dbes import (
     ChannelAgentDBE,
@@ -247,14 +247,11 @@ class ChannelsDAO(ChannelsDAOInterface):
         #
         connection_id: UUID,
         #
-        expected_archived_at: Optional[datetime],
-        guard_artifact_ids: Dict[UUID, UUID],
+        guard_bindings: Dict[UUID, ChannelBindingRestore],
         guard_user_id: Optional[UUID],
     ) -> Optional[ChannelConnection]:
         async with self.engine.session() as session:
-            # Locked: the archive the caller read the restored bindings of is the one
-            # this restore undoes, or nothing is written.
-            stmt = (
+            result = await session.execute(
                 select(ChannelConnectionDBE)
                 .where(
                     ChannelConnectionDBE.project_id == project_id,
@@ -262,24 +259,22 @@ class ChannelsDAO(ChannelsDAOInterface):
                 )
                 .with_for_update()
             )
-
-            result = await session.execute(stmt)
             connection_dbe = result.scalar_one_or_none()
 
             if not connection_dbe:
                 return None
 
             archived_at = connection_dbe.deleted_at
-            if archived_at != expected_archived_at:
-                raise ChannelConnectionRestoreStale(connection_id=connection_id)
 
-            # The connection row is locked first, then each agent's artifact in id
-            # order, so two restores never wait on each other in a cycle. A restored
-            # binding of a private agent its owner is not restoring comes back off.
-            refused = []
-            for binding_id, artifact_id in sorted(
-                guard_artifact_ids.items(), key=lambda item: str(item[1])
-            ):
+            # Lock order: the connection row, each agent's artifact in id order (as a
+            # binding write and `set_agent_policy`), then the binding rows.
+            refused_artifacts = set()
+            artifact_ids = {
+                guard.artifact_id
+                for guard in guard_bindings.values()
+                if guard.artifact_id is not None
+            }
+            for artifact_id in sorted(artifact_ids, key=str):
                 try:
                     await guard_agent_activation(
                         session,
@@ -288,17 +283,42 @@ class ChannelsDAO(ChannelsDAOInterface):
                         user_id=guard_user_id,
                     )
                 except SharedItemNotFound:
-                    refused.append(binding_id)
-            connection_dbe.deleted_at = None
-            connection_dbe.deleted_by_id = None
-            connection_dbe.updated_by_id = user_id
+                    refused_artifacts.add(artifact_id)
 
             # The mirror of archive's cascade: the agents archived together with
             # the connection (same instant) come back with it. An agent deleted
             # on its own, earlier, stays deleted. Without this, a reconnect
             # after a disconnect recreates the "default" agent and trips the
             # (connection, slug) unique key on the archived row.
+            refused = []
             if archived_at is not None:
+                restored = (
+                    (
+                        await session.execute(
+                            select(ChannelAgentDBE)
+                            .where(
+                                ChannelAgentDBE.project_id == project_id,
+                                ChannelAgentDBE.connection_id == connection_id,
+                                ChannelAgentDBE.deleted_at == archived_at,
+                            )
+                            .order_by(ChannelAgentDBE.id)
+                            .with_for_update()
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+                for agent_dbe in restored:
+                    agent = map_agent_dbe_to_dto(agent_dbe=agent_dbe)
+                    if not agent.flags.is_active:
+                        continue
+                    guard = guard_bindings.get(agent.id)
+                    if (
+                        guard is None
+                        or guard.references != agent.data.references
+                        or guard.artifact_id in refused_artifacts
+                    ):
+                        refused.append(agent.id)
                 await session.execute(
                     update(ChannelAgentDBE)
                     .where(
@@ -308,6 +328,10 @@ class ChannelsDAO(ChannelsDAOInterface):
                     )
                     .values(deleted_at=None, deleted_by_id=None, updated_by_id=user_id)
                 )
+
+            connection_dbe.deleted_at = None
+            connection_dbe.deleted_by_id = None
+            connection_dbe.updated_by_id = user_id
 
             if refused:
                 flags = cast(ChannelAgentDBE.flags, JSONB)

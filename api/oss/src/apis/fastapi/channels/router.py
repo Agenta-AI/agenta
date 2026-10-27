@@ -68,7 +68,6 @@ from oss.src.core.channels.dtos import (
 from oss.src.core.channels.types import (
     ChannelAgentNotFound,
     ChannelConnectionIdentityConflict,
-    ChannelConnectionRestoreStale,
     ChannelConnectionIncomplete,
     ChannelConnectionKeyUndeclared,
     ChannelConnectionNotFound,
@@ -81,11 +80,11 @@ from oss.src.core.channels.types import (
     ChannelThreadNotFound,
 )
 from oss.src.core.gateway.connections.utils import decode_oauth_state, make_oauth_state
-from oss.src.core.access.dtos import PrincipalKind
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 from oss.src.apis.fastapi.sharing.utils import not_found_exception
+from oss.src.core.sharing.service import human_id
 from oss.src.core.sharing.types import SharedItemNotFound
 
 if TYPE_CHECKING:
@@ -567,8 +566,6 @@ class ChannelsRouter:
             # An unknown or unresolvable agent, or a private agent of someone else, cannot
             # answer a channel.
             raise not_found_exception() from e
-        except ChannelConnectionRestoreStale as e:
-            raise _restore_conflict() from e
         url = await self.telegram_binding_service.issue_bind_link(
             project_id=project_id,
             user_id=user_id,
@@ -827,13 +824,15 @@ class ChannelsRouter:
             )
         except Exception:
             # The browser lands here straight from Slack; a raw JSON 500
-            # strands the operator on an API URL with nothing to act on.
+            # strands the operator on an API URL with nothing to act on. A reinstall
+            # may have saved the new token before the failure, so the card does not
+            # say that nothing was saved.
             log.exception("channels: hosted Slack install callback failed")
             return HTMLResponse(
                 status_code=500,
                 content=_slack_install_card(
                     success=False,
-                    message="Something went wrong connecting Slack. Nothing was saved. Try again.",
+                    message="Something went wrong connecting Slack. Try again.",
                 ),
             )
 
@@ -875,8 +874,6 @@ class ChannelsRouter:
             raise HTTPException(status_code=400, detail=str(e)) from e
         except ChannelConnectionIdentityConflict as e:
             raise HTTPException(status_code=409, detail=str(e)) from e
-        except ChannelConnectionRestoreStale as e:
-            raise _restore_conflict() from e
 
         setup = None
         one_time_secret = getattr(connection, "one_time_secret", None)
@@ -1000,16 +997,13 @@ class ChannelsRouter:
     ) -> ChannelConnectionTeardownResponse:
         await self._check(request, Permission.EDIT_CHANNELS)
 
-        try:
-            connection = await self.channels_service.unarchive_connection(
-                project_id=UUID(request.state.project_id),
-                user_id=UUID(str(request.state.user_id)),
-                guard_user_id=_human_user_id(request),
-                #
-                connection_id=connection_id,
-            )
-        except ChannelConnectionRestoreStale as e:
-            raise _restore_conflict() from e
+        connection = await self.channels_service.unarchive_connection(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(str(request.state.user_id)),
+            guard_user_id=_human_user_id(request),
+            #
+            connection_id=connection_id,
+        )
         if connection is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -1681,14 +1675,4 @@ def _human_user_id(request: Request) -> Optional[UUID]:
     """The person who makes the request: only a person activates a binding of their own
     private agent. None for an API key or a channel run credential."""
 
-    principal = getattr(request.state, "principal", None)
-    if principal is None or principal.kind != PrincipalKind.HUMAN:
-        return None
-    return principal.id
-
-
-def _restore_conflict() -> HTTPException:
-    return HTTPException(
-        status_code=status.HTTP_409_CONFLICT,
-        detail="The channel connection changed during the restore. Try again.",
-    )
+    return human_id(getattr(request.state, "principal", None))

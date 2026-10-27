@@ -478,13 +478,13 @@ async def test_reconnect_after_disconnect_reuses_the_restored_agent():
     assert str(written.data.references["application"].id) == str(app_b)
 
 
-async def test_a_restore_reads_once_and_a_stale_one_is_refused():
-    """The restore reads the bindings once and writes only for the archive it read,
-    as the person the route names. When the connection was archived again since, the
-    DAO refuses (stale) and nothing is retried: the route answers 409."""
+async def test_a_restore_passes_what_it_read_to_the_locked_restore():
+    """The restore reads the bindings once and hands the DAO each active binding
+    archived with the connection, with its references and resolved agent, and the
+    person the route names. The DAO checks the rows it locks against them."""
     from datetime import datetime, timezone
 
-    from oss.src.core.channels.types import ChannelConnectionRestoreStale
+    from oss.src.core.channels.dtos import ChannelBindingRestore
 
     archived_at = datetime.now(timezone.utc)
     conn = _hosted_conn().model_copy(update={"deleted_at": archived_at})
@@ -492,30 +492,32 @@ async def test_a_restore_reads_once_and_a_stale_one_is_refused():
     binding = _agent_with_ref(conn.id, str(app)).model_copy(
         update={"deleted_at": archived_at}
     )
-    dao = MagicMock()
-    dao.query_agents = AsyncMock(return_value=[binding])
-    dao.fetch_connection = AsyncMock(return_value=conn)
-    dao.unarchive_connection = AsyncMock(
-        side_effect=ChannelConnectionRestoreStale(connection_id=conn.id)
+    earlier = _agent_with_ref(conn.id, str(app)).model_copy(
+        update={"deleted_at": datetime(2020, 1, 1, tzinfo=timezone.utc)}
     )
+    dao = MagicMock()
+    dao.query_agents = AsyncMock(return_value=[binding, earlier])
+    dao.fetch_connection = AsyncMock(return_value=conn)
+    restored = conn.model_copy(update={"deleted_at": None})
+    dao.unarchive_connection = AsyncMock(return_value=restored)
+    resolver = ProjectAgentResolver()
     service = ChannelsService(
         channels_dao=dao,
         adapter_registry=ChannelAdapterRegistry(adapters={}),
-        workflows_service=ProjectAgentResolver(),
+        workflows_service=resolver,
     )
     alice = uuid4()
 
-    with pytest.raises(ChannelConnectionRestoreStale):
-        await service.unarchive_connection(
-            project_id=uuid4(),
-            user_id=alice,
-            guard_user_id=alice,
-            connection_id=conn.id,
-        )
+    result = await service.unarchive_connection(
+        project_id=uuid4(), user_id=alice, guard_user_id=alice, connection_id=conn.id
+    )
 
+    assert result == restored
     dao.query_agents.assert_awaited_once()
     call = dao.unarchive_connection.await_args.kwargs
-    assert call["expected_archived_at"] == archived_at
-    assert list(call["guard_artifact_ids"]) == [binding.id]
+    assert call["guard_bindings"] == {
+        binding.id: ChannelBindingRestore(
+            references=binding.data.references, artifact_id=resolver.artifact_id
+        )
+    }
     assert call["guard_user_id"] == alice
-    dao.unarchive_connection.assert_awaited_once()

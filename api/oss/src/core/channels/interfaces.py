@@ -8,6 +8,7 @@ from oss.src.core.channels.dtos import (
     ChannelAgentCreate,
     ChannelAgentEdit,
     ChannelAgentQuery,
+    ChannelBindingRestore,
     ChannelConnection,
     ChannelConnectionCreate,
     ChannelConnectionEdit,
@@ -99,17 +100,15 @@ class ChannelsDAOInterface(ABC):
         #
         connection_id: UUID,
         #
-        expected_archived_at: Optional[datetime],
-        guard_artifact_ids: Dict[UUID, UUID],
+        guard_bindings: Dict[UUID, ChannelBindingRestore],
         guard_user_id: Optional[UUID],
     ) -> Optional[ChannelConnection]:
         """Clear `deleted_at`/`deleted_by_id` on this row and restore the bindings
-        archived with it. The row is locked; when its `deleted_at` is not
-        `expected_archived_at` (the archive the caller read the bindings of), raises
-        `ChannelConnectionRestoreStale`. `guard_artifact_ids` maps a restored binding to
-        its agent: in the same transaction each agent is locked and read as in
-        `create_agent`, and a binding of a private agent whose owner is not
-        `guard_user_id` comes back inactive."""
+        archived with it, in one transaction: the connection row is locked, then each
+        agent of `guard_bindings` in id order (as in `create_agent`), then the bindings.
+        A restored active binding comes back off when its agent is private and not
+        `guard_user_id`'s, or when it is not in `guard_bindings` with the same
+        references (it changed after the read)."""
         ...
 
     @abstractmethod

@@ -20,6 +20,7 @@ from oss.src.core.channels.dtos import (
     ChannelAgent,
     ChannelAgentData,
     ChannelAgentFlags,
+    ChannelBindingRestore,
     ChannelConnection,
     ChannelConnectionCreate,
     ChannelConnectionFlags,
@@ -308,8 +309,11 @@ async def test_reinstall_restores_an_archived_connection_and_its_agents():
         project_id=project_id,
         user_id=alice,
         connection_id=existing.id,
-        expected_archived_at=archived_at,
-        guard_artifact_ids={binding.id: private_agent},
+        guard_bindings={
+            binding.id: ChannelBindingRestore(
+                references=binding.data.references, artifact_id=private_agent
+            )
+        },
         guard_user_id=alice,
     )
     dao.create_connection.assert_not_awaited()

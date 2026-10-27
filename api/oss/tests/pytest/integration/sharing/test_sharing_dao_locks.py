@@ -16,6 +16,7 @@ import pytest
 
 import oss.src.models.db_models  # noqa: F401  (the ORM tables the streams DAO joins)
 from oss.src.core.channels.dtos import (
+    ChannelBindingRestore,
     ChannelAgentCreate,
     ChannelAgentData,
     ChannelAgentDataEdit,
@@ -880,31 +881,162 @@ async def test_unarchive_restores_someone_else_s_private_agent_binding_off():
                     "at": archived_at,
                 },
             )
-            # A restore that read another archive (an archive committed since) writes
-            # nothing.
-            from oss.src.core.channels.types import ChannelConnectionRestoreStale
-
-            with pytest.raises(ChannelConnectionRestoreStale):
-                await _channels_dao().unarchive_connection(
-                    project_id=project_id,
-                    user_id=user_id,
-                    connection_id=connection_id,
-                    expected_archived_at=None,
-                    guard_artifact_ids={},
-                    guard_user_id=user_id,
-                )
-            assert (await _channel_agent_flags(project_id, binding_id))["is_active"]
             restored = await _channels_dao().unarchive_connection(
                 project_id=project_id,
                 user_id=user_id,
                 connection_id=connection_id,
-                expected_archived_at=archived_at,
-                guard_artifact_ids={binding_id: private},
+                guard_bindings={
+                    binding_id: ChannelBindingRestore(
+                        references={"workflow": Reference(id=private)},
+                        artifact_id=private,
+                    )
+                },
                 guard_user_id=user_id,
             )
             assert restored is not None and restored.deleted_at is None
             flags = await _channel_agent_flags(project_id, binding_id)
             assert flags["is_active"] is expected, user_id
+
+
+async def _archived_connection(
+    project_id: UUID, artifact_id: UUID, *, channel="agenta"
+):
+    """An archived connection with one active binding of `artifact_id`, archived with
+    it. Returns (connection_id, binding_id)."""
+
+    from datetime import datetime, timezone
+
+    archived_at = datetime.now(timezone.utc)
+    connection_id, binding_id = uuid4(), uuid4()
+    await execute(
+        "INSERT INTO channel_connections (id, project_id, channel, external_key, slug, "
+        "deleted_at) VALUES (:id, :p, :ch, :ek, :slug, :at)",
+        {
+            "id": connection_id,
+            "p": project_id,
+            "ch": channel,
+            "ek": str(uuid4()),
+            "slug": f"c-{connection_id.hex[:8]}",
+            "at": archived_at,
+        },
+    )
+    await execute(
+        "INSERT INTO channel_agents (project_id, id, connection_id, slug, data, flags, "
+        "deleted_at) VALUES (:p, :id, :c, :s, CAST(:data AS json), "
+        "CAST(:flags AS jsonb), :at)",
+        {
+            "p": project_id,
+            "id": binding_id,
+            "c": connection_id,
+            "s": "default",
+            "data": json.dumps({"references": {"workflow": {"id": str(artifact_id)}}}),
+            "flags": json.dumps({"is_active": True, "is_default": True}),
+            "at": archived_at,
+        },
+    )
+    return connection_id, binding_id
+
+
+async def test_a_binding_retargeted_before_the_restore_comes_back_off():
+    """Bob's restore read a binding of a project agent. Before it runs, Alice points
+    that archived binding at her private agent. The restore checks the binding rows it
+    locks: the binding changed since the read, so it comes back off, not active on
+    Alice's private agent."""
+
+    async with seeded("alice", "bob") as org:
+        project_id, alice = _project(org), org.user_ids["alice"]
+        bob = org.user_ids["bob"]
+        private, *_ = await _artifact(project_id, owner=alice)
+        await execute(
+            "UPDATE agent_access SET visibility = 'private' "
+            "WHERE project_id = :p AND artifact_id = :a",
+            {"p": project_id, "a": private},
+        )
+        shared, *_ = await _artifact(project_id, owner=alice)
+
+        for retarget, expected in ((False, True), (True, False)):
+            connection_id, binding_id = await _archived_connection(project_id, shared)
+            read = {
+                binding_id: ChannelBindingRestore(
+                    references={"workflow": Reference(id=shared)}, artifact_id=shared
+                )
+            }
+            if retarget:
+                await execute(
+                    "UPDATE channel_agents SET data = CAST(:data AS json) "
+                    "WHERE project_id = :p AND id = :id",
+                    {
+                        "p": project_id,
+                        "id": binding_id,
+                        "data": json.dumps(
+                            {"references": {"workflow": {"id": str(private)}}}
+                        ),
+                    },
+                )
+            restored = await _channels_dao().unarchive_connection(
+                project_id=project_id,
+                user_id=bob,
+                connection_id=connection_id,
+                guard_bindings=read,
+                guard_user_id=bob,
+            )
+            assert restored is not None and restored.deleted_at is None
+            flags = await _channel_agent_flags(project_id, binding_id)
+            assert flags["is_active"] is expected, retarget
+
+
+class _AgentOfReferences:
+    """`resolve_agent_artifact_id` that names the agent of the `workflow` reference."""
+
+    async def resolve_agent_artifact_id(self, *, project_id, references):
+        return next(r.id for r in references if r.key == "workflow")
+
+
+async def test_telegram_reconnect_turns_on_the_binding_it_points_at(monkeypatch):
+    """Alice's hosted Telegram connection answered with her private agent and was
+    disconnected. Bob connects it again with a project agent: the restore brings
+    Alice's binding back off (not his to turn on), and the connect points it at Bob's
+    agent and turns it on, so the bind link he gets answers."""
+
+    from unittest.mock import AsyncMock, MagicMock
+
+    from oss.src.core.channels.service import ChannelsService
+
+    monkeypatch.setattr(
+        "oss.src.core.channels.service.invalidate_principals_after_write",
+        AsyncMock(),
+    )
+    async with seeded("alice", "bob") as org:
+        project_id, alice = _project(org), org.user_ids["alice"]
+        bob = org.user_ids["bob"]
+        private, *_ = await _artifact(project_id, owner=alice)
+        await execute(
+            "UPDATE agent_access SET visibility = 'private' "
+            "WHERE project_id = :p AND artifact_id = :a",
+            {"p": project_id, "a": private},
+        )
+        shared, *_ = await _artifact(project_id, owner=alice)
+        connection_id, binding_id = await _archived_connection(
+            project_id, private, channel="telegram_hosted"
+        )
+        service = ChannelsService(
+            channels_dao=_channels_dao(),
+            adapter_registry=MagicMock(),
+            workflows_service=_AgentOfReferences(),
+        )
+
+        connection = await service.ensure_hosted_telegram_connection(
+            project_id=project_id,
+            user_id=bob,
+            guard_user_id=bob,
+            references={"workflow": {"id": str(shared)}},
+        )
+
+        assert connection.id == connection_id and connection.deleted_at is None
+        assert [row["id"] for row in await _active_bindings(project_id, shared)] == [
+            binding_id
+        ]
+        assert await _active_bindings(project_id, private) == []
 
 
 class _ResolvedWorkflows:

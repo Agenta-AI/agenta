@@ -117,9 +117,9 @@ async def test_a_sharing_write_clears_what_the_request_read(fake_cache, memo):
 # -- round 2 of the review -------------------------------------------------------------------
 
 
-async def test_a_failed_cache_write_is_not_kept_for_the_request(monkeypatch, memo):
-    """A Redis error on the write (`set_cache` answers None) is a failure: the value is not
-    kept as what the cache holds."""
+async def test_a_failed_cache_write_is_kept_only_for_the_request(monkeypatch, memo):
+    """A Redis error on the write (`set_cache` answers None): the request keeps the entry
+    it built (the row it just inserted), and nothing else does."""
     monkeypatch.setattr(env.agenta.api.caching, "enabled", True, raising=False)
     FakeCache(fail=True).install(monkeypatch, sharing_module, memberships_module)
     world = SharingWorld()
@@ -134,10 +134,11 @@ async def test_a_failed_cache_write_is_not_kept_for_the_request(monkeypatch, mem
         policy=policy,
     )
 
-    assert (
-        prefetch.lookup(session_access_entry(world.project_id, state.session_id))[0]
-        is False
+    found, entry = prefetch.lookup(
+        session_access_entry(world.project_id, state.session_id)
     )
+    assert found is True
+    assert entry.stream_id == state.stream_id and entry.policy == policy
 
 
 async def test_absent_owner_memberships_are_kept_for_the_request(fake_cache, memo):
