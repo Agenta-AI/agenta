@@ -197,6 +197,7 @@ import {
 } from "../../environment/runtime-lifecycle.ts";
 import {
   openSession as openHarnessSession,
+  capabilityProbeCacheKey,
   probe as probeHarness,
   reopen as reopenHarnessSession,
   teardown as teardownHarnessSession,
@@ -1396,11 +1397,17 @@ async function acquireEnvironmentOnce(
 
     // Probe what this harness supports and branch on capabilities, not on the harness name.
     // HarnessSessionLifecycle owns the stage and its timing mark.
+    const probeCacheKey = capabilityProbeCacheKey(
+      plan.sandboxId,
+      plan.acpAgent,
+      binaryPath,
+    );
     const probed = await probeHarness(
       {
         sandbox: environment.sandbox,
         acpAgent: plan.acpAgent,
         timingLog,
+        ...(probeCacheKey ? { cacheKey: probeCacheKey } : {}),
       },
       {
         ...(deps.probeCapabilities
