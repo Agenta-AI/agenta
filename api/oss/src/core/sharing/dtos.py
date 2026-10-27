@@ -209,17 +209,13 @@ class CachedAgentAccess(BaseModel):
 
 
 class CachedSessionAccess(BaseModel):
-    """Namespace `sharing_session_access`, key (project_id, session_id).
-
-    `missing` is the cached answer "no row" (`stream_id` and `policy` are then unset). It
-    is written with `SET NX`; the insert that creates the row overwrites it with the row's
-    entry after its commit, so a reader racing the insert never leaves it behind."""
+    """Namespace `sharing_session_access`, key (project_id, session_id). Only a row is
+    cached, never "no row"."""
 
     stream_id: Optional[UUID] = None
     # Never NULL for a row: a legacy row is assigned before it is cached.
     policy: Optional[AccessPolicy] = None
     grants: List[SessionGrant] = []  # every grant of the session; [] when none
-    missing: bool = False
     # A channel_threads row names the session (None: an entry written before this field).
     is_channel: Optional[bool] = None
     # That thread's channel binding (installation id); None when not known.

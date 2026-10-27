@@ -8,7 +8,9 @@ Readers run on `engine.session()`, one statement each. Writers run in
 - session writes lock one `session_streams` row `FOR UPDATE`, then write the row and
   `session_grants`.
 
-No path takes these locks in another order. Under the lock a writer compares the stored
+A connection restore (`ChannelsDAO.unarchive_connection`) locks its `channel_connections`
+row first, then the artifacts in id order, then its `channel_agents` rows. No path takes
+these locks in another order. Under the lock a writer compares the stored
 policy with the caller's `expected` and raises `SharingConflict(current)` on a mismatch,
 which rolls the transaction back.
 """

@@ -476,11 +476,7 @@ class SharingService(ResourcePolicyInterface):
             key=key,
             model=CachedSessionAccess,
         )
-        if (
-            cached is not None
-            and not cached.missing
-            and not _is_old_channel_entry(cached)
-        ):
+        if cached is not None and not _is_old_entry(cached):
             return cached, None
 
         # "No row" is never cached: a cached absence would authorize a row an insert
@@ -1287,11 +1283,13 @@ async def cache_created_session_access(
         )
 
 
-def _is_old_channel_entry(entry: CachedSessionAccess) -> bool:
-    """An entry that does not say whether a channel thread names the session, or a
-    channel entry written before entries carried the binding: read the row again."""
-    return entry.is_channel is None or (
-        entry.is_channel and entry.channel_binding_id is None
+def _is_old_entry(entry: CachedSessionAccess) -> bool:
+    """An entry this code does not trust: read the row again. No policy (a cached "no
+    row" of an older version), no channel flag, or a channel entry without its binding."""
+    return (
+        entry.policy is None
+        or entry.is_channel is None
+        or (entry.is_channel and entry.channel_binding_id is None)
     )
 
 

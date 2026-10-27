@@ -824,9 +824,7 @@ class ChannelsRouter:
             )
         except Exception:
             # The browser lands here straight from Slack; a raw JSON 500
-            # strands the operator on an API URL with nothing to act on. A reinstall
-            # may have saved the new token before the failure, so the card does not
-            # say that nothing was saved.
+            # strands the operator on an API URL with nothing to act on.
             log.exception("channels: hosted Slack install callback failed")
             return HTMLResponse(
                 status_code=500,
