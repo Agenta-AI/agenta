@@ -3,6 +3,10 @@ import {useEffect, useRef, useState} from "react"
 import {Button, Input} from "@agenta/ui/ui"
 import {ArrowRight} from "@phosphor-icons/react"
 
+import {FOCUS_RING} from "@/lib/interactive"
+import {useMotionPresets} from "@/lib/motion/presets"
+import {cn} from "@/lib/utils"
+
 import {CHOICE_KEYS, type OnboardingChoice} from "./onboardingChoices"
 import {ONBOARDING_COPY} from "./onboardingCopy"
 import {
@@ -12,10 +16,6 @@ import {
     writeInText,
     type OnboardingAnswer,
 } from "./onboardingQuestions"
-
-import {FOCUS_RING} from "@/lib/interactive"
-import {useMotionPresets} from "@/lib/motion/presets"
-import {cn} from "@/lib/utils"
 
 /**
  * A chip question. One-tap: a chip or its letter key answers it, then the flow moves on.
