@@ -371,7 +371,10 @@ class ChannelsDAO(ChannelsDAOInterface):
         async with self.engine.session() as session:
             if guard_artifact_id is not None:
                 await guard_agent_activation(
-                    session, project_id=project_id, artifact_id=guard_artifact_id
+                    session,
+                    project_id=project_id,
+                    artifact_id=guard_artifact_id,
+                    user_id=user_id,
                 )
 
             session.add(agent_dbe)
@@ -468,7 +471,10 @@ class ChannelsDAO(ChannelsDAOInterface):
             if guard_artifact_id is not None:
                 # Before the binding row: the artifact lock comes first.
                 await guard_agent_activation(
-                    session, project_id=project_id, artifact_id=guard_artifact_id
+                    session,
+                    project_id=project_id,
+                    artifact_id=guard_artifact_id,
+                    user_id=user_id,
                 )
 
             stmt = select(ChannelAgentDBE).where(
@@ -496,6 +502,33 @@ class ChannelsDAO(ChannelsDAOInterface):
             await session.refresh(agent_dbe)
 
             return map_agent_dbe_to_dto(agent_dbe=agent_dbe)
+
+    async def clear_agent_default(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        agent_id: UUID,
+    ) -> None:
+        flags = cast(ChannelAgentDBE.flags, JSONB)
+        stmt = (
+            update(ChannelAgentDBE)
+            .where(
+                ChannelAgentDBE.project_id == project_id,
+                ChannelAgentDBE.id == agent_id,
+            )
+            .values(
+                flags=func.coalesce(flags, cast(literal("{}"), JSONB)).op("||")(
+                    cast(literal(json.dumps({"is_default": False})), JSONB)
+                ),
+                updated_at=datetime.now(timezone.utc),
+                updated_by_id=user_id,
+            )
+        )
+        async with self.engine.session() as session:
+            await session.execute(stmt)
+            await session.commit()
 
     async def delete_agent(
         self,

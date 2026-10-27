@@ -236,6 +236,9 @@ class FakeChannelsDAO(ChannelsDAOInterface):
     async def edit_agent(self, **kwargs):
         raise NotImplementedError
 
+    async def clear_agent_default(self, **kwargs):
+        raise NotImplementedError
+
     async def delete_agent(self, **kwargs):
         raise NotImplementedError
 

@@ -6,9 +6,9 @@ import {useSessionSharing} from "./useSessionSharing"
 
 /**
  * The right end of the session tab strip: "Share" for the owner, and for everyone else a chip
- * that says what they can do here and opens who has access. Ownerless chats (Slack, API keys)
- * get only the chip; the state's `not_shareable_reason` picks the Slack texts or the no-owner
- * texts. Nothing until the state is known, so the strip does not flash a wrong verb.
+ * that says what they can do here and opens who has access. Ownerless chats (a channel, an API
+ * key) get only the chip; the state's `not_shareable_reason` picks the channel text or the
+ * no-owner texts. Nothing until the state is known, so the strip does not flash a wrong verb.
  */
 export const SessionSharingControl = ({
     sessionId,

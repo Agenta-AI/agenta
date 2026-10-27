@@ -166,8 +166,8 @@ An agent is a workflow, so these routes reach agents by id too. Each gets the sa
 | --- | --- |
 | Queued dispatch, approval resume (`entrypoints/routers.py` `continue_input`, `continue_interaction`; `tasks/asyncio/sessions/interactions_dispatcher.py`) | Task 14 (`queued_dispatch`, `approval_resume`) |
 | Worker dispatch closures (`entrypoints/worker_queues.py`) | Task 14 |
-| Channel turns (`tasks/asyncio/channels/inbox.py`) | Task 14 (`channel_turn`); channel sessions are always ownerless and project-visible (`OWNERLESS_PROJECT_POLICY`) |
-| Channel activation of a private agent (`core/channels/service.py`) | Task 17 (`lock_agent_policy`, `SharedItemNotFound`) |
+| Channel turns (`tasks/asyncio/channels/inbox.py`) | Task 14 (`channel_turn`); a channel session follows its agent: ownerless and project-visible for a project agent, private to the agent's owner for a private agent (`channel_session_policy`, 2026-10-26) |
+| Channel activation of a private agent (`core/channels/service.py`) | Task 17 (`lock_agent_policy`; `SharedItemNotFound` for a private agent the writer does not own, 2026-10-26) |
 | Trigger dispatch (`tasks/asyncio/triggers/dispatcher.py`) | Task 14 (`trigger_dispatch`) |
 | Session start from a template (`core/sessions/starts/service.py`) | Task 14 (`template_start`) |
 | Heartbeat | Task 13 |

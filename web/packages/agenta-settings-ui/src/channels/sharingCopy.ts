@@ -8,23 +8,9 @@ import {joinNames} from "@agenta/entity-ui/sharing"
 export const channelSharingCopy = {
     // Settings > Channels, the agent step.
     audienceNote: (project: string, platform: string) =>
-        `Everyone in ${project} can read the agent's ${platform} conversations in Agenta, including direct messages.`,
-    privateAgentRow: (platform: string) =>
-        `Private. Share it with the project to use it in ${platform}.`,
-    share: "Share",
+        `For a shared agent, everyone in ${project} can read its ${platform} conversations in Agenta, including direct messages. For a private agent, only its owner can read them.`,
 
-    // The agent's own Publish panel, in place of the connect buttons.
-    publishPrivate: (platforms: readonly string[]) =>
-        `Private agents cannot answer in ${joinNames(platforms)}. Share this agent with the project to connect it.`,
-
-    // The server refused the binding during setup.
-    refusedPrivate: (platform: string) =>
-        `This agent is private now, so it cannot answer in ${platform}.`,
-
-    // The manage panel of a connection turned off by make-private.
-    manageOffPrivate: (platform: string) =>
-        `This agent is private, so its ${platform} connection is off.`,
-    shareWithProject: "Share with project",
+    // The manage panel of a connection whose binding is off.
     connectionRow: (platform: string, place: string) => `${platform} · ${place}`,
     off: "Off",
     offIn: (places: readonly string[]) => `Off · in ${joinNames(places)}`,

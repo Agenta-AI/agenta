@@ -50,7 +50,7 @@ class AccessPolicy(BaseModel):
 
 
 # The policy of every ownerless item: API keys, installations, subscriptions, child and
-# evaluation runs, and every channel session.
+# evaluation runs, and the channel sessions of a project-visible agent.
 OWNERLESS_PROJECT_POLICY = AccessPolicy(
     visibility=Visibility.PROJECT, owner_user_id=None
 )
@@ -124,8 +124,6 @@ class AgentPolicyWriteResult(BaseModel):
     """The result of `set_agent_policy`."""
 
     policy: AccessPolicy
-    # Channel agents that a make-private set inactive, in the same transaction.
-    deactivated_channel_agent_ids: List[UUID]
 
 
 # -- read scopes ------------------------------------------------------------------------
