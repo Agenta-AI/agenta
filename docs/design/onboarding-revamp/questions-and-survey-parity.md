@@ -11,15 +11,18 @@ mapping that makes them one.
 
 | Property | Shape | Written by | Values |
 | --- | --- | --- | --- |
-| `user_role_v2` | string | onboarding, then the survey while it still asks role | the role labels below |
-| `company_size_v2` | string | onboarding, then the survey while it still asks size | Solo, 2-10, 11-50, 51-200, 201+ |
-| `referral_source_v2` | string | onboarding | the source labels below |
+| `user_role_v2` | string | onboarding; the survey only with `$set_once` while it still asks role | the role labels below |
+| `company_size_v2` | string | onboarding; the survey only with `$set_once` while it still asks size | Solo, 2-10, 11-50, 51-200, 201+ |
+| `referral_source_v2` | string | onboarding only | the source labels below |
 | `agent_experience_v2` | string | the survey | Not yet — just exploring, Built prototypes or side projects, Running some in production, Running many at scale |
 | `is_icp_v2` | boolean | the survey, only when it has all three inputs | derived, see below |
 
 One writer per topic. The onboarding owns role, size and source. The survey keeps agent
 experience, intent and the email backfill. PostHog person properties are last-write-wins and
-keep no history, so a second writer would make "who said this" unanswerable.
+keep no history, so a second writer would make "who said this" unanswerable. Until the survey
+stops asking role and size, it writes them with `$set_once`: it fills them for someone who
+never saw the onboarding and never replaces an onboarding answer. Its referral answer is a
+list, so it stays on the `survey sent` event and is not written to `referral_source_v2`.
 
 `is_icp_v2` needs company size, role and agent experience. After the survey stops asking role
 and size, its form writes the property only when every input is present, so it never
@@ -66,7 +69,7 @@ events over 180 days. An answer that picked several options counts once under ea
 | AI assistant (ChatGPT, Claude, ...) | 271 | ChatGPT or Claude |
 | Online search | 256 | Google search |
 | Github | 166 | GitHub |
-| Social media | 109 | X or LinkedIn (one pick) |
+| Social media | 109 | Ambiguous: no single chip. Report it as its own historical bucket, not as X or LinkedIn |
 | From a friend or colleague | 104 | Friend or colleague |
 | Blog or publication | 56 | Newsletter or blog |
 | Reddit | 47 | Reddit |
@@ -89,8 +92,9 @@ and hosting as the only repeated real ones.
 
 ## is_icp_v2
 
-Definition, unchanged: company size in 11-50, 51-200 or 201+, role not Student or Hobbyist,
-and agent experience not "Not yet — just exploring".
+Definition: company size in 11-50, 51-200 or 201+, role not Student or Hobbyist, and agent
+experience not "Not yet — just exploring". The survey form excludes Student as well now, so
+the stored property and the derived number agree.
 
 The role test matches any label starting with "Hobbyist", so a rename cannot flip the result.
 Because the inputs now arrive from two surfaces, derive the number in reporting rather than

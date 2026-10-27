@@ -53,7 +53,8 @@ const calculateICP = (
 
     const isTargetCompanySize = ["11-50", "51-200", "201+"].includes(companySize)
     // Any label that starts with Hobbyist is out, so a renamed option does not change the result.
-    const isNotHobbyist = !/^hobbyist/i.test(userRole)
+    // Student is out too, matching the definition reporting derives.
+    const isNotHobbyist = !/^hobbyist/i.test(userRole) && userRole !== "Student"
     const isNotJustExploring = agentExperience !== "Not yet — just exploring"
 
     return isTargetCompanySize && isNotHobbyist && isNotJustExploring
@@ -198,6 +199,9 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
 
                 const responses: Record<string, unknown> = {}
                 const personProperties: Record<string, any> = {}
+                // Role and size belong to the onboarding. The survey only fills them in for
+                // someone who has not answered there, so it never replaces that answer.
+                const firstAnswers: Record<string, any> = {}
 
                 allQuestions.forEach(({question, index, kind}) => {
                     const key = `$survey_response_${question.id}`
@@ -231,12 +235,12 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
 
                     switch (kind) {
                         case "companySize":
-                            personProperties.company_size_v2 = Array.isArray(answer)
+                            firstAnswers.company_size_v2 = Array.isArray(answer)
                                 ? answer[0]
                                 : answer
                             break
                         case "role":
-                            personProperties.user_role_v2 = answer
+                            firstAnswers.user_role_v2 = answer
                             break
                         case "experience":
                             personProperties.agent_experience_v2 = answer
@@ -247,8 +251,9 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
                                 convertIntentsToBinaryProperties(answer),
                             )
                             break
+                        // Referral is a multi-select list here and a single onboarding chip in
+                        // `referral_source_v2`, so it stays on the `survey sent` event only.
                         case "referral":
-                            personProperties.referral_source_v2 = answer
                             break
                     }
                 })
@@ -258,14 +263,14 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
                 // property is left alone until every input is here; reporting derives it instead.
                 // See docs/design/onboarding-revamp/questions-and-survey-parity.md.
                 const icpInputs = [
-                    personProperties.company_size_v2,
-                    personProperties.user_role_v2,
+                    firstAnswers.company_size_v2,
+                    firstAnswers.user_role_v2,
                     personProperties.agent_experience_v2,
                 ]
                 if (icpInputs.every(Boolean)) {
                     personProperties.is_icp_v2 = calculateICP(
-                        personProperties.company_size_v2,
-                        personProperties.user_role_v2,
+                        firstAnswers.company_size_v2,
+                        firstAnswers.user_role_v2,
                         personProperties.agent_experience_v2,
                     )
                 }
@@ -275,6 +280,7 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
                     $survey_name: survey.name,
                     ...responses,
                     $set: personProperties,
+                    $set_once: firstAnswers,
                 })
             } catch (error) {
                 console.error("Error submitting survey:", error)

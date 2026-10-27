@@ -17,6 +17,6 @@ To preview the flow on any project, open `/m/w/<workspace>/p/<project>/onboardin
 Outside a preview, the flow sends these events:
 
 - `onboarding_started` when the flow opens.
-- `onboarding_step_completed` each time the user moves forward. It carries `step` (the 1-based position in the order `persona`, `source`, `credits`, `templates`) and `step_key`. It sets the `user_persona_v1` and `referral_source_v2` person properties once each answer is given; `user_role_v2` is no longer set. The answer lists changed with this flow, so values recorded before it use the old labels.
+- `onboarding_step_completed` each time the user moves forward. It carries `step` (the 1-based position in the order `persona`, `size`, `source`, `credits`, `templates`) and `step_key`. Build funnels on `step_key`, since adding a step shifts the numbers. It sets the `user_role_v2`, `company_size_v2` and `referral_source_v2` person properties once each answer is given. The role and source lists changed with this flow, so values recorded before it use the old labels; `docs/design/onboarding-revamp/questions-and-survey-parity.md` maps them.
 - `onboarding_create_clicked` when the user creates the agent (Use template, or sending the blank start's message).
 - `onboarding_agent_created` after the agent is saved, with its `revision_id`. It does not claim the first run succeeded.

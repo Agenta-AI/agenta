@@ -142,12 +142,10 @@ export const writeInText = (label: string, answer: string): string | null => {
     return text.length > 0 ? text : null
 }
 
-/** Whether an answer names a choice, or is a write-in for one that asks for text. */
+/** Whether an answer names a choice; one that asks for text needs its line, never the bare label. */
 const namesChoice = (question: OnboardingQuestionDef, answer: string) =>
-    question.choices.some(
-        (choice) =>
-            choice.label === answer ||
-            (choice.text === true && writeInText(choice.label, answer) !== null),
+    question.choices.some((choice) =>
+        choice.text === true ? writeInText(choice.label, answer) !== null : choice.label === answer,
     )
 
 /** The stored answers fitted to the registry: unknown questions and choices go, shapes follow `multiple`. */

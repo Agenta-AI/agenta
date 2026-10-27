@@ -3,10 +3,6 @@ import {useEffect, useRef, useState} from "react"
 import {Button, Input} from "@agenta/ui/ui"
 import {ArrowRight} from "@phosphor-icons/react"
 
-import {FOCUS_RING} from "@/lib/interactive"
-import {useMotionPresets} from "@/lib/motion/presets"
-import {cn} from "@/lib/utils"
-
 import {CHOICE_KEYS, type OnboardingChoice} from "./onboardingChoices"
 import {ONBOARDING_COPY} from "./onboardingCopy"
 import {
@@ -16,6 +12,10 @@ import {
     writeInText,
     type OnboardingAnswer,
 } from "./onboardingQuestions"
+
+import {FOCUS_RING} from "@/lib/interactive"
+import {useMotionPresets} from "@/lib/motion/presets"
+import {cn} from "@/lib/utils"
 
 /**
  * A chip question. One-tap: a chip or its letter key answers it, then the flow moves on.
@@ -56,7 +56,9 @@ export const OnboardingQuestion = ({
         choices.find((choice) => choice.text && choice.label === writing) ??
         choices.find((choice) => choice.text && writeInText(choice.label, asText) !== null)
     const writeIn = writingChoice?.label ?? null
-    const typed = writeIn ? (writeInText(writeIn, asText) ?? "") : ""
+    // The raw line as typed; the stored answer is trimmed, so it cannot drive the input.
+    const [draftLine, setDraftLine] = useState<string | null>(null)
+    const typed = writeIn ? (draftLine ?? writeInText(writeIn, asText) ?? "") : ""
 
     const pickRef = useRef<(label: string) => void>(() => undefined)
     pickRef.current = (label: string) => {
@@ -67,6 +69,9 @@ export const OnboardingQuestion = ({
         }
         // A write-in choice never advances on its own: it waits for the line.
         if (choices.find((choice) => choice.label === label)?.text) {
+            // A chip picked a moment ago must not advance past the line about to be typed.
+            clearTimeout(timerRef.current ?? undefined)
+            timerRef.current = null
             pickedRef.current = false
             setPicked(null)
             setWriting(label)
@@ -76,6 +81,7 @@ export const OnboardingQuestion = ({
         if (pickedRef.current) return
         pickedRef.current = true
         setWriting(null)
+        setDraftLine(null)
         setPicked(label)
         onAnswer(label)
         timerRef.current = setTimeout(onAdvance, answerHoldMs)
@@ -83,6 +89,7 @@ export const OnboardingQuestion = ({
 
     const write = (text: string) => {
         if (!writeIn) return
+        setDraftLine(text)
         onAnswer(text.trim() ? writeInAnswer(writeIn, text) : [])
     }
 
@@ -175,7 +182,7 @@ export const OnboardingQuestion = ({
                         />
                         <Button
                             onClick={() => continueRef.current()}
-                            disabled={typed.length === 0}
+                            disabled={typed.trim().length === 0}
                             className="max-sm:h-11 max-sm:w-full"
                         >
                             {ONBOARDING_COPY.continue}

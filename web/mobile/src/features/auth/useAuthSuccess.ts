@@ -18,13 +18,16 @@ export interface AuthSuccess {
     isNewUser: boolean
 }
 
-/** A new account owes onboarding; the mark is keyed by the Agenta user id the app reads later. */
+/**
+ * A new account owes onboarding; the mark is keyed by the Agenta user id the app reads later.
+ * When the profile cannot load yet, an unowned mark stands in until Home reads the user.
+ */
 const markNewAccount = async () => {
     const user = await queryClient
         // Reuses the profile the sign-in just refetched; an invalidated one is still fetched.
         .fetchQuery({queryKey: ["profile"], queryFn: fetchProfile, staleTime: 30_000})
         .catch(() => null)
-    if (user) markOnboardingPending(user.id)
+    markOnboardingPending(user?.id ?? null)
 }
 
 /** Every successful sign-in: remember the method, raise the loader, refetch, go home. */

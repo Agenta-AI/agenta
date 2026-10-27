@@ -78,6 +78,10 @@ describe("an Other write-in", () => {
         })
     })
 
+    it("does not count a bare Other without its line as an answer", () => {
+        expect(knownAnswers({persona: "Other", source: "Other:  "})).toEqual({})
+    })
+
     it("keeps the answer out of the Recommended order, as any Other does", () => {
         expect(recommendedCategory({persona: "Other: a co-op"})).toBeUndefined()
         expect(recommendedCategory({persona: "Support"})).toBe("Support")
