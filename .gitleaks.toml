@@ -66,6 +66,7 @@ regexes = [
   '''^sk-mis-123456789$''',
   '''^sk-(proj-)?0123456789(-x)?$''',
   '''^owner_kind=self\.secret_owner_kind$''',
+  '''^organization_id=None$''',
   # ------------------------------------------------------------ PUBLIC KEYS
   '''phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7''',  # POSTHOG
   '''phc_3urGRy5TL1HhaHnRYL0JSHxJxigRVackhphHtozUmdp''',  # POSTHOG
