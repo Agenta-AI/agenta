@@ -1241,10 +1241,15 @@ async function acquireEnvironmentOnce(
     }
 
     // Restore the agent's own tools (`agent-files/.tools/`) now that both agent-mount paths
-    // have settled and before the session opens, so a venv or a binary the model saved in an
-    // earlier session is ready on local disk when this one starts. Never fails the turn; see
-    // `agent-tools-setup.ts` for the convention, the permission guard, and why the mount itself
-    // cannot hold a venv.
+    // have settled, so a venv or a binary the model saved in an earlier session is ready on local
+    // disk before the model's first command. Never fails the turn; see `agent-tools-setup.ts` for
+    // the convention, the permission guard, and why the mount itself cannot hold a venv.
+    //
+    // The restore runs WHILE the workspace is prepared and the session opens: it needs only the
+    // agent mount and the cwd, and it can take seconds (a `setup.sh` that builds a venv). The
+    // acquire awaits it before it reports the environment ready, and the first prompt is sent only
+    // after that, so no model command can run before the tools are in place.
+    let agentToolsRestore: Promise<void> | undefined;
     if (environment.agentMountedPath && plan.harnessInRunner) {
       // `inprocess` never runs owner code on the runner host. The restore runs in the command
       // sandbox right before its first command, after the workspace sync has pushed `.tools/`.
@@ -1264,7 +1269,9 @@ async function acquireEnvironmentOnce(
     } else if (environment.agentMountedPath) {
       const agentToolsStartedAt = Date.now();
       const mountPath = environment.agentMountedPath;
-      await runAgentToolsSetup(
+      // `runAgentToolsSetup` never rejects (every failure is a result), so the promise left
+      // pending while the steps below run cannot become an unhandled rejection.
+      agentToolsRestore = runAgentToolsSetup(
         {
           mountPath,
           cwd: plan.workspace.cwd,
@@ -1288,11 +1295,10 @@ async function acquireEnvironmentOnce(
                   existsSync(join(mountPath, AGENT_TOOLS_DIR_NAME)),
               }),
         },
-      );
-      timingLog("agent_tools_setup", agentToolsStartedAt);
-      // The restore can wait up to its timeout; a Stop that landed meanwhile must not let the
-      // acquire continue into workspace and session setup.
-      throwIfAcquireAborted(signal);
+      ).then(() => {
+        // The restore's own duration, not the time until the acquire awaited it.
+        timingLog("agent_tools_setup", agentToolsStartedAt);
+      });
     }
 
     const prepareWorkspaceStartedAt = Date.now();
@@ -1656,6 +1662,15 @@ async function acquireEnvironmentOnce(
     environment.session.onPermissionRequest((req: any) =>
       routePermissionRequestToActiveTurn(environment, req),
     );
+
+    // The tools restore started before the workspace step must finish before the acquire reports
+    // ready: the turn sends its first prompt only after acquire returns, so this is the last point
+    // before a model command could run. The restore can wait up to its timeout; a Stop that landed
+    // meanwhile must not let the acquire report ready.
+    if (agentToolsRestore) {
+      await agentToolsRestore;
+      throwIfAcquireAborted(signal);
+    }
 
     if (credentialPreflight) {
       const preflightAwaitStartedAt = Date.now();
