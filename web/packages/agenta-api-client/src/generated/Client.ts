@@ -17,7 +17,6 @@ import { InvocationsClient } from "./api/resources/invocations/client/Client.js"
 import { KeysClient } from "./api/resources/keys/client/Client.js";
 import { LegacyClient } from "./api/resources/legacy/client/Client.js";
 import { MountsClient } from "./api/resources/mounts/client/Client.js";
-import { OrganizationSecretsClient } from "./api/resources/organizationSecrets/client/Client.js";
 import { OrganizationsClient } from "./api/resources/organizations/client/Client.js";
 import { ProjectsClient } from "./api/resources/projects/client/Client.js";
 import { QueriesClient } from "./api/resources/queries/client/Client.js";
@@ -52,7 +51,6 @@ export class AgentaApiClient {
     protected _events: EventsClient | undefined;
     protected _organizations: OrganizationsClient | undefined;
     protected _secrets: SecretsClient | undefined;
-    protected _organizationSecrets: OrganizationSecretsClient | undefined;
     protected _webhooks: WebhooksClient | undefined;
     protected _legacy: LegacyClient | undefined;
     protected _traces: TracesClient | undefined;
@@ -105,10 +103,6 @@ export class AgentaApiClient {
 
     public get secrets(): SecretsClient {
         return (this._secrets ??= new SecretsClient(this._options));
-    }
-
-    public get organizationSecrets(): OrganizationSecretsClient {
-        return (this._organizationSecrets ??= new OrganizationSecretsClient(this._options));
     }
 
     public get webhooks(): WebhooksClient {

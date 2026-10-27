@@ -391,7 +391,7 @@ Organization rows use the existing `/secrets/` routes; there is no separate rout
 
 ### 4.2 Project picker (`oss/src/routers/projects_router.py`, MODIFIED)
 
-`GET /projects/?scope=organization` lists every project of the request's organization (`project_id`, `project_name`, `is_default_project`, `organization_id`, `workspace_id`; no `user_role`), also the projects the caller is not a member of. It runs the same organization decision and answers 403 for anyone else. Without the parameter the route answers as before (the caller's own projects). The `/m` Organization tab of an owner or admin fetches it in parallel with `GET /secrets/?scope=organization`, so the project choice of a connection lists every project and the page waits for no extra sequential request.
+`GET /projects/?scope=organization` lists every project of the request's organization (`project_id`, `project_name`, `is_default_project`, `organization_id`, `workspace_id`; no `user_role`), also the projects the caller is not a member of. It runs the same organization decision and answers 403 for anyone else. Without the parameter the route answers as before (the caller's own projects). In EE the `/m` Organization tab fetches it in parallel with `GET /secrets/?scope=organization`, before the role is known (the same rule as the plan entitlements read), so the project choice of a connection lists every project and the page waits for no extra sequential request. A member gets a 403 there and keeps the read-only view.
 
 ### 4.3 `ProvidersRouter` (`oss/src/apis/fastapi/providers/router.py`, MODIFIED)
 

@@ -9,7 +9,7 @@ import type * as AgentaApi from "../../../../index.js";
  *         availability: "all_projects"
  *     }
  */
-export interface OrganizationSecretProjectsRequest {
+export interface SecretProjectsRequest {
     secret_id: string;
     availability: AgentaApi.SecretAvailability;
     project_ids?: string[];
