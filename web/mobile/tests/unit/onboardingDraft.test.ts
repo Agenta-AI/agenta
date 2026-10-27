@@ -1,12 +1,11 @@
 // @vitest-environment jsdom
+import {AGENT_ICON_COLORS} from "@agenta/ui/agent-icon"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
 vi.mock("@agenta/entities/workflow", () => ({
     templateBuilderMessage: (template: {name: string}) => `Build ${template.name}`,
     templateProviderSlugs: () => ["github", "slack"],
 }))
-
-import {AGENT_ICON_COLORS} from "@agenta/ui/agent-icon"
 
 import {galleryTemplates, ICON_CHOICES} from "@/features/onboarding/onboardingChoices"
 import {
