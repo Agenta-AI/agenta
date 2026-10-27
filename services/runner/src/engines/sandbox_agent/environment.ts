@@ -1113,147 +1113,175 @@ async function acquireEnvironmentOnce(
     // Durable cwd: mount BEFORE createSession (so the session opens inside it) and BEFORE
     // workspace materialization (so AGENTS.md, harness files, and skills land in the durable
     // prefix instead of being hidden under the FUSE mount).
-    if (environment.mountCreds && plan.isDaytona) {
-      const mountsStartedAt = Date.now();
-      try {
-        // Mount against the store's own endpoint when the sandbox can reach it (public S3); fall
-        // back to the tunnel only for an in-network store. No tunnel + in-network store => the
-        // mount is REFUSED, and the refusal is announced rather than silent. It used to be
-        // silent, and the cost was not theoretical: the run continued on an empty directory, the
-        // model went looking for the user's saved files because its own history showed an earlier
-        // session where they were there, found nothing, and told the user their work was missing.
-        // Both surfaces now say so, the operator through the WARN below and the model through
-        // `agentMountUnavailableGuidance`.
-        const storeEndpoint = environment.mountCreds.endpoint;
-        const endpoint = storeReachableFromSandbox(storeEndpoint)
-          ? undefined
-          : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
-              storeEndpoint,
-              log: logger,
-              signal,
-            })) ?? undefined);
-        const refusal = mountRefusal(storeEndpoint, endpoint);
-        const canMount = !refusal;
-        if (refusal) {
-          // WARN, not debug, and once per acquire rather than once per day: a run whose durable
-          // cwd is missing behaves differently for the whole session, and the operator needs the
-          // cause named to know which thing to fix.
-          logger(
-            `WARN durable cwd mount SKIPPED for session=${sessionForMount}: ${refusal}. ` +
-              "The run continues on throwaway storage; nothing the agent writes to the working " +
-              "directory survives this session.",
-          );
+    // The cwd mount (with the harness session dirs) and the agent mount run at the same time. The
+    // three paths are siblings (`<cwd>`, `<cwd>-agent`, `/home/sandbox/...`), never one inside
+    // another, so no mount waits on another. Only the agent mount's `agent-files` link waits for
+    // the cwd mount. Both are settled before any error is rethrown, the cwd error first, so a
+    // failure in one never leaves the other still attaching behind the teardown.
+    const daytonaCwdMount = (async () => {
+      if (environment.mountCreds && plan.isDaytona) {
+        const mountsStartedAt = Date.now();
+        try {
+          // Mount against the store's own endpoint when the sandbox can reach it (public S3); fall
+          // back to the tunnel only for an in-network store. No tunnel + in-network store => the
+          // mount is REFUSED, and the refusal is announced rather than silent. It used to be
+          // silent, and the cost was not theoretical: the run continued on an empty directory, the
+          // model went looking for the user's saved files because its own history showed an earlier
+          // session where they were there, found nothing, and told the user their work was missing.
+          // Both surfaces now say so, the operator through the WARN below and the model through
+          // `agentMountUnavailableGuidance`.
+          const storeEndpoint = environment.mountCreds.endpoint;
+          const endpoint = storeReachableFromSandbox(storeEndpoint)
+            ? undefined
+            : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
+                storeEndpoint,
+                log: logger,
+                signal,
+              })) ?? undefined);
+          const refusal = mountRefusal(storeEndpoint, endpoint);
+          const canMount = !refusal;
+          if (refusal) {
+            // WARN, not debug, and once per acquire rather than once per day: a run whose durable
+            // cwd is missing behaves differently for the whole session, and the operator needs the
+            // cause named to know which thing to fix.
+            logger(
+              `WARN durable cwd mount SKIPPED for session=${sessionForMount}: ${refusal}. ` +
+                "The run continues on throwaway storage; nothing the agent writes to the working " +
+                "directory survives this session.",
+            );
+          }
+          // Per-harness session/transcript-dir mounts, remote-only by construction (this whole
+          // branch is `plan.isDaytona`) — local runs never reach here, so they stay mount-free/
+          // byte-identical. Transcript mounts derive from the session contract (a durable cwd mount
+          // is active), with no separate public switch or credential/session-id path. They live
+          // under `/home/sandbox`, outside the cwd, so they mount at the same time as the cwd.
+          const sessionDirsMount =
+            canMount && sessionForMount && runCred
+              ? (deps.mountHarnessSessionDirs ?? mountHarnessSessionDirs)(
+                  environment.sandbox,
+                  sessionForMount,
+                  harnessSessionMounts(
+                    plan.acpAgent,
+                    "/home/sandbox",
+                    DAYTONA_PI_DIR,
+                  ),
+                  endpoint,
+                  {
+                    apiBase: apiBase(),
+                    authorization: runCred,
+                    log: logger,
+                    signal,
+                  },
+                )
+              : undefined;
+          const cwdMount = canMount
+            ? (deps.mountStorageRemote ?? mountStorageRemote)(
+                environment.sandbox,
+                plan.workspace.cwd,
+                environment.mountCreds,
+                {
+                  endpoint,
+                  log: logger,
+                  signal,
+                },
+              )
+            : undefined;
+          const [cwdResult, sessionDirsResult] = await Promise.allSettled([
+            cwdMount,
+            sessionDirsMount,
+          ]);
+          if (cwdResult.status === "rejected") throw cwdResult.reason;
+          if (cwdResult.value) {
+            environment.installedMountExpiries.cwd = mountExpiryMs(
+              environment.mountCreds.expiresAt,
+            );
+            logger(`remote durable cwd active for session=${sessionForMount}`);
+          }
+          if (sessionDirsResult.status === "rejected") {
+            throw sessionDirsResult.reason;
+          }
+        } finally {
+          timingLog("mounts", mountsStartedAt);
         }
-        if (
-          canMount &&
-          (await (deps.mountStorageRemote ?? mountStorageRemote)(
-            environment.sandbox,
-            plan.workspace.cwd,
-            environment.mountCreds,
-            {
-              endpoint,
-              log: logger,
-              signal,
-            },
-          ))
-        ) {
-          environment.installedMountExpiries.cwd = mountExpiryMs(
-            environment.mountCreds.expiresAt,
-          );
-          logger(`remote durable cwd active for session=${sessionForMount}`);
-        }
-        // Per-harness session/transcript-dir mounts, remote-only by construction (this whole
-        // branch is `plan.isDaytona`) — local runs never reach here, so they stay mount-free/
-        // byte-identical. Transcript mounts derive from the session contract (a durable cwd mount
-        // is active), with no separate public switch or credential/session-id path.
-        if (canMount && sessionForMount && runCred) {
-          const dirs = harnessSessionMounts(
-            plan.acpAgent,
-            "/home/sandbox",
-            DAYTONA_PI_DIR,
-          );
-          await (deps.mountHarnessSessionDirs ?? mountHarnessSessionDirs)(
-            environment.sandbox,
-            sessionForMount,
-            dirs,
-            endpoint,
-            {
-              apiBase: apiBase(),
-              authorization: runCred,
-              log: logger,
-              signal,
-            },
-          );
-        }
-      } finally {
-        timingLog("mounts", mountsStartedAt);
       }
-    }
-    if (
-      environment.agentMountCreds &&
-      agentMountDir &&
-      plan.isDaytona &&
-      !environment.agentMountedPath
-    ) {
-      const agentMountStartedAt = Date.now();
-      try {
-        const storeEndpoint = environment.agentMountCreds.endpoint;
-        const endpoint = storeReachableFromSandbox(storeEndpoint)
-          ? undefined
-          : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
-              storeEndpoint,
+    })();
+    const daytonaAgentMount = (async () => {
+      if (
+        environment.agentMountCreds &&
+        agentMountDir &&
+        plan.isDaytona &&
+        !environment.agentMountedPath
+      ) {
+        const agentMountStartedAt = Date.now();
+        try {
+          const storeEndpoint = environment.agentMountCreds.endpoint;
+          const endpoint = storeReachableFromSandbox(storeEndpoint)
+            ? undefined
+            : ((await (deps.discoverTunnelEndpoint ?? discoverTunnelEndpoint)({
+                storeEndpoint,
+                log: logger,
+                signal,
+              })) ?? undefined);
+          const refusal = mountRefusal(storeEndpoint, endpoint);
+          const canMount = !refusal;
+          const mountPath = agentMountDir;
+          if (refusal) {
+            agentMountSkipped = refusal;
+            logger(
+              `WARN durable agent mount SKIPPED for artifact=${artifactId}: ${refusal}. ` +
+                "The agent's durable folder is absent this run; the model is told so explicitly " +
+                "so it does not report the user's saved work as missing.",
+            );
+            // Pi reads its guidance from the append-prompt channel, so the negative sentence has to
+            // be delivered here. Claude takes the same statement through the session-init `_meta`
+            // built below, off `agentMountSkipped`.
+            await activateAgentMountUnavailableGuidance();
+          }
+          if (
+            canMount &&
+            (await (deps.mountStorageRemote ?? mountStorageRemote)(
+              environment.sandbox,
+              mountPath,
+              environment.agentMountCreds,
+              { endpoint, log: logger, signal },
+            ))
+          ) {
+            environment.agentMountedPath = mountPath;
+            environment.installedMountExpiries.agent = mountExpiryMs(
+              environment.agentMountCreds.expiresAt,
+            );
+            await seedAgentReadmeRemote(environment.sandbox, mountPath, {
               log: logger,
-              signal,
-            })) ?? undefined);
-        const refusal = mountRefusal(storeEndpoint, endpoint);
-        const canMount = !refusal;
-        const mountPath = agentMountDir;
-        if (refusal) {
-          agentMountSkipped = refusal;
+            });
+            // `agent-files` lives in the cwd: link it only once the cwd mount settled, or the
+            // link would land in the directory that mount then hides. A failed cwd mount (a
+            // rejection) skips the link and the guidance, as it stopped the acquire before.
+            await daytonaCwdMount;
+            await linkAgentFilesRemote(
+              environment.sandbox,
+              plan.workspace.cwd,
+              mountPath,
+              { log: logger },
+            );
+            await activateAgentMountGuidance();
+            logger(`remote agent mount active for artifact=${artifactId}`);
+          }
+        } catch (err) {
+          throwIfAcquireAborted(signal);
           logger(
-            `WARN durable agent mount SKIPPED for artifact=${artifactId}: ${refusal}. ` +
-              "The agent's durable folder is absent this run; the model is told so explicitly " +
-              "so it does not report the user's saved work as missing.",
+            `remote agent mount failed artifact=${artifactId}: ${conciseError(err, plan.harness)}`,
           );
-          // Pi reads its guidance from the append-prompt channel, so the negative sentence has to
-          // be delivered here. Claude takes the same statement through the session-init `_meta`
-          // built below, off `agentMountSkipped`.
-          await activateAgentMountUnavailableGuidance();
+        } finally {
+          timingLog("agent_mount", agentMountStartedAt);
         }
-        if (
-          canMount &&
-          (await (deps.mountStorageRemote ?? mountStorageRemote)(
-            environment.sandbox,
-            mountPath,
-            environment.agentMountCreds,
-            { endpoint, log: logger, signal },
-          ))
-        ) {
-          environment.agentMountedPath = mountPath;
-          environment.installedMountExpiries.agent = mountExpiryMs(
-            environment.agentMountCreds.expiresAt,
-          );
-          await seedAgentReadmeRemote(environment.sandbox, mountPath, {
-            log: logger,
-          });
-          await linkAgentFilesRemote(
-            environment.sandbox,
-            plan.workspace.cwd,
-            mountPath,
-            { log: logger },
-          );
-          await activateAgentMountGuidance();
-          logger(`remote agent mount active for artifact=${artifactId}`);
-        }
-      } catch (err) {
-        throwIfAcquireAborted(signal);
-        logger(
-          `remote agent mount failed artifact=${artifactId}: ${conciseError(err, plan.harness)}`,
-        );
-      } finally {
-        timingLog("agent_mount", agentMountStartedAt);
       }
-    }
+    })();
+    const [daytonaCwdResult, daytonaAgentResult] = await Promise.allSettled([
+      daytonaCwdMount,
+      daytonaAgentMount,
+    ]);
+    if (daytonaCwdResult.status === "rejected") throw daytonaCwdResult.reason;
+    if (daytonaAgentResult.status === "rejected") throw daytonaAgentResult.reason;
 
     // Restore the agent's own tools (`agent-files/.tools/`) now that both agent-mount paths
     // have settled and before the session opens, so a venv or a binary the model saved in an
