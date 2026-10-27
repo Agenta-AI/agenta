@@ -4,6 +4,7 @@ import {
   copyFileSync,
   cpSync,
   existsSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -11,6 +12,7 @@ import {
   renameSync,
   rmSync,
   statSync,
+  utimesSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -128,17 +130,8 @@ function hashPart(
   hash.update(bytes);
 }
 
-/** Resolve the immutable project-local snapshot selected for this Pi run. */
-export function resolvePiSkillSnapshot(
-  plan: Pick<RunPlan, "isPi"> & {
-    workspace: Pick<RunPlanWorkspace, "cwd" | "skillDirs">;
-  },
-): PiSkillSnapshot | undefined {
-  if (!plan.isPi || plan.workspace.skillDirs.length === 0) return undefined;
-
-  const skills = [...plan.workspace.skillDirs].sort((a, b) =>
-    a.name.localeCompare(b.name),
-  );
+/** The content digest of a skill set: names, relative paths, modes, and bytes. */
+function skillSetDigest(skills: readonly MaterializedSkill[]): string {
   const hash = createHash("sha256");
   hashPart(hash, "agenta-pi-skill-set-v1");
   for (const skill of skills) {
@@ -149,7 +142,45 @@ export function resolvePiSkillSnapshot(
       hashPart(hash, file.content);
     }
   }
-  const digest = hash.digest("hex");
+  return hash.digest("hex");
+}
+
+/**
+ * Where a LOCAL run keeps its Pi skill snapshots: one shared copy per digest on the runner's own
+ * disk, never in the session cwd.
+ *
+ * The session cwd is a fresh geesefs mount, so a snapshot there made Pi read every skill from
+ * cold object storage at startup: about 2 s for a 36-skill agent, against 0.03 s from local disk.
+ * A digest names exact content, so sessions with the same skills can share one copy.
+ */
+export function localPiSkillSnapshotRoot(): string {
+  return join(tmpdir(), "agenta-pi-skills");
+}
+
+/**
+ * How long a local snapshot may go unused before a later publish removes it. Each run that uses a
+ * snapshot touches it, so only skill sets no session has run for this long are removed.
+ */
+export const LOCAL_PI_SKILL_SNAPSHOT_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+/** Staging and replaced dirs are never in use after their own publish; keep them an hour. */
+const LOCAL_PI_SKILL_STAGING_TTL_MS = 60 * 60 * 1000;
+const SNAPSHOT_DIGEST_NAME = /^[a-f0-9]{64}$/;
+
+/**
+ * Resolve the immutable snapshot selected for this Pi run. A local run shares one copy per digest
+ * under `localPiSkillSnapshotRoot()`; a Daytona run keeps it under the sandbox cwd.
+ */
+export function resolvePiSkillSnapshot(
+  plan: Pick<RunPlan, "isPi" | "isDaytona"> & {
+    workspace: Pick<RunPlanWorkspace, "cwd" | "skillDirs">;
+  },
+): PiSkillSnapshot | undefined {
+  if (!plan.isPi || plan.workspace.skillDirs.length === 0) return undefined;
+
+  const skills = [...plan.workspace.skillDirs].sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
+  const digest = skillSetDigest(skills);
   const marker = `${JSON.stringify({
     version: 1,
     digest,
@@ -157,13 +188,15 @@ export function resolvePiSkillSnapshot(
   })}\n`;
   return {
     digest,
-    dir: join(plan.workspace.cwd, "agents", "skills", digest),
+    dir: plan.isDaytona
+      ? join(plan.workspace.cwd, "agents", "skills", digest)
+      : join(localPiSkillSnapshotRoot(), digest),
     marker,
     skills,
   };
 }
 
-/** Tell Pi to load only the explicitly selected project-local snapshot. */
+/** Tell Pi to load only the explicitly selected snapshot. */
 export function configurePiSkillSnapshot(
   snapshot: PiSkillSnapshot | undefined,
   env: Record<string, string>,
@@ -171,28 +204,96 @@ export function configurePiSkillSnapshot(
   if (snapshot) env.PI_CODING_AGENT_SKILL_DIR = snapshot.dir;
 }
 
-function validateLocalPiSkillSnapshot(snapshot: PiSkillSnapshot): boolean {
-  if (!existsSync(snapshot.dir)) return false;
-  const markerPath = join(snapshot.dir, PI_SKILL_SNAPSHOT_MARKER);
-  if (
-    !existsSync(markerPath) ||
-    readFileSync(markerPath, "utf-8") !== snapshot.marker
-  ) {
-    throw new Error(
-      `Pi skill snapshot ${snapshot.dir} exists without the expected completion marker`,
-    );
+/**
+ * True when the shared snapshot holds exactly the expected skill set. Every session with the
+ * same skills reads this copy, and the runner user can write to it, so the check covers the
+ * content (by digest) and the entries Pi would discover, not only the completion marker.
+ */
+function isIntactLocalPiSkillSnapshot(snapshot: PiSkillSnapshot): boolean {
+  try {
+    const markerPath = join(snapshot.dir, PI_SKILL_SNAPSHOT_MARKER);
+    if (readFileSync(markerPath, "utf-8") !== snapshot.marker) return false;
+    const expected = [
+      PI_SKILL_SNAPSHOT_MARKER,
+      ...snapshot.skills.map((skill) => skill.name),
+    ].sort();
+    const actual = readdirSync(snapshot.dir).sort();
+    if (expected.join("\0") !== actual.join("\0")) return false;
+    const copied = snapshot.skills.map((skill) => ({
+      name: skill.name,
+      dir: join(snapshot.dir, skill.name),
+    }));
+    return skillSetDigest(copied) === snapshot.digest;
+  } catch {
+    return false;
   }
-  return true;
 }
 
-/** Publish a local snapshot once; existing snapshots are only validated and reused. */
+/** Create the shared root owner-only, and refuse one this user does not own (or a symlink). */
+function ensureLocalPiSkillSnapshotRoot(root: string): void {
+  mkdirSync(root, { recursive: true, mode: 0o700 });
+  const stat = lstatSync(root);
+  const uid = process.getuid?.();
+  if (!stat.isDirectory() || (uid !== undefined && stat.uid !== uid)) {
+    throw new Error(
+      `Pi skill snapshot root ${root} is not a directory owned by the runner user`,
+    );
+  }
+  if ((stat.mode & 0o777) !== 0o700) chmodSync(root, 0o700);
+}
+
+/** Remove snapshots unused for the TTL, and leftover staging or replaced dirs. */
+function sweepLocalPiSkillSnapshots(
+  root: string,
+  keep: string,
+  log: Log,
+): void {
+  const now = Date.now();
+  for (const name of readdirSync(root)) {
+    if (name === keep) continue;
+    const isSnapshot = SNAPSHOT_DIGEST_NAME.test(name);
+    if (!isSnapshot && !name.startsWith(".")) continue;
+    const path = join(root, name);
+    try {
+      const ttl = isSnapshot
+        ? LOCAL_PI_SKILL_SNAPSHOT_TTL_MS
+        : LOCAL_PI_SKILL_STAGING_TTL_MS;
+      if (now - statSync(path).mtimeMs < ttl) continue;
+      rmSync(path, { recursive: true, force: true });
+      log(`pi skill snapshot removed path=${path}`);
+    } catch (err) {
+      log(`pi skill snapshot sweep skipped ${path}: ${(err as Error).message}`);
+    }
+  }
+}
+
+/**
+ * Publish the shared local snapshot for this digest once, then reuse it.
+ *
+ * A hit is checked and touched, so the sweep sees when it was last used. A miss (or a copy that
+ * no longer matches its digest) is built in a staging dir and published with an atomic rename,
+ * so a concurrent publisher of the same digest either wins or finds the finished copy. A miss
+ * also removes snapshots no run has used for `LOCAL_PI_SKILL_SNAPSHOT_TTL_MS`.
+ */
 export function materializeLocalPiSkillSnapshot(
   snapshot: PiSkillSnapshot,
+  log: Log = () => {},
 ): void {
-  if (validateLocalPiSkillSnapshot(snapshot)) return;
+  const now = new Date();
+  if (isIntactLocalPiSkillSnapshot(snapshot)) {
+    utimesSync(snapshot.dir, now, now);
+    return;
+  }
 
   const root = dirname(snapshot.dir);
-  mkdirSync(root, { recursive: true });
+  ensureLocalPiSkillSnapshotRoot(root);
+  if (existsSync(snapshot.dir)) {
+    // Move the damaged copy aside first: a rename is atomic, a recursive delete is not.
+    const replaced = join(root, `.${snapshot.digest}.replaced-${randomUUID()}`);
+    renameSync(snapshot.dir, replaced);
+    rmSync(replaced, { recursive: true, force: true });
+    log(`pi skill snapshot replaced path=${snapshot.dir}`);
+  }
   const staging = mkdtempSync(join(root, `.${snapshot.digest}.tmp-`));
   try {
     for (const skill of snapshot.skills) {
@@ -209,11 +310,12 @@ export function materializeLocalPiSkillSnapshot(
     try {
       renameSync(staging, snapshot.dir);
     } catch (err) {
-      if (!validateLocalPiSkillSnapshot(snapshot)) throw err;
+      if (!isIntactLocalPiSkillSnapshot(snapshot)) throw err;
     }
   } finally {
     rmSync(staging, { recursive: true, force: true });
   }
+  sweepLocalPiSkillSnapshots(root, snapshot.digest, log);
 }
 
 async function readDaytonaSnapshotMarker(

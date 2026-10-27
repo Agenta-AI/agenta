@@ -1315,11 +1315,11 @@ async function acquireEnvironmentOnce(
       isPi: plan.isPi,
       agentMountedPath: environment.agentMountedPath,
       agentMountSkipped: !!agentMountSkipped,
-      // Mirrors prepareWorkspace's materialization split: Pi reads an immutable
-      // `agents/skills/<digest>` snapshot; other harnesses read `.{acpAgent}/skills/<name>`.
+      // Mirrors prepareWorkspace's materialization split: Pi reads the immutable snapshot dir
+      // (`resolvePiSkillSnapshot`); other harnesses read `.{acpAgent}/skills/<name>`.
       skillsPath: plan.workspace.skillDirs.length
         ? plan.isPi
-          ? join(plan.workspace.cwd, "agents", "skills")
+          ? piSkillSnapshot?.dir
           : join(plan.workspace.cwd, `.${plan.acpAgent}`, "skills")
         : undefined,
       toolNames: plan.tools.toolSpecs.map((spec) => spec.name),
