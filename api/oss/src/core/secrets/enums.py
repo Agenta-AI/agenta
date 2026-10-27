@@ -72,8 +72,8 @@ ORGANIZATION_SECRET_KINDS = frozenset(
     }
 )
 # The organization kinds the LLM gateway serves. Their values never leave the API. An
-# organization subscription login is the one kind that does: it reaches the runner process
-# of an `inprocess` run that named it, never a sandbox.
+# organization subscription login is the one kind that does: it reaches the runner of a
+# run that named it, which uses it like a project login.
 ORGANIZATION_GATEWAY_KINDS = frozenset(
     {SecretKind.PROVIDER_KEY, SecretKind.CUSTOM_PROVIDER}
 )

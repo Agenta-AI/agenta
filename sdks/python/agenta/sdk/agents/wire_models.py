@@ -176,8 +176,8 @@ class WireModelConnection(_WireModel):
     environment: Optional[Dict[str, str]] = None
     credentials: List[WireCredential] = Field(default_factory=list)
     subscription: Optional[Union[WireSubscription, WireSubscriptionFence]] = None
-    # An organization's subscription login (M5). The runner uses it only on the `inprocess`
-    # engine; `subscription` then holds the fence.
+    # An organization's subscription login (M5). The runner uses it like a project login;
+    # `subscription` then holds the fence.
     organization_subscription: Optional[WireSubscription] = Field(
         default=None, alias="organizationSubscription"
     )

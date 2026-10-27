@@ -152,13 +152,13 @@ An agent SHALL use an organization subscription login only when it names it with
 - **WHEN** a run of a project the admin did not select names the organization ChatGPT login
 - **THEN** the release route SHALL return HTTP 404, and the run SHALL fail without using a project login.
 
-### Requirement: Organization subscription logins run only on the inprocess engine
-The runner SHALL use an organization subscription login only on the `inprocess` engine, and SHALL refuse it on the `daytona` and `local` sandbox_agent engines with a typed error. An organization Claude login SHALL be refused at run time. Refreshed logins and failures SHALL be written to the organization row (`?scope=organization`), only for a project the login is available to.
+### Requirement: Organization subscription logins behave like project ones
+Once released to a run, an organization subscription login SHALL behave exactly like a project subscription login of the same provider: the same harness, the same engines, and the same delivery. An organization Claude login SHALL be accepted like a project one. Refreshed logins and failures SHALL be written to the organization row (`?scope=organization`), only for a project the login is available to.
 
-#### Scenario: Pi run on the inprocess engine
-- **WHEN** an agent of project Sales names the organization ChatGPT login and runs Pi on the `inprocess` engine
-- **THEN** the run SHALL use the login from the runner's credential store, and the sandbox SHALL NOT receive it.
+#### Scenario: Pi run on any engine
+- **WHEN** an agent of project Sales names the organization ChatGPT login and runs Pi on the `inprocess`, `daytona` or `local` engine
+- **THEN** the run SHALL use the login as it uses a project ChatGPT login on that engine, and SHALL write refreshes to the organization row.
 
-#### Scenario: Run on the daytona engine
-- **WHEN** the same agent runs on the `daytona` sandbox_agent engine or the `local` engine
-- **THEN** the runner SHALL refuse the run with a typed error and SHALL NOT write the login anywhere.
+#### Scenario: Claude run
+- **WHEN** an agent of project Sales names the organization Claude login and runs the Claude harness
+- **THEN** the run SHALL use the setup-token as it uses a project Claude setup-token.

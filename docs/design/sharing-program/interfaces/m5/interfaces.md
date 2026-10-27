@@ -7,8 +7,8 @@ Normative names come from `docs/design/sharing-program/CONTRACT.md` (v3, section
 Owner decisions applied (DECISIONS.md, M5 lines):
 
 - An agent uses exactly the connection it picked, by scope (`project` or `organization`) and slug. Nothing is inherited or overridden automatically; an agent with no connection keeps the project default (option B, 2026-10-26).
-- Organization subscription logins (ChatGPT, Claude) are allowed (2026-10-26). An agent uses one only when it names it; it runs only on the `inprocess` engine (section 4.5). M7 owns personal logins.
-- Organization credential values never reach a sandbox. An organization subscription login reaches the runner process only, never the sandbox.
+- Organization subscription logins (ChatGPT, Claude) are allowed (2026-10-26). An agent uses one only when it names it; it behaves exactly like a project login of the same provider, on the same engines (2026-10-27, section 4.5). M7 owns personal logins.
+- Organization credential values never reach a sandbox. The one exception is an organization subscription login: it goes where a project subscription login of the same provider goes (2026-10-27).
 - Legacy completion and chat apps cannot use organization credentials (2026-10-25). In the code this is every workflow that loads the vault through the SDK `VaultMiddleware`: completion and chat apps, the prompt playground, and LLM-as-a-judge and other AI evaluators. Only agents, through the LLM gateway, use organization credentials.
 - Organization owners and admins manage organization credentials, in both editions, with one rule (2026-10-25).
 - The EE project limit reuses the RBAC entitlement (`Flag.RBAC`). There is no new plan flag (2026-10-25).
@@ -359,7 +359,7 @@ It reads no entitlement, project row, project role or custom role, in OSS and EE
 - `Connection.scope: Optional["project" | "organization"]` (omitted means project). `ConnectionNamespace` gains `"organization"`. Scope `organization` needs mode `agenta` and a slug; the model fills namespace `organization` when it is omitted and refuses another namespace. Namespace `organization` needs scope `organization`.
 - Fail closed across versions: a services image older than M5 has no `organization` namespace in its `Literal`, so it refuses the saved connection instead of reading the slug as a project connection. The runner holds no provider key in gateway mode, so its version does not matter.
 - `VaultConnectionResolver.resolve` sends `connection_scope` with `connection_slug` and `connection_namespace`. When the gateway does not serve the run (`llm_gateway_disabled`), an organization connection raises `OrganizationConnectionUnavailableError` (`organization_connection_unavailable`, 422) and the vault is not read. The plaintext path `_resolve_from_secrets` and `EnvConnectionResolver` refuse an organization connection the same way.
-- An organization subscription login (`{"mode": "self_managed", "scope": "organization", "slug": ...}`) is read from `GET /secrets/organization-subscriptions/{slug}`, never from `GET /secrets/`. `ResolvedSubscription.owner` is `organization`, and `ResolvedConnection.to_wire()` puts it under `organizationSubscription` and puts the marker `{"fence": "organization"}` (`ORGANIZATION_SUBSCRIPTION_FENCE`) in `subscription`, so a runner older than M5 refuses the run. `WireModelConnection` documents both (`WireSubscriptionFence`). An organization Claude login raises `OrganizationSubscriptionNotSupportedError` (`organization_subscription_not_supported`, 422).
+- An organization subscription login (`{"mode": "self_managed", "scope": "organization", "slug": ...}`) is read from `GET /secrets/organization-subscriptions/{slug}`, never from `GET /secrets/`. `ResolvedSubscription.owner` is `organization`, and `ResolvedConnection.to_wire()` puts it under `organizationSubscription` and puts the marker `{"fence": "organization"}` (`ORGANIZATION_SUBSCRIPTION_FENCE`) in `subscription`, so a runner older than M5 refuses the run. `WireModelConnection` documents both (`WireSubscriptionFence`). An organization Claude login resolves like a project one: the setup-token travels as an `env` credential, with no `subscription` block (2026-10-27).
 - `WireConnection.scope` (omitted for the project) and `HarnessAgentTemplate.wire_connection_ref` carry it to the runner; routing does not depend on it, because the resolved route already points at the `organization` namespace. `custom_connection` comes from the resolution's `custom_provider` for an organization route.
 
 ---
@@ -412,11 +412,11 @@ The response model of `GET /secrets/` stays `List[PublicSecretResponseDTO]`; `ow
 
 `_reject_unrunnable_agent_connection(data)` runs where the instructions check runs (every revision commit and the simple workflow writes). It refuses with 422 `invalid_agent_connection` (`details.reason`): an organization connection without scope `organization`, namespace `organization` and a slug (`organization_connection_incomplete`). It never checks whether a named item exists or is usable (owner decision, 2026-10-26); a `self_managed` connection commits with or without a slug, as on v0.125.0. The template compiler writes `{"mode": "agenta", "scope": "project"}` when the base revision names no connection.
 
-### 4.5 Organization subscription logins (2026-10-26)
+### 4.5 Organization subscription logins (2026-10-26, engines and Claude 2026-10-27)
 
 - Create and sign-in: `/organization-secrets/` with kind `subscription_provider`, then the `login-attempts` or `subscription-token` routes of section 4.1, all behind the organization decision. The default name is "ChatGPT (Organization)" or "Claude (Organization)"; the slug is the provider id; availability starts at all projects.
 - Release: `GET /secrets/organization-subscriptions/{slug}` answers the row with its login only to the `secret-resolve` grant (403 otherwise) with `VIEW_SECRET`, and only when the row is an organization `subscription_provider` available to the run's project (404 otherwise). It logs the project and secret ids only.
-- Runner (`services/runner/src/engines/sandbox_agent/run-plan.ts`): the request field `organizationSubscription` is used only when `sandboxId === "inprocess"`, the harness is Pi with a ChatGPT login, the credential mode is `runtime_provided`, and the run carries no project `subscription`. Otherwise the plan build refuses with `ORGANIZATION_SUBSCRIPTION_ENGINE_MESSAGE`. The only `subscription` it accepts beside it is the fence marker. A runner older than M5 ignores `organizationSubscription`, reads the fence as an unusable subscription and refuses the run.
+- Runner (`services/runner/src/engines/sandbox_agent/run-plan.ts`): the request field `organizationSubscription` is used when the harness is Pi with a ChatGPT login, the credential mode is `runtime_provided`, and the run carries no project `subscription`; otherwise the plan build refuses the run. Past that check it builds the same plan as a project login on every engine (`inprocess`, `daytona`, `local`), with `subscriptionOwner: "organization"`. The only `subscription` it accepts beside it is the fence marker. A runner older than M5 ignores `organizationSubscription`, reads the fence as an unusable subscription and refuses the run.
 - Upkeep: the publisher appends `?scope=organization` to the push and failure URLs; device login attempts carry `organizationId` (start body: exactly one of `projectId` and `organizationId`) and report `organization_id`.
 
 ---
@@ -435,8 +435,6 @@ Bodies keep the vault router's existing shape (`{"detail": <message>}` through `
 | Named organization connection missing or not available (resolve, relay) | 404 | `connection_not_found` envelope with `details: {scope, slug}` |
 | Organization scope without a slug, or with another namespace (resolve) | 422 | `organization_connection_slug_required` envelope |
 | Agent saved with an incomplete organization connection | 422 | `invalid_agent_connection` envelope with `details.reason` |
-| Organization Claude login named by an agent (SDK) | 422 | `organization_subscription_not_supported` |
-| Organization subscription login on the `daytona` or `local` engine (runner) | run error | `ORGANIZATION_SUBSCRIPTION_ENGINE_MESSAGE` |
 | Limit not allowed (OSS, or EE without RBAC) | 403 | "Limiting a credential to selected projects is not available for this organization." |
 | Foreign or unknown project in a limit | 422 | "Every project must belong to this organization." |
 | Unknown organization credential id | 404 | "Secret not found" (today's text) |

@@ -69,8 +69,8 @@ An organization connection SHALL be saved with namespace `organization`, so a ru
 - **WHEN** a gateway call spends an organization connection
 - **THEN** the audit record SHALL name owner kind `organization`.
 
-### Requirement: An organization subscription login never reaches a sandbox
-The SDK SHALL send an organization subscription login only in the wire field `organizationSubscription`, with the marker `{"fence": "organization"}` in `subscription`. The runner SHALL accept it only on the `inprocess` engine, and SHALL refuse it on any other engine with a typed error before it starts the harness.
+### Requirement: An organization subscription login travels in its own wire field
+The SDK SHALL send an organization ChatGPT subscription login only in the wire field `organizationSubscription`, with the marker `{"fence": "organization"}` in `subscription`. The runner SHALL accept it on every engine that accepts a project subscription login. An organization Claude setup-token SHALL travel as an environment credential, like a project one.
 
 #### Scenario: Runner older than M5
 - **WHEN** a runner that does not know `organizationSubscription` receives a run that names an organization subscription login
@@ -78,4 +78,4 @@ The SDK SHALL send an organization subscription login only in the wire field `or
 
 #### Scenario: Daytona engine
 - **WHEN** a runner of M5 receives the run on the `daytona` sandbox_agent engine
-- **THEN** it SHALL refuse the run with a typed error.
+- **THEN** it SHALL run it like a project subscription login, owned by the organization.

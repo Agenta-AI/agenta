@@ -2003,7 +2003,7 @@ async def test_a_route_without_a_protocol_puts_none_on_the_wire(fake_http, conne
     assert "protocol" not in resolved.to_wire()
 
 
-# ------------------------------------- organization subscription login (M5, inprocess only)
+# ------------------------------------- organization subscription login (M5)
 
 
 def _organization_subscription_model(slug: str = "chatgpt", provider="openai-codex"):
@@ -2062,18 +2062,37 @@ async def test_a_missing_organization_subscription_is_typed(fake_http, connectio
         )
 
 
-async def test_an_organization_claude_login_is_refused(fake_http, connection):
-    """A Claude setup-token travels as an environment value into the harness process, so
-    an organization Claude login is refused; a project Claude login is unchanged."""
-    from agenta.sdk.agents.connections import OrganizationSubscriptionNotSupportedError
+async def test_an_organization_claude_login_resolves_like_a_project_one(
+    fake_http, connection
+):
+    """An organization Claude login resolves exactly like a project Claude login: the
+    setup-token travels as an ordinary credential, on every engine. Only the route that
+    released it differs."""
+    secret = _claude_secret()
+    secret["owner"] = {"kind": "organization", "id": "org-1"}
+    capture = fake_http(connections, payload=secret)
 
-    secret = _subscription_secret(slug="claude")
-    secret["data"]["provider"] = "claude"
-    secret["data"]["harnesses"] = ["claude"]
-    secret["data"]["login"] = {"type": "token", "access": "sk-ant-oat01-x"}
-    fake_http(connections, payload=secret)
-    with pytest.raises(OrganizationSubscriptionNotSupportedError):
-        await VaultConnectionResolver(connection).resolve(
-            model=_organization_subscription_model(slug="claude", provider="anthropic"),
-            context=RuntimeAuthContext(harness="claude", backend="local"),
-        )
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef(
+            provider="anthropic",
+            model="sonnet",
+            connection={
+                "mode": "self_managed",
+                "slug": "claude",
+                "scope": "organization",
+            },
+        ),
+        context=RuntimeAuthContext(harness="claude", backend="daytona"),
+    )
+
+    assert (
+        capture["url"] == "https://api.x/api/secrets/organization-subscriptions/claude"
+    )
+    assert resolved.credential_mode == "env"
+    assert resolved.subscription is None
+    assert _credential_environment(resolved) == {
+        "CLAUDE_CODE_OAUTH_TOKEN": _CLAUDE_TOKEN
+    }
+    wire = resolved.to_wire()
+    assert "organizationSubscription" not in wire
+    assert "subscription" not in wire

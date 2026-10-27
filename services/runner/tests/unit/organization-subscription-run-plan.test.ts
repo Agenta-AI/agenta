@@ -1,8 +1,7 @@
 /**
- * An organization subscription login (M5) runs only on the `inprocess` engine, where the login
- * stays in the runner process. The `daytona` and `local` engines would write it where agent code
- * can read it, so they refuse the run. It arrives in its own field, so a runner older than M5
- * never reads it.
+ * An organization subscription login (M5) runs exactly like a project login, on every engine.
+ * Only its owner differs, so its refreshes go to the organization's row. It arrives in its own
+ * field, so a runner older than M5 never reads it.
  *
  * Run: pnpm exec vitest run tests/unit/organization-subscription-run-plan.test.ts
  */
@@ -15,8 +14,8 @@ import type {
 } from "../../src/protocol.ts";
 import {
   buildRunPlan,
+  type BuildRunPlanDeps,
   isUsableSubscription,
-  ORGANIZATION_SUBSCRIPTION_ENGINE_MESSAGE,
   SUBSCRIPTION_INVALID_MESSAGE,
 } from "../../src/engines/sandbox_agent/run-plan.ts";
 import { configFingerprint } from "../../src/engines/sandbox_agent/session-identity.ts";
@@ -37,7 +36,9 @@ const LOGIN: ModelConnectionSubscription = {
   },
 };
 
-const FENCE = { fence: "organization" } as unknown as ModelConnectionSubscription;
+const FENCE = {
+  fence: "organization",
+} as unknown as ModelConnectionSubscription;
 
 function request(
   sandbox: string,
@@ -72,29 +73,40 @@ afterEach(() => {
 });
 
 describe("an organization subscription login", () => {
-  it("runs on the inprocess engine, as the organization's login", () => {
-    const result = buildRunPlan(request("inprocess"), {
-      sandboxProvider: "inprocess",
-      enabledProviders: ["local", "daytona", "inprocess"],
-    });
-    assert.equal(result.ok, true, result.ok ? "" : result.error);
-    if (!result.ok) return;
-    assert.equal(result.plan.credentials.subscriptionOwner, "organization");
-    assert.equal(result.plan.credentials.subscription?.id, "org-conn-1");
-    assert.equal(result.plan.credentials.subscription?.owner, "organization");
-  });
-
-  for (const sandbox of ["daytona", "local"]) {
-    it(`is refused on the ${sandbox} engine`, () => {
-      const result = buildRunPlan(request(sandbox), {
-        sandboxProvider: sandbox,
+  for (const sandbox of ["inprocess", "daytona", "local"]) {
+    it(`runs on the ${sandbox} engine like a project login, as the organization's login`, () => {
+      const options: BuildRunPlanDeps = {
+        sandboxProvider: sandbox as BuildRunPlanDeps["sandboxProvider"],
         enabledProviders: ["local", "daytona", "inprocess"],
         createLocalCwd: () => "/tmp/agenta-test-cwd",
         createDaytonaCwd: () => "/home/sandbox/agenta-test",
-      });
-      assert.equal(result.ok, false);
-      if (result.ok) return;
-      assert.equal(result.error, ORGANIZATION_SUBSCRIPTION_ENGINE_MESSAGE);
+      };
+      const result = buildRunPlan(request(sandbox), options);
+      assert.equal(result.ok, true, result.ok ? "" : result.error);
+      if (!result.ok) return;
+      assert.equal(result.plan.credentials.subscriptionOwner, "organization");
+      assert.equal(result.plan.credentials.subscription?.id, "org-conn-1");
+      assert.equal(result.plan.credentials.subscription?.owner, "organization");
+
+      // The same login sent as a project login builds the same plan, except for the owner.
+      const project = buildRunPlan(
+        request(sandbox, {
+          organizationSubscription: undefined,
+          subscription: LOGIN,
+        }),
+        options,
+      );
+      assert.equal(project.ok, true, project.ok ? "" : project.error);
+      if (!project.ok) return;
+      assert.equal(project.plan.credentials.subscriptionOwner, "project");
+      assert.equal(
+        result.plan.credentials.subscriptionHome,
+        project.plan.credentials.subscriptionHome,
+      );
+      assert.equal(
+        result.plan.credentials.credentialMode,
+        project.plan.credentials.credentialMode,
+      );
     });
   }
 
@@ -134,10 +146,13 @@ describe("an organization subscription login", () => {
   });
 
   it("runs without the fence too", () => {
-    const result = buildRunPlan(request("inprocess", { subscription: undefined }), {
-      sandboxProvider: "inprocess",
-      enabledProviders: ["inprocess"],
-    });
+    const result = buildRunPlan(
+      request("inprocess", { subscription: undefined }),
+      {
+        sandboxProvider: "inprocess",
+        enabledProviders: ["inprocess"],
+      },
+    );
     assert.equal(result.ok, true, result.ok ? "" : result.error);
   });
 });

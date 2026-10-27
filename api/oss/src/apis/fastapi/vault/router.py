@@ -414,7 +414,7 @@ class VaultRouter:
     async def read_organization_subscription(self, request: Request, slug: str):
         """The organization subscription login a run named, for the platform runtime only
         (M5): the run's own credential (`secret-resolve` grant) of a project the login is
-        available to. The runner uses it only on the `inprocess` engine."""
+        available to. The runner uses it like a project login."""
         self._require_platform_runtime(request)
         await self._require(request, Permission.VIEW_SECRET)
         organization_id = getattr(request.state, "organization_id", None)

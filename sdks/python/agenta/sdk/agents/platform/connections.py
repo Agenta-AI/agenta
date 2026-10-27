@@ -44,7 +44,6 @@ from ..connections import (
     MissingCredentialError,
     MissingProviderError,
     OrganizationConnectionUnavailableError,
-    OrganizationSubscriptionNotSupportedError,
     ModelRef,
     ProviderMismatchError,
     ResolvedConnection,
@@ -688,9 +687,9 @@ def _resolve_subscription(
     """Resolve a ``self_managed`` connection that names a hosted subscription secret.
 
     With ``organization``, ``secrets`` holds the one organization login the API released
-    for this run (M5). Only a ChatGPT login on its harness is accepted: it travels as
-    ``organizationSubscription`` and stays in the runner process. A Claude setup-token
-    would travel as an environment value into the sandbox, so it is refused.
+    for this run (M5). It resolves exactly like a project login. The only difference is
+    the owner: a ChatGPT login travels as ``organizationSubscription``, so its refreshes
+    go to the organization row and a runner older than M5 refuses it.
 
     A ChatGPT login stays ``runtime_provided``: the harness authenticates itself with the
     login Agenta delivers as the ``subscription`` block, and refreshes it during the turn. A
@@ -727,10 +726,6 @@ def _resolve_subscription(
         raise SubscriptionLoginRequiredError(slug=slug, provider=chosen.provider)
 
     provider = run.provider
-    if organization and chosen.provider == "claude":
-        raise OrganizationSubscriptionNotSupportedError(
-            slug=slug, provider=chosen.provider
-        )
     if chosen.provider == "claude":
         return build_resolved_connection(
             provider=provider,

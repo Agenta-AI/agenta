@@ -33,10 +33,10 @@ Order follows the implementation sequence. Spec references: OC = organization-cr
 
 ## 5b. Organization subscription logins
 
-- [x] 5b.1 `subscription_provider` in `ORGANIZATION_SECRET_KINDS`, never a gateway target; organization create, device login and setup-token routes behind the organization decision (OC "inprocess engine").
+- [x] 5b.1 `subscription_provider` in `ORGANIZATION_SECRET_KINDS`, never a gateway target; organization create, device login and setup-token routes behind the organization decision (OC "organization subscription logins").
 - [x] 5b.2 `GET /secrets/organization-subscriptions/{slug}` for the run credential only; upkeep with `?scope=organization`, checked for availability.
-- [x] 5b.3 SDK: `organizationSubscription` wire field; organization Claude login refused.
-- [x] 5b.4 Runner: `inprocess` only, typed refusal elsewhere; upkeep and device login carry the organization owner.
+- [x] 5b.3 SDK: `organizationSubscription` wire field; organization Claude login resolves like a project one (2026-10-27).
+- [x] 5b.4 Runner: every engine, like a project login (2026-10-27); upkeep and device login carry the organization owner.
 
 ## 6. Web
 

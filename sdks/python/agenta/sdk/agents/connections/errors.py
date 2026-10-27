@@ -203,23 +203,6 @@ class OrganizationConnectionUnavailableError(ConnectionResolutionError):
         self.slug = slug
 
 
-class OrganizationSubscriptionNotSupportedError(ConnectionResolutionError):
-    """An organization subscription login runs only where its login stays in the runner
-    process (M5): a ChatGPT login on the Pi harness, on the `inprocess` engine. A login
-    that a harness would read inside a sandbox (a Claude setup-token) is refused."""
-
-    status_code = 422
-    failure_code = "organization_subscription_not_supported"
-
-    def __init__(self, *, slug: str, provider: str) -> None:
-        super().__init__(
-            f"The organization subscription '{slug}' ({_subscription_name(provider)}) "
-            "can be used only by a Pi agent that runs in Agenta's own process."
-        )
-        self.slug = slug
-        self.provider = provider
-
-
 class InvalidConnectionConfigurationError(AgentConnectionError):
     """Raised when resolved routing and credentials form an unsafe combination."""
 

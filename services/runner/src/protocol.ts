@@ -749,8 +749,8 @@ export interface ModelConnection {
   subscription?: ModelConnectionSubscription;
   /**
    * An organization subscription login the agent named (M5). The same shape as `subscription`,
-   * in its own field so a runner older than M5 never reads it. It is used only on the
-   * `inprocess` engine, where the login stays in this process; any other engine refuses the run.
+   * in its own field so a runner older than M5 never reads it. It runs like a project login on
+   * every engine; its refreshes go to the organization's row.
    */
   organizationSubscription?: ModelConnectionSubscription;
   /** Our own credentials for the gateway. Independent of `credentialMode`, which describes the

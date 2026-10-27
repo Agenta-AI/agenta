@@ -276,8 +276,8 @@ class ResolvedSubscription(BaseModel):
     # The harness-format credential, carried verbatim. Pi's shape today; unknown keys survive.
     login: Dict[str, Any] = Field(default_factory=dict, repr=False)
     # Whose login it is (M5). An organization login travels as `organizationSubscription`,
-    # a field a runner older than M5 does not read, and a new runner uses it only on the
-    # `inprocess` engine (never in a sandbox).
+    # a field a runner older than M5 does not read. A new runner uses it like a project
+    # login and sends its refreshes to the organization row.
     owner: Literal["project", "organization"] = "project"
 
     @model_validator(mode="after")

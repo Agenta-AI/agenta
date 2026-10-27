@@ -126,12 +126,6 @@ export const SUBSCRIPTION_INVALID_MESSAGE =
 export const SUBSCRIPTION_SUPPORTED_PROVIDER = "chatgpt";
 
 /**
- * An organization subscription login runs only where it stays in this process (M5). The
- * `inprocess` engine keeps the login in the runner's credential store and gives its Daytona
- * sandbox shell commands only. The `daytona` engine and the `local` engine would write the login
- * where agent code can read it, so they refuse the run instead.
- */
-/**
  * The marker an M5 SDK sends in `subscription` beside an organization login. A runner older
  * than M5 does not read `organizationSubscription`; it reads this marker as an unusable
  * subscription and refuses the run (`SUBSCRIPTION_INVALID_MESSAGE`), so it never falls through
@@ -149,9 +143,6 @@ function isOrganizationSubscriptionFence(value: unknown): boolean {
   );
 }
 
-export const ORGANIZATION_SUBSCRIPTION_ENGINE_MESSAGE =
-  "An organization subscription login can be used only by a Pi agent that runs in Agenta's own " +
-  "process (the inprocess engine). Use a project subscription or an API key for this run.";
 export const SUBSCRIPTION_UNSUPPORTED_MESSAGE =
   "A subscription connection is supported only for the ChatGPT provider on a Pi harness. " +
   "Use a managed API key (credentialMode 'env') for anything else.";
@@ -885,7 +876,8 @@ export function buildRunPlan(
     request.modelConnection?.organizationSubscription;
   if (organizationSubscription) {
     // Checked before the project shapes, and terminal: an organization login never takes the
-    // project or operator path, and never runs where agent code can read it.
+    // operator path. Past these checks it runs exactly like a project login, on every engine;
+    // only its owner differs, which sends its refreshes to the organization's row.
     const besideSubscription = request.modelConnection?.subscription;
     if (
       (besideSubscription &&
@@ -907,9 +899,6 @@ export function buildRunPlan(
         SUBSCRIPTION_SUPPORTED_PROVIDER
     ) {
       return { ok: false, error: SUBSCRIPTION_UNSUPPORTED_MESSAGE };
-    }
-    if (sandboxId !== "inprocess") {
-      return { ok: false, error: ORGANIZATION_SUBSCRIPTION_ENGINE_MESSAGE };
     }
   }
   const requestSubscription = organizationSubscription

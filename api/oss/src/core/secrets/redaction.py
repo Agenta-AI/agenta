@@ -200,10 +200,9 @@ def organization_subscription_for_runtime(
     """An organization subscription login in plaintext, for the platform runtime only.
 
     An organization subscription login is the one organization value that leaves the API
-    (M5): the run that named it carries it to the runner process, which uses it only on the
-    `inprocess` engine and never writes it into a sandbox. The caller holds the
-    `secret-resolve` grant (the run's own credential). Every other organization value stays
-    in the API."""
+    (M5): the run that named it carries it to the runner, which uses it like a project
+    login. The caller holds the `secret-resolve` grant (the run's own credential). Every
+    other organization value stays in the API."""
     if (
         not _is_organization_row(secret)
         or secret.kind != SecretKind.SUBSCRIPTION_PROVIDER
