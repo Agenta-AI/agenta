@@ -136,8 +136,8 @@ Organization-scoped decisions and organization credentials (M5):
   a bound reference), in the gateway namespace `organization`. `SecretsResolver` is built
   per plane; only the LLM plane answers an organization connection. The `/secrets/` routes
   serve both owners: a by-id route finds the project row under project RBAC first, then the
-  organization row behind `decide_organization`; create, list and the projects route name the
-  organization with `scope`. `GET /secrets/?include_organization=true` adds the organization
+  organization row behind `decide_organization`; create and list name the organization with
+  `scope`, and `PUT /secrets/{id}/projects` addresses organization rows only. `GET /secrets/?include_organization=true` adds the organization
   rows available to the project without values, never under the `secret-resolve` grant.
 - A project's vault lives in ONE cache entry (`effective_secrets`, keyed on the full
   project id), filled by one statement (`SecretsDAO.load_effective`), with the project's
