@@ -37,27 +37,18 @@ const loginAttemptSchema = z.object({
 
 export type LoginAttemptResponse = z.infer<typeof loginAttemptSchema>
 
-/** Whose connection the login belongs to; an organization connection signs in on its own routes. */
-export type LoginAttemptScope = "project" | "organization"
-
-const attemptsUrl = (secretId: string, scope: LoginAttemptScope = "project"): string =>
-    `${getAgentaApiUrl()}/${scope === "organization" ? "organization-secrets" : "secrets"}/${encodeURIComponent(secretId)}/login-attempts`
+const attemptsUrl = (secretId: string): string =>
+    `${getAgentaApiUrl()}/secrets/${encodeURIComponent(secretId)}/login-attempts`
 
 /** Start a device login, or return the unexpired attempt this connection is already waiting on. */
 export async function startLoginAttempt({
     projectId,
     secretId,
-    scope,
 }: {
     projectId: string
     secretId: string
-    scope?: LoginAttemptScope
 }): Promise<LoginAttemptResponse | null> {
-    const response = await axios.post(
-        attemptsUrl(secretId, scope),
-        {},
-        {params: {project_id: projectId}},
-    )
+    const response = await axios.post(attemptsUrl(secretId), {}, {params: {project_id: projectId}})
     return safeParseWithLogging(loginAttemptSchema, response.data, "[startLoginAttempt]")
 }
 
@@ -66,17 +57,14 @@ export async function fetchLoginAttempt({
     projectId,
     secretId,
     attemptId,
-    scope,
 }: {
     projectId: string
     secretId: string
     attemptId: string
-    scope?: LoginAttemptScope
 }): Promise<LoginAttemptResponse | null> {
-    const response = await axios.get(
-        `${attemptsUrl(secretId, scope)}/${encodeURIComponent(attemptId)}`,
-        {params: {project_id: projectId}},
-    )
+    const response = await axios.get(`${attemptsUrl(secretId)}/${encodeURIComponent(attemptId)}`, {
+        params: {project_id: projectId},
+    })
     return safeParseWithLogging(loginAttemptSchema, response.data, "[fetchLoginAttempt]")
 }
 
@@ -85,15 +73,13 @@ export async function cancelLoginAttempt({
     projectId,
     secretId,
     attemptId,
-    scope,
 }: {
     projectId: string
     secretId: string
     attemptId: string
-    scope?: LoginAttemptScope
 }): Promise<LoginAttemptResponse | null> {
     const response = await axios.post(
-        `${attemptsUrl(secretId, scope)}/${encodeURIComponent(attemptId)}/cancel`,
+        `${attemptsUrl(secretId)}/${encodeURIComponent(attemptId)}/cancel`,
         {},
         {params: {project_id: projectId}},
     )

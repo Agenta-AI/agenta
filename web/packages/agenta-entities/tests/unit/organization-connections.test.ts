@@ -8,7 +8,6 @@ import {
 import {isOrganizationConnection, toProviderConnections} from "../../src/secret/core/connections"
 import {projectRowsOnly, transformSecret} from "../../src/secret/core/transforms"
 import {SecretKind, StandardProviderKind, type SecretResponseDto} from "../../src/secret/core/types"
-import {loginAttemptKey} from "../../src/secret/state/subscriptionLogin"
 
 const openaiSecret = (overrides: Record<string, unknown> = {}): SecretResponseDto =>
     ({
@@ -193,13 +192,5 @@ describe("agent model candidates from an organization connection", () => {
                 showSubscriptions: false,
             }),
         ).toEqual([])
-    })
-})
-
-describe("loginAttemptKey with a scope", () => {
-    it("keeps a project key as it was, and marks an organization one", () => {
-        const base = {secretId: "s", attemptId: "a", startedAt: 1}
-        expect(loginAttemptKey(base)).toBe("s|a|1")
-        expect(loginAttemptKey({...base, scope: "organization"})).toBe("s|a|1|organization")
     })
 })

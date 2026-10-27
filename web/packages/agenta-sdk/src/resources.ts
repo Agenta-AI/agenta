@@ -15,7 +15,6 @@ import {EvaluationsClient} from "@agentaai/api-client/resources/evaluations"
 import {EventsClient} from "@agentaai/api-client/resources/events"
 import {KeysClient} from "@agentaai/api-client/resources/keys"
 import {MountsClient} from "@agentaai/api-client/resources/mounts"
-import {OrganizationSecretsClient} from "@agentaai/api-client/resources/organizationSecrets"
 import {ProjectsClient} from "@agentaai/api-client/resources/projects"
 import {SecretsClient} from "@agentaai/api-client/resources/secrets"
 import {SessionsClient} from "@agentaai/api-client/resources/sessions"
@@ -157,11 +156,6 @@ export function getLowPriorityMountsClient(): MountsClient {
 let _channels: ChannelsClient | undefined
 export function getChannelsClient(): ChannelsClient {
     return (_channels ??= new ChannelsClient(buildClientOptions()))
-}
-
-let _organizationSecrets: OrganizationSecretsClient | undefined
-export function getOrganizationSecretsClient(): OrganizationSecretsClient {
-    return (_organizationSecrets ??= new OrganizationSecretsClient(buildClientOptions()))
 }
 
 let _sharing: SharingClient | undefined

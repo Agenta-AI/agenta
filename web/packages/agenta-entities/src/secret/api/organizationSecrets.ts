@@ -1,17 +1,18 @@
 /**
- * Organization connections — the `/organization-secrets/` routes (M5).
+ * Organization connections on the `/secrets/` routes (M5).
  *
- * Only an organization owner or admin may call them; anyone else gets a 403, which is also how
- * the AI providers page tells an admin from a member without asking for a role. Every call is
- * scoped by the current project, the way the API resolves the organization.
+ * Only an organization owner or admin may list, create or limit them; anyone else gets a 403,
+ * which is also how the AI providers page tells an admin from a member without asking for a
+ * role. Editing, deleting and signing in use the project routes, which find the row by id.
+ * Every call is scoped by the current project, the way the API resolves the organization.
  */
-import {getOrganizationSecretsClient} from "@agenta/sdk/resources"
+import {getProjectsClient} from "@agenta/sdk/resources"
 import type {AgentaApi} from "@agentaai/api-client"
 
 import {transformSecret} from "../core/transforms"
-import type {ProviderVaultRow, SecretResponseDto} from "../core/types"
+import type {CreateSecretDto, ProviderVaultRow, SecretResponseDto} from "../core/types"
 
-import {projectScopedRequest} from "./client"
+import {getSecretsClient, projectScopedRequest} from "./client"
 
 export type OrganizationSecretAvailability = AgentaApi.SecretAvailability
 
@@ -21,16 +22,39 @@ export interface OrganizationSecretProjects {
     projectIds: string[]
 }
 
+/** A project an owner or admin may choose for an organization connection. */
+export interface OrganizationProject {
+    id: string
+    name: string
+}
+
+const projectIdsOf = (projects: OrganizationSecretProjects) =>
+    projects.availability === "selected_projects" ? projects.projectIds : []
+
 /** Every organization connection, as rows the connection list reads. */
 export const fetchOrganizationSecrets = async ({
     projectId,
 }: {
     projectId: string
 }): Promise<ProviderVaultRow[]> => {
-    const result = await getOrganizationSecretsClient().listOrganizationSecrets(
+    const result = await getSecretsClient().listSecrets(
+        {scope: "organization"},
         projectScopedRequest(projectId),
     )
-    return transformSecret((result.secrets ?? []) as SecretResponseDto[])
+    return transformSecret(result as SecretResponseDto[])
+}
+
+/** Every project of the organization, also the ones the caller is not a member of. */
+export const fetchOrganizationProjects = async ({
+    projectId,
+}: {
+    projectId: string
+}): Promise<OrganizationProject[]> => {
+    const projects = await getProjectsClient().getProjects(
+        {scope: "organization"},
+        projectScopedRequest(projectId),
+    )
+    return projects.map((project) => ({id: project.project_id, name: project.project_name}))
 }
 
 export const createOrganizationSecret = async ({
@@ -39,29 +63,16 @@ export const createOrganizationSecret = async ({
     projects,
 }: {
     projectId: string
-    payload: Pick<AgentaApi.OrganizationSecretCreateRequest, "header" | "secret">
+    payload: Pick<CreateSecretDto, "header" | "secret">
     projects: OrganizationSecretProjects
 }) =>
-    getOrganizationSecretsClient().createOrganizationSecret(
+    getSecretsClient().createSecret(
         {
             ...payload,
+            scope: "organization",
             availability: projects.availability,
-            project_ids: projects.availability === "selected_projects" ? projects.projectIds : [],
+            project_ids: projectIdsOf(projects),
         },
-        projectScopedRequest(projectId),
-    )
-
-export const editOrganizationSecret = async ({
-    projectId,
-    secretId,
-    payload,
-}: {
-    projectId: string
-    secretId: string
-    payload: Omit<AgentaApi.OrganizationSecretEditRequest, "secret_id">
-}) =>
-    getOrganizationSecretsClient().editOrganizationSecret(
-        {secret_id: secretId, ...payload},
         projectScopedRequest(projectId),
     )
 
@@ -74,38 +85,11 @@ export const setOrganizationSecretProjects = async ({
     secretId: string
     projects: OrganizationSecretProjects
 }) =>
-    getOrganizationSecretsClient().setOrganizationSecretProjects(
+    getSecretsClient().setSecretProjects(
         {
             secret_id: secretId,
             availability: projects.availability,
-            project_ids: projects.availability === "selected_projects" ? projects.projectIds : [],
+            project_ids: projectIdsOf(projects),
         },
-        projectScopedRequest(projectId),
-    )
-
-export const deleteOrganizationSecret = async ({
-    projectId,
-    secretId,
-}: {
-    projectId: string
-    secretId: string
-}) =>
-    getOrganizationSecretsClient().deleteOrganizationSecret(
-        {secret_id: secretId},
-        projectScopedRequest(projectId),
-    )
-
-/** Check a pasted subscription token with its provider and store it on the connection. */
-export const setOrganizationSubscriptionToken = async ({
-    projectId,
-    secretId,
-    token,
-}: {
-    projectId: string
-    secretId: string
-    token: string
-}) =>
-    getOrganizationSecretsClient().setOrganizationSubscriptionToken(
-        {secret_id: secretId, token},
         projectScopedRequest(projectId),
     )

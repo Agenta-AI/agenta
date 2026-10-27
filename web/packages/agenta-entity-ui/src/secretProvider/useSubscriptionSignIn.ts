@@ -33,7 +33,7 @@ export interface PendingAttempt {
     pollKey: string
 }
 
-/** Whose connection a sign-in is for: an organization one signs in on its own routes. */
+/** Whose connection a sign-in creates. */
 type SignInScope = "project" | "organization"
 
 /** `4:31`, or an empty string when the attempt names no expiry. */
@@ -75,7 +75,6 @@ export const useSubscriptionSignIn = ({
                 : createProjectConnection({provider: kind, name: label}),
         [createOrganizationConnection, createProjectConnection, scope],
     )
-    const loginScope = scope === "organization" ? ("organization" as const) : undefined
     const startLogin = useSetAtom(startSubscriptionLoginAtom)
     const cancelLogin = useSetAtom(cancelSubscriptionLoginAtom)
     const forgetAttempt = useSetAtom(forgetLoginAttemptAtom)
@@ -138,11 +137,7 @@ export const useSubscriptionSignIn = ({
             return
         }
         if (outcome === "timed_out") {
-            void cancelLogin({
-                secretId: attempt.secretId,
-                attemptId: attempt.attemptId,
-                scope: loginScope,
-            })
+            void cancelLogin({secretId: attempt.secretId, attemptId: attempt.attemptId})
             setError("The sign-in did not finish in time. Start it again.")
             return
         }
@@ -161,7 +156,6 @@ export const useSubscriptionSignIn = ({
         pending,
         provider,
         refreshVault,
-        loginScope,
     ])
 
     // A sign-in that landed after all: the connection answers, so there is nothing to recover.
@@ -176,9 +170,9 @@ export const useSubscriptionSignIn = ({
         setLostPoll(false)
         try {
             const secretId = connection?.id ?? (await createConnection({provider, name}))
-            const attempt = await startLogin({secretId, scope: loginScope})
+            const attempt = await startLogin({secretId})
             if (start !== startRef.current) {
-                void cancelLogin({secretId, attemptId: attempt.attempt_id, scope: loginScope})
+                void cancelLogin({secretId, attemptId: attempt.attempt_id})
                 if (!connection) void refreshVault()
                 return
             }
@@ -197,7 +191,6 @@ export const useSubscriptionSignIn = ({
                     secretId,
                     attemptId: attempt.attempt_id,
                     startedAt,
-                    scope: loginScope,
                 }),
             })
             setNow(startedAt)
@@ -218,7 +211,6 @@ export const useSubscriptionSignIn = ({
         cancelLogin,
         connection,
         createConnection,
-        loginScope,
         name,
         organizationName,
         provider,
@@ -231,13 +223,9 @@ export const useSubscriptionSignIn = ({
         startRef.current += 1
         setStarting(false)
         if (!pending) return
-        void cancelLogin({
-            secretId: pending.secretId,
-            attemptId: pending.attemptId,
-            scope: loginScope,
-        })
+        void cancelLogin({secretId: pending.secretId, attemptId: pending.attemptId})
         closeAttempt(pending)
-    }, [cancelLogin, closeAttempt, loginScope, pending])
+    }, [cancelLogin, closeAttempt, pending])
 
     const statusLine = useMemo(
         () =>

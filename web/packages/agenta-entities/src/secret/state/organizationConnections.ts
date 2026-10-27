@@ -4,7 +4,8 @@
  * Two reads, and no request a screen waits on in series:
  *
  *   - An organization owner or admin reads every organization connection, with who may use it,
- *     from `/organization-secrets/`. The page starts that read beside the project's vault read.
+ *     from `GET /secrets/?scope=organization`. The page starts that read beside the project's
+ *     vault read.
  *   - Anyone else gets a 403 there, and reads the organization connections their project may use
  *     from the project's own vault read (`include_organization`), which the page makes anyway.
  *
@@ -16,13 +17,11 @@ import {projectIdAtom, userAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
 
+import {deleteVaultSecret, setSubscriptionToken, updateVaultSecret} from "../api/api"
 import {
     createOrganizationSecret,
-    deleteOrganizationSecret,
-    editOrganizationSecret,
     fetchOrganizationSecrets,
     setOrganizationSecretProjects,
-    setOrganizationSubscriptionToken,
     type OrganizationSecretProjects,
 } from "../api/organizationSecrets"
 import {
@@ -137,9 +136,9 @@ export const saveOrganizationConnectionAtom = atom(
 
         if (connectionId) {
             if (connectionChanged) {
-                await editOrganizationSecret({
+                await updateVaultSecret({
                     projectId,
-                    secretId: connectionId,
+                    secret_id: connectionId,
                     payload: {
                         ...(payload.header?.name ? {header: payload.header} : {}),
                         secret: payload.secret,
@@ -179,7 +178,7 @@ export const deleteOrganizationConnectionAtom = atom(
     async (get, set, connection: ProviderConnection) => {
         const projectId = get(projectIdAtom)
         if (!projectId) throw new Error("[vault] Missing projectId for organization connection")
-        await deleteOrganizationSecret({projectId, secretId: connection.id})
+        await deleteVaultSecret({projectId, secret_id: connection.id})
         void set(refreshOrganizationConnectionsAtom)
     },
 )
@@ -217,7 +216,7 @@ export const setOrganizationSubscriptionTokenAtom = atom(
         if (!projectId) throw new Error("[vault] Missing projectId for organization connection")
         // Captured before the request: the answer belongs to this user and project.
         const listKey = ["vault", "organization-secrets", get(userAtom)?.id, projectId]
-        const saved = await setOrganizationSubscriptionToken({projectId, secretId, token})
+        const saved = await setSubscriptionToken({projectId, secretId, token})
         // The answer is the saved row: it replaces the cached one at once, and both lists
         // refetch in the background.
         const [row] = transformSecret([saved as SecretResponseDto])
