@@ -466,6 +466,9 @@ async function acquireEnvironmentOnce(
   );
   throwIfAcquireAborted(signal);
   if (!setup.ok) return setup;
+  // The setup prefix: run plan, mount signing, daemon env. Timed from the same start as
+  // `acquire_total`.
+  setup.timingLog("environment_setup", setup.acquireStartedAt);
   const {
     acquireStartedAt,
     agentMountDir,
@@ -1048,7 +1051,10 @@ async function acquireEnvironmentOnce(
     // the loopback HTTP channel — neither needs this. The upload helper THROWS when the shim
     // cannot be delivered (fail loud — this path requires it).
     let internalToolMcp: ToolMcpAssets | undefined;
+    // Started here and awaited after the mounts: see the shim upload below.
+    let toolMcpUpload: Promise<ToolMcpAssets> | undefined;
     if (plan.isDaytona) {
+      const harnessAssetsStartedAt = Date.now();
       const daytonaExtensionInstalled = await (
         deps.prepareDaytonaPiAssets ?? prepareDaytonaPiAssets
       )({
@@ -1056,7 +1062,7 @@ async function acquireEnvironmentOnce(
         plan: { ...plan, workspace: { ...plan.workspace, skillDirs: [] } },
         piModelConfig,
         log: logger,
-      });
+      }).finally(() => timingLog("harness_assets", harnessAssetsStartedAt));
       // Fail closed (Decision 2): same guarantee as the local path. A genuine upload failure on the
       // Daytona sandbox stops the run rather than running Pi's built-in tools unprotected.
       if (
@@ -1078,14 +1084,18 @@ async function acquireEnvironmentOnce(
       if (!plan.isPi && plan.tools.toolSpecs.length > 0) {
         // Advertise the FULL tool set to the shim, client tools included: a parked client tool
         // resolves through the relay's paused answer (see startToolRelay / tool-mcp-stdio.ts).
-        internalToolMcp = await (
-          deps.uploadToolMcpAssets ?? uploadToolMcpAssets
-        )(
+        // The upload runs while the mounts below run, and is awaited after them. Nothing in it
+        // needs a mount: `toolMcpDir` is in-VM disk (`/home/sandbox/agenta/tool-mcp/...`), never
+        // under the cwd, the agent drive or a session dir, and the bundle comes from the runner.
+        const toolMcpUploadStartedAt = Date.now();
+        toolMcpUpload = (deps.uploadToolMcpAssets ?? uploadToolMcpAssets)(
           environment.sandbox,
           plan.workspace.toolMcpDir,
           advertisedToolSpecs(plan.tools.toolSpecs),
           logger,
-        );
+        ).finally(() => timingLog("tool_mcp_upload", toolMcpUploadStartedAt));
+        // Observed now, so a failure while the mounts run is never an unhandled rejection.
+        void toolMcpUpload.catch(() => {});
       }
       // Managed Codex is file-free on Daytona too (the SDK-rendered custom provider reads
       // OPENAI_API_KEY from the daemon env at request time; configureDaytonaCodexEnv set CODEX_HOME
@@ -1276,12 +1286,18 @@ async function acquireEnvironmentOnce(
         }
       }
     })();
-    const [daytonaCwdResult, daytonaAgentResult] = await Promise.allSettled([
-      daytonaCwdMount,
-      daytonaAgentMount,
-    ]);
+    const [daytonaCwdResult, daytonaAgentResult, toolMcpResult] =
+      await Promise.allSettled([
+        daytonaCwdMount,
+        daytonaAgentMount,
+        toolMcpUpload,
+      ]);
     if (daytonaCwdResult.status === "rejected") throw daytonaCwdResult.reason;
     if (daytonaAgentResult.status === "rejected") throw daytonaAgentResult.reason;
+    // The shim upload THROWS when the shim cannot be delivered (fail loud), as before; it is only
+    // reported after the mounts settle, so it never leaves a mount attaching behind the teardown.
+    if (toolMcpResult.status === "rejected") throw toolMcpResult.reason;
+    internalToolMcp = toolMcpResult.value;
 
     // Restore the agent's own tools (`agent-files/.tools/`) now that both agent-mount paths
     // have settled and before the session opens, so a venv or a binary the model saved in an
@@ -1464,6 +1480,7 @@ async function acquireEnvironmentOnce(
       log: logger,
     });
 
+    const sessionMcpStartedAt = Date.now();
     const sessionMcp = await buildSessionMcpServers({
       isPi: plan.isPi,
       capabilities,
@@ -1488,6 +1505,7 @@ async function acquireEnvironmentOnce(
       internalToolMcp,
       log: logger,
     });
+    timingLog("session_mcp", sessionMcpStartedAt);
     // Close the internal gateway-tool MCP server (if one started) when the session is destroyed.
     environment.closeToolMcp = sessionMcp.close;
 
@@ -1496,10 +1514,11 @@ async function acquireEnvironmentOnce(
     // REQUEST's servers, not the materialized list: on a Daytona Secrets run the materialized
     // credentials are placeholders the gateway would rightly refuse, and the probe would then
     // report a failure that the run does not have.
+    const mcpHandshakeStartedAt = Date.now();
     environment.mcpHandshakeFailures = await probeMcpServerHandshakes(
       request.mcpServers,
       { signal: mcpAbort.signal, log: logger },
-    );
+    ).finally(() => timingLog("mcp_handshake", mcpHandshakeStartedAt));
 
     // Shared session-init payload for both the createSession and continuity-resume paths below.
     // Built as a plain variable (not an inline object literal at the call site) so the extra
@@ -1557,13 +1576,14 @@ async function acquireEnvironmentOnce(
     // runner restart (in-memory map lost) still sees the prior turn's eligibility. No-op (and
     // cheap) when the store already has a live in-process record.
     if (continuitySessionKey && runCred) {
+      const continuitySeedStartedAt = Date.now();
       await (
         deps.hydrateHarnessSessionFromDurable ??
         hydrateHarnessSessionFromDurable
       )(continuitySessionKey, plan.harness, continuityStore, {
         authorization: runCred,
         log: logger,
-      });
+      }).finally(() => timingLog("continuity_seed", continuitySeedStartedAt));
     }
     const priorAgentSessionId = continuitySessionKey
       ? eligibleAgentSessionId(
@@ -1665,6 +1685,7 @@ async function acquireEnvironmentOnce(
       plan.acpAgent === "codex"
         ? codexConfigPinnedModel(plan.workspace.harnessFiles)
         : undefined;
+    const applyModelStartedAt = Date.now();
     if (pinnedCodexModel) {
       environment.model = pinnedCodexModel;
       logger(
@@ -1686,6 +1707,7 @@ async function acquireEnvironmentOnce(
         logger,
       );
     }
+    timingLog("apply_model", applyModelStartedAt);
 
     // Session-lifetime listeners: attach ONCE, each demuxing into the active turn's sink. They
     // outlive any single turn, so the routing lives in dedicated non-throwing helpers below.

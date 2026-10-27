@@ -70,12 +70,13 @@ export async function acquire(
   // converge its network policy to this run's plan. Any reconnect failure falls through to a
   // fresh create. Snapshot and image drift are accepted as per-conversation version pinning, not
   // grounds for a rebuild.
+  const pointerStartedAt = Date.now();
   const storedSandboxPointer =
     isDaytona && sessionForMount && runCred
       ? await (deps.readStoredSandboxPointer ?? readStoredSandboxPointer)(
           sessionForMount,
           { authorization: runCred, log },
-        )
+        ).finally(() => timingLog("sandbox_pointer", pointerStartedAt))
       : undefined;
 
   // An id this process did not create belongs to another pod, or to this pod before a restart.

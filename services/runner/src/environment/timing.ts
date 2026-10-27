@@ -27,18 +27,31 @@ export type TimingLog = (
 /**
  * Every stage name the acquire path emits, in the order it emits them.
  *
+ * Some stages are Daytona-only (`sandbox_pointer`, `harness_assets`, `tool_mcp_upload`) or run
+ * only when their work applies (`continuity_seed`, `mcp_handshake` with no servers is ~0 ms).
+ * `tool_mcp_upload` overlaps `mounts` and `agent_mount`, which overlap each other, so stage times
+ * do not sum to `acquire_total`.
+ *
  * `sandbox_start` and `create_session` appear once each although each has two modes; the mode
  * rides the `fields` suffix rather than the stage name, so a dashboard grouping by stage sees one
  * series with a mode dimension.
  */
 export const ACQUIRE_STAGES = [
+  "environment_setup",
+  "sandbox_pointer",
   "sandbox_start",
+  "harness_assets",
+  "tool_mcp_upload",
   "mounts",
   "agent_mount",
   "agent_tools_setup",
   "prepare_workspace",
   "probe_capabilities",
+  "session_mcp",
+  "mcp_handshake",
+  "continuity_seed",
   "create_session",
+  "apply_model",
   "credential_preflight",
   "acquire_total",
 ] as const;
