@@ -52,10 +52,9 @@ const invalidated = (key: unknown[]) => client.getQueryState(key)?.isInvalidated
 /** Wait for the organization list to settle, through a live subscription as a page holds. */
 const settle = async (store: ReturnType<typeof createStore>) => {
     const stop = store.sub(organizationSecretsQueryAtom, () => undefined)
-    await vi.waitFor(
-        () => expect(store.get(organizationSecretsQueryAtom).isFetching).toBe(false),
-        {timeout: 5000},
-    )
+    await vi.waitFor(() => expect(store.get(organizationSecretsQueryAtom).isFetching).toBe(false), {
+        timeout: 5000,
+    })
     return stop
 }
 
