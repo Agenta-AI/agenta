@@ -546,3 +546,150 @@ describe("agent tools bin cache (local provider)", () => {
     assert.ok(!existsSync(join(root, "agenta-tools-cache")));
   });
 });
+
+describe("agent tools setup.sh output cache (local provider, allow posture)", () => {
+  // The script logs each real run OUTSIDE .tools/, so the log does not change the fingerprint.
+  const SETUP = [
+    'echo ran >> "$AGENT_FILES/runs.log"',
+    'mkdir -p "$AGENT_TOOLS_DIR/lib"',
+    'cp "$AGENT_FILES/.tools/requirements.txt" "$AGENT_TOOLS_DIR/lib/installed.txt"',
+    'ln -sf ../lib/installed.txt "$AGENT_TOOLS_DIR/bin/installed"',
+    "",
+  ].join("\n");
+
+  function setupFixture() {
+    const f = fixture({ bin: { hello: "#!/bin/sh\necho hi\n" }, setup: SETUP });
+    writeFileSync(join(f.mount, ".tools", "requirements.txt"), "requests==1\n");
+    const cache = agentToolsCacheFor("proj-1", "agent-1", f.root)!;
+    let n = 0;
+    const start = (runSetup = true) => {
+      n += 1;
+      const cwd = join(f.root, `cwd-${n}`);
+      const localDir = join(f.root, `s-${n}`);
+      mkdirSync(cwd);
+      return runAgentToolsSetup(
+        { mountPath: f.mount, cwd, localDir, runSetup, cache },
+        localAgentToolsExec,
+        { log: SILENT, hostEnv: { PATH: process.env.PATH } },
+      ).then((result) => ({ result, cwd, localDir }));
+    };
+    const runs = () =>
+      existsSync(join(f.mount, "runs.log"))
+        ? readFileSync(join(f.mount, "runs.log"), "utf8").split("\n").filter(Boolean).length
+        : 0;
+    const setupEntries = () =>
+      readdirSync(join(cache.root, cache.key)).filter((n) => n.startsWith("setup-"));
+    return { ...f, cache, start, runs, setupEntries };
+  }
+
+  it("a second session restores the script's output instead of running it", async () => {
+    const f = setupFixture();
+    const first = await f.start();
+    assert.equal(first.result.status, "ok");
+    assert.equal(f.runs(), 1);
+    assert.equal(f.setupEntries().length, 1);
+
+    const second = await f.start();
+    assert.equal(second.result.status, "ok");
+    assert.equal((second.result as { setupReused?: boolean }).setupReused, true);
+    assert.equal(f.runs(), 1, "setup.sh ran again on a cache hit");
+    assert.equal(
+      readFileSync(join(second.cwd, ".tools", "lib", "installed.txt"), "utf8"),
+      "requests==1\n",
+    );
+    // Symlinks survive the copy (node_modules/.bin is made of them), and the binary is executable.
+    assert.ok(lstatSync(join(second.localDir, "bin", "installed")).isSymbolicLink());
+    assert.notEqual(statSync(join(second.localDir, "bin", "hello")).mode & 0o111, 0);
+    assert.ok(lstatSync(join(second.cwd, ".tools")).isSymbolicLink());
+  });
+
+  it("a changed input file under .tools/ runs the script again", async () => {
+    const f = setupFixture();
+    await f.start();
+    writeFileSync(join(f.mount, ".tools", "requirements.txt"), "requests==2\n");
+    const second = await f.start();
+    assert.equal((second.result as { setupReused?: boolean }).setupReused, undefined);
+    assert.equal(f.runs(), 2);
+    assert.equal(
+      readFileSync(join(second.localDir, "lib", "installed.txt"), "utf8"),
+      "requests==2\n",
+    );
+    assert.equal(f.setupEntries().length, 1, "the old entry was not pruned");
+  });
+
+  it("a changed setup.sh runs the script again", async () => {
+    const f = setupFixture();
+    await f.start();
+    writeFileSync(join(f.mount, ".tools", "setup.sh"), `${SETUP}echo v2 > "$AGENT_TOOLS_DIR/v2"\n`);
+    const second = await f.start();
+    assert.equal(f.runs(), 2);
+    assert.ok(existsSync(join(second.localDir, "v2")));
+  });
+
+  it("a binary removed from agent-files is not restored with the cached output", async () => {
+    const f = setupFixture();
+    writeFileSync(join(f.mount, ".tools", "bin", "old"), "old\n");
+    await f.start();
+    rmSync(join(f.mount, ".tools", "bin", "old"));
+    const second = await f.start();
+    assert.equal(f.runs(), 2);
+    assert.ok(!existsSync(join(second.localDir, "bin", "old")));
+    assert.ok(existsSync(join(second.localDir, "bin", "hello")));
+  });
+
+  it("under ask/deny the cached output is never restored and never written", async () => {
+    const f = setupFixture();
+    const denied = await f.start(false);
+    assert.equal(denied.result.status, "ok");
+    assert.equal(f.runs(), 0);
+    assert.deepEqual(f.setupEntries(), []);
+    await f.start(true);
+    assert.equal(f.setupEntries().length, 1);
+    const deniedAgain = await f.start(false);
+    assert.equal((deniedAgain.result as { setupReused?: boolean }).setupReused, undefined);
+    assert.ok(!existsSync(join(deniedAgain.localDir, "lib")), "setup output leaked into a non-allow run");
+    assert.ok(existsSync(join(deniedAgain.localDir, "bin", "hello")));
+    assert.equal(f.runs(), 1);
+  });
+
+  it("a failed script is not cached", async () => {
+    const f = setupFixture();
+    writeFileSync(join(f.mount, ".tools", "setup.sh"), `${SETUP}exit 3\n`);
+    const first = await f.start();
+    assert.equal(first.result.status, "failed");
+    assert.deepEqual(f.setupEntries(), []);
+    await f.start();
+    assert.equal(f.runs(), 2);
+  });
+
+  it("concurrent cold starts all get the output and leave one complete entry", async () => {
+    const f = setupFixture();
+    const results = await Promise.all([f.start(), f.start(), f.start()]);
+    for (const { result, localDir } of results) {
+      assert.equal(result.status, "ok");
+      assert.equal(readFileSync(join(localDir, "lib", "installed.txt"), "utf8"), "requests==1\n");
+    }
+    assert.equal(f.setupEntries().length, 1);
+    assert.deepEqual(
+      readdirSync(join(f.cache.root, f.cache.key)).filter((n) => n.startsWith(".tmp-")),
+      [],
+    );
+    const later = await f.start();
+    assert.equal((later.result as { setupReused?: boolean }).setupReused, true);
+  });
+
+  it("without a cache (the Daytona path) the script runs every session", async () => {
+    const f = setupFixture();
+    for (const n of [1, 2]) {
+      const cwd = join(f.root, `nocache-cwd-${n}`);
+      mkdirSync(cwd);
+      const r = await runAgentToolsSetup(
+        { mountPath: f.mount, cwd, localDir: join(f.root, `nocache-${n}`), runSetup: true },
+        localAgentToolsExec,
+        { log: SILENT, hostEnv: { PATH: process.env.PATH } },
+      );
+      assert.equal(r.status, "ok");
+    }
+    assert.equal(f.runs(), 2);
+  });
+});

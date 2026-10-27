@@ -202,10 +202,15 @@ the script is skipped, so check for its output before you rely on it.
 - Put the rebuild in `agent-files/.tools/setup.sh`. The script runs with your working directory
   as its current directory and sees two variables: `$AGENT_FILES`, your durable folder, and
   `$AGENT_TOOLS_DIR`, the local folder behind `.tools/`.
-  Python: `uv venv "$AGENT_TOOLS_DIR/venv" && uv pip install -p "$AGENT_TOOLS_DIR/venv" -r agent-files/.tools/requirements.txt`,
+  Python: `uv venv --relocatable "$AGENT_TOOLS_DIR/venv" && uv pip install -p "$AGENT_TOOLS_DIR/venv" -r agent-files/.tools/requirements.txt`,
   then run scripts with `.tools/venv/bin/python`. Node: `cd "$AGENT_TOOLS_DIR" && cp "$AGENT_FILES/.tools/package.json" . && npm install`,
-  then call tools as `.tools/node_modules/.bin/<tool>`. Keep the script short; it runs every
-  session.
+  then call tools as `.tools/node_modules/.bin/<tool>`. Keep the script short.
+- Write everything the script produces under `$AGENT_TOOLS_DIR`. When nothing in
+  `agent-files/.tools/` changed since an earlier session, the platform can restore that
+  earlier output into `$AGENT_TOOLS_DIR` instead of running the script again. Anything the
+  script writes elsewhere (your home folder, the working directory, `/tmp`) is then missing,
+  and the folder path differs from the earlier session, so do not write absolute paths to
+  `$AGENT_TOOLS_DIR` into files the script creates.
 - For a one-off Python script, use `uv run` with a `# /// script` header and no environment.
 
 Beside `agent-files/.tools/` sits `agent-files/.apps/`, also durable across sessions. It holds

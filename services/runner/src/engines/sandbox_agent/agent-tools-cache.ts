@@ -12,6 +12,7 @@
  *   agenta-tools-cache/                 0700, must be a real directory this uid owns
  *     <agent key>/                      0700, sha256(project id, agent artifact id)
  *       bin-<fingerprint>/bin/<file>    one complete entry, published by an atomic rename
+ *       setup-<fingerprint>/tools/      what `setup.sh` left in $AGENT_TOOLS_DIR (allow only)
  *       .tmp-XXXXXX/                    an entry being built; never read
  *
  * Concurrency: an entry is built in a private temp dir and renamed into place. Two sessions of the
@@ -19,10 +20,16 @@
  * A reader never sees a partial entry. A reader whose entry is pruned mid-copy fails its copy and
  * the caller falls back to the durable folder.
  *
+ * The `setup-` entry is keyed by the whole `.tools/` folder: the `bin/` fingerprint plus a content
+ * hash of every other file there (`setup.sh` and what it reads: a lockfile, a requirements file).
+ * It holds files the owner's script wrote, an SSH key among them, so it is reused and written only
+ * under the `allow` posture that lets the script run at all.
+ *
  * Nothing here throws to the caller: any error means "no cache" and the restore runs as before.
  */
 
 import { createHash } from "node:crypto";
+import { createReadStream } from "node:fs";
 import {
   chmod,
   copyFile,
@@ -211,5 +218,108 @@ export async function cachedToolsBin(
       `agent tools bin cache unavailable: ${String(err instanceof Error ? err.message : err).slice(0, 200)}`,
     );
     return undefined;
+  }
+}
+
+/** Above these, `.tools/` is not hashed and the setup output is not reused (the script runs). */
+export const AGENT_TOOLS_INPUTS_MAX_FILES = 1_000;
+export const AGENT_TOOLS_INPUTS_MAX_BYTES = 16 * 1024 * 1024;
+
+function hashFile(path: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const hash = createHash("sha256");
+    createReadStream(path)
+      .on("error", reject)
+      .on("data", (chunk) => hash.update(chunk))
+      .on("end", () => resolve(hash.digest("hex")));
+  });
+}
+
+/**
+ * Fingerprint of everything `setup.sh` can depend on inside `.tools/`: the stat fingerprint of
+ * `bin/` and the content of every other file (path, size, sha256). Undefined when `.tools/` is
+ * larger than the caps or cannot be read; the caller then runs the script as before.
+ */
+export async function fingerprintToolsInputs(
+  toolsDir: string,
+): Promise<string | undefined> {
+  try {
+    const rows = [`bin\0${(await fingerprintToolsBin(join(toolsDir, "bin"))) ?? "-"}`];
+    let files = 0;
+    let bytes = 0;
+    const walk = async (rel: string): Promise<boolean> => {
+      const entries = await readdir(join(toolsDir, rel), { withFileTypes: true });
+      entries.sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0));
+      for (const entry of entries) {
+        const path = rel ? join(rel, entry.name) : entry.name;
+        if (!rel && entry.name === "bin") continue;
+        if (entry.isDirectory()) {
+          if (!(await walk(path))) return false;
+          continue;
+        }
+        const st = await stat(join(toolsDir, path)).catch(() => undefined);
+        if (!st?.isFile()) continue;
+        files += 1;
+        bytes += st.size;
+        if (
+          files > AGENT_TOOLS_INPUTS_MAX_FILES ||
+          bytes > AGENT_TOOLS_INPUTS_MAX_BYTES
+        )
+          return false;
+        rows.push(`${path}\0${st.size}\0${await hashFile(join(toolsDir, path))}`);
+      }
+      return true;
+    };
+    if (!(await walk(""))) return undefined;
+    return createHash("sha256").update(rows.join("\n")).digest("hex").slice(0, 32);
+  } catch {
+    return undefined;
+  }
+}
+
+/** The cached setup output for this fingerprint, or undefined on a miss. */
+export async function cachedSetupOutput(
+  cache: AgentToolsCache,
+  fingerprint: string,
+): Promise<string | undefined> {
+  try {
+    const agentDir = await agentCacheDir(cache);
+    const tools = join(agentDir, `setup-${fingerprint}`, "tools");
+    if (!(await stat(tools)).isDirectory()) return undefined;
+    await touch(agentDir);
+    return tools;
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * Store what `setup.sh` left in the session's local dir under `setup-<fingerprint>`. `copy`
+ * copies a directory tree, symlinks kept as links (the caller runs `cp -a`). Logs and returns on
+ * any error: a failed capture costs only the next session's reuse.
+ */
+export async function captureSetupOutput(
+  cache: AgentToolsCache,
+  fingerprint: string,
+  localDir: string,
+  copy: (from: string, to: string) => Promise<boolean>,
+  log: (msg: string) => void = () => {},
+): Promise<void> {
+  try {
+    const agentDir = await agentCacheDir(cache);
+    const name = `setup-${fingerprint}`;
+    const tmp = await makeCacheTemp(agentDir);
+    if (!(await copy(localDir, join(tmp, "tools")))) {
+      await rm(tmp, { recursive: true, force: true });
+      log(`agent tools setup cache not written: copy failed`);
+      return;
+    }
+    await publishCacheEntry(tmp, agentDir, name);
+    await pruneAgentToolsCache(cache, "setup-", name);
+    log(`agent tools setup cache written`);
+  } catch (err) {
+    log(
+      `agent tools setup cache not written: ${String(err instanceof Error ? err.message : err).slice(0, 200)}`,
+    );
   }
 }

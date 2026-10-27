@@ -37,17 +37,30 @@
  * every binary from the mount. The session dir is still re-staged from scratch from that copy, so
  * the rule above holds. A Daytona sandbox is fresh every time and copies from the mount.
  *
+ * Under the `allow` posture only, the same cache also keeps what `setup.sh` left in
+ * `$AGENT_TOOLS_DIR`, keyed by a content hash of the whole `.tools/` folder. A later session with
+ * the same `.tools/` restores that copy instead of running the script again. Files the script
+ * writes outside `$AGENT_TOOLS_DIR` are not captured; the prompt tells the model to keep its
+ * setup output there. Under `ask` or `deny` the cache is neither read nor written for setup.
+ *
  * Nothing here can fail a turn. A missing `.tools/` is the normal case and costs one `test -d`.
  * A setup script that fails or times out is logged and the session still opens; the model sees
  * its tool missing and reports it, which is the failure mode the prompt prepares it for.
  */
 
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 
-import { cachedToolsBin, type AgentToolsCache } from "./agent-tools-cache.ts";
+import {
+  cachedSetupOutput,
+  cachedToolsBin,
+  captureSetupOutput,
+  fingerprintToolsInputs,
+  type AgentToolsCache,
+} from "./agent-tools-cache.ts";
 import { shellQuote, type SandboxExec } from "./mount.ts";
 
 export const AGENT_TOOLS_DIR_NAME = ".tools";
@@ -90,7 +103,13 @@ export interface AgentToolsSetupExec {
 
 export type AgentToolsSetupResult =
   | { status: "absent" }
-  | { status: "ok"; durationMs: number; setupRan: boolean }
+  | {
+      status: "ok";
+      durationMs: number;
+      setupRan: boolean;
+      /** True when a cached result of `setup.sh` was restored instead of running it. */
+      setupReused?: boolean;
+    }
   | { status: "skipped"; reason: string; durationMs: number }
   | { status: "failed"; exitCode?: number; durationMs: number }
   | { status: "error"; message: string; durationMs: number };
@@ -265,6 +284,53 @@ function describeExit(exitCode: number | undefined): string | undefined {
   }
 }
 
+/**
+ * Restore a cached `setup.sh` result instead of running the script: link, then replace the
+ * session's local dir with a copy of the snapshot (`bin/` included, as the script left it). A
+ * failed copy exits with the copy code so the caller falls back to the normal restore.
+ */
+export function agentToolsRestoreSetupScript(
+  cwd: string,
+  localDir: string,
+  snapshot: string,
+): string {
+  const local = shellQuote(localDir);
+  return [
+    agentToolsLinkScript(cwd, localDir),
+    `{ rm -rf ${local} && cp -a ${shellQuote(snapshot)} ${local}; } || exit ${AGENT_TOOLS_EXIT_COPY_FAILED}`,
+  ].join("; ");
+}
+
+function finishSetup(
+  exitCode: number | undefined,
+  started: number,
+  runSetup: boolean,
+  log: (msg: string) => void,
+  setupReused: boolean,
+): AgentToolsSetupResult {
+  const durationMs = Date.now() - started;
+  if (exitCode === 0) {
+    log(
+      `agent tools setup ok ms=${durationMs} setup=${setupReused ? "reused-from-cache" : runSetup ? "ran-if-present" : "skipped-by-permission"}`,
+    );
+    return {
+      status: "ok",
+      durationMs,
+      setupRan: runSetup,
+      ...(setupReused ? { setupReused } : {}),
+    };
+  }
+  const reason = describeExit(exitCode);
+  if (exitCode === AGENT_TOOLS_EXIT_OCCUPIED && reason) {
+    log(`agent tools setup skipped ms=${durationMs}: ${reason}`);
+    return { status: "skipped", reason, durationMs };
+  }
+  log(
+    `agent tools setup failed exit=${exitCode ?? "?"} ms=${durationMs}${reason ? `: ${reason}` : ""}`,
+  );
+  return { status: "failed", exitCode, durationMs };
+}
+
 export async function runAgentToolsSetup(
   input: {
     mountPath: string;
@@ -292,6 +358,42 @@ export async function runAgentToolsSetup(
     // mount and here) is an `error` result like any other, never an exception out of acquire.
     if (deps.hasToolsDir && !(await deps.hasToolsDir()))
       return { status: "absent" };
+    const toolsDir = join(input.mountPath, AGENT_TOOLS_DIR_NAME);
+    const env = agentToolsSetupEnv(input.mountPath, input.localDir, deps.hostEnv);
+    const timeoutMs = deps.timeoutMs ?? AGENT_TOOLS_SETUP_TIMEOUT_MS;
+    // The owner's script's output is reused only under the posture that lets the script run.
+    const setupCache =
+      input.cache &&
+      input.runSetup &&
+      existsSync(join(toolsDir, AGENT_TOOLS_SETUP_NAME))
+        ? input.cache
+        : undefined;
+    if (setupCache) {
+      const inputs = await fingerprintToolsInputs(toolsDir);
+      const snapshot = inputs
+        ? await cachedSetupOutput(setupCache, inputs)
+        : undefined;
+      if (snapshot) {
+        const { exitCode } = await exec.run({
+          script: agentToolsRestoreSetupScript(
+            input.cwd,
+            input.localDir,
+            snapshot,
+          ),
+          cwd: input.cwd,
+          env,
+          timeoutMs,
+          signal: deps.signal,
+        });
+        if (exitCode === 0 || exitCode === AGENT_TOOLS_EXIT_OCCUPIED)
+          return finishSetup(exitCode, started, input.runSetup, log, true);
+        // A snapshot pruned or damaged mid-copy: run the normal restore, which re-stages
+        // everything and runs the script.
+        log(
+          `agent tools setup cache restore failed exit=${exitCode ?? "?"}; running setup.sh`,
+        );
+      }
+    }
     const binSource = input.cache
       ? await cachedToolsBin(
           join(input.mountPath, AGENT_TOOLS_DIR_NAME),
@@ -307,26 +409,33 @@ export async function runAgentToolsSetup(
         { runSetup: input.runSetup, binSource },
       ),
       cwd: input.cwd,
-      env: agentToolsSetupEnv(input.mountPath, input.localDir, deps.hostEnv),
-      timeoutMs: deps.timeoutMs ?? AGENT_TOOLS_SETUP_TIMEOUT_MS,
+      env,
+      timeoutMs,
       signal: deps.signal,
     });
-    const durationMs = Date.now() - started;
-    if (exitCode === 0) {
-      log(
-        `agent tools setup ok ms=${durationMs} setup=${input.runSetup ? "ran-if-present" : "skipped-by-permission"}`,
-      );
-      return { status: "ok", durationMs, setupRan: input.runSetup };
+    if (exitCode === 0 && setupCache) {
+      // Keyed by `.tools/` as the script left it, so a script that rewrites its own lockfile
+      // still matches the next session.
+      const inputs = await fingerprintToolsInputs(toolsDir);
+      if (inputs)
+        await captureSetupOutput(
+          setupCache,
+          inputs,
+          input.localDir,
+          async (from, to) =>
+            (
+              await exec.run({
+                script: `cp -a ${shellQuote(from)} ${shellQuote(to)}`,
+                cwd: input.cwd,
+                env,
+                timeoutMs,
+                signal: deps.signal,
+              })
+            ).exitCode === 0,
+          log,
+        );
     }
-    const reason = describeExit(exitCode);
-    if (exitCode === AGENT_TOOLS_EXIT_OCCUPIED && reason) {
-      log(`agent tools setup skipped ms=${durationMs}: ${reason}`);
-      return { status: "skipped", reason, durationMs };
-    }
-    log(
-      `agent tools setup failed exit=${exitCode ?? "?"} ms=${durationMs}${reason ? `: ${reason}` : ""}`,
-    );
-    return { status: "failed", exitCode, durationMs };
+    return finishSetup(exitCode, started, input.runSetup, log, false);
   } catch (err) {
     const durationMs = Date.now() - started;
     const message = String(err instanceof Error ? err.message : err).slice(
