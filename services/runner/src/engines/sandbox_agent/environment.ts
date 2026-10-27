@@ -785,6 +785,11 @@ async function acquireEnvironmentOnce(
     // daemon, after which the daemon environment is fixed. Every local mount had to land above
     // this line. From here a `writeDaemonEnv` is a programming-order bug and throws.
     ctx.freezeDaemonEnv();
+    // The local mounts above were made by this acquire, so the first turn need not refresh their
+    // views (see `refreshDriveViewsAtTurnStart`). A mid-run remount never sets this.
+    if (plan.driveOnRunner && (environment.mountedCwd || environment.agentMountedPath)) {
+      environment.driveViewsFresh = true;
+    }
     // A harness that runs in this process has no daemon, so no sandbox provider is built for it.
     const inRunnerHarness = plan.harnessInRunner ? deps.inRunnerHarness : undefined;
     if (plan.harnessInRunner && !inRunnerHarness) throw new Error(`The ${plan.sandboxId} sandbox is not available on this agent service.`);
@@ -1145,6 +1150,8 @@ async function acquireEnvironmentOnce(
           environment.installedMountExpiries.cwd = mountExpiryMs(
             environment.mountCreds.expiresAt,
           );
+          // `mountStorageRemote` always detaches and mounts again, so this view starts empty.
+          environment.driveViewsFresh = true;
           logger(`remote durable cwd active for session=${sessionForMount}`);
         }
         // Per-harness session/transcript-dir mounts, remote-only by construction (this whole
@@ -1218,6 +1225,7 @@ async function acquireEnvironmentOnce(
           environment.installedMountExpiries.agent = mountExpiryMs(
             environment.agentMountCreds.expiresAt,
           );
+          environment.driveViewsFresh = true;
           await seedAgentReadmeRemote(environment.sandbox, mountPath, {
             log: logger,
           });

@@ -468,6 +468,12 @@ export interface SessionEnvironment {
    * cwd mount with the same TTL, so their expiry is never the minimum.
    */
   installedMountExpiries: InstalledMountExpiries;
+  /**
+   * True from a fresh Daytona mount in this acquire until the first turn starts. That turn skips
+   * the turn-start refresh of the drive views: the mounts are seconds old, so their cached view
+   * is as fresh as a refresh would make it. See `refreshDriveViewsAtTurnStart`.
+   */
+  driveViewsFresh?: boolean;
   durableCwdSafeToDelete: boolean;
   workspace: { cleanup: () => Promise<void> } | undefined;
   runtimeRemount: Promise<boolean> | undefined;

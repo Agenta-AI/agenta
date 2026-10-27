@@ -15,6 +15,12 @@
  *
  * For `local` and `daytona`, a refresh that fails or does not answer in time is logged and the
  * turn goes on as it did before this refresh existed.
+ *
+ * The first turn after a cold start skips the refresh (`driveViewsFresh`, set by the acquire for
+ * `local` and `daytona`): the acquire mounted the drives seconds before, so their views hold only
+ * what was read since then. A write that reaches the store in that window (the files pane, another
+ * conversation's agent mount) can still be missed by this turn's first reads, for up to the
+ * one-minute cache. Every later turn refreshes, and so does a turn after a mid-run remount.
  */
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -45,6 +51,8 @@ export interface TurnStartViews {
   agentMountedPath?: string | undefined;
   /** Daytona: set when the cwd mount in the sandbox succeeded. */
   installedMountExpiries: { cwd?: number };
+  /** Set by an acquire that mounted the drives fresh; the first turn clears it and skips the refresh. */
+  driveViewsFresh?: boolean;
 }
 
 export interface TurnStartPlan {
@@ -57,6 +65,11 @@ export interface TurnStartPlan {
 export async function refreshDriveViewsAtTurnStart(env: TurnStartViews, plan: TurnStartPlan, log: Log): Promise<void> {
   if (plan.harnessInRunner) {
     (env.sandbox as InRunnerSandboxHandle | undefined)?.startTurn();
+    return;
+  }
+  if (env.driveViewsFresh) {
+    env.driveViewsFresh = false;
+    log("[turn-start] drive views refresh skipped: mounted by this acquire, no turn since");
     return;
   }
   const t0 = Date.now();
