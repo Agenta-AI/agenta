@@ -656,16 +656,30 @@ class ToolsService:
     ) -> ToolConnection:
         authority = access.authority
 
-        async def read(user_id: UUID):
+        async def read(user_id: UUID) -> Optional[ToolConnection]:
             connections = await self.connections_service.query_personal_connections(
                 organization_id=authority.organization_id,
                 user_id=user_id,
                 provider_key=provider_key,
                 integration_key=integration_key,
             )
-            return connections[0] if connections else None
+            if not connections:
+                return None
+            # Checked here, before the selection records the use: an unusable
+            # connection is refused and never reported as used.
+            connection = ToolConnection.model_validate(connections[0].model_dump())
+            if not connection.is_active:
+                raise ConnectionInactiveError(connection_id=str(connection.id))
+            if not connection.is_valid or (
+                connection.has_auth and not connection.provider_connection_id
+            ):
+                raise ConnectionInvalidError(
+                    connection_slug=connection.slug or integration_key,
+                    detail="Please connect your account again.",
+                )
+            return connection
 
-        connection = await select_personal_credential(
+        return await select_personal_credential(
             authority=authority,
             session_id=access.session_id,
             key=tool_key(
@@ -675,17 +689,6 @@ class ToolsService:
             label=integration_key.replace("_", " ").title(),
             read=read,
         )
-        tool_connection = ToolConnection.model_validate(connection.model_dump())
-        if not tool_connection.is_active:
-            raise ConnectionInactiveError(connection_id=str(tool_connection.id))
-        if not tool_connection.is_valid or (
-            tool_connection.has_auth and not tool_connection.provider_connection_id
-        ):
-            raise ConnectionInvalidError(
-                connection_slug=tool_connection.slug or integration_key,
-                detail="Please connect your account again.",
-            )
-        return tool_connection
 
     async def resolve_connection_by_slug(
         self,
