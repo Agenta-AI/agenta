@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse
 
+from oss.src.core.workflows.types import InvalidAgentConnectionError
 from oss.src.core.access.principals import access_denied_error
 from oss.src.core.access.service import get_access_service
 from oss.src.core.access.types import AccessDenied
@@ -1968,6 +1969,10 @@ class ToolsRouter:
                 request=invoke_request,
                 envelope=child,
             )
+        except InvalidAgentConnectionError as e:
+            # A revision whose binding the run cannot use (M7): its own refusal, with
+            # the field and the guidance, not a generic failure.
+            raise HTTPException(status_code=422, detail=e.to_detail()) from e
         except Exception as e:
             log.error("Workflow tool invocation failed", exc_info=True)
             raise HTTPException(

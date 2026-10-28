@@ -461,7 +461,9 @@ class VaultRouter:
     ):
         if scope == "user":
             # The caller's own credentials in this organization, without values.
-            organization_id, user_id = await self._require_person(request)
+            organization_id, user_id = await self._require_person(
+                request, enforce_policy=False
+            )
             secrets = await self.service.list_personal_secrets(
                 organization_id=organization_id, user_id=user_id
             )
@@ -657,7 +659,9 @@ class VaultRouter:
         self, request: Request, secret_id: str, scope: OwnerScope = "project"
     ):
         if scope == "user":
-            organization_id, user_id = await self._require_person(request)
+            organization_id, user_id = await self._require_person(
+                request, enforce_policy=False
+            )
             if not await self.service.delete_personal_secret(
                 organization_id=organization_id,
                 user_id=user_id,
@@ -688,7 +692,9 @@ class VaultRouter:
         return status.HTTP_204_NO_CONTENT
 
     @staticmethod
-    async def _require_person(request: Request) -> tuple:
+    async def _require_person(
+        request: Request, *, enforce_policy: bool = True
+    ) -> tuple:
         """The organization and person a personal credential route acts for (M7): only
         the person themselves, signed in. No role, admin or API key reaches another
         person's credentials, and nothing is stored while the gate is closed or the
@@ -706,6 +712,10 @@ class VaultRouter:
                 detail="Only you can manage your personal accounts, signed in to the app.",
             )
         organization_id = UUID(str(organization_id))
+        # The policy stops new personal credentials, never a person seeing or removing
+        # the ones they already stored.
+        if not enforce_policy:
+            return organization_id, access.principal.id
         try:
             await check_personal_credentials_allowed(organization_id=organization_id)
         except PersonalCredentialRefused as e:

@@ -1315,6 +1315,12 @@ class VaultConnectionResolver:
         provider = resolved.get("provider_key")
         deployment = resolved.get("deployment_kind")
         namespace = resolved.get("namespace")
+        # Each person's own key is answered only in the `user` namespace (M7). An API
+        # that predates bindings ignores the field and answers the shared connection.
+        if model.connection.is_caller_account and namespace != "user":
+            raise ConnectionResolutionError(
+                "the gateway did not resolve each person's own account"
+            )
         name = resolved.get("name")
         resolved_model = resolved.get("model")
         if not all(

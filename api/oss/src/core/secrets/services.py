@@ -1201,6 +1201,8 @@ class VaultService:
         provider = getattr(create_secret_dto.secret.data, "kind", None)
         provider = getattr(provider, "value", provider)
         create_secret_dto.slug = str(provider)
+        # A person's own key is never readable back, whatever the request asked.
+        create_secret_dto.write_only = True
         header = create_secret_dto.header
         if not header.name:
             header.name = next_provider_key_name(
