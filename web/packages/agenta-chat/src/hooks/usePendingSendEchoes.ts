@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useSyncExternalStore} from "react"
 
 import type {UIMessage} from "ai"
 
@@ -14,6 +14,11 @@ import {
     showsInDock,
     type PendingSendEcho,
 } from "../assets/pendingSendEchoes"
+import {
+    readPendingSendEchoes,
+    subscribePendingSendEchoes,
+    updatePendingSendEchoes,
+} from "../state/pendingSendEchoStore"
 
 import type {QueuedMessage} from "./useAgentChatQueue"
 
@@ -58,20 +63,33 @@ export interface PendingSendEchoes {
 /**
  * Owns the echo rows for durable sends, separately from the queue's other duties.
  *
- * State is the only source of truth. Nothing is written during render: React can abandon a render,
- * and a ref mutated there is not rolled back, which loses an echo permanently and lets the next
+ * The per-session store is the only source of truth, so a remount (switching sessions and back)
+ * finds the echoes its predecessor left. Nothing is written during render: React can abandon a
+ * render, and a write there is not rolled back, which loses an echo permanently and lets the next
  * send reserve a count that is already taken. Visible rows are instead DERIVED by pure filtering,
  * so an adopted row and its echo never appear together even for one commit, and the stored list is
  * pruned afterwards in an effect where a discarded render cannot do harm.
  */
 export const usePendingSendEchoes = ({
+    sessionId,
     messages,
     dockedInputIds,
 }: {
+    sessionId: string
     messages: UIMessage[]
     dockedInputIds: ReadonlySet<string>
 }): PendingSendEchoes => {
-    const [echoes, setEchoes] = useState<readonly PendingSendEcho[]>([])
+    const subscribe = useCallback(
+        (listener: () => void) => subscribePendingSendEchoes(sessionId, listener),
+        [sessionId],
+    )
+    const read = useCallback(() => readPendingSendEchoes(sessionId), [sessionId])
+    const echoes = useSyncExternalStore(subscribe, read, read)
+    const setEchoes = useCallback(
+        (update: (current: readonly PendingSendEcho[]) => readonly PendingSendEcho[]) =>
+            updatePendingSendEchoes(sessionId, update),
+        [sessionId],
+    )
 
     const userCount = countUserMessages(messages)
     const durableTurnIds = useMemo(() => durableUserTurnIds(messages), [messages])
@@ -83,10 +101,10 @@ export const usePendingSendEchoes = ({
     const visible = useMemo(() => retirePendingSendEchoes(echoes, retireArgs), [echoes, retireArgs])
 
     // Housekeeping only: render already hides these. The updater is pure and re-derives from the
-    // list React hands it, so a send admitted between this render and this effect survives.
+    // stored list, so a send admitted between this render and this effect survives.
     useEffect(() => {
         setEchoes((current) => retirePendingSendEchoes(current, retireArgs))
-    }, [retireArgs])
+    }, [retireArgs, setEchoes])
 
     // The baseline is read at CALL time, not closed over. A send can be registered long after the
     // render that created this callback — capability resolution is a round trip — and a count
@@ -98,44 +116,53 @@ export const usePendingSendEchoes = ({
         committedUserCount.current = userCount
     }, [userCount])
 
-    // The updaters take that baseline as a plain argument, so they stay pure and React may replay
-    // them. Coverage itself is allocated from the list React hands the updater.
-    const add = useCallback((input: PendingSendEchoInput) => {
-        const at = committedUserCount.current
-        setEchoes((current) => [
-            ...current,
-            {
-                id: input.id,
-                text: input.text,
-                fileParts: input.fileParts,
-                policy: input.policy,
-                docked: input.docked,
-                coveredAtUserCount: nextPendingSendCoverage(at, current),
-                createdAtUserCount: at,
-            },
-        ])
-    }, [])
+    // The updaters take that baseline as a plain argument, so they stay pure. Coverage itself is
+    // allocated from the stored list the updater is handed.
+    const add = useCallback(
+        (input: PendingSendEchoInput) => {
+            const at = committedUserCount.current
+            setEchoes((current) => [
+                ...current,
+                {
+                    id: input.id,
+                    text: input.text,
+                    fileParts: input.fileParts,
+                    policy: input.policy,
+                    docked: input.docked,
+                    coveredAtUserCount: nextPendingSendCoverage(at, current),
+                    createdAtUserCount: at,
+                },
+            ])
+        },
+        [setEchoes],
+    )
 
-    const drop = useCallback((id: string) => {
-        const at = committedUserCount.current
-        setEchoes((current) => {
-            const next = current.filter((item) => item.id !== id)
-            if (next.length === current.length) return current
-            // An echo behind a dropped one reserved a count that is now one too high and
-            // would never retire.
-            return compactPendingSendCoverage(next, at)
-        })
-    }, [])
+    const drop = useCallback(
+        (id: string) => {
+            const at = committedUserCount.current
+            setEchoes((current) => {
+                const next = current.filter((item) => item.id !== id)
+                if (next.length === current.length) return current
+                // An echo behind a dropped one reserved a count that is now one too high and
+                // would never retire.
+                return compactPendingSendCoverage(next, at)
+            })
+        },
+        [setEchoes],
+    )
 
-    const mark = useCallback((id: string, patch: Partial<PendingSendEcho>) => {
-        setEchoes((current) => {
-            const index = current.findIndex((item) => item.id === id)
-            if (index < 0) return current
-            const next = [...current]
-            next[index] = {...current[index], ...patch}
-            return next
-        })
-    }, [])
+    const mark = useCallback(
+        (id: string, patch: Partial<PendingSendEcho>) => {
+            setEchoes((current) => {
+                const index = current.findIndex((item) => item.id === id)
+                if (index < 0) return current
+                const next = [...current]
+                next[index] = {...current[index], ...patch}
+                return next
+            })
+        },
+        [setEchoes],
+    )
 
     const markAccepted = useCallback(
         (id: string, executionId: string) => mark(id, {executionId}),
@@ -146,31 +173,34 @@ export const usePendingSendEchoes = ({
         (id: string, inputId: string) => mark(id, {parkedInputId: inputId}),
         [mark],
     )
-    const markFailed = useCallback((id: string, recreate?: PendingSendEchoInput) => {
-        setEchoes((current) => {
-            const index = current.findIndex((item) => item.id === id)
-            if (index >= 0) {
-                if (current[index].failed) return current
-                const next = [...current]
-                next[index] = {...current[index], failed: true}
-                return next
-            }
-            if (!recreate) return current
-            // Retired already, and now refused. The row is the only place this message can
-            // still be seen, so put it back rather than lose it.
-            return [
-                ...current,
-                {
-                    id: recreate.id,
-                    text: recreate.text,
-                    fileParts: recreate.fileParts,
-                    failed: true,
-                    coveredAtUserCount: Number.POSITIVE_INFINITY,
-                    createdAtUserCount: 0,
-                },
-            ]
-        })
-    }, [])
+    const markFailed = useCallback(
+        (id: string, recreate?: PendingSendEchoInput) => {
+            setEchoes((current) => {
+                const index = current.findIndex((item) => item.id === id)
+                if (index >= 0) {
+                    if (current[index].failed) return current
+                    const next = [...current]
+                    next[index] = {...current[index], failed: true}
+                    return next
+                }
+                if (!recreate) return current
+                // Retired already, and now refused. The row is the only place this message can
+                // still be seen, so put it back rather than lose it.
+                return [
+                    ...current,
+                    {
+                        id: recreate.id,
+                        text: recreate.text,
+                        fileParts: recreate.fileParts,
+                        failed: true,
+                        coveredAtUserCount: Number.POSITIVE_INFINITY,
+                        createdAtUserCount: 0,
+                    },
+                ]
+            })
+        },
+        [setEchoes],
+    )
 
     const rows = useMemo(
         () => pendingSendEchoMessages(visible.filter((item) => !showsInDock(item))),

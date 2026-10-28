@@ -116,11 +116,15 @@ interface HarnessProps {
     onSendFailed?: Parameters<typeof useAgentChatQueue>[0]["onSendFailed"]
 }
 
+// Echoes live in a per-session store that outlives a mount, so each mount takes its own session.
+let sessions = 0
+
 const setup = (initial: HarnessProps) => {
     const fallback = durableServer().server
+    const sessionId = `session-${++sessions}`
     const view = renderHook(
         ({server, ...props}: HarnessProps) =>
-            useAgentChatQueue({...props, server: server ?? fallback}),
+            useAgentChatQueue({sessionId, ...props, server: server ?? fallback}),
         {initialProps: initial},
     )
     return view
@@ -160,6 +164,70 @@ describe("useAgentChatQueue", () => {
         expect(result.current.queued).toEqual([
             expect.objectContaining({text: "wait next", source: "local", editable: false}),
         ])
+    })
+
+    it("shows a steer behind a card dismissal before that dismissal lands", async () => {
+        const server: ServerQueueAdapter = {
+            busy: false,
+            queued: [],
+            viewSeq: 0,
+            submit: vi.fn().mockResolvedValue(undefined),
+            remove: vi.fn().mockResolvedValue(undefined),
+        }
+        const {result} = setup({
+            messages: [userTurn("u1", "go"), assistantAwaitingQuestion("a1")],
+            stopped: false,
+            server,
+        })
+        let land!: () => void
+        const dismissed = new Promise<void>((resolve) => (land = resolve))
+
+        let steering!: Promise<void>
+        act(() => {
+            steering = result.current.steer({text: "use Gmail instead"}, {after: dismissed})
+        })
+
+        expect(result.current.pendingSendRows.map((row) => row.parts)).toEqual([
+            [{type: "text", text: "use Gmail instead"}],
+        ])
+        expect(server.submit).not.toHaveBeenCalled()
+
+        await act(async () => {
+            land()
+            await steering
+        })
+        expect(server.submit).toHaveBeenCalledWith(
+            expect.objectContaining({text: "use Gmail instead"}),
+            "steer",
+            expect.anything(),
+        )
+    })
+
+    it("takes the steer echo back when the card dismissal fails", async () => {
+        const server: ServerQueueAdapter = {
+            busy: false,
+            queued: [],
+            viewSeq: 0,
+            submit: vi.fn().mockResolvedValue(undefined),
+            remove: vi.fn().mockResolvedValue(undefined),
+        }
+        const {result} = setup({
+            messages: [userTurn("u1", "go"), assistantAwaitingQuestion("a1")],
+            stopped: false,
+            server,
+        })
+
+        await act(async () => {
+            await expect(
+                result.current.steer(
+                    {text: "use Gmail instead"},
+                    {after: Promise.reject(new Error("dismiss failed"))},
+                ),
+            ).rejects.toThrow("dismiss failed")
+        })
+
+        expect(result.current.pendingSendRows).toEqual([])
+        expect(server.submit).not.toHaveBeenCalled()
     })
 
     it("admits Steer while the run is parked on a client tool, before the snapshot says busy", async () => {

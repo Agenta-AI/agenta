@@ -235,8 +235,9 @@ export interface AgentConversation {
     queued: QueuedMessage[]
     /** The server currently owns an execution, including one started in another browser. */
     inputBusy: boolean
-    /** Submit the current composer value as a priority Steer input. */
-    steer: (input: SendInput) => Promise<void>
+    /** Submit the current composer value as a priority Steer input. Pass `after` when the input
+     * must follow another write (a dismissed card): the message shows at once, the request waits. */
+    steer: (input: SendInput, options?: {after?: Promise<unknown>}) => Promise<void>
     /** The run is parked on the USER — an approval gate or an unanswered client tool (elicitation,
      * connect). Typed messages queue rather than send while this holds. */
     hitlPending: boolean
@@ -813,6 +814,7 @@ export const useAgentConversation = ({
         pendingSendRows,
         sendInFlight,
     } = useAgentChatQueue({
+        sessionId,
         messages,
         stopped,
         continuationExecutionId,
@@ -1259,14 +1261,20 @@ export const useAgentConversation = ({
     )
 
     const steerInput = useCallback(
-        async ({text, files, parts, stagedFiles}: SendInput) => {
+        async (
+            {text, files, parts, stagedFiles}: SendInput,
+            options?: {after?: Promise<unknown>},
+        ) => {
             const trimmed = text.trim()
             const fileObjs = files ?? []
             const refParts = parts ?? []
             if (!trimmed && fileObjs.length === 0 && refParts.length === 0) return
             const encoded = fileObjs.length ? await filesToParts(fileObjs) : undefined
             const merged = [...(encoded?.parts ?? []), ...refParts]
-            await steer({text: trimmed, fileParts: merged.length ? merged : undefined, stagedFiles})
+            await steer(
+                {text: trimmed, fileParts: merged.length ? merged : undefined, stagedFiles},
+                options,
+            )
             composerDraftBySession.delete(sessionId)
         },
         [sessionId, steer],
