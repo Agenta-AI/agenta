@@ -208,7 +208,7 @@ You can also create entities independently using the precision endpoints:
 
 Each entity also has a corresponding `DELETE` endpoint for removal.
 
-Workspaces were removed, and these endpoints keep their workspace shape for older callers. Creating a workspace writes no workspace and answers the organization. A workspace membership answers the user's membership of the organization, so add the organization membership first.
+Workspaces were removed, and these endpoints keep their workspace shape for older callers. Creating a workspace writes no workspace and answers the organization. A workspace membership answers the user's membership of the organization, so add the organization membership first. Deleting a workspace id that is an organization id answers `409` and deletes nothing. To remove an organization, use the organization endpoint.
 
 ## Advanced: full account graph
 

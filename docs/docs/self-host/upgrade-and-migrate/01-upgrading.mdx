@@ -26,7 +26,7 @@ The two data migrations change data in one direction and have no down migration.
 
 ### Downgrade to 0.126.0
 
-To go back to 0.126.0, first set `ALEMBIC_AUTO_MIGRATIONS=false` (in Helm, `alembic.autoMigrations: false`). The 0.126.0 migration job does not know the new revisions and fails, which stops the API from starting. Then deploy the 0.126.0 images. The data stays as 0.127.0 left it, and 0.126.0 reads it. Turn `ALEMBIC_AUTO_MIGRATIONS` back on when you upgrade again.
+To go back to 0.126.0, first set `ALEMBIC_AUTO_MIGRATIONS=false` (in Helm, `alembic.autoMigrations: false`). The 0.126.0 migration job does not know the new revisions and fails, which stops the API from starting. Then deploy the 0.126.0 images. The data stays as 0.127.0 left it, and 0.126.0 reads it, with one exception in Enterprise: 0.126.0 pods count a user's traces retrieved in a separate bucket, so that daily count can be split between the two buckets. Turn `ALEMBIC_AUTO_MIGRATIONS` back on when you upgrade again.
 
 ### Upgrade from 0.126.0
 
