@@ -35,7 +35,7 @@ def upgrade() -> None:
             owner_id UUID NOT NULL,
             credential_id UUID NOT NULL,
             credential_name VARCHAR,
-            created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+            created_at TIMESTAMPTZ DEFAULT now(),
             CONSTRAINT pk_run_credential_uses
                 PRIMARY KEY (project_id, run_id, connection_key),
             CONSTRAINT fk_run_credential_uses_project_id FOREIGN KEY (project_id)

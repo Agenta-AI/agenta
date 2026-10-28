@@ -27,6 +27,7 @@ MODULES = [
     "oss.src.dbs.postgres.environments.dbes",
     "oss.src.dbs.postgres.evaluations.dbes",
     "oss.src.dbs.postgres.sharing.dbes",
+    "oss.src.dbs.postgres.credentials.dbes",
 ]
 
 # Tables whose spec gives them only part of the lifecycle set, on purpose.
@@ -34,7 +35,10 @@ MODULES = [
 # its role, so it carries `created_at` and `created_by_id` only (interfaces 1.3).
 # `session_trace_tombstones` (M3, defined by the session-trace-privacy design): a
 # tombstone records when its session was deleted, and nothing else changes on it.
+# `run_credential_uses` (M7): an append-only record of the account a run used; a row is
+# written once and only goes away with its project.
 PARTIAL_LIFECYCLE = {
+    "run_credential_uses": {"created_at"},
     "session_grants": {"created_at", "created_by_id"},
     "session_trace_tombstones": {"deleted_at"},
 }

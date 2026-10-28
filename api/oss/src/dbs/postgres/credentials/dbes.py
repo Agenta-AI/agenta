@@ -41,5 +41,5 @@ class RunCredentialUseDBE(Base):
     credential_id = Column(UUID(as_uuid=True), nullable=False)
     credential_name = Column(String, nullable=True)
     created_at = Column(
-        TIMESTAMP(timezone=True), nullable=False, server_default=func.now()
+        TIMESTAMP(timezone=True), nullable=True, server_default=func.now()
     )
