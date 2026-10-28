@@ -139,7 +139,7 @@ export async function runSandboxAgent(
   emit?: EmitEvent,
   signal?: AbortSignal,
   deps: SandboxAgentDeps = {},
-  turnOptions: Pick<RunTurnOptions, "credential" | "seededDecisions"> = {},
+  turnOptions: Pick<RunTurnOptions, "credentialLease" | "seededDecisions"> = {},
 ): Promise<AgentRunResult> {
   normalizeRequestModel(request);
   const acquired = await acquireEnvironment(

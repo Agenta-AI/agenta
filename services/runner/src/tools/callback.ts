@@ -11,6 +11,10 @@
  */
 export type { ResolvedToolSpec, ToolCallbackContext } from "../protocol.ts";
 import type { GatewayCallContext } from "./gateway-policy.ts";
+import {
+  RunCredentialExpiredError,
+  isExpiredSignatureResponse,
+} from "./run-credential.ts";
 
 /** Per-tool budget (ms) for the /tools/call round-trip. Surfaced as a tool error on timeout. */
 export const TOOL_CALL_TIMEOUT_MS = Number(
@@ -276,6 +280,9 @@ export async function callAgentaTool(
     console.error(
       `tool call ${callRef} returned HTTP ${response.status}: ${bodyText.slice(0, 500)}`,
     );
+    if (isExpiredSignatureResponse(response.status, bodyText)) {
+      throw new RunCredentialExpiredError();
+    }
     throw new Error(`tool call ${callRef} failed: HTTP ${response.status}`);
   }
 

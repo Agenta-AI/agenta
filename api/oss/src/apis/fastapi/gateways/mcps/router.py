@@ -316,6 +316,8 @@ class MCPGatewayRouter:
             gateway_run_id=run_id,
             gateway_tools=tools,
             audience=GATEWAY_TOKEN_AUDIENCE,
+            # Held in the sandbox for the whole turn; nothing re-mints it there.
+            expires_in=env.gateway_credentials.ttl_seconds,
             envelope=envelope,
         )
         return MCPAgentaCredentialResponse(credentials=f"Secret {token}")
