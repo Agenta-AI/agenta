@@ -14,6 +14,7 @@ from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from oss.src.core.workflows.types import InvalidAgentConnectionError
+from oss.src.core.gateway.connections.dtos import provider_entity
 from oss.src.apis.fastapi.shared.personal import require_person
 from oss.src.core.credentials.policy import PersonalCredentialRefused
 from oss.src.core.access.principals import access_denied_error
@@ -1557,7 +1558,7 @@ class ToolsRouter:
 
         # The Composio user the connection was made for (its project, or the person's
         # own entity, M7): the entity used at initiation.
-        user_id = connection.provider_entity
+        user_id = provider_entity(connection)
 
         # Parse arguments — OpenAI returns them as a JSON string; normalise to dict.
         arguments = body.data.function.arguments

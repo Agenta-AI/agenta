@@ -71,16 +71,7 @@ class Connection(
 
     @property
     def provider_entity(self) -> Optional[str]:
-        """The provider-side user this connection was made for. A project connection is
-        its project; a person's own connection is `org:<organization>:user:<user>`,
-        computed from the owner columns (design open question 2: this format lives at
-        Composio, so changing it means every person reconnects)."""
-        if self.owner is not None and self.owner.organization_id is not None:
-            return f"org:{self.owner.organization_id}:user:{self.owner.id}"
-        if self.data and isinstance(self.data, dict):
-            value = self.data.get("project_id")
-            return str(value) if value else None
-        return None
+        return provider_entity(self)
 
     @property
     def provider_connection_id(self) -> Optional[str]:
@@ -178,3 +169,17 @@ class ConnectionRefreshResponse(BaseModel):
     is_valid: Optional[bool] = None
     redirect_url: Optional[str] = None
     auth_config_id: Optional[str] = None
+
+
+def provider_entity(connection: Any) -> Optional[str]:
+    """The provider-side user a connection was made for. A project connection is its
+    project; a person's own connection is `org:<organization>:user:<user>`, computed from
+    the owner columns (design open question 2: this format lives at Composio, so changing
+    it means every person reconnects)."""
+    owner = getattr(connection, "owner", None)
+    if owner is not None and getattr(owner, "organization_id", None) is not None:
+        return f"org:{owner.organization_id}:user:{owner.id}"
+    data = getattr(connection, "data", None)
+    if isinstance(data, dict) and data.get("project_id"):
+        return str(data["project_id"])
+    return None

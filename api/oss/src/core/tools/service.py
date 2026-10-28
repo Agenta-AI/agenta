@@ -5,6 +5,7 @@ from time import perf_counter
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 from uuid import UUID
 
+from oss.src.core.gateway.connections.dtos import provider_entity
 from oss.src.core.access.context import get_request_access
 from oss.src.core.credentials.bindings import ConnectionKey, bound_to_caller
 from oss.src.core.credentials.selection import select_personal_credential
@@ -1058,7 +1059,7 @@ class ToolsService:
 
         # The Composio user the connection was made for: its project, or for a person's
         # own connection `org:<organization>:user:<user>` (M7).
-        user_id = connection.provider_entity
+        user_id = provider_entity(connection)
 
         started = perf_counter()
         result = await self.execute_tool(
