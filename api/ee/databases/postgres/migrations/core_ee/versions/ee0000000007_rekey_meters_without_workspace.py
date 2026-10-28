@@ -8,10 +8,12 @@ workspace (every organization-scope meter, so every billed meter) are not touche
 their ids. Today only the per-user `TRACES_RETRIEVED` rows carry a workspace.
 
 How:
-1. Refuse (before any write) when a row has a workspace and no project (no quota writes
-   that shape, and it has no step-2 identity), or when a row with a workspace has a key
-   the usage report sends to Stripe (no quota writes that either: billed meters are
-   organization-scope).
+1. Refuse (before any write) when a row has a workspace and a user but no project (no
+   quota writes that shape, and it has no step-2 identity), or when a row with a workspace
+   has a key the usage report sends to Stripe (no quota writes that either: billed meters
+   are organization-scope). A row with a workspace and neither project nor user (a quota
+   override with workspace scope) moves to the organization scope, as that override now
+   means.
 2. Hold the `meters:report` Redis lock (the one the usage report takes) for the whole
    run, so no report reads rows while they move. An active report is waited for (poll
    every 5 s, up to 15 min); then the revision fails before any write.
@@ -66,7 +68,8 @@ _SCOPE = (
 
 _REFUSE_SQL = f"""
 SELECT meter_id FROM meters
-WHERE workspace_id IS NOT NULL AND project_id IS NULL AND {_SCOPE}
+WHERE workspace_id IS NOT NULL AND project_id IS NULL AND user_id IS NOT NULL
+  AND {_SCOPE}
 LIMIT 1
 """
 
@@ -205,8 +208,8 @@ def refuse_unsupported_rows(bind, organization_ids=None) -> None:
     row = bind.execute(text(_REFUSE_SQL), {"orgs": orgs}).first()
     if row is not None:
         raise RekeyRefused(
-            f"meter {row.meter_id} has a workspace and no project; it has no step-2 "
-            "identity. Fix or delete such rows, then rerun."
+            f"meter {row.meter_id} has a workspace and a user but no project; it has "
+            "no step-2 identity. Fix or delete such rows, then rerun."
         )
     row = bind.execute(
         text(_REFUSE_REPORTED_SQL), {"orgs": orgs, "keys": _reported_key_labels()}

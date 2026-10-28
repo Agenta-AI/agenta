@@ -206,19 +206,26 @@ async def test_ee007_leaves_organization_meters_byte_identical(org):
 
 async def test_ee007_refuses_a_workspace_row_without_project(org):
     await _insert(org=org.id, wrk=org.ws, prj=org.prj, usr=org.usr, value=1, synced=0)
-    await _insert(
-        org=org.id,
-        wrk=org.ws,
-        prj=None,
-        usr=None,
-        value=5,
-        synced=0,
-        key="TRACES_INGESTED",
-    )
+    # A user without a project has no step-2 identity.
+    await _insert(org=org.id, wrk=org.ws, prj=None, usr=org.usr, value=5, synced=0)
     before = await _meters(org.id)
     with pytest.raises(_revision().RekeyRefused):
         await _autocommit_run([org.id], lock=_lock())
     assert await _meters(org.id) == before
+
+
+async def test_ee007_folds_a_workspace_scope_row_into_the_organization(org):
+    # A quota override with workspace scope wrote rows with a workspace and neither
+    # project nor user; the override now means the organization scope.
+    await _insert(org=org.id, wrk=org.ws, prj=None, usr=None, value=5, synced=2)
+    await _insert(org=org.id, wrk=None, prj=None, usr=None, value=3, synced=1)
+    await _autocommit_run([org.id], lock=_lock())
+    rows = list((await _meters(org.id)).values())
+    assert [
+        (row["workspace_id"], row["project_id"], row["user_id"], row["value"])
+        for row in rows
+    ] == [(None, None, None, 8)]
+    assert rows[0]["synced"] == 3
 
 
 async def test_ee007_is_idempotent(org):

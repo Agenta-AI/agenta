@@ -48,7 +48,7 @@ The upgrade keeps one default project per organization: the default project of t
 
 The usage meters of the per-user traces-retrieved quota are re-keyed without the workspace. The counts carry over. While 0.126.0 pods still run next to the new ones, those pods count a user's traces retrieved that day in a separate bucket, so the user's daily count can be split between the two until the 0.126.0 pods are gone; a later release merges the buckets. Billed meters do not change. The migration waits for a running usage report to finish (up to 15 minutes) and blocks new reports while it runs.
 
-An operator plan override with `"scope": "workspace"` now means the organization scope; the API logs one warning when it loads such an override.
+An operator plan override with `"scope": "workspace"` now means the organization scope; the API logs one warning when it loads such an override. The upgrade adds the counts such an override wrote to the organization count.
 
 ## Upgrading to 0.125.0
 
