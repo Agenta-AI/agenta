@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 from uuid import UUID, uuid4
 
 import pytest
+from sqlalchemy import text
 
 import oss.src.models.db_models  # noqa: F401  (the ORM tables the DAOs join)
 from oss.src.core.sharing.dtos import (
@@ -177,3 +178,57 @@ async def test_sharing_races_with_first_personal_use_exactly_one_wins():
             assert used is not shared_won, (used, shared)
             if not shared_won:
                 assert isinstance(shared, SessionUsedPersonalAccounts)
+
+
+async def test_a_grant_committed_while_the_guard_waits_is_seen():
+    """The sharing write holds the row lock and commits a grant; the guard, blocked on
+    that lock, must read the grant after it gets the lock (not its first snapshot)."""
+    async with seeded("alice", "bob") as org:
+        project_id = org.project_ids[0]
+        alice, bob = org.user_ids["alice"], org.user_ids["bob"]
+        stream_id, session_id = await _session(
+            project_id, visibility="private", owner=alice
+        )
+        engine = get_transactions_engine()
+        async with engine.transaction() as sharing:
+            await sharing.execute(
+                text(
+                    "SELECT id FROM session_streams WHERE project_id = :p "
+                    "AND session_id = :s FOR UPDATE"
+                ),
+                {"p": project_id, "s": session_id},
+            )
+            guard = asyncio.create_task(
+                _dao().guard_personal_use(project_id=project_id, session_id=session_id)
+            )
+            await asyncio.sleep(0.5)
+            assert not guard.done()
+            await sharing.execute(
+                text(
+                    "INSERT INTO session_grants (project_id, stream_id, user_id, role) "
+                    "VALUES (:p, :s, :u, 'participant')"
+                ),
+                {"p": project_id, "s": stream_id, "u": bob},
+            )
+        assert await guard is False
+        assert await _mark(project_id, session_id) is None
+
+
+async def test_a_private_channel_session_refuses_a_humans_personal_use():
+    async with seeded("alice") as org:
+        project_id, alice = org.project_ids[0], org.user_ids["alice"]
+        _, session_id = await _session(project_id, visibility="private", owner=alice)
+        await execute(
+            "INSERT INTO channel_threads (project_id, id, space_id, agent_id, "
+            "session_id) VALUES (:p, :id, :space, :a, :s)",
+            {
+                "p": project_id,
+                "id": uuid4(),
+                "space": uuid4(),
+                "a": uuid4(),
+                "s": session_id,
+            },
+        )
+        assert not await _dao().guard_personal_use(
+            project_id=project_id, session_id=session_id
+        )

@@ -83,3 +83,33 @@ async def test_a_run_without_a_session_and_a_channel_turn_skip_the_guard():
     channel = _authority(PrincipalKind.INSTALLATION, linked_user_id=linked)
     assert await _select(channel, "s-channel") == f"key-of-{linked}"
     assert guard.calls == 0
+
+
+def test_the_protection_session_of_a_child_run_is_its_parents():
+    from types import SimpleNamespace
+
+    from oss.src.core.access.context import reset_request_access, set_request_access
+    from oss.src.core.workflows.service import (
+        UNKNOWN_PROTECTION_SESSION,
+        _protection_session,
+    )
+    from oss.tests.pytest.utils.principals import make_envelope, make_request_access
+
+    request = SimpleNamespace(session_id="s-child")
+    # Not under a run: the request's own session.
+    assert _protection_session(request) == "s-child"
+
+    access = make_request_access(
+        envelope=make_envelope(kind="human"), credential_kind="run_credential"
+    )
+    for parent_session, expected in (
+        ("s-parent", "s-parent"),
+        (None, UNKNOWN_PROTECTION_SESSION),
+    ):
+        token = set_request_access(
+            access.model_copy(update={"session_id": parent_session})
+        )
+        try:
+            assert _protection_session(request) == expected
+        finally:
+            reset_request_access(token)

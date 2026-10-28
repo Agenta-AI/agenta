@@ -152,14 +152,25 @@ FOR UPDATE OF s
 # row (the same lock as a sharing write), read whether the session is shared, and set the
 # sticky mark when it is not. A session with no row is refused.
 _LOCK_SESSION_FOR_PERSONAL_USE_SQL = """
-SELECT s.id, s.visibility, s.personal_credentials_used_at,
-    EXISTS (
-        SELECT 1 FROM session_grants g
-        WHERE g.project_id = s.project_id AND g.stream_id = s.id
-    ) AS has_grants
+SELECT s.id, s.visibility, s.personal_credentials_used_at
 FROM session_streams s
 WHERE s.project_id = :project_id AND s.session_id = :session_id
 FOR UPDATE OF s
+"""
+
+# Read in its own statement AFTER the lock: under READ COMMITTED a statement keeps the
+# snapshot it started with, so a grant a sharing write committed while this transaction
+# waited for the lock is visible only to a later statement.
+_SESSION_SHARED_ELSEWHERE_SQL = """
+SELECT
+    EXISTS (
+        SELECT 1 FROM session_grants g
+        WHERE g.project_id = :project_id AND g.stream_id = :stream_id
+    ) AS has_grants,
+    EXISTS (
+        SELECT 1 FROM channel_threads c
+        WHERE c.project_id = :project_id AND c.session_id = :session_id
+    ) AS is_channel
 """
 
 _MARK_PERSONAL_USE_SQL = """
@@ -465,8 +476,8 @@ class SharingDAO(SharingDAOInterface):
 
     async def guard_personal_use(self, *, project_id: UUID, session_id: str) -> bool:
         """M7: True when a run of the session may use a person's own credential (the
-        session is private, with no grant), after setting the sticky mark. False when it
-        is shared or has no row. The mark is set under the row lock that sharing writes
+        session is private, with no grant and no channel thread), after setting the
+        sticky mark. False when it is shared or has no row. The mark is set under the row lock that sharing writes
         take, so a share and the first personal use never interleave."""
         params = {"project_id": project_id, "session_id": session_id}
         async with self.engine.transaction() as connection:
@@ -479,7 +490,16 @@ class SharingDAO(SharingDAOInterface):
                 return False
             if row.personal_credentials_used_at is not None:
                 return True
-            if row.visibility != Visibility.PRIVATE.value or row.has_grants:
+            if row.visibility != Visibility.PRIVATE.value:
+                return False
+            shared = (
+                await connection.execute(
+                    text(_SESSION_SHARED_ELSEWHERE_SQL),
+                    {**params, "stream_id": row.id},
+                )
+            ).first()
+            # A grant, or a channel thread whose people read the session.
+            if shared.has_grants or shared.is_channel:
                 return False
             await connection.execute(
                 text(_MARK_PERSONAL_USE_SQL),

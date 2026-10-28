@@ -28,6 +28,9 @@ async def deliver_continue_input(
 ) -> Any:
     envelope = await deliverable_envelope(access=get_access_service(), command=command)
     request = WorkflowServiceRequest.model_validate(command.data["request"])
+    # The session the command was admitted for is the run's session, whatever the
+    # stored request body says: the run credential signs it (M7 shared-session guard).
+    request.session_id = command.session_id
     # Resolves the target once and leaves it on the request: the invoke runs it.
     await run_admission.admit_request(
         envelope=envelope,

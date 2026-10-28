@@ -120,3 +120,18 @@ async def test_refused_queued_input_raises_admission_denied_and_runs_nothing(
             run_admission=admission,
         )
     workflows.invoke_workflow_detached.assert_not_awaited()
+
+
+async def test_the_delivered_run_uses_the_admitted_session(_allowing_access_service):
+    """The stored request body may name another session or none; the run uses the
+    session the command was admitted for (M7: the run credential signs it)."""
+    command = _command(make_envelope())
+    command.data["request"]["session_id"] = "s-other"
+    workflows = AsyncMock()
+    await deliver_continue_input(
+        run_admission=NoopRunAdmission(),
+        command=command,
+        workflows_service=workflows,
+    )
+    request = workflows.invoke_workflow_detached.await_args.kwargs["request"]
+    assert request.session_id == "s1"

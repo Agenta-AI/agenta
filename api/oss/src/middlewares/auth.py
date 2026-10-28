@@ -1722,11 +1722,11 @@ async def sign_secret_token(
         # Absent unless set: a lookup with no binding is the project's shared account.
         if gateway_bindings:
             auth_context["gateway_bindings"] = list(gateway_bindings)
-            # The session the run belongs to, signed beside the bindings: the shared-
-            # session guard of a person's own credential reads it (M7). Unlike the run
-            # labels, it authorizes, so it is never taken from a caller's body.
-            if gateway_session_id:
-                auth_context["gateway_session_id"] = str(gateway_session_id)
+        # The session the run belongs to: the shared-session guard of a person's own
+        # credential reads it (M7), also in a child run of this one. Unlike the run
+        # labels, it authorizes, so it is never taken from a caller's body.
+        if gateway_session_id:
+            auth_context["gateway_session_id"] = str(gateway_session_id)
 
         auth_context.update(envelope_to_claims(envelope=envelope))
 

@@ -16,7 +16,8 @@ from typing import (
     Union,
     TYPE_CHECKING,
 )
-from oss.src.core.access.dtos import RunEnvelope
+from oss.src.core.access.context import get_request_access
+from oss.src.core.access.dtos import RequestCredentialKind, RunEnvelope
 from oss.src.core.access.service import get_access_service
 from oss.src.core.access.types import MissingPrincipal
 from oss.src.core.git.dtos import RevisionGrouping
@@ -327,6 +328,22 @@ def _reject_unreadable_agent_instructions(data: Any) -> None:
         raise InvalidAgentInstructionsError(
             received_type=type(instructions).__name__, message=e.message
         ) from e
+
+
+def _protection_session(request: Any) -> Optional[str]:
+    """The session whose readers a personal credential must be protected from (M7).
+
+    A run started under another run (an agent calling a workflow tool) answers into its
+    parent's conversation, so it inherits the parent's session, whatever its own; a
+    parent credential that names none leaves the child with none, which refuses every
+    personal credential. Every other run is its own request's session."""
+    parent = get_request_access()
+    if (
+        parent is not None
+        and parent.credential_kind == RequestCredentialKind.RUN_CREDENTIAL
+    ):
+        return parent.session_id
+    return getattr(request, "session_id", None)
 
 
 def _binding_claims(data: Any) -> List[BindingClaim]:
@@ -3684,7 +3701,7 @@ class WorkflowsService:
             grants=self._service_grants(service_url),
             envelope=envelope,
             gateway_bindings=claims_to_token(binding_claims),
-            gateway_session_id=request.session_id,
+            gateway_session_id=_protection_session(request),
         )
 
         credentials = f"Secret {secret_token}"
