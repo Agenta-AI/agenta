@@ -332,10 +332,18 @@ class TestTriggerIngressDedup:
                         }
                     },
                 ).json()["deliveries"]
-                if deliveries:
+                # The claimed row has no inputs until the dispatcher finishes it,
+                # so wait for the mapped input, not just for the row.
+                repo = (
+                    ((deliveries[0].get("data") or {}).get("inputs") or {}).get("repo")
+                    if deliveries
+                    else None
+                )
+                if repo == "acme/widgets":
                     break
                 time.sleep(0.5)
             assert len(deliveries) == 1
+            assert deliveries[0]["data"]["inputs"]["repo"] == "acme/widgets"
 
             authed_api("DELETE", f"/triggers/subscriptions/{subscription_id}")
         finally:
