@@ -9,7 +9,7 @@ import { parseGatewayErrorDetail } from "../../src/gateway-error.ts";
 import { withGatewayErrorDetail } from "../../src/engines/sandbox_agent/engine.ts";
 
 // The marker is what identifies a refusal as OURS, and the gateway stamps it into the message of
-// every typed refusal it renders (`with_code_marker`, `api/.../gateways/utils.py`). These fixtures
+// every typed refusal it renders (`with_code_marker`, `api/.../core/gateways/dtos.py`). These fixtures
 // predate that guarantee and omitted it; carrying it is what a real body does. See CR11.
 const GATEWAY_BODY = JSON.stringify({
   error: {

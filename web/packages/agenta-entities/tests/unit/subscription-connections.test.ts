@@ -2,10 +2,18 @@ import {describe, expect, it} from "vitest"
 
 import {
     buildAgentModelCandidates,
+    firstAgentModelForConnection,
     isSubscriptionConnection,
     subscriptionAttemptErrorSentence,
     subscriptionAvailability,
+    subscriptionConnectionFor,
+    subscriptionConnectMethod,
+    subscriptionHarnesses,
+    subscriptionProviderFamily,
+    subscriptionProviderName,
+    subscriptionRunProvider,
     subscriptionStatusLine,
+    subscriptionTokenErrorText,
     toProviderConnections,
     transformSecret,
     type HarnessCapabilityMap,
@@ -281,5 +289,116 @@ describe("subscription availability", () => {
     it("falls back to the default harness when the record names none", () => {
         const [connection] = connectionsFor("needs_login", {harnesses: []})
         expect(subscriptionAvailability(connection, ["pi_core"])).toBe("sign_in_needed")
+    })
+})
+
+describe("the subscription provider table", () => {
+    it("names each provider, its family, and how it is connected", () => {
+        expect(subscriptionProviderName("claude")).toBe("Claude")
+        expect(subscriptionProviderFamily("claude")).toBe("anthropic")
+        expect(subscriptionConnectMethod("claude")).toBe("token")
+        expect(subscriptionProviderName("chatgpt")).toBe("ChatGPT")
+        expect(subscriptionProviderFamily("chatgpt")).toBe("openai")
+        expect(subscriptionConnectMethod("chatgpt")).toBe("device")
+    })
+
+    it("keys the run provider on the harness and the provider together", () => {
+        expect(subscriptionRunProvider("claude", "claude")).toBe("anthropic")
+        expect(subscriptionRunProvider("pi_core", "chatgpt")).toBe("openai-codex")
+        // Neither login runs on the other's harness.
+        expect(subscriptionRunProvider("pi_core", "claude")).toBeNull()
+        expect(subscriptionRunProvider("claude", "chatgpt")).toBeNull()
+    })
+
+    it("falls back to the provider's own harness when the record names none", () => {
+        expect(
+            subscriptionHarnesses({subscription: {provider: "claude", loginState: "ready"}}),
+        ).toEqual(["claude"])
+        expect(
+            subscriptionHarnesses({subscription: {provider: "chatgpt", loginState: "ready"}}),
+        ).toEqual(["pi_core"])
+    })
+})
+
+describe("a Claude subscription connection", () => {
+    const claudeCapabilities: HarnessCapabilityMap = {
+        ...capabilities,
+        claude: {
+            providers: ["anthropic"],
+            deployments: ["direct"],
+            connection_modes: ["agenta", "self_managed"],
+        },
+    }
+    const claudeSecret = (loginState: string) =>
+        subscriptionSecret(loginState, {
+            provider: "claude",
+            harnesses: ["claude"],
+            models: ["sonnet", "haiku"],
+            model_keys: ["claude/sonnet", "claude/haiku"],
+        })
+
+    const connections = () =>
+        toProviderConnections(
+            transformSecret([
+                subscriptionSecret("ready"),
+                {
+                    ...claudeSecret("ready"),
+                    id: "claude-1",
+                    slug: "claude",
+                    header: {name: "Claude"},
+                },
+            ]),
+        )
+
+    it("reads as a Claude connection under the anthropic family", () => {
+        const claude = subscriptionConnectionFor(connections(), "claude")
+        expect(claude).toMatchObject({id: "claude-1", name: "Claude", kind: "anthropic"})
+        expect(subscriptionConnectionFor(connections(), "chatgpt")?.id).toBe("sub-1")
+    })
+
+    it("offers its models on Claude Code only, with the Anthropic run provider", () => {
+        const candidates = buildAgentModelCandidates({
+            connections: connections(),
+            capabilities: claudeCapabilities,
+            harnessIds: ["claude", "pi_core"],
+        })
+        const claude = candidates.filter((item) => item.connectionKey === "claude-1")
+
+        expect(claude.map((item) => item.modelId)).toEqual(["sonnet", "haiku"])
+        expect(
+            claude.every(
+                (item) =>
+                    item.harness === "claude" &&
+                    item.provider === "anthropic" &&
+                    item.mode === "self_managed" &&
+                    item.slug === "claude",
+            ),
+        ).toBe(true)
+        // The connection just connected is found by its id, not by its kind.
+        expect(firstAgentModelForConnection(candidates, "claude-1")?.modelId).toBe("sonnet")
+        expect(firstAgentModelForConnection(candidates, "sub-1")?.harness).toBe("pi_core")
+    })
+})
+
+describe("subscriptionTokenErrorText", () => {
+    it("joins the API's diagnosis and next step", () => {
+        const error = {
+            body: {
+                detail: {
+                    code: "subscription_token_rejected",
+                    message: "Claude did not accept this token.",
+                    retryable: false,
+                    next_step: "Run `claude setup-token` again and paste the new token.",
+                },
+            },
+        }
+        expect(subscriptionTokenErrorText(error)).toBe(
+            "Claude did not accept this token. Run `claude setup-token` again and paste the new token.",
+        )
+    })
+
+    it("returns null for an error with no refusal in it", () => {
+        expect(subscriptionTokenErrorText(new Error("network"))).toBeNull()
+        expect(subscriptionTokenErrorText({body: {detail: "Not found"}})).toBeNull()
     })
 })

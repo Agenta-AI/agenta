@@ -79,6 +79,7 @@ export {
 
 export {
     agentModelCandidatesAtomFamily,
+    builtinModelEndpointsQueryAtom,
     loadAgentModelCandidates,
     resolveAgentModelCandidateSources,
     type AgentModelCandidatesState,
@@ -452,6 +453,8 @@ export {
     /** @deprecated Use EvaluatorCatalogTemplate */
     /** @deprecated Use EvaluatorCatalogTemplatesResponse */
     validateAgentTemplate,
+    scanAgentTemplateSource,
+    type AgentTemplateRepositoryScan,
     type AgentTemplateSource,
     type AgentTemplateSourcePin,
     type AgentTemplateValidationIssue,

@@ -32,6 +32,7 @@
 export type {
     AgentConnectionMode,
     AgentConnectionNamespace,
+    SecretOwnerScope,
     AgentSecretBinding,
     AgentModelCandidate,
     AgentModelSelection,
@@ -66,6 +67,7 @@ export type {
     ModelOption,
     ProviderCatalogEntry,
     ProviderConnection,
+    SubscriptionConnectMethod,
     SubscriptionHarnessStatus,
     SubscriptionLoginState,
     SubscriptionPair,
@@ -83,6 +85,9 @@ export {
     isAgentDeploymentProviderKind,
     resolveAgentModelSelection,
     connectionNamespaceFrom,
+    savedConnectionNamespace,
+    connectionScopeFrom,
+    explicitAgentConnection,
     selectableAgentHarnesses,
     HIDDEN_AGENT_HARNESSES,
     soleAgentHarnessProviderFamily,
@@ -112,9 +117,13 @@ export {
     activeModelsSummary,
     connectedRowSubtitle,
     connectionModelCount,
+    mountedSubscriptionDisplayName,
     mountedSubscriptionName,
+    MOUNTED_SUBSCRIPTION_SOURCE,
     subscriptionAttemptErrorSentence,
     subscriptionAvailability,
+    subscriptionConnectMethod,
+    subscriptionConnectionFor,
     subscriptionConnectionCandidates,
     subscriptionHarnesses,
     subscriptionIsReady,
@@ -125,6 +134,7 @@ export {
     subscriptionProviderName,
     subscriptionRunProvider,
     subscriptionStatusLine,
+    subscriptionTokenErrorText,
     DEFAULT_SUBSCRIPTION_HARNESSES,
     SUBSCRIPTION_LOGIN_STATES,
     SUBSCRIPTION_PROVIDER_KIND,
@@ -156,7 +166,10 @@ export {
     endpointProtocolFieldForKind,
     harnessSupportsProviderKind,
     hasRequiredCredential,
+    hostedSubscriptionFamilies,
     isSubscriptionConnection,
+    isOrganizationConnection,
+    httpStatusOf,
     probeFailureMessage,
     probeRequestFor,
     storedCredentialFields,
@@ -174,6 +187,7 @@ export {
 // ============================================================================
 
 export {fetchVaultSecret, createVaultSecret, updateVaultSecret, deleteVaultSecret} from "./api"
+export type {OrganizationProject} from "./api"
 export {
     LOGIN_ATTEMPT_BACKSTOP_MS,
     LOGIN_ATTEMPT_STATES,
@@ -201,6 +215,7 @@ export {
 export {
     vaultMigrationAtom,
     vaultSecretsQueryAtom,
+    vaultSecretsWithOrganizationQueryAtom,
     standardSecretsAtom,
     customSecretsAtom,
     createVaultSecretMutationAtom,
@@ -226,10 +241,19 @@ export {
     loginAttemptPollInterval,
     loginAttemptQueryAtomFamily,
     refreshVaultSecretsAtom,
+    setSubscriptionTokenAtom,
     startSubscriptionLoginAtom,
     useVaultSecret,
+    managedOrganizationConnectionsAtom,
+    organizationConnectionsAccessAtom,
+    organizationProviderConnectionsAtom,
+    organizationProjectsQueryAtom,
+    organizationSecretsQueryAtom,
+    setOrganizationConnectionProjectsAtom,
     type LoginAttemptKey,
     type LoginAttemptOutcome,
+    type OrganizationConnectionsAccess,
+    type OrganizationSecretProjects,
 } from "./state"
 
 // ============================================================================

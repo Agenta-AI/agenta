@@ -6,6 +6,13 @@ from unittest.mock import AsyncMock, patch
 from uuid import uuid4
 
 import pytest
+
+from oss.tests.pytest.utils.principals import (
+    AllowingAccessService,
+    DenyingAccessService,
+    make_envelope,
+    make_request_access,
+)
 from fastapi import FastAPI, HTTPException, Request
 from orjson import dumps
 
@@ -18,6 +25,7 @@ from oss.src.core.sessions.records.dtos import (
 from oss.src.core.sessions.records.streaming import LIVE_FRAME_STREAM_NAME
 from oss.src.tasks.asyncio.sessions.live_relay_worker import LiveRelayWorker
 from oss.src.utils.env import env
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 class FakePubSub:
@@ -106,6 +114,30 @@ async def test_rechecks_authorization_and_closes_revoked_reader():
         json.loads(terminal.split("data: ", 1)[1])["reason"] == "authorization_revoked"
     )
     assert checks == 1
+
+
+async def test_closing_during_a_slow_unsubscribe_still_closes_the_pubsub():
+    pubsub = FakePubSub([])
+    unsubscribing = asyncio.Event()
+
+    async def slow_unsubscribe(channel):
+        unsubscribing.set()
+        await asyncio.sleep(10)
+
+    pubsub.unsubscribe = slow_unsubscribe
+    stream = live_event_stream(
+        channel="events:project-1:session:session-1",
+        pubsub_factory=lambda: pubsub,
+        authorization_check=AsyncMock(return_value=False),
+        authorization_recheck_seconds=0.001,
+        heartbeat_seconds=60,
+        retry_milliseconds=5000,
+        buffer_limit=4,
+    )
+    frames = [frame async for frame in stream]
+
+    assert frames[-1].startswith("event: relay-close")
+    pubsub.closed.assert_awaited_once()
 
 
 async def test_slow_reader_gets_terminal_close_frame():
@@ -359,6 +391,7 @@ async def test_events_route_is_hidden_when_shared_reader_is_off():
     router = SessionStreamsRouter(
         service=AsyncMock(),
         interactions_service=AsyncMock(),
+        run_admission=NoopRunAdmission(),
     )
     request = Request(
         {
@@ -384,6 +417,7 @@ async def test_events_route_disables_authenticated_response_storage():
         service=AsyncMock(),
         interactions_service=AsyncMock(),
         records_service=AsyncMock(),
+        run_admission=NoopRunAdmission(),
     )
     request = Request(
         {
@@ -400,12 +434,88 @@ async def test_events_route_disables_authenticated_response_storage():
     with (
         patch.object(env.sessions, "shared_reader", True),
         patch(
-            "oss.src.apis.fastapi.sessions.router.check_action_access",
-            new_callable=AsyncMock,
-            return_value=True,
+            "oss.src.apis.fastapi.sessions.router.get_request_access",
+            return_value=make_request_access(
+                envelope=make_envelope(), credential_kind="bearer_session"
+            ),
         ),
     ):
         response = await router.session_events(request=request, session_id="session-1")
 
     assert response.headers["cache-control"] == "no-store"
     await response.body_iterator.aclose()
+
+
+@pytest.mark.real_resource_checks
+async def test_recheck_uses_captured_access_and_stops_after_removal():
+    """The live stream captures the request access at entry. Each recheck decides
+    for that access and the session (the same resource check as the entry), also
+    after the request's ContextVar is gone, and a removed member's recheck is
+    refused."""
+
+    from oss.src.apis.fastapi.sessions import router as router_module
+    from oss.src.apis.fastapi.sharing import utils as sharing_utils
+    from oss.src.core.access.context import reset_request_access, set_request_access
+
+    router = SessionStreamsRouter(
+        service=AsyncMock(),
+        interactions_service=AsyncMock(),
+        records_service=AsyncMock(),
+        run_admission=NoopRunAdmission(),
+    )
+    project_id = uuid4()
+    access = make_request_access(
+        envelope=make_envelope(project_id=project_id), credential_kind="bearer_session"
+    )
+    request = Request(
+        {
+            "type": "http",
+            "method": "GET",
+            "path": "/sessions/session-1/events",
+            "headers": [],
+            "app": FastAPI(),
+        }
+    )
+    request.state.project_id = str(project_id)
+    request.state.user_id = str(access.acting_user_id)
+
+    services = {"now": AllowingAccessService()}
+    captured = {}
+
+    def _stream(**kwargs):
+        captured.update(kwargs)
+
+        async def _empty():
+            if False:
+                yield b""
+
+        return _empty()
+
+    with (
+        patch.object(env.sessions, "shared_reader", True),
+        patch.object(router_module, "live_event_stream", _stream),
+        patch.object(sharing_utils, "get_access_service", lambda: _Proxy(services)),
+    ):
+        token = set_request_access(access)
+        try:
+            await router.session_events(request=request, session_id="session-1")
+        finally:
+            reset_request_access(token)
+
+        # The rechecks run after the request's ContextVar is gone.
+        check = captured["authorization_check"]
+        assert await check() is True
+        services["now"] = DenyingAccessService()
+        assert await check() is False
+    seen = services["now"].decisions[-1]
+    assert seen["access"] == access
+    assert seen["project_id"] == project_id
+    assert seen["resource"] == sharing_utils.session_resource("session-1")
+
+
+class _Proxy:
+    def __init__(self, services):
+        self._services = services
+
+    async def check_request(self, **kwargs):
+        return await self._services["now"].check_request(**kwargs)

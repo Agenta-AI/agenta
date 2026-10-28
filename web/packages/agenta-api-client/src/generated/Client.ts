@@ -22,6 +22,7 @@ import { ProjectsClient } from "./api/resources/projects/client/Client.js";
 import { QueriesClient } from "./api/resources/queries/client/Client.js";
 import { SecretsClient } from "./api/resources/secrets/client/Client.js";
 import { SessionsClient } from "./api/resources/sessions/client/Client.js";
+import { SharingClient } from "./api/resources/sharing/client/Client.js";
 import { SkillsClient } from "./api/resources/skills/client/Client.js";
 import { StatusClient } from "./api/resources/status/client/Client.js";
 import { TestcasesClient } from "./api/resources/testcases/client/Client.js";
@@ -73,6 +74,7 @@ export class AgentaApiClient {
     protected _gatewayMcp: GatewayMcpClient | undefined;
     protected _evaluations: EvaluationsClient | undefined;
     protected _mounts: MountsClient | undefined;
+    protected _sharing: SharingClient | undefined;
     protected _status: StatusClient | undefined;
     protected _projects: ProjectsClient | undefined;
     protected _users: UsersClient | undefined;
@@ -193,6 +195,10 @@ export class AgentaApiClient {
 
     public get mounts(): MountsClient {
         return (this._mounts ??= new MountsClient(this._options));
+    }
+
+    public get sharing(): SharingClient {
+        return (this._sharing ??= new SharingClient(this._options));
     }
 
     public get status(): StatusClient {

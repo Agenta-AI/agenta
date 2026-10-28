@@ -62,7 +62,9 @@ import type {
   EmitEvent,
   ModelTokenUsage,
 } from "../protocol.ts";
+import { acpToolName } from "../acp-tool-name.ts";
 import type { Redactor } from "../redaction.ts";
+import { configuredApiBase, envApiUrl } from "../apiBase.ts";
 import { logExportProblem } from "./export-diagnostics.ts";
 import { createStreamTrace } from "./stream-trace.ts";
 
@@ -302,9 +304,7 @@ const CLOUD_API_BASE = "https://cloud.agenta.ai/api";
 function defaultTarget(): HttpExportTarget {
   // Internal direct hop first, then the public `.../api` base, then cloud.
   const base =
-    (
-      process.env.AGENTA_API_INTERNAL_URL ?? process.env.AGENTA_API_URL
-    )?.replace(/\/+$/, "") || CLOUD_API_BASE;
+    configuredApiBase()?.replace(/\/+$/, "") || CLOUD_API_BASE;
   // The per-run caller credential rides the request (each explicit trace target carries its own
   // authorization; Pi's runner-owned exporter receives it only at send time). The runner holds no static
   // platform key: it must not carry an `AGENTA_API_KEY` a local harness could read from /proc and
@@ -512,8 +512,8 @@ function bridgeRewrittenBase(base: string): string | undefined {
  * what it compared against — the failure is always a configuration gap, never a code path. */
 export function configuredIngestBases(): string[] {
   const configured = [
-    process.env.AGENTA_API_INTERNAL_URL,
-    process.env.AGENTA_API_URL,
+    envApiUrl("AGENTA_API_INTERNAL_URL"),
+    envApiUrl("AGENTA_API_URL"),
     CLOUD_API_BASE,
   ].filter((base): base is string => Boolean(base));
 
@@ -533,8 +533,8 @@ export function configuredIngestBases(): string[] {
  */
 export function publicApiBaseConfigured(): boolean {
   return Boolean(
-    process.env.AGENTA_API_URL?.trim() ||
-    process.env.AGENTA_API_INTERNAL_URL?.trim()?.startsWith(CLOUD_API_BASE),
+    envApiUrl("AGENTA_API_URL") ||
+    envApiUrl("AGENTA_API_INTERNAL_URL")?.startsWith(CLOUD_API_BASE),
   );
 }
 
@@ -2324,6 +2324,13 @@ export function createSandboxAgentOtel(
     const kind = update?.sessionUpdate;
     if (!kind || finished || (!admitted && !admitUpdate(update))) return;
 
+    // Pi retrying a failed model call (the runner's pi-acp patch): progress for the run limits,
+    // so a slow provider is not taken for a stuck harness, and nothing the person reads.
+    if (kind === "session_info_update") {
+      if (typeof update._meta?.piAcp?.retrying === "boolean") onProgress();
+      return;
+    }
+
     if (kind === "agent_message_chunk") {
       const t = acpBlockText(update.content);
       if (!t) return;
@@ -2369,7 +2376,8 @@ export function createSandboxAgentOtel(
       // clean across text -> tool -> text interleaving). No-op on the one-shot path.
       closeText();
       closeReasoning();
-      const name = update.title || update.kind || "tool";
+      const name =
+        acpToolName(update) || update.title || update.kind || "tool";
       let span: Span | undefined;
       if (emitSpans && turnCtx) {
         span = tracer.startSpan(`execute_tool ${name}`, undefined, turnCtx);

@@ -1,8 +1,19 @@
 import {createContext, useCallback, useContext, useEffect, useState} from "react"
 
-import {useMountFileMediaSrc, useMountFileObjectUrl} from "@agenta/entities/drive"
-import {mountFileContentQueryFamily, type Mount} from "@agenta/entities/session"
+import {
+    cleanPath,
+    fetchMountFileBlob,
+    useMountFileMediaSrc,
+    useMountFileObjectUrl,
+} from "@agenta/entities/drive"
+import {
+    mountDirQueryFamily,
+    mountFileContentQueryFamily,
+    type Mount,
+    type MountFile,
+} from "@agenta/entities/session"
 import {axios} from "@agenta/shared/api"
+import {projectIdAtom} from "@agenta/shared/state"
 import {useAtomValue} from "jotai"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
@@ -136,6 +147,66 @@ export function useDriveObjectUrl(
     if (!local) return mountRes
     if (local.file) return {url: local.objectUrl, isPending: false, failed: false}
     return remote
+}
+
+/** A listed file's version: its etag, else mtime, else size. */
+export const driveFileFingerprint = (file: MountFile): string =>
+    file.etag ?? (file.mtime != null ? `m${file.mtime}` : `s${file.size ?? ""}`)
+
+const parentDir = (path: string): string => {
+    const clean = cleanPath(path)
+    const slash = clean.lastIndexOf("/")
+    return slash < 0 ? "" : clean.slice(0, slash)
+}
+
+/** The mount file's version from its folder listing; undefined until the listing loads. */
+export function useDriveFileVersion(mount: Mount | null, path: string): string | undefined {
+    const listing = useAtomValue(
+        mountDirQueryFamily({mountId: mount?.id ?? "", path: parentDir(path)}),
+    )
+    if (!mount) return ""
+    if (listing.isPending) return undefined
+    const target = cleanPath(path)
+    const file = listing.data?.find((f) => !f.is_folder && cleanPath(f.path) === target)
+    return file ? driveFileFingerprint(file) : ""
+}
+
+// Keyed by version, so a changed file refetches once and an unchanged one never does.
+const mountFileVersionBlobByKey = atomFamily((key: string) =>
+    atomWithQuery<Blob | null>((get) => {
+        const [mountId, path, version] = key.split("\0")
+        const projectId = get(projectIdAtom) ?? ""
+        return {
+            queryKey: ["mounts", "file-blob-version", projectId, mountId, path, version],
+            queryFn: ({signal}) => fetchMountFileBlob({mountId, projectId, path, signal}),
+            enabled: Boolean(mountId && path && projectId),
+            staleTime: Infinity,
+            gcTime: 0,
+            refetchOnWindowFocus: false,
+        }
+    }),
+)
+
+/** Bytes from a local file, a remote attachment, or the mount at `version` (undefined waits). */
+export function useDriveFileBlob(
+    mount: Mount | null,
+    path: string,
+    version: string | undefined,
+): {blob: Blob | null; isPending: boolean; failed: boolean} {
+    const local = useLocalFile(path)
+    const remote = useRemoteBytes(local, "blob")
+    const mountKey =
+        !local && mount && version !== undefined ? [mount.id, path, version].join("\0") : ""
+    const mountQuery = useAtomValue(mountFileVersionBlobByKey(mountKey))
+    if (local?.file) return {blob: local.file, isPending: false, failed: false}
+    if (local) {
+        const blob = remote.data instanceof Blob ? remote.data : null
+        return {blob, isPending: remote.isPending, failed: !remote.isPending && !blob}
+    }
+    if (!mount) return {blob: null, isPending: false, failed: true}
+    if (!mountKey) return {blob: null, isPending: true, failed: false}
+    const blob = mountQuery.data ?? null
+    return {blob, isPending: mountQuery.isPending, failed: !mountQuery.isPending && !blob}
 }
 
 /** Text content for the source-family bodies: the local file, the remote source, or the mount. */

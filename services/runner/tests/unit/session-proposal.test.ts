@@ -113,6 +113,51 @@ describe("proposeSessionName", () => {
     );
     assert.equal(proposeSessionName({} as AgentRunRequest), undefined);
   });
+
+  it("leaves out the composer's session-drive note", () => {
+    const note =
+      "Uploaded to the session drive (too large to attach): `uploads/r.pdf` (40.0 MB)";
+    assert.equal(
+      proposeSessionName(
+        requestWith([
+          { role: "user", content: `Summarize this report\n\n${note}` },
+        ]),
+      ),
+      "Summarize this report",
+    );
+    assert.equal(
+      proposeSessionName(requestWith([{ role: "user", content: note }])),
+      undefined,
+    );
+  });
+
+  it("names a channel session from the person's words, not the attribution line", () => {
+    const name = proposeSessionName(
+      requestWith([
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "From user v-1 (QA Allowed id v-1):\n\n",
+            },
+            { type: "text", text: "What are your opening hours?" },
+          ],
+          display_content: "What are your opening hours?",
+        },
+      ]),
+    );
+    assert.equal(name, "What are your opening hours?");
+  });
+
+  it("falls back to content when display_content is null", () => {
+    const name = proposeSessionName(
+      requestWith([
+        { role: "user", content: "hidden prompt", display_content: null },
+      ]),
+    );
+    assert.equal(name, "hidden prompt");
+  });
 });
 
 describe("buildWorkflowReferenceList", () => {

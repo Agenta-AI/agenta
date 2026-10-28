@@ -104,56 +104,47 @@ describe("settings tab descriptions", () => {
     })
 
     it("varies the billing description with the billing entitlement", () => {
-        expect(getSettingsTabDescription("billing", baseAccess)).toContain("subscription")
-        expect(
-            getSettingsTabDescription("billing", {...baseAccess, billingEnabled: false}),
-        ).not.toContain("subscription")
+        expect(getSettingsTabDescription("billing", baseAccess)).toBe(
+            "Your plan, its limits, and payment details.",
+        )
+        expect(getSettingsTabDescription("billing", {...baseAccess, billingEnabled: false})).toBe(
+            "Track how much of your plan you have used.",
+        )
     })
 })
 
 describe("settings sidebar scopes", () => {
-    it("groups tabs by project, organization, and personal scope", () => {
-        expect(SETTINGS_SCOPES.map(({key}) => key)).toEqual(["project", "organization", "personal"])
+    it("groups tabs by connections, project, organization, and personal scope", () => {
+        expect(SETTINGS_SCOPES.map(({key}) => key)).toEqual([
+            "connections",
+            "project",
+            "organization",
+            "personal",
+        ])
+        expect(SETTINGS_SCOPES[0].title).toBe("Connections")
 
         const tabs = getSettingsSidebarTabs(baseAccess)
         const keysForScope = (scope: (typeof SETTINGS_SCOPES)[number]["key"]) =>
             tabs.filter((tab) => tab.scope === scope).map(({key}) => key)
 
-        expect(keysForScope("project")).toEqual([
+        expect(keysForScope("connections")).toEqual([
             "llms",
             "tools",
             "secrets",
             "mcpEndpoints",
             "channels",
-            "apiKeys",
-            "webhooks",
-            "analytics",
         ])
+        expect(keysForScope("project")).toEqual(["apiKeys", "webhooks", "analytics"])
         expect(keysForScope("organization")).toEqual([
+            "credits",
             "billing",
             "workspace",
             "organizationGeneral",
             "projects",
             "organization",
             "auditLog",
-            "credits",
-            "walletUsage",
         ])
         expect(keysForScope("personal")).toEqual(["account", "preferences"])
-    })
-
-    it("shows the wallet debug view only while the wallet is on, in a development build", () => {
-        expect(isSettingsTabVisible("walletUsage", baseAccess)).toBe(false)
-        expect(isSettingsTabVisible("walletUsage", {...baseAccess, walletsEnabled: true})).toBe(
-            false,
-        )
-        expect(
-            isSettingsTabVisible("walletUsage", {
-                ...baseAccess,
-                walletsEnabled: true,
-                walletDebug: true,
-            }),
-        ).toBe(true)
     })
 
     it("shows the credits view only where the organization's wallet is enforced", () => {

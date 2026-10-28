@@ -44,6 +44,9 @@ services:
             - ${ENV_FILE:-./.env.oss.gh}
         environment:
             AGENTA_SERVICES_INTERNAL_KEY: ""
+            # The embed page fetches its config from the server side, where AGENTA_API_URL
+            # (often http://localhost/api) points at this container, not at the API.
+            AGENTA_API_INTERNAL_URL: ${AGENTA_API_INTERNAL_URL:-http://api:8000}
         # === NETWORK ============================================== #
         networks:
             - agenta-gh-ssl-network
@@ -74,7 +77,7 @@ services:
         # idle connection to the worker for 90 s). If the worker closed first, a request the
         # proxy sends on that connection in the same instant would fail with 502.
         command: >
-            newrelic-admin run-program gunicorn entrypoints.routers:app
+            gunicorn entrypoints.routers:app
             --bind 0.0.0.0:8000
             --worker-class entrypoints.uvicorn_worker.DrainingUvicornWorker
             --workers 2
@@ -141,8 +144,6 @@ services:
         # === EXECUTION ============================================ #
         command:
             [
-                "newrelic-admin",
-                "run-program",
                 "python",
                 "-m",
                 "entrypoints.worker_streams",
@@ -189,8 +190,6 @@ services:
         # === EXECUTION ============================================ #
         command:
             [
-                "newrelic-admin",
-                "run-program",
                 "python",
                 "-m",
                 "entrypoints.worker_queues",
@@ -290,7 +289,7 @@ services:
         # idle connection to the worker for 90 s). If the worker closed first, a request the
         # proxy sends on that connection in the same instant would fail with 502.
         command: >
-            newrelic-admin run-program gunicorn entrypoints.main:app
+            gunicorn entrypoints.main:app
             --bind 0.0.0.0:8080
             --worker-class uvicorn.workers.UvicornWorker
             --workers 2
@@ -348,6 +347,8 @@ services:
             dockerfile: docker/Dockerfile.gh
         # === EXECUTION ============================================ #
         init: true
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
         # === CONFIGURATION ======================================== #
         environment:
             AGENTA_RUNNER_PORT: "8765"

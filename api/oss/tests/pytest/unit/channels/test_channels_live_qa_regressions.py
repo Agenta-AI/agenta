@@ -16,6 +16,7 @@ from oss.src.core.channels.service import ChannelsService
 from oss.src.tasks.asyncio.channels.inbox import InboxDispatcher
 from oss.src.apis.fastapi.channels.ingress import ChannelsIngressRouter
 from oss.src.core.channels.telegram_binding import ChatBoundElsewhere
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 def card(arguments):
@@ -90,15 +91,17 @@ async def test_controls_are_removed_only_after_admission(fail_admission):
         side_effect=RuntimeError("not admitted") if fail_admission else None
     )
     dispatcher = InboxDispatcher(
-        channels_service=service, respond_interaction_fn=respond
+        run_admission=NoopRunAdmission(),
+        channels_service=service,
+        respond_interaction_fn=respond,
     )
-    dispatcher._invoking_user_id = AsyncMock(return_value=uuid4())
+    dispatcher._invoking_identity = AsyncMock(return_value=(uuid4(), None))
     resolution = SimpleNamespace(
         answered_interaction_id=str(uuid4()),
         resolved_token="deny",
         resolved_choice="Deny",
         thread=SimpleNamespace(id=uuid4()),
-        agent=SimpleNamespace(created_by_id=uuid4()),
+        agent=SimpleNamespace(id=uuid4(), created_by_id=uuid4()),
     )
     args = dict(
         project_id=uuid4(),
@@ -133,15 +136,17 @@ async def test_ui_failure_does_not_retry_an_admitted_decision():
     )
     respond = AsyncMock()
     dispatcher = InboxDispatcher(
-        channels_service=service, respond_interaction_fn=respond
+        run_admission=NoopRunAdmission(),
+        channels_service=service,
+        respond_interaction_fn=respond,
     )
-    dispatcher._invoking_user_id = AsyncMock(return_value=uuid4())
+    dispatcher._invoking_identity = AsyncMock(return_value=(uuid4(), None))
     resolution = SimpleNamespace(
         answered_interaction_id=str(uuid4()),
         resolved_token="approve",
         resolved_choice="Approve",
         thread=SimpleNamespace(id=uuid4()),
-        agent=SimpleNamespace(created_by_id=uuid4()),
+        agent=SimpleNamespace(id=uuid4(), created_by_id=uuid4()),
     )
     await dispatcher._answer_interaction(
         project_id=uuid4(),
@@ -245,15 +250,17 @@ async def test_a_failed_consumed_mark_admits_nothing():
     )
     respond = AsyncMock()
     dispatcher = InboxDispatcher(
-        channels_service=service, respond_interaction_fn=respond
+        run_admission=NoopRunAdmission(),
+        channels_service=service,
+        respond_interaction_fn=respond,
     )
-    dispatcher._invoking_user_id = AsyncMock(return_value=uuid4())
+    dispatcher._invoking_identity = AsyncMock(return_value=(uuid4(), None))
     resolution = SimpleNamespace(
         answered_interaction_id=str(uuid4()),
         resolved_token="approve",
         resolved_choice="Approve",
         thread=SimpleNamespace(id=uuid4()),
-        agent=SimpleNamespace(created_by_id=uuid4()),
+        agent=SimpleNamespace(id=uuid4(), created_by_id=uuid4()),
     )
 
     with pytest.raises(httpx.ReadTimeout):

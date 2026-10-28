@@ -152,8 +152,8 @@ def _standard_secret() -> SecretResponseDTO:
 def test_policy_dtos():
     assert GatewayPlane.LLM.value == "llm"
     assert SecretMode.USER_OPTIONAL.value == "user_optional"
-    owner = SecretOwner(kind=SecretOwnerKind.PROJECT)
-    assert owner.user_id is None
+    owner = SecretOwner(kind=SecretOwnerKind.PROJECT, id=uuid4())
+    assert owner.id is not None
     assert SecretOrigin.VAULT.value == "vault"
 
     assert ProviderKeyRef(provider_key="openai").provider_key == "openai"
@@ -363,7 +363,7 @@ def test_mcp_dtos():
     direct_auth = MCPDirectAuth(
         secret=ResolvedSecret(
             secret=_standard_secret(),
-            owner=SecretOwner(kind=SecretOwnerKind.PROJECT),
+            owner=SecretOwner(kind=SecretOwnerKind.PROJECT, id=uuid4()),
             origin=SecretOrigin.VAULT,
         )
     )
@@ -424,8 +424,11 @@ def test_mcp_relay_result_and_ports():
             "bind_endpoint_secret",
             "invalidate_endpoint_secret",
             "cache_endpoint_discovery",
+            "record_endpoint_check",
             "delete_endpoint",
             "query_endpoints",
+            # Serializes every change to one connection's OAuth state.
+            "oauth_lock",
         }
     )
     assert MCPUpstreamInterface.__abstractmethods__ == frozenset({"relay"})

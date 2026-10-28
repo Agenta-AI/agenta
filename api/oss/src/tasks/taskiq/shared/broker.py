@@ -30,6 +30,8 @@ from redis.asyncio import Redis
 from taskiq_redis import RedisStreamBroker
 from taskiq_redis.redis_broker import BaseRedisBroker
 
+from oss.src.utils.server_tracing import taskiq_middlewares
+
 
 def stable_consumer_name(consumer_group_name: str) -> str:
     """Per-container consumer name: unique per concurrent process (N-replica safe)."""
@@ -86,7 +88,15 @@ async def prune_idle_consumers(
     return removed
 
 
-class TrimOnAckRedisStreamBroker(RedisStreamBroker):
+class ServerTracingMixin:
+    """Add the server tracing middleware when server tracing is on."""
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.add_middlewares(*taskiq_middlewares())
+
+
+class TrimOnAckRedisStreamBroker(ServerTracingMixin, RedisStreamBroker):
     def _ack_generator(self, id: str, queue_name: str) -> Callable[[], Awaitable[None]]:
         async def _ack() -> None:
             async with Redis(connection_pool=self.connection_pool) as redis_conn:
@@ -103,5 +113,7 @@ class ProducerOnlyMixin:
         await BaseRedisBroker.startup(self)
 
 
-class ProducerOnlyRedisStreamBroker(ProducerOnlyMixin, RedisStreamBroker):
+class ProducerOnlyRedisStreamBroker(
+    ServerTracingMixin, ProducerOnlyMixin, RedisStreamBroker
+):
     pass

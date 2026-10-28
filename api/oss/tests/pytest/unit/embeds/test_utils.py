@@ -26,6 +26,7 @@ from oss.src.core.embeds.utils import (
     AG_REFERENCES_KEY,
     AG_SELECTOR_KEY,
     SNIPPET_DEFAULT_PATH,
+    _find_embed_tokens,
     _find_snippet_tokens,
     _parse_snippet_token,
 )
@@ -1185,3 +1186,35 @@ class TestSnippetEmbedResolution:
         )
         assert result_config["a"] == "snippet-value"
         assert result_config["b"] == "classic-value"
+
+
+class TestFindEmbedTokens:
+    def test_no_token(self):
+        assert _find_embed_tokens("plain text with [brackets]") == []
+
+    def test_one_token(self):
+        token = "@ag.embed[@ag.references[workflow_revision.version=v1]]"
+        assert _find_embed_tokens(f"before {token} after") == [token]
+
+    def test_nested_brackets(self):
+        token = "@ag.embed[@ag.references[a.id=1], @ag.selector[path=x[0]]]"
+        assert _find_embed_tokens(token + " tail]") == [token]
+
+    def test_two_tokens(self):
+        a = "@ag.embed[@ag.references[a.id=1]]"
+        b = "@ag.embed[@ag.references[b.id=2]]"
+        assert _find_embed_tokens(f"{a} and {b}") == [a, b]
+
+    def test_incomplete_token_at_end(self):
+        token = "@ag.embed[@ag.references[a.id=1]]"
+        assert _find_embed_tokens(f"{token} then @ag.embed[@ag.references[b") == [token]
+
+    def test_large_input_is_fast(self):
+        import time
+
+        token = "@ag.embed[@ag.references[a.id=1]]"
+        text = ("x" * 500_000 + token) * 4
+        started = time.perf_counter()
+        tokens = _find_embed_tokens(text)
+        assert time.perf_counter() - started < 1.0
+        assert tokens == [token] * 4

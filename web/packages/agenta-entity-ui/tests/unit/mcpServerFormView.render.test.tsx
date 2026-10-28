@@ -43,6 +43,13 @@ vi.mock("@agenta/entities/mcpEndpoint", async (importOriginal) => ({
     listMcpTools: vi.fn(async () => []),
 }))
 
+// A reconnect checks its saved address in the background, to know whether OAuth can be
+// offered. Nothing here is about that answer.
+vi.mock("../../../agenta-entities/src/mcpEndpoint/api/api", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("../../../agenta-entities/src/mcpEndpoint/api/api")>()),
+    probeMcpUrl: vi.fn(async () => ({count: 1, probe: null})),
+}))
+
 /**
  * The permission drawer stands in for itself.
  *
@@ -55,9 +62,16 @@ vi.mock("../../src/mcpEndpoint/McpPermissionDrawer", () => ({
         createElement("button", {onClick: onReconnect}, "Reconnect from the drawer"),
 }))
 
+// The project's named secrets, which the OAuth screen's client secret picker reads.
+const NAMED_SECRETS_ATOM = vi.hoisted(() => ({}))
+vi.mock("@agenta/entities/secret", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("@agenta/entities/secret")>()),
+    customNamedSecretsAtom: NAMED_SECRETS_ATOM,
+}))
+
 vi.mock("jotai", async (importOriginal) => ({
     ...(await importOriginal<typeof import("jotai")>()),
-    useAtomValue: () => ({data: endpoints}),
+    useAtomValue: (atom: unknown) => (atom === NAMED_SECRETS_ATOM ? [] : {data: endpoints}),
 }))
 
 import {McpServerFormView} from "../../src/DrillInView/SchemaControls/McpServerFormView"

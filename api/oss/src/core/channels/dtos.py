@@ -5,6 +5,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from oss.src.core.sessions.types import SessionReference
+from oss.src.core.sharing.types import SharedItemNotFound
 from oss.src.core.shared.dtos import (
     Header,
     Identifier,
@@ -92,6 +94,9 @@ class ChannelTriggerState(str, Enum):
 # workflow service. Only such a turn, or a REFUSED one, leaves the offset where
 # it was; any other failure may have run, so the next turn moves past it.
 CHANNEL_TRIGGER_NEVER_SENT = "never_sent"
+# The status code of a FAILED trigger whose start the workflow service itself
+# answered with a failure. The turn never ran; the offset rule stays the default.
+CHANNEL_TRIGGER_START_REJECTED = "start_rejected"
 
 
 class ChannelDeliveryState(str, Enum):
@@ -389,6 +394,24 @@ RESOLVABLE_AGENT_REFERENCE_KEYS = frozenset(
 )
 
 
+def channel_agent_references(
+    references: Dict[str, Reference],
+) -> List[SessionReference]:
+    """A binding's references as the flat, keyed list `resolve_agent_artifact_id`
+    reads, in both families (`workflow*` and `application*`). A binding that names no
+    agent key names no agent it may run: it is refused with `SharedItemNotFound`,
+    never read as "no agent"."""
+
+    keyed = [
+        SessionReference(key=key, id=ref.id, slug=ref.slug, version=ref.version)
+        for key, ref in references.items()
+        if key in RESOLVABLE_AGENT_REFERENCE_KEYS
+    ]
+    if not keyed:
+        raise SharedItemNotFound()
+    return keyed
+
+
 class ChannelAgentToolSettings(BaseModel):
     """What the channel agent tools may do through this bot. Permissive by
     default: a bot saved before this block existed reads as these values."""
@@ -433,6 +456,14 @@ class ChannelAgentData(BaseModel):
                 f"not {families}"
             )
         return references
+
+
+class ChannelBindingRestore(BaseModel):
+    """An active binding a connection restore brings back, as the restore read it: its
+    references, and the agent they resolve to (None when they resolve to no agent)."""
+
+    references: Dict[str, Reference]
+    artifact_id: Optional[UUID] = None
 
 
 class ChannelSpaceData(BaseModel):
@@ -516,8 +547,11 @@ class ChannelInboxEventProcessed(BaseModel):
     # first and matches the bot's own posts by the second
     sent_at: Optional[datetime] = None
     message_ref: Optional[str] = None
+    # facts the sender's side supplied about where the message came from (the
+    # embed's host page); shown to the model as provided, never verified
+    context: Optional[Dict[str, Any]] = None
 
-    @field_validator("content", "sender", mode="after")
+    @field_validator("content", "sender", "context", mode="after")
     @classmethod
     def _redact(cls, value):
         return _redact_credentials(value)
@@ -1024,6 +1058,9 @@ class ChannelTurnInput(BaseModel):
 
     content: List[Dict[str, Any]]
     is_backfilled: bool = False
+    # the person's own words when `content` also holds parts this layer added
+    # (attribution, host context): the chat shows this, the model sees content
+    display_content: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------

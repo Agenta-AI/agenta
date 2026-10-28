@@ -1,3 +1,4 @@
+import { acpToolName } from "../../acp-tool-name.ts";
 import { apiBase } from "../../apiBase.ts";
 import {
   effectivePermission,
@@ -86,6 +87,7 @@ import {
   TURN_TIME_LIMIT_CODE,
   withinCredentialPropagationWindow,
   withPublicCode,
+  classifyGatewayPolicyDenial,
 } from "./errors.ts";
 import { noteExecutionSettled } from "../../sessions/execution-registry.ts";
 import {
@@ -149,10 +151,16 @@ import {
   carriesGatewayRefusalMarker,
   personFacingGatewayRefusal,
   errorEventWithDetail,
+  isUpstreamFailure,
   parseGatewayErrorDetail,
 } from "../../gateway-error.ts";
 import { mcpHandshakeFailureMessage } from "./mcp-handshake.ts";
 import { reconstructHistoryIfNeeded } from "./reconstruct-history.ts";
+import {
+  ACCESS_DENIED_CODE,
+  accessDeniedDetail,
+  isAccessDeniedError,
+} from "../../sessions/access-denied.ts";
 import { carriesApprovalReplyOnly } from "./session-identity.ts";
 import { buildTurnText, priorMessages } from "./transcript.ts";
 import {
@@ -325,6 +333,8 @@ export async function runTurn(
   let turnLedgerForFailure:
     | { sessionId: string; turnIndex: number }
     | undefined;
+  // Set once the harness answered the cancel a tripped time limit sent (`stopHarnessAfterLimit`).
+  let limitStopSettled = false;
   /**
    * After a failed turn: keep the harness's native session when it can take the failed turn back
    * out of its transcript, otherwise drop the resume point (the next turn replays).
@@ -335,11 +345,18 @@ export async function runTurn(
    * transcript is exactly the completed turns before it, so it records the same pointer and
    * completes the same ledger row a finished turn does, and the next turn loads it natively.
    */
-  const settleFailedTurnContinuity = async (): Promise<void> => {
+  const settleFailedTurnContinuity = async (): Promise<boolean> => {
     let rolledBack = false;
-    // Only a harness in this runner can roll its own transcript back.
     const session = env.session as Partial<InRunnerSessionHandle> | undefined;
-    if (session?.rollbackFailedTurn) {
+    // A time limit is no refusal: the turn's work is sound, and the person is told to continue it.
+    // A harness that answered the limit's cancel holds a short but finished turn, as after a Stop,
+    // so its transcript stays the resume point with that work in it.
+    // An update that crossed the output limit while the cancel settled was never recorded, so that
+    // turn is not a faithful resume point.
+    const keepsWork =
+      limitStopSettled && !outputLimitReason && session?.nativeHistorySaved?.() !== false;
+    // Only a harness in this runner can roll its own transcript back.
+    if (!keepsWork && session?.rollbackFailedTurn) {
       try {
         rolledBack = await session.rollbackFailedTurn();
       } catch (err) {
@@ -350,7 +367,7 @@ export async function runTurn(
     }
     const agentSessionId = env.session?.agentSessionId as string | undefined;
     if (
-      !rolledBack ||
+      !(rolledBack || keepsWork) ||
       !sessionId ||
       !agentSessionId ||
       env.continuityTurnIndex === undefined
@@ -362,7 +379,7 @@ export async function runTurn(
           turnLedgerForFailure.sessionId,
           turnLedgerForFailure.turnIndex,
         );
-      return;
+      return false;
     }
     continuityStore.record(
       sessionId,
@@ -379,6 +396,7 @@ export async function runTurn(
         { authorization: credential(), log: logger },
       ).catch(() => {});
     }
+    return true;
   };
   /**
    * Ask the subscription recovery what to do about a failure, or undefined when this run carries
@@ -466,6 +484,31 @@ export async function runTurn(
   const runLimitTripped = new Promise<void>((resolve) => {
     runLimitTrip = resolve;
   });
+  /**
+   * After a time limit trips mid-turn, stop the harness the way a Stop does (`cancel-turn.ts`)
+   * before the failure path destroys its session. A harness that answers has saved a finished
+   * turn, which `settleFailedTurnContinuity` keeps as the resume point, so a "continue" picks the
+   * work up natively. One that does not answer is handled as before. The first-response limit is
+   * left out: that turn did nothing, and the dispatch retries it.
+   */
+  const stopHarnessAfterLimit = async (promptPromise: Promise<unknown>): Promise<void> => {
+    const cancel = await cancelHarnessTurn({
+      sandbox: env.sandbox,
+      sessionId: env.session?.id,
+      promptPromise,
+      log: logger,
+    });
+    // Only a prompt that answered the cancel as cancelled ended on the limit. One that ended on
+    // its own in that window, with an error above all, may hold content a provider refused, so
+    // the failed-turn rule applies to it.
+    const endedAs = cancel.settled
+      ? await promptPromise.then(
+          (value) => (value as { stopReason?: unknown } | undefined)?.stopReason,
+          () => undefined,
+        )
+      : undefined;
+    limitStopSettled = endedAs === "cancelled";
+  };
   runLimits.onTrip((reason, kind) => {
     runLimitReason = reason;
     runLimitKind = kind;
@@ -565,7 +608,8 @@ export async function runTurn(
           : undefined,
       );
     } catch (err) {
-      if (!opts.resume) throw err;
+      // A caller who lost access cannot continue a live resume either.
+      if (!opts.resume || isAccessDeniedError(err)) throw err;
       const detail = err instanceof Error ? err.message : String(err);
       logger(
         `[reconstruct] live resume: keeping the inbound history (${detail})`,
@@ -774,7 +818,7 @@ export async function runTurn(
         !!opts.resume || !!opts.settleApprovalsThenPrompt || approvalReplyOnly;
       // Row existence proves only that a turn started. Native continuation is trustworthy only
       // after `end_time` is set.
-      await sessionTurnClient(
+      const appended = await sessionTurnClient(
         turnLedgerContext.sessionId,
         plan.harness,
         turnLedgerContext.turnIndex,
@@ -802,6 +846,18 @@ export async function runTurn(
         );
       });
       turnLedgerForFailure = turnLedgerContext;
+      // Only once this turn's row is written: until then a closed stalled row would be the latest.
+      const completeTurn = sessionTurnClient.complete;
+      for (const stalled of appended
+        ? continuityStore.takeStalledTurns(turnLedgerContext.sessionId)
+        : []) {
+        void completeTurn?.(
+          turnLedgerContext.sessionId,
+          stalled.turnIndex,
+          { endTime: stalled.endTime },
+          { authorization: credential(), log: logger },
+        ).catch(() => {});
+      }
     }
 
     // A cold pause sends the harness a cancel (`destroySession`). Claude and Codex answer the open
@@ -984,7 +1040,7 @@ export async function runTurn(
             };
             const existing = approvedExecutionSeeds.get(frame.toolCallId);
             const toolName =
-              [announced.name, announced.title, announced.kind].find(
+              [acpToolName(announced), announced.title, announced.kind].find(
                 (value): value is string =>
                   typeof value === "string" && value.length > 0,
               ) ?? existing?.toolName;
@@ -1214,7 +1270,7 @@ export async function runTurn(
           undefined,
           {
             toolCallId,
-            name: frame.name,
+            name: acpToolName(frame),
             title: frame.title,
             kind: frame.kind,
             rawInput: frame.rawInput,
@@ -1632,6 +1688,8 @@ export async function runTurn(
     // A tripped run-limit ends the turn as an error: throw into the shared catch below so the
     // trace is flushed and the caller's teardown reclaims the (wedged) sandbox.
     if (raced === RUN_LIMIT_TRIPPED || outputLimitReason) {
+      if (!outputLimitReason && runLimitKind && runLimitKind !== "ttfb")
+        await stopHarnessAfterLimit(promptPromise);
       throw runLimitPublicError ?? new Error(runLimitReason ?? "run limit tripped");
     }
     let stopReason =
@@ -1907,14 +1965,27 @@ export async function runTurn(
         ? parseGatewayErrorDetail(visibleOutput)
         : undefined;
     let swallowedError: string | undefined;
-    if (swallowedGatewayRefusal) {
+    let swallowedDetail = swallowedGatewayRefusal;
+    // The gateway's own `policy_denied` (a lost access, or its spending check) gets its sentence.
+    const swallowedPolicyDenial = classifyGatewayPolicyDenial(swallowedGatewayRefusal);
+    if (swallowedPolicyDenial) {
+      const denied = swallowedPolicyDenial;
+      swallowedError = denied.message;
+      swallowedDetail = denied.detail;
+      run.recordError(swallowedError, request.modelConnection?.provider);
+      run.emitEvent(errorEventWithDetail(denied.message, denied.code, denied.detail));
+    } else if (swallowedGatewayRefusal) {
       const personFacing = personFacingGatewayRefusal(visibleOutput);
       swallowedError = personFacing?.message ?? swallowedGatewayRefusal.message;
       run.recordError(swallowedError, request.modelConnection?.provider);
       run.emitEvent({
         type: "error",
         message: swallowedError,
-        code: (personFacing?.code as RunErrorCode | undefined) ?? "runner_error",
+        code:
+          (personFacing?.code as RunErrorCode | undefined) ??
+          (isUpstreamFailure(swallowedGatewayRefusal)
+            ? (swallowedGatewayRefusal.code as RunErrorCode)
+            : "runner_error"),
         detail: swallowedGatewayRefusal,
       });
     } else if (swallowedPiError) {
@@ -1944,8 +2015,11 @@ export async function runTurn(
           },
         );
       swallowedError = classified.message;
+      swallowedDetail = classified.detail;
       run.recordError(swallowedError, request.modelConnection?.provider);
-      run.emitEvent(errorEventWithDetail(classified.message, classified.code));
+      run.emitEvent(
+        errorEventWithDetail(classified.message, classified.code, classified.detail),
+      );
     }
     // A shutdown cancels like a Stop, but nobody stopped this turn. It ends with an error the
     // client offers to retry; the cancel's park and continuity stay those of a Stop.
@@ -1974,15 +2048,12 @@ export async function runTurn(
       // A failed turn may have left a partial turn in the native transcript: roll it back, or
       // drop the resume point.
       await settleFailedTurnContinuity();
-      // The envelope is attached HERE for the folded-refusal path, because its message has had
-      // the marker stripped out: `withGatewayErrorDetail` scans the text and would find nothing
-      // left to recover. The Pi path keeps its text intact and is recovered there as before.
+      // The envelope is attached HERE, because the message has had the marker stripped out:
+      // `withGatewayErrorDetail` scans the text and would find nothing left to recover.
       return {
         ok: false,
         error: swallowedError,
-        ...(swallowedGatewayRefusal
-          ? { errorDetail: swallowedGatewayRefusal }
-          : {}),
+        ...(swallowedDetail ? { errorDetail: swallowedDetail } : {}),
       };
     }
 
@@ -2081,6 +2152,7 @@ export async function runTurn(
       request.modelConnection?.provider,
       {
         authFault: () => describeCodexSubscriptionAuthFault(plan),
+        modelConnection: request.modelConnection,
         connection: {
           slug: request.connection?.slug,
           deployment: request.modelConnection?.deployment,
@@ -2106,10 +2178,10 @@ export async function runTurn(
     } else if (nativeTraceBatches === 0) {
       await harnessTrace.emitMissingBatchFallback(otel, error);
     }
-    otel?.emitEvent(errorEventWithDetail(error, outputLimitReason ? "output_limit_exceeded" : classified.code));
+    otel?.emitEvent(errorEventWithDetail(error, outputLimitReason ? "output_limit_exceeded" : classified.code, classified.detail));
     // An aborted turn may have left a partial turn in the native transcript: roll it back, or
     // drop the resume point.
-    await settleFailedTurnContinuity();
+    const turnRowCompleted = await settleFailedTurnContinuity();
     // Same ordering as the happy path: settle the durable rows before the terminal record goes out.
     await settleInBandInteractions?.();
     // finish() must not throw uncaught — tracing must not mask the run error.
@@ -2132,14 +2204,23 @@ export async function runTurn(
       !opts.settleApprovalsThenPrompt &&
       !approvalReplyOnly &&
       !signal?.aborted;
+    // A stalled attempt did nothing, so its row is finished; the next turn closes it.
+    if (stalledBeforeFirstResponse && turnLedgerForFailure && !turnRowCompleted)
+      continuityStore.noteStalledTurn(turnLedgerForFailure.sessionId, {
+        turnIndex: turnLedgerForFailure.turnIndex,
+        endTime: new Date().toISOString(),
+      });
     return {
       ok: false,
       error,
+      ...(classified.detail ? { errorDetail: classified.detail } : {}),
       ...(stalledBeforeFirstResponse
         ? { stalledBeforeFirstResponse: true }
         : {}),
       // Structured so the dispatch can tell this refusal from a broken session: it must not
       // delete the environment or retry cold, and the caller may send the message again.
+      // Structured so a client reads the class, not the prose (the SDK takes `failure_code` from it).
+      ...(classified.code === ACCESS_DENIED_CODE ? { errorDetail: accessDeniedDetail() } : {}),
       ...(classified.code === TURN_INDEX_TAKEN_CODE
         ? {
             errorDetail: {

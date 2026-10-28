@@ -32,9 +32,21 @@ THE LATE-STOP GUARDS. A Stop that arrives after its turn ended must not kill the
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import Any, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, List, Optional, Tuple
 from uuid import UUID, uuid4
 
+
+if TYPE_CHECKING:
+    from oss.src.core.access.service import AccessService
+from oss.src.core.access.dtos import RunApproval, RunEnvelope
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.principals import (
+    access_denied_error,
+    missing_envelope_error,
+    resumed_envelope,
+)
+from oss.src.core.access.types import AccessDenied, MissingEnvelope
+from oss.src.core.tools.dtos import AgentError
 from oss.src.core.sessions.commands.dtos import (
     SessionCommand,
     SessionCommandCreate,
@@ -58,6 +70,7 @@ from oss.src.core.sessions.commands.types import (
     SessionCommandNotFound,
 )
 from oss.src.core.sessions.executions.dtos import SessionExecutionState
+from oss.src.core.sessions.records.dtos import RunnerEnding
 from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInterface
 from oss.src.core.sessions.interactions.dtos import (
     SessionInteraction,
@@ -85,6 +98,7 @@ from oss.src.dbs.redis.sessions.locks import (
     get_running_owner,
     get_routable_turn_binding,
     get_turn_binding,
+    forget_turn_admissions,
     reconcile_stopped_turn,
 )
 from oss.src.utils.env import env
@@ -589,6 +603,7 @@ class SessionCommandsService:
         answer: dict[str, Any],
         expected_execution_id: Optional[str],
         idempotency_key: str,
+        approved_by: RunApproval,
     ) -> InteractionContinuationAdmission:
         return await self.respond_interactions(
             project_id=project_id,
@@ -596,6 +611,7 @@ class SessionCommandsService:
             interaction_answers=[(interaction_id, answer)],
             expected_execution_id=expected_execution_id,
             idempotency_key=idempotency_key,
+            approved_by=approved_by,
         )
 
     async def respond_interactions(
@@ -606,7 +622,10 @@ class SessionCommandsService:
         interaction_answers: List[Tuple[UUID, dict[str, Any]]],
         expected_execution_id: Optional[str],
         idempotency_key: str,
+        approved_by: RunApproval,
     ) -> InteractionContinuationAdmission:
+        """`approved_by` is the answering principal. The continuation keeps the asked
+        run's authority, sender and origin, and records the approver."""
         if self._executions is None:
             raise RuntimeError(
                 "durable interaction responses require executions storage"
@@ -638,6 +657,17 @@ class SessionCommandsService:
                 message="The interaction belongs to a different execution.",
                 details={"current_execution_id": source_execution_id},
             )
+        if anchor.run_envelope is None:
+            # Parked by a pod before M2: there is no authority to resume under. Cancel it
+            # in its own committed transaction (raising inside the respond transaction
+            # would roll the cancellation back), then refuse.
+            await self._cancel_unresumable_interactions(
+                project_id=project_id,
+                session_id=anchor.session_id,
+                turn_id=source_execution_id,
+                interaction_id=anchor_id,
+            )
+            raise MissingEnvelope()
 
         async with self._dao.transaction() as transaction:
             source = await self._executions.lock_for_control(
@@ -819,6 +849,11 @@ class SessionCommandsService:
                                 "continuation_execution_id": execution_id,
                             },
                             idempotency_key=idempotency_key,
+                            run_envelope=resumed_envelope(
+                                asked=anchor.run_envelope,
+                                run_id=execution_id,
+                                approved_by=approved_by,
+                            ),
                         ),
                         transaction=transaction,
                     )
@@ -866,6 +901,144 @@ class SessionCommandsService:
                 if await self._mark_continuation_recoverable(admission, receipt):
                     admission.execution_state = SessionExecutionState.recoverable
         return admission
+
+    async def _cancel_unresumable_interactions(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        turn_id: str,
+        interaction_id: UUID,
+    ) -> None:
+        async with self._dao.transaction() as transaction:
+            await self._interactions.cancel_session_pending(
+                project_id=project_id,
+                session_id=session_id,
+                only_turn_id=turn_id,
+                transaction=transaction,
+                publish=False,
+            )
+        await self._interactions.publish_session_pending_cancelled(
+            project_id=project_id, session_id=session_id
+        )
+        log.info(
+            "[sessions] work cancelled",
+            interaction_id=str(interaction_id),
+            session_id=session_id,
+            project_id=str(project_id),
+            code="missing_envelope",
+        )
+
+    async def _settle_refused_continuation(
+        self,
+        *,
+        command: SessionCommand,
+        error: AgentError,
+    ) -> DeliveryReceipt:
+        """Terminal settlement of a continuation that may not run (no envelope, or the
+        principal lost access), in one transaction: the command becomes `obsolete`/
+        `failed`, the execution stores the error and is settled `failed`. Without the
+        settlement the promoted input would stay the active successor and block the next
+        input. The receipt is `refused`, which nothing retries."""
+
+        admission: Optional[InputContinuationAdmission] = None
+        try:
+            async with self._dao.transaction() as transaction:
+                await self._dao.settle_command(
+                    settle=SessionCommandSettle(
+                        project_id=command.project_id,
+                        command_id=command.id,
+                        state=SessionCommandState.obsolete,
+                        outcome=SessionCommandOutcome.failed,
+                        expected_states=[
+                            SessionCommandState.pending,
+                            SessionCommandState.claimed,
+                        ],
+                    ),
+                    transaction=transaction,
+                )
+                if self._executions is not None and command.target_turn_id:
+                    await self._executions.set_state(
+                        project_id=command.project_id,
+                        session_id=command.session_id,
+                        execution_id=command.target_turn_id,
+                        state=SessionExecutionState.terminal,
+                        error=error.model_dump(exclude_none=True),
+                        transaction=transaction,
+                    )
+                    result = await self._executions.settle(
+                        project_id=command.project_id,
+                        session_id=command.session_id,
+                        execution_id=command.target_turn_id,
+                        terminal_outcome="failed",
+                        settled_by="access_refusal",
+                        transaction=transaction,
+                    )
+                    # The refused execution ended, as a completed one does: the next
+                    # queued input becomes the session's next execution, in the same
+                    # commit (`settle_execution_completed` does the same on a normal end).
+                    if result.won:
+                        admission = await self._promote_next_input(
+                            project_id=command.project_id,
+                            session_id=command.session_id,
+                            parent_execution_id=command.target_turn_id,
+                            transaction=transaction,
+                        )
+        except Exception as failure:  # noqa: BLE001 - the sweep still finds the command
+            log.error(
+                "refused continuation settlement failed command=%s: %s",
+                command.id,
+                failure,
+            )
+            return DeliveryReceipt(status="unreachable", detail=error.code)
+        log.info(
+            "[sessions] work cancelled",
+            command_id=str(command.id),
+            session_id=command.session_id,
+            project_id=str(command.project_id),
+            code=error.code,
+        )
+        await self._mirror_refused_turn_end(command=command)
+        if admission is not None:
+            # Delivered like any promoted input. Its own refusal settles it the same
+            # way and promotes the one after it, so the queue always drains.
+            next_receipt = await self._deliver(admission.command)
+            if next_receipt is None or next_receipt.status not in (
+                "accepted",
+                "refused",
+            ):
+                await self._mark_continuation_recoverable(admission, next_receipt)
+        return DeliveryReceipt(status="refused", detail=error.code)
+
+    async def _mirror_refused_turn_end(self, *, command: SessionCommand) -> None:
+        """Write the session's liveness to the row after a refused continuation.
+
+        The refused continuation never runs, so no beat of its own mirrors the row. The
+        parent turn's final `is_running=false` beat cannot either: `settle_execution_completed`
+        tombstones the parent before it delivers the promoted input, and the heartbeat
+        refuses a tombstoned turn's beat before its mirror write. Without this the row keeps
+        `is_running: true` until the orphan sweep collapses it, and the next Send queues
+        behind a turn that is not running. As a durable Stop does, it re-reads Redis (a newer
+        turn that holds `running` is reported, not erased) and announces the end. Best
+        effort: the settlement is committed, and the sweep still repairs the row.
+        """
+        if self._streams is None:
+            return
+        try:
+            await self._streams.mirror_liveness(
+                project_id=command.project_id,
+                session_id=command.session_id,
+            )
+            await self._streams.publish_session_ended(
+                project_id=command.project_id,
+                session_id=command.session_id,
+            )
+        except Exception as failure:  # noqa: BLE001 - the orphan sweep repairs the row
+            log.warning(
+                "refused continuation liveness mirror failed command=%s: %s",
+                command.id,
+                failure,
+            )
 
     async def _mark_continuation_recoverable(
         self,
@@ -1052,6 +1225,9 @@ class SessionCommandsService:
                 "continuation resume delivery failed command=%s: %s", command.id, error
             )
             receipt = None
+        if receipt is not None and receipt.status == "refused":
+            # Settled terminally (missing envelope or access refused): nothing resumed.
+            return None
         if receipt is None or receipt.status != "accepted":
             await self._mark_continuation_recoverable(admission, receipt)
         return execution_id
@@ -1265,6 +1441,13 @@ class SessionCommandsService:
                 command=command,
                 runner_address=binding.replica_address if binding else None,
                 runner_replica_id=binding.replica_id if binding else None,
+            )
+        except (MissingEnvelope, AccessDenied) as refusal:
+            # A refusal is a decision, not a transport failure: settle the work
+            # terminally instead of handing it to the retry sweep.
+            return await self._settle_refused_continuation(
+                command=command,
+                error=_refusal_error(refusal=refusal, command=command),
             )
         except Exception as e:  # noqa: BLE001 — transport failure is never a request failure
             log.warning(
@@ -1637,6 +1820,8 @@ class SessionCommandsService:
                     "request": request,
                 },
                 idempotency_key=f"input:{pending_input.id}",
+                # Copied as is, also when None: delivery refuses a command without one.
+                run_envelope=pending_input.run_envelope,
             ),
             transaction=transaction,
         )
@@ -1708,12 +1893,13 @@ class SessionCommandsService:
             and winner.settled_by == "watchdog"
         )
 
-    async def settle_execution_completed(
+    async def settle_execution_ended(
         self,
         *,
         project_id: UUID,
         session_id: str,
         execution_id: str,
+        terminal_outcome: RunnerEnding = "completed",
     ) -> bool:
         """Reconcile a persisted runner ending before stale ownership is collapsed."""
         if self._executions is None:
@@ -1724,9 +1910,11 @@ class SessionCommandsService:
                 project_id=project_id,
                 session_id=session_id,
                 execution_id=execution_id,
-                terminal_outcome="completed",
+                terminal_outcome=terminal_outcome,
                 settled_by="runner",
                 transaction=transaction,
+                # A Stop can end its turn with an error; its command owns that ending.
+                defer_to_stop=terminal_outcome == "failed",
             )
             if result.won:
                 admission = await self._promote_next_input(
@@ -1738,7 +1926,7 @@ class SessionCommandsService:
 
         if admission is not None:
             # The terminal record can arrive before the runner's final `is_running=false` beat.
-            # Release and fence that completed generation first, or the promoted continuation's
+            # Release and fence that ended generation first, or the promoted continuation's
             # first heartbeat sees the old `running` owner and rejects immediate delivery.
             await self._reconcile_stopped_redis(
                 project_id=project_id,
@@ -1749,7 +1937,16 @@ class SessionCommandsService:
             if receipt is None or receipt.status != "accepted":
                 await self._mark_continuation_recoverable(admission, receipt)
                 admission.execution_state = SessionExecutionState.recoverable
-        return result.won or result.settlement.terminal_outcome is not None
+        # A failed ending deferred to a Stop is reconciled too: the Stop command settles it.
+        deferred_to_stop = (
+            terminal_outcome == "failed"
+            and result.settlement.state == SessionExecutionState.stopping
+        )
+        return (
+            result.won
+            or result.settlement.terminal_outcome is not None
+            or deferred_to_stop
+        )
 
     async def repair_terminal_redis(self) -> int:
         if self._executions is None:
@@ -1777,6 +1974,12 @@ class SessionCommandsService:
             project_id=str(project_id),
             session_id=session_id,
             turn_id=execution_id,
+        )
+        await forget_turn_admissions(
+            self._lock,
+            project_id=str(project_id),
+            session_id=session_id,
+            turn_ids=[execution_id],
         )
         if self._executions is not None:
             await self._executions.mark_redis_reconciled(
@@ -2172,6 +2375,39 @@ class SessionCommandsService:
             if receipt is None or receipt.status != "accepted":
                 await self._mark_continuation_recoverable(input_admission, receipt)
         return settled
+
+
+async def deliverable_envelope(
+    *,
+    access: "AccessService",
+    command: SessionCommand,
+) -> RunEnvelope:
+    """The envelope a continue_input / continue_interaction command runs under,
+    rechecked now: `MissingEnvelope` for a command written before M2, `AccessDenied`
+    when the principal may no longer run sessions in the project. Delivery settles
+    both terminally (`missing_envelope`, `access_denied`)."""
+
+    if command.run_envelope is None:
+        raise MissingEnvelope()
+    await access.require(envelope=command.run_envelope, action=Permission.RUN_SESSIONS)
+    return command.run_envelope
+
+
+def _refusal_error(*, refusal: Exception, command: SessionCommand) -> AgentError:
+    if isinstance(refusal, AccessDenied):
+        envelope = command.run_envelope
+        return access_denied_error(
+            decision=refusal.decision,
+            principal_kind=envelope.authority.principal.kind,
+            project_id=command.project_id,
+        )
+    return missing_envelope_error(
+        next_step=(
+            "Ask for the approval again."
+            if command.kind == SessionCommandKind.continue_interaction
+            else "Send the message again."
+        )
+    )
 
 
 # The runner names what happened to the EXECUTION; the command's `outcome` column stores it.

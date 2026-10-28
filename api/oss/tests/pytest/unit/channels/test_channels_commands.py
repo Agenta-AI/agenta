@@ -523,6 +523,8 @@ class TestDispatchCommand:
         )
 
         assert result is target
+        # Validation only: the inbox acknowledgment does the switch.
+        channels_service.close_thread.assert_not_called()
 
     async def test_use_with_no_arg_raises_rather_than_no_op(self):
         """`!use` with no colon/arg is rejected, not silently treated as a

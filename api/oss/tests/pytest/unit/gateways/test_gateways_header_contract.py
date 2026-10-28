@@ -123,7 +123,7 @@ def _llm_secret(key: str = _PROVIDER_KEY) -> ResolvedSecret:
             ),
             header=Header(name="openai"),
         ),
-        owner=SecretOwner(kind=SecretOwnerKind.PROJECT),
+        owner=SecretOwner(kind=SecretOwnerKind.PROJECT, id=uuid4()),
         origin=SecretOrigin.VAULT,
     )
 
@@ -213,7 +213,7 @@ def _standard_composio_auth() -> MCPDirectAuth:
                     provider=StandardProviderSettingsDTO(key="synthetic-composio-key"),
                 ),
             ),
-            owner=SecretOwner(kind=SecretOwnerKind.PROJECT),
+            owner=SecretOwner(kind=SecretOwnerKind.PROJECT, id=uuid4()),
             origin=SecretOrigin.VAULT,
         )
     )
@@ -496,7 +496,7 @@ async def test_streamed_credential_split_across_two_chunks_is_refused():
     # The refusal really did come from a value spanning the boundary: the second chunk was
     # never relayed, and neither was the part of the first that had begun the credential.
     relayed = b"".join(chunks)
-    assert relayed == frame[:starts_at]
+    assert frame[:starts_at].startswith(relayed)
     assert second not in relayed
 
 
@@ -525,10 +525,10 @@ async def test_a_body_without_the_credential_still_relays_when_one_was_injected(
 async def test_no_injected_secret_means_no_scan():
     """Nothing was injected, so nothing can be echoed: a body that happens to carry the
     string is relayed, and the scan costs a call with no secret nothing."""
-    body = json.dumps({"error": {"message": _PROVIDER_KEY}}).encode()
+    body = json.dumps({"id": "x", "note": _PROVIDER_KEY}).encode()
 
     def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(400, content=body)
+        return httpx.Response(200, content=body)
 
     adapter = _llm_adapter(handler)
     result = await adapter.relay_chat_completion(

@@ -8,6 +8,7 @@ from agenta.sdk.evaluations.runtime.models import (
 )
 from agenta.sdk.models.evaluations import EvaluationStatus as SDKEvaluationStatus
 
+from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.evaluations.runtime.cache import RunnableCacheResolver
 from oss.src.core.evaluations.types import (
     EvaluationClosedConflict,
@@ -433,6 +434,7 @@ class APIWorkflowRunner:
         *,
         project_id: UUID,
         user_id: UUID,
+        envelope: RunEnvelope,
         #
         request: WorkflowExecutionRequest,
     ) -> WorkflowExecutionResult:
@@ -440,6 +442,7 @@ class APIWorkflowRunner:
             await self.execute_batch(
                 project_id=project_id,
                 user_id=user_id,
+                envelope=envelope,
                 #
                 requests=[request],
             )
@@ -450,6 +453,7 @@ class APIWorkflowRunner:
         *,
         project_id: UUID,
         user_id: UUID,
+        envelope: RunEnvelope,
         #
         requests: List[WorkflowExecutionRequest],
         #
@@ -463,12 +467,14 @@ class APIWorkflowRunner:
                     return await self._execute_one(
                         project_id=project_id,
                         user_id=user_id,
+                        envelope=envelope,
                         #
                         request=request,
                     )
             return await self._execute_one(
                 project_id=project_id,
                 user_id=user_id,
+                envelope=envelope,
                 #
                 request=request,
             )
@@ -480,6 +486,7 @@ class APIWorkflowRunner:
         *,
         project_id: UUID,
         user_id: UUID,
+        envelope: RunEnvelope,
         #
         request: WorkflowExecutionRequest,
     ) -> WorkflowExecutionResult:
@@ -544,6 +551,7 @@ class APIWorkflowRunner:
             user_id=user_id,
             #
             request=service_request,
+            envelope=envelope,
         )
 
         status = getattr(response, "status", None)
@@ -602,6 +610,7 @@ class APICachedRunner:
         *,
         project_id: UUID,
         user_id: UUID,
+        envelope: RunEnvelope,
         #
         request: WorkflowExecutionRequest,
     ) -> WorkflowExecutionResult:
@@ -609,6 +618,7 @@ class APICachedRunner:
             await self.execute_batch(
                 project_id=project_id,
                 user_id=user_id,
+                envelope=envelope,
                 #
                 requests=[request],
             )
@@ -619,6 +629,7 @@ class APICachedRunner:
         *,
         project_id: UUID,
         user_id: UUID,
+        envelope: RunEnvelope,
         #
         requests: List[WorkflowExecutionRequest],
         #
@@ -661,6 +672,7 @@ class APICachedRunner:
             executed = await self.runner.execute_batch(
                 project_id=project_id,
                 user_id=user_id,
+                envelope=envelope,
                 #
                 requests=missing,
                 #

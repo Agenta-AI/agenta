@@ -62,7 +62,6 @@ Before, settings were bucketed under `global.*`, `secrets.*`, `accessControl.*`,
 | `email.sendgrid.fromAddress` | `sendgrid.fromEmail` |
 | `integrations.composio.apiKey` | `composio.apiKey` |
 | `integrations.composio.apiUrl` | `composio.apiUrl` |
-| `observability.newRelic.licenseKey` | `newrelic.licenseKey` |
 | `captcha.turnstile.siteKey` | `cloudflare.turnstile.siteKey` |
 | `captcha.turnstile.secretKey` | `cloudflare.turnstile.secretKey` |
 
@@ -101,7 +100,6 @@ The Pydantic env loader reads the new name first and falls back to the old one w
 | `POSTHOG_HOST` | `POSTHOG_API_URL` |
 | `STRIPE_TARGET` | `STRIPE_WEBHOOK_TARGET` |
 | `AGENTA_PRICING` / `STRIPE_PRICING` | `AGENTA_BILLING_PRICING` |
-| `NEW_RELIC_LICENSE_KEY` / `NRIA_LICENSE_KEY` | `NEWRELIC_LICENSE_KEY` |
 | `ACTIVE_DIRECTORY_OAUTH_CLIENT_ID` / `_SECRET` / `_DIRECTORY_ID` | `AZURE_AD_OAUTH_*` |
 | `AGENTA_RUNTIME_PREFIX` | _(removed — was unused; safe to delete)_ |
 

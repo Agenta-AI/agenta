@@ -25,6 +25,7 @@ from oss.src.dbs.postgres.sessions.streams.mappings import decode_name_revision
 import oss.src.dbs.postgres.shared.engine as engine_module
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 import oss.src.models.db_models  # noqa: F401
+from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
 
 
 pytestmark = pytest.mark.integration
@@ -116,6 +117,7 @@ async def _seed(scope, *, name=None, name_source=None) -> tuple[SessionStreamsDA
             session_id=session_id,
             name=name,
             name_source=name_source,
+            access=OWNERLESS_PROJECT_POLICY,
         ),
     )
     return dao, session_id

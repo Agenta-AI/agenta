@@ -11,4 +11,5 @@ export interface McpServerProbeResult {
     protocol_version?: (string | null) | undefined;
     auth?: AgentaApi.McpProbeAuth | undefined;
     problem?: (AgentaApi.McpProbeProblem | null) | undefined;
+    legacy_transport_suspected?: boolean | undefined;
 }

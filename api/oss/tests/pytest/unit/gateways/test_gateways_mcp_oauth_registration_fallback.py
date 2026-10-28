@@ -25,9 +25,14 @@ from oss.src.core.gateways.mcps.oauth.storage import (
     SecretsTokenStorage,
     registration_slug,
 )
+from oss.tests.pytest.utils.mcp_endpoints import InMemoryMCPEndpoints
 from oss.tests.pytest.utils.mcp_oauth_attempts import InMemoryMCPOAuthAttemptsDAO
 from oss.src.core.secrets.dtos import OAuthGrantSettingsDTO, SecretResponseDTO
 from oss.src.core.secrets.services import VaultService
+from oss.tests.pytest.utils.organization_secrets import (
+    load_effective_from_list,
+    owner_scope,
+)
 
 _API_URL = "https://api.agenta.ai"
 _SERVER_URL = "https://mcp.acme.io/"
@@ -48,13 +53,22 @@ _AS_METADATA = {
 
 
 class _FakeSecretsDAO:
+    load_effective = load_effective_from_list
+
     def __init__(self) -> None:
         self.records: List[Tuple[UUID, SecretResponseDTO]] = []
 
     def _scoped(self, project_id) -> List[SecretResponseDTO]:
         return [r for p, r in self.records if p == project_id]
 
-    async def create(self, *, project_id=None, organization_id=None, create_secret_dto):
+    async def create(
+        self,
+        *,
+        owner,
+        create_secret_dto,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         record = SecretResponseDTO(
             id=uuid4(),
             slug=create_secret_dto.slug,
@@ -65,26 +79,48 @@ class _FakeSecretsDAO:
         self.records.append((project_id, record))
         return record
 
-    async def get_by_id(self, secret_id, project_id=None, organization_id=None):
+    async def get_by_id(
+        self,
+        *,
+        owner,
+        secret_id,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         return next((r for r in self._scoped(project_id) if r.id == secret_id), None)
 
-    async def get_by_slug(self, secret_slug, project_id=None, organization_id=None):
+    async def get_by_slug(
+        self,
+        *,
+        owner,
+        secret_slug,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         return next(
             (r for r in self._scoped(project_id) if r.slug == secret_slug), None
         )
 
-    async def list(self, project_id=None, organization_id=None):
+    async def list(
+        self,
+        *,
+        owner,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         return self._scoped(project_id)
 
     async def update(
         self,
+        *,
+        owner,
         secret_id,
         update_secret_dto,
-        project_id=None,
-        organization_id=None,
         user_id=None,
         resolve_update=None,
+        **_kwargs,
     ):
+        project_id, organization_id = owner_scope(owner)
         scoped = self._scoped(project_id)
         stored = next((r for r in scoped if r.id == secret_id), None)
         if stored is None:
@@ -100,7 +136,14 @@ class _FakeSecretsDAO:
         self.records[idx] = (project_id, record)
         return record
 
-    async def delete(self, secret_id, project_id=None, organization_id=None):
+    async def delete(
+        self,
+        *,
+        owner,
+        secret_id,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         self.records = [
             (p, r)
             for p, r in self.records
@@ -111,15 +154,18 @@ class _FakeSecretsDAO:
 def _mock_as_handler(*, register_called: list, advertise_registration: bool = True):
     """A mock authorization server, optionally one that accepts no registrations.
 
-    `advertise_registration=False` drops `registration_endpoint` from the metadata,
-    which is the only condition under which naming ourselves with a client-id metadata
-    document is correct. `/register` stays wired up either way so that a test can prove
-    nothing reached it.
+    `advertise_registration=False` drops `registration_endpoint` from the metadata and
+    advertises client ID metadata documents instead, which is a server where naming
+    ourselves with the document is correct. `/register` stays wired up either way so
+    that a test can prove nothing reached it.
     """
     metadata = (
         _AS_METADATA
         if advertise_registration
-        else {k: v for k, v in _AS_METADATA.items() if k != "registration_endpoint"}
+        else {
+            **{k: v for k, v in _AS_METADATA.items() if k != "registration_endpoint"},
+            "client_id_metadata_document_supported": True,
+        }
     )
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -182,6 +228,7 @@ def _service(
         client=client,
         api_url=api_url,
         attempts_dao=attempts,
+        endpoints_dao=InMemoryMCPEndpoints(attempts=attempts),
         resolve=resolve,
     )
     return service, dao, attempts

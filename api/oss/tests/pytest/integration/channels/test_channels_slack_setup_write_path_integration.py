@@ -108,13 +108,16 @@ async def test_a_rejected_auth_test_writes_no_connection_row_and_no_secret_row(
         channel="slack",
         external_key=uuid4(),
         slug="slack-setup-acme",
-        data={"api_app_id": "A-slack-setup", "enterprise_id": ""},
+        data={"api_app_id": "ASLACKSETUP", "enterprise_id": ""},
         credentials={"bot_token": "xoxb-bad", "signing_secret": "sec-slack-setup"},
     )
 
     with pytest.raises(ChannelConnectionVerificationFailed):
         await service.create_connection(
-            project_id=project_id, user_id=user_id, connection=connection
+            project_id=project_id,
+            user_id=user_id,
+            guard_user_id=None,
+            connection=connection,
         )
 
     assert await _secret_count(channels_scope["engine"], project_id) == 0
@@ -140,12 +143,15 @@ async def test_a_verified_auth_test_writes_exactly_one_row_in_each_table(
         # setup.fields, not returned by auth.test. Omitting it raises
         # ChannelLocatorIncomplete before a row is ever written; the web
         # caller supplies "" the same way this fixture does.
-        data={"api_app_id": "A-slack-setup", "enterprise_id": ""},
+        data={"api_app_id": "ASLACKSETUP", "enterprise_id": ""},
         credentials={"bot_token": "xoxb-good", "signing_secret": "sec-slack-setup"},
     )
 
     result = await service.create_connection(
-        project_id=project_id, user_id=user_id, connection=connection
+        project_id=project_id,
+        user_id=user_id,
+        guard_user_id=None,
+        connection=connection,
     )
 
     assert await _secret_count(channels_scope["engine"], project_id) == 1
@@ -153,4 +159,4 @@ async def test_a_verified_auth_test_writes_exactly_one_row_in_each_table(
     assert result.data["connection_locator"]["team_id"] == "T-slack-setup"
     # api_app_id is a locator: it must survive on the connection row, never
     # on the credential row (which only accepts bot_token/signing_secret).
-    assert result.data["connection_locator"]["api_app_id"] == "A-slack-setup"
+    assert result.data["connection_locator"]["api_app_id"] == "ASLACKSETUP"

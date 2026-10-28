@@ -33,9 +33,9 @@ export interface SubscriptionPair {
     /** Provider family the logo is looked up by (`anthropic`, `openai`). */
     provider: string
     /**
-     * What the row is called: `Claude (deployment login)`, `ChatGPT (deployment login)`. The
-     * source is part of the name, because a project can also hold a HOSTED subscription to the
-     * same plan and the two rows would otherwise be identical.
+     * What the row is called: the plan name (`Claude`, `ChatGPT`). When the project also holds a
+     * HOSTED subscription to the same plan, the source joins the name (`ChatGPT (set up on the
+     * server)`), because the two rows would otherwise be identical.
      */
     name: string
     /** The harness id this pair runs in (`claude`, `codex`, `pi_core`). */
@@ -66,16 +66,35 @@ export const subscriptionPlanName = (provider: string): string =>
     PLAN_NAME_BY_PROVIDER[provider] ?? provider
 
 /**
- * What a MOUNTED subscription calls itself, once a hosted one can carry the same plan.
+ * Where a mounted subscription comes from. A compact row shows it under the plan name, and only
+ * when a hosted subscription to the same plan is listed beside it.
+ */
+export const MOUNTED_SUBSCRIPTION_SOURCE = "Set up on the server"
+
+/**
+ * What a MOUNTED subscription calls itself when a hosted one carries the same plan.
  *
  * The two are different connections to the same product. A hosted subscription is signed in from
  * the app and stored per project; a mounted one is a login folder the deployment gives the runner,
  * with its own model list. On a deployment that has both, two rows called "ChatGPT · Subscription"
  * are indistinguishable, and a user picking between them is guessing. So the mounted one says
  * where it comes from, and the hosted one keeps the plain product name it was signed in under.
+ * Alone, the mounted one is just the plan: there is nothing to tell it apart from.
  */
 export const mountedSubscriptionName = (provider: string): string =>
-    `${subscriptionPlanName(provider)} (deployment login)`
+    `${subscriptionPlanName(provider)} (${MOUNTED_SUBSCRIPTION_SOURCE.toLowerCase()})`
+
+/**
+ * A mounted subscription's name: the long name when `hostedFamilies` holds its provider family,
+ * the plain plan name otherwise.
+ */
+export const mountedSubscriptionDisplayName = (
+    provider: string,
+    hostedFamilies: ReadonlySet<string> | null | undefined,
+): string =>
+    hostedFamilies?.has(provider)
+        ? mountedSubscriptionName(provider)
+        : subscriptionPlanName(provider)
 
 /**
  * Every usable subscription × harness pair the runner reported, in harness-id order.
@@ -90,6 +109,11 @@ export const mountedSubscriptionName = (provider: string): string =>
  */
 export const subscriptionPairsFrom = (
     harnesses: Record<string, SubscriptionHarnessStatus> | null | undefined,
+    /**
+     * The provider families the project also holds a hosted subscription for. A pair of one of
+     * these families takes the long name; every other pair is named by its plan alone.
+     */
+    hostedFamilies?: ReadonlySet<string> | null,
 ): SubscriptionPair[] | null => {
     if (!harnesses) return null
 
@@ -116,7 +140,12 @@ export const subscriptionPairsFrom = (
             if (seen.has(key)) continue
             seen.add(key)
 
-            pairs.push({key, provider, name: mountedSubscriptionName(provider), harness})
+            pairs.push({
+                key,
+                provider,
+                name: mountedSubscriptionDisplayName(provider, hostedFamilies),
+                harness,
+            })
         }
     }
 

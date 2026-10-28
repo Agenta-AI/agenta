@@ -11,7 +11,12 @@ import {Suspense, lazy, useEffect, useRef, type ReactNode, type RefObject} from 
 
 import {isOverlayOpen} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
-import {registerQuoteSubmit, removeQuote, useStagedQuotes} from "@agenta/ui/quote-selection"
+import {
+    registerQuoteSubmit,
+    removeQuote,
+    updateQuote,
+    useStagedQuotes,
+} from "@agenta/ui/quote-selection"
 import type {RichChatInputHandle, SlashCommandSection} from "@agenta/ui/rich-chat-input"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {Paperclip} from "@phosphor-icons/react"
@@ -60,6 +65,8 @@ export interface ChatComposerProps {
     placeholder?: string
     /** The run is parked on the user (HITL) — new sends will queue. */
     waitingOnUser?: boolean
+    /** The session already has turns: the key hints move from chips into the placeholder. */
+    hasTurns?: boolean
     initialMarkdown?: string
     onChange?: (markdown: string) => void
     /** The send is in flight and has not landed — the button spins and refuses a second press. */
@@ -113,6 +120,7 @@ export const ChatComposer = ({
     hideShortcutHints,
     placeholder,
     waitingOnUser,
+    hasTurns = false,
     initialMarkdown,
     onChange,
     sending,
@@ -235,7 +243,7 @@ export const ChatComposer = ({
                 onSubmit={withQuotes(onSubmit)}
                 disabled={disabled}
                 hideSendButton={hideSendButton}
-                hideShortcutHints={hideShortcutHints ?? !hasKeyboard}
+                hideShortcutHints={hideShortcutHints ?? (!hasKeyboard || hasTurns)}
                 // A touch keyboard has no modifier to make a newline with, so its Enter IS the
                 // newline and the send button sends. Enter sends only where Shift/⌘ can be held.
                 submitOnEnter={hasKeyboard}
@@ -247,9 +255,12 @@ export const ChatComposer = ({
                           ? // The parked interaction is docked directly above, so point at it rather
                             // than describing the wait in the abstract.
                             "Answer above, or type to queue a message"
-                          : hasKeyboard
-                            ? "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
-                            : "Ask the agent…")
+                          : !hasTurns
+                            ? "What should we work on?"
+                            : // An ongoing session carries the key hints here instead of as chips.
+                              hasKeyboard
+                              ? "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
+                              : "Ask the agent…")
                 }
                 initialMarkdown={initialMarkdown}
                 slashCommands={slashCommands}
@@ -291,6 +302,10 @@ export const ChatComposer = ({
                                     size="icon"
                                     disabled={!uploadsEnabled || composerDisabled}
                                     onClick={() => fileInputRef.current?.click()}
+                                    // The closing picker's focus has no relatedTarget; no tooltip.
+                                    onFocus={(e) => {
+                                        if (!e.relatedTarget) e.preventDefault()
+                                    }}
                                     aria-label="Attach files"
                                 >
                                     <Paperclip size={16} />
@@ -312,6 +327,7 @@ export const ChatComposer = ({
                             <ComposerQuotes
                                 quotes={quotes}
                                 onRemove={(id) => removeQuote(quoteSessionId, id)}
+                                onEdit={(id, note) => updateQuote(quoteSessionId, id, {note})}
                                 touch={!hasKeyboard}
                             />
                         </HeightCollapse>

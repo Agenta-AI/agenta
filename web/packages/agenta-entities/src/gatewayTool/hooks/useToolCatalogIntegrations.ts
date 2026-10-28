@@ -66,6 +66,10 @@ export const toolCatalogIntegrationsInfiniteAtom =
         }
     })
 
+/** Pages to hold after a sentinel hit; counted from what is loaded, so a warm cache still grows. */
+export const nextCatalogTarget = (target: number, loaded: number) =>
+    Math.max(target, loaded) + PREFETCH
+
 export const useToolCatalogIntegrations = () => {
     const query = useAtomValue(toolCatalogIntegrationsInfiniteAtom)
     const setSearch = useSetAtom(toolIntegrationsSearchAtom)
@@ -104,8 +108,8 @@ export const useToolCatalogIntegrations = () => {
 
     // Sentinel callback — user scrolled to the prefetch point, request PREFETCH more pages
     const requestMore = useCallback(() => {
-        setTargetPages((t) => t + PREFETCH)
-    }, [])
+        setTargetPages((t) => nextCatalogTarget(t, loadedPages))
+    }, [loadedPages])
 
     // Keep fetching until loaded >= target
     useEffect(() => {

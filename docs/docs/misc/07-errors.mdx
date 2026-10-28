@@ -295,6 +295,7 @@ underlying text on purpose, so do not replace it with a trace's error text.
 | Code | What happened | Retry |
 |------|---------------|-------|
 | `runner_error` | The run failed for a reason no other code names. `errorText` says what is known. | Depends on `errorText` |
+| `access_denied` | The user, API key or installation this run acts as may not do this in the project, for example after it was removed from the project or the key was deleted. | No: ask an owner or admin for access |
 | `rate_limited` | The model provider or a proxy in front of it throttled the request. | Yes, after a moment |
 | `provider_error` | The model provider refused this request with an error of its own (a content filter, a refusal, an invalid request). `errorText` quotes the provider's reason with credentials removed. | Not as is: change the request or the model |
 | `wallet_balance_exhausted` | The organization has used all its credits. If the task was refused before it started, nothing was charged. If a call to one of Agenta's included models was refused during a task, the work before that call was charged. | No: wait for daily credits, buy credits, or upgrade. See [Plans and credits](/administration/billing/plans-and-credits) |
@@ -304,14 +305,30 @@ underlying text on purpose, so do not replace it with a trace's error text.
 | `starter_credits_exhausted` | The organization's free Agenta credits are used up. | No: add a provider key |
 | `starter_credits_program_paused` | Free Agenta credits are paused for everyone. | No: add a provider key |
 | `starter_credits_unavailable` | The credits service could not be reached. | Yes, after a moment |
+| `run_idle_time_limit` | The agent made no progress for the runtime's idle limit, so the runtime ended the turn. `errorText` names the limit, for example "The agent stopped responding: no progress for 120 seconds, so the turn was ended. Send the message again to retry." | Yes |
+| `run_first_response_time_limit` | The model did not start to answer within the runtime's limit, so the runtime ended the turn. `errorText` names the limit. | Yes |
+| `run_total_time_limit` | The turn ran longer than the runtime's total limit, so the runtime ended it. `errorText` names the limit. | Yes, with a smaller request |
+| `tool_call_time_limit` | A tool call ran longer than the runtime's limit and did not stop, so the runtime ended the turn. `errorText` names the limit. | Yes, with smaller steps |
+| `harness_init_timeout` | The harness did not answer while the run was opening its session, so nothing ran. `errorText` names the harness and the limit. | Yes |
 | `credential_delivery_failed` | The run's model credential did not reach the model in time (a cloud sandbox race). | Yes |
-| `subscription_login_required` | The ChatGPT sign-in used by this connection is no longer valid. | No: sign in again |
+| `subscription_login_required` | The subscription sign-in used by this connection is no longer valid. For ChatGPT, the sign-in expired or was revoked. For Claude, the provider refused the setup-token. | No: sign in to ChatGPT again, or paste a new Claude token |
 | `subscription_login_refreshed` | Another session renewed the ChatGPT sign-in during this run. | Yes |
-| `session_turn_in_use` | The turn was not started, because another turn already runs in this conversation. Nothing ran. | Yes, once the other turn ends |
+| `session_turn_in_use` | The turn was not started, because another turn already runs in this conversation, or because the platform was too busy to confirm the turn could start. Nothing ran. | Yes, once the other turn ends or after a moment |
+| `session_admission_rejected` | The turn was not started, because the platform refused the turn's request (for example an invalid session ID or a key without access). Nothing ran. | No: fix the request first |
 | `sandbox_gone` | The sandbox running the turn stopped answering, so the turn was ended. | Yes: a new sandbox starts |
 | `sandbox_capacity` | The sandbox provider is at its capacity limit. | Yes, in a few minutes |
 | `execution_lost` | The run ended without an outcome of its own (the agent service restarted or stopped answering). | Yes |
 | `runner_capacity` | The agent service is at its session or memory limit. In-process runs only. | Yes, in a moment |
 | `model_unavailable` | The agent's model is not available to this runtime. In-process runs only. | No: pick another model |
 | `internal_error` | A failure the agent service does not show. `errorText` carries a reference to its log. In-process runs only. | Yes, once; report the reference if it fails again |
+
+A turn that was refused before it started does not open a stream when you call the invoke endpoint
+for a JSON response. The endpoint then answers with an HTTP status instead, and `status.failure_code`
+carries the code from the table:
+
+| HTTP status | `failure_code` | What happened |
+|-------------|----------------|---------------|
+| 409 | `session_turn_in_use` | Another turn already runs in this conversation. |
+| 503 | `session_turn_in_use` | The platform was too busy to confirm the turn could start. The `Retry-After` header says how many seconds to wait before you send it again. |
+| 422 | `session_admission_rejected` | The platform refused the turn's request. |
 

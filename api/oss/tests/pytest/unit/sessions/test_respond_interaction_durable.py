@@ -18,6 +18,8 @@ from oss.src.core.sessions.interactions.dtos import (
     SessionInteractionKind,
     SessionInteractionStatus,
 )
+from oss.src.core.access.dtos import PrincipalRef, RunApproval
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 async def test_durable_response_returns_202_and_stable_refs(monkeypatch):
@@ -45,7 +47,11 @@ async def test_durable_response_returns_202_and_stable_refs(monkeypatch):
         router_module, "check_action_access", AsyncMock(return_value=True)
     )
     request = SimpleNamespace(
-        state=SimpleNamespace(project_id=project_id, user_id=user_id),
+        state=SimpleNamespace(
+            project_id=project_id,
+            user_id=user_id,
+            principal=PrincipalRef(kind="human", id=user_id),
+        ),
         headers={"Idempotency-Key": "answer-1"},
     )
     router = InteractionsRouter(
@@ -74,6 +80,9 @@ async def test_durable_response_returns_202_and_stable_refs(monkeypatch):
         answer={"approved": True},
         expected_execution_id="turn-1",
         idempotency_key="answer-1",
+        approved_by=RunApproval(
+            principal=PrincipalRef(kind="human", id=user_id), user_id=user_id
+        ),
     )
 
 
@@ -108,7 +117,11 @@ async def test_matching_partial_answer_retry_returns_terminal_source(monkeypatch
 
     response = await router.respond_interaction(
         request=SimpleNamespace(
-            state=SimpleNamespace(project_id=project_id, user_id=user_id),
+            state=SimpleNamespace(
+                project_id=project_id,
+                user_id=user_id,
+                principal=PrincipalRef(kind="human", id=user_id),
+            ),
             headers={"Idempotency-Key": "partial-answer-retry"},
         ),
         interaction_id=interaction_id,
@@ -157,7 +170,11 @@ async def test_durable_batch_returns_202_with_one_continuation(monkeypatch):
 
     response = await router.respond_interaction(
         request=SimpleNamespace(
-            state=SimpleNamespace(project_id=project_id, user_id=user_id),
+            state=SimpleNamespace(
+                project_id=project_id,
+                user_id=user_id,
+                principal=PrincipalRef(kind="human", id=user_id),
+            ),
             headers={"Idempotency-Key": "approve-all"},
         ),
         interaction_id=first_id,
@@ -180,6 +197,9 @@ async def test_durable_batch_returns_202_with_one_continuation(monkeypatch):
         ],
         expected_execution_id="turn-1",
         idempotency_key="approve-all",
+        approved_by=RunApproval(
+            principal=PrincipalRef(kind="human", id=user_id), user_id=user_id
+        ),
     )
 
 
@@ -194,7 +214,11 @@ async def test_durable_response_returns_the_conflict_envelope(monkeypatch):
         router_module, "check_action_access", AsyncMock(return_value=True)
     )
     request = SimpleNamespace(
-        state=SimpleNamespace(project_id=project_id, user_id=user_id),
+        state=SimpleNamespace(
+            project_id=project_id,
+            user_id=user_id,
+            principal=PrincipalRef(kind="human", id=user_id),
+        ),
         headers={"Idempotency-Key": "answer-1"},
     )
     router = InteractionsRouter(
@@ -237,7 +261,11 @@ async def test_durable_validation_error_returns_422(monkeypatch):
 
     response = await router.respond_interaction(
         request=SimpleNamespace(
-            state=SimpleNamespace(project_id=project_id, user_id=user_id),
+            state=SimpleNamespace(
+                project_id=project_id,
+                user_id=user_id,
+                principal=PrincipalRef(kind="human", id=user_id),
+            ),
             headers={"Idempotency-Key": "answer-1"},
         ),
         interaction_id=uuid4(),
@@ -262,7 +290,11 @@ async def test_durable_response_rejects_an_overlength_idempotency_key(monkeypatc
 
     response = await router.respond_interaction(
         request=SimpleNamespace(
-            state=SimpleNamespace(project_id=project_id, user_id=user_id),
+            state=SimpleNamespace(
+                project_id=project_id,
+                user_id=user_id,
+                principal=PrincipalRef(kind="human", id=user_id),
+            ),
             headers={"Idempotency-Key": "x" * 256},
         ),
         interaction_id=uuid4(),
@@ -291,7 +323,11 @@ async def test_continuation_resume_endpoint_resumes(monkeypatch):
     )
     router = SessionControlRouter(commands_service=commands)
     request = SimpleNamespace(
-        state=SimpleNamespace(project_id=project_id, user_id=user_id)
+        state=SimpleNamespace(
+            project_id=project_id,
+            user_id=user_id,
+            principal=PrincipalRef(kind="human", id=user_id),
+        )
     )
 
     enabled = await router.resume_session_continuation(
@@ -344,6 +380,7 @@ async def test_session_stream_response_advertises_capabilities(monkeypatch):
     router = SessionStreamsRouter(
         service=service,
         interactions_service=AsyncMock(),
+        run_admission=NoopRunAdmission(),
     )
 
     response = await router.fetch_session_stream(
@@ -357,3 +394,168 @@ async def test_session_stream_response_advertises_capabilities(monkeypatch):
     # Kept pinned true for one release so older web bundles still read them.
     assert response.capabilities.queue is True
     assert response.capabilities.steer is True
+
+
+async def _respond_over_http(router, interaction_id, project_id, user_id):
+    from fastapi import FastAPI, Request
+    from httpx import ASGITransport, AsyncClient
+
+    app = FastAPI()
+
+    @app.middleware("http")
+    async def add_state(request: Request, call_next):
+        request.state.project_id = str(project_id)
+        request.state.user_id = str(user_id)
+        request.state.principal = PrincipalRef(kind="human", id=user_id)
+        return await call_next(request)
+
+    app.include_router(router.router, prefix="/api/sessions/interactions")
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        return await client.post(
+            f"/api/sessions/interactions/{interaction_id}/respond",
+            headers={"Idempotency-Key": "answer-1"},
+            json={"answer": {"approved": True}},
+        )
+
+
+@pytest.mark.parametrize("case", ["missing", "hidden"])
+async def test_a_missing_or_hidden_anchor_answers_the_same_404(monkeypatch, case):
+    """Codex spec check finding 4: the anchor check runs before the command, outside
+    the service's error mapping. A missing anchor and a hidden one answer the same 404
+    body over HTTP, never a 500, and nothing is admitted."""
+    from oss.src.core.sessions.interactions.types import InteractionNotFound
+
+    project_id, user_id, interaction_id = uuid4(), uuid4(), uuid4()
+    interactions = AsyncMock()
+    if case == "missing":
+        interactions.fetch_interaction.side_effect = InteractionNotFound(
+            f"Interaction {interaction_id} not found"
+        )
+    else:
+        interactions.fetch_interaction.return_value = SimpleNamespace(
+            session_id="alice-private"
+        )
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+    monkeypatch.setattr(router_module, "allow_resource", AsyncMock(return_value=False))
+    commands = SimpleNamespace(respond_interaction=AsyncMock())
+    router = InteractionsRouter(
+        interactions_service=interactions, commands_service=commands
+    )
+
+    response = await _respond_over_http(router, interaction_id, project_id, user_id)
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Interaction not found"}
+    commands.respond_interaction.assert_not_awaited()
+
+
+async def _command_over_http(router, *, project_id, user_id, body, missing):
+    from fastapi import FastAPI, Request
+    from httpx import ASGITransport, AsyncClient
+
+    from oss.src.core.access.context import _request_memo
+    from oss.src.core.sharing.service import _note_missing_session
+
+    app = FastAPI()
+
+    @app.middleware("http")
+    async def add_state(request: Request, call_next):
+        request.state.project_id = str(project_id)
+        request.state.user_id = str(user_id)
+        request.state.principal = PrincipalRef(kind="human", id=user_id)
+        token = _request_memo.set({})
+        try:
+            if missing:
+                # What the route's resource check records when it finds no row.
+                _note_missing_session(
+                    project_id=project_id, session_id=body["session_id"]
+                )
+            return await call_next(request)
+        finally:
+            _request_memo.reset(token)
+
+    app.include_router(router.router, prefix="/api")
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        return await client.post("/api/sessions/streams/", json=body)
+
+
+@pytest.mark.parametrize("missing", [True, False])
+async def test_a_no_op_cancel_of_an_unchecked_session_closes_no_pending_interaction(
+    monkeypatch, missing
+):
+    """Codex round 3, finding 2: Bob's cancel found no row at the route and at the
+    service (a no-op). Alice's private session and its pending approval appear right
+    after: the route must not close them. An authorized cancel of an existing session
+    still closes the session's pending interactions."""
+    from oss.src.core.sessions.streams.dtos import (
+        CommandMode,
+        SessionStreamCommandResponse,
+    )
+
+    project_id, user_id = uuid4(), uuid4()
+    service = AsyncMock()
+    service.clock_ms.return_value = 1
+    service.command.return_value = SessionStreamCommandResponse(
+        mode=CommandMode.cancel, session_id="s-race", detached=True
+    )
+    interactions = AsyncMock()
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+    monkeypatch.setattr(router_module, "allow_resource", AsyncMock(return_value=True))
+    router = SessionStreamsRouter(
+        service=service,
+        interactions_service=interactions,
+        run_admission=NoopRunAdmission(),
+    )
+
+    response = await _command_over_http(
+        router,
+        project_id=project_id,
+        user_id=user_id,
+        body={"session_id": "s-race"},
+        missing=missing,
+    )
+
+    assert response.status_code == 200, response.text
+    if missing:
+        interactions.cancel_session_pending.assert_not_awaited()
+    else:
+        interactions.cancel_session_pending.assert_awaited_once()
+
+
+async def test_an_attach_to_an_unknown_session_answers_the_canonical_404(monkeypatch):
+    from oss.src.core.sessions.streams.types import SessionStreamNotFound
+
+    project_id, user_id = uuid4(), uuid4()
+    service = AsyncMock()
+    service.clock_ms.return_value = 1
+    service.command.side_effect = SessionStreamNotFound("s-attach")
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+    monkeypatch.setattr(router_module, "allow_resource", AsyncMock(return_value=True))
+    router = SessionStreamsRouter(
+        service=service,
+        interactions_service=AsyncMock(),
+        run_admission=NoopRunAdmission(),
+    )
+
+    response = await _command_over_http(
+        router,
+        project_id=project_id,
+        user_id=user_id,
+        body={"session_id": "s-attach", "force": True},
+        missing=True,
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": {"code": "not_found", "message": "Not found.", "retryable": False}
+    }

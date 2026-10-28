@@ -130,6 +130,9 @@ spec:
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+      {{- with $supertokens.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
       {{- with $supertokens.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

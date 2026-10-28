@@ -33,3 +33,19 @@ export function invalidateSessionLivenessQueries(): void {
         predicate: (query) => query.queryKey.includes("session-liveness"),
     })
 }
+
+/**
+ * Refetch one project's session lists and per-session records, wherever they are nested.
+ *
+ * Same token match as `invalidateSessionListQueries`; every token's key puts the project id
+ * right after the token, so another project's cached lists stay as they are.
+ */
+export function invalidateProjectSessionListQueries(projectId: string): void {
+    void getHostQueryClient().invalidateQueries({
+        predicate: (query) =>
+            SESSION_CHANGE_TOKENS.some((token) => {
+                const index = query.queryKey.indexOf(token)
+                return index >= 0 && query.queryKey[index + 1] === projectId
+            }),
+    })
+}

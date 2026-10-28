@@ -1,5 +1,10 @@
 export {ChannelsPage, type ChannelsPageProps, type ChannelsPanelRenderProps} from "./ChannelsPage"
-export {useChannelPanel, type ChannelsRoute, type UseChannelPanelOptions} from "./useChannelPanel"
+export {
+    useChannelPanel,
+    type ChannelsRoute,
+    type EmbedViewProps,
+    type UseChannelPanelOptions,
+} from "./useChannelPanel"
 export {ChannelsPanelSheet, type ChannelsPanelSheetProps} from "./ChannelsPanelSheet"
 export {ChannelsHubView, type ChannelsHubViewProps} from "./ChannelsHubView"
 export {ChannelsSettingsPage, type ChannelsSettingsPageProps} from "./ChannelsSettingsPage"
@@ -25,6 +30,8 @@ export {
     summarizeConnection,
     type ChannelRowSummary,
 } from "./helpers"
+export {channelSharingCopy} from "./sharingCopy"
+export {ChannelAgentPicker, type ChannelAgentPickerProps} from "./ChannelAgentPicker"
 export {
     buildAgentChannelsActions,
     channelKey,

@@ -13,10 +13,14 @@ minting another one.
 
 from typing import Optional
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from oss.src.apis.fastapi.gateways.exceptions import plane_disabled_http_exception
+from oss.src.core.access.context import get_request_access
+from oss.src.core.access.dtos import RequestCredentialKind
+from oss.src.core.access.principals import access_denied_error
+from oss.src.core.access.service import get_access_service
 from oss.src.apis.fastapi.gateways.flags import require_mcp_gateway_enabled
 from oss.src.core.gateways.policy.dtos import GatewayPlane
 from oss.src.core.gateways.types import LLMGatewayDisabledError
@@ -25,7 +29,12 @@ from oss.src.core.gateways.run_claims import (
     gateway_run_labels,
     gateway_tools,
 )
-from oss.src.middlewares.auth import GATEWAY_TOKEN_AUDIENCE, sign_secret_token
+from oss.src.middlewares.auth import (
+    GATEWAY_TOKEN_AUDIENCE,
+    request_is_platform_runtime,
+    request_run_envelope,
+    sign_secret_token,
+)
 from oss.src.utils.context import get_auth_scope
 from oss.src.utils.env import env
 from oss.src.utils.exceptions import intercept_exceptions
@@ -81,17 +90,13 @@ class GatewayCredentialsRouter:
 
         No permission check of its own: the result is strictly weaker than the credential
         that bought it — same tenant scope, same run, fewer routes — so a caller can reach
-        nothing here it could not already reach with what it presented.
+        nothing here it could not already reach with what it presented. The principal must
+        still be eligible (active, a member of the project). Any caller gets a
+        credential, but only the platform runtime gets one that built-in models accept.
 
         It does check the switch for the plane the caller named, because minting a credential
         for a plane that will refuse every request is worse than refusing here: the caller
         still has a pre-gateway path at this point and none once the run is under way.
-
-        The LLM plane checks the master switch only, not the per-organization rollout. The
-        SDK exchanges a credential only after `/resolve` admitted the organization, and two
-        API processes may briefly hold different rollout payloads: refusing here then would
-        fail the run instead of falling back to the vault. The relay still checks the
-        rollout on every call.
         """
         plane = body.plane if body else None
         if plane is GatewayPlane.LLM:
@@ -101,6 +106,35 @@ class GatewayCredentialsRouter:
             require_mcp_gateway_enabled()
 
         scope = get_auth_scope()
+
+        # The confined credential copies the caller's run envelope.
+        envelope = request_run_envelope(request)
+        if envelope is None:
+            raise HTTPException(status_code=401, detail="Unauthorized")
+
+        # No permission check, but the principal must still be eligible (decide steps 1
+        # and 2): a deleted key or a removed member gets no new credential.
+        access = get_request_access()
+        if access is None:
+            raise HTTPException(status_code=401, detail="Unauthorized")
+        decision = await get_access_service().check_eligibility(
+            authority=(
+                None
+                if access.credential_kind == RequestCredentialKind.BEARER_SESSION
+                else access.authority
+            ),
+            principal=access.principal,
+            project_id=scope.project_id,
+        )
+        if not decision.allowed:
+            raise HTTPException(
+                status_code=403,
+                detail=access_denied_error(
+                    decision=decision,
+                    principal_kind=access.principal.kind,
+                    project_id=scope.project_id,
+                ).model_dump(exclude_none=True),
+            )
 
         # A re-exchange keeps the labels its caller's credential already carries.
         labels = dict(gateway_run_labels(request) or {})
@@ -120,11 +154,15 @@ class GatewayCredentialsRouter:
             gateway_run_id=gateway_run_id(request),
             gateway_tools=gateway_tools(request),
             gateway_run_labels=labels or None,
+            # Built-in models accept only this mark. It follows the caller's proof that it
+            # is the platform runtime, never the labels, the plane or the run id above.
+            gateway_platform_run=request_is_platform_runtime(request),
             audience=GATEWAY_TOKEN_AUDIENCE,
             # Its own lifetime: this credential is held inside a sandbox for the length of a
             # turn and nothing re-mints it there, so the default 15 minutes was a ceiling on
             # how long a turn could reach a gateway rather than a bound on exposure.
             expires_in=env.gateway_credentials.ttl_seconds,
+            envelope=envelope,
         )
 
         return GatewayCredentialsResponse(credentials=f"Secret {token}")

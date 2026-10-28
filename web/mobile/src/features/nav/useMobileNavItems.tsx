@@ -21,7 +21,14 @@ import {
     type SidebarEntityRef,
 } from "@agenta/navigation"
 import {buildReleaseNavItems, SessionFilterMenu, SessionSearchButton} from "@agenta/navigation-ui"
-import {SessionRowActions, useSessionActions, useSessionRowChrome} from "@agenta/sessions-ui"
+import {sessionRoutePath} from "@agenta/sessions/link"
+import {
+    SessionRowActions,
+    useSessionActions,
+    useSessionRowChrome,
+    type SessionActionTarget,
+} from "@agenta/sessions-ui"
+import {userAtom} from "@agenta/shared/state"
 import {getShortcut, shortcutAria, shortcutFaces} from "@agenta/shared/utils"
 import {useIsMacPlatform} from "@agenta/ui/shortcuts"
 import {Spinner} from "@agenta/ui/ui"
@@ -43,7 +50,10 @@ import {
 } from "@phosphor-icons/react"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 import {unwrap} from "jotai/utils"
+import {useRouter} from "next/router"
 
+import {agentEntryHref} from "@/features/agents/agentEntry"
+import {shareDialogRequestAtom} from "@/features/chat/shareDialogState"
 import {useLeaveSession} from "@/features/chat/useLeaveSession"
 import {startBlankSession} from "@/features/chat/useStartBlankSession"
 import {whatsNewAtom} from "@/features/education/whatsNewAtom"
@@ -115,11 +125,11 @@ export const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
         groupsAtom: sidebarSessionGroupsAtomFamily(MOBILE_NAV_SCOPE_ID),
         // An agent heading's "+" opens a blank session with that agent — the same start every
         // other "+" in the app makes. The session id is minted on the click, so the anchor's
-        // own href is the agent's page: what a long-press / open-in-new-tab lands on.
+        // own href is the agent entry link: what a long-press / open-in-new-tab lands on.
         groupAdd: (group, projectURL) =>
             group.agentId
                 ? {
-                      link: `${projectURL}/agents/${group.agentId}`,
+                      link: agentEntryHref(projectURL, group.agentId),
                       label: `New session with ${group.label}`,
                       onClick: (event) => {
                           event.preventDefault()
@@ -151,7 +161,37 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
     const source = useMemo(() => withEntityGroups(rawSource, groups), [rawSource, groups])
     // Resolved ONCE for the rail, not once per row: the verbs do not differ by session.
     // Archiving or deleting the session on screen has to move you off it, from here too.
-    const chrome = useSessionRowChrome(useSessionActions({onRemoved: useLeaveSession(projectURL)}))
+    // Sharing: the owner's rail menu has Share; someone else's chat keeps only Open-like verbs.
+    const me = useAtomValue(userAtom)
+    const openShare = useSetAtom(shareDialogRequestAtom)
+    const onShare = useCallback(
+        (target: SessionActionTarget) => {
+            const [, , workspaceId = "", , projectId = ""] = projectURL.split("/")
+            openShare({
+                sessionId: target.sessionId,
+                sessionName: target.name ?? "",
+                workspaceId,
+                projectId,
+            })
+        },
+        [openShare, projectURL],
+    )
+    // "Copy share link" in the rail too (approved session row menu, QA D7): the session's own
+    // page, with the app's `/m` prefix.
+    const router = useRouter()
+    const sharePathFor = useCallback(
+        ({sessionId}: SessionActionTarget) =>
+            `${router.basePath}${sessionRoutePath(projectURL, sessionId)}`,
+        [projectURL, router.basePath],
+    )
+    const chrome = useSessionRowChrome(
+        useSessionActions({
+            onRemoved: useLeaveSession(projectURL),
+            currentUserId: me?.id ?? null,
+            onShare,
+            sharePathFor,
+        }),
+    )
     // Platform read in an effect: the server has none, and a guess mismatches on hydration.
     const mac = useIsMacPlatform()
     const paletteShortcut = useMemo(() => {

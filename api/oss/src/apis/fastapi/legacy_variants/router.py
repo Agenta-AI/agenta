@@ -19,6 +19,7 @@ from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
+from oss.src.apis.fastapi.sharing.utils import allow_agent, artifact_id_of
 
 
 def _as_reference(ref: Optional[ReferenceRequestModel]) -> Optional[Reference]:
@@ -350,6 +351,14 @@ class LegacyVariantsRouter:
                 environment_ref=environment_ref,
                 application_ref=application_ref,
             )
+
+        if revision and not await allow_agent(
+            request,
+            action=Permission.VIEW_APPLICATIONS,
+            artifact_id=artifact_id_of(revision),
+        ):
+            # A private agent's config answers as an unknown one.
+            revision = None
 
         if not revision:
             raise HTTPException(

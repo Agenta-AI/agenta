@@ -46,6 +46,7 @@ from oss.src.dbs.postgres.sessions.interactions.dao import SessionInteractionsDA
 from oss.src.dbs.postgres.mounts.dao import MountsDAO
 import oss.src.dbs.postgres.shared.engine as engine_module
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
+from oss.tests.pytest.utils.sharing import PROJECT_SESSION_SCOPE
 
 
 pytestmark = pytest.mark.integration
@@ -637,10 +638,12 @@ async def test_stream_origin_filters_preserve_null_and_unstamped_rows(
         await session.commit()
 
     included = await streams_dao.query(
+        read_scope=PROJECT_SESSION_SCOPE,
         project_id=project_id,
         filter=SessionStreamQuery(origins=[SessionOrigin.trigger]),
     )
     excluded = await streams_dao.query(
+        read_scope=PROJECT_SESSION_SCOPE,
         project_id=project_id,
         filter=SessionStreamQuery(exclude_origins=[SessionOrigin.trigger]),
     )
@@ -676,6 +679,7 @@ async def test_stream_tied_activity_cursor_pages_without_duplicates(
         await session.commit()
 
     first_page = await streams_dao.query(
+        read_scope=PROJECT_SESSION_SCOPE,
         project_id=project_id,
         filter=SessionStreamQuery(),
         windowing=Windowing(limit=2, order=order),
@@ -686,6 +690,7 @@ async def test_stream_tied_activity_cursor_pages_without_duplicates(
         requested=Windowing(limit=2, order=order),
     )
     second_page = await streams_dao.query(
+        read_scope=PROJECT_SESSION_SCOPE,
         project_id=project_id,
         filter=SessionStreamQuery(),
         windowing=cursor,
@@ -832,6 +837,7 @@ async def test_trigger_expansion_isolates_project_and_kind_for_live_and_deleted_
     service = SessionStreamsService(streams_dao=streams_dao, lock_engine=object())
     try:
         unexpanded = await service.query_streams(
+            read_scope=PROJECT_SESSION_SCOPE,
             project_id=project_id,
             filter=SessionStreamQuery(),
         )
@@ -839,6 +845,7 @@ async def test_trigger_expansion_isolates_project_and_kind_for_live_and_deleted_
         assert all(row.trigger.name is None for row in unexpanded)
 
         live = await service.query_streams(
+            read_scope=PROJECT_SESSION_SCOPE,
             project_id=project_id,
             filter=SessionStreamQuery(),
             read_options=options,
@@ -877,6 +884,7 @@ async def test_trigger_expansion_isolates_project_and_kind_for_live_and_deleted_
             await session.commit()
 
         historical = await service.query_streams(
+            read_scope=PROJECT_SESSION_SCOPE,
             project_id=project_id,
             filter=SessionStreamQuery(),
             read_options=options,
@@ -929,6 +937,7 @@ async def test_trigger_expansion_guards_malformed_uuid_and_keeps_delivery(
 
     service = SessionStreamsService(streams_dao=streams_dao, lock_engine=object())
     rows = await service.query_streams(
+        read_scope=PROJECT_SESSION_SCOPE,
         project_id=project_id,
         filter=SessionStreamQuery(),
         read_options=SessionStreamReadOptions(include_trigger_details=True),
@@ -964,6 +973,7 @@ async def test_missing_trigger_configuration_keeps_typed_identity(streams_dao, p
 
     service = SessionStreamsService(streams_dao=streams_dao, lock_engine=object())
     rows = await service.query_streams(
+        read_scope=PROJECT_SESSION_SCOPE,
         project_id=project_id,
         filter=SessionStreamQuery(),
         read_options=SessionStreamReadOptions(include_trigger_details=True),

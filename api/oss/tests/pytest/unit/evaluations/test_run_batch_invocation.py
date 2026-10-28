@@ -15,6 +15,8 @@ from uuid import uuid4
 
 import pytest
 
+from oss.tests.pytest.utils.principals import make_envelope
+
 from agenta.sdk.evaluations.runtime.models import (
     EvaluationStep,
     PlannedCell,
@@ -100,6 +102,7 @@ async def test_an_evaluation_reads_outputs_from_the_batch_envelope():
     result = await runner.execute(
         project_id=uuid4(),
         user_id=uuid4(),
+        envelope=make_envelope(),
         request=_execution_request(revision={"data": {"parameters": {}}}),
     )
 
@@ -123,6 +126,7 @@ async def test_an_adapter_that_puts_outputs_on_the_response_still_works():
     result = await runner.execute(
         project_id=uuid4(),
         user_id=uuid4(),
+        envelope=make_envelope(),
         request=_execution_request(revision={"data": {"parameters": {}}}),
     )
 
@@ -146,6 +150,7 @@ async def test_a_streaming_revision_is_still_invoked_in_batch_mode():
     await runner.execute(
         project_id=uuid4(),
         user_id=uuid4(),
+        envelope=make_envelope(),
         request=_execution_request(
             revision={"flags": {"stream": True}, "data": {"parameters": {}}}
         ),
@@ -164,6 +169,7 @@ async def test_the_revisions_other_flags_survive_the_override():
     await runner.execute(
         project_id=uuid4(),
         user_id=uuid4(),
+        envelope=make_envelope(),
         request=_execution_request(
             revision={
                 "flags": {"stream": True, "trim": True},

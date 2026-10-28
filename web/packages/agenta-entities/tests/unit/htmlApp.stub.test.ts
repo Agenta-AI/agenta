@@ -110,7 +110,7 @@ afterEach(() => {
 describe("BRIDGE_STUB shape", () => {
     it("is a self-invoking function expression, ES2017-safe, with no module references", () => {
         expect(BRIDGE_STUB.startsWith("(function")).toBe(true)
-        expect(BRIDGE_STUB.endsWith(")()")).toBe(true)
+        expect(BRIDGE_STUB).toMatch(/\)\(function installPreviewPicker\(/)
         expect(buildBridgeStub()).toBe(BRIDGE_STUB)
         expect(BRIDGE_STUB).not.toMatch(/\bimport\b|\brequire\(|\bexport\b/)
         expect(BRIDGE_STUB).not.toContain("</script")
@@ -501,6 +501,50 @@ describe("link interception", () => {
         r.doc.body.appendChild(noHref)
         expect(click(r, noHref)).toBe(false)
         await tick()
+        expect(sinceHello(r.parent.received)).toEqual([])
+    })
+})
+
+describe("preview comment picker", () => {
+    it("pick-start turns the next click into a picked message and the app never sees it", async () => {
+        const r = await connected()
+        const heading = r.doc.createElement("h2")
+        heading.textContent = "Plan"
+        r.doc.body.appendChild(heading)
+        let appClicks = 0
+        heading.addEventListener("click", () => {
+            appClicks++
+        })
+
+        r.parent.send({v: 1, type: "pick-start", format: "html"})
+        await tick()
+        heading.dispatchEvent(new r.win.MouseEvent("mousedown", {bubbles: true, cancelable: true}))
+        heading.dispatchEvent(new r.win.MouseEvent("click", {bubbles: true, cancelable: true}))
+
+        const picked = await r.parent.next()
+        expect(picked).toMatchObject({
+            v: 1,
+            type: "picked",
+            element: {selector: "h2:nth-of-type(1)", tag: "h2"},
+            text: "Plan",
+        })
+        expect(appClicks).toBe(0)
+    })
+
+    it("clicks reach the app again after pick-stop", async () => {
+        const r = await connected()
+        const button = r.doc.createElement("button")
+        r.doc.body.appendChild(button)
+        let appClicks = 0
+        button.addEventListener("click", () => {
+            appClicks++
+        })
+        r.parent.send({v: 1, type: "pick-start", format: "html"})
+        r.parent.send({v: 1, type: "pick-stop"})
+        await tick()
+        button.dispatchEvent(new r.win.MouseEvent("click", {bubbles: true, cancelable: true}))
+        await tick()
+        expect(appClicks).toBe(1)
         expect(sinceHello(r.parent.received)).toEqual([])
     })
 })

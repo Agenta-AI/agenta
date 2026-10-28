@@ -60,12 +60,13 @@ from oss.tests.pytest.unit.channels.slack.fake_slack import (
     FakeSlackTransport,
     FakeSlackWorkspace,
 )
+from oss.tests.pytest.utils.sharing import ProjectAgentResolver
 
 pytestmark = pytest.mark.integration
 
 DM_CHANNEL_ID = "D1"
 TEAM_ID = "T-differential"
-API_APP_ID = "A-differential"
+API_APP_ID = "ADIFFERENTIAL"
 BOT_USER_ID = "UBOT-differential"
 BOT_TOKEN = (
     "xoxb-fake-differential-do-not-echo"  # fake fixture value, never a real token
@@ -151,6 +152,7 @@ async def _configure_agent(service, *, project_id, user_id, connection_id, locat
     agent = await service.create_agent(
         project_id=project_id,
         user_id=user_id,
+        guard_user_id=None,
         agent=ChannelAgentCreate(
             connection_id=connection_id,
             slug=f"agent-{connection_id}",
@@ -187,7 +189,7 @@ async def arms(differential_scope, monkeypatch):
     # (api_app_id, enterprise_id, team_id) and is unique across projects, so two
     # tests sharing the module constants collide on the second create.
     monkeypatch.setitem(globals(), "TEAM_ID", f"T-diff-{uuid4().hex[:6]}")
-    monkeypatch.setitem(globals(), "API_APP_ID", f"A-diff-{uuid4().hex[:6]}")
+    monkeypatch.setitem(globals(), "API_APP_ID", f"ADIFF{uuid4().hex[:6].upper()}")
 
     engine = differential_scope["engine"]
     project_id = differential_scope["project_id"]
@@ -214,12 +216,14 @@ async def arms(differential_scope, monkeypatch):
         channels_dao=ChannelsDAO(engine=engine),
         adapter_registry=registry,
         vault_service=VaultService(secrets_dao=SecretsDAO(engine=engine)),
+        workflows_service=ProjectAgentResolver(),
     )
 
     slack_signing_secret = "differential-test-slack-signing-secret-fixture"
     slack_created = await service.create_connection(
         project_id=project_id,
         user_id=user_id,
+        guard_user_id=None,
         connection=ChannelConnectionCreate(
             channel="slack",
             slug="differential-slack",
@@ -235,6 +239,7 @@ async def arms(differential_scope, monkeypatch):
     bridge_created = await service.create_connection(
         project_id=project_id,
         user_id=user_id,
+        guard_user_id=None,
         connection=ChannelConnectionCreate(
             channel="bridge",
             slug="differential-bridge",

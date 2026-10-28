@@ -9,6 +9,7 @@ from uuid import UUID
 from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.models.workflows import (
     failure_code_of,
+    retry_after_of,
     returned_stacktrace,
     WorkflowServiceStatus,
     WorkflowRequestData,
@@ -20,6 +21,7 @@ from agenta.sdk.models.workflows import (
 )
 from agenta.sdk.models.shared import resolve_session_id
 from agenta.sdk.engines.running.errors import ErrorStatus
+from agenta.sdk.redaction.redactor import strip_echoed_key_fragments
 from agenta.sdk.contexts.running import RunningContext
 from agenta.sdk.contexts.tracing import TracingContext
 from agenta.sdk.utils.logging import get_module_logger
@@ -230,19 +232,22 @@ class NormalizerMiddleware:
             error_status = WorkflowServiceStatus(
                 type=exc.type,
                 code=exc.code,
-                message=exc.message,
+                message=strip_echoed_key_fragments(exc.message),
                 stacktrace=returned_stacktrace(exc.stacktrace),
                 failure_code=failure_code,
+                retry_after=retry_after_of(exc),
             )
         else:
             type = "https://agenta.ai/docs/errors#v1:sdk:unknown-workflow-invoke-error"
 
             code = getattr(exc, "status_code") if hasattr(exc, "status_code") else 500
 
-            if code in [401, 403, 429]:  # Downstream API errors
+            # Downstream API errors, except a refused run credential: that is the
+            # caller's own access decision and stays one clear 403 `access_denied`.
+            if code in [401, 403, 429] and failure_code != "access_denied":
                 code = 424
 
-            message = str(exc) or "Internal Server Error"
+            message = strip_echoed_key_fragments(str(exc)) or "Internal Server Error"
 
             stacktrace = format_exception(
                 exc,  # type: ignore
@@ -257,6 +262,7 @@ class NormalizerMiddleware:
                 message=message,
                 stacktrace=returned_stacktrace(stacktrace),
                 failure_code=failure_code,
+                retry_after=retry_after_of(exc),
             )
 
         trace_id, span_id, session_id = self._correlation_ids()

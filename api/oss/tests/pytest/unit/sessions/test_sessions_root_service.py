@@ -25,6 +25,7 @@ from oss.src.core.sessions.service import SessionsService
 from oss.src.core.sessions.streams.dtos import SessionStream
 from oss.src.core.sessions.turns.dtos import HarnessKind, SessionTurn
 from oss.src.core.shared.dtos import Reference, Windowing
+from oss.tests.pytest.utils.sharing import PROJECT_SESSION_SCOPE
 
 
 _PROJECT = uuid4()
@@ -76,6 +77,7 @@ class _FakeStreamsService:
         self,
         *,
         project_id,
+        read_scope,
         filter,
         windowing=None,
         session_ids=None,
@@ -338,7 +340,9 @@ async def test_query_sessions_no_filter_returns_all_streams():
     stream = _stream()
     svc, streams, _, _, _ = _service(stream=stream)
 
-    result = await svc.query_sessions(project_id=_PROJECT)
+    result = await svc.query_sessions(
+        read_scope=PROJECT_SESSION_SCOPE, project_id=_PROJECT
+    )
 
     # `SessionListItem` (stream fields + the read-time enrichments), not the bare
     # `SessionStream` -- equality is type-sensitive in pydantic, so compare the inherited
@@ -365,6 +369,7 @@ async def test_query_sessions_filters_by_references_via_turns_join():
     svc, streams, turns_svc, _, _ = _service(stream=stream, turns=turns)
 
     result = await svc.query_sessions(
+        read_scope=PROJECT_SESSION_SCOPE,
         project_id=_PROJECT,
         query=SessionQuery(turn_references=[target_ref]),
     )
@@ -382,6 +387,7 @@ async def test_query_sessions_no_matching_reference_short_circuits_empty():
     svc, streams, turns_svc, _, _ = _service(stream=stream, turns=[])
 
     result = await svc.query_sessions(
+        read_scope=PROJECT_SESSION_SCOPE,
         project_id=_PROJECT,
         query=SessionQuery(turn_references=[unmatched_ref]),
     )
@@ -397,6 +403,8 @@ async def test_query_sessions_passes_windowing_through():
     svc, streams, _, _, _ = _service(stream=stream)
     windowing = Windowing(order="descending", limit=10)
 
-    await svc.query_sessions(project_id=_PROJECT, windowing=windowing)
+    await svc.query_sessions(
+        read_scope=PROJECT_SESSION_SCOPE, project_id=_PROJECT, windowing=windowing
+    )
 
     assert streams.query_calls[0]["windowing"] is windowing

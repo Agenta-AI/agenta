@@ -5,7 +5,7 @@ exception — mapping happens at the boundary (`apis/fastapi/gateways/exceptions
 """
 
 # What a person reads when the platform's included models do not serve their organization:
-# the LLM plane is off, the organization is outside its rollout, or its wallet is off. The
+# the LLM plane is off or its wallet is off. The
 # operator's detail (which switch) goes to the logs, never to the person.
 BUILTIN_MODELS_NOT_ENABLED_MESSAGE = (
     "Agenta's included models aren't enabled for your organization. "
@@ -53,16 +53,11 @@ class GatewayPlaneDisabledError(GatewaysError):
 
 
 class LLMGatewayDisabledError(GatewayPlaneDisabledError):
-    """Reaches people on the cloud (an organization outside `llm-gateway-rollout`), so its
-    message is theirs; the agent SDK branches on the code, not the text."""
+    """The agent SDK branches on the code, not the text."""
 
     code = "llm_gateway_disabled"
     flag = "AGENTA_LLM_GATEWAY_ENABLED"
-    operator_hint = (
-        "The LLM gateway does not serve this organization: set "
-        "AGENTA_LLM_GATEWAY_ENABLED=true on this deployment, and add the organization to "
-        "the llm-gateway-rollout flag when rollout flags are on."
-    )
+    operator_hint = "The LLM gateway is off on this deployment: set AGENTA_LLM_GATEWAY_ENABLED=true."
 
     def __init__(self) -> None:
         super().__init__(BUILTIN_MODELS_NOT_ENABLED_MESSAGE)

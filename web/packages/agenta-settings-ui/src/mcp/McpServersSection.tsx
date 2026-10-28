@@ -15,12 +15,15 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {
+    mcpReconnectTarget,
     connectionNameProblem,
     deleteMcpEndpointAtom,
     editMcpEndpoint,
     disconnectMcpEndpointAtom,
+    getMcpConnectionCheckLabel,
     getMcpConnectionStatus,
     getMcpConnectionStatusLabel,
+    readMcpConnectionHealth,
     mcpEndpointsQueryAtom,
     readMcpToolCount,
     refreshMcpEndpointsAtom,
@@ -82,6 +85,7 @@ const DEFAULT_COPY: McpServersSectionCopy = {
 const STATUS_TONE: Record<McpConnectionStatus, "success" | "warning" | "error"> = {
     connected: "success",
     login_expired: "warning",
+    not_signed_in: "warning",
     unreachable: "error",
 }
 
@@ -117,12 +121,18 @@ export interface McpServersSectionProps {
     confirm?: ConfirmDestructive
     /** Hides every write affordance. */
     readOnly?: boolean
+    /**
+     * Whether the member may read a server's tool list (`use_mcp_endpoints`). When false the
+     * connection detail leaves the tools section out instead of showing the relay's refusal.
+     */
+    canListTools?: boolean
     copy?: Partial<McpServersSectionCopy>
 }
 
 export default function McpServersSection({
     confirm,
     readOnly,
+    canListTools = true,
     copy: copyOverrides,
 }: McpServersSectionProps) {
     const copy = useMemo<McpServersSectionCopy>(
@@ -148,6 +158,8 @@ export default function McpServersSection({
     const [viewingKey, setViewingKey] = useState<string | null>(null)
     /** "View tools", tracked by key for the same reason as the connection above. */
     const [toolsKey, setToolsKey] = useState<string | null>(null)
+    // The tools drawer's panel: a reconnect started there opens inside it, not over the page.
+    const [toolsPanel, setToolsPanel] = useState<HTMLDivElement | null>(null)
     const [renamingKey, setRenamingKey] = useState<string | null>(null)
     const projectId = useAtomValue(projectIdAtom)
 
@@ -300,6 +312,8 @@ export default function McpServersSection({
                 }
                 renderRow={(record) => {
                     const status = getMcpConnectionStatus(record)
+                    const health = readMcpConnectionHealth(record)
+                    const checkLabel = health ? getMcpConnectionCheckLabel(health) : null
                     const secretName = record.secret_id
                         ? secretNameById.get(record.secret_id)
                         : undefined
@@ -376,12 +390,23 @@ export default function McpServersSection({
                                 data-testid="mcp-connection-status"
                                 className="flex min-w-0 items-center gap-2"
                             >
-                                <StatusIndicator
-                                    tone={STATUS_TONE[status]}
-                                    label={getMcpConnectionStatusLabel(status)}
-                                    // min-w-0 lets the label truncate instead of pushing Reconnect under the menu.
-                                    className="min-w-0 text-[13px]"
-                                />
+                                <span className="flex min-w-0 flex-col">
+                                    <StatusIndicator
+                                        tone={STATUS_TONE[status]}
+                                        label={getMcpConnectionStatusLabel(status)}
+                                        // min-w-0 lets the label truncate instead of pushing Reconnect under the menu.
+                                        className="min-w-0 text-[13px]"
+                                    />
+                                    {checkLabel ? (
+                                        <span
+                                            data-testid="mcp-connection-check"
+                                            className="truncate text-xs text-muted-foreground"
+                                            title={checkLabel}
+                                        >
+                                            {checkLabel}
+                                        </span>
+                                    ) : null}
+                                </span>
                                 {/* The repair is offered where the problem is reported, so a row
                                     that needs attention does not send the reader to a menu. */}
                                 {status !== "connected" && !readOnly ? (
@@ -415,6 +440,7 @@ export default function McpServersSection({
                                             key: "view-tools",
                                             label: "View tools",
                                             icon: <Wrench size={14} />,
+                                            hidden: !canListTools,
                                             onClick: () => setToolsKey(rowKey(record)),
                                         },
                                         {
@@ -458,19 +484,9 @@ export default function McpServersSection({
                 open={connecting}
                 onClose={closeConnect}
                 existingNames={names}
-                reconnect={
-                    reconnecting?.id && reconnecting.slug
-                        ? {
-                              id: reconnecting.id,
-                              slug: reconnecting.slug,
-                              name: reconnecting.name || reconnecting.slug,
-                              url: reconnecting.data.route.base_url || "",
-                              authMode: reconnecting.auth_mode,
-                              credentialHeader: reconnecting.data.route.credential_header,
-                          }
-                        : null
-                }
+                reconnect={mcpReconnectTarget(reconnecting)}
                 onConnected={() => void refresh()}
+                container={viewingTools ? toolsPanel : null}
             />
 
             {/*
@@ -497,6 +513,7 @@ export default function McpServersSection({
                 onChange={() => undefined}
                 onReconnect={viewingTools ? () => openReconnect(viewingTools) : undefined}
                 readOnly
+                panelRef={setToolsPanel}
             />
 
             <McpConnectionDetail
@@ -505,7 +522,9 @@ export default function McpServersSection({
                 existingNames={names}
                 onReconnect={openReconnect}
                 onDisconnect={handleDisconnect}
-                onChanged={() => void refresh()}
+                onChanged={refresh}
+                readOnly={readOnly}
+                canListTools={canListTools}
             />
         </div>
     )

@@ -148,6 +148,9 @@ spec:
       volumes:
         {{- $redisCaVolume | nindent 8 }}
       {{- end }}
+      {{- with $alembic.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
       {{- with $alembic.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

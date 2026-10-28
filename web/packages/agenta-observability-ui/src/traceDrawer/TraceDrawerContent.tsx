@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from "react"
+import {useCallback, useEffect, type SetStateAction} from "react"
 
 import {useObservability} from "@agenta/observability"
 import {useTraceDrawer} from "@agenta/observability/traceDrawer"
@@ -6,10 +6,11 @@ import {traceDrawerSetQueryParam} from "@agenta/observability/traceDrawer"
 import {
     setTraceDrawerActiveSpanAtom,
     setTraceDrawerTraceAtom,
+    traceDrawerActiveSpanIdAtom,
 } from "@agenta/observability/traceDrawer"
 import {EnhancedButton} from "@agenta/ui/components/presentational"
 import {ArrowsIn, ArrowsOut, X} from "@phosphor-icons/react"
-import {useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import {SkeletonBlock} from "../primitives/SkeletonBlock"
@@ -34,7 +35,6 @@ const TraceDrawerContent = ({
     layout = "split",
 }: TraceDrawerContentProps) => {
     const stacked = layout === "stacked"
-    const [selected, setSelected] = useState("")
     const {traces, activeSpanId, getTraceById, traceResponse, error, isLoading, traceId} =
         useTraceDrawer()
     const {
@@ -45,52 +45,39 @@ const TraceDrawerContent = ({
         setSelectedTraceId: setGlobalSelectedTraceId,
         setSelectedNode: setGlobalSelectedNode,
     } = useObservability()
+    const rawActiveSpanId = useAtomValue(traceDrawerActiveSpanIdAtom)
     const setActiveSpan = useSetAtom(setTraceDrawerActiveSpanAtom)
     const setTraceDrawerTrace = useSetAtom(setTraceDrawerTraceAtom)
-    const setTraceQueryParam = (value: string | null | undefined) =>
-        traceDrawerSetQueryParam("trace", value)
-    const setSpanQueryParam = (value: string | null | undefined) =>
-        traceDrawerSetQueryParam("span", value)
+    const setTraceQueryParam = useCallback(
+        (value: string | null | undefined) => traceDrawerSetQueryParam("trace", value),
+        [],
+    )
+    const setSpanQueryParam = useCallback(
+        (value: string | null | undefined) => traceDrawerSetQueryParam("span", value),
+        [],
+    )
 
-    // Initialize selection when drawer payload changes
-    const lastPayloadActiveIdRef = useRef<string | undefined>(undefined)
+    const activeId = activeSpanId || ""
+
+    // Write the stored id only when it is not a loaded span.
+    useEffect(() => {
+        if (!traces.length || !activeId) return
+        if (rawActiveSpanId === activeId) return
+        setActiveSpan(activeId)
+    }, [traces.length, activeId, rawActiveSpanId, setActiveSpan])
 
     useEffect(() => {
-        const incomingId = activeSpanId || traces[0]?.span_id || ""
-        if (!incomingId) {
-            setSelected("")
-            lastPayloadActiveIdRef.current = undefined
-            return
-        }
+        setSpanQueryParam(activeId || null)
+    }, [activeId, setSpanQueryParam])
 
-        const hasChanged = lastPayloadActiveIdRef.current !== incomingId
-        lastPayloadActiveIdRef.current = incomingId
+    const setSelected = useCallback(
+        (value: SetStateAction<string>) => {
+            const next = typeof value === "function" ? value(activeId) : value
+            setActiveSpan(next || null)
+        },
+        [activeId, setActiveSpan],
+    )
 
-        if (hasChanged || !selected) {
-            setSelected(incomingId)
-        }
-    }, [activeSpanId, traces, selected])
-
-    // If current selection is not found in the latest traces (e.g., user clicked a different row), re-anchor
-    useEffect(() => {
-        if (selected && traces.length > 0) {
-            const exists = getTraceById(selected)
-            if (!exists) {
-                setSelected(activeSpanId || traces[0]?.span_id || "")
-            }
-        }
-    }, [selected, traces, activeSpanId, getTraceById])
-
-    useEffect(() => {
-        if (selected) {
-            setActiveSpan(selected)
-            setSpanQueryParam(selected)
-        } else {
-            setSpanQueryParam(null)
-        }
-    }, [selected, setActiveSpan, setSpanQueryParam])
-
-    const activeId = selected || traces[0]?.span_id || ""
     const activeTrace = getTraceById(activeId)
 
     return (

@@ -538,6 +538,12 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "reference/api/scan-agent-template-source",
+          label: "Scan Template Source",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
           id: "reference/api/load-agent-template",
           label: "Load Template",
           className: "api-method post",
@@ -2298,6 +2304,12 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "reference/api/set-subscription-token",
+          label: "Set Subscription Token",
+          className: "api-method put",
+        },
+        {
+          type: "doc",
           id: "reference/api/start-subscription-login",
           label: "Start Subscription Login",
           className: "api-method post",
@@ -2715,6 +2727,42 @@ const sidebar: SidebarsConfig = {
           id: "reference/api/ingest-agenta-event",
           label: "Ingest Agenta Event",
           className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/ingest-embed-event",
+          label: "Ingest Embed Event",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/fetch-embed-config",
+          label: "Fetch Embed Config",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/list-embed-conversations",
+          label: "List Embed Conversations",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/read-embed-conversation",
+          label: "Read Embed Conversation",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/stream-embed-conversation",
+          label: "Stream Embed Conversation",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/download-embed-file",
+          label: "Download Embed File",
+          className: "api-method get",
         },
         {
           type: "doc",
@@ -3136,6 +3184,12 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "reference/api/upload-session-cwd-file",
+          label: "Upload Session Cwd File",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
           id: "reference/api/upload-session-mount-file",
           label: "Upload Session Mount File",
           className: "api-method post",
@@ -3162,6 +3216,12 @@ const sidebar: SidebarsConfig = {
           type: "doc",
           id: "reference/api/ingest-record",
           label: "Ingest Record Event",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/mark-records-incomplete",
+          label: "Mark Records Incomplete",
           className: "api-method post",
         },
         {
@@ -4102,6 +4162,12 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "reference/api/record-mcp-endpoint-check",
+          label: "Record Endpoint Check",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
           id: "reference/api/connect-mcp-endpoint",
           label: "Connect Endpoint",
           className: "api-method post",
@@ -4111,6 +4177,84 @@ const sidebar: SidebarsConfig = {
           id: "reference/api/disconnect-mcp-endpoint",
           label: "Disconnect Endpoint",
           className: "api-method delete",
+        },
+        {
+          type: "doc",
+          id: "reference/api/fetch-mcp-connect-attempt",
+          label: "Fetch Connect Attempt",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/cancel-mcp-connect-attempt",
+          label: "Cancel Connect Attempt",
+          className: "api-method delete",
+        },
+      ],
+    },
+    {
+      type: "category",
+      label: "Sharing",
+      items: [
+        {
+          type: "doc",
+          id: "reference/api/fetch-agent-sharing",
+          label: "Fetch Agent Sharing",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/set-agent-visibility",
+          label: "Set Agent Visibility",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/transfer-agent",
+          label: "Transfer Agent",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/take-agent-ownership",
+          label: "Take Agent Ownership",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/fetch-session-sharing",
+          label: "Fetch Session Sharing",
+          className: "api-method get",
+        },
+        {
+          type: "doc",
+          id: "reference/api/upsert-session-grant",
+          label: "Upsert Session Grant",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/revoke-session-grant",
+          label: "Revoke Session Grant",
+          className: "api-method delete",
+        },
+        {
+          type: "doc",
+          id: "reference/api/set-session-visibility",
+          label: "Set Session Visibility",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/restrict-session-to-owner",
+          label: "Restrict Session To Owner",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/query-sharing-members",
+          label: "Query Sharing Members",
+          className: "api-method post",
         },
       ],
     },

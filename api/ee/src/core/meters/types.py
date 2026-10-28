@@ -35,8 +35,8 @@ class Meters(str, Enum):
 class MeterScope(BaseModel):
     """Scope dimensions for a meter row.
 
-    `organization_id` is the tenant root — when set, every finer dimension
-    (`workspace -> project -> user`) requires the next one above it.
+    `organization_id` is the tenant root. A user requires a project, a project requires
+    the organization, and a workspace (legacy, optional) requires the organization.
     `None` on any dimension means "this dimension does not apply" — never
     "default".
     """
@@ -50,8 +50,10 @@ class MeterScope(BaseModel):
     def _validate_hierarchy(self) -> "MeterScope":
         if self.user_id is not None and self.project_id is None:
             raise ValueError("user_id requires project_id")
-        if self.project_id is not None and self.workspace_id is None:
-            raise ValueError("project_id requires workspace_id")
+        # A project needs its organization, not a workspace: rows written after
+        # workspace removal step 2 carry none.
+        if self.project_id is not None and self.organization_id is None:
+            raise ValueError("project_id requires organization_id")
         if self.workspace_id is not None and self.organization_id is None:
             raise ValueError("workspace_id requires organization_id")
 

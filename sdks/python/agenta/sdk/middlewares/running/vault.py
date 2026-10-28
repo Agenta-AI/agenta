@@ -1,4 +1,4 @@
-from os import getenv
+from os import environ, getenv
 from json import dumps
 from typing import Callable, Dict, Optional, List, Any
 
@@ -55,6 +55,125 @@ _CACHE_ENABLED = (
 ).lower() in TRUTHY
 
 _cache = TTLLRUCache()
+
+_ENV_PROVIDER_KEYS_FLAG = "AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED"
+
+
+def env_provider_keys_enabled() -> bool:
+    """Whether the provider keys in this process's environment may serve a request.
+
+    `OPENAI_API_KEY` and its siblings belong to whoever runs the process. A self-hosted
+    deployment may share them with its own users, which is what the OSS edition has always
+    done. The EE edition also runs hosted, where every project would then run on the
+    operator's keys, so it starts with them off. The flag overrides the default either way.
+    """
+    value = (getenv(_ENV_PROVIDER_KEYS_FLAG) or "").strip().lower()
+    if value:
+        return value in TRUTHY
+
+    return (getenv("AGENTA_LICENSE") or "").strip().lower() != "ee"
+
+
+# Provider credentials a deployment can set (`llm.*` in Helm, the compose env files, or by hand
+# for Azure and Vertex) whose spelling no standard provider kind produces. They never become
+# local secrets, but litellm and the OpenAI client still read them from the environment (an
+# Azure AD token even wins over a key the call carries, and a Bedrock call without a key
+# takes the Bedrock bearer token), so they are held with the rest.
+_DEPLOYED_PROVIDER_KEY_NAMES = (
+    "TOGETHERAI_API_KEY",
+    "XAI_API_KEY",
+    "AZURE_API_KEY",
+    "AZURE_OPENAI_API_KEY",
+    "AZURE_AI_API_KEY",
+    "AZURE_AD_TOKEN",
+    "AZURE_OPENAI_AD_TOKEN",
+    "VERTEXAI_CREDENTIALS",
+    "VERTEX_CREDENTIALS",
+    "AWS_BEARER_TOKEN_BEDROCK",
+    "BEDROCK_MANTLE_API_KEY",
+)
+
+
+def env_provider_key_names() -> List[str]:
+    names = [f"{provider_kind.upper()}_API_KEY" for provider_kind in _PROVIDER_KINDS]
+    return names + [name for name in _DEPLOYED_PROVIDER_KEY_NAMES if name not in names]
+
+
+# None until `hold_env_provider_keys` runs, and then the keys it moved out of the environment.
+_held_env_provider_keys: Optional[Dict[str, str]] = None
+
+
+def hold_env_provider_keys() -> List[str]:
+    """Move the provider keys out of this process's environment and hold them here.
+
+    litellm and the OpenAI client both read `<PROVIDER>_API_KEY` from the environment when a
+    call carries no key of its own, so any call without a stored key (a custom connection
+    saved without one, a project with an empty vault) would silently run on them, against
+    whatever endpoint the call names. Held here, they reach a call only as an explicit key
+    from `get_secrets`, and only when `env_provider_keys_enabled()`. Returns the names moved.
+    """
+    global _held_env_provider_keys  # pylint: disable=global-statement
+
+    held = dict(_held_env_provider_keys or {})
+    for name in env_provider_key_names():
+        value = environ.pop(name, None)
+        if value:
+            held[name] = value
+
+    _held_env_provider_keys = held
+
+    return sorted(held)
+
+
+# The variables litellm and boto3 read to pick an AWS identity when a call names none of
+# its own, or to add to the keys it names (a session token, a role, a profile).
+_HOST_AWS_CREDENTIAL_NAMES = (
+    "AWS_ACCESS_KEY_ID",
+    "AWS_SECRET_ACCESS_KEY",
+    "AWS_SESSION_TOKEN",
+    "AWS_SECURITY_TOKEN",
+    "AWS_SESSION_NAME",
+    "AWS_ROLE_NAME",
+    "AWS_ROLE_ARN",
+    "AWS_PROFILE",
+    "AWS_PROFILE_NAME",
+    "AWS_WEB_IDENTITY_TOKEN",
+    "AWS_WEB_IDENTITY_TOKEN_FILE",
+    "AWS_STS_ENDPOINT",
+    "AWS_EXTERNAL_ID",
+    "AWS_CONTAINER_CREDENTIALS_FULL_URI",
+    "AWS_CONTAINER_CREDENTIALS_RELATIVE_URI",
+    "AWS_CONTAINER_AUTHORIZATION_TOKEN",
+    "AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE",
+    "AWS_SHARED_CREDENTIALS_FILE",
+    "AWS_CONFIG_FILE",
+)
+
+
+def drop_host_aws_credentials() -> List[str]:
+    """Remove the host's AWS credentials from this process's environment in hosted mode.
+
+    Where the host's provider keys may not serve requests, its AWS identity may not either.
+    A Bedrock or SageMaker call then signs only with the keys it carries. Self-hosted, the
+    variables stay, so a connection without keys can run on the host's AWS role. Returns
+    the names removed.
+    """
+    if env_provider_keys_enabled():
+        return []
+
+    return sorted(
+        name
+        for name in _HOST_AWS_CREDENTIAL_NAMES
+        if environ.pop(name, None) is not None
+    )
+
+
+def _env_provider_key(name: str) -> Optional[str]:
+    if _held_env_provider_keys is not None:
+        return _held_env_provider_keys.get(name)
+
+    return getenv(name)
+
 
 _INVALID_SECRETS_STATUS_TYPE = "#v0:schemas:invalid-secrets"
 
@@ -309,10 +428,10 @@ async def get_secrets(
     local_secrets: List[Dict[str, Any]] = []
 
     try:
-        for provider_kind in _PROVIDER_KINDS:
+        for provider_kind in _PROVIDER_KINDS if env_provider_keys_enabled() else []:
             provider = provider_kind
             key_name = f"{provider.upper()}_API_KEY"
-            key = getenv(key_name)
+            key = _env_provider_key(key_name)
 
             if not key:
                 continue

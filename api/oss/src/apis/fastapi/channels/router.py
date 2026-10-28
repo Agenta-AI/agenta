@@ -83,6 +83,9 @@ from oss.src.core.gateway.connections.utils import decode_oauth_state, make_oaut
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
+from oss.src.apis.fastapi.sharing.utils import not_found_exception
+from oss.src.core.sharing.service import human_id
+from oss.src.core.sharing.types import SharedItemNotFound
 
 if TYPE_CHECKING:
     from oss.src.core.channels.service import ChannelsService
@@ -552,11 +555,17 @@ class ChannelsRouter:
         project_id = UUID(request.state.project_id)
         user_id = UUID(str(request.state.user_id))
 
-        connection = await self.channels_service.ensure_hosted_telegram_connection(
-            project_id=project_id,
-            user_id=user_id,
-            references=body.references,
-        )
+        try:
+            connection = await self.channels_service.ensure_hosted_telegram_connection(
+                project_id=project_id,
+                user_id=user_id,
+                guard_user_id=_human_user_id(request),
+                references=body.references,
+            )
+        except SharedItemNotFound as e:
+            # An unknown or unresolvable agent, or a private agent of someone else, cannot
+            # answer a channel.
+            raise not_found_exception() from e
         url = await self.telegram_binding_service.issue_bind_link(
             project_id=project_id,
             user_id=user_id,
@@ -685,6 +694,8 @@ class ChannelsRouter:
             project_id=UUID(request.state.project_id),
             user_id=UUID(str(request.state.user_id)),
             secret_key=env.agenta.crypt_key,
+            # The callback restores bindings as this person only when a person started it.
+            is_human=_human_user_id(request) is not None,
         )
 
         return RedirectResponse(
@@ -793,6 +804,7 @@ class ChannelsRouter:
             await self.channels_service.install_connection(
                 project_id=project_id,
                 user_id=user_id,
+                guard_user_id=user_id if state_payload.get("human") is True else None,
                 connection=ChannelConnectionCreate(
                     channel="slack",
                     data={"scopes": scopes, "api_app_id": exchange.app_id},
@@ -818,7 +830,7 @@ class ChannelsRouter:
                 status_code=500,
                 content=_slack_install_card(
                     success=False,
-                    message="Something went wrong connecting Slack. Nothing was saved. Try again.",
+                    message="Something went wrong connecting Slack. Try again.",
                 ),
             )
 
@@ -845,6 +857,7 @@ class ChannelsRouter:
             connection = await self.channels_service.create_connection(
                 project_id=UUID(request.state.project_id),
                 user_id=UUID(str(request.state.user_id)),
+                guard_user_id=_human_user_id(request),
                 #
                 connection=body.connection,
             )
@@ -985,6 +998,7 @@ class ChannelsRouter:
         connection = await self.channels_service.unarchive_connection(
             project_id=UUID(request.state.project_id),
             user_id=UUID(str(request.state.user_id)),
+            guard_user_id=_human_user_id(request),
             #
             connection_id=connection_id,
         )
@@ -1055,11 +1069,16 @@ class ChannelsRouter:
             agent = await self.channels_service.create_agent(
                 project_id=UUID(request.state.project_id),
                 user_id=UUID(str(request.state.user_id)),
+                guard_user_id=_human_user_id(request),
                 #
                 agent=body.agent,
             )
         except ChannelConnectionNotFound as e:
             raise HTTPException(status_code=404, detail=e.message) from e
+        except SharedItemNotFound as e:
+            # An unknown or unresolvable agent, or a private agent of someone else, cannot
+            # answer a channel.
+            raise not_found_exception() from e
 
         return ChannelAgentResponse(count=1 if agent else 0, agent=agent)
 
@@ -1128,12 +1147,16 @@ class ChannelsRouter:
                 detail="Path agent_id does not match body id",
             )
 
-        agent = await self.channels_service.edit_agent(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(str(request.state.user_id)),
-            #
-            agent=body.agent,
-        )
+        try:
+            agent = await self.channels_service.edit_agent(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(str(request.state.user_id)),
+                guard_user_id=_human_user_id(request),
+                #
+                agent=body.agent,
+            )
+        except SharedItemNotFound as e:
+            raise not_found_exception() from e
         if agent is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -1175,11 +1198,14 @@ class ChannelsRouter:
             agent = await self.channels_service.set_agent_default(
                 project_id=UUID(request.state.project_id),
                 user_id=UUID(str(request.state.user_id)),
+                guard_user_id=_human_user_id(request),
                 #
                 agent_id=agent_id,
             )
         except ChannelAgentNotFound as e:
             raise HTTPException(status_code=404, detail=e.message) from e
+        except SharedItemNotFound as e:
+            raise not_found_exception() from e
 
         return ChannelAgentResponse(count=1, agent=agent)
 
@@ -1641,3 +1667,10 @@ class ChannelsRouter:
         items.sort(key=lambda item: (item.created_at or _epoch, item.id))
 
         return AgentaConversationResponse(count=len(items), items=items)
+
+
+def _human_user_id(request: Request) -> Optional[UUID]:
+    """The person who makes the request: only a person activates a binding of their own
+    private agent. None for an API key or a channel run credential."""
+
+    return human_id(getattr(request.state, "principal", None))

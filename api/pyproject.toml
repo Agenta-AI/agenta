@@ -1,6 +1,6 @@
 [project]
 name = "api"
-version = "0.122.5"
+version = "0.127.0"
 description = "Agenta API"
 requires-python = ">=3.11,<3.14"
 authors = [
@@ -8,14 +8,14 @@ authors = [
     { name = "Juan Vega", email = "jp@agenta.ai" },
 ]
 dependencies = [
-    "agenta",
+    "agenta[server-tracing]",
     "fastapi>=0.139,<0.140",
     "pydantic[email]>=2,<3",
     # MCP OAuth uses the SDK's TokenStorage protocol and OAuth wire contracts directly.
     # Keep this exact: a range would silently change those contracts underneath us, and
     # the contract case beside the OAuth storage asserts this exact version, so a relock
     # that moved within a range turned the branch red (M16).
-    "mcp==2.1.1",
+    "mcp==2.2.0",
     "uvicorn[standard]>=0.51,<0.52",
     "gunicorn>=26,<27",
     "httpx>=0.28,<0.29",
@@ -40,11 +40,10 @@ dependencies = [
     "cachetools>=7,<8",
     "supertokens-python>=0.31,<0.32",
     "openai>=2,<3",
-    "litellm>=1.98,<2",
+    "litellm>=1.98,<2,!=1.107.0",
     "sendgrid>=6,<7",
     "stripe>=15,<16",
     "posthog>=7,<8",
-    "newrelic>=13,<14",
     "dnspython>=2,<3",
     "opentelemetry-proto>=1,<2",
     "croniter>=6,<7",
@@ -66,6 +65,9 @@ dev = [
     "pytest-mock>=3,<4",
     "pytest-html>=4,<5",
     "fakeredis>=2.34.1,<3",
+    # Test-only: scoped-session cleanup tests run against in-memory SQLite
+    # via aiosqlite; not needed at runtime (production uses asyncpg).
+    "aiosqlite>=0.20,<1",
     # Starlette 1.2's TestClient prefers httpx2 and warns when only httpx is
     # present. Runtime code stays on httpx (0.28); this test-only dep silences
     # the deprecation without touching the runtime HTTP stack.

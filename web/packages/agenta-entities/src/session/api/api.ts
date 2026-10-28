@@ -11,6 +11,7 @@
 import {z} from "zod"
 
 import {safeParseWithLogging} from "../../shared/utils/zodSchema"
+import type {Visibility} from "../../sharing/core/schema"
 import {
     mountFileContentResponseSchema,
     pendingInputAdmissionResponseSchema,
@@ -808,6 +809,11 @@ export interface SetSessionHeaderParams {
      * means nobody knows yet and dropping it would lose a name for no reason.
      */
     onRefused?: () => void
+    /**
+     * The visibility a header call that CREATES the session asks for. The server ignores it
+     * on an existing session and drops a `private` it cannot give an owner.
+     */
+    visibility?: Visibility
 }
 
 /**
@@ -824,6 +830,7 @@ export async function setSessionHeader({
     abortSignal,
     nameSource,
     onRefused,
+    visibility,
 }: SetSessionHeaderParams): Promise<boolean> {
     if (!projectId || !sessionId) return false
 
@@ -836,6 +843,8 @@ export async function setSessionHeader({
     // body.
     const request = projectScopedRequest(projectId, appId, abortSignal)
     if (nameSource) request.queryParams.name_source = nameSource
+    // `visibility` is a query parameter of the header route too (the body is the header).
+    if (visibility) request.queryParams.visibility = visibility
 
     // A 409 is the documented answer when an automatic name would replace one a person
     // controls. It is an expected outcome rather than a fault, so it is not logged as one.
@@ -1308,6 +1317,33 @@ export async function queryMountDir({
     if (!data) return null
 
     const validated = safeParseWithLogging(mountFileListResponseSchema, data, "[queryMountDir]")
+    return validated?.files ?? null
+}
+
+/** One raw folder level (no git pruning, no counts). A missing folder (404) is `null`; any other
+ * failure throws, so the query retries it instead of caching "no file here" for every mention. */
+export async function listMountFolder({
+    mountId,
+    projectId,
+    appId,
+    abortSignal,
+    path,
+}: Omit<MountFilesParams, "lowPriority">): Promise<MountFile[] | null> {
+    if (!projectId || !mountId) return null
+
+    let data
+    try {
+        // maxRetries 0: the query owns the retries.
+        data = await getLowPriorityMountsClient().getMountFiles(
+            {mount_id: mountId, path: path || undefined, depth: 1},
+            projectScopedRequest(projectId, appId, abortSignal, 0),
+        )
+    } catch (error) {
+        if (isNotFound(error)) return null
+        throw error
+    }
+
+    const validated = safeParseWithLogging(mountFileListResponseSchema, data, "[listMountFolder]")
     return validated?.files ?? null
 }
 

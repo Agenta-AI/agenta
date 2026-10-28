@@ -26,7 +26,6 @@ Renames handled here:
   accessControl.<key>      -> agenta.access.<key>  (orgCreationAllowlist -> allowedOwnerEmails)
   email.sendgrid.*         -> sendgrid.*
   integrations.composio.*  -> composio.*
-  observability.newRelic.* -> newrelic.*
   captcha.turnstile.*      -> cloudflare.turnstile.*
 
 NOT translated (already accepted as-is by the new chart):
@@ -49,7 +48,6 @@ Removing this layer in a future release:
 {{- $legacyAccess := default dict $v.accessControl -}}
 {{- $legacyEmail := default dict (default dict $v.email).sendgrid -}}
 {{- $legacyComposio := default dict (default dict $v.integrations).composio -}}
-{{- $legacyNewRelic := default dict (default dict $v.observability).newRelic -}}
 {{- $legacyTurnstile := default dict (default dict $v.captcha).turnstile -}}
 
 {{/* Legacy keys, when explicitly set by the user, win over canonical
@@ -152,13 +150,6 @@ Removing this layer in a future release:
 {{- end -}}
 {{- if $composio -}}
   {{- $_ := set $v "composio" $composio -}}
-{{- end -}}
-
-{{/* ---- newrelic.licenseKey from observability.newRelic.licenseKey ---- */}}
-{{- $newrelic := default dict $v.newrelic -}}
-{{- if hasKey $legacyNewRelic "licenseKey" -}}
-  {{- $_ := set $newrelic "licenseKey" $legacyNewRelic.licenseKey -}}
-  {{- $_ := set $v "newrelic" $newrelic -}}
 {{- end -}}
 
 {{/* ---- cloudflare.turnstile.* from captcha.turnstile.* ---- */}}

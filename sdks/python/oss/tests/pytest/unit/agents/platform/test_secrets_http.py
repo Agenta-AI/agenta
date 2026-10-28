@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from agenta.sdk.agents.platform import PlatformConnection, resolve_named_secrets
 from agenta.sdk.agents.platform import secrets
 
@@ -70,3 +72,101 @@ async def test_no_names_short_circuits(fake_http, connection):
     capture = fake_http(secrets)
     assert await resolve_named_secrets([], connection=connection) == {}
     assert capture == {}
+
+
+def _secret(content: str) -> dict:
+    return {
+        "kind": "custom_secret",
+        "data": {"secret": {"format": "text", "content": content}},
+    }
+
+
+def _routed_client(handle):
+    """An AsyncClient stand-in whose ``get`` answers per slug through ``handle``."""
+
+    class _Response:
+        def __init__(self, status_code, payload):
+            self.status_code = status_code
+            self._payload = payload
+
+        def json(self):
+            return self._payload
+
+    class _Client:
+        def __init__(self, *args, **kwargs) -> None:
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            return False
+
+        async def get(self, url, headers=None):
+            status_code, payload = await handle(url.rsplit("/", 1)[-1])
+            return _Response(status_code, payload)
+
+    return _Client
+
+
+async def test_named_secrets_are_read_together_and_keep_request_order(
+    monkeypatch, connection
+):
+    last_started = asyncio.Event()
+
+    async def _handle(slug):
+        if slug == "FIRST":
+            # Answers only once the last read is in flight, so a serial loop times out.
+            await asyncio.wait_for(last_started.wait(), timeout=1)
+        if slug == "THIRD":
+            last_started.set()
+        return 200, _secret(slug.lower())
+
+    monkeypatch.setattr(secrets.httpx, "AsyncClient", _routed_client(_handle))
+    resolved = await resolve_named_secrets(
+        ["FIRST", "SECOND", "FIRST", "THIRD"], connection=connection
+    )
+    assert list(resolved.items()) == [
+        ("FIRST", "first"),
+        ("SECOND", "second"),
+        ("THIRD", "third"),
+    ]
+
+
+async def test_one_failed_named_secret_read_leaves_the_others_resolved(
+    monkeypatch, connection
+):
+    async def _handle(slug):
+        if slug == "BROKEN":
+            raise RuntimeError("connection reset")
+        if slug == "ABSENT":
+            return 404, {"detail": "Secret not found"}
+        return 200, _secret(slug.lower())
+
+    monkeypatch.setattr(secrets.httpx, "AsyncClient", _routed_client(_handle))
+    resolved = await resolve_named_secrets(
+        ["OK", "BROKEN", "ABSENT", "ALSO"], connection=connection
+    )
+    assert resolved == {"OK": "ok", "ALSO": "also"}
+
+
+async def test_named_secret_reads_stay_within_the_concurrency_bound(
+    monkeypatch, connection
+):
+    in_flight = 0
+    peak = 0
+
+    async def _handle(slug):
+        nonlocal in_flight, peak
+        in_flight += 1
+        peak = max(peak, in_flight)
+        await asyncio.sleep(0.01)
+        in_flight -= 1
+        return 200, _secret(slug.lower())
+
+    monkeypatch.setattr(secrets.httpx, "AsyncClient", _routed_client(_handle))
+    names = [f"S{i}" for i in range(40)]
+    resolved = await resolve_named_secrets(names, connection=connection)
+
+    assert list(resolved) == names
+    assert peak == secrets._READ_CONCURRENCY

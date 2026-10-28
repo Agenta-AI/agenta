@@ -13,6 +13,7 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {
+    mcpReconnectTarget,
     findCustomMcpEndpoint,
     getMcpConnectionStatus,
     hostnameLabel,
@@ -86,7 +87,9 @@ export function McpServersSectionBody({
     const [permissionFromAdd, setPermissionFromAdd] = useState(false)
     // The add drawer's panel: a connect started there opens inside it, not over the page.
     const [addPanel, setAddPanel] = useState<HTMLDivElement | null>(null)
-    const journeyContainer = addOpen ? addPanel : null
+    // Same for a reconnect started from the permission drawer.
+    const [permissionPanel, setPermissionPanel] = useState<HTMLDivElement | null>(null)
+    const journeyContainer = addOpen ? addPanel : permissionPanel
 
     const endpointsQuery = useAtomValue(mcpEndpointsQueryAtom)
     const refreshEndpoints = useSetAtom(refreshMcpEndpointsAtom)
@@ -276,6 +279,7 @@ export function McpServersSectionBody({
                     }
                     agentPolicy={agentPolicy}
                     disabled={disabled}
+                    panelRef={setPermissionPanel}
                 />
             ) : null}
 
@@ -299,14 +303,7 @@ export function McpServersSectionBody({
                     open
                     container={journeyContainer}
                     onClose={() => setConnectingEndpoint(null)}
-                    reconnect={{
-                        id: connectingEndpoint.id,
-                        slug: connectingEndpoint.slug,
-                        name: connectingEndpoint.name || connectingEndpoint.slug,
-                        url: connectingEndpoint.data.route.base_url || "",
-                        authMode: connectingEndpoint.auth_mode,
-                        credentialHeader: connectingEndpoint.data.route.credential_header,
-                    }}
+                    reconnect={mcpReconnectTarget(connectingEndpoint)}
                     onConnected={() => void refreshEndpoints()}
                 />
             ) : null}

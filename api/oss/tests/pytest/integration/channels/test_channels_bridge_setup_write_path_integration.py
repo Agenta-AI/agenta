@@ -85,7 +85,10 @@ async def test_create_mints_and_writes_the_secret_and_the_create_response_carrie
     )
 
     created = await service.create_connection(
-        project_id=project_id, user_id=user_id, connection=connection
+        project_id=project_id,
+        user_id=user_id,
+        guard_user_id=None,
+        connection=connection,
     )
 
     assert isinstance(created, ChannelConnectionCreated)
@@ -136,7 +139,10 @@ async def test_a_caller_supplied_secret_is_written_verbatim_and_the_response_min
     )
 
     created = await service.create_connection(
-        project_id=project_id, user_id=user_id, connection=connection
+        project_id=project_id,
+        user_id=user_id,
+        guard_user_id=None,
+        connection=connection,
     )
 
     assert getattr(created, "one_time_secret", None) is None

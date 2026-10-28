@@ -17,6 +17,7 @@ const CommitVariantChangesButton = ({
     appId,
     onAfterCommit,
     onCommitted,
+    createVisibility,
     ...props
 }: CommitVariantChangesButtonProps) => {
     const [isDeployModalOpen, setIsDeployModalOpen] = useState(false)
@@ -72,6 +73,7 @@ const CommitVariantChangesButton = ({
                 variantId={variantId}
                 appId={appId}
                 onAfterCommit={onAfterCommit}
+                createVisibility={createVisibility}
                 onSuccess={handleSuccess}
             />
         </>

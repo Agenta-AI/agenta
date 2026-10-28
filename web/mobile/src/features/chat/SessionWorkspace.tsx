@@ -17,12 +17,20 @@ import {
     useFilesPaneLayout,
 } from "@agenta/chat/state"
 import {useDriveDirtyGuard} from "@agenta/entities/drive"
-import {DriveSessionProvider, SessionFilesPane, useSessionFilesPane} from "@agenta/entity-ui/drive"
+import type {SessionStream} from "@agenta/entities/session"
+import {sharingKeys, type SessionSharingResponse} from "@agenta/entities/sharing"
+import {
+    DriveLinkContext,
+    DriveSessionProvider,
+    SessionFilesPane,
+    useSessionFilesPane,
+} from "@agenta/entity-ui/drive"
 import {SIDEBAR_DEFAULT_WIDTH} from "@agenta/navigation"
 import {registerAgentAutoCommitHandler} from "@agenta/playground/state"
 import {sessionRoutePath} from "@agenta/sessions/link"
 import {renderedSessionTabsAtomFamily, sessionTabScope} from "@agenta/sessions/state"
 import {useRequestSessionTabRename, useSessionActions} from "@agenta/sessions-ui"
+import {getHostQueryClient} from "@agenta/shared/api"
 import {composerPrefillRequestAtom} from "@agenta/shared/state"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {useSessionShortcuts} from "@agenta/ui/shortcuts"
@@ -31,6 +39,7 @@ import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
+import {useAutomationUrlSync} from "../automations/useAutomationUrlSync"
 import {AppShell} from "../nav/AppShell"
 
 import {CollapsedConfigRail} from "./CollapsedConfigRail"
@@ -39,7 +48,9 @@ import {resolveSessionPanes} from "./sessionPanes"
 import {SessionsPane} from "./SessionsPane"
 import {SessionTabs} from "./SessionTabs"
 import {SessionTopBar} from "./SessionTopBar"
+import {useDriveUrlSync} from "./useDriveUrlSync"
 import {useLeaveSession} from "./useLeaveSession"
+import {sessionHeaderKey} from "./useSessionHeader"
 import {useSessionTabClose} from "./useSessionTabClose"
 import {useStartBlankSession} from "./useStartBlankSession"
 import {useTriggerTestRun} from "./useTriggerTestRun"
@@ -57,6 +68,19 @@ const ConfigPane = dynamic(() => import("./ConfigPane").then((m) => m.ConfigPane
 // not render. One mount, always present, as the desktop playground keeps one beside its panels.
 const CatalogDrawer = dynamic(
     () => import("@agenta/entity-ui/gatewayTool").then((m) => m.CatalogDrawer),
+    {ssr: false},
+)
+
+// Mounted here, not in the config pane, so a linked drawer opens while that pane is collapsed.
+const AutomationDrawer = dynamic(
+    () => import("@agenta/automation-ui").then((m) => m.AutomationDrawer),
+    {ssr: false},
+)
+const AutomationRunHistoryDrawerHost = dynamic(
+    () =>
+        import("../automations/AutomationRunHistoryDrawerHost").then(
+            (m) => m.AutomationRunHistoryDrawerHost,
+        ),
     {ssr: false},
 )
 
@@ -78,6 +102,10 @@ export const SessionWorkspace = ({
     entityId,
     agentId,
     agentResolving = false,
+    linkEntityId = entityId,
+    linkAgentId = agentId,
+    agentHidden = false,
+    canSend = true,
     sessionId,
     workspaceId,
     projectId,
@@ -85,12 +113,23 @@ export const SessionWorkspace = ({
     bare = false,
     hideSessionTabs = false,
     collapseConfigByDefault = false,
+    deepLinks = false,
 }: {
     /** The revision being configured. Absent = nothing to build yet (a session with no turns). */
     entityId: string | null
     agentId?: string | null
     /** The session's agent is still being read; a null `agentId` is not yet the answer. */
     agentResolving?: boolean
+    /**
+     * This session's own revision and agent, without the last session's held across a switch.
+     * A linked automation drawer opens with them. Default: `entityId` and `agentId`.
+     */
+    linkEntityId?: string | null
+    linkAgentId?: string | null
+    /** The session's agent is one the reader cannot see (a private agent). */
+    agentHidden?: boolean
+    /** False when the reader may not send here: the top bar drops what only a sender uses. */
+    canSend?: boolean
     sessionId: string
     workspaceId: string
     projectId: string
@@ -114,8 +153,16 @@ export const SessionWorkspace = ({
      * Only the DEFAULT — a stored preference still wins in both directions.
      */
     collapseConfigByDefault?: boolean
+    /** Mirror the Files pane and the automation drawer in the URL; only where the URL names this session. */
+    deepLinks?: boolean
 }) => {
     const base = `/w/${workspaceId}/p/${projectId}`
+    useAutomationUrlSync({
+        enabled: deepLinks,
+        ready: !agentResolving && (Boolean(linkEntityId) || !linkAgentId),
+        playgroundEntityId: linkEntityId ?? undefined,
+        scope: sessionId,
+    })
     const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
     // Collapsing the config panel is separate from the Build/Chat mode: the desktop keeps you in
     // Build with the panel out of the way, and the top bar's "»" brings it back.
@@ -169,6 +216,7 @@ export const SessionWorkspace = ({
         close: closeFilesPane,
         toggle: toggleFilesPane,
     } = useSessionFilesPane(filesScope, sessionId)
+    const driveLink = useDriveUrlSync({sessionId, open: filesOpen, enabled: deepLinks})
     // Drafts outlive the pane, so the unload guard lives on the host.
     useDriveDirtyGuard()
     // Tailwind's `md`. Client-only, so the first paint is the phone layout — the right guess here.
@@ -179,13 +227,16 @@ export const SessionWorkspace = ({
         filesOpen,
     )
     const filesExpanded = filesLayout.expanded
+    // Never a config pane for a hidden agent: its configuration is exactly what the reader may not
+    // see, and a pane mounted while it was visible is dropped below, not kept hidden.
+    const configEntityId = agentHidden ? null : entityId
     // Which half is on screen. The rule is in `sessionPanes.ts`, with its tests: on a phone the
     // pane replaces the conversation, so getting it wrong puts the composer out of reach.
     const {showConfig, showPane, showFiles} = resolveSessionPanes({
         chatMaximized,
         configCollapsed,
         twoPane,
-        hasEntity: Boolean(entityId),
+        hasEntity: Boolean(configEntityId),
         filesOpen,
         filesExpanded,
     })
@@ -248,6 +299,20 @@ export const SessionWorkspace = ({
     const closeTabs = useSessionTabClose({agentId, sessionId, base})
     // Archiving the session you are on has to move you off it.
     const sessionActions = useSessionActions({onRemoved: useLeaveSession(base)})
+    // Read from the session row the screen already caches (it carries the reader's sharing
+    // state), or from the Share dialog's read; not fetched here: the first-run draft has no row.
+    const isNotOwner = useCallback(
+        (id: string) => {
+            const client = getHostQueryClient()
+            const cached =
+                client.getQueryData<SessionStream | null>(sessionHeaderKey(projectId, id))
+                    ?.sharing ??
+                client.getQueryData<SessionSharingResponse>(sharingKeys.session(id, projectId))
+                    ?.sharing
+            return Boolean(cached?.policy.owner_user_id) && cached?.my_role !== "owner"
+        },
+        [projectId],
+    )
     // Alt+R opens the active TAB's inline editor — the rail listens for this request.
     const requestTabRename = useRequestSessionTabRename()
     const setChatMaximized = useSetAtom(chatPanelMaximizedAtom)
@@ -262,13 +327,16 @@ export const SessionWorkspace = ({
         ),
         onRename: requestTabRename,
         onArchive: useCallback(
-            (id: string) =>
+            (id: string) => {
+                // Archiving an owned chat is its owner's verb; the shortcut follows the menu.
+                if (isNotOwner(id)) return
                 void sessionActions.setArchived({
                     sessionId: id,
                     appId: agentId ?? null,
                     archived: false,
-                }),
-            [agentId, sessionActions],
+                })
+            },
+            [agentId, isNotOwner, sessionActions],
         ),
         onNewSession: useCallback(() => {
             if (agentId) startBlank(agentId)
@@ -295,9 +363,10 @@ export const SessionWorkspace = ({
     // the shared panels render flat — identical components, missing surface ladder.
     // Kept mounted and `display:none` after first use: unmounting this schema form put ~100ms
     // of main thread behind every toggle.
-    const wantsConfig = showConfig && Boolean(entityId)
+    const wantsConfig = showConfig && Boolean(configEntityId)
     const configMountedRef = useRef(false)
     if (wantsConfig) configMountedRef.current = true
+    if (agentHidden) configMountedRef.current = false
     // The pane stays on screen for its closing slide, so it keeps the half it was already showing
     // rather than swapping content mid-motion.
     const lastPaneKindRef = useRef<"config" | "sessions">("sessions")
@@ -305,7 +374,7 @@ export const SessionWorkspace = ({
     const paneKind = showPane ? (wantsConfig ? "config" : "sessions") : lastPaneKindRef.current
     const pane = (
         <>
-            {configMountedRef.current && entityId ? (
+            {configMountedRef.current && configEntityId ? (
                 <div
                     className={
                         configSlide.keepMounted && paneKind === "config"
@@ -314,10 +383,9 @@ export const SessionWorkspace = ({
                     }
                 >
                     <ConfigPane
-                        entityId={entityId}
+                        entityId={configEntityId}
                         sessionId={sessionId}
                         filesScope={filesScope}
-                        workspaceId={workspaceId}
                         projectId={projectId}
                     />
                 </div>
@@ -347,6 +415,8 @@ export const SessionWorkspace = ({
                         sessionId={sessionId}
                         onUpdate={pinRevision}
                         agentId={agentId}
+                        agentHidden={agentHidden}
+                        canSend={canSend}
                         workspaceId={workspaceId}
                         projectId={projectId}
                     />
@@ -414,16 +484,19 @@ export const SessionWorkspace = ({
                                     className="h-full"
                                     pane={
                                         filesSlide.keepMounted ? (
-                                            <SessionFilesPane
-                                                scope={filesScope}
-                                                sessionId={sessionId}
-                                                // The session bar's icon closes the pane — on a
-                                                // phone that bar is off screen with it, so the
-                                                // pane's own control does.
-                                                closeControl={twoPane ? "none" : "back"}
-                                                expanded={filesExpanded}
-                                                onToggleExpand={filesLayout.toggleExpand}
-                                            />
+                                            <DriveLinkContext.Provider value={driveLink.copyLink}>
+                                                <SessionFilesPane
+                                                    scope={filesScope}
+                                                    sessionId={sessionId}
+                                                    onSelectionChange={driveLink.onSelectionChange}
+                                                    // The session bar's icon closes the pane — on a
+                                                    // phone that bar is off screen with it, so the
+                                                    // pane's own control does.
+                                                    closeControl={twoPane ? "none" : "back"}
+                                                    expanded={filesExpanded}
+                                                    onToggleExpand={filesLayout.toggleExpand}
+                                                />
+                                            </DriveLinkContext.Provider>
                                         ) : null
                                     }
                                     fill={
@@ -466,6 +539,8 @@ export const SessionWorkspace = ({
                     </div>
                 </div>
                 <CatalogDrawer />
+                <AutomationDrawer />
+                <AutomationRunHistoryDrawerHost workspaceId={workspaceId} projectId={projectId} />
             </DriveSessionProvider>
         </>
     )

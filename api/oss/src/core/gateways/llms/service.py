@@ -2,6 +2,9 @@
 
 import asyncio
 import json
+import random
+from datetime import datetime, timezone
+from email.utils import parsedate_to_datetime
 from dataclasses import dataclass
 from typing import Any, AsyncIterator, Dict, List, Optional, Tuple
 from uuid import UUID
@@ -36,15 +39,20 @@ from oss.src.core.gateways.llms.dtos import (
 from oss.src.core.gateways.llms.interfaces import (
     LLMEndpointsDAOInterface,
     LLMRelayResult,
-    MissingEndpointRepair,
+    LLMUpstreamInterface,
 )
+from oss.src.core.gateways.llms.registrar import map_custom_provider_secret_to_endpoint
 from oss.src.core.gateways.llms.registry import LLMUpstreamRegistry, select_upstream
+from oss.src.core.secrets.enums import ORGANIZATION_GATEWAY_KINDS, SecretKind
 from oss.src.core.gateways.llms.types import (
+    LLM_GATEWAY_SERVED_DEPLOYMENT_KINDS,
     LLMCapabilityNotAllowedError,
     LLMConnectionProviderRequiredError,
     LLMEndpointNotFoundError,
     LLMEndpointProviderMissingError,
     LLMModelNotAllowedError,
+    LLMNamedConnectionNotFoundError,
+    LLMOrganizationConnectionSlugRequiredError,
     LLMRoutingFieldNotAllowedError,
     LLMUpstreamTimeoutError,
 )
@@ -59,6 +67,7 @@ from oss.src.core.gateways.policy.dtos import (
     ProviderKeyRef,
     ResolvedSecret,
     SecretOrigin,
+    SecretOwnerKind,
 )
 from oss.src.core.gateways.policy.interfaces import SecretsResolverInterface
 from oss.src.core.gateways.policy.service import GatewayPolicyService
@@ -160,6 +169,20 @@ class _ResolvedLlmTarget:
     endpoint_id: Optional[UUID] = None
     secret_id: Optional[UUID] = None
     is_active: bool = True
+    # Whose row `secret_id` names (M5). An organization row is pinned as an organization
+    # reference, so it is answered only while it is available to the project.
+    secret_owner_kind: SecretOwnerKind = SecretOwnerKind.PROJECT
+    # An organization target carries the row it was built from (read from the project's
+    # one cache entry), so the relay reads nothing more. In process only.
+    resolved_secret: Optional[ResolvedSecret] = None
+    # The namespace whose model rules the target follows, when it differs from its own: an
+    # organization `provider_key` follows `standard`, an organization `custom_provider`
+    # follows `custom`.
+    rules_namespace: Optional[GatewayEndpointNamespace] = None
+
+    @property
+    def model_rules(self) -> GatewayEndpointNamespace:
+        return self.rules_namespace or self.namespace
 
     def target_path(self) -> str:
         return f"{self.namespace.value}/{self.name}"
@@ -180,7 +203,9 @@ class _ResolvedLlmTarget:
         # and the whole point of naming it is that the scan — first match for the
         # provider family — is not what the caller asked for.
         if self.secret_id is not None:
-            return BoundSecretRef(secret_id=self.secret_id)
+            return BoundSecretRef(
+                secret_id=self.secret_id, owner_kind=self.secret_owner_kind
+            )
         if self.namespace == GatewayEndpointNamespace.STANDARD:
             return ProviderKeyRef(provider_key=self.provider_key)
         # Custom endpoints without a secret require no secret resolution.
@@ -200,7 +225,7 @@ class _ResolvedLlmTarget:
         unchanged.
         """
         if (
-            self.namespace != GatewayEndpointNamespace.CUSTOM
+            self.model_rules != GatewayEndpointNamespace.CUSTOM
             or not self.models.allowlist
         ):
             return model
@@ -211,6 +236,7 @@ class _ResolvedLlmTarget:
             provider_key=self.provider_key,
             deployment_kind=self.deployment_kind,
             model=context.model,
+            label=self.name,
             base_url=self.route_data.base_url,
             api_version=self.route_data.api_version,
             region=self.route_data.region,
@@ -223,6 +249,53 @@ class _ResolvedLlmTarget:
 # How long the gateway keeps reading a platform-funded stream after its caller disconnected,
 # to reach the usage on its last frame.
 STREAM_DRAIN_AFTER_DISCONNECT_SECONDS = 120.0
+
+# LiteLLM's router retry: 408, 409, 429 and any 5xx, at most twice, 0.5 s doubled up to 8 s
+# plus jitter, or the provider's `Retry-After` when it asks for 60 s or less. The route's own
+# timeout is not retried (LiteLLM's `TimeoutErrorRetries=0`); a streaming attempt cut by the
+# route's `response_headers_timeout_seconds` is, at once, from the same retry budget.
+UPSTREAM_MAX_RETRIES = 2
+_RETRYABLE_STATUSES = frozenset({408, 409, 429})
+_RETRY_BASE_DELAY_SECONDS = 0.5
+_RETRY_MAX_DELAY_SECONDS = 8.0
+_RETRY_JITTER_SECONDS = 0.75
+_RETRY_AFTER_MAX_SECONDS = 60.0
+
+
+def _retry_after_seconds(value: Optional[str]) -> Optional[float]:
+    """A `Retry-After` header in seconds, from either of its two forms."""
+    if not value:
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        pass
+    try:
+        when = parsedate_to_datetime(value)
+    except (TypeError, ValueError):
+        return None
+    if when.tzinfo is None:
+        when = when.replace(tzinfo=timezone.utc)
+    return (when - datetime.now(timezone.utc)).total_seconds()
+
+
+def _may_retry(retry: int, delay: float, deadline: Optional[float], now: float) -> bool:
+    """Whether retry number `retry` may start after `delay` and still meet `deadline`."""
+    return retry < UPSTREAM_MAX_RETRIES and (deadline is None or now + delay < deadline)
+
+
+async def _read_to_end(body: AsyncIterator[bytes]) -> None:
+    async for _ in body:
+        pass
+
+
+def _retry_delay(retry: int, retry_after: Optional[str]) -> float:
+    """Seconds to wait before retry number `retry`, counted from zero."""
+    asked = _retry_after_seconds(retry_after)
+    if asked is not None and 0 < asked <= _RETRY_AFTER_MAX_SECONDS:
+        return asked
+    backoff = min(_RETRY_BASE_DELAY_SECONDS * 2**retry, _RETRY_MAX_DELAY_SECONDS)
+    return backoff + random.uniform(0, _RETRY_JITTER_SECONDS)
 
 
 _END = object()
@@ -348,6 +421,199 @@ _CEILING_FIELDS: Dict[LLMProtocol, Tuple[str, ...]] = {
 }
 
 
+# What a native Gemini request may carry on the built-in endpoint. An allowlist, because the
+# native request has many fields that pick another model or a feature priced beyond the tokens
+# (`generationConfig.routingConfig`, `modelConfig`, `responseModalities`, `speechConfig`,
+# hosted tools, `cachedContent`, ...). Exact camelCase keys, so snake_case aliases are refused.
+_GEMINI_REQUEST_FIELDS = frozenset(
+    {
+        "contents",
+        "systemInstruction",
+        "tools",
+        "toolConfig",
+        "generationConfig",
+        "safetySettings",
+    }
+)
+_GEMINI_GENERATION_FIELDS = frozenset(
+    {
+        "temperature",
+        "topP",
+        "topK",
+        "maxOutputTokens",
+        "stopSequences",
+        "seed",
+        "presencePenalty",
+        "frequencyPenalty",
+        "responseMimeType",
+        "responseSchema",
+        "responseJsonSchema",
+        "thinkingConfig",
+        "candidateCount",
+    }
+)
+# Each protocol object's fields, checked at every depth a part can appear. `fileData` is not a
+# part field: Vertex would fetch the URL it names on the platform's account. Opaque values
+# (function arguments, function responses, JSON schemas) are not walked.
+_GEMINI_PART_FIELDS = frozenset(
+    {
+        "text",
+        "inlineData",
+        "functionCall",
+        "functionResponse",
+        "thought",
+        "thoughtSignature",
+    }
+)
+_GEMINI_CONTENT_FIELDS = frozenset({"role", "parts"})
+_GEMINI_INLINE_DATA_FIELDS = frozenset({"mimeType", "data", "displayName"})
+_GEMINI_FUNCTION_CALL_FIELDS = frozenset({"id", "name", "args"})
+_GEMINI_FUNCTION_RESPONSE_FIELDS = frozenset({"id", "name", "response", "parts"})
+_GEMINI_DECLARATION_FIELDS = frozenset(
+    {
+        "name",
+        "description",
+        "parameters",
+        "parametersJsonSchema",
+        "response",
+        "responseJsonSchema",
+    }
+)
+_GEMINI_THINKING_FIELDS = frozenset(
+    {"thinkingLevel", "thinkingBudget", "includeThoughts"}
+)
+_GEMINI_FUNCTION_CALLING_FIELDS = frozenset({"mode", "allowedFunctionNames"})
+_GEMINI_SAFETY_FIELDS = frozenset({"category", "threshold", "method"})
+
+
+def _unknown(value: Any, allowed: frozenset, path: str) -> Optional[str]:
+    """The path of the first field of `value` outside `allowed`, or `path` itself when `value`
+    is not an object; None when every field is allowed."""
+    if not isinstance(value, dict):
+        return path
+    for key in value:
+        if key not in allowed:
+            return f"{path}.{key}"
+    return None
+
+
+def _list_refusal(items: Any, path: str, check) -> Optional[str]:
+    """The first refusal among a list's items, or `path` when it is not a list."""
+    if not isinstance(items, list):
+        return path
+    for item in items:
+        refused = check(item, path)
+        if refused:
+            return refused
+    return None
+
+
+def _part_refusal(part: Any, path: str) -> Optional[str]:
+    refused = _unknown(part, _GEMINI_PART_FIELDS, path)
+    if refused:
+        return refused
+    for field, allowed in (
+        ("inlineData", _GEMINI_INLINE_DATA_FIELDS),
+        ("functionCall", _GEMINI_FUNCTION_CALL_FIELDS),
+        ("functionResponse", _GEMINI_FUNCTION_RESPONSE_FIELDS),
+    ):
+        if field in part:
+            refused = _unknown(part[field], allowed, f"{path}.{field}")
+            if refused:
+                return refused
+    # A function response can carry parts of its own, `fileData` among them.
+    nested = (part.get("functionResponse") or {}).get("parts")
+    if nested is not None:
+        return _list_refusal(nested, f"{path}.functionResponse.parts", _part_refusal)
+    return None
+
+
+def _content_refusal(content: Any, path: str) -> Optional[str]:
+    refused = _unknown(content, _GEMINI_CONTENT_FIELDS, path)
+    if refused or content.get("parts") is None:
+        return refused
+    return _list_refusal(content["parts"], f"{path}.parts", _part_refusal)
+
+
+def _tool_refusal(tool: Any, path: str) -> Optional[str]:
+    if not isinstance(tool, dict) or set(tool) != {"functionDeclarations"}:
+        return path
+    return _list_refusal(
+        tool["functionDeclarations"],
+        f"{path}.functionDeclarations",
+        lambda declaration, at: _unknown(declaration, _GEMINI_DECLARATION_FIELDS, at),
+    )
+
+
+def _gemini_refusal(payload: Dict[str, Any]) -> Optional[str]:
+    """The first field of a native Gemini request the built-in endpoint does not serve, as a
+    dotted path, or None when every field is one it serves."""
+    refused = _unknown(payload, _GEMINI_REQUEST_FIELDS, "")
+    if refused:
+        return refused.lstrip(".")
+
+    contents = payload.get("contents")
+    if contents is not None:
+        refused = _list_refusal(contents, "contents", _content_refusal)
+        if refused:
+            return refused
+
+    instruction = payload.get("systemInstruction")
+    if instruction is not None:
+        refused = _content_refusal(instruction, "systemInstruction")
+        if refused:
+            return refused
+
+    tools = payload.get("tools")
+    if tools is not None:
+        refused = _list_refusal(tools, "tools", _tool_refusal)
+        if refused:
+            return refused
+
+    safety = payload.get("safetySettings")
+    if safety is not None:
+        refused = _list_refusal(
+            safety,
+            "safetySettings",
+            lambda setting, at: _unknown(setting, _GEMINI_SAFETY_FIELDS, at),
+        )
+        if refused:
+            return refused
+
+    tool_config = payload.get("toolConfig")
+    if tool_config is not None:
+        refused = _unknown(
+            tool_config, frozenset({"functionCallingConfig"}), "toolConfig"
+        )
+        if refused:
+            return refused
+        calling = tool_config.get("functionCallingConfig")
+        if calling is not None:
+            refused = _unknown(
+                calling,
+                _GEMINI_FUNCTION_CALLING_FIELDS,
+                "toolConfig.functionCallingConfig",
+            )
+            if refused:
+                return refused
+
+    config = payload.get("generationConfig")
+    if config is not None:
+        refused = _unknown(config, _GEMINI_GENERATION_FIELDS, "generationConfig")
+        if refused:
+            return refused
+        if config.get("candidateCount") not in (None, 1):
+            return "generationConfig.candidateCount"
+        thinking = config.get("thinkingConfig")
+        if thinking is not None:
+            refused = _unknown(
+                thinking, _GEMINI_THINKING_FIELDS, "generationConfig.thinkingConfig"
+            )
+            if refused:
+                return refused
+    return None
+
+
 def _requested_max_output_tokens(value: Any) -> Optional[float]:
     """One alias's value as a token count, or None when it names no usable maximum.
 
@@ -377,13 +643,11 @@ class LLMGatewayService:
         policy: GatewayPolicyService,
         resolver: SecretsResolverInterface,
         upstream_registry: LLMUpstreamRegistry,
-        missing_endpoint_repair: Optional[MissingEndpointRepair] = None,
     ) -> None:
         self.llm_endpoints_dao = llm_endpoints_dao
         self.policy = policy
         self.resolver = resolver
         self.upstream_registry = upstream_registry
-        self.missing_endpoint_repair = missing_endpoint_repair
 
     # --- management: thin over the DAO, plus the generated merge ------------ #
 
@@ -480,6 +744,7 @@ class LLMGatewayService:
         provider_key: Optional[str],
         connection_slug: Optional[str],
         connection_namespace: Optional[GatewayEndpointNamespace] = None,
+        connection_scope: SecretOwnerKind = SecretOwnerKind.PROJECT,
     ) -> LLMGatewayConnectionResolution:
         """Resolve an agent connection to public gateway route metadata.
 
@@ -488,11 +753,25 @@ class LLMGatewayService:
         with nothing to act on. `LLMGatewayConnectionResolution.provider_key` stays a required
         field, so the invariant no construction path can dodge is still enforced underneath.
         """
-        if connection_slug and connection_namespace:
+        if (
+            connection_scope == SecretOwnerKind.ORGANIZATION
+            or connection_namespace == GatewayEndpointNamespace.ORGANIZATION
+        ):
+            # An organization connection is used only when the agent named it (M5).
+            if connection_scope != SecretOwnerKind.ORGANIZATION or not connection_slug:
+                raise LLMOrganizationConnectionSlugRequiredError()
+            if connection_namespace not in (
+                None,
+                GatewayEndpointNamespace.ORGANIZATION,
+            ):
+                raise LLMOrganizationConnectionSlugRequiredError()
+            namespace = GatewayEndpointNamespace.ORGANIZATION
+            name = connection_slug
+        elif connection_slug and connection_namespace:
             namespace = connection_namespace
             name = connection_slug
         elif connection_slug:
-            namespace = await self._namespace_of_slug(scope=scope, slug=connection_slug)
+            namespace = None
             name = connection_slug
         elif provider_key:
             namespace = GatewayEndpointNamespace.STANDARD
@@ -501,9 +780,14 @@ class LLMGatewayService:
             raise LLMConnectionProviderRequiredError()
 
         try:
-            target = await self._resolve_target(
-                scope=scope, namespace=namespace, name=name
-            )
+            if namespace is None:
+                # A bare slug: one pass over the namespaces in today's order.
+                namespace = GatewayEndpointNamespace.CUSTOM
+                target = await self._resolve_slug_target(scope=scope, slug=name)
+            else:
+                target = await self._resolve_target(
+                    scope=scope, namespace=namespace, name=name
+                )
         except LLMEndpointNotFoundError:
             builtin_model = _retired_starter_credits_model(
                 namespace=namespace, name=name, model=model
@@ -536,12 +820,17 @@ class LLMGatewayService:
                 namespace=target.namespace, name=target.name
             )
         deployment_kind = target.deployment_kind
+        protocol: Optional[LLMProtocol] = None
         if deployment_kind == LLMDeploymentKind.MOCK:
             resolved_provider = "anthropic" if model.startswith("claude-") else "openai"
         elif target.namespace == GatewayEndpointNamespace.BUILTIN:
             # A real `builtin` endpoint answers the harness on one OpenAI-compatible
             # chat-completions surface, whatever upstream serves it behind the gateway. The
             # harness drives that surface as it drives any OpenAI-compatible custom route.
+            # The Vertex-backed one also serves Gemini's native protocol, which a harness that
+            # knows `protocol` speaks instead (`docs/design/gemini-native-door`).
+            if deployment_kind == LLMDeploymentKind.VERTEX:
+                protocol = LLMProtocol.GEMINI
             resolved_provider = "openai"
             deployment_kind = LLMDeploymentKind.CUSTOM
         elif target.provider_key == "gemini":
@@ -569,6 +858,13 @@ class LLMGatewayService:
             # The harness sends this id to the gateway, and the gateway relays it to the
             # upstream, so it must be the upstream's own name for the model.
             model=target.upstream_model(model),
+            protocol=protocol,
+            custom_provider=(
+                target.resolved_secret.secret.kind == SecretKind.CUSTOM_PROVIDER
+                if target.namespace == GatewayEndpointNamespace.ORGANIZATION
+                and target.resolved_secret is not None
+                else None
+            ),
         )
 
     # Data plane
@@ -615,24 +911,36 @@ class LLMGatewayService:
         protocol: LLMProtocol = LLMProtocol.CHAT_COMPLETIONS,
         run_id: Optional[str] = None,
         run_labels: Optional[Dict[str, str]] = None,
+        context: Optional[LLMCallContext] = None,
     ) -> LLMRelayResult:
-        """Relay one request for the specified protocol."""
+        """Relay one request for the specified protocol.
+
+        A protocol that names the model outside its body (Gemini's native door carries it in
+        the URL) passes the `context` the door built; every other protocol's is read from the
+        body.
+        """
         target = await self._resolve_target(scope=scope, namespace=namespace, name=name)
         self._check_active(target=target)
-        context = _parse_call_context(body, protocol)
+        if context is None:
+            context = _parse_call_context(body, protocol)
         payload = _json_object(body)
 
         # Allowlist and ceiling before secret (§8): a refused model must not cost a
         # vault read, and the refusal reason must be the allowlist, never a coincidental
         # secret gap.
         self._check_allowlist(target=target, context=context, payload=payload)
-        self._check_builtin_capabilities(target=target, payload=payload)
+        self._check_builtin_capabilities(
+            target=target, payload=payload, protocol=context.protocol
+        )
         body = self._enforce_ceilings(
             target=target, context=context, body=body, payload=payload
         )
         body = self._request_stream_usage(target=target, context=context, body=body)
-        upstream_body, context = self._upstream_model_names(
-            target=target, context=context, body=body
+        upstream_body, context = (
+            # The native door's model is in the URL and the body names none to rename.
+            (body, context)
+            if context.protocol == LLMProtocol.GEMINI
+            else self._upstream_model_names(target=target, context=context, body=body)
         )
         if upstream_body is not body:
             # The renamed spelling is measured too, so a model denied under one of its two
@@ -701,6 +1009,9 @@ class LLMGatewayService:
         # from the project's vault.
         if target.namespace == GatewayEndpointNamespace.BUILTIN:
             secret = builtin_llm_secret(provider_key=target.name)
+        elif target.resolved_secret is not None:
+            # An organization connection: the target lookup already read the row.
+            secret = target.resolved_secret
         else:
             ref = target.secret_ref()
             secret = (
@@ -714,24 +1025,14 @@ class LLMGatewayService:
         adapter = self.upstream_registry.get(
             select_upstream(target.provider_key, target.deployment_kind)
         )
-        # Enforced here, not per adapter: `timeout_seconds` is a property of the
-        # endpoint, and an adapter that forgets it would otherwise have no ceiling at
-        # all. Streaming bounds time-to-first-byte — the proxy drains the body after
-        # this returns, and a long legitimate stream is not a timeout.
-        try:
-            result = await asyncio.wait_for(
-                adapter.relay_chat_completion(
-                    route=target.route(context),
-                    secret=secret,
-                    #
-                    context=context,
-                    body=body,
-                    headers=headers,
-                ),
-                timeout=target.settings.timeout_seconds,
-            )
-        except asyncio.TimeoutError as e:
-            raise LLMUpstreamTimeoutError(provider_key=target.provider_key) from e
+        result = await self._relay_with_retries(
+            adapter=adapter,
+            target=target,
+            secret=secret,
+            context=context,
+            body=body,
+            headers=headers,
+        )
 
         # Both paths record after the drain, never before: every adapter fills
         # `result.usage` while its body generator runs, so reading usage here would record
@@ -773,31 +1074,225 @@ class LLMGatewayService:
 
     # --- internals ------------------------------------------------------------ #
 
-    async def _namespace_of_slug(
-        self, *, scope: AuthScope, slug: str
-    ) -> GatewayEndpointNamespace:
-        """Which of the three namespaces a `connection_slug` names (OR53).
+    @staticmethod
+    async def _relay_with_retries(
+        *,
+        adapter: LLMUpstreamInterface,
+        target: _ResolvedLlmTarget,
+        secret: Optional[ResolvedSecret],
+        context: LLMCallContext,
+        body: bytes,
+        headers: Dict[str, str],
+    ) -> LLMRelayResult:
+        """Call the upstream, retrying its transient answers before any byte is relayed.
 
-        The two stored namespaces are asked first, in the order that keeps today's answers:
-        a custom endpoint row owns its slug, then a builtin provider. A standard connection
-        is reached last, and it is reached: `standard` is not only the provider families —
-        a project may hold several keys for one family, and the slug of the one the caller
-        chose names it. Anything else stays a custom miss, so an unknown slug still fails as
-        `custom/<slug>`, which is the message the operator already knows.
+        The caller admitted the call once and records only the answer returned here, so a
+        retried attempt is neither admitted again nor charged.
         """
-        custom = await self.llm_endpoints_dao.fetch_endpoint_by_slug(
+        route = target.route(context)
+        loop = asyncio.get_running_loop()
+        # A route's `timeout_seconds` bounds the whole sequence, retries and their waits
+        # included, so the caller's own deadline can be set above it.
+        timeout = target.settings.timeout_seconds
+        deadline = loop.time() + timeout if timeout is not None else None
+        headers_limit = (
+            target.settings.response_headers_timeout_seconds if context.stream else None
+        )
+        retry = 0
+        while True:
+            # Enforced here, not per adapter: `timeout_seconds` is a property of the
+            # endpoint, and an adapter that forgets it would otherwise have no ceiling at
+            # all. Streaming bounds time-to-first-byte — the proxy drains the body after
+            # this returns, and a long legitimate stream is not a timeout.
+            remaining = None if deadline is None else deadline - loop.time()
+            stall_cut = headers_limit is not None and (
+                remaining is None or headers_limit < remaining
+            )
+            try:
+                result = await asyncio.wait_for(
+                    adapter.relay_chat_completion(
+                        route=route,
+                        secret=secret,
+                        #
+                        context=context,
+                        body=body,
+                        headers=headers,
+                    ),
+                    timeout=headers_limit if stall_cut else remaining,
+                )
+            except asyncio.TimeoutError as e:
+                # An attempt that sent nothing for `response_headers_timeout_seconds` is stalled,
+                # not slow: sent again it usually answers in seconds. Cancelling it closes its
+                # connection, and nothing of it reached the caller. The adapter learns the
+                # count from the context and may vary the retried request.
+                if not stall_cut or not _may_retry(retry, 0.0, deadline, loop.time()):
+                    raise LLMUpstreamTimeoutError(
+                        provider_key=target.provider_key
+                    ) from e
+                retry += 1
+                context = context.model_copy(
+                    update={"stalled_attempts": context.stalled_attempts + 1}
+                )
+                log.warning(
+                    "[gateways] retrying a stalled LLM call",
+                    target=target.target_path(),
+                    model=context.model,
+                    retry=retry,
+                    response_headers_timeout_seconds=headers_limit,
+                )
+                continue
+            status_code = result.status_code
+            retry_after = result.headers.get("retry-after")
+            delay = _retry_delay(retry, retry_after)
+            # The relay adapter answers every upstream 5xx as a 502 result.
+            retryable = status_code in _RETRYABLE_STATUSES or status_code >= 500
+            if not retryable or not _may_retry(retry, delay, deadline, loop.time()):
+                return result
+            # Read to its end so the adapter closes the upstream response, within the
+            # deadline: a body that trickles in must not hold the call past it.
+            try:
+                await asyncio.wait_for(
+                    _read_to_end(result.body),
+                    timeout=None if deadline is None else deadline - loop.time(),
+                )
+            except asyncio.TimeoutError as e:
+                raise LLMUpstreamTimeoutError(provider_key=target.provider_key) from e
+            # The read took time too: a wait that would now pass the deadline is not started.
+            if deadline is not None and loop.time() + delay >= deadline:
+                raise LLMUpstreamTimeoutError(provider_key=target.provider_key)
+
+            retry += 1
+            log.warning(
+                "[gateways] retrying an LLM call",
+                target=target.target_path(),
+                model=context.model,
+                status_code=status_code,
+                retry=retry,
+                delay_seconds=round(delay, 2),
+            )
+            await asyncio.sleep(delay)
+
+    async def _resolve_slug_target(
+        self, *, scope: AuthScope, slug: str
+    ) -> _ResolvedLlmTarget:
+        """The target a bare project `connection_slug` names (OR53), in one pass, in
+        today's order.
+
+        1. The project's custom endpoint row with that slug (one statement).
+        2. A builtin provider of that name (no read).
+        3. A provider family (`openai`), which leaves the credential to the provider scan
+           (no read).
+        4. A project `provider_key` connection with that slug (one read of the project's
+           rows), pinned to it.
+        5. Else a custom miss, `custom/<slug>`, the message the operator already knows.
+
+        An organization connection is never reached from here: an agent names one with
+        scope `organization`, which resolves in its own namespace.
+        """
+        row = await self.llm_endpoints_dao.fetch_endpoint_by_slug(
             project_id=scope.project_id, slug=slug
         )
-        if custom is not None:
-            return GatewayEndpointNamespace.CUSTOM
+        if row is not None:
+            return self._custom_target(name=slug, row=row)
 
         if builtin_llm_endpoint(provider_key=slug) is not None:
-            return GatewayEndpointNamespace.BUILTIN
+            return await self._resolve_target(
+                scope=scope, namespace=GatewayEndpointNamespace.BUILTIN, name=slug
+            )
 
-        if await self._standard_connection(scope=scope, name=slug) is not None:
-            return GatewayEndpointNamespace.STANDARD
+        standard = await self._standard_connection(scope=scope, name=slug)
+        if standard is not None:
+            return self._standard_target(name=slug, standard=standard)
 
-        return GatewayEndpointNamespace.CUSTOM
+        raise LLMEndpointNotFoundError(
+            namespace=GatewayEndpointNamespace.CUSTOM, name=slug
+        )
+
+    @staticmethod
+    def _custom_target(*, name: str, row: LLMEndpoint) -> _ResolvedLlmTarget:
+        return _ResolvedLlmTarget(
+            namespace=GatewayEndpointNamespace.CUSTOM,
+            name=row.slug or name,
+            provider_key=row.provider_key,
+            deployment_kind=row.deployment_kind,
+            models=row.data.models,
+            route_data=row.data.route,
+            settings=row.data.settings,
+            endpoint_id=row.id,
+            secret_id=row.secret_id,
+            is_active=row.flags.is_active,
+        )
+
+    async def _organization_target(
+        self, *, scope: AuthScope, slug: str
+    ) -> _ResolvedLlmTarget:
+        """The target of the organization connection an agent named by slug (M5).
+
+        Read from the project's one cache entry (the request memo makes a second read
+        free): the organization row with that slug that is available to the project. A
+        `provider_key` routes like a standard endpoint of its family; a `custom_provider`
+        builds its target from the row, with no endpoint row. Either way the target is
+        pinned to that row, and the relay uses the row it carries."""
+        secret = await self.resolver.organization_connection(scope=scope, slug=slug)
+        # A subscription login is not a gateway connection: it is named with mode
+        # `self_managed`, and the gateway never routes it.
+        if (
+            secret is None
+            or secret.id is None
+            or secret.kind not in ORGANIZATION_GATEWAY_KINDS
+        ):
+            raise LLMNamedConnectionNotFoundError(
+                scope=SecretOwnerKind.ORGANIZATION, slug=slug
+            )
+        resolved = ResolvedSecret(
+            secret=secret, owner=secret.owner, origin=SecretOrigin.VAULT
+        )
+
+        if secret.kind == SecretKind.PROVIDER_KEY:
+            family = getattr(secret.data, "kind", None)
+            family = getattr(family, "value", family)
+            endpoint = (
+                standard_llm_endpoint(provider_key=str(family)) if family else None
+            )
+            rules = GatewayEndpointNamespace.STANDARD
+        else:
+            endpoint = map_custom_provider_secret_to_endpoint(secret)
+            rules = GatewayEndpointNamespace.CUSTOM
+        if endpoint is None:
+            raise LLMNamedConnectionNotFoundError(
+                scope=SecretOwnerKind.ORGANIZATION, slug=slug
+            )
+        if endpoint.deployment_kind not in LLM_GATEWAY_SERVED_DEPLOYMENT_KINDS:
+            raise LLMGatewayConnectionNotServedError()
+        return _ResolvedLlmTarget(
+            namespace=GatewayEndpointNamespace.ORGANIZATION,
+            name=slug,
+            provider_key=endpoint.provider_key,
+            deployment_kind=endpoint.deployment_kind,
+            models=endpoint.data.models,
+            route_data=endpoint.data.route,
+            settings=endpoint.data.settings,
+            secret_id=secret.id,
+            secret_owner_kind=SecretOwnerKind.ORGANIZATION,
+            resolved_secret=resolved,
+            rules_namespace=rules,
+        )
+
+    @staticmethod
+    def _standard_target(
+        *, name: str, standard: Tuple[LLMEndpoint, Optional[UUID]]
+    ) -> _ResolvedLlmTarget:
+        endpoint, pinned = standard
+        return _ResolvedLlmTarget(
+            namespace=GatewayEndpointNamespace.STANDARD,
+            name=name,
+            provider_key=endpoint.provider_key,
+            deployment_kind=endpoint.deployment_kind,
+            models=endpoint.data.models,
+            route_data=endpoint.data.route,
+            settings=endpoint.data.settings,
+            secret_id=pinned,
+        )
 
     async def _standard_connection(
         self, *, scope: AuthScope, name: str
@@ -831,48 +1326,22 @@ class LLMGatewayService:
     async def _resolve_target(
         self, *, scope: AuthScope, namespace: GatewayEndpointNamespace, name: str
     ) -> _ResolvedLlmTarget:
-        project_id = scope.project_id
-
         if namespace == GatewayEndpointNamespace.STANDARD:
             standard = await self._standard_connection(scope=scope, name=name)
             if standard is None:
                 raise LLMEndpointNotFoundError(namespace=namespace, name=name)
-            endpoint, pinned = standard
-            return _ResolvedLlmTarget(
-                namespace=GatewayEndpointNamespace.STANDARD,
-                name=name,
-                provider_key=endpoint.provider_key,
-                deployment_kind=endpoint.deployment_kind,
-                models=endpoint.data.models,
-                route_data=endpoint.data.route,
-                settings=endpoint.data.settings,
-                secret_id=pinned,
-            )
+            return self._standard_target(name=name, standard=standard)
 
         if namespace == GatewayEndpointNamespace.CUSTOM:
             row = await self.llm_endpoints_dao.fetch_endpoint_by_slug(
-                project_id=project_id, slug=name
+                project_id=scope.project_id, slug=name
             )
-            if row is None and await self._repair_missing_endpoint(
-                project_id=project_id, slug=name
-            ):
-                row = await self.llm_endpoints_dao.fetch_endpoint_by_slug(
-                    project_id=project_id, slug=name
-                )
             if row is None:
                 raise LLMEndpointNotFoundError(namespace=namespace, name=name)
-            return _ResolvedLlmTarget(
-                namespace=GatewayEndpointNamespace.CUSTOM,
-                name=row.slug or name,
-                provider_key=row.provider_key,
-                deployment_kind=row.deployment_kind,
-                models=row.data.models,
-                route_data=row.data.route,
-                settings=row.data.settings,
-                endpoint_id=row.id,
-                secret_id=row.secret_id,
-                is_active=row.flags.is_active,
-            )
+            return self._custom_target(name=name, row=row)
+
+        if namespace == GatewayEndpointNamespace.ORGANIZATION:
+            return await self._organization_target(scope=scope, slug=name)
 
         if namespace == GatewayEndpointNamespace.BUILTIN:
             endpoint = builtin_llm_endpoint(provider_key=name)
@@ -889,27 +1358,6 @@ class LLMGatewayService:
             )
 
         raise LLMEndpointNotFoundError(namespace=namespace, name=name)
-
-    async def _repair_missing_endpoint(self, *, project_id: UUID, slug: str) -> bool:
-        """Ask the injected repair to register a missing endpoint. Never raises.
-
-        The repair decides which vault rows it may register (EE: the starter-credits
-        connection, which older seeding left without an endpoint). True means it tried, so
-        the caller reads the row again; the normal not-found error stands if it is still
-        missing.
-        """
-        if self.missing_endpoint_repair is None:
-            return False
-        try:
-            return await self.missing_endpoint_repair(project_id=project_id, slug=slug)
-        except Exception:  # noqa: BLE001 - a failed repair must not change the error.
-            log.warning(
-                "[gateways] missing endpoint repair failed",
-                project_id=str(project_id),
-                slug=slug,
-                exc_info=True,
-            )
-            return False
 
     @staticmethod
     def _check_active(*, target: _ResolvedLlmTarget) -> None:
@@ -944,7 +1392,7 @@ class LLMGatewayService:
                     field=field, namespace=target.namespace, name=target.name
                 )
 
-        if target.namespace == GatewayEndpointNamespace.STANDARD:
+        if target.model_rules == GatewayEndpointNamespace.STANDARD:
             return
 
         if not target.models.allows(context.model):
@@ -971,16 +1419,27 @@ class LLMGatewayService:
 
     @staticmethod
     def _check_builtin_capabilities(
-        *, target: _ResolvedLlmTarget, payload: Dict[str, Any]
+        *,
+        target: _ResolvedLlmTarget,
+        payload: Dict[str, Any],
+        protocol: LLMProtocol = LLMProtocol.CHAT_COMPLETIONS,
     ) -> None:
         """Refuse what a `builtin` endpoint's provider bills beyond the reported tokens.
 
         Only function tools pass. A provider-side tool (Google Search grounding through
         `web_search_options` or a non-function `tools` entry) and the provider extension
         object `extra_body` are refused, so nothing runs on the platform's account that the
-        rate card does not price.
+        rate card does not price. The native Gemini door is checked against an allowlist
+        instead (`_gemini_refusal`).
         """
         if target.namespace != GatewayEndpointNamespace.BUILTIN:
+            return
+        if protocol == LLMProtocol.GEMINI:
+            field = _gemini_refusal(payload)
+            if field is not None:
+                raise LLMCapabilityNotAllowedError(
+                    field=field, namespace=target.namespace, name=target.name
+                )
             return
         for field in _UNPRICED_BUILTIN_FIELDS:
             if payload.get(field) is not None:
@@ -1017,7 +1476,8 @@ class LLMGatewayService:
         configured a ceiling; every other request still relays byte-for-byte (D34).
         """
         ceiling = target.settings.max_output_tokens
-        if ceiling is None:
+        # The native Gemini door serves only the built-in endpoint, which sets no ceiling.
+        if ceiling is None or context.protocol == LLMProtocol.GEMINI:
             return body
 
         aliases = _CEILING_FIELDS[context.protocol]

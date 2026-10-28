@@ -37,5 +37,7 @@ export const useCommitHostAdapter = () => {
         [recordWidgetEvent],
     )
 
-    return {appId, onAfterCommit, onCommitted}
+    // This app has no sharing controls, so an agent created from the drawer (the agents page,
+    // the create-app dropdown) stays visible to the whole project, as it was before sharing.
+    return {appId, onAfterCommit, onCommitted, createVisibility: "project" as const}
 }

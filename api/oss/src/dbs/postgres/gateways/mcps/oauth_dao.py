@@ -12,13 +12,16 @@ from datetime import datetime, timezone
 from typing import Optional
 from uuid import UUID, uuid4
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 
 from oss.src.core.gateways.mcps.oauth.dtos import (
     MCPOAuthAttempt,
     MCPOAuthAttemptCreate,
+    MCPOAuthAttemptStatus,
 )
-from oss.src.core.gateways.mcps.oauth.interfaces import MCPOAuthAttemptsDAOInterface
+from oss.src.core.gateways.mcps.oauth.interfaces import (
+    MCPOAuthAttemptsDAOInterface,
+)
 from oss.src.dbs.postgres.gateways.mcps.dbes import MCPOAuthAttemptDBE
 from oss.src.dbs.postgres.shared.engine import (
     TransactionsEngine,
@@ -47,8 +50,15 @@ def _to_dto(row) -> MCPOAuthAttempt:
         code_verifier=values["code_verifier"],
         scopes=values.get("scopes") or [],
         strategy=values["strategy"],
+        client_id=values.get("client_id"),
         expires_at=values["expires_at"],
+        status=values["status"],
+        error=values.get("error"),
     )
+
+
+def _columns(dbe) -> dict:
+    return {column.name: getattr(dbe, column.name) for column in dbe.__table__.columns}
 
 
 class MCPOAuthAttemptsDAO(MCPOAuthAttemptsDAOInterface):
@@ -85,6 +95,7 @@ class MCPOAuthAttemptsDAO(MCPOAuthAttemptsDAOInterface):
             code_verifier=attempt.code_verifier,
             scopes=list(attempt.scopes),
             strategy=attempt.strategy,
+            client_id=attempt.client_id,
             expires_at=attempt.expires_at,
         )
 
@@ -93,12 +104,7 @@ class MCPOAuthAttemptsDAO(MCPOAuthAttemptsDAOInterface):
             await session.commit()
             await session.refresh(dbe)
 
-            return _to_dto(
-                {
-                    column.name: getattr(dbe, column.name)
-                    for column in self.MCPOAuthAttemptDBE.__table__.columns
-                }
-            )
+            return _to_dto(_columns(dbe))
 
     async def fetch_attempt(
         self,
@@ -112,56 +118,135 @@ class MCPOAuthAttemptsDAO(MCPOAuthAttemptsDAOInterface):
                 )
             )
             dbe = result.scalars().first()
-            if dbe is None:
-                return None
 
-            return _to_dto(
-                {
-                    column.name: getattr(dbe, column.name)
-                    for column in self.MCPOAuthAttemptDBE.__table__.columns
-                }
+            return _to_dto(_columns(dbe)) if dbe is not None else None
+
+    async def fetch_attempt_by_id(
+        self,
+        *,
+        project_id: UUID,
+        endpoint_id: UUID,
+        attempt_id: UUID,
+    ) -> Optional[MCPOAuthAttempt]:
+        async with self.engine.session() as session:
+            result = await session.execute(
+                select(self.MCPOAuthAttemptDBE)
+                .where(self.MCPOAuthAttemptDBE.id == attempt_id)
+                .where(self.MCPOAuthAttemptDBE.project_id == project_id)
+                .where(self.MCPOAuthAttemptDBE.endpoint_id == endpoint_id)
             )
+            dbe = result.scalars().first()
+
+            return _to_dto(_columns(dbe)) if dbe is not None else None
 
     async def consume_attempt(
         self,
         *,
         state: str,
     ) -> Optional[MCPOAuthAttempt]:
-        # One statement, not read-then-delete: `DELETE ... RETURNING` hands the row to
-        # exactly one caller, because the row is gone by the time any concurrent
-        # statement can match it. Two callbacks racing the same handle therefore see
-        # one success and one `None`, with no window between the read and the delete
-        # for the second to slip through.
+        # The row is locked as it is read, so two callbacks racing the same handle are
+        # serialized here: the second one's read waits for the first to commit, then
+        # finds the row no longer pending and gets `None`.
         async with self.engine.session() as session:
-            stmt = (
-                delete(self.MCPOAuthAttemptDBE)
+            result = await session.execute(
+                select(self.MCPOAuthAttemptDBE)
                 .where(self.MCPOAuthAttemptDBE.state == state)
-                .returning(*self.MCPOAuthAttemptDBE.__table__.columns)
-                .execution_options(synchronize_session=False)
+                .where(
+                    self.MCPOAuthAttemptDBE.status
+                    == MCPOAuthAttemptStatus.PENDING.value
+                )
+                .with_for_update()
             )
+            dbe = result.scalars().first()
+            if dbe is None:
+                return None
 
-            result = await session.execute(stmt)
-            row = result.fetchone()
+            claimed = _to_dto(_columns(dbe))
+            dbe.status = MCPOAuthAttemptStatus.CLAIMED.value
+            dbe.code_verifier = ""
             await session.commit()
 
-            return _to_dto(row) if row is not None else None
+            return claimed
 
-    async def drop_attempts_for_endpoint(
+    async def settle_attempt(
+        self,
+        *,
+        attempt_id: UUID,
+        status: MCPOAuthAttemptStatus,
+        error: Optional[str] = None,
+    ) -> None:
+        async with self.engine.session() as session:
+            await session.execute(
+                update(self.MCPOAuthAttemptDBE)
+                .where(self.MCPOAuthAttemptDBE.id == attempt_id)
+                .where(
+                    self.MCPOAuthAttemptDBE.status
+                    == MCPOAuthAttemptStatus.CLAIMED.value
+                )
+                .values(status=status.value, error=error)
+                .execution_options(synchronize_session=False)
+            )
+            await session.commit()
+
+    async def cancel_attempts(
         self,
         *,
         project_id: UUID,
         endpoint_id: UUID,
+        attempt_id: Optional[UUID] = None,
     ) -> int:
+        stmt = (
+            update(self.MCPOAuthAttemptDBE)
+            .where(self.MCPOAuthAttemptDBE.project_id == project_id)
+            .where(self.MCPOAuthAttemptDBE.endpoint_id == endpoint_id)
+            .where(
+                self.MCPOAuthAttemptDBE.status.in_(
+                    [
+                        MCPOAuthAttemptStatus.PENDING.value,
+                        MCPOAuthAttemptStatus.CLAIMED.value,
+                    ]
+                )
+            )
+        )
+        if attempt_id is not None:
+            stmt = stmt.where(self.MCPOAuthAttemptDBE.id == attempt_id)
+
         async with self.engine.session() as session:
             result = await session.execute(
-                delete(self.MCPOAuthAttemptDBE)
-                .where(self.MCPOAuthAttemptDBE.project_id == project_id)
-                .where(self.MCPOAuthAttemptDBE.endpoint_id == endpoint_id)
-                .execution_options(synchronize_session=False)
+                stmt.values(
+                    status=MCPOAuthAttemptStatus.CANCELLED.value, code_verifier=""
+                ).execution_options(synchronize_session=False)
             )
             await session.commit()
 
             return int(result.rowcount or 0)
+
+    async def has_active_attempts(
+        self,
+        *,
+        project_id: UUID,
+        endpoint_id: UUID,
+    ) -> bool:
+        async with self.engine.session() as session:
+            result = await session.execute(
+                select(self.MCPOAuthAttemptDBE.id)
+                .where(self.MCPOAuthAttemptDBE.project_id == project_id)
+                .where(self.MCPOAuthAttemptDBE.endpoint_id == endpoint_id)
+                .where(
+                    self.MCPOAuthAttemptDBE.status.in_(
+                        [
+                            MCPOAuthAttemptStatus.PENDING.value,
+                            MCPOAuthAttemptStatus.CLAIMED.value,
+                        ]
+                    )
+                )
+                # An expired attempt is over everywhere else (`outcome()` reports it
+                # cancelled, `complete()` refuses it), even before the sweep removes it.
+                .where(self.MCPOAuthAttemptDBE.expires_at > datetime.now(timezone.utc))
+                .limit(1)
+            )
+
+            return result.first() is not None
 
     async def sweep_expired_attempts(
         self,

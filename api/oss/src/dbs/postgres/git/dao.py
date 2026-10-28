@@ -1,8 +1,8 @@
-from typing import Callable, Optional, List, TypeVar, Type
+from typing import Any, Callable, Optional, List, Sequence, TypeVar, Type
 from uuid import UUID
 from datetime import datetime, timezone
 
-from sqlalchemy import or_, select, func, text, update
+from sqlalchemy import Select, or_, select, func, text, update
 from sqlalchemy.orm import selectinload
 
 from oss.src.utils.env import env
@@ -43,7 +43,10 @@ from oss.src.core.git.dtos import (
 )
 
 from oss.src.dbs.postgres.shared.utils import apply_windowing
-from oss.src.dbs.postgres.shared.exceptions import check_entity_creation_conflict
+from oss.src.dbs.postgres.shared.exceptions import (
+    check_entity_creation_conflict,
+    is_lock_timeout,
+)
 from oss.src.utils.exceptions import suppress_exceptions
 from oss.src.dbs.postgres.shared.engine import (
     TransactionsEngine,
@@ -61,10 +64,6 @@ log = get_module_logger(__name__)
 T = TypeVar("T")
 
 
-# Postgres reports `lock_timeout` expiry as `lock_not_available`.
-LOCK_NOT_AVAILABLE_SQLSTATE = "55P03"
-
-
 def _raise_on_lock_timeout(
     exception: Exception,
     *,
@@ -72,17 +71,11 @@ def _raise_on_lock_timeout(
 ) -> None:
     """Translate an expired `lock_timeout` into `CommitLockTimeout`.
 
-    The SQLSTATE travels on the driver error that SQLAlchemy wraps, so walk the chain
-    rather than trusting one wrapper's shape. Left untranslated, generic suppression turns
-    the timeout into `None` and the caller reports a commit that never happened.
+    Left untranslated, generic suppression turns the timeout into `None` and the caller
+    reports a commit that never happened.
     """
-    seen = exception
-    for _ in range(4):
-        if seen is None:
-            return
-        if getattr(seen, "sqlstate", None) == LOCK_NOT_AVAILABLE_SQLSTATE:
-            raise CommitLockTimeout(variant_id=variant_id) from exception
-        seen = getattr(seen, "orig", None) or getattr(seen, "__cause__", None)
+    if is_lock_timeout(exception):
+        raise CommitLockTimeout(variant_id=variant_id) from exception
 
 
 class GitDAO(GitDAOInterface):
@@ -116,6 +109,43 @@ class GitDAO(GitDAOInterface):
         #
         platform_meta: bool = False,
     ) -> Optional[Artifact]:
+        try:
+            async with self.engine.session() as session:
+                artifact = await self._insert_artifact(
+                    session=session,
+                    project_id=project_id,
+                    user_id=user_id,
+                    artifact_create=artifact_create,
+                    artifact_id=artifact_id,
+                    platform_meta=platform_meta,
+                )
+
+                await session.commit()
+
+                return artifact
+
+        except Exception as e:
+            check_entity_creation_conflict(e)
+
+            raise
+
+    async def _insert_artifact(
+        self,
+        *,
+        session,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        artifact_create: ArtifactCreate,
+        #
+        artifact_id: Optional[UUID],
+        #
+        platform_meta: bool,
+    ) -> Artifact:
+        """Add the artifact row to `session` and flush it. Never commits, so a caller
+        can write more rows in the same transaction. A unique violation raises
+        `EntityCreationConflict`."""
+
         artifact = Artifact(
             project_id=project_id,
             #
@@ -141,26 +171,19 @@ class GitDAO(GitDAOInterface):
             dto=artifact,
         )
 
+        session.add(artifact_dbe)
+
         try:
-            async with self.engine.session() as session:
-                session.add(artifact_dbe)
-
-                await session.commit()
-
-                if not artifact_dbe:
-                    return None
-
-                artifact = map_dbe_to_dto(
-                    DTO=Artifact,
-                    dbe=artifact_dbe,  # type: ignore
-                )
-
-                return artifact
-
+            await session.flush()
         except Exception as e:
             check_entity_creation_conflict(e)
 
             raise
+
+        return map_dbe_to_dto(
+            DTO=Artifact,
+            dbe=artifact_dbe,  # type: ignore
+        )
 
     @suppress_exceptions()
     async def fetch_artifact(
@@ -366,93 +389,39 @@ class GitDAO(GitDAOInterface):
         #
         windowing: Optional[Windowing] = None,
     ) -> List[Artifact]:
+        return await self._query_artifacts(
+            project_id=project_id,
+            artifact_query=artifact_query,
+            artifact_refs=artifact_refs,
+            include_archived=include_archived,
+            windowing=windowing,
+        )
+
+    async def _query_artifacts(
+        self,
+        *,
+        project_id: UUID,
+        #
+        artifact_query: ArtifactQuery,
+        #
+        artifact_refs: Optional[List[Reference]] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+        #
+        scope_filters: Sequence[Any] = (),
+    ) -> List[Artifact]:
+        stmt = self._artifacts_statement(
+            project_id=project_id,
+            artifact_query=artifact_query,
+            artifact_refs=artifact_refs,
+            include_archived=include_archived,
+            windowing=windowing,
+            scope_filters=scope_filters,
+        )
+
         async with self.engine.session() as session:
-            stmt = select(self.ArtifactDBE).filter(
-                self.ArtifactDBE.project_id == project_id,  # type: ignore
-            )
-
-            if artifact_refs:
-                artifact_ids = [
-                    artifact.id for artifact in artifact_refs if artifact.id
-                ]
-
-                if artifact_ids:
-                    stmt = stmt.filter(
-                        self.ArtifactDBE.id.in_(artifact_ids)  # type: ignore
-                    )
-
-                artifact_slugs = [
-                    artifact.slug for artifact in artifact_refs if artifact.slug
-                ]
-
-                if artifact_slugs:
-                    stmt = stmt.filter(
-                        self.ArtifactDBE.slug.in_(artifact_slugs)  # type: ignore
-                    )
-
-            artifact_query_slugs = []
-            if artifact_query.slug:
-                artifact_query_slugs.append(artifact_query.slug)
-            if artifact_query.slugs:
-                artifact_query_slugs.extend(artifact_query.slugs)
-
-            if artifact_query_slugs:
-                stmt = stmt.filter(
-                    self.ArtifactDBE.slug.in_(artifact_query_slugs)  # type: ignore
-                )
-
-            if "folder_id" in artifact_query.model_fields_set:
-                if artifact_query.folder_id is None:
-                    stmt = stmt.filter(
-                        self.ArtifactDBE.folder_id.is_(None)  # type: ignore
-                    )
-                else:
-                    stmt = stmt.filter(
-                        self.ArtifactDBE.folder_id == artifact_query.folder_id  # type: ignore
-                    )
-
-            if artifact_query.flags:
-                stmt = stmt.filter(
-                    self.ArtifactDBE.flags.contains(artifact_query.flags)  # type: ignore
-                )
-
-            if artifact_query.tags:
-                stmt = stmt.filter(
-                    self.ArtifactDBE.tags.contains(artifact_query.tags)  # type: ignore
-                )
-
-            # meta is JSON (not JSONB) — containment (@>) is not supported
-            # if artifact_query.meta:
-            #     stmt = stmt.filter(
-            #         self.ArtifactDBE.meta.contains(artifact_query.meta)
-            #     )
-
-            if artifact_query.name:
-                stmt = stmt.filter(
-                    self.ArtifactDBE.name.ilike(f"%{artifact_query.name}%"),  # type: ignore
-                )
-
-            if artifact_query.description:
-                stmt = stmt.filter(
-                    self.ArtifactDBE.description.ilike(
-                        f"%{artifact_query.description}%"
-                    ),  # type: ignore
-                )
-
-            if include_archived is not True:
-                stmt = stmt.filter(
-                    self.ArtifactDBE.deleted_at.is_(None)  # type: ignore
-                )
-
-            if windowing:
-                stmt = apply_windowing(
-                    stmt=stmt,
-                    DBE=self.ArtifactDBE,
-                    attribute="id",  # UUID7
-                    order="descending",  # jobs-style
-                    windowing=windowing,
-                )
-
             result = await session.execute(stmt)
 
             artifact_dbes = result.scalars().all()
@@ -466,6 +435,109 @@ class GitDAO(GitDAOInterface):
             ]
 
             return artifacts
+
+    def _artifacts_statement(
+        self,
+        *,
+        project_id: UUID,
+        #
+        artifact_query: ArtifactQuery,
+        #
+        artifact_refs: Optional[List[Reference]] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+        #
+        scope_filters: Sequence[Any] = (),
+    ) -> Select:
+        """The artifact query of `_query_artifacts`, not yet executed: a subclass
+        may join columns of its own into the same statement."""
+
+        stmt = select(self.ArtifactDBE).filter(
+            self.ArtifactDBE.project_id == project_id,  # type: ignore
+            *scope_filters,
+        )
+
+        if artifact_refs:
+            artifact_ids = [artifact.id for artifact in artifact_refs if artifact.id]
+
+            if artifact_ids:
+                stmt = stmt.filter(
+                    self.ArtifactDBE.id.in_(artifact_ids)  # type: ignore
+                )
+
+            artifact_slugs = [
+                artifact.slug for artifact in artifact_refs if artifact.slug
+            ]
+
+            if artifact_slugs:
+                stmt = stmt.filter(
+                    self.ArtifactDBE.slug.in_(artifact_slugs)  # type: ignore
+                )
+
+        artifact_query_slugs = []
+        if artifact_query.slug:
+            artifact_query_slugs.append(artifact_query.slug)
+        if artifact_query.slugs:
+            artifact_query_slugs.extend(artifact_query.slugs)
+
+        if artifact_query_slugs:
+            stmt = stmt.filter(
+                self.ArtifactDBE.slug.in_(artifact_query_slugs)  # type: ignore
+            )
+
+        if "folder_id" in artifact_query.model_fields_set:
+            if artifact_query.folder_id is None:
+                stmt = stmt.filter(
+                    self.ArtifactDBE.folder_id.is_(None)  # type: ignore
+                )
+            else:
+                stmt = stmt.filter(
+                    self.ArtifactDBE.folder_id == artifact_query.folder_id  # type: ignore
+                )
+
+        if artifact_query.flags:
+            stmt = stmt.filter(
+                self.ArtifactDBE.flags.contains(artifact_query.flags)  # type: ignore
+            )
+
+        if artifact_query.tags:
+            stmt = stmt.filter(
+                self.ArtifactDBE.tags.contains(artifact_query.tags)  # type: ignore
+            )
+
+        # meta is JSON (not JSONB) — containment (@>) is not supported
+        # if artifact_query.meta:
+        #     stmt = stmt.filter(
+        #         self.ArtifactDBE.meta.contains(artifact_query.meta)
+        #     )
+
+        if artifact_query.name:
+            stmt = stmt.filter(
+                self.ArtifactDBE.name.ilike(f"%{artifact_query.name}%"),  # type: ignore
+            )
+
+        if artifact_query.description:
+            stmt = stmt.filter(
+                self.ArtifactDBE.description.ilike(f"%{artifact_query.description}%"),  # type: ignore
+            )
+
+        if include_archived is not True:
+            stmt = stmt.filter(
+                self.ArtifactDBE.deleted_at.is_(None)  # type: ignore
+            )
+
+        if windowing:
+            stmt = apply_windowing(
+                stmt=stmt,
+                DBE=self.ArtifactDBE,
+                attribute="id",  # UUID7
+                order="descending",  # jobs-style
+                windowing=windowing,
+            )
+
+        return stmt
 
     # ──────────────────────────────────────────────────────────────────────────
 
@@ -801,6 +873,31 @@ class GitDAO(GitDAOInterface):
         #
         windowing: Optional[Windowing] = None,
     ) -> List[Variant]:
+        return await self._query_variants(
+            project_id=project_id,
+            variant_query=variant_query,
+            artifact_refs=artifact_refs,
+            variant_refs=variant_refs,
+            include_archived=include_archived,
+            windowing=windowing,
+        )
+
+    async def _query_variants(
+        self,
+        *,
+        project_id: UUID,
+        #
+        variant_query: VariantQuery,
+        #
+        artifact_refs: Optional[List[Reference]] = None,
+        variant_refs: Optional[List[Reference]] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+        #
+        scope_filters: Sequence[Any] = (),
+    ) -> List[Variant]:
         async with self.engine.session() as session:
             stmt = (
                 select(self.VariantDBE)
@@ -809,6 +906,7 @@ class GitDAO(GitDAOInterface):
                 )
                 .filter(
                     self.VariantDBE.project_id == project_id,  # type: ignore
+                    *scope_filters,
                 )
             )
 
@@ -1376,9 +1474,42 @@ class GitDAO(GitDAOInterface):
         #
         windowing: Optional[Windowing] = None,
     ) -> List[Revision]:
+        return await self._query_revisions(
+            project_id=project_id,
+            revision_query=revision_query,
+            grouping=grouping,
+            artifact_refs=artifact_refs,
+            variant_refs=variant_refs,
+            revision_refs=revision_refs,
+            references=references,
+            include_archived=include_archived,
+            windowing=windowing,
+        )
+
+    async def _query_revisions(
+        self,
+        *,
+        project_id: UUID,
+        #
+        revision_query: RevisionQuery,
+        grouping: Optional[RevisionGrouping] = None,
+        #
+        artifact_refs: Optional[List[Reference]] = None,
+        variant_refs: Optional[List[Reference]] = None,
+        revision_refs: Optional[List[Reference]] = None,
+        #
+        references: Optional[List[Reference]] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+        #
+        scope_filters: Sequence[Any] = (),
+    ) -> List[Revision]:
         async with self.engine.session() as session:
             stmt = select(self.RevisionDBE).filter(
                 self.RevisionDBE.project_id == project_id,  # type: ignore
+                *scope_filters,
             )
 
             if artifact_refs:
@@ -1665,6 +1796,29 @@ class GitDAO(GitDAOInterface):
         #
         windowing: Optional[Windowing] = None,
     ) -> List[Revision]:
+        return await self._query_head_revisions(
+            project_id=project_id,
+            revision_query=revision_query,
+            artifact_search=artifact_search,
+            include_archived=include_archived,
+            windowing=windowing,
+        )
+
+    async def _query_head_revisions(
+        self,
+        *,
+        project_id: UUID,
+        #
+        revision_query: RevisionQuery,
+        #
+        artifact_search: Optional[str] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+        #
+        scope_filters: Sequence[Any] = (),
+    ) -> List[Revision]:
         """One revision per variant — the head — with filters applied in SQL
         BEFORE pagination (unlike `query_revisions` + Python refiltering).
 
@@ -1696,6 +1850,7 @@ class GitDAO(GitDAOInterface):
                 .distinct(self.RevisionDBE.variant_id)  # type: ignore
                 .filter(
                     self.RevisionDBE.project_id == project_id,  # type: ignore
+                    *scope_filters,
                 )
                 .order_by(
                     self.RevisionDBE.variant_id,  # type: ignore
@@ -1788,6 +1943,7 @@ class GitDAO(GitDAOInterface):
     # into `None`, and the caller would report "nothing committed" with no reason.
     @suppress_exceptions(
         exclude=[
+            EntityCreationConflict,
             InitialRevisionConflict,
             RevisionConflict,
             RevisionUnchanged,

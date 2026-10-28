@@ -24,7 +24,13 @@ from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 import oss.src.models.db_models  # noqa: F401
 
 
-pytestmark = pytest.mark.integration
+# The sweep tests select rows by age across the whole table, not by project, so they must not run
+# beside each other on different xdist workers (`--dist=loadgroup`): one test's pass would delete or
+# tombstone the other test's old row. One group puts this file on one worker, in sequence.
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.xdist_group("session-attachments-dao"),
+]
 
 
 @pytest.fixture(autouse=True)

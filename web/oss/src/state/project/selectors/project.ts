@@ -1,4 +1,4 @@
-import {fetchAllProjects, filterOutDemoProjects} from "@agenta/entities/project"
+import {fetchAllProjects} from "@agenta/entities/project"
 import {ProjectsResponse} from "@agenta/entities/project"
 import {catalogPersister} from "@agenta/shared/api/persist"
 import {logAtom, projectIdAtom} from "@agenta/shared/state"
@@ -138,15 +138,9 @@ logAtom(projectsQueryAtom, "projectsQueryAtom", logProjects)
 
 const EmptyProjects: ProjectsResponse[] = []
 
-// Lives in @agenta/entities/project so /m applies the SAME filter; re-exported for the local
-// unit test (projectsDemoFilter.test.ts) and existing importers.
-export {filterOutDemoProjects}
-
 export const projectsAtom = atom((get) => {
     const res = get(projectsQueryAtom)
-    const projects = ((res as any)?.data ?? EmptyProjects) as ProjectsResponse[]
-    // Hide demo projects from the UI unless they are the user's only projects
-    return filterOutDemoProjects(projects)
+    return ((res as any)?.data ?? EmptyProjects) as ProjectsResponse[]
 })
 
 const _projectBelongsToWorkspace = (project: ProjectsResponse, workspaceId: string) => {
@@ -256,17 +250,10 @@ export const pickPreferredProject = (
     const workspaceDefault = workspaceProjects.find((project) => project.is_default_project)
     if (workspaceDefault) return workspaceDefault
 
-    if (workspaceProjects.length) {
-        const workspaceNonDemo = workspaceProjects.find((project) => !project.is_demo)
-        if (workspaceNonDemo) return workspaceNonDemo
-        return workspaceProjects[0]
-    }
+    if (workspaceProjects.length) return workspaceProjects[0]
 
     const globalDefault = projects.find((project) => project.is_default_project)
     if (globalDefault) return globalDefault
-
-    const nonDemo = projects.filter((project) => !project.is_demo)
-    if (nonDemo.length) return nonDemo[0]
 
     return projects[0]
 }

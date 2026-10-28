@@ -202,6 +202,58 @@ jobs:
         working-directory: web
         run: pnpm --filter @agenta/storybook build-storybook
 
+  check-office-viewer-bundles:
+    # Ensures the office viewer script bundles stay in sync with their source frames.
+    # An independent job ensures failures cannot be hidden by unit tests failing in another package.
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Skip when package selection excludes web
+        if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","web-only"]'), inputs.packages)
+        run: exit 0
+
+      - name: Set up Node.js
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+
+      - name: Enable Corepack
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        run: corepack enable
+
+      - name: Cache pnpm store
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.pnpm-store
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('web/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: Set up pnpm store
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        run: pnpm config set store-dir ~/.pnpm-store
+
+      - name: Install dependencies
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        working-directory: web
+        run: pnpm install
+
+      - name: Check office viewer bundles
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","web-only"]'), inputs.packages)
+        working-directory: web/packages/agenta-entity-ui
+        run: node scripts/build-office-viewers.mjs --check
+
   run-sdk-unit-tests:
     if: |
       github.event_name == 'workflow_dispatch' ||
@@ -592,6 +644,161 @@ jobs:
         with:
           files: api/ee/tests/results/junit.xml
           check_name: Application API Enterprise Integration Test Results
+          comment_mode: off
+
+  run-api-integration-tests:
+    # The OSS integration layer (api/oss/tests/pytest/integration). Its cases read and write
+    # the deployment's Postgres directly, and its guard proves the database belongs to the API
+    # under test by minting one account through that API and reading it back. So this job
+    # stands up the smallest such deployment: Postgres and Redis service containers, the API
+    # and the two mock gateways started from this checkout. The Railway preview job cannot run
+    # these cases (it reaches the preview over HTTPS only and declares AGENTA_TEST_NO_DATABASE),
+    # so before this job they ran nowhere in CI.
+    #
+    # An unreachable database fails this layer rather than skipping it, so a broken service
+    # container cannot turn into a green run of nothing.
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    permissions:
+      checks: write
+      pull-requests: write
+      contents: read
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: username
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:8
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      AGENTA_LICENSE: oss
+      AGENTA_API_URL: http://localhost:8000
+      # Throwaway values for a stack that lives only inside this job.
+      AGENTA_AUTH_KEY: ci-integration-auth-key
+      AGENTA_SERVICES_INTERNAL_KEY: ci-integration-services-internal-key
+      POSTGRES_URI_CORE: postgresql+asyncpg://username:password@localhost:5432/agenta_oss_core
+      POSTGRES_URI_TRACING: postgresql+asyncpg://username:password@localhost:5432/agenta_oss_tracing
+      REDIS_URI: redis://localhost:6379/0
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - name: Skip when package selection excludes API
+        if: github.event_name == 'workflow_dispatch' && !contains(fromJSON('["all","api-only"]'), inputs.packages)
+        run: exit 0
+
+      - name: Set up Python
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install uv
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
+        run: python -m pip install "uv==${UV_VERSION}"
+
+      - name: Cache Python dependencies
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/uv
+          key: ${{ runner.os }}-application-api-unit-uv-${{ hashFiles('api/pyproject.toml', 'api/uv.lock', 'sdks/python/pyproject.toml', 'sdks/python/uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-application-api-unit-uv-
+
+      - name: Install API dependencies
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
+        working-directory: api
+        run: |
+          uv sync --locked --python 3.13
+          uv pip install --python .venv/bin/python --editable ../sdks/python/
+
+      - name: Create the OSS databases
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
+        env:
+          PGPASSWORD: password
+        run: |
+          psql -v ON_ERROR_STOP=1 -h localhost -p 5432 -U username -d postgres \
+            -f api/oss/databases/postgres/init-db-oss.sql
+
+      # Same reason as in the enterprise job above: the legacy alembic.ini files name
+      # container paths. The API reads these too, because it migrates at startup.
+      - name: Point the legacy alembic chains at this checkout
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
+        run: |
+          set -euo pipefail
+          for chain in core tracing; do
+            src="${GITHUB_WORKSPACE}/api/oss/databases/postgres/migrations/${chain}"
+            sed "s#^script_location = .*#script_location = ${src}#" \
+              "${src}/alembic.ini" > "${RUNNER_TEMP}/alembic-${chain}.ini"
+          done
+          echo "ALEMBIC_CFG_PATH_CORE=${RUNNER_TEMP}/alembic-core.ini" >> "$GITHUB_ENV"
+          echo "ALEMBIC_CFG_PATH_TRACING=${RUNNER_TEMP}/alembic-tracing.ini" >> "$GITHUB_ENV"
+
+      - name: Migrate the OSS databases to head
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
+        working-directory: api
+        run: uv run --no-sync python -m oss.databases.postgres.migrations.runner
+
+      - name: Start the API and the mock gateways
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
+        working-directory: api
+        env:
+          AGENTA_GATEWAYS_MOCKS_ENABLED: "true"
+        run: |
+          set -euo pipefail
+          nohup .venv/bin/uvicorn entrypoints.routers:app --host 127.0.0.1 --port 8000 \
+            > "${RUNNER_TEMP}/api.log" 2>&1 &
+          nohup .venv/bin/uvicorn oss.src.core.gateways.llms.providers.mock.app:app \
+            --host 127.0.0.1 --port 9091 > "${RUNNER_TEMP}/mock-llm.log" 2>&1 &
+          nohup .venv/bin/uvicorn oss.src.core.gateways.mcps.providers.mock.app:app \
+            --host 127.0.0.1 --port 9092 > "${RUNNER_TEMP}/mock-mcp.log" 2>&1 &
+          for url in http://localhost:8000/health http://localhost:9091/health http://localhost:9092/health; do
+            for attempt in $(seq 1 60); do
+              curl -sf "$url" > /dev/null && break
+              if [ "$attempt" = 60 ]; then
+                echo "$url did not answer" >&2
+                tail -n 100 "${RUNNER_TEMP}"/*.log >&2
+                exit 1
+              fi
+              sleep 2
+            done
+          done
+
+      - name: Run API integration tests
+        if: github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages)
+        working-directory: api
+        run: uv run --no-sync python run-tests.py --layer integration
+
+      - name: Show the API log
+        if: failure() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages))
+        run: tail -n 200 "${RUNNER_TEMP}"/*.log
+
+      - name: Publish API integration test results
+        if: always() && (github.event_name != 'workflow_dispatch' || contains(fromJSON('["all","api-only"]'), inputs.packages))
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: api/oss/tests/results/junit.xml
+          check_name: Application API Integration Test Results
           comment_mode: off
 
   run-services-unit-tests:

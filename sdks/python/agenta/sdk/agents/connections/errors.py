@@ -55,6 +55,14 @@ class MissingCredentialError(ConnectionResolutionError):
         self.slug = slug
 
 
+# The name a person knows each hosted subscription provider by, for the messages below.
+SUBSCRIPTION_PROVIDER_NAMES = {"chatgpt": "ChatGPT", "claude": "Claude"}
+
+
+def _subscription_name(provider: str) -> str:
+    return SUBSCRIPTION_PROVIDER_NAMES.get(provider, provider or "subscription")
+
+
 class SubscriptionConnectionMissingError(ConnectionResolutionError):
     """Raised when the config names a subscription connection the project does not hold.
 
@@ -69,9 +77,10 @@ class SubscriptionConnectionMissingError(ConnectionResolutionError):
     failure_code = "subscription_connection_missing"
 
     def __init__(self, *, slug: str) -> None:
-        # The message names ChatGPT because `chatgpt` is the only subscription provider today.
+        # Neutral: the provider is unknowable for a row that does not exist.
         super().__init__(
-            f"No ChatGPT connection named '{slug}'. Check the agent's model connection."
+            f"No subscription connection named '{slug}'. "
+            "Check the agent's model connection."
         )
         self.slug = slug
 
@@ -93,13 +102,20 @@ class SubscriptionLoginRequiredError(ConnectionResolutionError):
     status_code = 422
     failure_code = "subscription_login_required"
 
-    # The message names ChatGPT because `chatgpt` is the only subscription provider today.
-    # Add a per-provider name here when a second provider lands.
-    MESSAGE = "The ChatGPT sign-in is not ready. Sign in from AI providers."
+    # A Claude subscription is connected by pasting a token, not by signing in.
+    _CLAUDE_MESSAGE = (
+        "The Claude subscription is not connected. "
+        "Paste a token from `claude setup-token` in AI providers."
+    )
 
-    def __init__(self, *, slug: str, provider: str = "") -> None:
+    def __init__(self, *, slug: str, provider: str) -> None:
         # Never name the login, the token, or the file path: this string reaches the browser.
-        super().__init__(self.MESSAGE)
+        super().__init__(
+            self._CLAUDE_MESSAGE
+            if provider == "claude"
+            else f"The {_subscription_name(provider)} sign-in is not ready. "
+            "Sign in from AI providers."
+        )
         self.slug = slug
         self.provider = provider
 
@@ -107,21 +123,30 @@ class SubscriptionLoginRequiredError(ConnectionResolutionError):
 class SubscriptionNotSupportedError(ConnectionResolutionError):
     """Raised when a hosted subscription login cannot be delivered to this run.
 
-    Only the ChatGPT subscription on the Pi harness is supported. Codex refuses a login
-    file without an ``id_token``, which the ChatGPT device login never issues, so the same
-    credential cannot be handed to it. Failing here beats starting a run that authenticates
-    with nothing and reports a provider auth error the person cannot act on.
+    Each subscription provider runs on one harness: ChatGPT on Pi, Claude on Claude Code.
+    Codex refuses a login file without an ``id_token``, which the ChatGPT device login never
+    issues, so the same credential cannot be handed to it. Failing here beats starting a run
+    that authenticates with nothing and reports a provider auth error the person cannot act
+    on.
     """
 
     # An unsupported pair comes from the config, not from the server.
     status_code = 422
     failure_code = "subscription_not_supported"
 
-    def __init__(self, *, harness: Optional[str] = None, provider: str = "") -> None:
+    def __init__(
+        self,
+        *,
+        harness: Optional[str] = None,
+        provider: str,
+        supported_harness: Optional[str] = None,
+    ) -> None:
+        name = _subscription_name(provider)
         super().__init__(
-            "A hosted subscription runs a ChatGPT connection on the Pi harness only. "
-            f"This run asked for provider '{provider or 'unknown'}' on harness "
-            f"'{harness or 'none'}'."
+            f"A {name} subscription runs on the {supported_harness} harness only. "
+            f"This run asked for harness '{harness or 'none'}'."
+            if supported_harness
+            else f"This version of Agenta cannot run a {name} subscription."
         )
         self.harness = harness
         self.provider = provider
@@ -156,6 +181,26 @@ class WriteOnlySecretError(ConnectionResolutionError):
         )
         self.slug = slug
         self.provider = provider
+
+
+class OrganizationConnectionUnavailableError(ConnectionResolutionError):
+    """The agent named an organization connection, and this run cannot use it (M5).
+
+    An organization connection is served only through the LLM gateway, so its value never
+    reaches the runtime. When the gateway does not serve the run, or no gateway is
+    configured, the run fails here. It never falls back to a project connection with the
+    same slug, nor to the project default.
+    """
+
+    status_code = 422
+    failure_code = "organization_connection_unavailable"
+
+    def __init__(self, *, slug: str) -> None:
+        super().__init__(
+            f"The organization connection '{slug}' is used only through the LLM gateway, "
+            "which does not serve this run."
+        )
+        self.slug = slug
 
 
 class InvalidConnectionConfigurationError(AgentConnectionError):
@@ -445,3 +490,55 @@ class UnsupportedDeploymentError(ConnectionResolutionError):
         )
         self.deployment = deployment
         self.harness = harness
+
+
+class ConnectionAccessDeniedError(ConnectionResolutionError):
+    """The platform refused the run's credential while the connection was resolved:
+    the key was deleted, the member was removed, or the role no longer allows it.
+
+    A decision, not a server fault: the caller gets one 403 ``access_denied`` with the
+    platform's reason (``details.reason``, for example ``not_member``), never a 500. The
+    services middleware caches an allowed exchange for a few seconds, so a run that
+    started inside that window is refused here, at its first checked call.
+    """
+
+    status_code = 403
+    failure_code = "access_denied"
+
+    def __init__(self, message: str, *, error_detail: Optional[dict] = None) -> None:
+        super().__init__(message)
+        self.error_detail = error_detail
+
+    @classmethod
+    def from_response(
+        cls, *, status_code: int, body: Any = None
+    ) -> "ConnectionAccessDeniedError":
+        detail = body.get("detail") if isinstance(body, dict) else None
+        if isinstance(detail, dict) and detail.get("code") == "access_denied":
+            message = _stripped_str(detail.get("message")) or "Access denied."
+            return cls(message, error_detail=detail)
+        message = (
+            "Access denied: the run's credential is no longer allowed in this project."
+        )
+        return cls(
+            message,
+            error_detail={
+                "code": "access_denied",
+                "message": message,
+                "retryable": False,
+                "next_step": "Ask a project admin for access.",
+                "details": {"status": status_code},
+            },
+        )
+
+
+def is_access_refusal(*, status_code: int, body: Any = None) -> bool:
+    """The platform refused the run's principal: a body that names ``access_denied``,
+    or a 403 that names no other code. A 401 is a credential-state failure (expired or
+    invalid token, a token without a principal) and keeps its own handling, so the
+    caller can refresh the credential or restart the run."""
+
+    detail = body.get("detail") if isinstance(body, dict) else None
+    if isinstance(detail, dict) and detail.get("code"):
+        return detail.get("code") == "access_denied"
+    return status_code == 403

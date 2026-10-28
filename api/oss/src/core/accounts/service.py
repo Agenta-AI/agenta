@@ -10,11 +10,21 @@ reference-resolution logic.
 from __future__ import annotations
 
 import uuid as _uuid_mod
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from uuid import UUID
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
+from oss.src.core.memberships.service import invalidate_access_caches
+from oss.src.core.memberships.workspaces import legacy_workspace_id
+from oss.src.core.access.dtos import PrincipalKind, PrincipalRef
+from oss.src.core.access.service import (
+    invalidate_principals_after_write,
+    invalidate_scope_after_delete,
+    invalidate_user_after_delete,
+    read_scope_principals_before_delete,
+    read_user_principals_before_delete,
+)
 from oss.src.services.api_key_service import create_api_key as _create_raw_api_key
 from oss.src.services.db_manager import (
     admin_get_user_by_id as _db_get_user_by_id,
@@ -38,16 +48,13 @@ from oss.src.services.db_manager import (
     admin_delete_api_key as _db_delete_api_key,
     admin_delete_accounts_batch as _db_delete_accounts_batch,
     admin_delete_user_with_cascade as _db_delete_user_with_cascade,
-    admin_transfer_org_ownership_batch as _db_transfer_org_ownership_batch,
+    admin_transfer_ownership as _db_transfer_ownership,
     admin_delete_org_membership as _ee_delete_org_membership,
     admin_delete_workspace_membership as _ee_delete_workspace_membership,
     admin_delete_project_membership as _ee_delete_project_membership,
     admin_delete_user_memberships as _ee_delete_user_memberships,
     admin_get_member_org_ids as _ee_get_member_org_ids,
     count_organization_members as _ee_count_organization_members,
-    admin_swap_org_memberships as _ee_swap_org_memberships,
-    admin_swap_workspace_memberships as _ee_swap_workspace_memberships,
-    admin_swap_project_memberships as _ee_swap_project_memberships,
 )
 from oss.src.core.environments.defaults import (
     create_default_environments as _create_default_environments,
@@ -75,6 +82,11 @@ try:
     )
     from ee.src.core.access.controls import (  # type: ignore[import]
         get_plans as _ee_get_plans,
+    )
+
+    from ee.src.core.accounts.service import (  # type: ignore[import]
+        write_account_tombstone as _ee_write_account_tombstone,
+        discard_account_tombstones as _ee_discard_account_tombstones,
     )
 
     _ee_subscription_service = _EeSubscriptionsService(
@@ -154,6 +166,7 @@ from oss.src.core.accounts.dtos import (
 from oss.src.core.accounts.errors import (
     AccountAuthDeletionError,
     AccountHasMembersError,
+    AccountTombstoneError,
     AdminApiKeyNotFoundError,
     AdminInvalidReferenceError,
     AdminMembershipNotFoundError,
@@ -266,7 +279,11 @@ def _proj_db_to_read_dto(proj: ProjectDB) -> AdminProjectRead:
         id=str(proj.id),
         name=proj.project_name or "",
         organization_id=str(proj.organization_id),
-        workspace_id=str(proj.workspace_id),
+        workspace_id=str(
+            legacy_workspace_id(
+                workspace_id=proj.workspace_id, organization_id=proj.organization_id
+            )
+        ),
         is_default=proj.is_default,
         created_at=proj.created_at.isoformat() if proj.created_at else None,
         updated_at=proj.updated_at.isoformat() if proj.updated_at else None,
@@ -466,8 +483,12 @@ async def _create_org_membership_row(
     user_id: UUID,
     organization_id: UUID,
     role: str,
-) -> UUID:
-    """Create an org membership; role `owner` also flips organizations.owner_id."""
+) -> Tuple[UUID, Optional[UUID]]:
+    """Create an org membership; role `owner` also flips organizations.owner_id.
+
+    Returns the membership id and, for role `owner`, the former owner id: the former
+    owner's cached decisions came from the owner shortcut and must be cleared too.
+    """
     from sqlalchemy.future import select as _select
 
     from oss.src.dbs.postgres.shared.engine import get_transactions_engine
@@ -479,19 +500,22 @@ async def _create_org_membership_row(
         membership_db = OrganizationMemberDB(
             user_id=user_id,
             organization_id=organization_id,
+            role=role,
         )
         session.add(membership_db)
         await session.commit()
 
+        former_owner_id: Optional[UUID] = None
         if role == "owner":
             result = await session.execute(
                 _select(OrganizationDB).filter_by(id=organization_id)
             )
             organization_db = result.scalars().first()
+            former_owner_id = organization_db.owner_id
             organization_db.owner_id = user_id
             await session.commit()
 
-        return membership_db.id
+        return membership_db.id, former_owner_id
 
 
 async def _create_ws_membership_row(
@@ -538,6 +562,104 @@ async def _create_project_membership_row(
         await session.commit()
 
         return membership_db.id
+
+
+_MEMBERSHIP_SCOPE_SQL = {
+    "organization": (
+        "SELECT user_id, organization_id FROM organization_members WHERE id = :id"
+    ),
+    "workspace": (
+        "SELECT wm.user_id, w.organization_id FROM workspace_members wm "
+        "JOIN workspaces w ON w.id = wm.workspace_id WHERE wm.id = :id"
+    ),
+    "project": (
+        "SELECT pm.user_id, p.organization_id FROM project_members pm "
+        "JOIN projects p ON p.id = pm.project_id WHERE pm.id = :id"
+    ),
+}
+
+_ORGANIZATION_OF_SQL = {
+    "workspaces": "SELECT organization_id FROM workspaces WHERE id = :id",
+    "projects": "SELECT organization_id FROM projects WHERE id = :id",
+}
+
+
+async def _membership_scope(
+    *,
+    membership_id: UUID,
+    scope_type: str,
+) -> Optional[tuple]:
+    """(user_id, organization_id) of a membership row, read before it is deleted."""
+    from sqlalchemy import text as _text
+
+    from oss.src.dbs.postgres.shared.engine import get_transactions_engine
+
+    async with get_transactions_engine().session() as session:
+        row = (
+            await session.execute(
+                _text(_MEMBERSHIP_SCOPE_SQL[scope_type]), {"id": membership_id}
+            )
+        ).first()
+    return (row[0], row[1]) if row is not None else None
+
+
+async def _organization_of(*, table: str, entity_id: UUID) -> Optional[UUID]:
+    from sqlalchemy import text as _text
+
+    from oss.src.dbs.postgres.shared.engine import get_transactions_engine
+
+    async with get_transactions_engine().session() as session:
+        return (
+            await session.execute(_text(_ORGANIZATION_OF_SQL[table]), {"id": entity_id})
+        ).scalar()
+
+
+async def _member_organization_ids(*, user_ids: List[UUID]) -> List[UUID]:
+    """Organizations where the users have an organization row, read before a delete."""
+    from sqlalchemy import text as _text
+
+    from oss.src.dbs.postgres.shared.engine import get_transactions_engine
+
+    if not user_ids:
+        return []
+    async with get_transactions_engine().session() as session:
+        rows = await session.execute(
+            _text(
+                "SELECT DISTINCT organization_id FROM organization_members "
+                "WHERE user_id = ANY(CAST(:users AS uuid[])) "
+                "AND organization_id IS NOT NULL"
+            ),
+            {"users": list(user_ids)},
+        )
+        return [row[0] for row in rows]
+
+
+async def _invalidate_memberships(
+    *,
+    user_ids: List[UUID],
+    organization_ids: List[UUID],
+) -> None:
+    """Admin membership writes bypass MembershipsService, so they clear the access
+    caches themselves, after the commit: a cached denial would otherwise keep a new
+    member out for up to AGENTA_CACHE_TTL."""
+
+    user_ids = [u for u in dict.fromkeys(user_ids) if u is not None]
+    organization_ids = [o for o in dict.fromkeys(organization_ids) if o is not None]
+    if not user_ids or not organization_ids:
+        return
+    # Best effort, like every cache invalidation: callers run it after their commit,
+    # sometimes inside a block whose failure path undoes other work (the deletion
+    # tombstones), so it must never raise.
+    try:
+        project_ids = await _db_get_project_ids_for_orgs(organization_ids)
+        await invalidate_access_caches(user_ids=user_ids, project_ids=project_ids)
+    except Exception:  # pylint: disable=broad-exception-caught
+        log.warning(
+            "[admin] access cache invalidation failed",
+            user_count=len(user_ids),
+            organization_count=len(organization_ids),
+            exc_info=True,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -824,10 +946,13 @@ class PlatformAdminAccountsService:
                 f"organization_memberships.{mem_ref}.user_ref",
                 tracker,
             )
-            membership_id = await _create_org_membership_row(
+            membership_id, former_owner_id = await _create_org_membership_row(
                 user_id=user_id,
                 organization_id=org_id,
                 role=mem_create.role,
+            )
+            await _invalidate_memberships(
+                user_ids=[user_id, former_owner_id], organization_ids=[org_id]
             )
             tracker.organization_memberships[mem_ref] = membership_id
             account.organization_memberships[mem_ref] = AdminOrganizationMembershipRead(
@@ -855,6 +980,12 @@ class PlatformAdminAccountsService:
                 workspace_id=ws_id,
                 role=mem_create.role,
             )
+            await _invalidate_memberships(
+                user_ids=[user_id],
+                organization_ids=[
+                    await _organization_of(table="workspaces", entity_id=ws_id)
+                ],
+            )
             tracker.workspace_memberships[mem_ref] = membership_id
             account.workspace_memberships[mem_ref] = AdminWorkspaceMembershipRead(
                 id=str(membership_id),
@@ -880,6 +1011,12 @@ class PlatformAdminAccountsService:
                 user_id=user_id,
                 project_id=proj_id,
                 role=mem_create.role,
+            )
+            await _invalidate_memberships(
+                user_ids=[user_id],
+                organization_ids=[
+                    await _organization_of(table="projects", entity_id=proj_id)
+                ],
             )
             tracker.project_memberships[mem_ref] = membership_id
             account.project_memberships[mem_ref] = AdminProjectMembershipRead(
@@ -951,12 +1088,56 @@ class PlatformAdminAccountsService:
             deleted.users = [AdminDeletedEntity(id=str(uid)) for uid in user_ids]
             return AdminDeleteResponse(dry_run=True, deleted=deleted)
 
-        await _db_delete_accounts_batch(
-            org_ids=org_ids,
-            workspace_ids=workspace_ids,
-            project_ids=project_ids,
-            user_ids=user_ids,
-        )
+        # Each tombstone commits on its own (the scoped session commits on the first
+        # exit, so one outer transaction cannot hold them), so a failure anywhere
+        # before the batch lands discards the ones already written.
+        tombstone_ids: List[UUID] = []
+        try:
+            if is_ee():
+                for user_id in user_ids:
+                    user = await _db_get_user_by_id(user_id)
+                    if user is None:
+                        continue
+                    owned = await _db_get_orgs_owned_by_user(user_id)
+                    tombstone = await self._write_account_tombstone(
+                        email=str(user.email),
+                        organization_ids=[org.id for org in owned],
+                    )
+                    tombstone_ids.append(tombstone.id)
+
+            member_organization_ids = await _member_organization_ids(user_ids=user_ids)
+            principals_snapshots = [
+                await read_user_principals_before_delete(user_id=user_id)
+                for user_id in user_ids
+            ]
+            # The cascade removes the projects of these scopes with every member's
+            # access, key and binding in them; read them before the delete.
+            scope_snapshot = await read_scope_principals_before_delete(
+                organization_ids=org_ids,
+                workspace_ids=workspace_ids,
+                project_ids=project_ids,
+            )
+            await _db_delete_accounts_batch(
+                org_ids=org_ids,
+                workspace_ids=workspace_ids,
+                project_ids=project_ids,
+                user_ids=user_ids,
+            )
+            # Organizations that survive keep their projects: clear the deleted
+            # users' cached answers there.
+            await _invalidate_memberships(
+                user_ids=user_ids,
+                organization_ids=[
+                    o for o in member_organization_ids if o not in set(org_ids)
+                ],
+            )
+            for snapshot in principals_snapshots:
+                await invalidate_user_after_delete(snapshot=snapshot)
+            await invalidate_scope_after_delete(snapshot=scope_snapshot)
+        except Exception:
+            if tombstone_ids:
+                await _ee_discard_account_tombstones(tombstone_ids=tombstone_ids)
+            raise
 
         deleted.projects = [
             AdminDeletedEntity(id=str(pid)) for pid in project_ids
@@ -1424,17 +1605,55 @@ class PlatformAdminAccountsService:
         self,
         *,
         user_id: str,
+        write_tombstone: bool = True,
     ) -> AdminDeleteResponse:
+        """`write_tombstone=False` only when the caller wrote it already
+        (`delete_own_account`): exactly one tombstone per deletion."""
         uid = _parse_uuid(user_id, "user_id")
         user = await _db_get_user_by_id(uid)
         if not user:
             raise AdminUserNotFoundError(user_id)
 
-        # Remove EE membership records before deleting the user to avoid FK violations
-        if is_ee():
-            await _ee_delete_user_memberships(uid)
+        # The tombstone first: without it the same email could sign up again and
+        # collect the free credits once more, so no tombstone means no deletion.
+        tombstone_ids: List[UUID] = []
+        if is_ee() and write_tombstone:
+            owned = await _db_get_orgs_owned_by_user(uid)
+            tombstone = await self._write_account_tombstone(
+                email=str(user.email),
+                organization_ids=[org.id for org in owned],
+            )
+            tombstone_ids.append(tombstone.id)
 
-        deleted_org_ids = await _db_delete_user_with_cascade(uid)
+        try:
+            # Remove EE membership records before deleting the user to avoid FK violations
+            member_organization_ids = await _member_organization_ids(user_ids=[uid])
+            # Keys, bindings and projects of the user, read before the delete, so the
+            # cached principals of a deleted user stop working at the next decision.
+            principals_snapshot = await read_user_principals_before_delete(user_id=uid)
+            # The cascade also deletes the organizations the user owns, with every
+            # member's access, key and binding in their projects.
+            scope_snapshot = await read_scope_principals_before_delete(
+                organization_ids=[
+                    org.id for org in await _db_get_orgs_owned_by_user(uid)
+                ]
+            )
+            if is_ee():
+                await _ee_delete_user_memberships(uid)
+
+            deleted_org_ids = await _db_delete_user_with_cascade(uid)
+            await _invalidate_memberships(
+                user_ids=[uid],
+                organization_ids=[
+                    o for o in member_organization_ids if o not in set(deleted_org_ids)
+                ],
+            )
+            await invalidate_user_after_delete(snapshot=principals_snapshot)
+            await invalidate_scope_after_delete(snapshot=scope_snapshot)
+        except Exception:
+            if tombstone_ids:
+                await _ee_discard_account_tombstones(tombstone_ids=tombstone_ids)
+            raise
         deleted = AdminDeletedEntities(
             organizations=[AdminDeletedEntity(id=str(oid)) for oid in deleted_org_ids]
             or None,
@@ -1460,6 +1679,7 @@ class PlatformAdminAccountsService:
 
         email = str(user.email)
         owned_orgs = await _db_get_orgs_owned_by_user(uid)
+        organization_ids = [org.id for org in owned_orgs]
 
         # Refuse to delete a shared organization out from under its members.
         if is_ee():
@@ -1470,6 +1690,15 @@ class PlatformAdminAccountsService:
             ]
             if shared:
                 raise AccountHasMembersError(shared)
+
+        # The tombstone before anything irreversible: a failed write returns an error
+        # while billing and the login are still intact.
+        tombstone_ids: List[UUID] = []
+        if is_ee():
+            tombstone = await self._write_account_tombstone(
+                email=email, organization_ids=organization_ids
+            )
+            tombstone_ids.append(tombstone.id)
 
         # Stop billing before the org rows disappear. Best effort.
         if is_ee():
@@ -1487,10 +1716,26 @@ class PlatformAdminAccountsService:
 
         # Remove the auth login first: the signup override is idempotent and
         # would otherwise recreate the account on the next sign-in.
-        await self._delete_supertokens_user(uid=user.uid, email=email)
+        # If the login survives, so does the account: drop the tombstone so the user
+        # keeps their grants and a retry writes a fresh one. Once the login is gone
+        # the tombstone stays, even if the rows below fail.
+        try:
+            await self._delete_supertokens_user(uid=user.uid, email=email)
+        except Exception:
+            if tombstone_ids:
+                await _ee_discard_account_tombstones(tombstone_ids=tombstone_ids)
+            raise
 
-        # Reuse the cascade delete (memberships + user + owned orgs).
-        result = await self.delete_user(user_id=user_id)
+        # Reuse the cascade delete (memberships + user + owned orgs); the tombstone is
+        # already written above.
+        result = await self.delete_user(user_id=user_id, write_tombstone=False)
+
+        log.info(
+            "[accounts] self-service account deleted",
+            user_id=user_id,
+            domain=email.strip().lower().rpartition("@")[2],
+            organization_ids=[str(oid) for oid in organization_ids],
+        )
 
         # Drop them from the marketing email list. Best effort.
         if is_ee():
@@ -1503,6 +1748,21 @@ class PlatformAdminAccountsService:
                 )
 
         return result
+
+    async def _write_account_tombstone(
+        self, *, email: str, organization_ids: List[UUID]
+    ):
+        """Raises AccountTombstoneError on failure so the account is left intact."""
+        try:
+            return await _ee_write_account_tombstone(
+                email=email, organization_ids=organization_ids
+            )
+        except Exception as exc:  # noqa: BLE001
+            log.error(
+                "[accounts] tombstone write failed; account deletion aborted",
+                reason=type(exc).__name__,
+            )
+            raise AccountTombstoneError() from exc
 
     async def _delete_supertokens_user(self, *, uid: str | None, email: str) -> None:
         """Delete the SuperTokens login for a user, linked accounts included.
@@ -1565,7 +1825,11 @@ class PlatformAdminAccountsService:
         if not org:
             raise AdminOrganizationNotFoundError(organization_id)
 
+        scope_snapshot = await read_scope_principals_before_delete(
+            organization_ids=[oid]
+        )
         await _db_delete_organization(oid)
+        await invalidate_scope_after_delete(snapshot=scope_snapshot)
         deleted = AdminDeletedEntities(
             organizations=[AdminDeletedEntity(id=organization_id)]
         )
@@ -1594,7 +1858,9 @@ class PlatformAdminAccountsService:
         if not ws:
             raise AdminWorkspaceNotFoundError(workspace_id)
 
+        scope_snapshot = await read_scope_principals_before_delete(workspace_ids=[wid])
         await _db_delete_workspace(wid)
+        await invalidate_scope_after_delete(snapshot=scope_snapshot)
         deleted = AdminDeletedEntities(workspaces=[AdminDeletedEntity(id=workspace_id)])
         return AdminDeleteResponse(dry_run=False, deleted=deleted)
 
@@ -1621,7 +1887,9 @@ class PlatformAdminAccountsService:
         if not proj:
             raise AdminProjectNotFoundError(project_id)
 
+        scope_snapshot = await read_scope_principals_before_delete(project_ids=[pid])
         await _db_delete_project(pid)
+        await invalidate_scope_after_delete(snapshot=scope_snapshot)
         deleted = AdminDeletedEntities(projects=[AdminDeletedEntity(id=project_id)])
         return AdminDeleteResponse(dry_run=False, deleted=deleted)
 
@@ -1649,6 +1917,10 @@ class PlatformAdminAccountsService:
             raise AdminApiKeyNotFoundError(api_key_id)
 
         await _db_delete_api_key(kid)
+        await invalidate_principals_after_write(
+            principals=[PrincipalRef(kind=PrincipalKind.API_KEY, id=kid)],
+            source="accounts.delete_api_key",
+        )
         deleted = AdminDeletedEntities(api_keys=[AdminDeletedEntity(id=api_key_id)])
         return AdminDeleteResponse(dry_run=False, deleted=deleted)
 
@@ -1840,35 +2112,32 @@ class PlatformAdminAccountsService:
                     org_ids.append(oid)
 
         if org_ids:
-            # Pre-condition (EE): both source and target must be members.
-            # Drop orgs where target has no membership and emit a structured
-            # error so the caller knows those orgs were not transferred and
-            # would be lost if the source user is later deleted.
-            if is_ee():
-                target_member_org_ids = await _ee_get_member_org_ids(target_id, org_ids)
-                skipped = [oid for oid in org_ids if oid not in target_member_org_ids]
-                for oid in skipped:
-                    errors.append(
-                        AdminStructuredError(
-                            code="target_not_member",
-                            message=(
-                                f"Organization '{oid}' was not transferred: target "
-                                "user has no membership in this organization. "
-                                "Deleting the source user will cascade-delete it."
-                            ),
-                            details={
-                                "organization_id": str(oid),
-                                "target_user_id": str(target_id),
-                            },
-                        )
+            # Pre-condition: the target must be a member. Drop orgs where the
+            # target has no membership and emit a structured error so the caller
+            # knows those orgs were not transferred and would be lost if the
+            # source user is later deleted. Both editions: the membership
+            # resolver denies an owner without an organization row.
+            target_member_org_ids = await _ee_get_member_org_ids(target_id, org_ids)
+            skipped = [oid for oid in org_ids if oid not in target_member_org_ids]
+            for oid in skipped:
+                errors.append(
+                    AdminStructuredError(
+                        code="target_not_member",
+                        message=(
+                            f"Organization '{oid}' was not transferred: target "
+                            "user has no membership in this organization. "
+                            "Deleting the source user will cascade-delete it."
+                        ),
+                        details={
+                            "organization_id": str(oid),
+                            "target_user_id": str(target_id),
+                        },
                     )
-                org_ids = [oid for oid in org_ids if oid in target_member_org_ids]
+                )
+            org_ids = [oid for oid in org_ids if oid in target_member_org_ids]
 
         if org_ids:
-            # 1. Transfer org ownership
-            await _db_transfer_org_ownership_batch(org_ids, target_id)
-
-            # 2. Collect workspace + project IDs within transferred orgs
+            # Collect workspace + project IDs within the orgs to transfer
             all_ws_ids = await _db_get_workspace_ids_for_orgs(org_ids)
             all_proj_ids = await _db_get_project_ids_for_orgs(org_ids)
 
@@ -1891,13 +2160,38 @@ class PlatformAdminAccountsService:
                 }
                 proj_scope = [pid for pid in all_proj_ids if pid in proj_filter]
 
-            # 3. Swap EE org/workspace/project membership roles
-            if is_ee():
-                await _ee_swap_org_memberships(org_ids, source_id, target_id)
-                if ws_scope:
-                    await _ee_swap_workspace_memberships(ws_scope, source_id, target_id)
-                if proj_scope:
-                    await _ee_swap_project_memberships(proj_scope, source_id, target_id)
+            # One transaction under each organization's membership lock: ownership,
+            # role swaps (both editions) and the new owner's project rows. It checks
+            # ownership and target membership again under the locks.
+            transferred = await _db_transfer_ownership(
+                org_ids=org_ids,
+                source_id=source_id,
+                target_id=target_id,
+                workspace_ids=ws_scope,
+                project_ids=proj_scope,
+            )
+            for oid in org_ids:
+                if oid not in transferred:
+                    errors.append(
+                        AdminStructuredError(
+                            code="transfer_conflict",
+                            message=(
+                                f"Organization '{oid}' was not transferred: its owner "
+                                "or the target's membership changed during the transfer."
+                            ),
+                            details={"organization_id": str(oid)},
+                        )
+                    )
+            if transferred != org_ids:
+                org_ids = transferred
+                all_proj_ids = (
+                    await _db_get_project_ids_for_orgs(org_ids) if org_ids else []
+                )
+
+            await invalidate_access_caches(
+                user_ids=[source_id, target_id],
+                project_ids=all_proj_ids,
+            )
 
             log.info(
                 "[admin] ownership transferred",
@@ -1942,9 +2236,17 @@ class PlatformAdminAccountsService:
         if delete_fn is None:
             raise AdminNotImplementedError(f"delete_{scope_type}_membership")
 
+        scope = await _membership_scope(membership_id=mid, scope_type=scope_type)
+
         found = await delete_fn(mid)
         if not found:
             raise AdminMembershipNotFoundError(membership_id)
+
+        if scope is not None:
+            await _invalidate_memberships(
+                user_ids=[scope[0]],
+                organization_ids=[scope[1]],
+            )
 
         deleted = AdminDeletedEntities()
         setattr(

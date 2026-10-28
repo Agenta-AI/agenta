@@ -19,6 +19,7 @@ declare global {
 const buildEnv: Record<string, string | undefined> = {
     NEXT_PUBLIC_AGENTA_API_URL: process.env.NEXT_PUBLIC_AGENTA_API_URL,
     NEXT_PUBLIC_AGENTA_LICENSE: process.env.NEXT_PUBLIC_AGENTA_LICENSE,
+    NEXT_PUBLIC_AGENT_OVERVIEW: process.env.NEXT_PUBLIC_AGENT_OVERVIEW,
     NEXT_PUBLIC_POSTHOG_API_KEY: process.env.NEXT_PUBLIC_POSTHOG_API_KEY,
     NEXT_PUBLIC_CRISP_WEBSITE_ID: process.env.NEXT_PUBLIC_CRISP_WEBSITE_ID,
     NEXT_PUBLIC_CLOUDFLARE_TURNSTILE_SITE_KEY:
@@ -28,6 +29,8 @@ const buildEnv: Record<string, string | undefined> = {
     NEXT_PUBLIC_AGENT_CHAT_STEER: process.env.NEXT_PUBLIC_AGENT_CHAT_STEER,
     NEXT_PUBLIC_SETTINGS_NESTED_NAV: process.env.NEXT_PUBLIC_SETTINGS_NESTED_NAV,
     NEXT_PUBLIC_AGENT_BROWSE_RAIL: process.env.NEXT_PUBLIC_AGENT_BROWSE_RAIL,
+    NEXT_PUBLIC_AGENTA_ONBOARDING_FLOW_ENABLED:
+        process.env.NEXT_PUBLIC_AGENTA_ONBOARDING_FLOW_ENABLED,
 }
 
 export function getEnv(key: string): string {
@@ -37,6 +40,10 @@ export function getEnv(key: string): string {
     // `__env.js` first (runtime config wins), then the build-time value.
     return buildEnv[key] ?? process.env[key] ?? ""
 }
+
+/** Gates the per-user onboarding redirect after sign-up. */
+export const isOnboardingFlowEnabled = (): boolean =>
+    getEnv("NEXT_PUBLIC_AGENTA_ONBOARDING_FLOW_ENABLED").toLowerCase() === "true"
 
 export function getApiUrl(): string {
     return getEnv("NEXT_PUBLIC_AGENTA_API_URL")

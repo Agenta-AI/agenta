@@ -1,4 +1,3 @@
-import {filterOutDemoProjects} from "@agenta/entities/project"
 import {safeParseWithLogging} from "@agenta/entities/shared"
 import {getProjectsClient} from "@agenta/sdk/resources"
 import {z} from "zod"
@@ -76,21 +75,12 @@ export function forgetTemplateKey(): void {
     }
 }
 
-/**
- * Settings -> LLM providers, which renders the same shared AI-providers page the desktop's
- * provider drawer opens. It is where a project's own provider key is added and where a dead
- * subscription sign-in is renewed, so it is the destination for both recovery escapes on a failed
- * run.
- */
+/** Settings -> LLM providers: where a key is added or a subscription signed in again. */
 export const llmProvidersUrl = ({workspaceId, projectId}: LastContext): string =>
     `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/settings?tab=llms`
 
 export const billingUrl = ({workspaceId, projectId}: LastContext): string =>
     `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/settings?tab=billing`
-
-/** Settings -> Credits with the pack picker open: where "Buy credits" goes from anywhere. */
-export const buyCreditsUrl = ({workspaceId, projectId}: LastContext): string =>
-    `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/settings?tab=credits&buy_credits=1`
 
 export function writeLastContext(context: LastContext): void {
     try {
@@ -157,7 +147,6 @@ const projectRowSchema = z.object({
     // "Default" where the desktop showed the org.
     organization_id: z.string().nullish(),
     organization_name: z.string().nullish(),
-    is_demo: z.boolean().nullish(),
     // Only the settings list reads these two; every other consumer ignores them. They stay
     // optional because the schema is a drift check, not a contract we want to fail on.
     user_role: z.string().nullish(),
@@ -176,9 +165,7 @@ async function fetchProjectsOnce(): Promise<ProjectsResult> {
         const data = await getProjectsClient().getProjects()
         const projects = safeParseWithLogging(z.array(projectRowSchema), data, "[fetchProjects]")
         if (!projects) return {kind: "error"}
-        // Hide demo projects, exactly as the desktop's projectsAtom does. Without this a mobile
-        // sign-in could resolve into a demo org the desktop never offers, with no way back out.
-        return {kind: "ok", projects: filterOutDemoProjects(projects)}
+        return {kind: "ok", projects}
     } catch (error) {
         const status = (error as {statusCode?: number} | null)?.statusCode
         if (status === 401 || status === 403) return {kind: "unauthenticated"}

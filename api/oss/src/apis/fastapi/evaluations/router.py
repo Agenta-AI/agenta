@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Request, Query, HTTPException, status as http_status
 
+from oss.src.core.access.dtos import PrincipalRef
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import (
@@ -123,6 +124,16 @@ if is_ee():
 
 
 log = get_module_logger(__name__)
+
+
+def _caller(request: Request) -> PrincipalRef:
+    """The principal an evaluation run executes as after a create, start or rerun:
+    the calling request's principal. Never taken from the body."""
+
+    principal = getattr(request.state, "principal", None)
+    if principal is None:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return principal
 
 
 class EvaluationsRouter:
@@ -605,6 +616,7 @@ class EvaluationsRouter:
                 user_id=UUID(request.state.user_id),
                 #
                 runs=runs_create_request.runs,
+                principal=_caller(request),
             )
         except Exception:
             # Internal error after the quota was charged — refund.
@@ -2009,6 +2021,7 @@ class SimpleEvaluationsRouter:
                 user_id=UUID(request.state.user_id),
                 #
                 evaluation=evaluation_create,
+                principal=_caller(request),
             )
         except Exception:
             # Internal error after the quota was charged — refund.
@@ -2177,6 +2190,7 @@ class SimpleEvaluationsRouter:
             user_id=UUID(request.state.user_id),
             #
             evaluation_id=evaluation_id,
+            principal=_caller(request),
         )
 
         response = SimpleEvaluationResponse(
@@ -2360,6 +2374,7 @@ class SimpleEvaluationsRouter:
             step_keys=process_slice_request.step_keys,
             repeat_idxs=process_slice_request.repeat_idxs,
             overwrite=process_slice_request.overwrite,
+            principal=_caller(request),
         )
 
     # POST /api/simple/evaluations/{evaluation_id}/probe
@@ -2737,6 +2752,7 @@ class SimpleQueuesRouter:
                 user_id=UUID(request.state.user_id),
                 #
                 queue=queue_create_request.queue,
+                principal=_caller(request),
             )
         except Exception:
             # Internal error after the quota was charged — refund.

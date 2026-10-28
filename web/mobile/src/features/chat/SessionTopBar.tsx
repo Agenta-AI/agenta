@@ -4,10 +4,14 @@ import {workflowMolecule} from "@agenta/entities/workflow"
 import {AgentIdentity} from "@agenta/entity-ui/agent"
 import {AgentPageHeader, AgentRevisionStatus} from "@agenta/playground-ui/agent-page-header"
 import {KeyboardShortcutsSheet, useShortcutsSheetHotkey} from "@agenta/ui/shortcuts"
+import {LockSimpleIcon} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
+
+import {sharingCopy} from "@/lib/sharingCopy"
 
 import {NavDrawer} from "../nav/NavDrawer"
 
+import {heldCommitAtomFamily} from "./selectedRevision"
 import {ShareMenu} from "./ShareMenu"
 
 /**
@@ -26,6 +30,8 @@ export const SessionTopBar = ({
     sessionId,
     onUpdate,
     agentId,
+    agentHidden = false,
+    canSend = true,
     workspaceId,
     projectId,
 }: {
@@ -36,11 +42,18 @@ export const SessionTopBar = ({
     /** Pin this session to a newer version the user asked for. */
     onUpdate: (revisionId: string) => void
     agentId?: string | null
+    /** A private agent the reader cannot see: a lock and "Private agent", nothing to act on. */
+    agentHidden?: boolean
+    /** False when the reader may not send here: no Templates menu (its items send a message). */
+    canSend?: boolean
     workspaceId: string
     projectId: string
 }) => {
     // artifactName resolves from a revision id or a workflow id, so either handle names the agent.
     const name = useAtomValue(workflowMolecule.selectors.artifactName(entityId ?? agentId ?? ""))
+    // A commit the session held back (unsaved config edits) is a reason to check for a newer
+    // version now, so the pill offers it at once.
+    const heldCommit = useAtomValue(heldCommitAtomFamily(sessionId))
     // No header button for the shortcuts sheet; `?` still opens it.
     const [shortcutsOpen, setShortcutsOpen] = useState(false)
     useShortcutsSheetHotkey(useCallback(() => setShortcutsOpen(true), []))
@@ -54,26 +67,35 @@ export const SessionTopBar = ({
             leading={<NavDrawer workspaceId={workspaceId} projectId={projectId} />}
             // One slot for both halves: the shared identity owns the chip and the inline rename,
             // and falls back to a plain chip + label when no agent is resolved yet.
-            identity={<AgentIdentity workflowId={agentId} name={name || "Agent"} />}
+            identity={
+                agentHidden ? (
+                    <span className="flex min-w-0 items-center gap-1.5 text-sm font-medium">
+                        <LockSimpleIcon size={14} aria-hidden className="shrink-0" />
+                        {sharingCopy.privateAgent}
+                    </span>
+                ) : (
+                    <AgentIdentity workflowId={agentId} name={name || "Agent"} />
+                )
+            }
             revision={
-                entityId ? (
+                entityId && !agentHidden ? (
                     <AgentRevisionStatus
                         revisionId={entityId}
                         historyWorkflowId={agentId}
                         onUpdate={onUpdate}
-                        checkKey={sessionId}
+                        checkKey={heldCommit ? `${sessionId}:${heldCommit}` : sessionId}
                     />
                 ) : undefined
             }
             // The desktop puts this at the header's right edge too, not on the tab strip.
             actions={
                 <>
-                    {agentId ? (
+                    {agentId && !agentHidden ? (
                         <ShareMenu
                             agentId={agentId}
                             sessionId={sessionId}
                             // No revision = read-only replay: no conversation to send into.
-                            canRequestTemplate={Boolean(entityId)}
+                            canRequestTemplate={Boolean(entityId) && canSend}
                             workspaceId={workspaceId}
                             projectId={projectId}
                         />

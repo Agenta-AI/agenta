@@ -17,6 +17,7 @@ import {
   SessionManager,
   SettingsManager,
   type AgentSession,
+  type RetrySettings,
   type ExtensionUIContext,
   type ToolDefinition,
 } from "@earendil-works/pi-coding-agent";
@@ -44,6 +45,8 @@ export interface PiSessionSpec {
   customProvider?: { providerId: string; key?: string; env?: Record<string, string> };
   /** Model credentials by env var name, for this session only. */
   modelEnv: Record<string, string>;
+  /** Pi's retry settings; Pi's defaults when absent. */
+  retry?: RetrySettings;
   credentials: CredentialStore;
   systemPrompt: string | undefined;
   appendSystemPrompt: string | undefined;
@@ -121,7 +124,7 @@ export async function openPiSession(spec: PiSessionSpec): Promise<OpenedPiSessio
   try {
     const runtime = await createSessionModelRuntime(spec);
 
-    const settingsManager = SettingsManager.inMemory({});
+    const settingsManager = SettingsManager.inMemory(spec.retry ? { retry: spec.retry } : {});
     const loader = new DefaultResourceLoader({
       cwd: spec.cwd,
       agentDir,

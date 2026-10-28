@@ -26,6 +26,7 @@ from oss.src.core.triggers.dtos import (
 )
 from oss.src.core.triggers.exceptions import TriggerReferenceInvalid
 from oss.src.core.triggers.service import TriggersService
+from oss.tests.pytest.utils.principals import any_principal
 
 
 def _make_service():
@@ -127,6 +128,7 @@ async def test_create_test_subscription_bypasses_reference_validation():
         project_id=uuid4(),
         user_id=uuid4(),
         subscription=_create(is_test=True),
+        principal=any_principal(),
     )
 
     service._validate_references.assert_not_awaited()
@@ -142,6 +144,7 @@ async def test_create_non_test_subscription_validates_references():
         project_id=uuid4(),
         user_id=uuid4(),
         subscription=_create(is_test=False),
+        principal=any_principal(),
     )
 
     service._validate_references.assert_awaited_once()
@@ -211,7 +214,8 @@ async def test_test_subscription_returns_captured_delivery_and_tears_down():
     result = await service.test_subscription(
         project_id=uuid4(),
         user_id=uuid4(),
-        subscription=_create(is_test=False),  # forced to test inside the helper
+        subscription=_create(is_test=False),  # forced to test inside the helper,
+        principal=any_principal(),
     )
 
     assert result is delivery
@@ -233,6 +237,7 @@ async def test_test_subscription_times_out_and_tears_down():
         project_id=uuid4(),
         user_id=uuid4(),
         subscription=_create(is_test=True),
+        principal=any_principal(),
     )
 
     assert result is None
@@ -249,6 +254,7 @@ async def test_test_subscription_tears_down_on_error():
             project_id=uuid4(),
             user_id=uuid4(),
             subscription=_create(is_test=True),
+            principal=any_principal(),
         )
 
     service.dao.purge_subscription.assert_awaited_once()
@@ -279,6 +285,7 @@ async def test_test_subscription_reuses_existing_live_subscription_on_conflict()
         project_id=uuid4(),
         user_id=uuid4(),
         subscription=_create(is_test=False),
+        principal=any_principal(),
     )
 
     # The freshly arrived delivery is returned, not the stale baseline.

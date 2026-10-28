@@ -50,7 +50,9 @@ from oss.src.core.channels.dtos import (
     ChannelThreadResponse,
     ChannelThreadsResponse,
     ChannelsCatalogResponse,
+    ChannelPendingChoice,
 )
+from oss.src.core.sessions.records.dtos import SessionRecord
 
 __all__ = [
     "ChannelDestinationsQueryRequest",
@@ -123,6 +125,40 @@ class AgentaConversationResponse(BaseModel):
     items: List[AgentaConversationItem] = Field(default_factory=list)
 
 
+class EmbedConfigResponse(BaseModel):
+    """What the widget page needs before any visitor key exists: public by
+    design, so it carries nothing beyond the name, origins and appearance."""
+
+    name: Optional[str] = None
+    # ["*"] when the owner set no origins: any site may frame the widget.
+    allowed_origins: List[str] = Field(default_factory=list)
+    appearance: Dict[str, Any] = Field(default_factory=dict)
+
+
+class EmbedConversation(BaseModel):
+    thread_id: UUID
+    session_id: str
+    created_at: Optional[datetime] = None
+    is_active: bool = True
+
+
+class EmbedConversationsResponse(BaseModel):
+    count: int = 0
+    conversations: List[EmbedConversation] = Field(default_factory=list)
+
+
+class EmbedConversationResponse(BaseModel):
+    """The session's records, which the widget renders as the chat does, the
+    thread's open choice, whose tokens an approval answer must carry, and how
+    many of the conversation's messages got no turn (refused, or failed to
+    start), which the session's records cannot show."""
+
+    count: int = 0
+    records: List[SessionRecord] = Field(default_factory=list)
+    pending_choice: Optional[ChannelPendingChoice] = None
+    unstarted_turns: int = 0
+
+
 class TelegramHostedBindLinkRequest(BaseModel):
     # The workflow the connected chat's agent runs, by reference
     # (workflow/variant/revision) — the agent the user picked in the UI.
@@ -185,7 +221,7 @@ class ChannelDestinationsQueryRequest(_ChannelToolRequest):
 
 class ChannelMessageSendRequest(_ChannelToolRequest):
     session_id: str = Field(min_length=1, max_length=200)
-    tool_call_id: str = Field(min_length=1, max_length=200)
+    tool_call_id: str = Field(min_length=1)
     destination_id: str = Field(max_length=256)
     text: str = Field(min_length=1, max_length=40000)
     thread_id: Optional[str] = Field(default=None, max_length=256)

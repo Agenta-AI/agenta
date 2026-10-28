@@ -29,6 +29,15 @@ class WorkflowError(Exception):
         super().__init__(message)
 
 
+class AgentReferenceUnresolved(WorkflowError):
+    """A reference names an agent (a key of `AGENT_REFERENCE_KEYS`) and nothing
+    resolves: the agent is unknown, deleted, archived, or in another project. Callers
+    answer it as an unknown id (404 `not_found`)."""
+
+    def __init__(self, message: str = "Not found."):
+        super().__init__(message)
+
+
 class StaticWorkflowSlug(WorkflowError):
     """Raised when a user tries to create, edit, or commit a workflow whose slug is in the
     reserved static namespace (``__ag__*``).
@@ -145,6 +154,35 @@ class InvalidAgentInstructionsError(Exception):
         }
 
 
+class InvalidAgentConnectionError(Exception):
+    """The commit carries ``parameters.agent.llm.connection`` that the runtime cannot use.
+
+    Refused at the write boundary, for the reason :class:`InvalidAgentInstructionsError`
+    gives: an organization connection that does not name its slug with scope and namespace
+    ``organization``.
+    """
+
+    code = "invalid_agent_connection"
+
+    def __init__(self, *, reason: str, message: str, next_step: str) -> None:
+        super().__init__(message)
+        self.reason = reason
+        self.message = message
+        self.next_step = next_step
+
+    def to_detail(self) -> Dict[str, Any]:
+        return {
+            "code": self.code,
+            "message": self.message,
+            "retryable": False,
+            "next_step": self.next_step,
+            "details": {
+                "field": "parameters.agent.llm.connection",
+                "reason": self.reason,
+            },
+        }
+
+
 class WorkflowServiceUrlMissing(WorkflowError):
     """Raised when a revision has no runnable service URL to invoke (batch or detached)."""
 
@@ -165,6 +203,13 @@ class WorkflowDetachedStartNeverSent(WorkflowDetachedStartFailed):
     A subclass, so every existing handler of ``WorkflowDetachedStartFailed`` is unaffected and
     only a caller asking the narrower question has to know about it.
     """
+
+
+class WorkflowDetachedStartRejected(WorkflowDetachedStartFailed):
+    """The service itself answered the start with a failure: a stamped non-2xx response, or a
+    failure as the first record. The stamp proves who answered, not that nothing ran. For an
+    agent turn it does: the agent handler starts the harness only after the stream commits
+    200, so a non-2xx answer comes before any agent work. A gateway 502 or 504 is not this."""
 
 
 # The statuses that mean the run was not accepted, whoever answered.
@@ -200,13 +245,18 @@ _NEVER_DISPATCHED_STATUSES = frozenset({404, 503})
 _SERVICE_HEADER_PREFIX = "x-ag-"
 
 
+def answered_by_service(response: httpx.Response) -> bool:
+    """True when the workflow service built this response (it carries the service's stamp)."""
+    return any(
+        name.lower().startswith(_SERVICE_HEADER_PREFIX) for name in response.headers
+    )
+
+
 def detached_start_never_sent(response: httpx.Response) -> bool:
     """True when this non-2xx response proves the workflow service never saw the request."""
     if response.status_code not in _NEVER_DISPATCHED_STATUSES:
         return False
-    return not any(
-        name.lower().startswith(_SERVICE_HEADER_PREFIX) for name in response.headers
-    )
+    return not answered_by_service(response)
 
 
 # Transport failures where no byte reached the address we aimed at: the request never left this

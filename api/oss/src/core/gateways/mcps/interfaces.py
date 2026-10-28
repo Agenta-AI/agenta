@@ -2,12 +2,13 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import AsyncContextManager, Dict, List, Optional
 from uuid import UUID
 
 from oss.src.core.gateways.mcps.dtos import (
     MCPOAuthData,
     MCPCallContext,
+    MCPEndpointCheck,
     MCPEndpoint,
     MCPEndpointCreate,
     MCPEndpointEdit,
@@ -64,6 +65,20 @@ class MCPEndpointsDAOInterface(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def oauth_lock(
+        self, *, project_id: UUID, endpoint_id: UUID
+    ) -> AsyncContextManager[None]:
+        """Hold one connection's OAuth lock for the rest of the block.
+
+        Everything that changes a connection's OAuth state takes it first and holds it
+        to the end: a completing consent (after its token exchange), a cancel, a
+        disconnect, an edit and a delete. Two of them on one connection therefore never
+        interleave, so a check of the connection and the writes that follow it are one
+        step. Other connections are not affected.
+        """
+        raise NotImplementedError
+
+    @abstractmethod
     async def bind_endpoint_secret(
         self,
         *,
@@ -77,6 +92,10 @@ class MCPEndpointsDAOInterface(ABC):
 
         `secret_id=None` is the disconnect: the handle goes and the connection stays
         valid, because nothing died — it simply holds no authorization now.
+
+        Returns `None`, and writes nothing, when the connection is gone or the write
+        failed. A caller binding a grant must check it: `None` means no connection names
+        the grant.
 
         Separate from `edit_endpoint` because a credential transition is not an edit of
         the connection. `edit_endpoint` is a full PUT built from a snapshot the caller
@@ -124,6 +143,20 @@ class MCPEndpointsDAOInterface(ABC):
         outbound call, carrying that snapshot's `secret_id` and flags back over whatever
         had happened meanwhile (D31).
         """
+        raise NotImplementedError
+
+    @abstractmethod
+    async def record_endpoint_check(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        endpoint_id: UUID,
+        check: MCPEndpointCheck,
+    ) -> Optional[MCPEndpoint]:
+        """Record the result of an explicit check, as one key of the stored data, for the
+        same reason discovery has its own write."""
         raise NotImplementedError
 
     @abstractmethod

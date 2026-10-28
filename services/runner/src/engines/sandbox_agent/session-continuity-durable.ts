@@ -10,6 +10,7 @@
  */
 import { fetchControlPlane } from "../../sessions/control-plane-fetch.ts";
 import { apiBase } from "../../apiBase.ts";
+import { runnerTokenHeader } from "../../sessions/auth.ts";
 import type { ReferenceKey } from "../../sessions/interactions.ts";
 import type { SessionContinuityStore } from "./session-continuity.ts";
 
@@ -82,7 +83,7 @@ export interface AppendSessionTurnFn {
     turnIndex: number,
     turn: SessionTurnAppend,
     deps: DurableContinuityDeps,
-  ): Promise<void>;
+  ): Promise<boolean>;
   complete?: CompleteSessionTurnFn;
 }
 
@@ -246,6 +247,8 @@ function postLedgerWrite(
         headers: {
           "content-type": "application/json",
           authorization: deps.authorization,
+          // The API keeps a turn's agent_session_id and sandbox_id only from the runner.
+          ...runnerTokenHeader(base),
         },
       }),
     { maxAttempts: 1, signal: deps.signal },
@@ -288,7 +291,8 @@ export async function completeSessionTurn(
 /**
  * Start one ledger row per conversation turn. A 409 throws `SessionTurnIndexTaken`, unlogged:
  * an approval resume reuses its paused turn's row that way, and the caller tells it apart from
- * another runner's turn. Every other failure is logged and swallowed.
+ * another runner's turn. Every other failure is logged and swallowed. Resolves true when the row
+ * was written.
  */
 export const appendSessionTurn: AppendSessionTurnFn = async function appendSessionTurn(
   sessionId,
@@ -296,7 +300,7 @@ export const appendSessionTurn: AppendSessionTurnFn = async function appendSessi
   turnIndex,
   turn,
   deps,
-): Promise<void> {
+): Promise<boolean> {
   const log = deps.log ?? defaultLog;
   let res: Response;
   try {
@@ -328,12 +332,13 @@ export const appendSessionTurn: AppendSessionTurnFn = async function appendSessi
       ? "the turn was cancelled"
       : String(err instanceof Error ? err.message : err).slice(0, 160);
     log(`append failed session=${sessionId} harness=${harness}: ${detail}`);
-    return;
+    return false;
   }
   if (res.status === 409) throw new SessionTurnIndexTaken(sessionId, turnIndex);
   log(
     `append ${res.ok ? "OK" : `HTTP ${res.status}`} session=${sessionId} harness=${harness} turn=${turnIndex}`,
   );
+  return res.ok;
 };
 
 appendSessionTurn.complete = completeSessionTurn;

@@ -7,6 +7,7 @@ import {generateId} from "@agenta/shared/utils"
 import {hasCoarsePointer} from "../hooks/useVisualViewport"
 
 import {QuoteNote} from "./QuoteNote"
+import {QuoteNoteSheet} from "./QuoteNoteSheet"
 import {QuoteToolbar} from "./QuoteToolbar"
 import {addQuote, submitSessionMessage, useStagedQuotes} from "./store"
 import {useDraftHighlight} from "./useQuoteHighlights"
@@ -115,6 +116,14 @@ export const QuoteSelectionLayer = ({
         finish()
     }
 
+    // A touch screen gets the bottom sheet; `touch` alone also marks large chat controls.
+    const sheet = hasCoarsePointer()
+    // Staged first, so the composer's send carries it with everything else held.
+    const send = (note: string) => {
+        stage(note)
+        submitSessionMessage(sessionId)
+    }
+
     return (
         <>
             {/* Ignored: it sits inside an editor's quotable body and is not file text. */}
@@ -137,18 +146,22 @@ export const QuoteSelectionLayer = ({
                     }}
                 />
             ) : null}
-            {draft ? (
+            {draft && sheet ? (
+                <QuoteNoteSheet
+                    key={draft.quote.id}
+                    quote={draft.quote}
+                    onStage={stage}
+                    onSend={send}
+                    onCancel={finish}
+                />
+            ) : draft ? (
                 <QuoteNote
                     key={draft.quote.id}
                     quote={draft.quote}
                     anchor={draft.candidate.rect}
                     bounds={bounds}
                     onStage={stage}
-                    // Staged first, so the composer's send carries it with everything else held.
-                    onSend={(note) => {
-                        stage(note)
-                        submitSessionMessage(sessionId)
-                    }}
+                    onSend={send}
                     onCancel={finish}
                 />
             ) : null}

@@ -10,4 +10,5 @@ export interface CheckPermissionsRequest {
     scope_id?: string | null;
     resource_type?: string | null;
     resource_id?: string | null;
+    without_grants?: boolean;
 }

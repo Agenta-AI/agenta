@@ -10,12 +10,22 @@ export interface MCPOAuthData {
     scopes_offered?: string[]
 }
 
+// MCPCredentialBinding: where an API-key endpoint's credential travels. Configuration, not
+// the credential: the value stays in the vault behind `secret_id`.
+export interface MCPCredentialBinding {
+    // `url` puts the value where `base_url` holds `{secret}`.
+    kind: "header" | "query" | "url"
+    // The header name, or the query parameter name. Null for `url`.
+    name?: string | null
+    // The word in front of the value, e.g. `Bearer` or `Basic`. Null sends the bare value.
+    prefix?: string | null
+}
+
 export interface MCPEndpointRoute {
     base_url?: string | null
     headers?: Record<string, string> | null
-    // Names the header an API-key endpoint's credential travels in. Configuration, not the
-    // credential: the value stays in the vault behind `secret_id`.
-    credential_header?: string | null
+    // Null sends `Authorization: Bearer <key>`.
+    credential_binding?: MCPCredentialBinding | null
 }
 
 // GatewayEndpointFilter in api/oss/src/core/gateways/dtos.py.
@@ -28,11 +38,34 @@ export interface MCPEndpointSettings {
     timeout_seconds?: number | null
 }
 
+export type MCPTokenEndpointAuthMethod = "client_secret_basic" | "client_secret_post" | "none"
+
+// MCPOAuthConfig: an OAuth app the person registered with the provider, for a server that
+// registers no clients on its own. The secret stays in the vault behind `client_secret_id`.
+export interface MCPOAuthConfig {
+    client_id?: string | null
+    client_secret_id?: string | null
+    token_endpoint_auth_method?: MCPTokenEndpointAuthMethod | null
+    // The scopes the person last asked for, so a reconnect starts from them.
+    scopes?: string[] | null
+}
+
 export interface MCPEndpointData {
     route: MCPEndpointRoute
     tools?: MCPToolFilter
     settings?: MCPEndpointSettings
+    // What discovery found. Nothing the person chose lives here.
     oauth?: MCPOAuthData | null
+    oauth_config?: MCPOAuthConfig | null
+    // The last explicit check, from the connect sheet or a reconnect. Agent calls never write it.
+    check?: MCPEndpointCheck | null
+}
+
+export interface MCPEndpointCheck {
+    ok: boolean
+    /** The short reason a failed check gave. */
+    reason?: string | null
+    checked_at: string
 }
 
 export interface MCPEndpointFlags {
@@ -88,11 +121,32 @@ export interface MCPConnectResponse {
     count: number
     redirect_url?: string | null
     scopes_offered?: string[]
+    /** Set with `redirect_url`: the attempt the callback answers for, and its lifetime. */
+    attempt_id?: string | null
+    expires_in?: number | null
+}
+
+/** How one consent attempt stands. Mirror of `MCPOAuthAttemptOutcome`. */
+export interface MCPConnectAttempt {
+    id: string
+    status: "pending" | "connected" | "failed" | "cancelled"
+    error?: string | null
+}
+
+export interface MCPConnectAttemptResponse {
+    count: number
+    attempt?: MCPConnectAttempt
 }
 
 // Mirror of MCPServerProbeResult in api/oss/src/core/gateways/mcps/probe.py.
 export type MCPProbeAuthMode = "none" | "oauth" | "unknown"
 export type MCPProbeRegistration = "dynamic" | "metadata" | "unavailable"
+
+/** What the server answered: its status and the start of its body, credentials removed. */
+export interface MCPProbeResponse {
+    status: number
+    body: string
+}
 
 export interface MCPProbeProblem {
     cause: string
@@ -105,6 +159,8 @@ export interface MCPProbeProblem {
      * to anything deciding whether this deployment has outbound access at all.
      */
     transport?: string | null
+    /** The server's own answer, when something answered. Absent when nothing did. */
+    response?: MCPProbeResponse | null
 }
 
 export interface MCPProbeAuth {
@@ -126,6 +182,8 @@ export interface MCPProbeAuth {
      * challenge that named none reports none; nothing here is guessed.
      */
     challenge_schemes?: string[]
+    /** Where the authorization server sends the browser back. Set on OAuth answers. */
+    redirect_uri?: string | null
 }
 
 export interface MCPServerProbe {
@@ -134,6 +192,11 @@ export interface MCPServerProbe {
     protocol_version?: string | null
     auth: MCPProbeAuth
     problem?: MCPProbeProblem | null
+    /**
+     * The address follows the legacy SSE convention, but it refused before anything proved
+     * which transport it speaks. A warning for the next screen, never a refusal.
+     */
+    legacy_transport_suspected?: boolean
 }
 
 export interface MCPEndpointProbeResponse {

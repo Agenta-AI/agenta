@@ -20,14 +20,15 @@ import {
     partToolName,
     type ActivityStep,
 } from "../../model"
+import {toolHadApproval} from "../../model/approvals"
 import {resolveToolDisplay} from "../../skin"
 import type {ActivityIcon} from "../../skin/types"
 import {activityFoldKey, expandedValueAtomFamily, setExpandedAtom} from "../../state"
-import {useTurnStage, useTurnStageSince} from "../../state/turnClock"
+import {turnSpanAtomFamily, useTurnStage, useTurnStageSince} from "../../state/turnClock"
 import RevealCollapse from "../RevealCollapse"
 
 import {ActivityClientStep} from "./ActivityClientStep"
-import {LIVE_TEXT_CLASS, WaitingGlyph, type WaitingKind} from "./activityIcons"
+import {ActivityNode, LIVE_TEXT_CLASS, WaitingGlyph, type WaitingKind} from "./activityIcons"
 import {ActivityThoughtStep} from "./ActivityThoughtStep"
 import {ActivityToolStep} from "./ActivityToolStep"
 
@@ -199,6 +200,10 @@ const waitingKind = (steps: ActivityStep[]): WaitingKind => {
     return "approval"
 }
 
+/** A step that paused the run to wait on user input or approval. */
+const stepHadGate = (step: ActivityStep): boolean =>
+    step.kind === "client" || (step.kind === "tool" && toolHadApproval(step.part))
+
 /** The last step of the agent's own: a settled ask's verb must not hold the line. */
 const lastAgentStep = (steps: ActivityStep[]): ActivityStep | null => {
     for (let i = steps.length - 1; i >= 0; i--) if (steps[i].kind !== "client") return steps[i]
@@ -258,7 +263,9 @@ export interface ActivityTimelineProps {
     waitingOnUser?: boolean
     /** The ask was answered here and the transcript still carries it: the line reads as work. */
     resuming?: boolean
-    /** The turn's trace: once settled, its duration outranks the local count. */
+    /** Gate history from the full turn, including tools hidden or merged in the activity steps. */
+    hadGate?: boolean
+    /** The turn's trace: once settled, ungated turns can use its duration. */
     traceId?: string | null
     /** This tab streamed the run itself, so its first step is the start. False for a run found
      * already in progress, whose start has to come from the trace. Defaults to true: a caller
@@ -266,6 +273,15 @@ export interface ActivityTimelineProps {
     streamedHere?: boolean
     /** Renders a client tool's widget in its step; absent on a read-only host. */
     renderClientTool?: (part: ToolUIPart) => ReactNode
+    /** The run failed: the header names it and the server's raw text is the fold's last step. */
+    failure?: ActivityFailure
+}
+
+export interface ActivityFailure {
+    /** The short name of what happened, shown in the header: "Run stopped". */
+    label: string
+    /** The server's text as it came. Absent when the message already shows all of it. */
+    detail?: string | null
 }
 
 /** The turn's work, folded: a live verb or "Worked for 11s" over a timeline of steps. */
@@ -278,9 +294,11 @@ export const ActivityTimeline = ({
     sessionId,
     waitingOnUser = false,
     resuming = false,
+    hadGate: recordedGate = false,
     traceId,
     streamedHere = true,
     renderClientTool,
+    failure,
 }: ActivityTimelineProps) => {
     // Any turn can cold start: a parked environment outlives an idle gap by minutes at most.
     const stage = useTurnStage(streaming && sessionId ? sessionId : "")
@@ -301,16 +319,36 @@ export const ActivityTimeline = ({
     const trace = useAtomValue(
         traceDataSummaryAtomFamily((!live || metMidFlight) && traceId ? traceId : ""),
     )
-    const startedAt = metMidFlight ? parseTraceTime(trace.rootSpan?.start_time) : undefined
+    const span = useAtomValue(turnSpanAtomFamily(clockId))
+    // An open clock inherited on mount may have missed a gate while this timeline was absent.
+    const inheritedRunningClock = useRef(Boolean(span && span.endedAt === undefined))
+    const hadGate = Boolean(
+        recordedGate ||
+        (span && span.pausedMs > 0) ||
+        resuming ||
+        waitingOnUser ||
+        steps.some(stepHadGate),
+    )
+    const startedAt =
+        metMidFlight && !hadGate ? parseTraceTime(trace.rootSpan?.start_time) : undefined
     // The clock counts the agent's work: from the first step, paused while parked on the reader.
-    const counted = useTurnClock(clockId, live && !awaiting && steps.length > 0, startedAt)
-    // A run resumed after a gate traces only its last leg; the longer of the two is the work.
-    const traced = live ? null : (trace.metrics.durationMs ?? null)
-    const elapsed = live
-        ? counted
-        : traced === null && counted === null
-          ? null
-          : Math.max(traced ?? 0, counted ?? 0)
+    const measured = useTurnClock(clockId, live && !awaiting && steps.length > 0, startedAt)
+    // A tab that joined later cannot account for earlier waits. A clock already anchored to
+    // the trace start is also unsafe if gate history arrives after that start was applied.
+    const counted =
+        hadGate && (!streamedHere || span?.anchored || inheritedRunningClock.current)
+            ? null
+            : measured
+    // A gate's trace covers the whole run, including the time parked on the user (#7445).
+    // When a turn had a gate, only the local clock saw the actual work time; an unclocked
+    // turn that had a gate falls back to "Worked" rather than reporting the parked time.
+    const traced = live || hadGate ? null : (trace.metrics.durationMs ?? null)
+    const elapsed =
+        live || hadGate
+            ? counted
+            : traced === null && counted === null
+              ? null
+              : Math.max(traced ?? 0, counted ?? 0)
     const files = useMemo(() => activityFiles(steps), [steps])
     // A settled step's verb holds for a beat, then the line reads "Working".
     const idle = useHeldFor(live && !awaiting && !current && steps.length > 0, VERB_HOLD_MS)
@@ -338,9 +376,14 @@ export const ActivityTimeline = ({
         wasLiveRef.current = live
     }, [live, open, key, setExpanded])
 
-    if (!steps.length && !live) return null
+    // A failure shows only once the run is over: a live line still narrates the work.
+    const failed = !live && failure ? failure : null
+    if (!steps.length && !live && !failed) return null
 
     const count = steps.length
+    const detail = failed?.detail || null
+    // Steps, then the failure's own text as the last node on the wire.
+    const nodes = count + (detail ? 1 : 0)
     // No clock before the first step.
     const clock =
         elapsed === null || awaiting || !count ? "" : ` · ${formatElapsed(elapsed, {live: true})}`
@@ -361,8 +404,20 @@ export const ActivityTimeline = ({
                   : liveStep(verbStep)
     if (line) {
         title = <SwapLabel shimmer suffix={clock} text={line.text} />
+    } else if (failed && !count) {
+        // Failed before any step: there is no work to name, only the failure.
+        title = <span className="text-colorError">{failed.label}</span>
     } else {
         title = elapsed === null ? "Worked" : `Worked for ${formatElapsed(elapsed, {live: false})}`
+        if (failed) {
+            title = (
+                <>
+                    {title}
+                    <span className="whitespace-pre text-colorTextTertiary"> · </span>
+                    <span className="text-colorError">{failed.label}</span>
+                </>
+            )
+        }
     }
 
     return (
@@ -370,8 +425,10 @@ export const ActivityTimeline = ({
             <button
                 type="button"
                 onClick={() => setExpanded({key, value: !open})}
-                aria-expanded={open}
-                className="-ml-1.5 flex w-fit max-w-full cursor-pointer items-center gap-2.5 rounded-md border-0 bg-transparent px-1.5 py-1.5 text-left text-[13px] text-colorTextSecondary group/row"
+                // Nothing to open yet (no step, no raw failure): a plain line, not a toggle.
+                disabled={!nodes}
+                aria-expanded={nodes ? open : undefined}
+                className="-ml-1.5 flex w-fit max-w-full cursor-pointer disabled:cursor-default items-center gap-2.5 rounded-md border-0 bg-transparent px-1.5 py-1.5 text-left text-[13px] text-colorTextSecondary group/row"
             >
                 {awaiting ? (
                     <WaitingGlyph kind={waitingKind(steps)} />
@@ -389,7 +446,7 @@ export const ActivityTimeline = ({
                     </span>
                 ) : null}
                 {/* Nothing to open before the first step. */}
-                {count ? (
+                {nodes ? (
                     <CaretRight
                         size={10}
                         weight="bold"
@@ -402,7 +459,7 @@ export const ActivityTimeline = ({
             <RevealCollapse open={open}>
                 <div className="relative mt-3 mb-1.5 flex flex-col">
                     {/* The wire behind the nodes; one node has nothing to join. */}
-                    {steps.length > 1 ? (
+                    {nodes > 1 ? (
                         <div
                             aria-hidden
                             className={`absolute bottom-3.5 top-3.5 w-px bg-colorBorderSecondary ${
@@ -435,6 +492,16 @@ export const ActivityTimeline = ({
                             )}
                         </StepReveal>
                     ))}
+                    {detail ? (
+                        <div
+                            className={`flex min-w-0 items-start gap-3.5 ${count ? "pt-4.5" : ""}`}
+                        >
+                            <ActivityNode icon="platform" state="failed" />
+                            <pre className="m-0 max-h-60 min-w-0 flex-1 overflow-auto whitespace-pre-wrap break-words ag-surface-inset rounded-md px-3 py-2 font-mono text-xs leading-relaxed text-colorTextSecondary">
+                                {detail}
+                            </pre>
+                        </div>
+                    ) : null}
                 </div>
             </RevealCollapse>
         </div>

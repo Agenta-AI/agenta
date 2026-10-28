@@ -6,7 +6,6 @@ evaluator's parameters all the way to the key litellm is handed, with two same-f
 connections present to make a family-only resolution ambiguous.
 """
 
-from contextlib import contextmanager
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -37,11 +36,6 @@ TWO_OPENAI_CONNECTIONS = [
         "data": {"kind": "openai", "provider": {"key": "sk-team-b"}},
     },
 ]
-
-
-@contextmanager
-def _noop_aws_credentials(_provider_settings):
-    yield
 
 
 @pytest.fixture
@@ -85,11 +79,6 @@ def judge(monkeypatch):
                 critique_handlers.mockllm,
                 "acompletion",
                 side_effect=_fake_acompletion,
-            ),
-            patch.object(
-                critique_handlers.mockllm,
-                "user_aws_credentials_from",
-                side_effect=_noop_aws_credentials,
             ),
         ):
             await _auto_ai_critique_v0(parameters=parameters, outputs="4")

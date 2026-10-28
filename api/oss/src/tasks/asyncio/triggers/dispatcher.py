@@ -15,6 +15,14 @@ from uuid import UUID, uuid4
 
 import uuid_utils.compat as uuid_compat
 
+from oss.src.core.access.dtos import RunOrigin
+from oss.src.core.access.principals import (
+    access_denied_error,
+    missing_principal_error,
+    stored_work_envelope,
+)
+from oss.src.core.access.service import AccessService, get_access_service
+from oss.src.core.tools.dtos import AgentError
 from oss.src.core.shared.dtos import Status
 from oss.src.core.triggers.dtos import (
     TRIGGER_CONTEXT_FIELDS,
@@ -30,6 +38,10 @@ from oss.src.core.sessions.dtos import (
     SessionTriggerKind,
 )
 from oss.src.core.sessions.streams.interfaces import TriggerSessionClaimsDAOInterface
+from oss.src.core.sharing.admission import TRIGGER_DISPATCH_BOUNDARY, RunAdmission
+from oss.src.core.sharing.dtos import SharedItemKind
+from oss.src.core.sharing.service import SharingService, get_sharing_service
+from oss.src.core.sharing.types import AdmissionDenied
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.utils.logging import get_module_logger
 
@@ -38,6 +50,15 @@ from agenta.sdk.models.workflows import WorkflowRequestData
 from agenta.sdk.utils.resolvers import resolve_target_fields
 
 log = get_module_logger(__name__)
+
+
+def _agent_deleted_error() -> AgentError:
+    return AgentError(
+        code="agent_deleted",
+        message="The trigger's agent was deleted, so the trigger is paused.",
+        retryable=False,
+        next_step="Point the trigger at another agent, then turn it on again.",
+    )
 
 
 class TriggersDispatcher:
@@ -49,12 +70,25 @@ class TriggersDispatcher:
         triggers_dao: TriggersDAOInterface,
         session_claims_dao: TriggerSessionClaimsDAOInterface,
         workflows_service: WorkflowsService,
+        run_admission: RunAdmission,
         dispatch_fn: Optional[Callable] = None,
+        access_service: Optional[AccessService] = None,
+        sharing_service: Optional[SharingService] = None,
     ):
         self.triggers_dao = triggers_dao
+        # Admits every fire (the principal and the resolved agent) before the claim.
+        self.run_admission = run_admission
         self.session_claims_dao = session_claims_dao
         self.workflows_service = workflows_service
         self._dispatch_fn = dispatch_fn
+        # None: the process's registered service (bootstrap_access).
+        self._access_service = access_service
+        # Every root builds the dispatcher after bootstrap_access().
+        self.sharing_service = sharing_service or get_sharing_service()
+
+    @property
+    def access_service(self) -> AccessService:
+        return self._access_service or get_access_service()
 
     def _build_context(
         self,
@@ -245,6 +279,18 @@ class TriggersDispatcher:
         """
         is_subscription = isinstance(entity, TriggerSubscription)
 
+        # No principal (created by a pod before M2, or a creatorless row the backfill
+        # paused): refuse and pause. The principal is never rebuilt from created_by_id.
+        if entity.principal is None:
+            await self._refuse(
+                project_id=project_id,
+                entity=entity,
+                event_id=event_id,
+                reason="missing_principal",
+                error=missing_principal_error(next_step="Create the trigger again."),
+            )
+            return
+
         delivery_id = uuid_compat.uuid7()
         session_id = uuid4().hex
         user_id = entity.created_by_id
@@ -254,27 +300,13 @@ class TriggersDispatcher:
             else SessionTriggerKind.schedule
         )
 
-        claimed = await self.session_claims_dao.claim_trigger_delivery(
-            project_id=project_id,
-            user_id=user_id,
-            event_id=event_id,
-            session_id=session_id,
-            attribution=SessionTriggerAttribution(
-                configuration_id=entity.id,
-                kind=kind,
-                delivery_id=delivery_id,
-            ),
-        )
-        if not claimed:
-            log.info(
-                "[TRIGGERS DISPATCHER] claim lost for entity=%s event=%s — already "
-                "claimed/delivered, skipping invoke",
-                entity.id,
-                event_id,
-            )
-            return
-
+        # Build the request and resolve its target BEFORE the claim, so the principal
+        # is checked against the revision that will run. A build or resolution failure
+        # is still recorded on a claimed delivery (400), as before.
         delivery_data = TriggerDeliveryData(session_id=session_id)
+        request: Optional[WorkflowServiceRequest] = None
+        failure: Optional[str] = None
+        target = None
         try:
             context = self._build_context(
                 event=event,
@@ -314,12 +346,96 @@ class TriggersDispatcher:
                     inputs=inputs if isinstance(inputs, dict) else {"value": inputs},
                 ),
             )
+            target = await self.workflows_service.resolve_request_target(
+                project_id=project_id,
+                request=request,
+            )
+            if target is None:
+                raise ValueError("The bound workflow reference resolves to no revision")
         except Exception as e:
+            failure = str(e)
+
+        if failure is None and target is not None and target.archived:
+            await self._refuse(
+                project_id=project_id,
+                entity=entity,
+                event_id=event_id,
+                reason="agent_deleted",
+                error=_agent_deleted_error(),
+            )
+            return
+
+        envelope = None
+        if failure is None:
+            envelope = stored_work_envelope(
+                principal=entity.principal,
+                organization_id=await self._organization_id(project_id=project_id),
+                project_id=project_id,
+                origin=(
+                    RunOrigin.SUBSCRIPTION if is_subscription else RunOrigin.SCHEDULE
+                ),
+                origin_id=str(entity.id),
+                created_by_id=entity.created_by_id,
+            )
+            # The target resolved above is the one checked and the one that runs
+            # (the stored `artifact_id` is a pause index, never read here). The
+            # admission logs a refusal with the run context (origin, trigger id).
+            try:
+                await self.run_admission.admit(
+                    envelope=envelope,
+                    session_id=None,
+                    agent_artifact_id=target.artifact_id,
+                    boundary=TRIGGER_DISPATCH_BOUNDARY,
+                )
+            except AdmissionDenied as denied:
+                decision = denied.decision
+                await self._refuse(
+                    project_id=project_id,
+                    entity=entity,
+                    event_id=event_id,
+                    reason="access_denied",
+                    error=access_denied_error(
+                        decision=decision,
+                        principal_kind=entity.principal.kind,
+                        project_id=project_id,
+                    ),
+                )
+                return
+
+        claimed = await self.session_claims_dao.claim_trigger_delivery(
+            project_id=project_id,
+            user_id=user_id,
+            event_id=event_id,
+            session_id=session_id,
+            attribution=SessionTriggerAttribution(
+                configuration_id=entity.id,
+                kind=kind,
+                delivery_id=delivery_id,
+            ),
+            access=self.sharing_service.initial_policy(
+                principal=entity.principal,
+                origin=(
+                    RunOrigin.SUBSCRIPTION if is_subscription else RunOrigin.SCHEDULE
+                ),
+                sender_user_id=None,
+                kind=SharedItemKind.SESSION,
+            ),
+        )
+        if not claimed:
+            log.info(
+                "[TRIGGERS DISPATCHER] claim lost for entity=%s event=%s — already "
+                "claimed/delivered, skipping invoke",
+                entity.id,
+                event_id,
+            )
+            return
+
+        if failure is not None:
             await self._complete_delivery(
                 project_id=project_id,
                 delivery_id=delivery_id,
                 status=Status(code="400", message="failed"),
-                data=delivery_data.model_copy(update={"error": str(e)}),
+                data=delivery_data.model_copy(update={"error": failure}),
             )
             await self._abandon_claimed_session(
                 project_id=project_id, session_id=session_id
@@ -334,6 +450,7 @@ class TriggersDispatcher:
                     project_id=project_id,
                     user_id=user_id,
                     request=request,
+                    envelope=envelope,
                 )
             except Exception as e:
                 log.error("[TRIGGERS DISPATCHER] detached invoke failed: %s", e)
@@ -366,6 +483,7 @@ class TriggersDispatcher:
                 project_id=project_id,
                 user_id=user_id,
                 request=request,
+                envelope=envelope,
             )
         except Exception as e:
             log.error("[TRIGGERS DISPATCHER] invoke failed: %s", e, exc_info=True)
@@ -419,6 +537,56 @@ class TriggersDispatcher:
             "[TRIGGERS DISPATCHER] dispatch complete entity=%s event=%s status=200",
             entity.id,
             event_id,
+        )
+
+    async def _organization_id(self, *, project_id: UUID) -> UUID:
+        organization_id = await self.access_service.project_organization_id(
+            project_id=project_id
+        )
+        if organization_id is None:
+            raise ValueError(f"project {project_id} has no organization")
+        return organization_id
+
+    async def _refuse(
+        self,
+        *,
+        project_id: UUID,
+        entity: Union[TriggerSubscription, TriggerSchedule],
+        event_id: str,
+        reason: str,
+        error: AgentError,
+    ) -> None:
+        """A refused delivery (status failed, `error` the message, `error_details` the
+        envelope) and the trigger paused, in one DAO transaction. A repeated event
+        writes nothing."""
+
+        is_subscription = isinstance(entity, TriggerSubscription)
+        await self.triggers_dao.refuse_delivery(
+            project_id=project_id,
+            user_id=entity.created_by_id,
+            delivery=TriggerDeliveryCreate(
+                id=uuid_compat.uuid7(),
+                subscription_id=entity.id if is_subscription else None,
+                schedule_id=None if is_subscription else entity.id,
+                event_id=event_id,
+                status=Status(code="403", message="failed"),
+                data=TriggerDeliveryData(
+                    event_key=entity.data.event_key,
+                    references=entity.data.references,
+                    error=error.message,
+                    error_details=error,
+                ),
+            ),
+            reason=reason,
+        )
+        log.info(
+            "[triggers] paused",
+            trigger_kind="subscription" if is_subscription else "schedule",
+            trigger_id=str(entity.id),
+            project_id=str(project_id),
+            principal_kind=entity.principal.kind.value if entity.principal else None,
+            principal_id=str(entity.principal.id) if entity.principal else None,
+            reason=reason,
         )
 
     async def _write_subscription_delivery_if_live(

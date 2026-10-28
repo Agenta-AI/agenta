@@ -1,6 +1,6 @@
 import {useEffect, useRef, useState, type ReactNode} from "react"
 
-import {type ProviderConnection} from "@agenta/entities/secret"
+import {subscriptionConnectMethod, type ProviderConnection} from "@agenta/entities/secret"
 import {
     Button,
     Dialog,
@@ -13,6 +13,12 @@ import {
 } from "@agenta/ui/ui"
 import {ArrowSquareOut, Check, CheckCircle, Copy, WarningCircle} from "@phosphor-icons/react"
 
+import OrganizationProjectsSection, {
+    type OrganizationConnectionScope,
+} from "./OrganizationProjectsSection"
+import {SignInStep} from "./SignInStep"
+import {SubscriptionTokenDialog} from "./SubscriptionTokenDialog"
+import {useOrganizationProjectsDraft} from "./useOrganizationProjectsDraft"
 import {countdownLabel, useSubscriptionSignIn} from "./useSubscriptionSignIn"
 
 export interface SubscriptionSignInDialogProps {
@@ -24,39 +30,12 @@ export interface SubscriptionSignInDialogProps {
     logo?: ReactNode
     /** Remove the connection. Absent hides the verb. */
     onRemove?: (connection: ProviderConnection) => void
+    /**
+     * An organization subscription: it signs in on the organization's routes, and the dialog
+     * ends with "Projects that can use it", applied on Done.
+     */
+    organization?: OrganizationConnectionScope
 }
-
-/** One numbered step, with a rail to the next. */
-const Step = ({
-    index,
-    title,
-    last,
-    children,
-}: {
-    index: number
-    title: string
-    last?: boolean
-    children: ReactNode
-}) => (
-    <li className="flex gap-3">
-        <span className="flex flex-col items-center">
-            <span className="flex size-6 shrink-0 items-center justify-center rounded-full border border-solid border-border bg-background text-[12px] font-medium text-foreground">
-                {index}
-            </span>
-            {last ? null : <span aria-hidden className="my-1 w-px flex-1 bg-border" />}
-        </span>
-        <span
-            className={
-                last
-                    ? "flex min-w-0 flex-1 flex-col gap-2"
-                    : "flex min-w-0 flex-1 flex-col gap-1 pb-4"
-            }
-        >
-            <span className="text-sm font-medium leading-6 text-foreground">{title}</span>
-            {children}
-        </span>
-    </li>
-)
 
 const CopyCode = ({code}: {code: string}) => {
     const [copied, setCopied] = useState(false)
@@ -83,17 +62,29 @@ const CopyCode = ({code}: {code: string}) => {
     )
 }
 
-/** A subscription's sign-in in a dialog: opening it starts the device login at once. */
-export const SubscriptionSignInDialog = ({
+/** A device sign-in in a dialog: opening it starts the device login at once. */
+const DeviceSignInDialog = ({
     open,
     onClose,
     provider = "chatgpt",
     connection = null,
     logo,
     onRemove,
+    organization,
 }: SubscriptionSignInDialogProps) => {
-    const signIn = useSubscriptionSignIn({provider, connection})
+    const signIn = useSubscriptionSignIn({
+        provider,
+        connection,
+        scope: organization ? "organization" : "project",
+        organizationName: organization?.name,
+    })
     const {name, isReady, pending, starting, error, lostPoll, now, statusLine, connect} = signIn
+    const draft = useOrganizationProjectsDraft({
+        open,
+        connection,
+        enabled: !!organization && !organization.readOnly,
+        organizationName: organization?.name,
+    })
 
     // Opening is the Connect click; a ready connection opens to its status instead.
     const startedRef = useRef(false)
@@ -114,6 +105,12 @@ export const SubscriptionSignInDialog = ({
     }
 
     const succeeded = isReady && !pending && !starting
+    // The projects of an existing connection save without a sign-in; Done also ends one.
+    const saveProjects = draft.changed ? (
+        <Button variant="outline" disabled={draft.saving} onClick={() => void draft.apply(close)}>
+            Done
+        </Button>
+    ) : null
     // A finished sign-in waits on the vault refresh before the connection reads ready.
     const settling = startedRef.current && !pending && !starting && !isReady && !error && !lostPoll
 
@@ -142,7 +139,7 @@ export const SubscriptionSignInDialog = ({
                 {pending ? (
                     <div className="flex flex-col gap-4">
                         <ol className="m-0 flex list-none flex-col p-0">
-                            <Step index={1} title={`Open ${name}`}>
+                            <SignInStep index={1} title={`Open ${name}`}>
                                 <a
                                     href={pending.verificationUri}
                                     target="_blank"
@@ -152,10 +149,10 @@ export const SubscriptionSignInDialog = ({
                                     {pending.verificationUri.replace(/^https?:\/\//, "")}
                                     <ArrowSquareOut size={12} />
                                 </a>
-                            </Step>
-                            <Step index={2} title="Enter this code" last>
+                            </SignInStep>
+                            <SignInStep index={2} title="Enter this code" last>
                                 <CopyCode code={pending.userCode} />
-                            </Step>
+                            </SignInStep>
                         </ol>
                         <div className="flex items-center justify-between gap-3 text-xs">
                             {/* Shimmers while the poll runs; plain text under reduced motion. */}
@@ -179,6 +176,27 @@ export const SubscriptionSignInDialog = ({
                         <CheckCircle size={18} weight="fill" />
                         Ready. Pick a {name} model in any agent.
                     </div>
+                ) : null}
+
+                {organization && !organization.readOnly && connection ? (
+                    <div className="text-xs">
+                        <OrganizationProjectsSection
+                            scope={organization}
+                            value={draft.projects}
+                            onChange={draft.setProjects}
+                            saved={draft.saved}
+                        />
+                    </div>
+                ) : null}
+
+                {draft.error ? (
+                    <p
+                        role="alert"
+                        className="m-0 flex items-center gap-1.5 text-xs text-destructive"
+                    >
+                        <WarningCircle size={14} />
+                        {draft.error}
+                    </p>
                 ) : null}
 
                 {lostPoll && !isReady ? (
@@ -215,6 +233,7 @@ export const SubscriptionSignInDialog = ({
                             <Button variant="outline" onClick={close}>
                                 Cancel
                             </Button>
+                            {saveProjects}
                             <Button asChild>
                                 <a href={pending.verificationUri} target="_blank" rel="noreferrer">
                                     Open {name}
@@ -227,13 +246,19 @@ export const SubscriptionSignInDialog = ({
                             <Button variant="outline" onClick={() => void connect()}>
                                 Sign in again
                             </Button>
-                            <Button onClick={onClose}>Done</Button>
+                            <Button
+                                disabled={draft.saving}
+                                onClick={() => void draft.apply(onClose)}
+                            >
+                                Done
+                            </Button>
                         </>
                     ) : (
                         <>
                             <Button variant="outline" onClick={close}>
                                 Cancel
                             </Button>
+                            {saveProjects}
                             <Button disabled={starting || settling} onClick={() => void connect()}>
                                 {starting ? "Starting…" : settling ? "Finishing…" : "Try again"}
                             </Button>
@@ -244,5 +269,13 @@ export const SubscriptionSignInDialog = ({
         </Dialog>
     )
 }
+
+/** A subscription's connect dialog. The body is chosen here, so a token never mounts a device login. */
+export const SubscriptionSignInDialog = (props: SubscriptionSignInDialogProps) =>
+    subscriptionConnectMethod(props.provider ?? "chatgpt") === "token" ? (
+        <SubscriptionTokenDialog {...props} />
+    ) : (
+        <DeviceSignInDialog {...props} />
+    )
 
 export default SubscriptionSignInDialog

@@ -301,14 +301,14 @@ describe("settling", () => {
 })
 
 describe("refusal", () => {
-    it("explains a secret-shaped request rather than drawing a form for it", () => {
-        setup({
+    it("draws nothing for a payload it cannot render", () => {
+        const {container} = setup({
             message: "Paste your key",
             requestedSchema: {type: "object", properties: {api_key: {type: "string"}}},
         })
 
-        expect(screen.getByText(/forms never carry secrets/)).toBeTruthy()
-        expect(screen.getByText(/Connect the credential instead/)).toBeTruthy()
+        expect(container.querySelector("[data-elicitation-card]")).toBeNull()
+        expect(screen.queryByText("Skip")).toBeNull()
     })
 })
 

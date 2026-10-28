@@ -1,0 +1,1 @@
+{"parameters":[{"name":"session_id","in":"query","required":true,"schema":{"type":"string","title":"Session Id"}},{"name":"path","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Path"}}]}

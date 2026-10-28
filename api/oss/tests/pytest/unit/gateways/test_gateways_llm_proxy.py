@@ -10,6 +10,7 @@ from contextlib import contextmanager
 from typing import Any, AsyncIterator, Dict, List, Optional
 from uuid import uuid4
 
+import httpx
 import pytest
 from starlette.requests import Request
 
@@ -153,6 +154,13 @@ class _MockLlmGatewayService:
         return self._models
 
 
+def _platform_run(request: Request) -> Request:
+    """Authenticate `request` the way a gateway token from a platform agent run does."""
+    request.state.token_audience = "gateway"
+    request.state.gateway_platform_run = True
+    return request
+
+
 async def _read_body(response) -> bytes:
     if hasattr(response, "body_iterator"):
         return b"".join([chunk async for chunk in response.body_iterator])
@@ -214,11 +222,11 @@ async def test_standard_route_passes_standard_namespace_and_provider_as_name():
 async def test_the_run_a_caller_presents_reaches_the_service():
     """The run claim is read off request state, never off the tenant scope, and it is
     what ties a measured call back to its workflow run. A caller on no run passes None."""
-    on_a_run = _request(body=_body())
+    on_a_run = _platform_run(_request(body=_body()))
     on_a_run.state.gateway_run_id = "run-42"
     run_ids = []
 
-    for request in (on_a_run, _request(body=_body())):
+    for request in (on_a_run, _platform_run(_request(body=_body()))):
         service = _MockLlmGatewayService(
             relay_result=_relay_result(status_code=200, chunks=[b"{}"])
         )
@@ -391,8 +399,13 @@ _DENIAL_CASES = [
         "upstream_error",
     ),
     (
+        LLMUpstreamError(provider_key="openai", status_code=504, detail="slow"),
+        502,
+        "upstream_error",
+    ),
+    (
         LLMUpstreamTimeoutError(provider_key="openai"),
-        504,
+        408,
         "upstream_timeout",
     ),
 ]
@@ -694,9 +707,31 @@ def test_route_table_matches_the_design_exactly():
         ("/builtin/{provider}/v1/messages", "POST"): "llm_gateway_messages_builtin",
         ("/standard/{provider}/v1/messages", "POST"): "llm_gateway_messages_standard",
         ("/custom/{slug}/v1/messages", "POST"): "llm_gateway_messages_custom",
+        # Google's native protocol, for the built-in Gemini endpoint only.
+        (
+            "/builtin/{provider}/v1beta/models/{model}:streamGenerateContent",
+            "POST",
+        ): "llm_gateway_gemini_stream_builtin",
         ("/builtin/{provider}/v1/models", "GET"): "llm_gateway_list_models_builtin",
         ("/standard/{provider}/v1/models", "GET"): "llm_gateway_list_models_standard",
         ("/custom/{slug}/v1/models", "GET"): "llm_gateway_list_models_custom",
+        # Organization connections an agent named by scope (M5).
+        (
+            "/organization/{slug}/v1/chat/completions",
+            "POST",
+        ): "llm_gateway_chat_completions_organization",
+        (
+            "/organization/{slug}/v1/responses",
+            "POST",
+        ): "llm_gateway_responses_organization",
+        (
+            "/organization/{slug}/v1/messages",
+            "POST",
+        ): "llm_gateway_messages_organization",
+        (
+            "/organization/{slug}/v1/models",
+            "GET",
+        ): "llm_gateway_list_models_organization",
     }
 
 
@@ -812,3 +847,317 @@ async def test_an_upstream_failure_leaves_retrying_to_the_harness():
         )
 
     assert "x-should-retry" not in response.headers
+
+
+# --- a stream that fails after the response started ---------------------------- #
+
+
+async def _dropped_stream(exc: Exception) -> AsyncIterator[bytes]:
+    yield b'data: {"choices":[{"delta":{"content":"Hel"}}]}\n\n'
+    yield b'data: {"choices":[{"delta":{"con'
+    raise exc
+
+
+_MARKER = "⟦agenta_code:upstream_error⟧".encode()
+
+
+def _last_sse_event(body: bytes) -> Dict[str, Any]:
+    blocks = [block for block in body.split(b"\n\n") if block.strip()]
+    fields = dict(line.split(b": ", 1) for line in blocks[-1].split(b"\n"))
+    return {"event": fields.get(b"event"), "data": json.loads(fields[b"data"])}
+
+
+def _proxy_over(body: AsyncIterator[bytes]) -> LLMGatewayProxy:
+    result = LLMRelayResult(status_code=200, headers={}, body=body)
+    return LLMGatewayProxy(
+        llm_gateway_service=_MockLlmGatewayService(relay_result=result)
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "route, body, event, error_code",
+    [
+        (
+            "chat_completions_custom",
+            _body(stream=True),
+            None,
+            lambda data: data["error"]["code"],
+        ),
+        (
+            "responses_custom",
+            _responses_body(stream=True),
+            b"error",
+            lambda data: data["code"],
+        ),
+        (
+            "messages_custom",
+            _messages_body(stream=True),
+            b"error",
+            lambda data: data["error"]["type"],
+        ),
+    ],
+)
+async def test_a_stream_the_upstream_drops_ends_with_a_terminal_error_event(
+    route, body, event, error_code
+):
+    """The upstream closed its socket mid-stream, after the status line was sent. Raised
+    out of the `StreamingResponse`, the error left the response unterminated and Traefik
+    answered the next request on that keep-alive connection with a 502."""
+    proxy = _proxy_over(
+        _dropped_stream(
+            LLMUpstreamError(provider_key="openai", status_code=None, detail="sk-x")
+        )
+    )
+
+    with _auth_scope():
+        response = await getattr(proxy, route)(_request(body=body), "my-slug")
+        relayed = await _read_body(response)
+
+    assert response.status_code == 200
+    assert relayed.startswith(b'data: {"choices":[{"delta":{"content":"Hel"}}]}\n\n')
+    assert b"sk-x" not in relayed
+    assert relayed.endswith(b"\n\n")
+    last = _last_sse_event(relayed)
+    assert last["event"] == event
+    assert error_code(last["data"]) in ("upstream_error", "api_error")
+    # The relay's own marked sentence, which the runner reads and Pi retries on.
+    assert _MARKER in relayed
+    assert b"connection error" in relayed
+
+
+@pytest.mark.asyncio
+async def test_a_stream_that_times_out_mid_way_ends_with_an_upstream_timeout_event():
+    proxy = _proxy_over(_dropped_stream(LLMUpstreamTimeoutError(provider_key="openai")))
+
+    with _auth_scope():
+        response = await proxy.chat_completions_custom(
+            _request(body=_body(stream=True)), "my-slug"
+        )
+        relayed = await _read_body(response)
+
+    error = _last_sse_event(relayed)["data"]["error"]
+    assert error["code"] == "upstream_timeout"
+    assert error["message"].startswith("The model provider did not answer in time.")
+    assert error["message"].endswith("⟦agenta_code:upstream_error⟧")
+
+
+@pytest.mark.asyncio
+async def test_an_unexpected_failure_mid_stream_still_ends_the_stream_cleanly():
+    proxy = _proxy_over(_dropped_stream(RuntimeError("boom")))
+
+    with _auth_scope():
+        response = await proxy.chat_completions_custom(
+            _request(body=_body(stream=True)), "my-slug"
+        )
+        relayed = await _read_body(response)
+
+    assert _last_sse_event(relayed)["data"]["error"]["code"] == "upstream_error"
+    assert b"boom" not in relayed
+
+
+@pytest.mark.asyncio
+async def test_a_raw_transport_error_mid_stream_ends_cleanly_without_its_text():
+    """A route that bypasses the relay's error handling hands the raw httpx error up."""
+    proxy = _proxy_over(
+        _dropped_stream(httpx.RemoteProtocolError("peer closed connection sk-x"))
+    )
+
+    with _auth_scope():
+        response = await proxy.chat_completions_custom(
+            _request(body=_body(stream=True)), "my-slug"
+        )
+        relayed = await _read_body(response)
+
+    assert _last_sse_event(relayed)["data"]["error"]["code"] == "upstream_error"
+    assert b"sk-x" not in relayed
+    assert b"peer closed" not in relayed
+
+
+@pytest.mark.asyncio
+async def test_a_stream_the_client_leaves_closes_the_relayed_body_at_once():
+    """The relayed body records the call in its `finally`, which is how a stream the client
+    left is still charged. The wrapper must close it when it is closed, not leave it to GC."""
+    closed = []
+
+    async def _body_that_records() -> AsyncIterator[bytes]:
+        try:
+            yield b'data: {"choices":[{"delta":{"content":"Hel"}}]}\n\n'
+            yield b'data: {"choices":[{"delta":{"content":"lo"}}]}\n\n'
+        finally:
+            closed.append(True)
+
+    proxy = _proxy_over(_body_that_records())
+
+    with _auth_scope():
+        response = await proxy.chat_completions_custom(
+            _request(body=_body(stream=True)), "my-slug"
+        )
+        await anext(response.body_iterator)
+        await response.body_iterator.aclose()
+
+    assert closed == [True]
+
+
+# --- built-in models are for platform agent runs only ------------------------ #
+
+
+def _unreadable_request(state: Dict[str, Any]) -> Request:
+    """A request whose body fails the test if anything reads it."""
+    scope = {"type": "http", "method": "POST", "path": "/", "headers": []}
+
+    async def receive() -> Dict[str, Any]:
+        raise AssertionError("the body of a refused built-in call was read")
+
+    request = Request(scope, receive)
+    for key, value in state.items():
+        setattr(request.state, key, value)
+    return request
+
+
+async def _call_builtin(proxy: LLMGatewayProxy, operation: str, request: Request):
+    return await getattr(proxy, operation)(request, "mock")
+
+
+_BUILTIN_OPERATIONS = [
+    "chat_completions_builtin",
+    "responses_builtin",
+    "messages_builtin",
+    "list_models_builtin",
+]
+
+# What request state each caller type leaves after authentication.
+_REFUSED_CALLERS = {
+    # Session cookies and API keys set neither audience nor claim.
+    "session_or_api_key": {},
+    # The runtime's own general-purpose credential, carrying the vault grant.
+    "general_secret_with_grant": {"token_grants": ("secret-resolve",)},
+    # A gateway token minted for a user principal, or before this claim existed.
+    "gateway_token_without_claim": {"token_audience": "gateway"},
+    "gateway_token_claim_false": {
+        "token_audience": "gateway",
+        "gateway_platform_run": False,
+    },
+    "gateway_token_claim_not_a_boolean": {
+        "token_audience": "gateway",
+        "gateway_platform_run": "true",
+    },
+    # The claim means nothing without the gateway audience.
+    "claim_without_gateway_audience": {"gateway_platform_run": True},
+}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("operation", _BUILTIN_OPERATIONS)
+@pytest.mark.parametrize("caller", sorted(_REFUSED_CALLERS))
+async def test_a_built_in_route_refuses_every_caller_but_a_platform_agent_run(
+    operation, caller
+):
+    service = _MockLlmGatewayService(
+        relay_result=_relay_result(chunks=[b"{}"]), models=["gpt-4o"]
+    )
+    proxy = LLMGatewayProxy(llm_gateway_service=service)
+
+    with _auth_scope():
+        response = await _call_builtin(
+            proxy, operation, _unreadable_request(_REFUSED_CALLERS[caller])
+        )
+
+    assert response.status_code == 403
+    error = json.loads(response.body)["error"]
+    assert error["code"] == "builtin_requires_agent_run"
+    assert error["type"] == "permission_error"
+    assert service.relay_calls == []
+    assert service.list_models_calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("operation", _BUILTIN_OPERATIONS)
+async def test_a_built_in_route_serves_a_platform_agent_run(operation):
+    service = _MockLlmGatewayService(
+        relay_result=_relay_result(chunks=[b"{}"]), models=["gpt-4o"]
+    )
+    proxy = LLMGatewayProxy(llm_gateway_service=service)
+    body = {
+        "chat_completions_builtin": _body(),
+        "responses_builtin": _responses_body(),
+        "messages_builtin": _messages_body(),
+        "list_models_builtin": b"",
+    }[operation]
+
+    with _auth_scope():
+        response = await _call_builtin(
+            proxy, operation, _platform_run(_request(body=body))
+        )
+
+    if operation == "list_models_builtin":
+        assert response["data"] == [{"id": "gpt-4o", "object": "model"}]
+        assert service.list_models_calls[0]["namespace"] == (
+            GatewayEndpointNamespace.BUILTIN
+        )
+    else:
+        assert response.status_code == 200
+        assert service.relay_calls[0]["namespace"] == GatewayEndpointNamespace.BUILTIN
+
+
+@pytest.mark.asyncio
+async def test_a_malformed_body_on_a_built_in_route_is_refused_for_the_caller_first():
+    service = _MockLlmGatewayService()
+    proxy = LLMGatewayProxy(llm_gateway_service=service)
+
+    with _auth_scope():
+        response = await proxy.chat_completions_builtin(
+            _request(body=b"{not json"), "mock"
+        )
+
+    assert response.status_code == 403
+    assert json.loads(response.body)["error"]["code"] == "builtin_requires_agent_run"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "operation",
+    [
+        "chat_completions_standard",
+        "chat_completions_custom",
+        "responses_standard",
+        "responses_custom",
+        "messages_standard",
+        "messages_custom",
+    ],
+)
+@pytest.mark.parametrize("caller", sorted(_REFUSED_CALLERS))
+async def test_own_connection_routes_do_not_need_a_platform_agent_run(
+    operation, caller
+):
+    """Standard and custom routes spend the caller's own provider key."""
+    service = _MockLlmGatewayService(relay_result=_relay_result(chunks=[b"{}"]))
+    proxy = LLMGatewayProxy(llm_gateway_service=service)
+    body = (
+        _responses_body()
+        if operation.startswith("responses")
+        else _messages_body()
+        if operation.startswith("messages")
+        else _body()
+    )
+    request = _request(body=body)
+    for key, value in _REFUSED_CALLERS[caller].items():
+        setattr(request.state, key, value)
+
+    with _auth_scope():
+        response = await getattr(proxy, operation)(request, "my-connection")
+
+    assert response.status_code == 200
+    assert len(service.relay_calls) == 1
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("operation", ["list_models_standard", "list_models_custom"])
+async def test_own_connection_model_lists_do_not_need_a_platform_agent_run(operation):
+    service = _MockLlmGatewayService(models=["gpt-4o"])
+    proxy = LLMGatewayProxy(llm_gateway_service=service)
+
+    with _auth_scope():
+        result = await getattr(proxy, operation)("my-connection")
+
+    assert result["data"] == [{"id": "gpt-4o", "object": "model"}]

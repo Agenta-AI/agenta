@@ -1,4 +1,5 @@
 from typing import Optional
+from uuid import UUID
 
 # Mount naming vocabulary. It lives here, below the service, because the protected-mount
 # policy is enforced twice against the same rows — as a SQL predicate in the Postgres DAO
@@ -7,6 +8,36 @@ RESERVED_SLUG_PREFIX = "__ag__"
 SESSION_SLUG_PREFIX = f"{RESERVED_SLUG_PREFIX}session__"
 ATTACHMENTS_MOUNT_NAME = "attachments"
 ATTACHMENTS_MOUNT_PURPOSE = "session_attachment_originals"
+
+# Object-key root of every mount. A stored prefix is `mounts/<scope_id>/<mount_id>`, relative to
+# the store namespace. Mounts created by 0.125.0 or later store the organization layout (the
+# Postgres DAO builds it in the insert statement); older mounts keep the project layout.
+MOUNTS_KEY_ROOT = "mounts"
+
+
+def project_storage_prefix(
+    *,
+    project_id: UUID,
+    mount_id: UUID,
+) -> str:
+    """`mounts/<project_id>/<mount_id>`: namespace-relative, no trailing slash.
+
+    The layout of every mount created by earlier versions.
+    """
+    return f"{MOUNTS_KEY_ROOT}/{project_id}/{mount_id}"
+
+
+def organization_storage_prefix(
+    *,
+    organization_id: UUID,
+    mount_id: UUID,
+) -> str:
+    """`mounts/<organization_id>/<mount_id>`: namespace-relative, no trailing slash.
+
+    The layout of every mount created by 0.125.0 or later.
+    """
+    return f"{MOUNTS_KEY_ROOT}/{organization_id}/{mount_id}"
+
 
 # Backslash, so the escaped pattern below survives a `LIKE ... ESCAPE` round trip.
 PROTECTED_MOUNT_SLUG_LIKE_ESCAPE = "\\"
@@ -117,6 +148,17 @@ class MountPreconditionFailed(MountError):
     def __init__(self, etag: Optional[str] = None):
         super().__init__("File precondition failed.")
         self.etag = etag
+
+
+class MountFileTooLarge(MountError):
+    """A text read refused a file larger than `max_bytes`; the download endpoint serves it."""
+
+    def __init__(self, max_bytes: int):
+        super().__init__(
+            f"File is larger than {max_bytes} bytes and cannot be read as text. "
+            "Use the download endpoint (/mounts/{mount_id}/files/download) instead."
+        )
+        self.max_bytes = max_bytes
 
 
 class MountStorageUnavailable(MountError):

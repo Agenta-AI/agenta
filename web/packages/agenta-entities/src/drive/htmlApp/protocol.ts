@@ -10,6 +10,8 @@
  * lane A (host) and lane C (UI) both import it so a mismatch fails in `tsc`.
  */
 
+import type {PickerRect, PickedElement, PinQuery} from "@agenta/shared/previewPicker"
+
 export const BRIDGE_VERSION = 1 as const
 /** Largest file the bridge will serve, in bytes. Larger reads fail with `too_large`. */
 export const READ_CAP = 4 * 1024 * 1024
@@ -110,7 +112,31 @@ export interface ScriptErrorMsg {
     col?: number
 }
 
-export type IframeToParent = FsRequest | HelloAck | NavMsg | ScriptErrorMsg
+/** Comment mode: the person picked an element. The host validates it with `parsePickerMessage`. */
+export interface PickedMsg {
+    v: 1
+    type: "picked"
+    element: PickedElement
+    text: string
+    rect: PickerRect
+}
+
+/** Comment mode: the person pressed Escape inside the frame. */
+export interface PickCancelMsg {
+    v: 1
+    type: "pick-cancel"
+}
+
+/** Where each pinned comment's element sits now, in frame coordinates; `null` when not shown. */
+export interface PinRectsMsg {
+    v: 1
+    type: "pin-rects"
+    rects: {id: string; rect: PickerRect | null}[]
+}
+
+export type PickerToParent = PickedMsg | PickCancelMsg | PinRectsMsg
+
+export type IframeToParent = FsRequest | HelloAck | NavMsg | ScriptErrorMsg | PickerToParent
 
 // ---------------------------------------------------------------------------------------------
 // parent → iframe
@@ -174,6 +200,26 @@ export interface AccessMsg {
     canWrite: boolean
 }
 
+export interface PickStartMsg {
+    v: 1
+    type: "pick-start"
+    format: "html"
+}
+
+export interface PickStopMsg {
+    v: 1
+    type: "pick-stop"
+}
+
+/** The comments staged on this page, for the picker to place pins on. */
+export interface PinsMsg {
+    v: 1
+    type: "pins"
+    pins: PinQuery[]
+}
+
+export type ParentToPicker = PickStartMsg | PickStopMsg | PinsMsg
+
 export type ParentToIframe =
     | Hello
     | FsResponse
@@ -182,6 +228,7 @@ export type ParentToIframe =
     | ChangedMsg
     | ThemeMsg
     | AccessMsg
+    | ParentToPicker
 
 /** What `FsResponse.result` holds, per method. */
 export interface FsResults {
@@ -301,7 +348,19 @@ export interface HtmlAppHost {
     onChanged?(cb: (paths: string[]) => void): () => void
     /** Change what the app may touch now; the next call is served under it. */
     setAccess?(level: AppAccess): void
+    /** Turn comment mode on in the frame; kept across a reload until `stopPick`. */
+    startPick?(): void
+    stopPick?(): void
+    /** Comments to pin on the page; re-sent after every reload. */
+    setPins?(pins: PinQuery[]): void
+    /** A picked element, in frame coordinates; only delivered while comment mode is on. */
+    onPicked?(cb: (picked: PickedPayload) => void): () => void
+    onPinRects?(cb: (rects: PinRectsMsg["rects"]) => void): () => void
+    /** The person left comment mode from inside the frame. */
+    onPickCancel?(cb: () => void): () => void
 }
+
+export type PickedPayload = Omit<PickedMsg, "v" | "type">
 
 export interface HtmlAppHostOptions {
     mountId: string
@@ -356,6 +415,10 @@ export function isIframeToParent(x: unknown): x is IframeToParent {
             return typeof x.href === "string"
         case "error":
             return typeof x.message === "string"
+        case "picked":
+        case "pick-cancel":
+        case "pin-rects":
+            return true
         default:
             return false
     }

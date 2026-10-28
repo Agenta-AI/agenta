@@ -10,4 +10,5 @@ export interface SimpleWorkflowCreate {
     description?: (string | null) | undefined;
     slug?: (string | null) | undefined;
     data?: (AgentaApi.SimpleWorkflowDataInput | null) | undefined;
+    visibility?: (AgentaApi.Visibility | null) | undefined;
 }

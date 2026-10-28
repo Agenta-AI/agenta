@@ -51,11 +51,18 @@ vi.mock("@/features/chat/useStartBlankSession", () => ({
     useStartBlankSession: () => () => undefined,
 }))
 vi.mock("@/features/chat/useTriggerTestRun", () => ({useTriggerTestRun: () => undefined}))
-vi.mock("@agenta/entity-ui/drive", () => ({
-    DriveSessionProvider: ({children}: {children: React.ReactNode}) => children,
-    SessionFilesPane: () => null,
-    useSessionFilesPane: () => ({open: false, close: () => undefined, toggle: () => undefined}),
-}))
+vi.mock("@agenta/entity-ui/drive", async () => {
+    const {atom} = await import("jotai")
+    const {createContext} = await import("react")
+    return {
+        DriveLinkContext: createContext(null),
+        DriveSessionProvider: ({children}: {children: React.ReactNode}) => children,
+        SessionFilesPane: () => null,
+        driveQuickLookAtomFamily: () => atom(null, () => undefined),
+        useCopyText: () => () => undefined,
+        useSessionFilesPane: () => ({open: false, close: () => undefined, toggle: () => undefined}),
+    }
+})
 vi.mock("@agenta/sessions-ui", () => ({
     useRequestSessionTabRename: () => () => undefined,
     useSessionActions: () => ({setArchived: () => undefined}),

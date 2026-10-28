@@ -52,6 +52,8 @@ export const sanitizeErrorText = (text: string): string =>
             "$2=[secret]",
         )
         .replace(/\beyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9._-]+/g, "[secret]")
+        // A provider's own masked copy of the key ("sk-proj-****...abcd") still shows its ends.
+        .replace(/\b(?:sk|pk|rk)-[A-Za-z0-9_-]{0,24}(?:\*{3,}|\.{3,})[A-Za-z0-9_-]*/g, "[secret]")
         .replace(/\b(?:sk|pk|rk)-[A-Za-z0-9_-]{8,}/g, "[secret]")
         .trim()
 
@@ -98,7 +100,7 @@ export const readableTraceError = (raw?: string | null): string | null => {
               .slice(0, 300)
               .replace(/[.!?]?$/, ".")
         : ""
-    if (status === "429" || status.startsWith("5"))
+    if (status === "408" || status === "429" || status.startsWith("5"))
         return `The model provider could not answer (HTTP ${status})${said ? `: ${said}` : "."} Try again in a moment.`
     return `The model provider refused the request (HTTP ${status})${said ? `: ${said}` : "."}`
 }

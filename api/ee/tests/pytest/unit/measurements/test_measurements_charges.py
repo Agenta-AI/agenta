@@ -143,12 +143,7 @@ def test_every_model_the_builtin_namespace_serves_has_a_rate(monkeypatch):
     ] == []
 
 
-@pytest.mark.parametrize(
-    "model", ["google/gemini-3.7-flash", "google/gemini-3.8-flash"]
-)
-def test_gemini_flash_is_priced_at_the_list_price_times_one_point_seven_five(model):
-    """List price read 2026-10-02 (global, through 2026-12-31): $0.75 input, $0.075
-    cached input, $3.75 output per million tokens. Ours is x 1.75."""
+def _gemini_charge(model):
     command = build_measurement_command(
         resource_key=f"llm:agenta:{model}",
         resource_locator={"provider": "agenta", "model": model},
@@ -158,7 +153,23 @@ def test_gemini_flash_is_priced_at_the_list_price_times_one_point_seven_five(mod
             MeasurementComponentV1(key="output_tokens", value=68),
         ],
     )
+    return calculate_charge(command=command)
 
-    # 2457 x 1_312_500 + 12256 x 131_250 + 68 x 6_562_500
-    # = 3_224_812_500 + 1_608_600_000 + 446_250_000 = 5_279_662_500; / 1e6 up = 5280
-    assert calculate_charge(command=command) == (5280, RATE_CARD_VERSION)
+
+@pytest.mark.parametrize(
+    "model", ["google/gemini-3.7-flash", "google/gemini-3.8-flash"]
+)
+def test_gemini_flash_is_priced_at_the_list_price_times_one_point_two(model):
+    """List price read 2026-10-14 (global, through 2026-12-31): $0.75 input, $0.075
+    cached input, $3.75 output per million tokens. Ours is x 1.2."""
+    # 2457 x 900_000 + 12256 x 90_000 + 68 x 4_500_000
+    # = 2_211_300_000 + 1_103_040_000 + 306_000_000 = 3_620_340_000; / 1e6 up = 3621
+    assert _gemini_charge(model) == (3621, RATE_CARD_VERSION)
+
+
+def test_gemini_argon_is_priced_at_the_list_price_times_one_point_two():
+    """List price read 2026-10-14 (global, through 2026-11-30): $2 input, $0.10 cached
+    input, $10 output per million tokens. Ours is x 1.2."""
+    # 2457 x 2_400_000 + 12256 x 120_000 + 68 x 12_000_000
+    # = 5_896_800_000 + 1_470_720_000 + 816_000_000 = 8_183_520_000; / 1e6 up = 8184
+    assert _gemini_charge("google/gemini-4-argon") == (8184, RATE_CARD_VERSION)

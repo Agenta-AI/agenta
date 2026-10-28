@@ -28,13 +28,19 @@ import signal
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 from typing import List
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from taskiq import AsyncBroker, TaskiqEvents
 from taskiq.receiver import Receiver
 
 from contextlib import suppress
 
+from entrypoints.access import bootstrap_access
+from oss.src.core.access.service import get_access_service
+from oss.src.core.sharing.admission import RunAdmission
+from oss.src.core.sessions.commands.delivery import (
+    deliver_continue_interaction,
+)
 from oss.src.utils import heartbeat
 from taskiq.cli.worker.run import shutdown_broker
 
@@ -73,6 +79,7 @@ from oss.src.dbs.postgres.environments.dbes import (
 )
 from oss.src.dbs.postgres.evaluations.dao import EvaluationsDAO
 from oss.src.dbs.postgres.git.dao import GitDAO
+from oss.src.dbs.postgres.workflows.dao import WorkflowsDAO
 from oss.src.dbs.postgres.queries.dbes import (
     QueryArtifactDBE,
     QueryRevisionDBE,
@@ -130,6 +137,7 @@ from oss.src.utils.common import is_ee
 from oss.src.utils.env import env
 from oss.src.utils.helpers import validate_required_env_vars, warn_deprecated_env_vars
 from oss.src.utils.logging import get_module_logger
+from oss.src.utils.server_tracing import setup_server_tracing
 
 # Guard EE imports so an OSS build needn't import the ee.* package.
 if is_ee():
@@ -140,6 +148,8 @@ import agenta as ag
 log = get_module_logger(__name__)
 
 ag.init(api_url=env.agenta.api_url)
+
+setup_server_tracing("agenta-worker-queues")
 
 ALL_QUEUES = (
     "webhooks",
@@ -199,6 +209,16 @@ def _install_session_context_resolver(
     )
 
 
+def _run_admission(workflows_service: WorkflowsService) -> RunAdmission:
+    """The admission of every run this worker starts or resumes, over the worker's own
+    `WorkflowsService` (one per builder). Built after `bootstrap_access()`."""
+
+    return RunAdmission(
+        access_service=get_access_service(),
+        workflows_service=workflows_service,
+    )
+
+
 def _build_webhooks_broker() -> tuple[AsyncBroker, int]:
     broker = TrimOnAckRedisStreamBroker(
         url=env.redis.uri_durable,
@@ -225,7 +245,7 @@ def _build_triggers_broker() -> tuple[AsyncBroker, int]:
     transactions_engine = get_transactions_engine()
     triggers_dao = TriggersDAO(engine=transactions_engine)
     session_streams_dao = SessionStreamsDAO(engine=transactions_engine)
-    workflows_dao = GitDAO(
+    workflows_dao = WorkflowsDAO(
         ArtifactDBE=WorkflowArtifactDBE,
         VariantDBE=WorkflowVariantDBE,
         RevisionDBE=WorkflowRevisionDBE,
@@ -251,11 +271,15 @@ def _build_triggers_broker() -> tuple[AsyncBroker, int]:
         workflows_service, transactions_engine=transactions_engine
     )
 
-    async def _dispatch_detached_run(*, project_id, user_id, request) -> str:
+    async def _dispatch_detached_run(
+        *, project_id, user_id, request, envelope, run_id=None
+    ) -> str:
         result = await workflows_service.invoke_workflow_detached(
             project_id=project_id,
             user_id=user_id,
             request=request,
+            envelope=envelope,
+            run_id=run_id,
         )
         return result.run_id
 
@@ -271,6 +295,7 @@ def _build_triggers_broker() -> tuple[AsyncBroker, int]:
         triggers_dao=triggers_dao,
         session_claims_dao=session_streams_dao,
         workflows_service=workflows_service,
+        run_admission=_run_admission(workflows_service),
         dispatch_fn=_dispatch_detached_run,
     )
     TriggersWorker(
@@ -301,7 +326,7 @@ def _build_channels_inbox_broker() -> tuple[AsyncBroker, int]:
     )
 
     transactions_engine = get_transactions_engine()
-    workflows_dao = GitDAO(
+    workflows_dao = WorkflowsDAO(
         ArtifactDBE=WorkflowArtifactDBE,
         VariantDBE=WorkflowVariantDBE,
         RevisionDBE=WorkflowRevisionDBE,
@@ -322,20 +347,24 @@ def _build_channels_inbox_broker() -> tuple[AsyncBroker, int]:
     environments_service.embeds_service = embeds_service
 
     async def _dispatch_detached_run(
-        *, project_id, user_id, request, run_id=None
+        *, project_id, user_id, request, envelope, run_id=None
     ) -> str:
         result = await workflows_service.invoke_workflow_detached(
             project_id=project_id,
             user_id=user_id,
             request=request,
+            envelope=envelope,
             run_id=run_id,
         )
         return result.run_id
+
+    run_admission = _run_admission(workflows_service)
 
     # A channel's approval answer resumes the parked session the way a
     # playground click does: through the interactions dispatcher.
     interactions_dispatcher = InteractionsDispatcher(
         workflows_service=workflows_service,
+        run_admission=run_admission,
         interactions_service=SessionInteractionsService(
             interactions_dao=SessionInteractionsDAO(engine=transactions_engine),
             watch_publisher=SessionsWatchPublisher(),
@@ -363,20 +392,16 @@ def _build_channels_inbox_broker() -> tuple[AsyncBroker, int]:
         lock_engine=get_lock_engine(),
         executions_dao=SessionExecutionsDAO(engine=transactions_engine),
         delivery=DirectControlDelivery(
-            continue_interaction=lambda command: interactions_dispatcher.respond_many(
-                project_id=command.project_id,
-                user_id=command.created_by_id,
-                interaction_answers=[
-                    (UUID(item["interaction_id"]), item["answer"])
-                    for item in command.data["answers"]
-                ],
-                control_command_id=command.id,
-                continuation_execution_id=command.target_turn_id,
+            continue_interaction=lambda command: deliver_continue_interaction(
+                command=command,
+                interactions_dispatcher=interactions_dispatcher,
             ),
         ),
     )
 
-    async def _respond_interaction(*, project_id, user_id, interaction_id, answer):
+    async def _respond_interaction(
+        *, project_id, user_id, interaction_id, answer, approved_by
+    ):
         # Reuse the same atomic admission as the session approval endpoint.
         # The interaction is the stable key across provider retries and two answers.
         await commands_service.respond_interaction(
@@ -386,6 +411,7 @@ def _build_channels_inbox_broker() -> tuple[AsyncBroker, int]:
             answer=answer,
             expected_execution_id=None,
             idempotency_key=f"channels:{interaction_id}",
+            approved_by=approved_by,
         )
 
     # A follow-up sent while the thread's turn runs joins the session queue,
@@ -401,6 +427,7 @@ def _build_channels_inbox_broker() -> tuple[AsyncBroker, int]:
 
     dispatcher = InboxDispatcher(
         channels_service=_build_channels_service(),
+        run_admission=run_admission,
         workflows_service=workflows_service,
         identity_service=ChannelIdentityService(
             identity_dao=ChannelIdentityDAO(engine=transactions_engine),
@@ -429,7 +456,7 @@ def _build_interactions_broker() -> tuple[AsyncBroker, int]:
 
     transactions_engine = get_transactions_engine()
     interactions_dao = SessionInteractionsDAO(engine=transactions_engine)
-    workflows_dao = GitDAO(
+    workflows_dao = WorkflowsDAO(
         ArtifactDBE=WorkflowArtifactDBE,
         VariantDBE=WorkflowVariantDBE,
         RevisionDBE=WorkflowRevisionDBE,
@@ -467,17 +494,22 @@ def _build_interactions_broker() -> tuple[AsyncBroker, int]:
         records_dao=RecordsDAO(engine=get_analytics_engine()),
     )
 
-    async def _dispatch_detached_run(*, project_id, user_id, request) -> str:
+    async def _dispatch_detached_run(
+        *, project_id, user_id, request, envelope, run_id=None
+    ) -> str:
         result = await workflows_service.invoke_workflow_detached(
             project_id=project_id,
             user_id=user_id,
             request=request,
+            envelope=envelope,
+            run_id=run_id,
         )
         return result.run_id
 
     interactions_dispatcher = InteractionsDispatcher(
         workflows_service=workflows_service,
         interactions_service=interactions_service,
+        run_admission=_run_admission(workflows_service),
         records_service=records_service,
         dispatch_fn=_dispatch_detached_run,
     )
@@ -500,7 +532,7 @@ def _build_evaluations_broker() -> tuple[AsyncBroker, int]:
         VariantDBE=TestsetVariantDBE,
         RevisionDBE=TestsetRevisionDBE,
     )
-    workflows_dao = GitDAO(
+    workflows_dao = WorkflowsDAO(
         ArtifactDBE=WorkflowArtifactDBE,
         VariantDBE=WorkflowVariantDBE,
         RevisionDBE=WorkflowRevisionDBE,
@@ -613,6 +645,8 @@ async def main_async() -> int:
 
         if is_ee():
             bootstrap_entitlements_services()
+
+        bootstrap_access()
 
         shutdown_event = asyncio.Event()
         loop = asyncio.get_running_loop()

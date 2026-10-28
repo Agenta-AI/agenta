@@ -7,10 +7,13 @@ the browser callback, updates the endpoint handle, and reconnects for a scope st
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from urllib.parse import parse_qs, urlparse
 from uuid import uuid4
 
 import pytest
+
+from oss.tests.pytest.utils.principals import HumanCheckFromWrapper
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -69,6 +72,10 @@ class _EndpointStore:
         )
         return self.endpoint
 
+    @asynccontextmanager
+    async def oauth_lock(self, *, project_id, endpoint_id):
+        yield
+
     async def bind_endpoint_secret(
         self, *, project_id, user_id, endpoint_id, secret_id
     ):
@@ -103,6 +110,8 @@ def test_dashboard_connect_callback_and_scope_step_up_share_one_grant_handle(
         data=MCPEndpointData(route=MCPEndpointRoute(base_url=provider.server_url)),
     )
     store = _EndpointStore(endpoint)
+    # One store behind both, so the service binds the connection the router serves.
+    oauth_service.endpoints_dao = store
     router = MCPGatewayRouter(
         mcp_gateway_service=store,
         oauth_connect_service=oauth_service,
@@ -126,6 +135,10 @@ def test_dashboard_connect_callback_and_scope_step_up_share_one_grant_handle(
         return True
 
     monkeypatch.setattr(router_module, "check_action_access", _allow)
+    # The callback checks the attempt's user with `check_human`.
+    monkeypatch.setattr(
+        router_module, "get_access_service", lambda: HumanCheckFromWrapper(_allow)
+    )
 
     # The callback is exempt from the auth middleware and resolves its own principal,
     # so the browser's session stands in here. It is the user that pressed connect —

@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 from json import dumps as json_dumps, loads as json_loads
 from uuid import uuid4
 
+import httpx
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -20,6 +21,7 @@ from oss.src.apis.fastapi.vault import router as vault_router_module
 from oss.src.apis.fastapi.vault.router import VaultRouter
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.providers.service import ProviderProbeService
+from oss.src.core.secrets.claude_token import ClaudeTokenClient
 from oss.src.core.secrets.services import VaultService
 from oss.src.core.secrets.subscription_login import RunnerLoginAttempt
 from oss.src.core.secrets.subscription_service import SubscriptionLoginService
@@ -32,6 +34,10 @@ from oss.src.dbs.postgres.secrets.mappings import (
     map_secrets_dbe_to_dto,
     map_secrets_dto_to_dbe,
     map_secrets_dto_to_dbe_update,
+)
+from oss.tests.pytest.utils.organization_secrets import (
+    load_effective_from_list,
+    owner_scope,
 )
 
 
@@ -73,12 +79,20 @@ def _later(minutes: int = 10) -> str:
 
 
 class _FakeSecretsDAO:
+    load_effective = load_effective_from_list
+
     def __init__(self):
         self.rows: dict = {}
 
     async def create(
-        self, project_id, organization_id, create_secret_dto, management=None
+        self,
+        *,
+        owner,
+        create_secret_dto,
+        management=None,
+        **_kwargs,
     ):
+        project_id, organization_id = owner_scope(owner)
         dbe = map_secrets_dto_to_dbe(
             project_id=project_id,
             organization_id=organization_id,
@@ -88,14 +102,36 @@ class _FakeSecretsDAO:
         self.rows[str(dbe.id)] = dbe
         return map_secrets_dbe_to_dto(secrets_dbe=dbe)
 
-    async def list(self, project_id, organization_id):
+    async def list(
+        self,
+        *,
+        owner,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         return [map_secrets_dbe_to_dto(secrets_dbe=dbe) for dbe in self.rows.values()]
 
-    async def get_by_id(self, secret_id, project_id, organization_id):
+    async def get_by_id(
+        self,
+        *,
+        owner,
+        secret_id,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         dbe = self.rows.get(str(secret_id))
-        return map_secrets_dbe_to_dto(secrets_dbe=dbe) if dbe else None
+        if dbe is None or str(dbe.project_id) != str(project_id):
+            return None
+        return map_secrets_dbe_to_dto(secrets_dbe=dbe)
 
-    async def get_by_slug(self, secret_slug, project_id, organization_id):
+    async def get_by_slug(
+        self,
+        *,
+        owner,
+        secret_slug,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         for dbe in self.rows.values():
             if dbe.slug == secret_slug:
                 return map_secrets_dbe_to_dto(secrets_dbe=dbe)
@@ -103,13 +139,15 @@ class _FakeSecretsDAO:
 
     async def update(
         self,
+        *,
+        owner,
         secret_id,
         update_secret_dto,
-        project_id,
-        organization_id,
         user_id=None,
         resolve_update=None,
+        **_kwargs,
     ):
+        project_id, organization_id = owner_scope(owner)
         dbe = self.rows.get(str(secret_id))
         if dbe is None:
             return None
@@ -129,8 +167,20 @@ class _FakeSecretsDAO:
         return map_secrets_dbe_to_dto(secrets_dbe=dbe)
 
     async def delete(
-        self, secret_id, project_id, organization_id, authorize_delete=None
+        self,
+        *,
+        owner,
+        secret_id,
+        authorize_delete=None,
+        **_kwargs,
     ):
+        project_id, organization_id = owner_scope(owner)
+        # Like the real DAO: the row is handed to `authorize_delete` under the lock.
+        stored = self.rows.get(str(secret_id))
+        if stored is None:
+            return
+        if authorize_delete is not None:
+            authorize_delete(map_secrets_dbe_to_dto(secrets_dbe=stored))
         self.rows.pop(str(secret_id), None)
 
 
@@ -141,7 +191,14 @@ class _FakeRunner:
         self.deleted: list = []
         self.deleted_at: list = []
 
-    async def start_attempt(self, *, provider, project_id, secret_id):
+    async def start_attempt(
+        self, *, provider, project_id, secret_id, organization_id=None
+    ):
+        self.started = {
+            "project_id": project_id,
+            "organization_id": organization_id,
+            "secret_id": secret_id,
+        }
         if self.raises is not None:
             raise self.raises
         return self.next_attempt
@@ -152,6 +209,24 @@ class _FakeRunner:
         self.deleted.append(attempt_id)
         self.deleted_at.append(base_url)
         return True
+
+
+class _FakeAnthropic:
+    """Answers the model-list check with `status`, or fails the connection when it is None."""
+
+    def __init__(self):
+        self.status: int | None = 200
+        self.requests: list = []
+        # Runs while the check is in flight, for a test that changes the row meanwhile.
+        self.during_check = None
+
+    def handle(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request)
+        if self.during_check is not None:
+            self.during_check()
+        if self.status is None:
+            raise httpx.ConnectError("unreachable", request=request)
+        return httpx.Response(self.status, json={"data": []})
 
 
 RUNNER_TOKEN = "runner-secret"
@@ -172,12 +247,16 @@ def _outcome_url(attempt_id: str) -> str:
 
 
 class _Harness:
-    def __init__(self, client, runner, asked, dao, principal):
+    def __init__(self, client, runner, asked, dao, principal, anthropic):
         self.client = client
         self.runner = runner
         self.asked = asked
         self.dao = dao
         self._principal = principal
+        self.anthropic = anthropic
+
+    def in_another_project(self) -> None:
+        self._principal["project_id"] = str(uuid4())
 
     def as_an_editor(self) -> None:
         """Take the runtime grant off every route, leaving permissions only.
@@ -193,7 +272,8 @@ def _harness(monkeypatch):
     dao = _FakeSecretsDAO()
     runner = _FakeRunner()
     asked: list = []
-    principal = {"granted": True}
+    principal = {"granted": True, "project_id": PROJECT_ID}
+    anthropic = _FakeAnthropic()
 
     async def _record(**kwargs):
         asked.append(kwargs["permission"])
@@ -211,7 +291,7 @@ def _harness(monkeypatch):
         if request.url.path.startswith(_OUTCOME_PREFIX):
             return await call_next(request)
         request.state.user_id = USER_ID
-        request.state.project_id = PROJECT_ID
+        request.state.project_id = principal["project_id"]
         runtime_route = request.url.path.endswith(_RUNTIME_ROUTES)
         request.state.token_grants = (
             (SECRET_RESOLVE_GRANT,) if runtime_route and principal["granted"] else ()
@@ -225,11 +305,14 @@ def _harness(monkeypatch):
             subscription_login_service=SubscriptionLoginService(
                 vault_service=vault_service,
                 runner_client=runner,
+                claude_token_client=ClaudeTokenClient(
+                    transport=httpx.MockTransport(anthropic.handle)
+                ),
             ),
         ).router
     )
 
-    return _Harness(TestClient(app), runner, asked, dao, principal)
+    return _Harness(TestClient(app), runner, asked, dao, principal, anthropic)
 
 
 def _create(client, data=None):
@@ -583,6 +666,7 @@ class TestTheOutcomeRoute:
                 subscription_login_service=SubscriptionLoginService(
                     vault_service=vault_service,
                     runner_client=_FakeRunner(),
+                    claude_token_client=ClaudeTokenClient(),
                 ),
             ).router,
             ProvidersRouter(
@@ -1289,3 +1373,268 @@ class TestTheWholeLifecycle:
             harness.client.post(f"/secrets/{secret_id}/login-attempts").status_code
             == 404
         )
+
+
+# Shaped like a `claude setup-token` value. Not a real credential.
+CLAUDE_TOKEN = "sk-ant-oat01-test-token-aaaaaaaaaaaaaaaa"
+NEW_CLAUDE_TOKEN = "sk-ant-oat01-test-token-bbbbbbbbbbbbbbbb"
+
+
+def _create_claude(client) -> str:
+    response = client.post(
+        "/secrets/",
+        json={
+            "header": {"name": "Claude"},
+            "secret": {"kind": "subscription_provider", "data": {"provider": "claude"}},
+        },
+    )
+    assert response.status_code == 200, response.text
+    return response.json()["id"]
+
+
+def _put_token(harness, secret_id, token=CLAUDE_TOKEN):
+    return harness.client.put(
+        f"/secrets/{secret_id}/subscription-token", json={"token": token}
+    )
+
+
+def _stored_login(harness, secret_id) -> dict:
+    return json_loads(harness.dao.rows[str(secret_id)].data)
+
+
+class TestClaudeSubscriptionToken:
+    def test_a_new_claude_connection_waits_for_a_token(self, harness):
+        secret_id = _create_claude(harness.client)
+
+        read = harness.client.get(f"/secrets/{secret_id}").json()
+
+        assert read["slug"] == "claude"
+        assert read["data"]["login_state"] == "pending_login"
+        assert read["data"]["harnesses"] == ["claude"]
+        assert "claude/sonnet" in read["data"]["model_keys"]
+        assert read["value_status"]["configured"] is False
+
+    def test_an_accepted_token_is_stored_ready_and_never_returned(self, harness):
+        secret_id = _create_claude(harness.client)
+        harness.asked.clear()
+
+        response = _put_token(harness, secret_id)
+
+        assert response.status_code == 200, response.text
+        assert harness.asked == [Permission.EDIT_SECRET]
+        body = response.json()
+        assert "login" not in body["data"]
+        assert body["data"]["login_state"] == "ready"
+        assert body["value_status"]["configured"] is True
+        assert CLAUDE_TOKEN not in response.text
+        assert CLAUDE_TOKEN not in harness.client.get("/secrets/").text
+        assert CLAUDE_TOKEN not in harness.client.get(f"/secrets/{secret_id}").text
+
+        stored = _stored_login(harness, secret_id)
+        assert stored["login"]["type"] == "oauth_token"
+        assert stored["login"]["access"] == CLAUDE_TOKEN
+        assert stored["login_version"] == 1
+        assert stored["login_generation"] == 1
+
+    def test_the_check_asks_anthropic_for_the_model_list_only(self, harness):
+        secret_id = _create_claude(harness.client)
+
+        _put_token(harness, secret_id)
+
+        [request] = harness.anthropic.requests
+        assert request.method == "GET"
+        assert str(request.url) == "https://api.anthropic.com/v1/models"
+        assert request.headers["authorization"] == f"Bearer {CLAUDE_TOKEN}"
+        assert request.headers["anthropic-version"] == "2023-06-01"
+        assert request.headers["anthropic-beta"] == "oauth-2025-04-20"
+
+    @pytest.mark.parametrize("status", [401, 403])
+    def test_a_refused_token_is_not_stored(self, harness, status):
+        secret_id = _create_claude(harness.client)
+        harness.anthropic.status = status
+
+        response = _put_token(harness, secret_id)
+
+        assert response.status_code == 422
+        assert response.json()["detail"]["code"] == "subscription_token_rejected"
+        assert response.json()["detail"]["retryable"] is False
+        assert CLAUDE_TOKEN not in response.text
+        stored = _stored_login(harness, secret_id)
+        assert stored.get("login") is None
+        assert stored["login_state"] == "pending_login"
+
+    @pytest.mark.parametrize("status", [None, 429, 500])
+    def test_an_unchecked_token_is_not_stored(self, harness, status):
+        secret_id = _create_claude(harness.client)
+        harness.anthropic.status = status
+
+        response = _put_token(harness, secret_id)
+
+        assert response.status_code == 502
+        assert response.json()["detail"]["code"] == "subscription_token_unverified"
+        assert response.json()["detail"]["retryable"] is True
+        assert CLAUDE_TOKEN not in response.text
+        assert _stored_login(harness, secret_id).get("login") is None
+
+    def test_a_retry_after_a_refusal_stores_on_the_same_connection(self, harness):
+        secret_id = _create_claude(harness.client)
+        harness.anthropic.status = 401
+        _put_token(harness, secret_id)
+        harness.anthropic.status = 200
+
+        response = _put_token(harness, secret_id)
+
+        assert response.status_code == 200, response.text
+        assert response.json()["id"] == secret_id
+        assert len(harness.dao.rows) == 1
+
+    def test_a_replacement_stores_the_new_token(self, harness):
+        secret_id = _create_claude(harness.client)
+        _put_token(harness, secret_id)
+
+        response = _put_token(harness, secret_id, NEW_CLAUDE_TOKEN)
+
+        assert response.status_code == 200, response.text
+        stored = _stored_login(harness, secret_id)
+        assert stored["login"]["access"] == NEW_CLAUDE_TOKEN
+        assert stored["login_generation"] == 2
+
+    def test_a_failed_replacement_keeps_the_old_token(self, harness):
+        secret_id = _create_claude(harness.client)
+        _put_token(harness, secret_id)
+        harness.anthropic.status = 401
+
+        response = _put_token(harness, secret_id, NEW_CLAUDE_TOKEN)
+
+        assert response.status_code == 422
+        stored = _stored_login(harness, secret_id)
+        assert stored["login"]["access"] == CLAUDE_TOKEN
+        assert stored["login_state"] == "ready"
+        assert stored["login_generation"] == 1
+
+    def test_a_provider_changed_during_the_check_gets_no_token(self, harness):
+        secret_id = _create_claude(harness.client)
+        harness.anthropic.during_check = lambda: _seed(
+            harness, secret_id, {"provider": "chatgpt"}
+        )
+
+        response = _put_token(harness, secret_id)
+
+        assert response.status_code == 409
+        assert _stored_login(harness, secret_id).get("login") is None
+
+    def test_a_value_that_is_not_a_setup_token_is_refused_unchecked(self, harness):
+        secret_id = _create_claude(harness.client)
+
+        response = _put_token(harness, secret_id, "sk-ant-api03-an-api-key")
+
+        assert response.status_code == 422
+        assert response.json()["detail"]["code"] == "subscription_token_rejected"
+        assert "sk-ant-api03" not in response.text
+        assert harness.anthropic.requests == []
+
+    def test_a_token_broken_by_a_line_wrap_is_refused_unchecked(self, harness):
+        secret_id = _create_claude(harness.client)
+
+        response = _put_token(harness, secret_id, "sk-ant-oat01-first\nsecond")
+
+        assert response.status_code == 422
+        assert response.json()["detail"]["code"] == "subscription_token_rejected"
+        assert harness.anthropic.requests == []
+
+    def test_a_malformed_body_never_echoes_the_token(self, harness):
+        secret_id = _create_claude(harness.client)
+
+        response = harness.client.put(
+            f"/secrets/{secret_id}/subscription-token",
+            json={"token": [CLAUDE_TOKEN], "extra": CLAUDE_TOKEN},
+        )
+
+        assert response.status_code == 422
+        assert CLAUDE_TOKEN not in response.text
+        assert harness.anthropic.requests == []
+
+    def test_a_chatgpt_connection_takes_no_token(self, harness):
+        secret_id = _create(harness.client)["id"]
+
+        response = _put_token(harness, secret_id)
+
+        assert response.status_code == 409
+        assert harness.anthropic.requests == []
+        assert _stored_login(harness, secret_id).get("login") is None
+
+    def test_another_projects_connection_is_404_and_unchanged(self, harness):
+        secret_id = _create_claude(harness.client)
+        harness.in_another_project()
+
+        response = _put_token(harness, secret_id)
+
+        assert response.status_code == 404
+        assert harness.anthropic.requests == []
+        assert _stored_login(harness, secret_id).get("login") is None
+
+    def test_a_caller_without_edit_secret_is_403(self, harness, monkeypatch):
+        secret_id = _create_claude(harness.client)
+
+        async def _deny(**kwargs):
+            return False
+
+        monkeypatch.setattr(vault_router_module, "check_action_access", _deny)
+
+        response = _put_token(harness, secret_id)
+
+        assert response.status_code == 403
+        assert harness.anthropic.requests == []
+        assert _stored_login(harness, secret_id).get("login") is None
+
+    def test_a_second_claude_connection_is_a_conflict(self, harness):
+        _create_claude(harness.client)
+
+        response = harness.client.post(
+            "/secrets/",
+            json={
+                "header": {"name": "Claude"},
+                "secret": {
+                    "kind": "subscription_provider",
+                    "data": {"provider": "claude"},
+                },
+            },
+        )
+
+        assert response.status_code == 409
+
+
+class TestAClaudeConnectionHasNoDeviceLogin:
+    def test_a_login_attempt_is_refused_before_the_runner(self, harness):
+        secret_id = _create_claude(harness.client)
+        harness.runner.raises = AssertionError("the runner must not be asked")
+
+        response = harness.client.post(f"/secrets/{secret_id}/login-attempts")
+
+        assert response.status_code == 409
+
+    def test_a_push_is_refused_and_writes_nothing(self, harness):
+        secret_id = _create_claude(harness.client)
+        _put_token(harness, secret_id)
+
+        response = harness.client.post(
+            f"/secrets/{secret_id}/subscription-login",
+            json={"login": LOGIN, "version": 1, "generation": 1},
+        )
+
+        assert response.status_code == 409
+        assert CLAUDE_TOKEN not in response.text
+        assert _stored_login(harness, secret_id)["login"]["access"] == CLAUDE_TOKEN
+
+    def test_a_failure_report_is_refused_and_keeps_the_row_ready(self, harness):
+        secret_id = _create_claude(harness.client)
+        _put_token(harness, secret_id)
+
+        response = harness.client.post(
+            f"/secrets/{secret_id}/subscription-login/failure",
+            json={"version": 1, "generation": 1, "reason": "login_rejected"},
+        )
+
+        assert response.status_code == 409
+        assert CLAUDE_TOKEN not in response.text
+        assert _stored_login(harness, secret_id)["login_state"] == "ready"

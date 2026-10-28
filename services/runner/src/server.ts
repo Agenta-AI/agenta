@@ -19,7 +19,7 @@
  * engine runner so the HTTP behavior can be tested with a fake engine (no live harness).
  */
 import { join } from "node:path";
-import { apiBase, runWithRequestApiBase } from "./apiBase.ts";
+import { apiBase, envApiUrl, runWithRequestApiBase } from "./apiBase.ts";
 import { runWithStallRetry } from "./lifecycle/stall-retry.ts";
 import { loadDurableDecisions } from "./sessions/interactions.ts";
 import {
@@ -53,7 +53,7 @@ import {
   resolveKeepaliveMount,
   runSandboxAgent,
   runTurn,
-  turnTeardownReason,
+  unpooledTeardownReason,
   type ParkedApproval,
   type SessionEnvironment,
 } from "./engines/sandbox_agent.ts";
@@ -101,13 +101,19 @@ import {
   runnerConfigSummary,
 } from "./config/runner-config.ts";
 import { applyDaytonaSdkEnv } from "./engines/sandbox_agent/daytona-provider.ts";
+import { seedPinnedAgentProcesses } from "./engines/sandbox_agent/adapter-seed.ts";
+import { flushPendingDaytonaSecretCleanups } from "./engines/sandbox_agent/daytona-secret-provider.ts";
 import { isEntrypoint } from "./entry.ts";
 import { insecureEgressAllowed } from "./tools/ssrf-guard.ts";
+import { admissionRefusal } from "./sessions/admission.ts";
 import {
-  SESSION_TURN_IN_USE_CODE,
-  SESSION_TURN_IN_USE_MESSAGE,
-  SESSION_ADMISSION_UNCONFIRMED_MESSAGE,
-} from "./sessions/admission.ts";
+  ACCESS_DENIED_ABORT_REASON,
+  ACCESS_DENIED_CODE,
+  ACCESS_DENIED_MESSAGE,
+  accessDenied,
+  accessDeniedDetail,
+  watchAccessDenied,
+} from "./sessions/access-denied.ts";
 import {
   REPLICA_ADDRESS,
   REPLICA_ID,
@@ -133,6 +139,7 @@ import {
   cancelExecutions,
   cancelParkedPrompts,
   drainThenTearDown,
+  withinBudget,
   isDraining,
   shutdownCancelBudgetMs,
 } from "./lifecycle/shutdown.ts";
@@ -163,6 +170,7 @@ import type { InProcessProvider } from "./engines/inprocess/index.ts";
 import { endActiveTurns, registerActiveTurn } from "./sessions/active-turns.ts";
 import { DAYTONA_DURABLE_MOUNT_ROOT, resolveSandboxProviderId, runnerStateDir } from "./engines/sandbox_agent/run-plan.ts";
 import { applySandboxRouting } from "./engines/sandbox_agent/sandbox-routing.ts";
+import { routeGatewayInNetwork } from "./engines/sandbox_agent/gateway-in-network.ts";
 import { startSubscriptionHomeSweeper } from "./engines/sandbox_agent/subscription-login/retention.ts";
 import {
   KILL_DEADLINE_MS,
@@ -174,7 +182,10 @@ import { endAbandonedTurn, noteTurnScope, runAdmittedTurn } from "./metering/tur
 
 /** How long a shutdown waits for interrupted turns to write their terminal records. */
 const SHUTDOWN_TURN_END_BUDGET_MS = 10_000;
-/** The bound on each of the two shutdown delete sweeps: the keep-alive pools, then in-flight runs. */
+/**
+ * The bound on each shutdown delete sweep: the keep-alive pools, the in-flight runs, then the
+ * stopped sandboxes whose Secret cleanup still waits on a timer.
+ */
 const SHUTDOWN_DELETE_BUDGET_MS = 10_000;
 /** The bound on the wait for in-process command sandboxes still being deleted in the background. */
 const SHUTDOWN_INPROCESS_SETTLE_MS = 20_000;
@@ -313,6 +324,7 @@ function apiBaseFromRequest(request: AgentRunRequest): string | undefined {
  * The seams are re-exported below so every existing import path and test keeps working
  * unchanged. That is what makes the extraction reviewable: the diff is a move, not a rewrite.
  */
+import { AcquireAbortedError } from "./environment/acquire-abort.ts";
 import { applyReconcilePlan } from "./environment/apply-plan.ts";
 import {
   klog,
@@ -376,7 +388,8 @@ export const makeKeepaliveEngine = (engineDeps: () => SandboxAgentDeps | Promise
     return read.ok ? { ok: true, turnIndex: read.turn?.turn_index } : read;
   },
   // Same acquire -> runTurn -> destroy composition as `runSandboxAgent`, with the presigned
-  // mount threaded through so an up-front keep-alive sign is never repeated.
+  // mount threaded through so an up-front keep-alive sign is never repeated. Unlike
+  // `runSandboxAgent`, it always deletes the sandbox (`unpooledTeardownReason`).
   runCold: async (
     request,
     emit,
@@ -407,13 +420,9 @@ export const makeKeepaliveEngine = (engineDeps: () => SandboxAgentDeps | Promise
       });
       return result;
     } finally {
+      // Never parks: the coordinator sends a run here only when it cannot pool it.
       await acquired.env.destroy({
-        reason: turnTeardownReason(
-          result,
-          acquired.env.resumable,
-          signal,
-          clientGone,
-        ),
+        reason: unpooledTeardownReason(result, signal, clientGone),
       });
     }
   },
@@ -776,6 +785,7 @@ async function runAndStreamWithApiBaseResolved(
         firstBeatOwned: boolean;
         admitted: boolean;
         admissionUnconfirmed?: boolean;
+        admissionRejectedStatus?: number;
       }
     | undefined;
   if (!sessionOwned && !detached) {
@@ -936,6 +946,8 @@ async function runAndStreamWithApiBaseResolved(
   let turnClosed = false;
   const gatedEmit: EmitEvent = (event) => {
     if (turnClosed) return;
+    if (event.type === "error" && event.code === ACCESS_DENIED_CODE)
+      accessDeniedEventEmitted = true;
     emitFn(event);
   };
   let flushPersist: (() => Promise<void>) | undefined;
@@ -944,6 +956,9 @@ async function runAndStreamWithApiBaseResolved(
     | undefined;
   let persistTerminal: ((stopReason?: string) => void) | undefined;
   let terminalRecordEmitted = false;
+  // Watches this turn for a 403 on its session calls (`sessions/access-denied.ts`).
+  let stopAccessWatch: (() => void) | undefined;
+  let accessDeniedEventEmitted = false;
 
   try {
     if (sessionOwned) {
@@ -984,12 +999,20 @@ async function runAndStreamWithApiBaseResolved(
       // which is the path every runner failure already takes to the browser. Nothing is persisted,
       // so the refused message never appears in the session's history — the client keeps the text.
       if (!watchdog.admitted) {
-        const refusal = watchdog.admissionUnconfirmed ? SESSION_ADMISSION_UNCONFIRMED_MESSAGE : SESSION_TURN_IN_USE_MESSAGE;
+        const refusal = admissionRefusal(
+          watchdog.admissionRejectedStatus !== undefined
+            ? { kind: "rejected", status: watchdog.admissionRejectedStatus }
+            : watchdog.admissionUnconfirmed
+              ? { kind: "unconfirmed" }
+              : { kind: "in_use" },
+        );
         process.stderr.write(
           `[sessions] admission REFUSED session=${sessionId} turn=${turnId}; ` +
-            (watchdog.admissionUnconfirmed
-              ? "the platform did not answer the admission beat. "
-              : "another turn owns this session. ") +
+            (watchdog.admissionRejectedStatus !== undefined
+              ? `the platform rejected the admission beat with HTTP ${watchdog.admissionRejectedStatus}. `
+              : watchdog.admissionUnconfirmed
+                ? "the platform did not answer the admission beat. "
+                : "another turn owns this session. ") +
             `No pool resolve, no eviction.\n`,
         );
         // Stops the heartbeat interval and releases the credential lease. Its final
@@ -1000,12 +1023,17 @@ async function runAndStreamWithApiBaseResolved(
         unregisterExecution(sessionId, turnId);
         liveEmit({
           type: "error",
-          message: refusal,
-          code: SESSION_TURN_IN_USE_CODE,
+          message: refusal.message,
+          code: refusal.code,
         });
         writeRecord({
           kind: "result",
-          result: { ok: false, error: refusal, events: [] },
+          result: {
+            ok: false,
+            error: refusal.message,
+            errorDetail: refusal.detail,
+            events: [],
+          },
         });
         res.end();
         return;
@@ -1024,6 +1052,14 @@ async function runAndStreamWithApiBaseResolved(
         turnId,
         startedAt: Date.now(),
         abort: (reason = USER_STOP_ABORT_REASON) => controller.abort(reason),
+      });
+
+      // From here on, a 403 on any session call of this turn (a record write, a heartbeat, the
+      // record-log read) means the caller lost access to the project: end the turn now. The
+      // outcome is rewritten to `access_denied` below, once the run has stopped.
+      stopAccessWatch = watchAccessDenied(sessionId, turnId, () => {
+        controller.abort(ACCESS_DENIED_ABORT_REASON);
+        markInterrupted?.("the caller lost access to the project");
       });
 
       // Admitted. Tell the client which execution it is watching, before anything else streams.
@@ -1113,6 +1149,7 @@ async function runAndStreamWithApiBaseResolved(
       };
     }
   } catch (error) {
+    stopAccessWatch?.();
     if (aliveWatchdog) await aliveWatchdog.release().catch(() => {});
     if (sessionOwned) unregisterExecution(sessionId, turnId);
     throw error;
@@ -1150,6 +1187,12 @@ async function runAndStreamWithApiBaseResolved(
     });
     if (outcome.settled) {
       result = outcome.value;
+      // Read the flag the RUN left BEFORE the persistence block below: `persistTerminal` sets
+      // `terminalRecordEmitted` as a side effect, so a later read cannot tell a record the run
+      // emitted from one this request has just written. The Stop rewrite further down needs the
+      // former. Both it and the persistence block read the same Stop label once, here.
+      const terminalRecordEmittedByRun = terminalRecordEmitted;
+      const userStopped = isUserStopAbort(controller.signal);
       // `runTurn` ended a shutdown cancel with the restart error; the result says so too. A
       // shutdown that caught the turn before `runTurn` (a cold create) gets the same ending from
       // the backstop below.
@@ -1163,13 +1206,12 @@ async function runAndStreamWithApiBaseResolved(
       // labelled control-plane abort caused it. A genuine acquire failure never reached runTurn's
       // error emitter, so preserve its error before the done backstop instead of making the empty
       // turn look successful. Both records use the same ordered persistence chain as runTurn's
-      // emitter but stay off the live stream, whose result envelope is unchanged.
+      // emitter.
       if (
         !terminalRecordEmitted &&
         persistTerminal &&
-        (!result.ok || isUserStopAbort(controller.signal))
+        (!result.ok || userStopped)
       ) {
-        const userStopped = isUserStopAbort(controller.signal);
         if (!userStopped && !result.ok && persistError) {
           persistError(
             result.error ?? "Agent run failed.",
@@ -1177,6 +1219,32 @@ async function runAndStreamWithApiBaseResolved(
           );
         }
         persistTerminal(userStopped ? "cancelled" : undefined);
+      }
+      // The live envelope must agree with the transcript. A cooperative Stop that aborted acquire
+      // before `runTurn` produced `ok: false` with the aborted-acquire sentence, and
+      // `result_from_wire` turns EVERY `ok: false` result into a raised `AgentRunFailed`, which
+      // the Vercel adapter renders as a `data-agent-error` frame. So a normal Stop reached an SDK
+      // or integration client as `agent_run_failed` ("Agent run failed: Sandbox acquisition was
+      // aborted.") while the product screen, reading the persisted `done`, showed "Stopped"
+      // (issue #7447, AGE-4508; AWS staging, v0.122.3, cold Daytona sandbox, Stop ~2.5s in).
+      // Rewrite the envelope into the shape a post-`runTurn` Stop already returns, so the SDK sees
+      // `ok: true` with `stopReason: "cancelled"` and ends with a cancelled finish and no error
+      // frame. Existing fields only: no wire field is added, renamed or removed.
+      //
+      // `cancelSettled` stays ABSENT on purpose. An aborted acquire already destroyed its
+      // half-built environment, so there is nothing to park, and `shouldPark` requires
+      // `cancelSettled === true`. Absent keeps the teardown the aborted acquire already did.
+      //
+      // `terminalRecordEmittedByRun` keeps a real failure intact: a run that emitted and persisted
+      // its own terminal record (an error and a `done`) keeps its error even when the Stop label
+      // also arrives. `endedByShutdown` keeps a shutdown ending with the restart error.
+      if (
+        userStopped &&
+        !endedByShutdown &&
+        !terminalRecordEmittedByRun &&
+        !result.ok
+      ) {
+        result = { ok: true, stopReason: "cancelled", events: [] };
       }
     } else {
       // The run is still pending and may never settle. Give the turn the ending the runner
@@ -1213,17 +1281,46 @@ async function runAndStreamWithApiBaseResolved(
     // client offers to retry it. A turn that already wrote `done` keeps its ending.
     const endedByShutdown =
       isRunnerShutdownAbort(controller.signal) && !terminalRecordEmitted;
+    const userStopped = isUserStopAbort(controller.signal);
+    // Same read-before-write as the settled branch: `persistTerminal` below sets the flag.
+    const terminalRecordEmittedByRun = terminalRecordEmitted;
     const reported = endedByShutdown ? RUNNER_RESTARTING_MESSAGE : message;
-    if (persistError) {
+    // A cooperative Stop that aborted acquire BEFORE `acquireEnvironmentOnce`'s try block
+    // (environment.ts ~460/~467) throws out of the whole run and lands here, not in the settled
+    // branch: neither `coldAndPark` (its try wraps only `engine.runTurn`) nor `awaitTurnOrAbandon`
+    // (it rethrows a rejected run) converts the `AcquireAbortedError`. This is the cold-acquire
+    // Stop the issue reports, and it used to persist an acquire error AND report `ok: false`, so
+    // the client saw the same `agent_run_failed` frame as the settled path. Keep the transcript
+    // free of that error and report the cancelled envelope instead (see the settled branch for
+    // the full note). A real failure keeps its error: no Stop label, a shutdown, or a terminal
+    // record the run already emitted all leave this false.
+    // The TYPE is the evidence, and the label only classifies it. A Stop label alone is not
+    // enough here: an unrelated throw that lands while the Stopped flag happens to be set (the
+    // pool's `PREVIOUS_TEARDOWN_STUCK_MESSAGE` when the previous environment's teardown ran past
+    // its budget, a stuck mount, a provider refusal) must keep its own error. Reading only the
+    // label would persist a cancellation and report success, hiding an infrastructure fault as a
+    // user action. `AcquireAbortedError` is the one type acquire raises when its turn signal
+    // fires, so `instanceof` is what separates the Stop from everything else that can reach this
+    // branch. The label stays, because the same error class also covers a client disconnect and a
+    // runner shutdown, and neither of those is a Stop.
+    const stoppedBeforeTerminal =
+      err instanceof AcquireAbortedError &&
+      userStopped &&
+      !endedByShutdown &&
+      !terminalRecordEmittedByRun;
+    if (persistError && !stoppedBeforeTerminal) {
       persistError(reported, endedByShutdown ? "execution_lost" : undefined);
     }
     if (!terminalRecordEmitted && persistTerminal) {
-      persistTerminal(
-        isUserStopAbort(controller.signal) ? "cancelled" : undefined,
-      );
+      // Keyed on the same verdict, never on the bare Stop label: the transcript's ending has to
+      // agree with the live envelope above, and a real failure must not be written down as a
+      // cancellation just because a Stop arrived beside it.
+      persistTerminal(stoppedBeforeTerminal ? "cancelled" : undefined);
     }
     if (flushPersist) await flushPersist().catch(() => {});
-    result = { ok: false, error: reported };
+    result = stoppedBeforeTerminal
+      ? { ok: true, stopReason: "cancelled", events: [] }
+      : { ok: false, error: reported };
   } finally {
     // The drain is the only place that knows whether this turn's records all landed. A dropped
     // record means the log no longer represents the conversation, so mark the session: a later
@@ -1244,6 +1341,20 @@ async function runAndStreamWithApiBaseResolved(
         );
       }
     }
+    // The caller lost access while the turn ran. Whatever the run ended with (a cancel from the
+    // abort, an abandoned run, a failed step), the turn's outcome is that, said plainly. Nothing
+    // is persisted for it: the platform refuses this credential's writes.
+    if (sessionOwned && accessDenied(sessionId, turnId)) {
+      if (!accessDeniedEventEmitted)
+        liveEmit({ type: "error", message: ACCESS_DENIED_MESSAGE, code: ACCESS_DENIED_CODE });
+      result = {
+        ok: false,
+        error: ACCESS_DENIED_MESSAGE,
+        errorDetail: accessDeniedDetail(),
+        events: [],
+      };
+    }
+    stopAccessWatch?.();
     if (aliveWatchdog) await aliveWatchdog.release().catch(() => {});
     // Same `finally` as the watchdog release, so a run that threw still leaves the registry
     // clean. Scoped to this turn id, so a turn that finishes after its successor registered
@@ -1319,7 +1430,7 @@ function readBodyCapped(
 /** The route prefix every subscription-login request shares. */
 const SUBSCRIPTION_LOGIN_ROUTE = "/subscription-login/attempts";
 
-/** The start body is `{ provider, projectId, secretId }`. */
+/** The start body is `{ provider, projectId | organizationId, secretId }`. */
 const SUBSCRIPTION_LOGIN_BODY_MAX_BYTES = 4 * 1024;
 
 /**
@@ -1362,7 +1473,12 @@ async function handleSubscriptionLoginRoute(
   res.setHeader("cache-control", "no-store");
 
   if (req.method === "POST" && path === SUBSCRIPTION_LOGIN_ROUTE) {
-    let body: { provider?: unknown; projectId?: unknown; secretId?: unknown };
+    let body: {
+      provider?: unknown;
+      projectId?: unknown;
+      organizationId?: unknown;
+      secretId?: unknown;
+    };
     try {
       const raw = await readBodyCapped(req, SUBSCRIPTION_LOGIN_BODY_MAX_BYTES);
       body = raw.trim() ? JSON.parse(raw) : {};
@@ -1382,16 +1498,24 @@ async function handleSubscriptionLoginRoute(
     }
     // Where the outcome goes. Without them the loop could not report, and the user's poll would
     // wait out the provider's whole window for nothing.
+    // A project's login names its project; an organization's login (M5) names its organization.
     const projectId = readRequiredId(body.projectId);
+    const organizationId = readRequiredId(body.organizationId);
     const secretId = readRequiredId(body.secretId);
-    if (!projectId || !secretId) {
+    if (!secretId || Boolean(projectId) === Boolean(organizationId)) {
       return send(res, 400, {
         ok: false,
-        error: "projectId and secretId are required",
+        error:
+          "secretId and exactly one of projectId and organizationId are required",
       });
     }
     try {
-      const view = await attempts.start(provider, { projectId, secretId });
+      const view = await attempts.start(
+        provider,
+        organizationId
+          ? { organizationId, secretId }
+          : { projectId: projectId as string, secretId },
+      );
       // The API keeps this pod's own address on the attempt, so a cancel reaches the pod that
       // runs the provider poll rather than whichever pod the Service URL picks. The id lets the
       // API check, before the cancel, that the address still belongs to this pod.
@@ -1799,6 +1923,7 @@ export function createRequestListener(
           // Before anything reads `request.sandbox`: the session record, the keep-alive pool and
           // the run plan all see the provider that runs.
           applySandboxRouting(request, logSandboxRouting);
+          routeGatewayInNetwork(request, logSandboxRouting);
 
           const wantsStream = (req.headers["accept"] ?? "").includes(
             "application/x-ndjson",
@@ -1898,6 +2023,10 @@ export async function tearDownHeldSandboxes(
     reason: TeardownReason,
   ) => Promise<void> = destroyInFlightSandboxes,
   abandonLogins: () => Promise<void> = abandonSubscriptionLogins,
+  flushSecretCleanups: () => Promise<void> = () =>
+    flushPendingDaytonaSecretCleanups(undefined, (message) =>
+      process.stderr.write(`[sandbox-agent] ${message}\n`),
+    ),
 ): Promise<void> {
   // While the API is still reachable: an in-process turn the cancel step did not end writes its
   // ending, so no client waits on a turn this process will never finish; and a device login whose
@@ -1919,6 +2048,11 @@ export async function tearDownHeldSandboxes(
     ),
   );
   await destroyInFlight(SHUTDOWN_DELETE_BUDGET_MS, "shutdown-in-flight");
+  // A sandbox stopped outside the pools (an idle-expiry stop, or a turn with keep-alive off) is
+  // held only by its process-local cleanup timer. Run those cleanups now, or the Secrets they
+  // would delete outlive this process. Last of the sweeps, so a sandbox the sweeps above deleted
+  // already left the registry.
+  await withinBudget(flushSecretCleanups().catch(() => {}), SHUTDOWN_DELETE_BUDGET_MS);
   // A command sandbox whose environment already left the pool is still held by the in-process
   // provider. Its delete, like the ones above, runs in the background; let them all reach Daytona
   // before exit.
@@ -1956,6 +2090,12 @@ if (isEntrypoint(import.meta.url)) {
   // one redacted summary, then bridge the typed Daytona credential into the ambient names the
   // vendored SDK reads during sandbox creation.
   let runnerConfig = loadRunnerConfig();
+
+  // BEFORE ANY DAEMON CAN START, which is why it sits at boot rather than in the acquire path:
+  // the daemon reads its data dir when the first run spawns it, and under a HOME override the
+  // image's pinned Codex adapter is not there. Seeding it is what stops the daemon cold-installing
+  // a floating adapter and wedging the session open. Never throws. See `adapter-seed.ts`.
+  seedPinnedAgentProcesses();
 
   // On SIGTERM (a deploy, a node drain, `docker stop`) or Ctrl-C (SIGINT): refuse new turns,
   // let running ones finish, cancel the rest with a settled wait, then delete every sandbox this
@@ -2003,8 +2143,9 @@ if (isEntrypoint(import.meta.url)) {
         `[sandbox-agent] http server listening on ${runnerConfig.server.host}:${runnerConfig.server.port}\n`,
       );
       if (!publicApiBaseConfigured()) {
-        const internalApiHost = process.env.AGENTA_API_INTERNAL_URL
-          ? endpointHost(process.env.AGENTA_API_INTERNAL_URL)
+        const internalApiUrl = envApiUrl("AGENTA_API_INTERNAL_URL");
+        const internalApiHost = internalApiUrl
+          ? endpointHost(internalApiUrl)
           : "unset";
         process.stderr.write(
           "[sandbox-agent] WARNING: AGENTA_API_URL is not set. Dispatched runs carry this " +
@@ -2013,7 +2154,7 @@ if (isEntrypoint(import.meta.url)) {
             "credential. Set AGENTA_API_URL to the public api base (e.g. https://<host>/api); " +
             `AGENTA_API_INTERNAL_URL host (${internalApiHost}) is the ` +
             "in-network hop and does not substitute for it." +
-            (process.env.AGENTA_API_INTERNAL_URL
+            (internalApiUrl
               ? ""
               : " With neither set, the runner sends its runner token only to the default " +
                 "http://api:8000, never to an api base it infers from a run's trace endpoint.") +
