@@ -7,11 +7,12 @@ person can do. No refusal falls back to another account.
 """
 
 from collections import OrderedDict
-from typing import Awaitable, Callable, Optional, Tuple, TypeVar
+from typing import Any, Awaitable, Callable, Optional, Tuple, TypeVar
 from uuid import UUID
 
 from oss.src.core.access.dtos import PrincipalKind, RunAuthority
-from oss.src.core.credentials.bindings import caller_user_id
+from oss.src.core.credentials.bindings import Binding, ConnectionKey, caller_user_id
+from oss.src.core.credentials.uses import CredentialUse
 from oss.src.core.credentials.policy import (
     PersonalCredentialRefused,
     check_personal_credentials_allowed,
@@ -113,12 +114,68 @@ async def _check_session(
         _marked.popitem(last=False)
 
 
+# Records which person's own account a run used (design D8). The composition root
+# installs the DAO's; without one nothing is recorded. Each pod remembers what it
+# recorded, so a run's later calls on the same connection add no write.
+UseRecorder = Callable[..., Awaitable[None]]
+_recorder: Optional[UseRecorder] = None
+_RECORDED_LIMIT = 10_000
+_recorded: "OrderedDict[Tuple[UUID, str, str], None]" = OrderedDict()
+
+
+def set_use_recorder(recorder: Optional[UseRecorder]) -> None:
+    global _recorder
+    _recorder = recorder
+    _recorded.clear()
+
+
+async def _record_use(
+    *,
+    authority: RunAuthority,
+    session_id: Optional[str],
+    run_id: Optional[str],
+    key: Optional[ConnectionKey],
+    owner_id: UUID,
+    found: Any,
+) -> None:
+    if _recorder is None or key is None or not run_id or not session_id:
+        return
+    connection_key = f"{key.kind}:{key.service}"
+    marker = (authority.project_id, run_id, connection_key)
+    if marker in _recorded:
+        return
+    credential_id = getattr(found, "id", None)
+    if credential_id is None:
+        return
+    name = getattr(found, "name", None) or getattr(
+        getattr(found, "header", None), "name", None
+    )
+    await _recorder(
+        project_id=authority.project_id,
+        use=CredentialUse(
+            session_id=session_id,
+            run_id=run_id,
+            connection_key=connection_key,
+            binding=Binding.CALLER_ACCOUNT.value,
+            owner_kind="user",
+            owner_id=owner_id,
+            credential_id=credential_id,
+            credential_name=name,
+        ),
+    )
+    _recorded[marker] = None
+    if len(_recorded) > _RECORDED_LIMIT:
+        _recorded.popitem(last=False)
+
+
 async def select_personal_credential(
     *,
     authority: Optional[RunAuthority],
     label: str,
     read: Callable[[UUID], Awaitable[Optional[T]]],
     session_id: Optional[str] = None,
+    key: Optional[ConnectionKey] = None,
+    run_id: Optional[str] = None,
 ) -> T:
     """The credential `read` finds for the person the run acts for.
 
@@ -141,4 +198,18 @@ async def select_personal_credential(
     if found is None:
         raise account_missing_refusal(label=label)
     await _check_session(authority=authority, session_id=session_id, label=label)
+    await _record_use(
+        authority=authority,
+        session_id=session_id,
+        run_id=run_id,
+        key=key,
+        owner_id=caller,
+        found=found,
+    )
     return found
+
+
+def run_id_of(access: Any) -> Optional[str]:
+    """The runner turn a run credential names, when it names one."""
+    envelope = getattr(access, "envelope", None)
+    return envelope.context.run_id if envelope is not None else None

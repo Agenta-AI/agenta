@@ -232,3 +232,28 @@ async def test_a_private_channel_session_refuses_a_humans_personal_use():
         assert not await _dao().guard_personal_use(
             project_id=project_id, session_id=session_id
         )
+
+
+async def test_credential_uses_are_recorded_once_and_read_per_session():
+    from oss.src.core.credentials.uses import CredentialUse  # noqa: PLC0415
+    from oss.src.dbs.postgres.credentials.dao import CredentialUsesDAO  # noqa: PLC0415
+
+    async with seeded("alice") as org:
+        project_id, alice = org.project_ids[0], org.user_ids["alice"]
+        dao = CredentialUsesDAO(engine=get_transactions_engine())
+        use = CredentialUse(
+            session_id="s-uses",
+            run_id="run-1",
+            connection_key="model:openai",
+            binding="caller_account",
+            owner_kind="user",
+            owner_id=alice,
+            credential_id=uuid4(),
+            credential_name="OpenAI",
+        )
+        await dao.record_use(project_id=project_id, use=use)
+        await dao.record_use(project_id=project_id, use=use)
+        uses = await dao.list_for_session(project_id=project_id, session_id="s-uses")
+        assert [(u.run_id, u.connection_key, u.credential_name) for u in uses] == [
+            ("run-1", "model:openai", "OpenAI")
+        ]

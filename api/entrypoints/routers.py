@@ -13,6 +13,7 @@ from supertokens_python.framework.fastapi import (
     get_middleware as get_supertokens_middleware,
 )
 
+from oss.src.dbs.postgres.credentials.dao import CredentialUsesDAO
 from oss.src.core.credentials.lifecycle import (
     PersonalCredentialsService,
     register_personal_credentials_service,
@@ -1725,6 +1726,7 @@ sessions = SessionsRouter(
     commands_service=session_commands_service,
     run_admission=run_admission,
     inputs_service=session_inputs_service,
+    credential_uses_dao=CredentialUsesDAO(engine=get_transactions_engine()),
 )
 
 sharing = SharingRouter(

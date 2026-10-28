@@ -134,3 +134,44 @@ def test_a_child_run_has_no_protection_session():
             assert _protection_session(request) == expected
         finally:
             reset_request_access(token)
+
+
+async def test_a_personal_use_is_recorded_once_per_run_and_connection():
+    from types import SimpleNamespace  # noqa: PLC0415
+
+    from oss.src.core.credentials.bindings import ConnectionKey  # noqa: PLC0415
+
+    selection.set_personal_use_guard(_Guard(True))
+    recorded = []
+
+    async def recorder(*, project_id, use):
+        recorded.append((project_id, use))
+
+    selection.set_use_recorder(recorder)
+    authority = _authority()
+    key = ConnectionKey(kind="model", service="openai")
+    found = SimpleNamespace(id=uuid4(), header=SimpleNamespace(name="OpenAI"))
+
+    async def read(user_id):
+        return found
+
+    for _ in range(3):
+        await selection.select_personal_credential(
+            authority=authority,
+            label="OpenAI",
+            read=read,
+            session_id="s-1",
+            key=key,
+            run_id="run-1",
+        )
+    try:
+        assert len(recorded) == 1
+        project_id, use = recorded[0]
+        assert project_id == authority.project_id
+        assert use.connection_key == "model:openai"
+        assert use.owner_id == authority.principal.id
+        assert use.credential_id == found.id
+        assert use.credential_name == "OpenAI"
+        assert use.binding == "caller_account"
+    finally:
+        selection.set_use_recorder(None)

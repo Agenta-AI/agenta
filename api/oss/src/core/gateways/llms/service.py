@@ -14,6 +14,7 @@ from oss.src.core.access.permissions.types import Permission
 from oss.src.core.credentials.bindings import Binding, ConnectionKey, bound_to_caller
 from oss.src.core.credentials.selection import (
     binding_not_signed_refusal,
+    run_id_of,
     select_personal_credential,
 )
 from oss.src.core.gateways.cleanup import run_shielded
@@ -1339,6 +1340,8 @@ class LLMGatewayService:
         selected = await select_personal_credential(
             authority=access.authority,
             session_id=access.session_id,
+            key=key,
+            run_id=run_id_of(access),
             label=provider_display_name(provider_key),
             read=lambda user_id: self.resolver.personal_provider_key(
                 scope=scope, user_id=user_id, provider_key=provider_key

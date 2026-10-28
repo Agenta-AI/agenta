@@ -39,6 +39,7 @@ from fastapi import UploadFile as FastAPIUploadFile
 from starlette.datastructures import UploadFile
 from typing import Any, Awaitable, Callable, Dict, Optional, Tuple, Union
 
+from oss.src.core.credentials.uses import CredentialUsesDAOInterface
 from oss.src.core.access.context import fresh_request_memo, get_request_access
 from oss.src.core.access.dtos import RunApproval
 from oss.src.core.sessions.streams.types import SessionCreationRequiresRunCredential
@@ -243,6 +244,8 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionTurnAppendRequest,
     SessionTurnCompleteRequest,
     SessionTurnQueryRequest,
+    CredentialUsesQueryRequest,
+    CredentialUsesResponse,
     SessionTurnResponse,
     SessionTurnsResponse,
     # root session-level ops
@@ -2620,9 +2623,26 @@ class SessionMountsRouter:
 class SessionTurnsRouter:
     """Turns sub-router — /sessions/turns/*"""
 
-    def __init__(self, *, turns_service: SessionTurnsService) -> None:
+    def __init__(
+        self,
+        *,
+        turns_service: SessionTurnsService,
+        credential_uses_dao: Optional[CredentialUsesDAOInterface] = None,
+    ) -> None:
         self.turns_service = turns_service
+        self.credential_uses_dao = credential_uses_dao
         self.router = APIRouter()
+
+        if credential_uses_dao is not None:
+            self.router.add_api_route(
+                "/credential-uses/query",
+                self.query_credential_uses,
+                methods=["POST"],
+                operation_id="query_turn_credential_uses",
+                status_code=status.HTTP_200_OK,
+                response_model=CredentialUsesResponse,
+                response_model_exclude_none=True,
+            )
 
         self.router.add_api_route(
             "/",
@@ -2660,6 +2680,33 @@ class SessionTurnsRouter:
             response_model=SessionTurnResponse,
             response_model_exclude_none=True,
         )
+
+    @intercept_exceptions()
+    async def query_credential_uses(
+        self,
+        request: Request,
+        body: CredentialUsesQueryRequest,
+    ) -> CredentialUsesResponse:
+        """Which person's own account each turn of the session used (M7, design D8).
+        Every reader of the session sees it; a session the caller may not read answers
+        nothing, as the turns query does."""
+        project_id: UUID = request.state.project_id
+        if not await check_action_access(
+            user_uid=str(request.state.user_id),
+            project_id=str(project_id),
+            permission=Permission.VIEW_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
+        if not await allow_resource(
+            request,
+            action=Permission.VIEW_SESSIONS,
+            resource=session_resource(body.session_id),
+        ):
+            return CredentialUsesResponse()
+        uses = await self.credential_uses_dao.list_for_session(
+            project_id=UUID(str(project_id)), session_id=body.session_id
+        )
+        return CredentialUsesResponse(count=len(uses), uses=uses)
 
     @intercept_exceptions()
     async def append_turn(
@@ -3743,6 +3790,7 @@ class SessionsRouter:
         commands_service: SessionCommandsService,
         run_admission: RunAdmission,
         inputs_service: Optional[SessionInputsService] = None,
+        credential_uses_dao: Optional[CredentialUsesDAOInterface] = None,
     ) -> None:
         self.streams = SessionStreamsRouter(
             service=streams_service,
@@ -3765,7 +3813,9 @@ class SessionsRouter:
             session_mounts_service=session_mounts_service,
             mounts_service=mounts_service,
         )
-        self.turns = SessionTurnsRouter(turns_service=turns_service)
+        self.turns = SessionTurnsRouter(
+            turns_service=turns_service, credential_uses_dao=credential_uses_dao
+        )
         self.root = SessionsRootRouter(
             sessions_service=sessions_service,
             streams_service=streams_service,

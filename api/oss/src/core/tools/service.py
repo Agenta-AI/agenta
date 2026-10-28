@@ -11,6 +11,7 @@ from oss.src.core.access.context import get_request_access
 from oss.src.core.credentials.bindings import Binding, bound_to_caller, tool_key
 from oss.src.core.credentials.selection import (
     binding_not_signed_refusal,
+    run_id_of,
     select_personal_credential,
 )
 from oss.src.utils.env import env
@@ -651,6 +652,7 @@ class ToolsService:
         access,
         provider_key: str,
         integration_key: str,
+        connection_slug: str,
     ) -> ToolConnection:
         authority = access.authority
 
@@ -666,6 +668,10 @@ class ToolsService:
         connection = await select_personal_credential(
             authority=authority,
             session_id=access.session_id,
+            key=tool_key(
+                provider=provider_key, integration=integration_key, slug=connection_slug
+            ),
+            run_id=run_id_of(access),
             label=integration_key.replace("_", " ").title(),
             read=read,
         )
@@ -710,6 +716,7 @@ class ToolsService:
                 access=access,
                 provider_key=provider_key,
                 integration_key=integration_key,
+                connection_slug=connection_slug,
             )
         # Query all (not active-only) so an inactive connection yields a precise
         # "inactive" error instead of an indistinguishable "not found".

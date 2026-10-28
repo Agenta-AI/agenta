@@ -4,6 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from oss.src.core.credentials.uses import CredentialUse
 from oss.src.core.sessions.dtos import (
     SessionExpansion,
     SessionListItem,
@@ -453,6 +454,17 @@ class SessionTurnCompleteRequest(BaseModel):
     turn_index: int
     agent_session_id: Optional[str] = None
     end_time: datetime
+
+
+class CredentialUsesQueryRequest(BaseModel):
+    session_id: str
+
+
+class CredentialUsesResponse(BaseModel):
+    """Which person's own account each turn of a session used, per connection (M7)."""
+
+    count: int = 0
+    uses: List[CredentialUse] = []
 
 
 class SessionTurnQueryRequest(BaseModel):

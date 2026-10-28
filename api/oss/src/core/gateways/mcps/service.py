@@ -12,7 +12,10 @@ from uuid import UUID, uuid4
 from oss.src.core.access.context import get_request_access
 from oss.src.core.credentials.bindings import bound_to_caller, mcp_key
 from oss.src.core.credentials.policy import check_personal_credentials_allowed
-from oss.src.core.credentials.selection import select_personal_credential
+from oss.src.core.credentials.selection import (
+    run_id_of,
+    select_personal_credential,
+)
 from oss.src.core.secrets.dtos import SecretOwner
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.gateway.connections.dtos import Connection
@@ -1093,6 +1096,8 @@ class MCPGatewayService:
         return await select_personal_credential(
             authority=authority,
             session_id=access.session_id,
+            key=mcp_key(slug=slug),
+            run_id=run_id_of(access),
             label=slug,
             read=lambda user_id: self.mcp_endpoints_dao.fetch_owned_endpoint_by_slug(
                 owner=SecretOwner.for_user(
