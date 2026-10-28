@@ -231,6 +231,28 @@ class WorkflowRevisionEditRequest(BaseModel):
     )
 
 
+class WorkflowRevisionRequirementsQueryRequest(BaseModel):
+    """One agent configuration to check: a saved revision, or an unsaved draft."""
+
+    workflow_revision_ref: Optional[Reference] = Field(
+        default=None,
+        description="The saved revision to check.",
+    )
+    parameters: Optional[dict] = Field(
+        default=None,
+        description=(
+            "An unsaved draft's parameters (`{agent: {...}}`), checked instead of a "
+            "saved revision."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _one_source(self) -> "WorkflowRevisionRequirementsQueryRequest":
+        if (self.workflow_revision_ref is None) == (self.parameters is None):
+            raise ValueError("send either workflow_revision_ref or parameters")
+        return self
+
+
 class WorkflowRevisionQueryRequest(BaseModel):
     workflow_revision: Optional[WorkflowRevisionQuery] = Field(
         default=None,
