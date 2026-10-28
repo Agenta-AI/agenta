@@ -122,6 +122,41 @@ Access layer invariants (agent and session sharing):
 - Never treat a null owner as "not migrated".
 - Audit events carry identifiers, never credential values.
 
+Organization-scoped decisions and organization credentials (M5):
+- An organization subscription login (`subscription_provider` in `ORGANIZATION_SECRET_KINDS`,
+  never in `ORGANIZATION_GATEWAY_KINDS`) is the one organization value that leaves the API:
+  only to the run credential, from `GET /secrets/{slug}?scope=organization`, through
+  `organization_subscription_for_runtime`. The runner uses it like a project login.
+
+- Organization-scoped actions are decided only by `decide_organization`
+  (`oss/src/core/access/organizations.py`). It allows a browser-session human acting as
+  itself, with no run envelope, whose organization role is `owner` or `admin`. It reads
+  the member row uncached and nothing else, so project RBAC shortcuts (the EE no-RBAC
+  bypass, the organization-owner shortcut) never apply.
+- An agent names its connection by scope and slug (`project`, the default, or
+  `organization`). Nothing is inherited or overridden: a project slug reads project rows
+  only, no connection means the project default, and an organization connection resolves
+  only by `VaultService.get_organization_connection` (or `get_available_organization_secret_by_id`
+  for a bound reference), in the gateway namespace `organization`. `SecretsResolver` is built
+  per plane; only the LLM plane answers an organization connection. The `/secrets/` routes
+  serve both owners. The caller states the owner (`scope`, default `project`); with
+  `organization` the route runs `decide_organization`, otherwise it is the project route as
+  before. `PUT /secrets/{id}/projects` addresses organization rows only. `GET /secrets/?include_organization=true` adds the organization
+  rows available to the project without values (also for the `secret-resolve` grant).
+- A project's vault lives in ONE cache entry (`effective_secrets`, keyed on the full
+  project id), filled by one statement (`SecretsDAO.load_effective`), with the project's
+  rows and the available organization rows. Do not add a second cache read for
+  organization rows. Project writes invalidate it with the project-wide invalidation;
+  organization writes delete each project's entry after the commit.
+- Project and organization rows are two slug spaces; no write checks one against the
+  other. Secrets DAO errors are raised `from None` as domain errors: the SQL parameters of
+  a secrets write hold the plaintext value.
+- `integration/secrets/test_organization_secrets_query_counts_postgres.py` pins the vault
+  and gateway hot paths in five cache modes (warm, cold leader, cold follower, cache
+  disabled, Redis failing). It needs a reachable Redis: run it with a throwaway one
+  (`REDIS_URI_VOLATILE=redis://127.0.0.1:<port>/0`), because the stack's Redis is not
+  published.
+
 Primary references:
 - `api/entrypoints/routers.py`
 - `api/ee/src/main.py`

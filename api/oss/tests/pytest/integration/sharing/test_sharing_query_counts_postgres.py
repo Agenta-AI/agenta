@@ -67,6 +67,7 @@ from oss.src.core.sharing.dtos import (
     AccessPolicy,
     Visibility,
 )
+from oss.src.core.sessions.streams.types import SessionIdTombstoned
 from oss.src.core.sharing.types import AdmissionDenied
 from oss.src.core.workflows.dtos import WorkflowRevisionCommit, WorkflowRevisionData
 from oss.src.core.workflows.service import WorkflowsService
@@ -648,6 +649,126 @@ async def test_create_beat_columns_ride_the_insert(world):
     assert len(with_agent) == HB_CREATE + 1
 
 
+async def _binding(world: World) -> UUID:
+    """A Slack connection and an active binding created by Alice: the installation
+    principal of a channel turn."""
+
+    connection_id, binding_id = uuid4(), uuid4()
+    await execute(
+        "INSERT INTO channel_connections (id, project_id, channel, external_key, slug) "
+        "VALUES (:id, :p, 'slack', :ek, :slug)",
+        {
+            "id": connection_id,
+            "p": world.project_id,
+            "ek": str(uuid4()),
+            "slug": f"c-{connection_id.hex[:8]}",
+        },
+    )
+    await execute(
+        "INSERT INTO channel_agents (id, project_id, connection_id, slug, "
+        "created_by_id) VALUES (:id, :p, :c, :slug, :u)",
+        {
+            "id": binding_id,
+            "p": world.project_id,
+            "c": connection_id,
+            "slug": f"a-{binding_id.hex[:8]}",
+            "u": world.alice,
+        },
+    )
+    return binding_id
+
+
+async def test_a_channel_run_creates_its_session_at_the_same_cost(
+    world, redis_commands
+):
+    """The channel turn's first beat creates the session with the channel policy:
+    private to the agent's owner for a private agent, ownerless and project-visible for
+    a project agent. The policy comes from the agent entry the admission read in this
+    request: the private agent's create costs what the project agent's costs (the
+    normal create plus the reference read), and no extra Redis read of the agent
+    entry."""
+
+    binding_id = await _binding(world)
+    envelope = make_envelope(
+        kind="installation",
+        principal_id=binding_id,
+        origin="installation",
+        origin_id=str(binding_id),
+        project_id=world.project_id,
+        organization_id=world.organization_id,
+    )
+
+    async def _create(agent: UUID):
+        session_id = _sid()
+        await execute(
+            "INSERT INTO channel_threads (id, project_id, space_id, agent_id, "
+            "session_id) VALUES (:id, :p, :space, :agent, :s)",
+            {
+                "id": uuid4(),
+                "p": world.project_id,
+                "space": uuid4(),
+                "agent": binding_id,
+                "s": session_id,
+            },
+        )
+        redis_commands.commands.clear()
+        redis_commands.recording = True
+        try:
+            with count_statements(get_transactions_engine()) as statements:
+                result = await world.streams.heartbeat(
+                    project_id=world.project_id,
+                    request=SessionHeartbeatRequest(
+                        session_id=session_id,
+                        replica_id="m3-counts",
+                        turn_id=str(uuid4()),
+                        is_running=True,
+                        references=world.refs[agent],
+                    ),
+                    runner_verified=False,
+                    envelope=envelope,
+                    access=OWNERLESS_PROJECT_POLICY,
+                    run_admission=world.admission,
+                    admission_envelope=envelope,
+                )
+        finally:
+            redis_commands.recording = False
+        assert result.is_current_turn and result.stream is not None
+        agent_reads = [
+            c
+            for c in redis_commands.commands
+            if str(c[0]).upper() in ("GET", "MGET")
+            and any(b"sharing_agent_access" in _raw(a) for a in c[1:])
+        ]
+        return result.stream, statements, agent_reads, list(redis_commands.commands)
+
+    await _create(world.shared_agent)  # warm
+    await _create(world.private_agent)  # warm
+    shared, shared_statements, shared_reads, shared_redis = await _create(
+        world.shared_agent
+    )
+    private, private_statements, private_reads, private_redis = await _create(
+        world.private_agent
+    )
+
+    assert (shared.visibility, shared.owner_user_id) == (Visibility.PROJECT, None)
+    assert (private.visibility, private.owner_user_id) == (
+        Visibility.PRIVATE,
+        world.alice,
+    )
+    assert len(shared_statements) == HB_CREATE + 1, shared_statements
+    assert len(private_statements) == len(shared_statements), private_statements
+    # The admission's one cache read carries the agent entry; the policy reads the memo.
+    assert len(shared_reads) == len(private_reads) == 1, (shared_reads, private_reads)
+    # Every Redis command, not only the agent entry's: the same round trips for both.
+    assert [str(c[0]).upper() for c in private_redis] == [
+        str(c[0]).upper() for c in shared_redis
+    ]
+
+
+def _raw(value) -> bytes:
+    return value if isinstance(value, bytes) else str(value).encode()
+
+
 async def test_refused_beat_writes_nothing(world):
     """Bob's running beat on Alice's private session: refused before any lock or
     write. Only SELECTs: the moved row read, plus the reference read with an agent."""
@@ -691,22 +812,22 @@ async def _channel_thread(world) -> str:
 
 
 async def test_channel_thread_creation_paths(world, redis_commands):
-    """A first touch on a channel thread's session id, counted apart from the normal
-    create (pinned above as HB_CREATE and SEND). The insert that finds the thread costs
-    the normal create's statements. The session check reads the entry the insert just
-    cached; a refused beat or send then adds one guarded UPDATE that clears the
-    refused turn from the kept row, and deletes nothing."""
+    """A person's first touch on a channel thread's session id, counted apart from the
+    normal create (pinned above as HB_CREATE and SEND). Only the channel's own run
+    creates that row, so the beat and the send stop at the insert: no more statements
+    than the normal create, nothing written, nothing deleted."""
 
-    with pytest.raises(AdmissionDenied):  # warm
+    with pytest.raises(SessionIdTombstoned):  # warm
         await _beat(world, await _channel_thread(world), str(uuid4()))
     for attempt in range(2):
         session_id = await _channel_thread(world)
         with count_statements(get_transactions_engine()) as statements:
-            with pytest.raises(AdmissionDenied):
+            with pytest.raises(SessionIdTombstoned):
                 await _beat(world, session_id, str(uuid4()))
-    assert len(statements) == HB_CREATE + 1
-    assert [s for s in statements if s.lstrip().upper().startswith("UPDATE")]
-    assert not [s for s in statements if s.lstrip().upper().startswith("DELETE")]
+    assert len(statements) <= HB_CREATE, statements
+    assert not [
+        s for s in statements if s.lstrip().upper().startswith(("UPDATE", "DELETE"))
+    ]
 
     async def _send(session_id: str):
         return await world.streams.command(
@@ -722,13 +843,12 @@ async def test_channel_thread_creation_paths(world, redis_commands):
 
     session_id = await _channel_thread(world)
     with count_statements(get_transactions_engine()) as statements:
-        with pytest.raises(AdmissionDenied):
+        with pytest.raises(SessionIdTombstoned):
             await _send(session_id)
-    # The send's normal statements (row read, per-id lock, insert); the refusal hands
-    # back the turn's locks and adds the one guarded UPDATE of the kept row.
-    assert len(statements) == SEND + 1
-    assert not [s for s in statements if s.lstrip().upper().startswith("DELETE")]
-    assert not [s for s in statements if s.lstrip().upper().startswith("DELETE")]
+    assert len(statements) <= SEND, statements
+    assert not [
+        s for s in statements if s.lstrip().upper().startswith(("UPDATE", "DELETE"))
+    ]
 
 
 def _session_recheck(world, user_id, session_id):

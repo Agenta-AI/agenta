@@ -28,7 +28,7 @@ nothing; restore the pre-release dump of `projects` to undo it. The migration ga
 no finding (data-only statements).
 
 Revision ID: oss000000053
-Revises: oss000000052
+Revises: oss000000054
 Create Date: 2026-10-25 00:00:00.000000
 
 """
@@ -40,7 +40,7 @@ from alembic import op
 import sqlalchemy as sa
 
 revision: str = "oss000000053"
-down_revision: Union[str, None] = "oss000000052"
+down_revision: Union[str, None] = "oss000000054"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

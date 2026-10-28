@@ -1,0 +1,31 @@
+---
+title: "Agent runs that hold up"
+slug: more-reliable-agent-runs
+date: 2026-10-07
+tags: [v0.122.3]
+description: "Agenta AI agent runs are more reliable: stalled model calls retry on their own, long runs keep their connection and trace, and the queue responds instantly."
+---
+
+<Summary>
+
+Agent runs hold up better. When a model stalls before it starts answering, Agenta retries the turn on its own instead of failing your message. Long runs keep their connection and their full trace.
+
+The queue also responds the moment you click, and while an agent starts up, you can see what it's doing.
+
+</Summary>
+
+{/* truncate */}
+
+We fixed the ways a run could fail or feel stuck.
+
+## Stalled model calls retry on their own
+
+Sometimes a model call hangs before it says anything. Agenta used to answer that the run failed, and your message from Slack or Telegram was lost. Now it retries the turn on its own. It only retries turns that haven't done anything yet, so no action runs twice.
+
+## Long runs keep going
+
+Runs that last many minutes no longer lose their model connection when one of our servers restarts. Commands no longer end at 180 seconds when their time limit is longer. And large traces are kept in full instead of being dropped.
+
+## A faster queue
+
+In the app, removing, editing or sending a queued message happens the moment you click. While an agent starts up, the status line says what it's doing instead of just "Working". If you press **Stop** while it runs a command, the turn now shows "Stopped".

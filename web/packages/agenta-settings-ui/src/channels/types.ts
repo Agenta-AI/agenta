@@ -106,9 +106,6 @@ export interface ChannelAnsweringAgent {
 export interface ChannelsPanelAgent {
     id: string
     name: string
-    /** The reader's own private agent: listed, but it cannot answer a channel until it is
-     *  shared with the project. Other people's private agents never reach the host's list. */
-    isPrivate?: boolean
 }
 
 export interface ChannelConnection {
@@ -122,8 +119,8 @@ export interface ChannelConnection {
     chats: ChannelChat[]
     /** Which agent answers on this connection. Undefined when the host has not resolved it. */
     agent?: ChannelAnsweringAgent | null
-    /** True when the binding that answers on this connection is turned off (for example when
-     *  its agent was made private). The connection itself stays connected. */
+    /** True when the binding that answers on this connection is turned off. The connection
+     *  itself stays connected. */
     agentOff?: boolean
     /** When the connection was made, ISO 8601. */
     connectedAt?: string | null
@@ -229,8 +226,7 @@ export interface ChannelsActions {
     connectHere: (platform: ChannelPlatform, connectionId: string) => Promise<void>
     /** Disconnect (archive) a connection. */
     disconnect: (platform: ChannelPlatform, connectionId: string) => Promise<void>
-    /** Turn the binding that answers on this connection back on. The server refuses a private
-     *  agent (the error is a `ChannelAgentPrivateError`). */
+    /** Turn the binding that answers on this connection back on. */
     turnOn: (platform: ChannelPlatform, connectionId: string) => Promise<void>
     /** The places this connection already answers in. */
     listSpaces: (connectionId: string) => Promise<ChannelSpace[]>

@@ -9,6 +9,7 @@ composition override) gets them for free instead of a permissive fallback.
 
 from __future__ import annotations
 
+import asyncio
 import os
 import re
 from dataclasses import dataclass, field
@@ -35,7 +36,8 @@ from agenta.sdk.agents.connections import (
 )
 from agenta.sdk.agents.tools import PlatformToolConfig, ResolvedToolSet
 from agenta.sdk.agents.adapters import SandboxAgentBackend, make_harness
-from agenta.sdk.agents.errors import SandboxNotAllowedError
+from agenta.sdk.agents.errors import AgentRunFailed, SandboxNotAllowedError
+from agenta.sdk.agents.utils.wire import sanitize_runner_error
 from agenta.sdk.agents.sandbox_providers import sandbox_provider_enabled
 from agenta.sdk.agents.mcp import ResolvedMCPServer
 from agenta.sdk.agents.sandbox_credentials import (
@@ -205,6 +207,26 @@ async def _with_channel_tools(
         if op in ops and op not in authored
     ]
     return [*tools, *added]
+
+
+async def _await_in_order(*starts: Callable[[], Awaitable[Any]]) -> List[Any]:
+    """Run the steps concurrently but settle them as if they ran one after another.
+
+    The results come back in argument order, and the error that propagates is the first
+    step's in that order, not the first to fail in time. Once one step raises, the later
+    steps are cancelled, since a serial run would never have started them.
+    """
+    tasks: List["asyncio.Future[Any]"] = []
+    try:
+        for start in starts:
+            tasks.append(asyncio.ensure_future(start()))
+        return [await task for task in tasks]
+    finally:
+        pending = [task for task in tasks if not task.done()]
+        for task in pending:
+            task.cancel()
+        # Consume every outcome so a sibling's error is not reported as never retrieved.
+        await asyncio.gather(*tasks, return_exceptions=True)
 
 
 def _reference_id(references, name: str) -> Optional[str]:
@@ -455,32 +477,46 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
         )
 
         msgs = to_messages(messages or (inputs or {}).get("messages") or [])
-        # The agent-wide mode reaches the gateway permission compiler only here: an
-        # ``inherit`` in a saved connection policy resolves against it, so a resolve that
-        # does not carry it would compile a different policy than the run enforces.
-        run_tools = await _with_channel_tools(
-            comp.resolve_channel_tools,
-            agent_template.tools,
-            workflow_id=_agent_artifact_id(comp.run_context(), request.references),
-        )
-        resolved_tools = await comp.resolve_tools(
-            run_tools,
-            permission_default=agent_template.permission_default,
-            session_id=session_id,
-        )
-        resolved_mcp = await comp.resolve_mcp_servers(
-            agent_template.mcp_servers,
-            tool_specs=resolved_tools.tool_specs,
-        )
+        workflow_id = _agent_artifact_id(comp.run_context(), request.references)
 
-        model_ref = _agent_model_ref(agent_template)
-        resolved_connection: Optional[ResolvedConnection] = None
-        if model_ref is not None:
+        # run_kind rides the wire on `request.meta`: a wire-supplied run_kind must not
+        # be silently dropped, so it layers onto whatever run_context composition supplies.
+        # Copy before setting so a shared/cached RunContext can't leak run_kind across requests.
+        rc = comp.run_context()
+        run_kind = (request.meta or {}).get("run_kind")
+        if isinstance(run_kind, str) and run_kind:
+            base = rc or RunContext()
+            rc = base.model_copy(update={"run": RunContextRun(kind=run_kind)})
+
+        async def _resolve_run_tools():
+            # The agent-wide mode reaches the gateway permission compiler only here: an
+            # ``inherit`` in a saved connection policy resolves against it, so a resolve that
+            # does not carry it would compile a different policy than the run enforces.
+            run_tools = await _with_channel_tools(
+                comp.resolve_channel_tools,
+                agent_template.tools,
+                workflow_id=workflow_id,
+            )
+            resolved_tools = await comp.resolve_tools(
+                run_tools,
+                permission_default=agent_template.permission_default,
+                session_id=session_id,
+            )
+            resolved_mcp = await comp.resolve_mcp_servers(
+                agent_template.mcp_servers,
+                tool_specs=resolved_tools.tool_specs,
+            )
+            return resolved_tools, resolved_mcp
+
+        async def _resolve_run_connection() -> Optional[ResolvedConnection]:
+            model_ref = _agent_model_ref(agent_template)
+            if model_ref is None:
+                return None
             ctx = RuntimeAuthContext(
                 harness=agent_template.harness,
                 backend=agent_template.sandbox,
                 session_id=session_id,
-                agent_id=_agent_artifact_id(comp.run_context(), request.references),
+                agent_id=workflow_id,
             )
             # Default is the gated+fail-closed resolve, bound to comp.resolve_connection
             # so an override of the plain resolver still flows through the capability check.
@@ -489,12 +525,49 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
                     m, c, resolve_connection=comp.resolve_connection
                 )
             )
-            resolved_connection = await resolve_session_connection(model_ref, ctx)
+            return await resolve_session_connection(model_ref, ctx)
 
-        resolved_sandbox_credentials = await comp.resolve_sandbox_credentials(
-            agent_template.sandbox_credentials,
-            resolved_connection=resolved_connection,
-            mcp_servers=resolved_mcp,
+        async def _resolve_run_sandbox_credentials():
+            # Needs the connection and the MCP servers: it rejects a binding they already own.
+            (resolved_tools, resolved_mcp), resolved_connection = await _await_in_order(
+                _resolve_run_tools, _resolve_run_connection
+            )
+            resolved_sandbox_credentials = await comp.resolve_sandbox_credentials(
+                agent_template.sandbox_credentials,
+                resolved_connection=resolved_connection,
+                mcp_servers=resolved_mcp,
+            )
+            return (
+                resolved_tools,
+                resolved_mcp,
+                resolved_connection,
+                resolved_sandbox_credentials,
+            )
+
+        # The per-turn session facts. Resolved HERE, from the backend, and never read off
+        # `request.meta`: the playground posts a turn straight to this service, so `meta` is
+        # client input on the path the browser uses. A client must not be able to tell the
+        # agent it is already named. The API stamps `meta.session_context` for the runs it
+        # proxies; that stamp is deliberately ignored, because a service cannot tell it apart
+        # from a forged one in its own request body.
+        #
+        # The tool chain, the connection and the session facts read nothing from each other,
+        # so they share the wait instead of adding to it.
+        (
+            (
+                resolved_tools,
+                resolved_mcp,
+                resolved_connection,
+                resolved_sandbox_credentials,
+            ),
+            session_context,
+        ) = await _await_in_order(
+            _resolve_run_sandbox_credentials,
+            lambda: _bounded_session_context(
+                comp.resolve_session_context,
+                session_id=session_id,
+                workflow_id=_agent_artifact_id(rc, request.references),
+            ),
         )
 
         # Seed a FRESH per-run redactor immediately after trusted resolution and before
@@ -535,15 +608,6 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             ]
         )
 
-        # run_kind rides the wire on `request.meta`: a wire-supplied run_kind must not
-        # be silently dropped, so it layers onto whatever run_context composition supplies.
-        # Copy before setting so a shared/cached RunContext can't leak run_kind across requests.
-        rc = comp.run_context()
-        run_kind = (request.meta or {}).get("run_kind")
-        if isinstance(run_kind, str) and run_kind:
-            base = rc or RunContext()
-            rc = base.model_copy(update={"run": RunContextRun(kind=run_kind)})
-
         # Detached session coordination rides the generic workflow request metadata. Keep these
         # values out of harness configuration: they identify this delivery/execution only. In
         # particular, a durable approval retry repeats control_command_id while run_id names the
@@ -553,18 +617,6 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
         def _meta_string(name: str) -> Optional[str]:
             value = request_meta.get(name)
             return value.strip() if isinstance(value, str) and value.strip() else None
-
-        # The per-turn session facts. Resolved HERE, from the backend, and never read off
-        # `request.meta`: the playground posts a turn straight to this service, so `meta` is
-        # client input on the path the browser uses. A client must not be able to tell the
-        # agent it is already named. The API stamps `meta.session_context` for the runs it
-        # proxies; that stamp is deliberately ignored, because a service cannot tell it apart
-        # from a forged one in its own request body.
-        session_context = await _bounded_session_context(
-            comp.resolve_session_context,
-            session_id=session_id,
-            workflow_id=_agent_artifact_id(rc, request.references),
-        )
 
         session_config = SessionConfig(
             agent=agent_template,
@@ -642,9 +694,12 @@ async def agent_event_stream(
     """Run one streaming turn, yielding the live `{type, data}` agenta event wire."""
     await harness.setup()
     run = await harness.stream(session_config, msgs)
+    error_streamed = False
     try:
         event_stop_reason: Optional[str] = None
         async for event in run:
+            if event.type == "error":
+                error_streamed = True
             if event.type == "done":
                 event_stop_reason = (event.data or {}).get("stopReason")
             yield get_active_redactor().redact_json(
@@ -664,6 +719,20 @@ async def agent_event_stream(
             and terminal_stop_reason != event_stop_reason
         ):
             yield {"type": "done", "data": {"stopReason": terminal_stop_reason}}
+    except AgentRunFailed as exc:
+        log.error("agent_event_stream: run failed", exc_info=True)
+        span = otel_trace.get_current_span()
+        if span.is_recording():
+            span.set_status(otel_trace.Status(otel_trace.StatusCode.ERROR, exc.message))
+        if not error_streamed:
+            yield {
+                "type": "error",
+                "data": {
+                    "message": sanitize_runner_error(exc),
+                    "code": exc.failure_code,
+                    "detail": exc.error_detail,
+                },
+            }
     finally:
         try:
             result = run.result()

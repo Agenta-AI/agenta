@@ -215,9 +215,16 @@ function parseFromBody(raw: string): AgentErrorDetail | undefined {
       ? candidate.message.match(CODE_MARKER_RE)?.[1]
       : undefined;
   const upstream = !!marker && marker in UPSTREAM_RETRYABLE;
+  // The native Gemini route answers in Google's shape: `code` is the HTTP status and `status` the
+  // canonical name, so the marker is the only place our own code is.
+  const google =
+    !!marker &&
+    typeof candidate.code === "number" &&
+    typeof candidate.status === "string";
   const identifiable =
     !!marker &&
     (upstream ||
+      google ||
       typeof candidate.code === "string" ||
       !!jsonRpcCause(candidate));
   const body = identifiable ? candidate : undefined;
@@ -226,8 +233,15 @@ function parseFromBody(raw: string): AgentErrorDetail | undefined {
   // JSON-RPC shape and the cause comes from `error.data`. Checked in that order so a body
   // carrying both keeps the behaviour it had before the MCP shape was understood here.
   const rpc =
-    upstream || typeof body.code === "string" ? undefined : jsonRpcCause(body);
-  const code = upstream ? marker : typeof body.code === "string" ? body.code : rpc?.code;
+    upstream || google || typeof body.code === "string"
+      ? undefined
+      : jsonRpcCause(body);
+  const code =
+    upstream || google
+      ? marker
+      : typeof body.code === "string"
+        ? body.code
+        : rpc?.code;
   const message = typeof body.message === "string" ? body.message : undefined;
   if (!code || !message) return undefined;
 

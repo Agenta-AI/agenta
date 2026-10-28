@@ -91,6 +91,25 @@ async def fetch_project_by_id(
         return project
 
 
+async def fetch_projects_by_organization(
+    organization_id: uuid.UUID,
+) -> List[ProjectDB]:
+    """Every project of an organization, the default project first."""
+
+    engine = get_transactions_engine()
+    async with engine.session() as session:
+        result = await session.execute(
+            select(ProjectDB)
+            .filter(ProjectDB.organization_id == organization_id)
+            .order_by(
+                ProjectDB.is_default.desc().nulls_last(),
+                ProjectDB.created_at.asc(),
+                ProjectDB.id.asc(),
+            )
+        )
+        return result.scalars().all()
+
+
 # Maps a workspace id or an organization id inside the statement: a workspace resolves to
 # itself and its organization, an organization id to the organization (no workspace).
 _WORKSPACE_REF_CTE = """

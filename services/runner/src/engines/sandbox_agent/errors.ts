@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import {
+  carriesGatewayRefusalMarker,
   isUpstreamFailure,
   parseGatewayErrorDetail,
   personFacingGatewayRefusal,
@@ -182,6 +183,10 @@ export type RunErrorCode =
   | "run_total_time_limit"
   | "credential_delivery_failed"
   | "rate_limited"
+  // The harness did not answer while the run was opening its ACP session, so nothing ran. A
+  // wedged or cold-installing adapter, not a fault of the model or the key: retryable, never an
+  // "add a key" prompt. Set by `HarnessInitTimeoutError` (`harness-session-lifecycle.ts`).
+  | "harness_init_timeout"
   // Not a failure: the turn was REFUSED before it started because another turn already owns
   // this session. Nothing ran, nothing was destroyed, and the user's message was never sent.
   // Clients render it as a "not sent, try again" state and keep the text, never as a run error.
@@ -484,7 +489,10 @@ export const MODEL_REQUEST_TIMED_OUT = /\bRequest timed out\.(?:\s|$)/;
 export const MODEL_REQUEST_TIMED_OUT_MESSAGE =
   "The model provider did not answer in time. Try again in a moment.";
 
-export const MALFORMED_FUNCTION_CALL = /finish_reason: malformed_function_call/;
+// Pi's OpenAI client words it `finish_reason: malformed_function_call`; its Google client, on the
+// built-in Gemini route's native protocol, `Provider stopped with: MALFORMED_FUNCTION_CALL`.
+export const MALFORMED_FUNCTION_CALL =
+  /finish_reason: malformed_function_call|Provider stopped with: MALFORMED_FUNCTION_CALL/;
 export const MALFORMED_FUNCTION_CALL_MESSAGE =
   "The model sent a tool call that could not be read (malformed_function_call). Try again, or pick another model.";
 
@@ -726,7 +734,11 @@ export function classifyRunError(
   if (
     /\b(?:WebSocket (?:error|closed|connect timeout|idle timeout|stream closed)|connection error|fetch failed)\b/i.test(
       raw,
-    )
+    ) ||
+    // Pi's Google client, when the native Gemini stream breaks off before its finish reason
+    // (`@google/genai` does not raise an error event inside a stream).
+    // `@google/genai` raises "Incomplete JSON segment at the end" when it is cut inside one.
+    /Google stream ended without a finish reason|Incomplete JSON segment at the end/.test(raw)
   ) {
     return {
       message:
@@ -739,7 +751,7 @@ export function classifyRunError(
   }
   const providerError = describeProviderError(raw);
   if (providerError) return { message: providerError, code: "provider_error" };
-  const rawProviderError = describeRawProviderError(msg);
+  const rawProviderError = describeRawProviderError(googleStatusLine(msg) ?? msg);
   if (rawProviderError) return rawProviderError;
   if (options.unknownText !== "hidden")
     return {
@@ -783,6 +795,36 @@ function providerSentence(text: string): string | undefined {
     .trim();
   if (!said) return undefined;
   return /[.!?]$/.test(said) ? said : `${said}.`;
+}
+
+/**
+ * The gateway's Google-shaped refusal (`{"error": {"code": <HTTP status>, "message": "...
+ * ⟦agenta_code:…⟧", "status": "<CANONICAL>"}}`) as the `NNN {json}` line `describeRawProviderError`
+ * reads. Pi's Google client, on the native Gemini route, keeps only the body as its error text,
+ * without the status prefix Pi's OpenAI client writes. Only a marked body with a numeric `code` and
+ * a string `status` qualifies, so another `{"error": ...}` in some text is never read as a model
+ * refusal; undefined otherwise.
+ */
+function googleStatusLine(line: string): string | undefined {
+  if (RAW_PROVIDER_ERROR.test(line) || !carriesGatewayRefusalMarker(line)) return undefined;
+  const prefix = /^(?:[A-Za-z][A-Za-z ]*:\s*)*(?=\{)/.exec(line);
+  if (!prefix) return undefined;
+  const body = line.slice(prefix[0].length);
+  let error: { code?: unknown; status?: unknown } | undefined;
+  try {
+    error = (JSON.parse(body) as { error?: { code?: unknown; status?: unknown } }).error;
+  } catch {
+    return undefined;
+  }
+  const status = error?.code;
+  if (
+    typeof status !== "number" ||
+    status < 400 ||
+    status > 599 ||
+    typeof error?.status !== "string"
+  )
+    return undefined;
+  return `${status} ${body}`;
 }
 
 /** The `message` of a provider's JSON error body (`{"error":{"message":...}}` or `{"message":...}`). */
@@ -923,6 +965,26 @@ export function runLimitError(
         ),
         "run_total_time_limit",
       );
+  }
+}
+
+/**
+ * The harness never answered while its ACP session was being opened.
+ *
+ * A CLASS, not a bare `withPublicCode`, because `openSession` must tell a load that timed out
+ * from a load that failed: the second degrades to a create, the first must not. The message is
+ * the line the person in the chat reads (the harness by name and the budget that elapsed);
+ * everything the operator needs (mode, harness id, budget in ms) goes in the runner log at the
+ * throw site.
+ */
+export class HarnessInitTimeoutError extends Error implements PublicError {
+  readonly publicCode: RunErrorCode = "harness_init_timeout";
+
+  constructor(harnessLabel: string, budgetMs: number) {
+    super(
+      `The ${harnessLabel} harness did not start within ${formatRunLimit(budgetMs)}, so the turn was ended. Send the message again to retry.`,
+    );
+    this.name = "HarnessInitTimeoutError";
   }
 }
 

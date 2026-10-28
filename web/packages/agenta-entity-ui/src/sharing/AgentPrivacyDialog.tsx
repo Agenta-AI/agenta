@@ -35,11 +35,7 @@ import {UsersIcon} from "@phosphor-icons/react"
 
 import {AgentTransferDialog} from "./AgentTransferDialog"
 import {agentSharingCopy as copy} from "./copy"
-import {
-    useAgentSharingWrites,
-    type AgentChannelConnection,
-    type AgentSharingNotice,
-} from "./useAgentSharingWrites"
+import {useAgentSharingWrites, type AgentSharingNotice} from "./useAgentSharingWrites"
 
 export interface AgentPrivacyProps {
     agentName: string
@@ -51,9 +47,7 @@ export interface AgentPrivacyProps {
     onRetry?: () => void
     /** The owner's profile (the current user when `my_role` is "owner"). */
     owner?: SharingPerson | null
-    /** The channel apps bound to this agent: drive the make-private warning. */
-    channelConnections?: readonly AgentChannelConnection[]
-    /** Platforms whose connection is still off after the agent was shared again. */
+    /** Platforms whose connection to this agent is off. */
     channelsOff?: readonly string[]
     onOpenChannels?: () => void
     members: readonly ProjectMemberProfile[]
@@ -157,7 +151,6 @@ export const AgentPrivacyDialog = ({
         loadError = false,
         onRetry,
         owner,
-        channelConnections = [],
         channelsOff = [],
         onOpenChannels,
         providerLabel,
@@ -320,7 +313,7 @@ export const AgentPrivacyDialog = ({
             >
                 <Note notice={writes.notice} owner={ownerName} />
                 {body}
-                {ready && channelsOff.length > 0 && visibility === "project" ? (
+                {ready && channelsOff.length > 0 ? (
                     <Alert
                         type="info"
                         showIcon
@@ -346,24 +339,6 @@ export const AgentPrivacyDialog = ({
                         <AlertDialogTitle>{copy.makePrivateTitle(agentName)}</AlertDialogTitle>
                         <AlertDialogDescription>{copy.makePrivateBody}</AlertDialogDescription>
                     </AlertDialogHeader>
-                    {channelConnections.length > 0 ? (
-                        <Alert
-                            type="warning"
-                            showIcon
-                            role="note"
-                            message={
-                                channelConnections.length === 1
-                                    ? copy.channelOne(
-                                          channelConnections[0].platform,
-                                          channelConnections[0].workspace,
-                                      )
-                                    : copy.channelMany([
-                                          ...new Set(channelConnections.map((c) => c.platform)),
-                                      ])
-                            }
-                            description={copy.channelRestore}
-                        />
-                    ) : null}
                     <AlertDialogFooter>
                         <AlertDialogCancel disabled={writes.saving === "visibility"}>
                             {copy.cancel}

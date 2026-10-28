@@ -1,0 +1,69 @@
+---
+id: restrict-session-to-owner
+title: "Restrict Session To Owner"
+description: "Restrict Session To Owner"
+sidebar_label: "Restrict Session To Owner"
+hide_title: true
+hide_table_of_contents: true
+api: eJytWFFv2zYQ/ivEvawFOLst9uS9zEu7NujWBLHbPWSBSktnix1FqiTl1DP034cjJZmOHaUY9hRFujse7/vu49F78GLjYHYLi1JYqTdwx8HUaIWXRl8WMAOLzluZ+8yhc9LozJvM3Gu0wKEWVlTo0VKIPWhRIcygN5QFcJAaZlALXwIHi18babGAmbcNcnB5iZWA2R78rg6ePuTAwUuv6MUihmKXBbTtHUVwtdEOHTm9evGC/hTocitrSpg8mjxH59aNYjedMXDIjfaoPZmLulYyD/ubfnHks08SqS3t3su4Qm6a6NTlJ7XHTdh5n+BFsOBQ4Fo0ysPsZcvBdbU8iVcbJfPd6futdHIllfS7c8VA3VQEUW3lVnjaTm3NF8w9gdUn8ukQouUQAMoah5ZQoF3r3dU6gPQw+trYSniYQdPIAlo+WOhGKWiTJa4oKPvo0EY8eG9pViGbFODbdE9JjHlA5zrWYUhUukzkXm4x2f7KGIVCw8P1Lx2bR9uWw8YK7UMJpcfKnVbWeYui6oowvvWEdcEpbJJDUsTv9R9KxMEahWOYbiXe963kZS5roY9g7RrghsK0HHKLwmORCf+doBbC449eVjiK7EUMy+Y+XWS1+x/J0y/x6+57yHOA7QBAV8zT4rwlEsAhorBW7BI43kaStByqXfYUIIm0DXjwA0za6KMU3qzXGNgYEOIPxOjPUnjmS2S5UAotk44ZzYRmxNYJuzBV3XgsONO4RcucNxaLScBA6MyhLkYb4kJotiCjTnNQrNR4Cy0Gq5b24rPBLbMoOjV8HO6+SHkptEYFXf8qdC7UJhMbPObvB+OHNW/iCqdF2jHBukOD5UJr49kKWUitYM+ofjE5Ztbscwd6Gvjz88kZ7rUcQjpZKYsCz++sr9AYc+cUhL2LQZ4ibqfwp8I2aNWBhQnKKX6nBO/O5oUn9W85FNLlyrjG4vGmHh5eWhM3jR4TyNqarSzQjp3C171Ny+MRGMeDMZfLxKzlSS5jThcHqyfr3Kd0nNHRSkkhX8eKYZEs8ZCHVxrZRni8Fzt2iBLaN/DoB8e8McqxxiF79nnVSFXE/skOgEQqPqZEFwkkZNVY7eiUzmyjs9xigdpLodxoDy/Ji45hdtNodpF4JWMIDVgth7VU6DKhi4xSzyy6RnkXsx7Xlt/Ik811wZbGhFmKPNkiep6u5K3Ig4gUaF1GxKbn8Y2QC7uJLozEjJ5PYj/BhJTmdw+U7vWhUc5KczeokSIHiJmxiRQp9I4ZX1J2FkVeTtiyROZLi8gcNWOF2jsmLP6lhboXO8co458DZz5eMnOvHT1Lyzx+8+dEajStjlboJuyD0cjuS4x8fEwsJ08frIcx/7zIDENz21Ksn169Op2xPwkli9Bw7I21xv73AbtAL6QakSdl8qOvj51NSWX7IT2cAI804u8mH7SpcpsxUfoDnRMbPHT146ahGGxJX4NS1k28PAyaSC9IDf23JMyAU6ISRJcnsaTaxPQ7u/Q6MEAUEXq8FK8jBOcW603eLZfXJwEjP46JcdPdFVl/b1sadtUNVBX60tCFsjbOhwHLlzCDacdlN90f7o3ttOPp1Gi1+7Gi9nVot/1Fs7GKXEUtA/Dx39L72s2mU2wmuTJNMQktLSZCRsM7ipE3Ntyybvcwv758j7t3QX5gdnuXGiyIr5GBx2YDaqKW75Hq2F16540vjZX/9OdQuPeW0asNbFiblAxhqhBsfn15Ik1Hn6ixRB541K8UPtNgfLTtw25pUKtCW4FHUf0yfCEWUA3jMi8mLycv6BUBUgmdLDGG41GuQzmIsNNaCRlaKmS27yC+7X8QoANqdvTjQK9GHHqc7ziUxI/ZLez3K+Hwo1VtS6+/NmgJuDsOW2FlHHVv9zQM0XMBs7VQDk8SHJQJnt10zfOcAT+feA+uJmS3QjX0H3D4G3fHP2wEcSl77uw7A7rd1j5xPdFCItnQCddXiyW07b8JnAwk
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Restrict Session To Owner"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/sessions/{session_id}/sharing/only-me"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Restrict Session To Owner
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./restrict-session-to-owner.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./restrict-session-to-owner.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./restrict-session-to-owner.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

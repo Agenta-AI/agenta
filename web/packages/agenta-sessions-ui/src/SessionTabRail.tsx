@@ -53,7 +53,6 @@ import {SessionRowContextMenu} from "./SessionRowContextMenu"
 import {SessionTab} from "./SessionTab"
 import {SessionTabDragItem} from "./SessionTabDragItem"
 import {SessionTabStrip, TAB_DIVIDER} from "./SessionTabStrip"
-import {SessionPrivacyMarker} from "./sharing/SessionPrivacyMarker"
 import {useInlineRename} from "./useInlineRename"
 
 /** A rename asked for from outside the rail (Alt+R) — the tab for this session opens its editor. */
@@ -247,12 +246,6 @@ const RailTab = ({
                     )
                 }
                 onSelect={handleSelect}
-                marker={
-                    <SessionPrivacyMarker
-                        visibility={vm.stream.visibility}
-                        ownerUserId={vm.stream.owner_user_id}
-                    />
-                }
                 renderActions={
                     onClose || onRename
                         ? () =>

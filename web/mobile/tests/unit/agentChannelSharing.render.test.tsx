@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 /**
- * Agent sharing around the channels on /m: the Publish panel of the reader's private agent gets
- * the private state and a Share link that opens "Privacy and owner", and the privacy control
- * learns which channel connections are still off, from the connections Publish already read.
+ * Agent sharing around the channels on /m: the Publish panel of a private agent is the same as a
+ * shared agent's (a private agent answers in channels), and the privacy control learns which
+ * channel connections are still off, from the connections Publish already read.
  */
 import {act, createElement} from "react"
 
@@ -13,10 +13,9 @@ import {renderToStaticMarkup} from "react-dom/server"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
-const {publishOptions, controlProps, dialogHosts, workflows} = vi.hoisted(() => ({
+const {publishOptions, controlProps, workflows} = vi.hoisted(() => ({
     publishOptions: [] as Record<string, unknown>[],
     controlProps: [] as Record<string, unknown>[],
-    dialogHosts: [] as Record<string, unknown>[],
     workflows: {current: [] as Record<string, unknown>[]},
 }))
 
@@ -84,13 +83,6 @@ vi.mock("@tanstack/react-query", async (importOriginal) => ({
 import {AgentPrivacyHost} from "../../src/features/chat/AgentPrivacyHost"
 import {ShareMenu} from "../../src/features/chat/ShareMenu"
 
-vi.mock("../../src/features/chat/AgentPrivacyDialogHost", () => ({
-    AgentPrivacyDialogHost: (props: Record<string, unknown>) => {
-        dialogHosts.push(props)
-        return null
-    },
-}))
-
 let root: Root | null = null
 let host: HTMLDivElement | null = null
 
@@ -118,7 +110,6 @@ const mountShareMenu = () => {
 beforeEach(() => {
     publishOptions.length = 0
     controlProps.length = 0
-    dialogHosts.length = 0
 })
 
 afterEach(() => {
@@ -131,7 +122,7 @@ afterEach(() => {
 })
 
 describe("the Publish panel of a private agent", () => {
-    it("is private for the reader's own private agent, and its Share link opens the dialog", () => {
+    it("gets no private state: a private agent connects like a shared one", () => {
         workflows.current = [
             {
                 id: "agent-1",
@@ -141,22 +132,8 @@ describe("the Publish panel of a private agent", () => {
         ]
         mountShareMenu()
         const options = publishOptions.at(-1)!
-        expect(options.agentPrivate).toBe(true)
-        expect(dialogHosts).toHaveLength(0)
-        act(() => (options.onShareAgent as () => void)())
-        expect(dialogHosts.at(-1)).toMatchObject({agentId: "agent-1", agentName: "Support triage"})
-    })
-
-    it("is not private for a shared agent", () => {
-        workflows.current = [
-            {
-                id: "agent-1",
-                name: "Support triage",
-                access: {visibility: "project", owner_user_id: "me"},
-            },
-        ]
-        mountShareMenu()
-        expect(publishOptions.at(-1)!.agentPrivate).toBe(false)
+        expect(options).not.toHaveProperty("agentPrivate")
+        expect(options).not.toHaveProperty("onShareAgent")
     })
 })
 
@@ -194,24 +171,19 @@ describe("the privacy control's channel state", () => {
             ),
         )
 
-    it("names a platform whose connection is still off, and leaves it out of the make-private warning", () => {
+    it("names a platform whose connection is still off", () => {
         render([slack({connectionId: "a", workspaceName: "Acme", agentOff: true})])
         const props = controlProps.at(-1)!
         expect(props.channelsOff).toEqual(["Slack"])
-        expect(props.channelConnections).toEqual([])
+        expect(props).not.toHaveProperty("channelConnections")
         expect(typeof props.onOpenChannels).toBe("function")
     })
 
-    it("lists connections that answer, one per channel app, and nothing is off", () => {
+    it("names nothing when every connection answers", () => {
         render([
             slack({connectionId: "a", workspaceName: "Acme"}),
             slack({connectionId: "b", workspaceName: "Beta"}),
         ])
-        const props = controlProps.at(-1)!
-        expect(props.channelsOff).toEqual([])
-        expect(props.channelConnections).toEqual([
-            {platform: "Slack", workspace: "Acme"},
-            {platform: "Slack", workspace: "Beta"},
-        ])
+        expect(controlProps.at(-1)!.channelsOff).toEqual([])
     })
 })

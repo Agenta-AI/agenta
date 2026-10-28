@@ -1246,29 +1246,27 @@ def _find_embed_tokens(text: str) -> List[str]:
 
     Returns list of token strings including the @ag.embed[...] wrapper.
     """
+    prefix = "@ag.embed["
     tokens = []
-    i = 0
-    while i < len(text):
-        # Look for @ag.embed[ prefix
-        if text[i:].startswith("@ag.embed["):
-            start = i
-            i += len("@ag.embed[")
-            bracket_count = 1
+    i = text.find(prefix)
+    while i != -1:
+        start = i
+        i += len(prefix)
+        bracket_count = 1
 
-            # Find matching closing bracket
-            while i < len(text) and bracket_count > 0:
-                if text[i] == "[":
-                    bracket_count += 1
-                elif text[i] == "]":
-                    bracket_count -= 1
-                i += 1
-
-            if bracket_count == 0:
-                # Found complete token
-                tokens.append(text[start:i])
-            # If bracket_count > 0, token is incomplete - skip it
-        else:
+        # Find matching closing bracket
+        while i < len(text) and bracket_count > 0:
+            if text[i] == "[":
+                bracket_count += 1
+            elif text[i] == "]":
+                bracket_count -= 1
             i += 1
+
+        if bracket_count == 0:
+            # Found complete token
+            tokens.append(text[start:i])
+        # If bracket_count > 0, token is incomplete - skip it
+        i = text.find(prefix, i)
 
     return tokens
 

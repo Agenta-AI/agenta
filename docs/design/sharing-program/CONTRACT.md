@@ -82,7 +82,7 @@ AccessService.decide(*, authority: RunAuthority | None, principal: PrincipalRef,
 - Organization-scoped decisions are NOT in M2. M5 adds them with their own policy that EE no-RBAC shortcuts cannot bypass.
 - Caching: no cache stores a decision. `decide` runs on every call. Membership is cached per (user, project), including its absence, and invalidated by every M1 membership mutation, so decisions stay fast and fresh; the principal record is cached for `AGENTA_CACHE_TTL` and invalidated on key deletion, binding and connection changes, and user deletion. The exchange mints a run credential only after `decide` allows. Credential exchanges that perform no permission check still check principal eligibility (steps 1 and 2). Revocation takes effect at the next decision. A change can take up to `AGENTA_CACHE_TTL` (300 s) in three known cases: Redis invalidation fails; a read that started before the mutation committed refills the old entry after the invalidation; and the ApiKey middleware state on routes that check no permission. Run tokens live 15 minutes, gateway and mount credentials 12 hours, and live streams recheck every 60 seconds.
 - Durable executable work (schedules, subscriptions, evaluation runs) gets one edit rule in M7, not before: only the executing principal may change what it executes. Others with the capability may pause, stop, archive or delete it. A rerun or a copy is new work whose principal is the person who starts it.
-- Organization-scoped decisions (M5) accept only a browser-session human. Every API key, including M6 personal keys, and every run credential is refused.
+- Organization-scoped decisions (M5) accept only a browser-session human with no run envelope. Every API key, including M6 personal keys, and every run credential is refused.
 - List scopes derive owner and grant eligibility from the principal, never from a creator id. List and direct reads must agree for every principal kind.
 
 ## 7. Resource ownership (M3)
@@ -90,7 +90,7 @@ AccessService.decide(*, authority: RunAuthority | None, principal: PrincipalRef,
 M3 design, as built: [interfaces](interfaces/m3/interfaces.md), [technical design](interfaces/m3/technical-design.md), [entry points](interfaces/m3/entry-points.md).
 
 - One rule, applied in this order:
-  1. A web or API run turn with a human sender: the sender owns what the turn creates. Channel turns (origin `installation`) never give an owner, even with a linked sender.
+  1. A web or API run turn with a human sender: the sender owns what the turn creates. Channel turns (origin `installation`) never give the sender an owner role, even with a linked sender: a channel session follows its agent (below).
   2. A browser-session request by a human: that human owns what it creates.
   3. A schedule run whose principal is a human: that human owns what it creates.
   4. Anything else (any API key, including M6 personal keys, an installation, any subscription, a child run, an evaluation run): the resource is project-visible and has no owner.
@@ -99,7 +99,7 @@ M3 design, as built: [interfaces](interfaces/m3/interfaces.md), [technical desig
 - Agent and session policy reads are cached per item for `AGENTA_CACHE_TTL` and invalidated after every sharing write, so a warm decision reads no Postgres row. A human's session grants are cached per (project, user) for `AGENTA_CACHE_TTL` (`sharing_user_grants`, also when empty) and invalidated for every user whose grant a sharing write or a session delete changed, so a warm session list reads no grant row. Like the membership cache, a read that races a write can refill the old entry for at most `AGENTA_CACHE_TTL`.
 - The backfill touches only legacy rows: agents that exist when the migration runs, and sessions whose `visibility` is null (written by pre-M3 code). A null owner is never a migration marker.
 - An ownerless agent has no `agent_access` row, at creation and in the backfill. `agent_access.owner_user_id` is never null.
-- Channel sessions are project-visible and ownerless. Channel policy takes precedence over the general rule.
+- Channel sessions follow the agent of the channel turn that creates them (owner decision, 2026-10-26): project-visible and ownerless for a project-visible agent, private and owned by the agent's owner for a private agent. Channel policy takes precedence over the general rule. Members write to channel sessions in Agenta under the same rules as any session. A private agent may answer in channels; only its owner activates a binding of it, and a make-private changes no binding.
 - Every session insertion path receives a server-derived initial access policy, including trigger claims (`claim_trigger_delivery`) and heartbeat-first creation.
 - An agent and its private access row are committed in one transaction. If no access row exists, the agent is project-visible.
 - Rollout (owner decision, 2026-10-22): one release. Enforcement and private writes ship together. Accepted risk: rolling the app back to pre-M3 code makes private items visible to their project.
@@ -108,13 +108,17 @@ M3 design, as built: [interfaces](interfaces/m3/interfaces.md), [technical desig
 
 - One owner DTO in core: `SecretOwner(kind: organization | project | user, id)`. Storage keeps the existing typed columns (`organization_id`, `project_id`, later `user_id`) with a check constraint.
 - Two kinds of reference, never mixed:
-  - A named reference (slug) resolves by inheritance: project, then organization. This is M5.
+  - A named reference carries a scope and a slug: `project` (the default, also when omitted) or `organization`. It resolves only in its own scope; a project row and an organization row with the same slug never stand in for each other. Nothing is inherited or overridden automatically (owner decision, option B, 2026-10-26). This is M5.
   - An exact binding names one credential id and never substitutes another. This is M7.
+- An agent with no connection keeps the project's default for the provider; an organization credential is never chosen for it. Every save path writes the connection explicitly.
 - Existing slug references keep their M5 named meaning after M7. M7 does not reclassify them as exact.
 - Agent connection binding (M7): `caller_account | project_default | specific`. `specific` never names a user-owned credential.
 - Shared-session rule (M7): a session shared with others never releases a user-owned credential. The check and a sticky "used a personal credential" mark on the session are done under one session-row lock, before any personal credential is used. A session with that mark cannot be shared later.
-- Organization credential values never reach a user-controlled sandbox. Paths that deliver plaintext refuse inherited organization credentials.
-- Organization subscription logins are not supported. User-owned subscription logins are M7.
+- Organization credential values never reach a user-controlled sandbox. Paths that deliver plaintext refuse organization credentials. The one exception is an organization subscription login (below), which behaves like a project one.
+- Organization rows come from the organization that the project row names; a request whose organization differs from it gets none. An admin chooses which projects may use each organization credential (all projects by default; selected projects in EE).
+- Organization credentials serve the LLM plane only. The resolver is built per plane; the MCP plane never reads organization rows.
+- M5 interfaces and technical design: `interfaces/m5/interfaces.md`, `interfaces/m5/technical-design.md`.
+- Organization subscription logins (owner decisions, 2026-10-26 and 2026-10-27). An organization may hold a ChatGPT or Claude subscription login. Only an organization admin creates one; the admin chooses the projects that may use it, like any organization credential. An agent uses it only when it names it (mode `self_managed`, scope `organization`, a slug). Once released to the run, it behaves exactly like a project subscription login of the same provider: the same harness, the same engines (`inprocess`, `daytona` and `local`), and the same delivery. A Claude setup-token travels as an environment credential, like a project one. A ChatGPT login travels in its own wire field (`organizationSubscription`), and the runner sends its refreshes and failures to the organization row (`?scope=organization`). A runner older than M5 does not read that field; the `subscription` field then holds a marker that an older runner reads as an unusable login, so an older runner refuses the run and never falls back to another login. An older runner given an organization Claude token uses that token, which is the login the agent named. Project subscription logins keep today's behavior. User-owned subscription logins are M7.
 
 ## 9. Storage (M4)
 
@@ -201,7 +205,7 @@ Two kinds of dependency. An implementation dependency means the code of one piec
 | M4b | M1 (the M4b mount step needs nothing but M4a live) |
 | M5 | M2, or the same release |
 | M6a | M2 |
-| M6b | M3 and M5 (a personal project needs inherited keys to be usable) |
+| M6b | M3 and M5 (a personal project needs organization keys to be usable) |
 | M6c | the M4b mount step and M6b |
 | M6d | M6a (doors refuse keys and installations only once those are service accounts) and M6b; the run-an-agent door also needs M9b |
 | M9a | nothing |

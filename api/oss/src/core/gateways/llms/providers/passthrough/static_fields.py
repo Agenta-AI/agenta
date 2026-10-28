@@ -218,6 +218,68 @@ def move_gemini_thoughts(payload: Any, *, relay: bool) -> bool:
     return moved
 
 
+# The thinking levels the built-in Gemini models accept on the native protocol. 3.7, 3.8 and 4
+# refuse MINIMAL, and Gemini 4 refuses `thinkingBudget`.
+_GEMINI_NATIVE_LEVELS = frozenset({"LOW", "MEDIUM", "HIGH"})
+
+
+def normalize_gemini_thinking(body: bytes) -> bytes:
+    """Give a native built-in Gemini request a thinking level its model accepts.
+
+    No thinking setting, `thinkingBudget: 0` and `MINIMAL` all mean thinking off, which on
+    these models is "LOW". Any other budget is dropped, so Vertex applies its default level.
+    Pi's Google client sends `thinkingBudget: 0` for thinking off, and a budget of -1 for every
+    level on `gemini-4-argon`, whose level control its model check does not recognize.
+    """
+    try:
+        payload = json.loads(body)
+    except (json.JSONDecodeError, TypeError):
+        return body
+    if not isinstance(payload, dict):
+        return body
+    # A null config is an unset one (ProtoJSON), so it gets the default like an absent one.
+    if payload.get("generationConfig") is None:
+        payload["generationConfig"] = {}
+    config = payload["generationConfig"]
+    if isinstance(config, dict) and config.get("thinkingConfig") is None:
+        config["thinkingConfig"] = {}
+    thinking = config.get("thinkingConfig") if isinstance(config, dict) else None
+    if not isinstance(thinking, dict):
+        return body
+    budget = thinking.pop("thinkingBudget", None)
+    level = thinking.get("thinkingLevel")
+    if isinstance(level, str) and level.upper() in _GEMINI_NATIVE_LEVELS:
+        thinking["thinkingLevel"] = level.upper()
+    elif level is None and budget not in (None, 0):
+        pass
+    else:
+        thinking["thinkingLevel"] = "LOW"
+    return json.dumps(payload).encode()
+
+
+def nudge_stalled_gemini(body: bytes, *, attempts: int) -> bytes:
+    """A stalled native Gemini request for its next attempt: the system instruction ends with
+    one newline per earlier stall (`nudge_stalled_chat` says why). A request without a text
+    part in its system instruction is left as it is."""
+    try:
+        payload = json.loads(body)
+    except (json.JSONDecodeError, TypeError):
+        return body
+    instruction = (
+        payload.get("systemInstruction") if isinstance(payload, dict) else None
+    )
+    parts = instruction.get("parts") if isinstance(instruction, dict) else None
+    texts = [
+        part
+        for part in (parts if isinstance(parts, list) else [])
+        if isinstance(part, dict) and isinstance(part.get("text"), str)
+    ]
+    if not texts:
+        return body
+    texts[-1]["text"] += "\n" * attempts
+    return json.dumps(payload).encode()
+
+
 # Vertex's chat completions refuse an OpenAI `file` content part ("Unrecognized 'type'
 # field") but read the same document as an `image_url` data URL, PDFs included. A part
 # that names an OpenAI file id has no data to carry and is relayed as it came.

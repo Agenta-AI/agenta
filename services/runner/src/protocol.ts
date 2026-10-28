@@ -722,6 +722,11 @@ export interface ModelConnectionSubscription {
   version: number;
   generation: number;
   login: SubscriptionLogin;
+  /**
+   * Set by this runner, never sent: whose login it is. An organization login (it arrived as
+   * `organizationSubscription`) pushes its refreshes to the organization's row.
+   */
+  owner?: "project" | "organization";
 }
 
 export interface ModelConnection {
@@ -742,6 +747,12 @@ export interface ModelConnection {
    * Daytona; WITHOUT it the run reads the operator's own mount and stays local, unchanged.
    */
   subscription?: ModelConnectionSubscription;
+  /**
+   * An organization subscription login the agent named (M5). The same shape as `subscription`,
+   * in its own field so a runner older than M5 never reads it. It runs like a project login on
+   * every engine; its refreshes go to the organization's row.
+   */
+  organizationSubscription?: ModelConnectionSubscription;
   /** Our own credentials for the gateway. Independent of `credentialMode`, which describes the
    * provider's secret. Omitted when the model is not reached through a gateway. */
   gatewayCredentials?: GatewayCredentials;
@@ -751,6 +762,13 @@ export interface ModelConnection {
    * in which case only a `custom` deployment counts (`servedByCustomConnection`).
    */
   customConnection?: boolean;
+  /**
+   * The protocol the gateway route also serves natively, which a runner that knows it speaks
+   * instead of the one `provider` implies: "gemini" on the built-in Gemini route (Google's
+   * native `streamGenerateContent`, `docs/design/gemini-native-door`). `endpoint.baseUrl` is
+   * still the OpenAI-compatible route; omitted by older SDKs and APIs.
+   */
+  protocol?: string;
 }
 
 /**

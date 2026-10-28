@@ -27,9 +27,6 @@ export const sessionSharingCopy = {
     tooltipPeople: (count: number) => `Shared with ${count} ${count === 1 ? "person" : "people"}`,
     tooltipProject: "Everyone in the project can view and send",
     tooltipNotShareable: "You can share this chat after its first message.",
-    lockOwner: "Private: only you and the people you add",
-    lockShared: (owner: string) => `Private: shared with you by ${owner}`,
-    sharedBy: (owner: string) => `Shared by ${owner}`,
     chipViewOnly: "View only",
     chipCanSend: "Can send",
     // A "Can send" grant works only for a role that may send (added in the M3 gate, QA D3).
@@ -45,7 +42,7 @@ export const sessionSharingCopy = {
     panelCanSend: "You can read and send in this chat.",
     panelPrivate: (owner: string) => `Private: only people ${owner} added can open it.`,
     panelChannel:
-        "This chat comes from Slack. Everyone in the project can read it here. Reply in Slack to continue it.",
+        "This chat comes from a channel. Everyone in the project can read it and send to it.",
     panelNoOwnerCanSend:
         "This chat was started by an API key or an automation, so it has no owner. Everyone in the project can read it and send to it.",
     panelOwnerLeftCanSend: (owner: string) =>

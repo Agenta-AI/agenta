@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 /**
- * Agent sharing in the channel UI (M3 design section 5): the agent step's audience note and
- * private rows, the Publish hub of a private agent, the manage panel of a connection that
- * make-private turned off, and the server's private-agent refusal.
+ * Agent sharing in the channel UI: a private agent answers in channels like a shared one
+ * (owner ruling 2026-10-26). The agent step lists every agent and states who reads the
+ * conversations; the Publish hub of a private agent keeps its connect buttons; an off
+ * binding can always be turned back on.
  */
 import React, {act} from "react"
 
@@ -55,12 +56,7 @@ vi.mock("@agenta/ui/ui", () => {
 vi.mock("../../src/channels/icons", () => ({AgentaMark: () => null, platformLogo: () => null}))
 vi.mock("../../src/channels/AgentMark", () => ({AgentMark: () => null}))
 
-import {
-    ChannelAgentPrivateError,
-    buildAgentChannelsActions,
-    isPrivateAgentRefusal,
-    type ChannelsClientLike,
-} from "../../src/channels/actions"
+import {buildAgentChannelsActions, type ChannelsClientLike} from "../../src/channels/actions"
 import {ChannelAgentPicker} from "../../src/channels/ChannelAgentPicker"
 import {ChannelManagePanel} from "../../src/channels/ChannelManagePanel"
 import {ChannelsHubView} from "../../src/channels/ChannelsHubView"
@@ -85,13 +81,12 @@ const render = async (node: React.ReactNode) => act(async () => root.render(node
 
 describe("ChannelAgentPicker", () => {
     const agents = [
-        {id: "mine-private", name: "Recruiting helper", isPrivate: true},
+        {id: "mine-private", name: "Recruiting helper"},
         {id: "shared", name: "Support triage"},
     ]
 
-    it("disables private agents and lists them last", async () => {
+    it("lets the reader pick any agent it lists, a private one included", async () => {
         const onSelect = vi.fn()
-        const onShareAgent = vi.fn()
         await render(
             <ChannelAgentPicker
                 agents={agents}
@@ -99,35 +94,15 @@ describe("ChannelAgentPicker", () => {
                 onSelect={onSelect}
                 platform="slack"
                 projectName="Acme support"
-                onShareAgent={onShareAgent}
             />,
         )
-        const rows = [...container.querySelectorAll('[data-testid^="channels-agent-"]')].filter(
-            (row) =>
-                /^channels-agent-(shared|mine-private)$/.test(row.getAttribute("data-testid")!),
-        )
-        expect(rows.map((row) => row.getAttribute("data-testid"))).toEqual([
-            "channels-agent-shared",
-            "channels-agent-mine-private",
-        ])
-
         const privateRow = byTestId("channels-agent-mine-private")!
-        expect(privateRow.tagName).not.toBe("BUTTON")
-        expect(privateRow.getAttribute("aria-disabled")).toBe("true")
-        expect(privateRow.textContent).toContain(
-            "Private. Share it with the project to use it in Slack.",
-        )
+        expect(privateRow.tagName).toBe("BUTTON")
         await act(async () => privateRow.click())
-        expect(onSelect).not.toHaveBeenCalled()
-
-        await act(async () => byTestId("channels-agent-share-mine-private")!.click())
-        expect(onShareAgent).toHaveBeenCalledWith("mine-private")
-
-        await act(async () => byTestId("channels-agent-shared")!.click())
-        expect(onSelect).toHaveBeenCalledWith("shared")
+        expect(onSelect).toHaveBeenCalledWith("mine-private")
     })
 
-    it("shows the audience note for the project", async () => {
+    it("states who reads the conversations, for a shared and for a private agent", async () => {
         await render(
             <ChannelAgentPicker
                 agents={agents}
@@ -138,41 +113,13 @@ describe("ChannelAgentPicker", () => {
             />,
         )
         expect(byTestId("channels-picker-audience")?.textContent).toBe(
-            "Everyone in Acme support can read the agent's Slack conversations in Agenta, including direct messages.",
+            "For a shared agent, everyone in Acme support can read its Slack conversations in Agenta, including direct messages. For a private agent, new conversations are private to its owner.",
         )
-        // No share link without a host that opens "Privacy and owner".
-        expect(byTestId("channels-agent-share-mine-private")).toBeNull()
     })
 })
 
-describe("ChannelsHubView of a private agent", () => {
-    it("shows the private note in place of the connect buttons", async () => {
-        const onShareAgent = vi.fn()
-        await render(
-            <ChannelsHubView
-                agentId="agent"
-                connections={EMPTY_CONNECTIONS}
-                onRetry={async () => undefined}
-                showApi={false}
-                apiLive={false}
-                onOpenPlatform={() => undefined}
-                onOpenConnection={() => undefined}
-                onAdd={() => undefined}
-                onOpenApi={() => undefined}
-                agentPrivate
-                onShareAgent={onShareAgent}
-            />,
-        )
-        expect(byTestId("channels-hub-private")?.textContent).toContain(
-            "Private agents cannot answer in Slack, Telegram and WhatsApp. Share this agent with the project to connect it.",
-        )
-        expect(byTestId("channels-hub-add-slack")).toBeNull()
-        expect((byTestId("channels-hub-slack") as HTMLButtonElement).disabled).toBe(true)
-        await act(async () => byTestId("channels-hub-share-agent")!.click())
-        expect(onShareAgent).toHaveBeenCalledTimes(1)
-    })
-
-    it("keeps the connect buttons for a shared agent", async () => {
+describe("ChannelsHubView", () => {
+    it("keeps the connect buttons", async () => {
         await render(
             <ChannelsHubView
                 agentId="agent"
@@ -186,12 +133,12 @@ describe("ChannelsHubView of a private agent", () => {
                 onOpenApi={() => undefined}
             />,
         )
-        expect(byTestId("channels-hub-private")).toBeNull()
         expect(byTestId("channels-hub-add-slack")).not.toBeNull()
+        expect((byTestId("channels-hub-slack") as HTMLButtonElement).disabled).toBe(false)
     })
 })
 
-describe("ChannelManagePanel after make-private", () => {
+describe("ChannelManagePanel of an off binding", () => {
     const offSlack: ChannelConnection = {
         platform: "slack",
         kind: "hosted",
@@ -221,46 +168,32 @@ describe("ChannelManagePanel after make-private", () => {
         />
     )
 
-    it("says why it is off and keeps Turn on disabled while the agent is private", async () => {
-        const onShareAgent = vi.fn()
-        await render(panel({agentPrivate: true, onShareAgent, onTurnOn: vi.fn()}))
-        expect(byTestId("channels-off-private")?.textContent).toContain(
-            "This agent is private, so its Slack connection is off.",
-        )
+    it("lists where it is off and turns it on", async () => {
+        const onTurnOn = vi.fn().mockResolvedValue(undefined)
+        await render(panel({onTurnOn}))
         const off = byTestId("channels-off")!.textContent
         expect(off).toContain("Slack · Acme workspace")
         expect(off).toContain("Off · in #support and #billing-help")
-        expect((byTestId("channels-turn-on") as HTMLButtonElement).disabled).toBe(true)
-        await act(async () => byTestId("channels-off-share")!.click())
-        expect(onShareAgent).toHaveBeenCalledTimes(1)
-    })
-
-    it("enables Turn on once the agent is shared again, without the private note", async () => {
-        const onTurnOn = vi.fn().mockResolvedValue(undefined)
-        await render(panel({agentPrivate: false, onTurnOn}))
-        expect(byTestId("channels-off-private")).toBeNull()
         const turnOn = byTestId("channels-turn-on") as HTMLButtonElement
         expect(turnOn.disabled).toBe(false)
         await act(async () => turnOn.click())
         expect(onTurnOn).toHaveBeenCalledTimes(1)
     })
 
-    it("shows the server refusal when the agent became private again", async () => {
-        const onTurnOn = vi.fn().mockRejectedValue(new ChannelAgentPrivateError("slack"))
-        await render(panel({agentPrivate: false, onTurnOn}))
+    it("shows the server's error when Turn on is refused", async () => {
+        const onTurnOn = vi.fn().mockRejectedValue(new Error("Not found."))
+        await render(panel({onTurnOn}))
         await act(async () => byTestId("channels-turn-on")!.click())
-        expect(container.textContent).toContain(
-            "This agent is private now, so it cannot answer in Slack.",
-        )
+        expect(container.textContent).toContain("Not found.")
     })
 
     it("shows no off block for a binding that is on", async () => {
-        await render(panel({connection: {...offSlack, agentOff: false}, agentPrivate: false}))
+        await render(panel({connection: {...offSlack, agentOff: false}}))
         expect(byTestId("channels-off")).toBeNull()
     })
 })
 
-describe("channel actions and the private-agent refusal", () => {
+describe("channel actions", () => {
     const refusal = {statusCode: 404, body: {detail: {code: "not_found", message: "Not found."}}}
     const binding = (flags: Record<string, unknown>) => ({
         id: "binding-1",
@@ -290,16 +223,6 @@ describe("channel actions and the private-agent refusal", () => {
         return {client, actions}
     }
 
-    it("reads the canonical 404 as a private-agent refusal, and nothing else", () => {
-        expect(isPrivateAgentRefusal(refusal)).toBe(true)
-        expect(
-            isPrivateAgentRefusal({statusCode: 404, body: {detail: "Connection not found"}}),
-        ).toBe(false)
-        expect(isPrivateAgentRefusal({statusCode: 403, body: {detail: {code: "not_found"}}})).toBe(
-            false,
-        )
-    })
-
     it("marks a connection whose binding is off", async () => {
         const {actions} = fixture()
         const next = await actions.reload()
@@ -323,21 +246,10 @@ describe("channel actions and the private-agent refusal", () => {
         )
     })
 
-    it("shows the private text when setup or Turn on is refused", async () => {
+    it("passes a refusal on with the server's message, naming no privacy rule", async () => {
         const {client, actions} = fixture()
         client.editChannelAgent.mockRejectedValue(refusal)
-        await expect(actions.turnOn("slack", "slack-1")).rejects.toThrow(
-            "This agent is private now, so it cannot answer in Slack.",
-        )
-        client.queryChannelAgents.mockResolvedValue({agents: [binding({is_default: true})]})
-        client.queryChannelAgents.mockResolvedValueOnce({
-            agents: [{...binding({}), data: {references: {application: {id: "other"}}}}],
-        })
-        await expect(actions.connectHere("slack", "slack-1")).rejects.toBeInstanceOf(
-            ChannelAgentPrivateError,
-        )
-        await expect(actions.connectHostedTelegram()).rejects.toThrow(
-            "This agent is private now, so it cannot answer in Telegram.",
-        )
+        await expect(actions.turnOn("slack", "slack-1")).rejects.toThrow("Not found.")
+        await expect(actions.connectHostedTelegram()).rejects.toThrow("Not found.")
     })
 })

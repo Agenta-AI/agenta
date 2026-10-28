@@ -9,13 +9,16 @@ from fastapi import HTTPException
 
 import oss.src.core.memberships.service as memberships_module
 import oss.src.routers.projects_router as projects_router
+from oss.src.core.access.context import reset_request_access, set_request_access
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.memberships.dtos import (
     MembershipSource,
+    OrganizationMember,
     ProjectListing,
     ProjectMembership,
 )
 from oss.tests.pytest.utils.memberships import make_summary
+from oss.tests.pytest.utils.principals import make_envelope, make_request_access
 
 
 class _Memberships:
@@ -299,3 +302,115 @@ async def test_create_in_a_workspace_without_a_default_project_is_400(
         400,
         "Workspace and organization context are required",
     )
+
+
+class _Organization(_Memberships):
+    def __init__(self, *, organization_id, user_id, role):
+        super().__init__()
+        self.member = OrganizationMember(
+            organization_id=organization_id, user_id=user_id, role=role
+        )
+
+    async def fetch_organization_member(self, *, organization_id, user_id):
+        if (organization_id, user_id) == (
+            self.member.organization_id,
+            self.member.user_id,
+        ):
+            return self.member
+        return None
+
+
+def _organization_projects(organization_id):
+    return [
+        SimpleNamespace(
+            id=uuid4(),
+            organization_id=organization_id,
+            workspace_id=uuid4(),
+            project_name=name,
+            is_default=name == "Default",
+        )
+        for name in ("Default", "Sales", "Marketing")
+    ]
+
+
+@pytest.mark.parametrize("role", ["owner", "admin"])
+async def test_organization_scope_lists_every_project_for_an_owner_or_admin(
+    memberships, monkeypatch, role
+):
+    organization_id, user_id = uuid4(), uuid4()
+    memberships(
+        _Organization(organization_id=organization_id, user_id=user_id, role=role)
+    )
+    projects = _organization_projects(organization_id)
+    fetch = AsyncMock(return_value=projects)
+    monkeypatch.setattr(
+        projects_router.db_manager, "fetch_projects_by_organization", fetch
+    )
+    token = set_request_access(
+        make_request_access(
+            envelope=make_envelope(kind="human", principal_id=user_id),
+            credential_kind="bearer_session",
+        )
+    )
+    try:
+        response = await projects_router.get_projects(
+            request=SimpleNamespace(
+                state=SimpleNamespace(
+                    user_id=str(user_id), organization_id=str(organization_id)
+                )
+            ),
+            scope="organization",
+        )
+    finally:
+        reset_request_access(token)
+
+    fetch.assert_awaited_once_with(organization_id)
+    assert [project.project_name for project in response] == [
+        "Default",
+        "Sales",
+        "Marketing",
+    ]
+    assert [project.project_id for project in response] == [p.id for p in projects]
+    assert response[0].is_default_project is True
+    assert all(project.user_role is None for project in response)
+    # Like the member scope, the workspace field carries the organization id: the
+    # project's own workspace row is no longer the routing key.
+    assert all(project.workspace_id == organization_id for project in response)
+
+
+@pytest.mark.parametrize(
+    ("role", "credential"),
+    [("editor", "bearer_session"), ("owner", "api_key")],
+)
+async def test_organization_scope_is_403_for_anyone_else(
+    memberships, monkeypatch, role, credential
+):
+    organization_id, user_id = uuid4(), uuid4()
+    memberships(
+        _Organization(organization_id=organization_id, user_id=user_id, role=role)
+    )
+    fetch = AsyncMock()
+    monkeypatch.setattr(
+        projects_router.db_manager, "fetch_projects_by_organization", fetch
+    )
+    token = set_request_access(
+        make_request_access(
+            envelope=make_envelope(kind="human", principal_id=user_id),
+            credential_kind=credential,
+        )
+    )
+    try:
+        with pytest.raises(HTTPException) as raised:
+            await projects_router.get_projects(
+                request=SimpleNamespace(
+                    state=SimpleNamespace(
+                        user_id=str(user_id), organization_id=str(organization_id)
+                    )
+                ),
+                scope="organization",
+            )
+    finally:
+        reset_request_access(token)
+
+    assert raised.value.status_code == 403
+    fetch.assert_not_awaited()

@@ -1,5 +1,4 @@
 import {platformLabel} from "./helpers"
-import {channelSharingCopy} from "./sharingCopy"
 import type {
     ChannelBehaviorState,
     ChannelChatType,
@@ -298,7 +297,7 @@ export const connectionsForAgent = (
 
 /**
  * Make a connection answer as an app: create the default channel agent when the connection has
- * none, retarget the answering one otherwise, no-op when it already points there.
+ * none, retarget the answering one and turn it on otherwise, no-op when it already answers there.
  */
 export const pointConnectionAt = async ({
     client,
@@ -332,11 +331,17 @@ export const pointConnectionAt = async ({
         )
         return
     }
-    if (referencedAppId(answering) === appId) return
+    const flags = asRecord(answering.flags)
+    if (referencedAppId(answering) === appId && flags.is_active !== false) return
     const agentId = asString(answering.id)
     if (!agentId) throw new Error("The connection's agent has no id.")
+    // A restore can bring the binding back off (someone else's private agent): connecting
+    // turns it on. The edit writes the whole flags, so `is_default` stays as stored.
     await client.editChannelAgent(
-        {agent_id: agentId, agent: {id: agentId, data: {references}}},
+        {
+            agent_id: agentId,
+            agent: {id: agentId, data: {references}, flags: {...flags, is_active: true}},
+        },
         scope,
     )
 }
@@ -344,33 +349,6 @@ export const pointConnectionAt = async ({
 export const rethrow = (fallback: string) => (error: unknown) => {
     throw new Error(clientErrorMessage(error, fallback))
 }
-
-/**
- * The server refused to make a private agent answer a channel. A private agent answers what
- * an unknown one does: 404 with the canonical `not_found` body. Its message is safe to show.
- */
-export class ChannelAgentPrivateError extends Error {
-    constructor(platform: ChannelPlatform) {
-        super(channelSharingCopy.refusedPrivate(platformLabel(platform)))
-        this.name = "ChannelAgentPrivateError"
-    }
-}
-
-/** A 404 with the canonical `not_found` code: what a binding write answers for a private agent. */
-export const isPrivateAgentRefusal = (error: unknown): boolean => {
-    const record = asRecord(error)
-    if (Number(record.statusCode) !== 404) return false
-    const detail = asRecord(asRecord(record.body).detail)
-    return detail.code === "not_found"
-}
-
-/** Like `rethrow`, but a private-agent refusal becomes a `ChannelAgentPrivateError`. */
-export const rethrowBinding =
-    (platform: ChannelPlatform, fallback: string) =>
-    (error: unknown): never => {
-        if (isPrivateAgentRefusal(error)) throw new ChannelAgentPrivateError(platform)
-        throw new Error(clientErrorMessage(error, fallback))
-    }
 
 export const buildAgentChannelsActions = ({
     client,
@@ -642,7 +620,7 @@ export const buildAgentChannelsActions = ({
                 )
                 const id = answering ? referencedAppId(answering) : null
                 connection.agent = id ? {id, name: resolveAgentName(id)} : null
-                // Making an agent private turns its bindings off; the connection stays.
+                // A binding can be off while its connection stays connected.
                 connection.agentOff = answering
                     ? asRecord(answering.flags).is_active === false
                     : false
@@ -699,12 +677,7 @@ export const buildAgentChannelsActions = ({
     const connectHostedTelegram = async (): Promise<HostedTelegramLink> => {
         const res = await client
             .createTelegramHostedBindLink({references: references()}, scope())
-            .catch(
-                rethrowBinding(
-                    "telegram",
-                    "The hosted Telegram bot is not available on this deployment.",
-                ),
-            )
+            .catch(rethrow("The hosted Telegram bot is not available on this deployment."))
         const body = asRecord(res)
         const url = asString(body.url)
         const connectionId = asString(body.connection_id)
@@ -736,19 +709,16 @@ export const buildAgentChannelsActions = ({
         const connectionId = asString(row.id)
         if (!connectionId) throw new Error("The connection was created without an id.")
         await pointHere(connectionId).catch(
-            rethrowBinding(
-                platform,
-                "The connection was created, but could not be pointed at this agent.",
-            ),
+            rethrow("The connection was created, but could not be pointed at this agent."),
         )
         return mapConnectionRow(row)
     }
 
     const connectHere = async (platform: ChannelPlatform, connectionId: string) =>
-        pointHere(connectionId).catch(rethrowBinding(platform, "Could not connect this agent."))
+        pointHere(connectionId).catch(rethrow("Could not connect this agent."))
 
     /** Turn the answering binding back on. The edit carries its references, so the server
-     *  checks the agent under a lock and refuses a private one. */
+     *  checks the agent under a lock and refuses a private agent of someone else. */
     const turnOn = async (platform: ChannelPlatform, connectionId: string) => {
         const answering = await answeringAgent(connectionId)
         const agentId = asString(answering.id)
@@ -766,7 +736,7 @@ export const buildAgentChannelsActions = ({
                 },
                 scope(),
             )
-            .catch(rethrowBinding(platform, `Could not turn ${platformLabel(platform)} on.`))
+            .catch(rethrow(`Could not turn ${platformLabel(platform)} on.`))
     }
 
     const disconnect = async (_platform: ChannelPlatform, connectionId: string) => {

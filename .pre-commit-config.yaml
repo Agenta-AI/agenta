@@ -25,6 +25,12 @@ repos:
         language: system
         files: ^web/.*\.(js|jsx|cjs|mjs|ts|tsx|cts|mts|mdx)$
         pass_filenames: false
+      - id: check-office-viewers
+        name: check office viewer bundles (web)
+        entry: bash -c 'cd web/packages/agenta-entity-ui && node scripts/build-office-viewers.mjs --check'
+        language: system
+        files: ^web/packages/agenta-entity-ui/src/drive/officeViewer/
+        pass_filenames: false
       - id: gitleaks-pre-commit
         name: gitleaks git (staged only)
         entry: bash -c 'gitleaks --config .gitleaks.toml --exit-code 1 --verbose git --staged'

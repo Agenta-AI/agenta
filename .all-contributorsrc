@@ -928,6 +928,33 @@
       "contributions": [
         "doc"
       ]
+    },
+    {
+      "login": "mosifu",
+      "name": "mosifu",
+      "avatar_url": "https://avatars.githubusercontent.com/u/256577176?v=4",
+      "profile": "https://github.com/mosifu",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "yunusarda-sudo",
+      "name": "Yunus Arda Güney",
+      "avatar_url": "https://avatars.githubusercontent.com/u/64425746?v=4",
+      "profile": "https://github.com/yunusarda-sudo",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "itsgintoki",
+      "name": "Gin",
+      "avatar_url": "https://avatars.githubusercontent.com/u/237295543?v=4",
+      "profile": "https://github.com/itsgintoki",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

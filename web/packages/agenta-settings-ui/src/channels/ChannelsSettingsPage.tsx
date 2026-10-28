@@ -52,8 +52,6 @@ export interface ChannelsSettingsPageProps {
     confirm?: ConfirmDestructive
     /** The project's name, for the agent step's audience note. */
     projectName?: string
-    /** Opens "Privacy and owner" for one of the reader's private agents. */
-    onShareAgent?: (agentId: string) => void
 }
 
 const PLATFORM_DESCRIPTIONS: Record<ChannelPlatform, string> = {
@@ -92,7 +90,6 @@ export const ChannelsSettingsPage = ({
     hostedHandle = "@agenta",
     confirm,
     projectName,
-    onShareAgent,
 }: ChannelsSettingsPageProps) => {
     const [retrying, setRetrying] = useState(false)
     const current = agents.find((agent) => agent.id === agentId)
@@ -124,8 +121,6 @@ export const ChannelsSettingsPage = ({
         agents,
         onAgentChange,
         projectName,
-        agentPrivate: !!current?.isPrivate,
-        onShareAgent,
     })
     const {openRoute, openConnection: openPanelConnection} = panel
 

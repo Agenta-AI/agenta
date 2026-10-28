@@ -219,6 +219,65 @@ async def test_callback_exchanges_and_installs_on_a_valid_state_and_code(monkeyp
     assert call_kwargs["connection"].data["api_app_id"] == "A1"
 
 
+@pytest.mark.parametrize("is_human", [True, False])
+async def test_callback_restores_bindings_as_the_person_who_started_it(
+    monkeypatch, is_human
+):
+    """The callback has no request principal: the signed state says whether a person
+    started the install. A person's reinstall restores her private agent's binding as
+    her; an install an API key started restores as nobody (the binding comes back
+    off)."""
+    service = AsyncMock()
+    router = _router(service=service)
+    alice = uuid4()
+    state = make_oauth_state(
+        project_id=uuid4(),
+        user_id=alice,
+        secret_key=env.agenta.crypt_key,
+        is_human=is_human,
+    )
+    monkeypatch.setattr(
+        slack_oauth,
+        "exchange_code",
+        AsyncMock(
+            return_value=slack_oauth.SlackOAuthExchangeResult(
+                ok=True,
+                app_id="A1",
+                access_token="xoxb-good",
+                bot_user_id="UBOT1",
+                scope="chat:write",
+            )
+        ),
+    )
+
+    response = await router.slack_install_callback(
+        _make_request(), code="good-code", state=state, error=None
+    )
+
+    assert response.status_code == 200
+    call_kwargs = service.install_connection.await_args.kwargs
+    assert call_kwargs["user_id"] == alice
+    assert call_kwargs["guard_user_id"] == (alice if is_human else None)
+
+
+async def test_install_route_signs_whether_a_person_started_it(monkeypatch):
+    from urllib.parse import parse_qs, urlparse
+
+    from oss.src.core.access.dtos import PrincipalKind, PrincipalRef
+    from oss.src.core.gateway.connections.utils import decode_oauth_state
+
+    _configure_hosted_app(monkeypatch)
+    router = _router()
+    for kind, expected in ((PrincipalKind.HUMAN, True), (PrincipalKind.API_KEY, None)):
+        request = _make_request(project_id=uuid4(), user_id=uuid4())
+        request.state.principal = PrincipalRef(kind=kind, id=uuid4())
+        with _patched_access(True):
+            response = await router.install_slack_connection(request)
+        state = parse_qs(urlparse(response.headers["location"]).query)["state"][0]
+        payload = decode_oauth_state(state, secret_key=env.agenta.crypt_key)
+        assert payload.get("human") is expected, kind
+
+
 # --- slack_install_callback: the real seam, router -> service -> adapter ------ #
 #
 # Replays the shapes Slack returned on the live install that 500'd: the app ID

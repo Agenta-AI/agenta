@@ -257,6 +257,91 @@ def test_a_connection_namespace_only_qualifies_an_agenta_slug(connection):
         ModelRef(provider="openai", model="gpt-5.5", connection=connection)
 
 
+async def test_an_organization_pick_sends_its_scope_and_routes_in_its_namespace(
+    fake_http, connection
+):
+    capture = fake_http(
+        connections,
+        payload={
+            "connection": {
+                "namespace": "organization",
+                "name": "azure-company",
+                "provider_key": "openai",
+                "deployment_kind": "azure",
+                "model": "gpt-5.5",
+                "custom_provider": True,
+            }
+        },
+    )
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef(
+            provider="openai",
+            model="gpt-5.5",
+            connection={
+                "mode": "agenta",
+                "slug": "azure-company",
+                "scope": "organization",
+            },
+        ),
+        context=_context(),
+    )
+
+    assert capture["json"]["connection_scope"] == "organization"
+    # The namespace is filled in, so an older runtime refuses the connection.
+    assert capture["json"]["connection_namespace"] == "organization"
+    _assert_routed_through_gateway(
+        resolved, namespace="organization", name="azure-company"
+    )
+    assert resolved.custom_connection is True
+
+
+@pytest.mark.parametrize(
+    "connection",
+    [
+        {"mode": "agenta", "scope": "organization"},
+        {"mode": "self_managed", "scope": "organization"},
+        {"mode": "agenta", "slug": "x", "namespace": "organization"},
+        {
+            "mode": "agenta",
+            "slug": "x",
+            "scope": "organization",
+            "namespace": "custom",
+        },
+    ],
+    ids=[
+        "no-slug",
+        "self-managed-no-slug",
+        "namespace-without-scope",
+        "other-namespace",
+    ],
+)
+def test_an_organization_connection_needs_scope_slug_and_its_namespace(connection):
+    with pytest.raises(ValueError):
+        ModelRef(provider="openai", model="gpt-5.5", connection=connection)
+
+
+def test_an_organization_connection_never_resolves_from_plaintext_rows():
+    """The vault path holds the project's rows in plaintext; a project row with the same
+    slug never stands in for the organization connection."""
+    from agenta.sdk.agents.connections import OrganizationConnectionUnavailableError
+
+    rows = [_provider_key("OpenAI", "openai", "sk-project-0123", slug="openai-company")]
+    with pytest.raises(OrganizationConnectionUnavailableError):
+        connections._resolve_from_secrets(
+            secrets=rows,
+            model=ModelRef(
+                provider="openai",
+                model="gpt-5.5",
+                connection={
+                    "mode": "agenta",
+                    "slug": "openai-company",
+                    "scope": "organization",
+                },
+            ),
+        )
+
+
 async def test_gateway_credentials_carry_the_session_and_agent_labels(
     fake_http, connection
 ):
@@ -1855,3 +1940,155 @@ async def test_a_401_is_not_an_access_refusal(fake_http, connection, body):
             context=_context(),
         )
     assert not isinstance(raised.value, ConnectionAccessDeniedError)
+
+
+async def test_a_builtin_gemini_route_carries_the_native_protocol_to_the_runner(
+    fake_http, connection
+):
+    # The gateway also serves the built-in Gemini route natively. The hint rides to the runner,
+    # while the base URL stays the OpenAI-compatible route for a runner that ignores it.
+    fake_http(
+        connections,
+        payload={
+            "connection": {
+                "namespace": "builtin",
+                "name": "agenta",
+                "provider_key": "openai",
+                "deployment_kind": "custom",
+                "model": "google/gemini-3.8-flash",
+                "protocol": "gemini",
+            }
+        },
+    )
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef(
+            provider="openai",
+            model="google/gemini-3.8-flash",
+            connection={"mode": "agenta", "slug": "agenta", "namespace": "builtin"},
+        ),
+        context=_context(),
+    )
+
+    assert resolved.protocol == "gemini"
+    assert resolved.endpoint.base_url.endswith("/gateways/llms/builtin/agenta/v1")
+    assert resolved.to_wire()["protocol"] == "gemini"
+
+
+async def test_a_route_without_a_protocol_puts_none_on_the_wire(fake_http, connection):
+    fake_http(
+        connections,
+        payload={
+            "connection": {
+                "namespace": "builtin",
+                "name": "agenta",
+                "provider_key": "openai",
+                "deployment_kind": "custom",
+                "model": "google/gemini-3.8-flash",
+                "protocol": None,
+            }
+        },
+    )
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef(
+            provider="openai",
+            model="google/gemini-3.8-flash",
+            connection={"mode": "agenta", "slug": "agenta", "namespace": "builtin"},
+        ),
+        context=_context(),
+    )
+
+    assert resolved.protocol is None
+    assert "protocol" not in resolved.to_wire()
+
+
+# ------------------------------------- organization subscription login (M5)
+
+
+def _organization_subscription_model(slug: str = "chatgpt", provider="openai-codex"):
+    return ModelRef(
+        provider=provider,
+        model="gpt-5.5",
+        connection={"mode": "self_managed", "slug": slug, "scope": "organization"},
+    )
+
+
+async def test_an_organization_subscription_reads_its_own_route_and_rides_its_own_wire_key(
+    fake_http, connection
+):
+    secret = _subscription_secret()
+    secret["owner"] = {"kind": "organization", "id": "org-1"}
+    capture = fake_http(connections, payload=secret)
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=_organization_subscription_model(), context=_context()
+    )
+
+    # Never the plaintext vault list: the API releases the login to the run's credential
+    # on the organization scope of the secret read.
+    assert capture["method"] == "GET"
+    assert capture["url"] == "https://api.x/api/secrets/chatgpt?scope=organization"
+    assert resolved.credential_mode == "runtime_provided"
+    assert resolved.subscription is not None
+    assert resolved.subscription.owner == "organization"
+    assert resolved.subscription.login == _READY_LOGIN
+    wire = resolved.to_wire()
+    # A runner older than M5 does not read this key; it sees only the fence in
+    # `subscription`, an unusable subscription, and refuses the run.
+    assert wire["subscription"] == {"fence": "organization"}
+    assert wire["organizationSubscription"]["slug"] == "chatgpt"
+
+
+async def test_a_project_subscription_keeps_the_subscription_wire_key(
+    fake_http, connection
+):
+    fake_http(connections, payload=[_subscription_secret()])
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=_subscription_model(), context=_context()
+    )
+    wire = resolved.to_wire()
+    assert "organizationSubscription" not in wire
+    assert wire["subscription"]["slug"] == "chatgpt"
+
+
+async def test_a_missing_organization_subscription_is_typed(fake_http, connection):
+    fake_http(connections, status=404, payload={"detail": "Secret not found"})
+    with pytest.raises(SubscriptionConnectionMissingError):
+        await VaultConnectionResolver(connection).resolve(
+            model=_organization_subscription_model(), context=_context()
+        )
+
+
+async def test_an_organization_claude_login_resolves_like_a_project_one(
+    fake_http, connection
+):
+    """An organization Claude login resolves exactly like a project Claude login: the
+    setup-token travels as an ordinary credential, on every engine. Only the route that
+    released it differs."""
+    secret = _claude_secret()
+    secret["owner"] = {"kind": "organization", "id": "org-1"}
+    capture = fake_http(connections, payload=secret)
+
+    resolved = await VaultConnectionResolver(connection).resolve(
+        model=ModelRef(
+            provider="anthropic",
+            model="sonnet",
+            connection={
+                "mode": "self_managed",
+                "slug": "claude",
+                "scope": "organization",
+            },
+        ),
+        context=RuntimeAuthContext(harness="claude", backend="daytona"),
+    )
+
+    assert capture["url"] == "https://api.x/api/secrets/claude?scope=organization"
+    assert resolved.credential_mode == "env"
+    assert resolved.subscription is None
+    assert _credential_environment(resolved) == {
+        "CLAUDE_CODE_OAUTH_TOKEN": _CLAUDE_TOKEN
+    }
+    wire = resolved.to_wire()
+    assert "organizationSubscription" not in wire
+    assert "subscription" not in wire
