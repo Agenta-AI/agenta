@@ -67,12 +67,18 @@ const parseItems = (value, key, file) => {
 const absolutizeLinks = (markdown) => markdown.replace(/\]\(\/(?!\/)/g, `](${DOCS_ORIGIN}/`)
 
 // The app renders plain markdown, so MDX components, embeds and comments would show as raw text.
-const stripMdx = (markdown) =>
-    markdown
-        .replace(/\{\/\*[\s\S]*?\*\/\}/g, "")
-        .replace(/<(iframe|video|div)\b[\s\S]*?<\/\1>/g, "")
-        .replace(/<[A-Za-z][^>]*\/>/g, "")
-        .trim()
+const stripMdx = (markdown) => {
+    let text = markdown
+    // Repeat until stable, so a removal cannot join two fragments into a new tag.
+    for (let previous = ""; previous !== text; ) {
+        previous = text
+        text = text
+            .replace(/\{\/\*[\s\S]*?\*\/\}/g, "")
+            .replace(/<(iframe|video|div)\b[\s\S]*?<\/\1>/g, "")
+            .replace(/<[A-Za-z][^>]*\/>/g, "")
+    }
+    return text.trim()
+}
 
 const semverParts = (id) => id.slice(1).split(".").map(Number)
 const compareSemverDesc = (a, b) => {
@@ -96,6 +102,7 @@ const entries = readdirSync(ENTRIES_DIR)
         if (!/^\d{4}-\d{2}-\d{2}$/.test(data.date))
             throw new Error(`${name}: date must be YYYY-MM-DD`)
         const summary = /<Summary>([\s\S]*?)<\/Summary>/.exec(source)
+        if (!summary) throw new Error(`${name}: a versioned entry needs a <Summary>`)
         const stream =
             /<Stream\b[^>]*?\bsrc="([^"]+)"/.exec(source) ??
             /cloudflarestream\.com\/([0-9a-f]{32})\//.exec(source)
@@ -105,7 +112,7 @@ const entries = readdirSync(ENTRIES_DIR)
             feature: {
                 id: data.slug,
                 title: data.title,
-                body: absolutizeLinks(summary ? stripMdx(summary[1]) : ""),
+                body: absolutizeLinks(stripMdx(summary[1])),
                 link: `${DOCS_ORIGIN}/changelog/${data.slug}`,
                 ...(stream ? {streamVideoId: stream[1]} : {}),
             },

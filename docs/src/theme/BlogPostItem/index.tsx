@@ -1,6 +1,7 @@
 import React, {type ReactNode} from "react";
 import Link from "@docusaurus/Link";
 import {useBlogPost} from "@docusaurus/plugin-content-blog/client";
+import useBrokenLinks from "@docusaurus/useBrokenLinks";
 import BlogPostItem from "@theme-original/BlogPostItem";
 import type BlogPostItemType from "@theme/BlogPostItem";
 import type {WrapperProps} from "@docusaurus/types";
@@ -75,6 +76,7 @@ const plural = (count: number, one: string, many: string) =>
 /** The entry's `improvements` and `fixes` frontmatter, after its content. */
 function ReleaseItems(): ReactNode {
   const {improvements, fixes} = useReleaseItems();
+  useBrokenLinks().collectAnchor(RELEASE_ITEMS_ID);
   if (improvements.length === 0 && fixes.length === 0) return null;
   return (
     <div id={RELEASE_ITEMS_ID} className={styles.releaseItems}>
