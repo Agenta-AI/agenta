@@ -85,7 +85,8 @@ LEFT JOIN LATERAL (
     WHERE s.project_id = p.id AND s.kind IS NOT NULL
     UNION ALL
     SELECT {_COLUMNS}, true AS from_organization FROM secrets s
-    WHERE s.project_id IS NULL AND s.organization_id = p.organization_id
+    WHERE s.project_id IS NULL AND s.user_id IS NULL
+      AND s.organization_id = p.organization_id
       AND s.kind IN ({_ORGANIZATION_KIND_LABELS})
       AND (s.availability = 'all_projects' OR EXISTS (SELECT 1 FROM secret_projects sp
            WHERE sp.secret_id = s.id AND sp.project_id = p.id))
@@ -113,19 +114,31 @@ _LIST_ORGANIZATION_PROJECT_IDS_SQL = (
 
 
 def owner_columns(owner: SecretOwner) -> dict:
-    """The typed column an owner maps to. A user owner is M7."""
+    """The typed columns an owner maps to. A user owner (M7) is a person inside one
+    organization: both columns, no project."""
     if owner.kind == SecretOwnerKind.PROJECT:
         return {"project_id": owner.id}
     if owner.kind == SecretOwnerKind.ORGANIZATION:
         return {"organization_id": owner.id}
-    raise ValueError("User-owned secrets are not stored in this release.")
+    return {"organization_id": owner.organization_id, "user_id": owner.id}
 
 
 def _owner_filter(owner: SecretOwner, *, shareable: bool = False) -> list:
     columns = owner_columns(owner)
     if "project_id" in columns:
         return [SecretsDBE.project_id == owner.id]
-    filters = [SecretsDBE.organization_id == owner.id, SecretsDBE.project_id.is_(None)]
+    if "user_id" in columns:
+        # Only the owner's own rows in that organization; never an organization row.
+        return [
+            SecretsDBE.organization_id == owner.organization_id,
+            SecretsDBE.user_id == owner.id,
+        ]
+    # Organization rows: no project and no person. A user row is never one.
+    filters = [
+        SecretsDBE.organization_id == owner.id,
+        SecretsDBE.project_id.is_(None),
+        SecretsDBE.user_id.is_(None),
+    ]
     if shareable:
         filters.append(SecretsDBE.kind.in_(sorted(ORGANIZATION_SECRET_KINDS)))
     return filters
@@ -157,8 +170,10 @@ def _conflict_from(
 ) -> Exception:
     """The domain error for a failed secrets write, never the driver error."""
     message = str(getattr(error, "orig", "") or "")
-    if "uq_secrets_project_id_slug" in message or "uq_secrets_organization_id_slug" in (
-        message
+    if (
+        "uq_secrets_project_id_slug" in message
+        or "uq_secrets_organization_id_slug" in message
+        or "uq_secrets_user_slug" in message
     ):
         if (
             create_secret_dto is not None
@@ -211,6 +226,7 @@ class SecretsDAO(SecretsDAOInterface):
         secrets_dbe = map_secrets_dto_to_dbe(
             project_id=columns.get("project_id"),
             organization_id=columns.get("organization_id"),
+            user_id=columns.get("user_id"),
             secret_dto=create_secret_dto,
             management=management,
         )

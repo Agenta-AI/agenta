@@ -53,6 +53,8 @@ from ee.src.core.organizations.exceptions import OrganizationSlugConflictError
 from ee.src.core.fraud.types import FRAUD_FLAG_KEYS
 
 
+from oss.src.core.credentials.policy import forget_personal_credentials_policy
+
 log = get_module_logger(__name__)
 
 
@@ -110,6 +112,8 @@ async def update_organization(
                     "allow_root": False,
                     "domains_only": False,
                     "auto_join": False,
+                    # M7: members may store and use their own accounts.
+                    "allow_personal_credentials": True,
                 }
 
                 merged_flags = {**default_flags, **existing_flags, **new_flags}
@@ -201,7 +205,10 @@ async def update_organization(
             raise
 
         await session.refresh(organization)
-        return organization
+
+    # The personal credentials policy is cached per organization (M7).
+    await forget_personal_credentials_policy(organization_id=UUID(organization_id))
+    return organization
 
 
 async def assert_invite_domain_allowed(organization_id: str, email: str) -> None:

@@ -10,6 +10,7 @@ from pydantic import (
     Field,
     field_serializer,
     field_validator,
+    model_serializer,
     model_validator,
 )
 
@@ -77,9 +78,37 @@ class MCPGatewayConnection(BaseModel):
     namespace: Literal["builtin", "standard", "custom"]
     provider: Optional[str] = Field(default=None, min_length=1, max_length=128)
     slug: Optional[str] = Field(default=None, min_length=1, max_length=128)
+    # Whose server ``slug`` names (M7): the project's (default) or, with ``user``, the
+    # personal server with that slug of the person the run acts for.
+    scope: Optional[Literal["project", "user"]] = None
+    # Whose account the run uses (M7). On a project server with OAuth, ``caller_account``
+    # uses each person's own sign-in. A personal server (scope ``user``) is always
+    # ``caller_account``. Omitted means ``project_default``.
+    binding: Optional[Literal["caller_account", "project_default"]] = None
+
+    @model_serializer(mode="wrap")
+    def _omit_unset_fields(self, handler):
+        # An older API or runner refuses unknown keys here, so a reference that names no
+        # scope or binding serializes exactly as it did before M7.
+        data = handler(self)
+        if isinstance(data, dict):
+            for key in ("scope", "binding"):
+                if data.get(key) is None:
+                    data.pop(key, None)
+        return data
 
     @model_validator(mode="after")
     def _validate_route_identity(self) -> "MCPGatewayConnection":
+        if self.scope == "user":
+            if self.namespace != "custom" or self.binding != "caller_account":
+                raise ValueError(
+                    "a personal MCP server (scope 'user') needs namespace 'custom' and "
+                    "binding 'caller_account'"
+                )
+        elif self.binding == "caller_account" and self.namespace != "custom":
+            raise ValueError(
+                "binding 'caller_account' is available only for custom MCP servers"
+            )
         if self.namespace == "custom":
             if not self.slug or self.provider:
                 raise ValueError("custom gateway MCP routes require slug only")

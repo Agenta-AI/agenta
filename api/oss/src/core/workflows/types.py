@@ -164,11 +164,19 @@ class InvalidAgentConnectionError(Exception):
 
     code = "invalid_agent_connection"
 
-    def __init__(self, *, reason: str, message: str, next_step: str) -> None:
+    def __init__(
+        self,
+        *,
+        reason: str,
+        message: str,
+        next_step: str,
+        field: str = "parameters.agent.llm.connection",
+    ) -> None:
         super().__init__(message)
         self.reason = reason
         self.message = message
         self.next_step = next_step
+        self.field = field
 
     def to_detail(self) -> Dict[str, Any]:
         return {
@@ -177,7 +185,7 @@ class InvalidAgentConnectionError(Exception):
             "retryable": False,
             "next_step": self.next_step,
             "details": {
-                "field": "parameters.agent.llm.connection",
+                "field": self.field,
                 "reason": self.reason,
             },
         }

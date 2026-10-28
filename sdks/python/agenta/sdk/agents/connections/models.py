@@ -36,6 +36,11 @@ ConnectionNamespace = Literal["standard", "custom", "builtin", "organization"]
 # Whose connection ``slug`` names: the project's (the default, also when omitted) or the
 # organization's. An organization connection is used only when an agent names it.
 ConnectionScope = Literal["project", "organization"]
+# Whose account the run uses (M7). ``caller_account`` ("Each person's own account") uses the
+# credential of the person the run acts for; ``project_default`` ("The project's shared
+# account") uses the connection the reference names. Omitted means ``project_default``. The
+# server signs the bindings into the run's credential; this field only records the choice.
+ConnectionBinding = Literal["caller_account", "project_default"]
 
 # Sent in `subscription` beside an organization subscription login (see
 # `ResolvedConnection.to_wire`). Mirrors `ORGANIZATION_SUBSCRIPTION_FENCE` in the runner.
@@ -145,9 +150,20 @@ class Connection(BaseModel):
     # Whose connection ``slug`` names (M5). Omitted means the project's. ``organization``
     # needs a slug and namespace ``organization`` (filled in when omitted).
     scope: Optional[ConnectionScope] = None
+    # Whose account the run uses (M7). ``caller_account`` takes the person's own provider key
+    # (mode ``agenta``) or their own subscription login (mode ``self_managed`` with the
+    # provider's slug); it never names an organization connection.
+    binding: Optional[ConnectionBinding] = None
 
     @model_validator(mode="after")
     def _namespace_names_a_slug(self) -> "Connection":
+        if self.binding == "caller_account" and (
+            self.scope == "organization" or self.namespace == "organization"
+        ):
+            raise ValueError(
+                "an organization connection is a shared account; it cannot use "
+                "binding 'caller_account'"
+            )
         if self.scope == "organization" or self.namespace == "organization":
             # An organization key or custom provider (mode `agenta`), or an organization
             # subscription login (mode `self_managed`); both are named by slug.
@@ -169,6 +185,10 @@ class Connection(BaseModel):
     @property
     def is_organization(self) -> bool:
         return self.scope == "organization"
+
+    @property
+    def is_caller_account(self) -> bool:
+        return self.binding == "caller_account"
 
 
 class Endpoint(BaseModel):

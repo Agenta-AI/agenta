@@ -143,6 +143,7 @@ class LLMGatewayRouter:
             connection_slug=body.connection_slug,
             connection_namespace=body.connection_namespace,
             connection_scope=SecretOwnerKind(body.connection_scope or "project"),
+            connection_binding=body.connection_binding,
         )
         return LLMGatewayConnectionResolveResponse(connection=connection)
 

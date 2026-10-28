@@ -9,7 +9,11 @@ from dataclasses import dataclass
 from typing import Any, AsyncIterator, Dict, List, Optional, Tuple
 from uuid import UUID
 
+from oss.src.core.access.context import get_request_access
 from oss.src.core.access.permissions.types import Permission
+from oss.src.core.credentials.bindings import ConnectionKey, bound_to_caller
+from oss.src.core.credentials.policy import PersonalCredentialRefused
+from oss.src.core.credentials.selection import select_personal_credential
 from oss.src.core.gateways.cleanup import run_shielded
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.llms.catalog import (
@@ -43,8 +47,14 @@ from oss.src.core.gateways.llms.interfaces import (
 )
 from oss.src.core.gateways.llms.registrar import map_custom_provider_secret_to_endpoint
 from oss.src.core.gateways.llms.registry import LLMUpstreamRegistry, select_upstream
-from oss.src.core.secrets.enums import ORGANIZATION_GATEWAY_KINDS, SecretKind
+from oss.src.core.secrets.enums import (
+    ORGANIZATION_GATEWAY_KINDS,
+    STANDARD_PROVIDER_DISPLAY_NAMES,
+    SecretKind,
+    StandardProviderKind,
+)
 from oss.src.core.gateways.llms.types import (
+    LLMPersonalCredentialError,
     LLM_GATEWAY_SERVED_DEPLOYMENT_KINDS,
     LLMCapabilityNotAllowedError,
     LLMConnectionProviderRequiredError,
@@ -87,6 +97,20 @@ from oss.src.utils.logging import get_module_logger
 
 
 log = get_module_logger(__name__)
+
+
+def _request_bindings():
+    access = get_request_access()
+    return access.bindings if access is not None else ()
+
+
+def provider_display_name(provider_key: str) -> str:
+    try:
+        return STANDARD_PROVIDER_DISPLAY_NAMES.get(
+            StandardProviderKind(provider_key), provider_key
+        )
+    except ValueError:
+        return provider_key
 
 
 def _custom_upstream_names(allowlist: List[str]) -> Dict[str, str]:
@@ -745,6 +769,7 @@ class LLMGatewayService:
         connection_slug: Optional[str],
         connection_namespace: Optional[GatewayEndpointNamespace] = None,
         connection_scope: SecretOwnerKind = SecretOwnerKind.PROJECT,
+        connection_binding: Optional[str] = None,
     ) -> LLMGatewayConnectionResolution:
         """Resolve an agent connection to public gateway route metadata.
 
@@ -753,7 +778,26 @@ class LLMGatewayService:
         with nothing to act on. `LLMGatewayConnectionResolution.provider_key` stays a required
         field, so the invariant no construction path can dodge is still enforced underneath.
         """
-        if (
+        bound = bool(provider_key) and bound_to_caller(
+            _request_bindings(), ConnectionKey(kind="model", service=provider_key)
+        )
+        if connection_binding == "caller_account" and not bound:
+            # The agent asks for each person's own account, and this run carries no
+            # signed binding for it (a run started outside an Agenta conversation,
+            # trigger, channel or evaluation). Refused, never the shared account.
+            raise LLMPersonalCredentialError(
+                code="binding_not_signed",
+                message=(
+                    "This agent uses each person's own account. Start it from a "
+                    "conversation in Agenta."
+                ),
+            )
+        if bound:
+            # The run's signed bindings make this model connection each person's own
+            # account (M7): the person's own key for the provider, never a named row.
+            namespace = GatewayEndpointNamespace.USER
+            name = provider_key
+        elif (
             connection_scope == SecretOwnerKind.ORGANIZATION
             or connection_namespace == GatewayEndpointNamespace.ORGANIZATION
         ):
@@ -1010,7 +1054,8 @@ class LLMGatewayService:
         if target.namespace == GatewayEndpointNamespace.BUILTIN:
             secret = builtin_llm_secret(provider_key=target.name)
         elif target.resolved_secret is not None:
-            # An organization connection: the target lookup already read the row.
+            # An organization connection, or a person's own key (M7): the target lookup
+            # already read the row.
             secret = target.resolved_secret
         else:
             ref = target.secret_ref()
@@ -1278,6 +1323,50 @@ class LLMGatewayService:
             rules_namespace=rules,
         )
 
+    async def _user_target(
+        self, *, scope: AuthScope, provider_key: str
+    ) -> _ResolvedLlmTarget:
+        """The person's own provider key (M7), for a run whose signed bindings name this
+        model connection `caller_account`. Without that binding the route answers
+        nothing, so sandbox code cannot ask for a personal key on its own. A refusal
+        never falls back to the project's key."""
+        access = get_request_access()
+        key = ConnectionKey(kind="model", service=provider_key)
+        if access is None or not bound_to_caller(access.bindings, key):
+            raise LLMEndpointNotFoundError(
+                namespace=GatewayEndpointNamespace.USER, name=provider_key
+            )
+        endpoint = standard_llm_endpoint(provider_key=provider_key)
+        if endpoint is None:
+            raise LLMEndpointNotFoundError(
+                namespace=GatewayEndpointNamespace.USER, name=provider_key
+            )
+        try:
+            selected = await select_personal_credential(
+                authority=access.authority,
+                label=provider_display_name(provider_key),
+                read=lambda user_id: self.resolver.personal_provider_key(
+                    scope=scope, user_id=user_id, provider_key=provider_key
+                ),
+            )
+        except PersonalCredentialRefused as e:
+            raise LLMPersonalCredentialError(code=e.code, message=e.message) from e
+        return _ResolvedLlmTarget(
+            namespace=GatewayEndpointNamespace.USER,
+            name=provider_key,
+            provider_key=endpoint.provider_key,
+            deployment_kind=endpoint.deployment_kind,
+            models=endpoint.data.models,
+            route_data=endpoint.data.route,
+            settings=endpoint.data.settings,
+            secret_id=selected.id,
+            secret_owner_kind=SecretOwnerKind.USER,
+            resolved_secret=ResolvedSecret(
+                secret=selected, owner=selected.owner, origin=SecretOrigin.VAULT
+            ),
+            rules_namespace=GatewayEndpointNamespace.STANDARD,
+        )
+
     @staticmethod
     def _standard_target(
         *, name: str, standard: Tuple[LLMEndpoint, Optional[UUID]]
@@ -1342,6 +1431,9 @@ class LLMGatewayService:
 
         if namespace == GatewayEndpointNamespace.ORGANIZATION:
             return await self._organization_target(scope=scope, slug=name)
+
+        if namespace == GatewayEndpointNamespace.USER:
+            return await self._user_target(scope=scope, provider_key=name)
 
         if namespace == GatewayEndpointNamespace.BUILTIN:
             endpoint = builtin_llm_endpoint(provider_key=name)

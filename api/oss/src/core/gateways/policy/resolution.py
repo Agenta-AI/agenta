@@ -10,6 +10,7 @@ a bound reference). The MCP plane never reads, lists or answers an organization 
 """
 
 from typing import List, Optional, Set
+from uuid import UUID
 
 from oss.src.core.gateways.policy.dtos import (
     BoundSecretRef,
@@ -123,6 +124,22 @@ class SecretsResolver(SecretsResolverInterface):
             project_id=scope.project_id,
             slug=slug,
         )
+
+    async def personal_provider_key(
+        self, *, scope: AuthScope, user_id: UUID, provider_key: str
+    ) -> Optional[SecretResponseDTO]:
+        """The person's own provider key in the run's organization (M7), or None. Only
+        the LLM plane serves one; the caller has checked the run's signed binding."""
+        if self.plane != GatewayPlane.LLM or scope.organization_id is None:
+            return None
+        secret = await self.vault_service.personal_secret_for_service(
+            organization_id=scope.organization_id,
+            user_id=user_id,
+            service=provider_key,
+        )
+        if secret is None or secret.kind != SecretKind.PROVIDER_KEY:
+            return None
+        return secret
 
     async def provider_connection_by_slug(
         self, *, scope: AuthScope, slug: str

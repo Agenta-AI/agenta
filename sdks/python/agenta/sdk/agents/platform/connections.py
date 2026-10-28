@@ -1223,6 +1223,10 @@ class VaultConnectionResolver:
         # is byte for byte what it was.
         if model.connection.scope is not None:
             body["connection_scope"] = model.connection.scope
+        # Sent only when set (M7). The run's signed bindings decide; this lets the gateway
+        # refuse a personal-account connection whose run carries none.
+        if model.connection.binding is not None:
+            body["connection_binding"] = model.connection.binding
 
         try:
             async with httpx.AsyncClient(timeout=self._connection.timeout) as client:

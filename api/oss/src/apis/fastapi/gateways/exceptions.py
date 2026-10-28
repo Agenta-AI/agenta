@@ -18,6 +18,7 @@ from oss.src.core.gateways.llms.types import (
     LLMModelIdentifierInvalidError,
     LLMModelNotAllowedError,
     LLMNamedConnectionNotFoundError,
+    LLMPersonalCredentialError,
     LLMOrganizationConnectionSlugRequiredError,
     LLMRoutingFieldNotAllowedError,
     LLMUpstreamError,
@@ -160,6 +161,16 @@ def handle_gateway_exceptions():
                             "Register the endpoint, or name one that already exists."
                         ),
                         details={"target": _target_of(e)},
+                    ),
+                ) from e
+            except LLMPersonalCredentialError as e:
+                # Each person's own account cannot be used (M7); nothing else is tried.
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=gateway_error_envelope(
+                        code=e.code,
+                        message=e.message,
+                        next_step=None,
                     ),
                 ) from e
             except LLMNamedConnectionNotFoundError as e:

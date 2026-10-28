@@ -231,3 +231,11 @@ class SecretStorageError(SecretsError):
 
     def __init__(self):
         super().__init__("The credential could not be stored.")
+
+
+class PersonalSecretKindNotSupported(SecretsError):
+    """Only provider keys can be a person's own secret in the first step of M7."""
+
+    def __init__(self, kind):
+        self.kind = getattr(kind, "value", kind)
+        super().__init__("Only provider keys can be personal for now.")

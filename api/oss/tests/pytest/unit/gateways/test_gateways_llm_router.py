@@ -87,6 +87,7 @@ class MockLLMGatewayService:
         connection_slug,
         connection_namespace,
         connection_scope=None,
+        connection_binding=None,
     ):
         self.calls.append("resolve_agent_connection")
         if self.resolve_raises is not None:

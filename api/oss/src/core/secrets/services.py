@@ -45,6 +45,7 @@ from oss.src.core.secrets.types import (
     OrganizationSecretNotServed,
     OrganizationSecretValueNotScannable,
     OrganizationSecretValueTooShort,
+    PersonalSecretKindNotSupported,
     ProjectLimitNotAllowed,
     ServerOwnedFieldNotWritable,
     SubscriptionProviderConflict,
@@ -1173,6 +1174,82 @@ class VaultService:
             await self._deregister_llm_endpoint(
                 project_id=project_id, secret_dto=deleted
             )
+
+    # -- personal credentials (M7) -------------------------------------------------
+
+    @staticmethod
+    def _personal_owner(*, organization_id: UUID, user_id: UUID) -> SecretOwner:
+        return SecretOwner(
+            kind=SecretOwnerKind.USER, id=user_id, organization_id=organization_id
+        )
+
+    async def create_personal_secret(
+        self,
+        *,
+        organization_id: UUID,
+        user_id: UUID,
+        create_secret_dto: CreateSecretDTO,
+    ) -> SecretResponseDTO:
+        """A person's own provider key in one organization (M7).
+
+        One per provider: the slug is the provider itself, so the unique index refuses a
+        second one with a conflict. Other kinds are not personal in the first step (custom
+        secrets wait for hidden secrets)."""
+        reject_server_owned_fields(secret=create_secret_dto.secret)
+        if create_secret_dto.secret.kind != SecretKind.PROVIDER_KEY:
+            raise PersonalSecretKindNotSupported(kind=create_secret_dto.secret.kind)
+        provider = getattr(create_secret_dto.secret.data, "kind", None)
+        provider = getattr(provider, "value", provider)
+        create_secret_dto.slug = str(provider)
+        header = create_secret_dto.header
+        if not header.name:
+            header.name = next_provider_key_name(
+                kind=create_secret_dto.secret.data.kind, taken_names=set()
+            )
+        with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
+            return await self.secrets_dao.create(
+                owner=self._personal_owner(
+                    organization_id=organization_id, user_id=user_id
+                ),
+                create_secret_dto=create_secret_dto,
+            )
+
+    async def list_personal_secrets(
+        self, *, organization_id: UUID, user_id: UUID
+    ) -> List[SecretResponseDTO]:
+        """Only the person's own rows in that organization."""
+        with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
+            return await self.secrets_dao.list(
+                owner=self._personal_owner(
+                    organization_id=organization_id, user_id=user_id
+                )
+            )
+
+    async def personal_secret_for_service(
+        self, *, organization_id: UUID, user_id: UUID, service: str
+    ) -> Optional[SecretResponseDTO]:
+        """The person's own credential for one service (its canonical slug): one indexed
+        read, made only for a `caller_account` connection."""
+        with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
+            return await self.secrets_dao.get_by_slug(
+                owner=self._personal_owner(
+                    organization_id=organization_id, user_id=user_id
+                ),
+                secret_slug=service,
+            )
+
+    async def delete_personal_secret(
+        self, *, organization_id: UUID, user_id: UUID, secret_id: UUID
+    ) -> bool:
+        with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
+            deleted = await self.secrets_dao.delete(
+                owner=self._personal_owner(
+                    organization_id=organization_id, user_id=user_id
+                ),
+                secret_id=secret_id,
+                authorize_delete=_authorize_delete,
+            )
+        return deleted is not None
 
     # -- organization credentials (M5) --------------------------------------------
 

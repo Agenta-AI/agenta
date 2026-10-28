@@ -174,6 +174,11 @@ from oss.src.core.sharing.dtos import (
 from oss.src.core.sharing.service import invalidate_sharing_caches
 from oss.src.core.workflows.static_catalog import normalize_static_version
 from oss.src.core.workflows.dtos import WorkflowServiceDetachedResponse
+from oss.src.core.credentials.bindings import (
+    InvalidBinding,
+    binding_claims_for_revision,
+    claims_to_token,
+)
 from oss.src.core.workflows.types import (
     AgentReferenceUnresolved,
     InvalidAgentHarnessError,
@@ -323,6 +328,21 @@ def _reject_unreadable_agent_instructions(data: Any) -> None:
         ) from e
 
 
+def _reject_unsupported_bindings(data: Any) -> None:
+    """Refuse a binding the first step of M7 does not support: `specific`, a personal
+    account on an organization connection, a personal MCP server that is not each
+    person's own. A format check only: it never checks that an account exists."""
+    try:
+        binding_claims_for_revision(data)
+    except InvalidBinding as e:
+        raise InvalidAgentConnectionError(
+            reason="binding_not_supported",
+            message=str(e),
+            next_step="Pick each person's own account or the project's shared account.",
+            field=f"parameters.{e.where}",
+        ) from e
+
+
 def _reject_unrunnable_agent_connection(data: Any) -> None:
     """Refuse a commit whose agent connection the runtime cannot use (M5).
 
@@ -340,6 +360,7 @@ def _reject_unrunnable_agent_connection(data: Any) -> None:
     agent = (data.get("parameters") or {}).get("agent")
     if not isinstance(agent, dict):
         return
+    _reject_unsupported_bindings(data)
     llm = agent.get("llm")
     connection = llm.get("connection") if isinstance(llm, dict) else None
     if not isinstance(connection, dict):
@@ -3649,6 +3670,14 @@ class WorkflowsService:
         if acting_user_id is None:
             raise MissingPrincipal("The run's principal is not active")
 
+        # The `caller_account` connections of the resolved revision (M7). A revision
+        # saved before the commit check refuses an unsupported binding here.
+        try:
+            binding_claims = binding_claims_for_revision(revision_data)
+        except InvalidBinding:
+            _reject_unsupported_bindings(revision_data)
+            raise
+
         secret_token = await sign_secret_token(
             user_id=str(acting_user_id),
             project_id=str(project_id),
@@ -3656,6 +3685,7 @@ class WorkflowsService:
             gateway_run_id=gateway_run_id,
             grants=self._service_grants(service_url),
             envelope=envelope,
+            gateway_bindings=claims_to_token(binding_claims),
         )
 
         credentials = f"Secret {secret_token}"

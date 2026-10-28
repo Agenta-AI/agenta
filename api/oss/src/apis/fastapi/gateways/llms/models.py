@@ -93,6 +93,10 @@ class LLMGatewayConnectionResolveRequest(BaseModel):
     # Whose connection the slug names (M5): the project's (the default) or the
     # organization's. An organization connection is used only when it is named here.
     connection_scope: Optional[Literal["project", "organization"]] = None
+    # The binding the agent's revision names (M7). Only the run's signed bindings decide;
+    # this lets the gateway refuse a `caller_account` connection whose run carries none,
+    # instead of answering the project's shared account.
+    connection_binding: Optional[Literal["caller_account", "project_default"]] = None
 
 
 class LLMGatewayConnectionResolveResponse(BaseModel):

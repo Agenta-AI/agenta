@@ -82,6 +82,12 @@ class SecretsResolverInterface(ABC):
         to needing one."""
         raise NotImplementedError
 
+    async def personal_provider_key(
+        self, *, scope: AuthScope, user_id: UUID, provider_key: str
+    ) -> Optional["SecretResponseDTO"]:
+        """The person's own provider key in the run's organization (M7), or None."""
+        return None
+
     @abstractmethod
     async def provider_connection_by_slug(
         self, *, scope: AuthScope, slug: str

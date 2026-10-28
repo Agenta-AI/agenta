@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from re import compile as re_compile
 from uuid import UUID
 from datetime import datetime, timezone
@@ -15,6 +15,7 @@ from jwt import encode, decode, DecodeError, ExpiredSignatureError, InvalidToken
 from supertokens_python.recipe.session.exceptions import TryRefreshTokenError
 from supertokens_python.asyncio import get_user as get_supertokens_user_by_id
 
+from oss.src.core.credentials.bindings import claims_from_token
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, set_cache
@@ -81,10 +82,11 @@ _CREDENTIALS_HEADER = "X-AG-Credentials"
 
 # `/gateways/{plane}/{namespace}/...` is the data plane; `/gateways/{plane}/endpoints/...`
 # is ordinary CRUD. No namespace can spell `endpoints`, which is what keeps the two apart
-# under one mount prefix. Only the LLM plane has the `organization` namespace (M5).
+# under one mount prefix. Only the LLM plane has the `organization` (M5) and `user`
+# (M7) namespaces.
 _GATEWAY_DATA_PLANE = re_compile(
     r"^(?:/api)?/gateways/"
-    r"(?:llms/(?:builtin|standard|custom|organization)|mcps/(?:builtin|standard|custom))"
+    r"(?:llms/(?:builtin|standard|custom|organization|user)|mcps/(?:builtin|standard|custom))"
     r"(?:/|$)"
 )
 
@@ -542,6 +544,7 @@ def _build_request_access_from_state(request: Request) -> Optional[RequestAccess
             credential_kind=credential_kind,
             acting_user_id=UUID(str(user_id)),
             envelope=getattr(state, "run_envelope", None),
+            bindings=getattr(state, "gateway_bindings", None) or (),
         )
     except (TypeError, ValueError, ValidationError):
         log.warning("[auth] request access could not be built", exc_info=True)
@@ -1535,6 +1538,9 @@ async def verify_secret_token(
         request.state.gateway_run_id = auth_context.get("gateway_run_id")
         request.state.gateway_run_labels = auth_context.get("gateway_run_labels")
         request.state.gateway_tools = auth_context.get("gateway_tools")
+        request.state.gateway_bindings = claims_from_token(
+            auth_context.get("gateway_bindings")
+        )
         request.state.gateway_platform_run = (
             audience == GATEWAY_TOKEN_AUDIENCE
             and auth_context.get("gateway_platform_run") is True
@@ -1630,6 +1636,7 @@ async def sign_secret_token(
     expires_in: Optional[int] = None,
     *,
     envelope: RunEnvelope,
+    gateway_bindings: Optional[List[Dict[str, Any]]] = None,
 ):
     """Mint a secret token. `expires_in` overrides the default lifetime, in seconds.
 
@@ -1704,6 +1711,11 @@ async def sign_secret_token(
         # Built-in (platform-funded) models accept only a token that carries this mark.
         if gateway_platform_run:
             auth_context["gateway_platform_run"] = True
+
+        # The run's `caller_account` connections (M7), signed from the resolved revision.
+        # Absent unless set: a lookup with no binding is the project's shared account.
+        if gateway_bindings:
+            auth_context["gateway_bindings"] = list(gateway_bindings)
 
         auth_context.update(envelope_to_claims(envelope=envelope))
 

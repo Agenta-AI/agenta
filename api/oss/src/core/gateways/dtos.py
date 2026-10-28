@@ -485,6 +485,9 @@ class GatewayEndpointNamespace(str, Enum):
     CUSTOM = "custom"  # a row; configurable
     # An organization connection an agent named by scope and slug (M5, LLM plane only).
     ORGANIZATION = "organization"
+    # The run's person's own provider key (M7, LLM plane only), by provider; served only
+    # when the run's signed bindings name the model connection `caller_account`.
+    USER = "user"
 
 
 class GatewayEndpointRoute(BaseModel):

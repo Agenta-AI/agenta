@@ -71,3 +71,14 @@ def gateway_platform_run(request: Optional[Request]) -> bool:
     if request is None:
         return False
     return getattr(request.state, "gateway_platform_run", None) is True
+
+
+def gateway_bindings(request: Optional[Request]) -> List[Dict[str, Any]]:
+    """The presenting credential's signed `caller_account` bindings (M7), in token form,
+    for a route that re-mints the credential: a narrowed credential keeps the run's
+    bindings, never more. Empty for every caller that is not a run."""
+    if request is None:
+        return []
+    from oss.src.core.credentials.bindings import claims_to_token  # noqa: PLC0415
+
+    return claims_to_token(getattr(request.state, "gateway_bindings", None) or ())

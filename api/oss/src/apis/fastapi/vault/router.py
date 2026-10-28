@@ -33,6 +33,7 @@ from oss.src.core.secrets.subscription_service import (
     SubscriptionLoginService,
 )
 from oss.src.core.secrets.types import (
+    PersonalSecretKindNotSupported,
     OrganizationSecretKindNotShareable,
     OrganizationSecretNotFound,
     OrganizationSecretNotServed,
@@ -65,6 +66,11 @@ from oss.src.apis.fastapi.vault.models import (
 from oss.src.apis.fastapi.shared.runner_auth import assert_runner_token
 
 from oss.src.core.access.context import get_request_access
+from oss.src.core.access.dtos import PrincipalKind
+from oss.src.core.credentials.policy import (
+    PersonalCredentialRefused,
+    check_personal_credentials_allowed,
+)
 from oss.src.core.access.organizations import OrganizationAction, decide_organization
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
@@ -80,8 +86,11 @@ ORGANIZATION_DENIED_MESSAGE = (
 )
 
 Scope = Literal["project", "organization"]
+# List and delete also take `user` (M7): the caller's own credentials.
+OwnerScope = Literal["project", "organization", "user"]
 
 _UNPROCESSABLE = (
+    PersonalSecretKindNotSupported,
     OrganizationSecretKindNotShareable,
     OrganizationSecretNotServed,
     OrganizationSecretValueNotScannable,
@@ -415,6 +424,15 @@ class VaultRouter:
     @intercept_exceptions()
     @handle_secrets_exceptions()
     async def create_secret(self, request: Request, body: CreateSecretDTO):
+        if body.scope == "user":
+            organization_id, user_id = await self._require_person(request)
+            secret = await self.service.create_personal_secret(
+                organization_id=organization_id,
+                user_id=user_id,
+                create_secret_dto=body,
+            )
+            return project_secret_response(secret, reveal_write_only=False)
+
         if body.scope == "organization":
             organization_id = await self._require_organization(request)
             secret = await self.service.create_organization_secret(
@@ -439,8 +457,19 @@ class VaultRouter:
         self,
         request: Request,
         include_organization: bool = False,
-        scope: Scope = "project",
+        scope: OwnerScope = "project",
     ):
+        if scope == "user":
+            # The caller's own credentials in this organization, without values.
+            organization_id, user_id = await self._require_person(request)
+            secrets = await self.service.list_personal_secrets(
+                organization_id=organization_id, user_id=user_id
+            )
+            return [
+                project_secret_response(secret, reveal_write_only=False)
+                for secret in secrets
+            ]
+
         if scope == "organization":
             # Every connection of the organization, with the projects that may use it.
             organization_id = await self._require_organization(request)
@@ -625,8 +654,20 @@ class VaultRouter:
     @intercept_exceptions()
     @handle_secrets_exceptions()
     async def delete_secret(
-        self, request: Request, secret_id: str, scope: Scope = "project"
+        self, request: Request, secret_id: str, scope: OwnerScope = "project"
     ):
+        if scope == "user":
+            organization_id, user_id = await self._require_person(request)
+            if not await self.service.delete_personal_secret(
+                organization_id=organization_id,
+                user_id=user_id,
+                secret_id=UUID(secret_id),
+            ):
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="Secret not found"
+                )
+            return status.HTTP_204_NO_CONTENT
+
         if scope == "organization":
             organization_id = await self._require_organization(request)
             if not await self.service.delete_organization_secret(
@@ -645,6 +686,34 @@ class VaultRouter:
             secret_id=UUID(secret_id),
         )
         return status.HTTP_204_NO_CONTENT
+
+    @staticmethod
+    async def _require_person(request: Request) -> tuple:
+        """The organization and person a personal credential route acts for (M7): only
+        the person themselves, signed in. No role, admin or API key reaches another
+        person's credentials, and nothing is stored while the gate is closed or the
+        organization's policy forbids it."""
+        access = get_request_access()
+        organization_id = getattr(request.state, "organization_id", None)
+        if (
+            access is None
+            or access.principal.kind != PrincipalKind.HUMAN
+            or access.envelope is not None
+            or not organization_id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only you can manage your personal accounts, signed in to the app.",
+            )
+        organization_id = UUID(str(organization_id))
+        try:
+            await check_personal_credentials_allowed(organization_id=organization_id)
+        except PersonalCredentialRefused as e:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={"code": e.code, "message": e.message},
+            ) from e
+        return organization_id, access.principal.id
 
     async def _require(self, request: Request, *permissions: Permission) -> None:
         for permission in permissions:

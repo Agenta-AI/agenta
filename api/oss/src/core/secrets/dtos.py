@@ -606,7 +606,8 @@ class CreateSecretDTO(Slug, BaseModel):
     write_only: bool = True
     # `organization` creates a connection of the request's organization, which every
     # project can use, or (in EE with RBAC) only the listed projects.
-    scope: Literal["project", "organization"] = "project"
+    # `user` (M7) creates the caller's own credential in the request's organization.
+    scope: Literal["project", "organization", "user"] = "project"
     availability: Optional[SecretAvailability] = None
     project_ids: Optional[List[UUID]] = None
 
@@ -751,6 +752,17 @@ class SecretOwner(BaseModel):
 
     kind: SecretOwnerKind
     id: UUID
+    # A user owner only (M7): the organization the person's credential belongs to. A
+    # person owns credentials per organization, so a user owner is never read without it.
+    organization_id: Optional[UUID] = None
+
+    @model_validator(mode="after")
+    def _user_owner_names_its_organization(self) -> "SecretOwner":
+        if (self.kind == SecretOwnerKind.USER) != (self.organization_id is not None):
+            raise ValueError(
+                "a user owner, and only a user owner, names its organization"
+            )
+        return self
 
 
 class _SecretResponseBaseDTO(Identifier, Slug, BaseModel):

@@ -732,6 +732,14 @@ def test_route_table_matches_the_design_exactly():
             "/organization/{slug}/v1/models",
             "GET",
         ): "llm_gateway_list_models_organization",
+        # Each person's own provider key, for a run whose signed bindings name it (M7).
+        (
+            "/user/{provider}/v1/chat/completions",
+            "POST",
+        ): "llm_gateway_chat_completions_user",
+        ("/user/{provider}/v1/responses", "POST"): "llm_gateway_responses_user",
+        ("/user/{provider}/v1/messages", "POST"): "llm_gateway_messages_user",
+        ("/user/{provider}/v1/models", "GET"): "llm_gateway_list_models_user",
     }
 
 

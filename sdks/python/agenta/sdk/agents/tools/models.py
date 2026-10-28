@@ -14,6 +14,7 @@ from pydantic import (
     Field,
     TypeAdapter,
     field_validator,
+    model_serializer,
     model_validator,
 )
 
@@ -207,6 +208,18 @@ class GatewayConnectionRef(BaseModel):
     provider: Literal["composio"] = "composio"
     integration: str = Field(min_length=1)
     slug: str = Field(min_length=1)
+    # Whose account the run uses (M7). ``caller_account``: the person's own connection for
+    # this integration, whatever ``slug`` names. Omitted means ``project_default``.
+    binding: Optional[Literal["caller_account", "project_default"]] = None
+
+    @model_serializer(mode="wrap")
+    def _omit_unset_binding(self, handler):
+        # An older API refuses unknown keys on this model, so a reference that names no
+        # binding serializes exactly as it did before M7.
+        data = handler(self)
+        if isinstance(data, dict) and data.get("binding") is None:
+            data.pop("binding", None)
+        return data
 
 
 class GatewayPermissions(BaseModel):

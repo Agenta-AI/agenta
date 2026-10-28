@@ -36,7 +36,8 @@ def owner_scope(owner: SecretOwner) -> Tuple[Optional[UUID], Optional[UUID]]:
         return owner.id, None
     if owner.kind == SecretOwnerKind.ORGANIZATION:
         return None, owner.id
-    raise ValueError("User-owned secrets are not stored in this release.")
+    # A user owner (M7): the person's organization, no project.
+    return None, owner.organization_id
 
 
 def make_auth_scope(

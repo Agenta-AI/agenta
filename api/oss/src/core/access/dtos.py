@@ -1,6 +1,6 @@
 from datetime import datetime
 from enum import Enum
-from typing import Optional, Union
+from typing import Any, Optional, Tuple, Union
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, model_validator
@@ -187,6 +187,10 @@ class RequestAccess(BaseModel):
     credential_kind: RequestCredentialKind
     acting_user_id: UUID  # == request.state.user_id
     envelope: Optional[RunEnvelope] = None  # run_credential only
+    # run_credential only: the run's signed `caller_account` connections (M7), as
+    # `oss.src.core.credentials.bindings.BindingClaim`. Empty: every connection is the
+    # project's shared account.
+    bindings: Tuple[Any, ...] = ()
 
 
 class UserPrincipals(BaseModel):
