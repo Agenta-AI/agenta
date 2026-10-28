@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
 from fastapi import HTTPException
+from sqlalchemy.exc import NoResultFound
 
 from oss.src.utils.env import env
 from oss.src.utils.common import is_ee
@@ -368,6 +369,18 @@ async def resend_user_organization_invite(
         )
 
     return send_email
+
+
+async def get_project_of_workspace_ref(workspace_id: str):
+    """The default project of the organization that a `{workspace_id}` route segment
+    names (design D6). Any other id, a legacy workspace id included, is a 404."""
+
+    try:
+        return await db_manager.get_project_by_workspace(workspace_id)
+    except (NoResultFound, ValueError) as exc:
+        raise HTTPException(
+            status_code=404, detail="Workspace not found for organization."
+        ) from exc
 
 
 def _check_invitation_scope(

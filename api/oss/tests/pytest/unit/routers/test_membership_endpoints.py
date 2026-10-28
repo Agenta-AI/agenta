@@ -61,7 +61,9 @@ async def test_member_writes_refuse_a_key_outside_the_default_project(
 
     monkeypatch.setattr(workspace_router, "check_action_access", _Recorder(True))
     monkeypatch.setattr(
-        workspace_router, "get_project_by_workspace", _get_project_by_workspace
+        workspace_router.db_manager,
+        "get_project_by_workspace",
+        _get_project_by_workspace,
     )
     monkeypatch.setattr(workspace_router, "is_ee", lambda: False)
 
@@ -85,7 +87,9 @@ async def test_remove_user_by_a_non_admin_answers_403(monkeypatch, project):
 
     monkeypatch.setattr(workspace_router, "check_action_access", access)
     monkeypatch.setattr(
-        workspace_router, "get_project_by_workspace", _get_project_by_workspace
+        workspace_router.db_manager,
+        "get_project_by_workspace",
+        _get_project_by_workspace,
     )
     monkeypatch.setattr(workspace_router, "is_ee", lambda: False)
 
@@ -146,7 +150,9 @@ def wired(monkeypatch, project):
             return target if email == target.email else None
 
         monkeypatch.setattr(
-            workspace_router, "get_project_by_workspace", _get_project_by_workspace
+            workspace_router.db_manager,
+            "get_project_by_workspace",
+            _get_project_by_workspace,
         )
         monkeypatch.setattr(
             workspace_router.db_manager, "get_user_with_email", _get_user_with_email

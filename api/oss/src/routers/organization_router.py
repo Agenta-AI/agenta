@@ -162,7 +162,7 @@ async def invite_user_to_organization(
                 content={"detail": "Only one user can be invited at a time."},
             )
 
-        project = await db_manager.get_project_by_workspace(workspace_id)
+        project = await organization_service.get_project_of_workspace_ref(workspace_id)
         if str(project.organization_id) != str(organization_id):
             return JSONResponse(
                 status_code=404,
@@ -241,7 +241,7 @@ async def resend_user_invitation_to_organization(
         JSONResponse: Resent invitation to user; status_code: 200
     """
 
-    project = await db_manager.get_project_by_workspace(workspace_id)
+    project = await organization_service.get_project_of_workspace_ref(workspace_id)
     if str(project.organization_id) != str(organization_id):
         return JSONResponse(
             status_code=404,
