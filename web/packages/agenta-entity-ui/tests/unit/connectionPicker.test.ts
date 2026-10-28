@@ -1331,3 +1331,147 @@ describe("displayedModelRow", () => {
         })
     })
 })
+
+describe("organization connections in the picker", () => {
+    const projectKey = standard("project-openai", "openai", {slug: "openai-project"})
+    const organizationKey = standard("org-openai", "openai", {
+        slug: "openai-org",
+        name: "OpenAI (Organization)",
+        scope: "organization",
+    })
+
+    it("lists the project's connections first, then the organization's, marked as such", () => {
+        const rows = buildConnectionPickerRows({
+            connections: [organizationKey, projectKey],
+            capabilities: CAPABILITIES,
+            harnessIds: HARNESS_IDS,
+        })
+
+        expect(rows.map((row) => [row.key, !!row.organization])).toEqual([
+            ["project-openai", false],
+            ["org-openai", true],
+        ])
+        const organizationModel = rows[1].models[0]
+        expect(organizationModel.slug).toBe("openai-org")
+        expect(organizationModel.namespace).toBe("organization")
+    })
+
+    it("saves the exact organization connection a pick names", () => {
+        const [row] = buildConnectionPickerRows({
+            connections: [organizationKey],
+            capabilities: CAPABILITIES,
+            harnessIds: HARNESS_IDS,
+        })
+        const selection = selectionFromModelRow(row.models[0])
+        const llm = composeModelValue({
+            modelId: selection.modelId,
+            provider: selection.provider,
+            mode: selection.mode,
+            slug: selection.slug,
+            namespace: selection.namespace,
+            existing: undefined,
+        })
+
+        expect(llm.connection).toEqual({
+            mode: "agenta",
+            slug: "openai-org",
+            scope: "organization",
+            namespace: "organization",
+        })
+    })
+
+    it("keeps the organization namespace of a self_managed pick", () => {
+        expect(
+            pickerSelectionFrom("gpt-5.5", {
+                connectionMode: "self_managed",
+                connectionSlug: "chatgpt",
+                connectionNamespace: "organization",
+                harness: "pi_core",
+            }).namespace,
+        ).toBe("organization")
+        expect(
+            pickerSelectionFrom("gpt-5.5", {
+                connectionMode: "self_managed",
+                connectionSlug: "chatgpt",
+                connectionNamespace: "custom",
+                harness: "pi_core",
+            }).namespace,
+        ).toBeNull()
+    })
+})
+
+describe("a stored organization connection that is gone", () => {
+    it("marks no other connection that offers the same model", () => {
+        const rows = buildConnectionPickerRows({
+            connections: [standard("project-openai", "openai", {slug: "openai-project"})],
+            capabilities: CAPABILITIES,
+            harnessIds: HARNESS_IDS,
+        })
+        const model = rows[0].models[0]
+        expect(
+            selectedModelRowKey(rows, {
+                modelId: model.modelId,
+                slug: "openai-org-gone",
+                namespace: "organization",
+                mode: "agenta",
+                harness: model.harness,
+            }),
+        ).toBeUndefined()
+        // A project slug that is gone still falls back as before.
+        expect(
+            selectedModelRowKey(rows, {
+                modelId: model.modelId,
+                slug: "gone",
+                namespace: null,
+                mode: "agenta",
+                harness: model.harness,
+            }),
+        ).toBe(modelRowKey(rows[0].key, model))
+    })
+
+    it("shows no row and no model for it in the menu", () => {
+        const rows = buildConnectionPickerRows({
+            connections: [standard("project-openai", "openai", {slug: "openai-project"})],
+            capabilities: CAPABILITIES,
+            harnessIds: HARNESS_IDS,
+        })
+        const model = rows[0].models[0]
+        expect(
+            displayedModelRow(
+                rows,
+                {
+                    modelId: model.modelId,
+                    slug: "openai-org-gone",
+                    namespace: "organization",
+                    mode: "agenta",
+                    harness: model.harness,
+                },
+                ["openai-project"],
+            ),
+        ).toEqual({key: undefined, modelId: null})
+    })
+
+    it("never lights an organization row for a project connection that is gone", () => {
+        const rows = buildConnectionPickerRows({
+            connections: [
+                standard("org-openai", "openai", {slug: "openai-org", scope: "organization"}),
+            ],
+            capabilities: CAPABILITIES,
+            harnessIds: HARNESS_IDS,
+        })
+        const model = rows[0].models[0]
+        expect(
+            displayedModelRow(
+                rows,
+                {
+                    modelId: model.modelId,
+                    slug: "openai-project-gone",
+                    namespace: null,
+                    mode: "agenta",
+                    harness: model.harness,
+                },
+                [],
+            ),
+        ).toEqual({key: undefined, modelId: null})
+    })
+})

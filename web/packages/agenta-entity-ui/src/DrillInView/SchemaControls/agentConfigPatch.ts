@@ -10,7 +10,7 @@
  * The drawer's own writer is `useModelHarness`; these mirror its two writes (`llm` via
  * `composeModelValue`, `harness.kind` via a section replace) without its React state.
  */
-import type {AgentConnectionNamespace, AgentConnectionScope} from "@agenta/entities/secret"
+import type {AgentConnectionNamespace, SecretOwnerScope} from "@agenta/entities/secret"
 import deepEqual from "fast-deep-equal"
 
 import {
@@ -89,7 +89,7 @@ export interface ModelPatch {
     /** The namespace the slug was picked from; dropped with the slug, like it. */
     namespace?: AgentConnectionNamespace | null
     /** Whose connection the slug names; dropped with the slug, like it. */
-    scope?: AgentConnectionScope | null
+    scope?: SecretOwnerScope | null
 }
 
 /**

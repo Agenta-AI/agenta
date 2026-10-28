@@ -16,7 +16,12 @@ import {
     subscriptionRunProvider,
 } from "./subscriptionConnections"
 import {subscriptionPairModels, type SubscriptionPair} from "./subscriptionPairs"
-import {LlmEndpointProtocol, SecretKind, SecretManagementPolicy} from "./types"
+import {
+    LlmEndpointProtocol,
+    SecretKind,
+    SecretManagementPolicy,
+    type SecretOwnerScope,
+} from "./types"
 
 export type AgentConnectionMode = "agenta" | "self_managed"
 
@@ -44,13 +49,7 @@ export const savedConnectionNamespace = (
     return mode === "agenta" || namespace === "organization" ? namespace : null
 }
 
-/**
- * Whose connection an `agenta` slug names: the project's, or the organization's. An agent uses an
- * organization connection only when it names it (with namespace `organization`).
- */
-export type AgentConnectionScope = "project" | "organization"
-
-export const connectionScopeFrom = (value: unknown): AgentConnectionScope | null =>
+export const connectionScopeFrom = (value: unknown): SecretOwnerScope | null =>
     value === "project" || value === "organization" ? value : null
 
 /**
@@ -67,7 +66,7 @@ export const explicitAgentConnection = ({
     mode: AgentConnectionMode
     slug?: string | null
     namespace?: AgentConnectionNamespace | null
-    scope?: AgentConnectionScope | null
+    scope?: SecretOwnerScope | null
 }): Record<string, unknown> => {
     const connection: Record<string, unknown> = {mode}
     if (slug) connection.slug = slug
@@ -88,7 +87,7 @@ export interface AgentModelSelection {
     mode: AgentConnectionMode
     slug: string | null
     namespace?: AgentConnectionNamespace | null
-    scope?: AgentConnectionScope | null
+    scope?: SecretOwnerScope | null
     harness: string
 }
 
@@ -311,6 +310,15 @@ export const agentVaultProviderFamily = (
 }
 
 /**
+ * What an organization connection's candidates carry: scope and namespace `organization`, so the
+ * agent names exactly that connection. A project connection carries neither.
+ */
+const organizationCandidateFacts = (
+    connection: ProviderConnection,
+): {scope?: SecretOwnerScope; namespace?: AgentConnectionNamespace} =>
+    connection.scope === "organization" ? {scope: "organization", namespace: "organization"} : {}
+
+/**
  * The routes one hosted subscription connection offers.
  *
  * A subscription is `self_managed` with a SLUG: the run carries no key, and the slug is what names
@@ -336,6 +344,7 @@ export const subscriptionConnectionCandidates = ({
     // stand-in would name no record and fail the run.
     const slug = connection.slug?.trim()
     if (!slug) return []
+    const owner = organizationCandidateFacts(connection)
 
     const allowed = subscriptionHarnesses(connection)
     const ids = (connection.models ?? []).filter(Boolean)
@@ -354,6 +363,7 @@ export const subscriptionConnectionCandidates = ({
                 provider: runProvider,
                 mode: "self_managed",
                 slug,
+                ...owner,
                 harness,
                 source: "subscription",
                 // The record id, so the row is distinct from the mounted plan's
@@ -390,7 +400,10 @@ const connectionCandidates = ({
         const ids = connectionModelIds(connection, capabilities)
         if (!harnesses.length || !ids.length) continue
 
-        const slug = connectionSlugFor(connection)
+        const owner = organizationCandidateFacts(connection)
+        // An organization connection is named by its stored slug and nothing else.
+        const slug = owner.scope ? (connection.slug ?? null) : connectionSlugFor(connection)
+        if (owner.scope && !slug) continue
         const standard = connection.secretKind === SecretKind.ProviderKey
         const customKind = (connection.kind ?? "").toLowerCase() === CUSTOM_KIND
         const savedPolicy = Array.isArray(connection.harnesses)
@@ -411,6 +424,7 @@ const connectionCandidates = ({
                         provider: connection.kind,
                         mode: "agenta",
                         slug,
+                        ...owner,
                         harness,
                         source: "connection",
                         connectionKey: connection.id,
@@ -443,6 +457,7 @@ const connectionCandidates = ({
                         : agentVaultProviderFamily(id, connection.kind, capabilities, harness),
                     mode: "agenta",
                     slug,
+                    ...owner,
                     harness,
                     source: "connection",
                     connectionKey: connection.id,
@@ -549,12 +564,22 @@ const builtinCandidates = ({
     return candidates
 }
 
+const isOrganizationCandidate = (candidate: AgentModelSelection): boolean =>
+    candidate.scope === "organization"
+
+/**
+ * Every runnable route: the project's connections, built-in models and mounted subscriptions,
+ * then the organization connections this project may use. An organization connection is used only
+ * when the builder picks it, so it comes last and is never an automatic default.
+ */
 export const buildAgentModelCandidates = (
     args: BuildAgentModelCandidatesArgs,
 ): AgentModelCandidate[] => {
-    const connections = [...connectionCandidates(args), ...builtinCandidates(args)]
-    if (args.showSubscriptions === false) return connections
-    return [...connections, ...liveSubscriptionCandidates(args)]
+    const stored = connectionCandidates(args)
+    const own = [...stored.filter((c) => !isOrganizationCandidate(c)), ...builtinCandidates(args)]
+    const organization = stored.filter(isOrganizationCandidate)
+    if (args.showSubscriptions === false) return [...own, ...organization]
+    return [...own, ...liveSubscriptionCandidates(args), ...organization]
 }
 
 const findRunnableAgentModel = <T extends AgentModelSelection>(
@@ -591,7 +616,13 @@ export const resolveAgentModelSelection = ({
         const match = findRunnableAgentModel(candidates, selection)
         if (match) return match
     }
-    return candidates.find((candidate) => candidate.managed) ?? candidates[0] ?? null
+    // The automatic default never lands on an organization connection (no automatic use):
+    // only an explicit or remembered pick names one.
+    return (
+        candidates.find((candidate) => candidate.managed && !isOrganizationCandidate(candidate)) ??
+        candidates.find((candidate) => !isOrganizationCandidate(candidate)) ??
+        null
+    )
 }
 
 /** The first model of one stored connection, a hosted subscription included, by record id. */

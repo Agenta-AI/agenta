@@ -222,3 +222,9 @@ export interface VaultMigrationStatus {
     migrating: boolean
     migrated: boolean
 }
+
+/**
+ * Who owns a connection: the project, or the organization. A request names `organization`
+ * explicitly; omitted, it means the project's connection.
+ */
+export type SecretOwnerScope = "project" | "organization"

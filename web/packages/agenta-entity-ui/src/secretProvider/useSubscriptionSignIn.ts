@@ -13,9 +13,12 @@ import {
     subscriptionProviderName,
     subscriptionStatusLine,
     type ProviderConnection,
+    type SecretOwnerScope,
 } from "@agenta/entities/secret"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {useAtomValue, useSetAtom} from "jotai"
+
+import {organizationRefusal} from "./useOrganizationProjectsDraft"
 
 /** The in-flight device login being shown. */
 export interface PendingAttempt {
@@ -43,11 +46,17 @@ export const countdownLabel = (expiresAt: string | null, now: number): string =>
 export const useSubscriptionSignIn = ({
     provider = "chatgpt",
     connection = null,
+    scope = "project",
+    organizationName = "",
 }: {
     provider?: string
     connection?: ProviderConnection | null
+    /** `organization` creates and signs in an organization connection (for every project). */
+    scope?: SecretOwnerScope
+    /** For the organization refusal messages. */
+    organizationName?: string
 }) => {
-    const createConnection = useSetAtom(createSubscriptionConnectionAtom)
+    const createSubscriptionConnection = useSetAtom(createSubscriptionConnectionAtom)
     const startLogin = useSetAtom(startSubscriptionLoginAtom)
     const cancelLogin = useSetAtom(cancelSubscriptionLoginAtom)
     const forgetAttempt = useSetAtom(forgetLoginAttemptAtom)
@@ -110,7 +119,11 @@ export const useSubscriptionSignIn = ({
             return
         }
         if (outcome === "timed_out") {
-            void cancelLogin({secretId: attempt.secretId, attemptId: attempt.attemptId})
+            void cancelLogin({
+                secretId: attempt.secretId,
+                attemptId: attempt.attemptId,
+                scope,
+            })
             setError("The sign-in did not finish in time. Start it again.")
             return
         }
@@ -125,6 +138,7 @@ export const useSubscriptionSignIn = ({
         attemptState,
         cancelLogin,
         closeAttempt,
+        scope,
         outcome,
         pending,
         provider,
@@ -142,10 +156,11 @@ export const useSubscriptionSignIn = ({
         setError(null)
         setLostPoll(false)
         try {
-            const secretId = connection?.id ?? (await createConnection({provider, name}))
-            const attempt = await startLogin({secretId})
+            const secretId =
+                connection?.id ?? (await createSubscriptionConnection({provider, name, scope}))
+            const attempt = await startLogin({secretId, scope})
             if (start !== startRef.current) {
-                void cancelLogin({secretId, attemptId: attempt.attempt_id})
+                void cancelLogin({secretId, attemptId: attempt.attempt_id, scope})
                 if (!connection) void refreshVault()
                 return
             }
@@ -164,6 +179,7 @@ export const useSubscriptionSignIn = ({
                     secretId,
                     attemptId: attempt.attempt_id,
                     startedAt,
+                    scope,
                 }),
             })
             setNow(startedAt)
@@ -171,19 +187,37 @@ export const useSubscriptionSignIn = ({
             if (!connection) void refreshVault()
         } catch (caught) {
             if (start !== startRef.current) return
-            setError(extractApiErrorMessage(caught) || "Agenta could not start the sign-in.")
+            setError(
+                (scope === "organization" && organizationRefusal(caught, organizationName)) ||
+                    extractApiErrorMessage(caught) ||
+                    "Agenta could not start the sign-in.",
+            )
         } finally {
             if (start === startRef.current) setStarting(false)
         }
-    }, [cancelLogin, connection, createConnection, name, provider, refreshVault, startLogin])
+    }, [
+        cancelLogin,
+        connection,
+        createSubscriptionConnection,
+        name,
+        organizationName,
+        provider,
+        refreshVault,
+        scope,
+        startLogin,
+    ])
 
     const cancel = useCallback(() => {
         startRef.current += 1
         setStarting(false)
         if (!pending) return
-        void cancelLogin({secretId: pending.secretId, attemptId: pending.attemptId})
+        void cancelLogin({
+            secretId: pending.secretId,
+            attemptId: pending.attemptId,
+            scope,
+        })
         closeAttempt(pending)
-    }, [cancelLogin, closeAttempt, pending])
+    }, [cancelLogin, closeAttempt, scope, pending])
 
     const statusLine = useMemo(
         () =>

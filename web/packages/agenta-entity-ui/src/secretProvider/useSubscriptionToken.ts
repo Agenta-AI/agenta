@@ -1,6 +1,8 @@
 import {useCallback, useState} from "react"
 
 import {
+    type OrganizationSecretProjects,
+    type SecretOwnerScope,
     createSubscriptionConnectionAtom,
     refreshVaultSecretsAtom,
     setSubscriptionTokenAtom,
@@ -12,6 +14,8 @@ import {
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {useSetAtom} from "jotai"
 
+import {organizationRefusal} from "./useOrganizationProjectsDraft"
+
 /** Every `claude setup-token` value starts with this. */
 const SETUP_TOKEN_PREFIX = "sk-ant-oat"
 
@@ -19,12 +23,22 @@ const SETUP_TOKEN_PREFIX = "sk-ant-oat"
 export const useSubscriptionToken = ({
     provider,
     connection = null,
+    scope = "project",
+    projects,
+    organizationName = "",
 }: {
     provider: string
     connection?: ProviderConnection | null
+    /** `organization` creates and stores an organization connection. */
+    scope?: SecretOwnerScope
+    /** Who may use a new organization connection; every project when absent. */
+    projects?: OrganizationSecretProjects
+    /** For the organization refusal messages. */
+    organizationName?: string
 }) => {
-    const createConnection = useSetAtom(createSubscriptionConnectionAtom)
-    const setToken = useSetAtom(setSubscriptionTokenAtom)
+    const createSubscriptionConnection = useSetAtom(createSubscriptionConnectionAtom)
+    const setSubscriptionToken = useSetAtom(setSubscriptionTokenAtom)
+    const organization = scope === "organization"
     const refreshVault = useSetAtom(refreshVaultSecretsAtom)
 
     const [value, setValue] = useState("")
@@ -48,12 +62,12 @@ export const useSubscriptionToken = ({
         try {
             let secretId = connection?.id ?? createdId
             if (!secretId) {
-                secretId = await createConnection({provider, name})
+                secretId = await createSubscriptionConnection({provider, name, scope, projects})
                 setCreatedId(secretId)
                 created = true
             }
             // Resolves once the vault refetch reports the connection ready.
-            await setToken({secretId, token})
+            await setSubscriptionToken({secretId, token, scope})
             setCreatedId(null)
             setReplacing(false)
             setValue("")
@@ -61,7 +75,8 @@ export const useSubscriptionToken = ({
             // So a refused token still leaves the row where the next surface finds it.
             if (created) void refreshVault()
             setError(
-                subscriptionTokenErrorText(caught) ||
+                (organization && organizationRefusal(caught, organizationName)) ||
+                    subscriptionTokenErrorText(caught) ||
                     extractApiErrorMessage(caught) ||
                     "Agenta could not store this token. Try again.",
             )
@@ -71,13 +86,17 @@ export const useSubscriptionToken = ({
     }, [
         canSubmit,
         connection?.id,
-        createConnection,
+        createSubscriptionConnection,
         createdId,
         name,
         provider,
         refreshVault,
-        setToken,
+        setSubscriptionToken,
         token,
+        scope,
+        projects,
+        organization,
+        organizationName,
     ])
 
     const onChange = useCallback((next: string) => {

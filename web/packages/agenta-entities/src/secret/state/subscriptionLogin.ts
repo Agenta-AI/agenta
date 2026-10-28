@@ -17,8 +17,9 @@ import {
     startLoginAttempt,
     type LoginAttemptResponse,
 } from "../api/loginAttempts"
+import {createOrganizationSecret, type OrganizationSecretProjects} from "../api/organizationSecrets"
 import {SUBSCRIPTION_PROVIDER_KIND} from "../core/subscriptionConnections"
-import type {CreateSecretDto} from "../core/types"
+import type {CreateSecretDto, SecretOwnerScope} from "../core/types"
 
 import {createVaultSecretMutationAtom} from "./atoms"
 
@@ -28,16 +29,23 @@ export interface LoginAttemptKey {
     attemptId: string
     /** When the poll started, so the backstop can stop a server that answers `pending` forever. */
     startedAt: number
+    /** Whose connection it is; an organization login is polled with its scope. */
+    scope?: SecretOwnerScope
 }
 
 // A string, because `atomFamily` dedupes by value: an object would make a poll per render.
-export const loginAttemptKey = ({secretId, attemptId, startedAt}: LoginAttemptKey): string =>
-    `${secretId}|${attemptId}|${startedAt}`
+export const loginAttemptKey = ({secretId, attemptId, startedAt, scope}: LoginAttemptKey): string =>
+    [secretId, attemptId, startedAt, ...(scope === "organization" ? [scope] : [])].join("|")
 
 const parseLoginAttemptKey = (serialized: string): LoginAttemptKey | null => {
-    const [secretId, attemptId, startedAt] = serialized.split("|")
+    const [secretId, attemptId, startedAt, scope] = serialized.split("|")
     if (!secretId || !attemptId) return null
-    return {secretId, attemptId, startedAt: Number(startedAt) || 0}
+    return {
+        secretId,
+        attemptId,
+        startedAt: Number(startedAt) || 0,
+        ...(scope === "organization" ? {scope} : {}),
+    }
 }
 
 /** The next interval, or `false` to stop. Outside the query options so it is testable. */
@@ -110,6 +118,7 @@ export const loginAttemptQueryAtomFamily = atomFamily((serialized: string) =>
                     projectId,
                     secretId: key.secretId,
                     attemptId: key.attemptId,
+                    scope: key.scope,
                 })
             },
         }
@@ -124,22 +133,49 @@ export const forgetLoginAttemptAtom = atom(null, (_get, _set, serialized: string
 // Name and provider only: a browser must not get to state which harnesses may run it.
 export const buildSubscriptionSecretPayload = (provider: string, name: string): CreateSecretDto =>
     ({
-        header: {name},
+        // An empty name is left to the API, which names the row after its owner.
+        header: name ? {name} : {},
         secret: {kind: SUBSCRIPTION_PROVIDER_KIND, data: {provider}},
     }) as unknown as CreateSecretDto
 
-/** Create the subscription connection. Returns its record id. */
+/**
+ * Create the subscription connection. Returns its record id.
+ *
+ * An organization connection is created without a name, so the API's default says whose it is
+ * ("ChatGPT (Organization)"), and for every project unless `projects` narrows it.
+ */
 export const createSubscriptionConnectionAtom = atom(
     null,
-    async (get, _set, {provider, name}: {provider: string; name: string}): Promise<string> => {
+    async (
+        get,
+        _set,
+        {
+            provider,
+            name,
+            scope,
+            projects = {availability: "all_projects", projectIds: []},
+        }: {
+            provider: string
+            name: string
+            scope?: SecretOwnerScope
+            projects?: OrganizationSecretProjects
+        },
+    ): Promise<string> => {
         const projectId = get(projectIdAtom)
         if (!projectId)
             throw new Error("[vault] Missing projectId for createSubscriptionConnection")
 
-        const created = await get(createVaultSecretMutationAtom).mutateAsync({
-            projectId,
-            payload: buildSubscriptionSecretPayload(provider, name),
-        })
+        const created =
+            scope === "organization"
+                ? await createOrganizationSecret({
+                      projectId,
+                      payload: buildSubscriptionSecretPayload(provider, ""),
+                      projects,
+                  })
+                : await get(createVaultSecretMutationAtom).mutateAsync({
+                      projectId,
+                      payload: buildSubscriptionSecretPayload(provider, name),
+                  })
         const id = created.id
         if (!id) throw new Error("[vault] The subscription connection was created without an id")
         return id
@@ -149,11 +185,15 @@ export const createSubscriptionConnectionAtom = atom(
 /** Start a device login on a connection, and return the attempt the card renders. */
 export const startSubscriptionLoginAtom = atom(
     null,
-    async (get, _set, {secretId}: {secretId: string}): Promise<LoginAttemptResponse> => {
+    async (
+        get,
+        _set,
+        {secretId, scope}: {secretId: string; scope?: SecretOwnerScope},
+    ): Promise<LoginAttemptResponse> => {
         const projectId = get(projectIdAtom)
         if (!projectId) throw new Error("[vault] Missing projectId for startSubscriptionLogin")
 
-        const attempt = await startLoginAttempt({projectId, secretId})
+        const attempt = await startLoginAttempt({projectId, secretId, scope})
         if (!attempt) throw new Error("[vault] The sign-in did not start. Try again.")
         return attempt
     },
@@ -162,11 +202,15 @@ export const startSubscriptionLoginAtom = atom(
 /** Store a pasted token on a connection. Throws the API's refusal when the provider rejects it. */
 export const setSubscriptionTokenAtom = atom(
     null,
-    async (get, set, {secretId, token}: {secretId: string; token: string}): Promise<void> => {
+    async (
+        get,
+        set,
+        {secretId, token, scope}: {secretId: string; token: string; scope?: SecretOwnerScope},
+    ): Promise<void> => {
         const projectId = get(projectIdAtom)
         if (!projectId) throw new Error("[vault] Missing projectId for setSubscriptionToken")
 
-        await setSubscriptionToken({projectId, secretId, token})
+        await setSubscriptionToken({projectId, secretId, token, scope})
         await set(refreshVaultSecretsAtom)
     },
 )
@@ -174,18 +218,33 @@ export const setSubscriptionTokenAtom = atom(
 /** Abandon a device login. A failure here is not the user's problem: the attempt expires anyway. */
 export const cancelSubscriptionLoginAtom = atom(
     null,
-    async (get, _set, {secretId, attemptId}: {secretId: string; attemptId: string}) => {
+    async (
+        get,
+        _set,
+        {
+            secretId,
+            attemptId,
+            scope,
+        }: {secretId: string; attemptId: string; scope?: SecretOwnerScope},
+    ) => {
         const projectId = get(projectIdAtom)
         if (!projectId) return
         try {
-            await cancelLoginAttempt({projectId, secretId, attemptId})
+            await cancelLoginAttempt({projectId, secretId, attemptId, scope})
         } catch (error) {
             console.warn("[vault] Could not cancel the subscription sign-in:", error)
         }
     },
 )
 
-/** Refetch the vault so a finished sign-in flips the card and the pickers in one step. */
+/**
+ * Refetch both connection lists, so a change shows on the settings tabs and in every picker in
+ * one step. The organization read runs in parallel (a member's answers a fast 403).
+ */
 export const refreshVaultSecretsAtom = atom(null, async () => {
-    await getHostQueryClient().invalidateQueries({queryKey: ["vault", "secrets"]})
+    const queryClient = getHostQueryClient()
+    await Promise.all([
+        queryClient.invalidateQueries({queryKey: ["vault", "secrets"]}),
+        queryClient.invalidateQueries({queryKey: ["vault", "organization-secrets"]}),
+    ])
 })
