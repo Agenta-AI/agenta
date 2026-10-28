@@ -17,6 +17,7 @@ import {cn} from "@/lib/utils"
 
 import {markdownIcons, proseClassName} from "../chat/AssistantMarkdown"
 
+import {FadingScrollBody} from "./FadingScrollBody"
 import {ReleaseFeatureVideo} from "./ReleaseFeatureVideo"
 import {ReleaseItemsSection} from "./ReleaseItemsSection"
 import {whatsNewAtom} from "./whatsNewAtom"
@@ -164,7 +165,7 @@ export const WhatsNewDialog = () => {
                         </Button>
                     </DialogClose>
 
-                    <div
+                    <FadingScrollBody
                         // Keyed so a newly picked release opens scrolled to the top.
                         key={selected.id}
                         className="flex flex-col gap-8 px-4 pb-6 pt-12 md:min-h-0 md:flex-1 md:overflow-y-auto md:px-6 md:pt-6"
@@ -204,7 +205,7 @@ export const WhatsNewDialog = () => {
                                 />
                             </div>
                         ) : null}
-                    </div>
+                    </FadingScrollBody>
 
                     <div className="flex items-center justify-between gap-3 border-0 border-t border-solid border-colorBorderSecondary px-4 py-2.5 md:px-6">
                         <label
