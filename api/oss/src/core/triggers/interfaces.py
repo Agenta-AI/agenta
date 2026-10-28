@@ -147,6 +147,7 @@ class TriggersDAOInterface(ABC):
         subscription: TriggerSubscriptionEdit,
         #
         artifact_id: Any = KEEP_ARTIFACT_ID,
+        trigger_id: Optional[str] = None,
     ) -> Optional[TriggerSubscription]: ...
 
     @abstractmethod
