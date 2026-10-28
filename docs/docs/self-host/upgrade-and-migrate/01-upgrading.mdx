@@ -16,6 +16,30 @@ Agenta follows semantic versioning with new releases every week. Stay updated by
 The multi-organization release flips OSS from invite-only to open signup. If your instance is reachable beyond a trusted network, set `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS` (and optionally `AGENTA_ACCESS_ALLOWED_DOMAINS`) before upgrading. See [Migrate to Multi-Organization OSS](/self-host/upgrades/multi-org-migration).
 :::
 
+## Upgrading to 0.128.0: old workspace ids stop working
+
+This release stops reading the old workspace data. The tables stay in the database until a later release drops them. It adds two data migrations: one for projects, one for usage meters (Enterprise). Both repeat the 0.127.0 migrations for data that 0.126.0 pods wrote during that upgrade.
+
+### Take a database dump first
+
+The two data migrations change data in one direction and have no down migration. Take a dump of your core database before you start the upgrade.
+
+### Upgrade from 0.127.0
+
+Run 0.127.0 on every pod before you start 0.128.0. A rolling upgrade from 0.126.0 or older is not supported. To go back to 0.127.0, set `ALEMBIC_AUTO_MIGRATIONS=false` (in Helm, `alembic.autoMigrations: false`) and deploy the 0.127.0 images; 0.127.0 reads the data that 0.128.0 leaves.
+
+### Old workspace ids are unknown ids
+
+Since 0.127.0, the API answers the organization id where it answered a workspace id. From 0.128.0, it also accepts only the organization id there. A request with `?workspace_id=<old workspace id>` returns `401`. A bookmark of the classic app with an old workspace id in the URL no longer opens. An invitation link with an old workspace id is refused as an unknown invitation; invitations expire after 7 days, so links sent before 0.127.0 have expired if 0.127.0 ran for a week. The admin API answers `404` for an old workspace id.
+
+### Each organization keeps one default project
+
+The upgrade again keeps one default project per organization, by the same rule as 0.127.0. A browser request without `project_id` opens the default project of the user's oldest organization membership.
+
+### Enterprise: split daily counts are merged
+
+The upgrade adds the per-user traces-retrieved counts that 0.126.0 pods wrote in a separate bucket during the 0.127.0 upgrade into the user's count. As in 0.127.0, the migration waits for a running usage report to finish (up to 15 minutes) and blocks new reports while it runs. Billed meters do not change.
+
 ## Upgrading to 0.127.0: workspaces are removed
 
 This release stops creating workspaces. The API answers the organization id wherever it answered a workspace id. It adds two data migrations: one for projects, one for usage meters (Enterprise).
