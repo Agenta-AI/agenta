@@ -39,7 +39,6 @@ class AuthScope(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     organization_id: UUID
-    workspace_id: UUID
     project_id: UUID
     user_id: UUID
 

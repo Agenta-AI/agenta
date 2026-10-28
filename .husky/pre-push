@@ -1,4 +1,8 @@
 #!/usr/bin/env sh
+# Entire CLI hooks
+# Pre-push hook: push session logs alongside user's push
+# $1 is the remote name (e.g., "origin")
+if command -v entire >/dev/null 2>&1; then entire hooks git pre-push "$1" || exit $?; fi
 
 # Delegate to pre-commit which runs pre-push hooks (e.g. gitleaks) from .pre-commit-config.yaml
 if command -v pre-commit >/dev/null 2>&1; then

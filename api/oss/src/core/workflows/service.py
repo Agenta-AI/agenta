@@ -19,7 +19,6 @@ from typing import (
 from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.access.service import get_access_service
 from oss.src.core.access.types import MissingPrincipal
-from oss.src.core.memberships.workspaces import legacy_workspace_id
 from oss.src.core.git.dtos import RevisionGrouping
 from urllib.parse import urlparse
 from uuid import UUID, uuid4
@@ -3653,12 +3652,6 @@ class WorkflowsService:
         secret_token = await sign_secret_token(
             user_id=str(acting_user_id),
             project_id=str(project_id),
-            workspace_id=str(
-                legacy_workspace_id(
-                    workspace_id=project.workspace_id,
-                    organization_id=project.organization_id,
-                )
-            ),
             organization_id=str(project.organization_id),
             gateway_run_id=gateway_run_id,
             grants=self._service_grants(service_url),

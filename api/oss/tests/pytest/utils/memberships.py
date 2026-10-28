@@ -216,7 +216,8 @@ class InMemoryMembershipsDAO(MembershipsDAOInterface):
         summary = self.add_project(
             make_summary(
                 organization_id=kwargs["organization_id"],
-                workspace_id=kwargs["workspace_id"],
+                # Step 2: a new project has no workspace; it answers the organization.
+                workspace_id=kwargs["organization_id"],
                 is_default=kwargs["is_default"],
                 project_name=kwargs["name"],
             )

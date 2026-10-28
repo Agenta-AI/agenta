@@ -111,13 +111,14 @@ async def check_organization_write(
     if access.credential_kind == RequestCredentialKind.BEARER_SESSION:
         return True
 
-    project = await db_manager.get_default_project_by_organization_id(
-        str(organization_id)
+    # The organization's default project, by the rule every reader uses (D-11).
+    default = await db_manager.fetch_default_project(
+        workspace_or_organization_id=str(organization_id)
     )
-    if project is None:
+    if default is None:
         return False
     return await check_action_access(
         user_uid=user_uid,
-        project_id=str(project.id),
+        project_id=str(default.project_id),
         permission=permission,
     )
