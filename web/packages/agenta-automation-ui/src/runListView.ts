@@ -12,6 +12,8 @@ import {runDayGroups, runOutcomeLabel, sortRuns, type RunDayGroup} from "./runMo
  */
 
 export type RunStatusFilter = "all" | "ok" | "bad" | "pending"
+/** A status group key; a skipped run groups apart and no filter selects it. */
+type RunStatusKey = Exclude<RunStatusFilter, "all"> | "skipped"
 /** How the run started — the three things `runLabel` can call a row. */
 export type RunTypeFilter = "all" | "scheduled" | "event" | "test"
 export type RunGrouping = "day" | "none" | "status" | "type"
@@ -90,12 +92,14 @@ export function runGroups(runs: TriggerDelivery[], grouping: RunGrouping): RunDa
     return [...buckets.values()]
 }
 
-function statusKey(delivery: TriggerDelivery): RunStatusFilter {
+function statusKey(delivery: TriggerDelivery): RunStatusKey {
     switch (deliveryOutcome(delivery)) {
         case "ok":
             return "ok"
         case "bad":
             return "bad"
+        case "skipped":
+            return "skipped"
         default:
             return "pending"
     }
