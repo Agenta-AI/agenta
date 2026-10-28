@@ -1,4 +1,4 @@
-from typing import Callable, List, Optional, Tuple, Dict, Any, TYPE_CHECKING
+from typing import List, Optional, Tuple, Dict, Any, TYPE_CHECKING
 from uuid import UUID
 from asyncio import sleep
 from copy import deepcopy
@@ -860,19 +860,18 @@ class EvaluationsService:
         run: EvaluationRunEdit,
         principal: Optional[PrincipalRef] = None,
         editor: Optional[PrincipalRef] = None,
-        locked_check: Optional[Callable[[EvaluationRun], None]] = None,
     ) -> Optional[EvaluationRun]:
         """`editor` is the requesting principal of a user edit; internal callers leave it
         None. Only the run's executing principal may change its configuration (M7). The
-        rule runs on the row the DAO locks for the write. `locked_check` replaces it for
-        a caller that rebuilds the configuration itself (the simple evaluation edit)."""
+        rule runs on the row the DAO locks for the write."""
         run.version = CURRENT_VERSION
 
         # Capture the prior graph so reconciliation can prune any step the edit
         # drops. An edit that omits a step is a destructive removal.
         prior_run = await self.fetch_run(project_id=project_id, run_id=run.id)
         prior_step_keys = self._step_keys(prior_run)
-        if locked_check is None and editor is not None:
+        locked_check = None
+        if editor is not None:
 
             def locked_check(locked: EvaluationRun) -> None:
                 _check_run_edit(editor=editor, prior_run=locked, edit=run)
@@ -2587,36 +2586,26 @@ class SimpleEvaluationsService:
                 log.error("[EVAL] [failure] cannot edit closed evaluation run")
                 return None
 
-            locked_check = None
+            # Only the executing principal may change the targets (M7). Anyone else's
+            # edit keeps the stored configuration as it is, so a rename never rebuilds
+            # or restores it; the locked-row check in `edit_run` then refuses the write
+            # when the configuration changed after this read.
+            stored_run = None
+            targets_changed = False
             if editor is not None:
                 stored_run = await self.evaluations_service.fetch_run(
                     project_id=project_id, run_id=_evaluation.id
                 )
-                # Refused before the run is stopped, when the edit changes its targets.
-                if execution_changed(
+                targets_changed = execution_changed(
                     _simple_targets(_evaluation.data), _simple_targets(evaluation.data)
-                ):
+                )
+                if targets_changed:
+                    # Refused before the run is stopped.
                     check_durable_work_change(
                         kind=DurableWorkKind.EVALUATION_RUN,
                         principal=editor,
                         executing=stored_run.principal if stored_run else None,
                         change=DurableWorkChange.EXECUTION,
-                    )
-                stored_data = stored_run.data if stored_run else None
-
-                # The edit rebuilds the run's configuration from the targets read above.
-                # If the executing principal changed it since, writing it back would
-                # undo that change, so on the locked row only they may proceed.
-                def locked_check(locked: EvaluationRun) -> None:
-                    check_durable_work_change(
-                        kind=DurableWorkKind.EVALUATION_RUN,
-                        principal=editor,
-                        executing=locked.principal,
-                        change=(
-                            DurableWorkChange.EXECUTION
-                            if execution_changed(stored_data, locked.data)
-                            else DurableWorkChange.LIFECYCLE
-                        ),
                     )
 
             was_active = _evaluation.flags.is_active
@@ -2653,18 +2642,22 @@ class SimpleEvaluationsService:
                 is_split=_evaluation.flags.is_split,
             )
 
-            run_data = await self._make_evaluation_run_data(
-                project_id=project_id,
-                user_id=user_id,
-                #
-                query_steps=evaluation.data.query_steps,
-                testset_steps=evaluation.data.testset_steps,
-                application_steps=evaluation.data.application_steps,
-                evaluator_steps=evaluation.data.evaluator_steps,
-                #
-                repeats=_evaluation.data.repeats,
-                #
-                is_live=(_evaluation.flags.is_live if _evaluation.flags else None),
+            run_data = (
+                stored_run.data
+                if stored_run is not None and not targets_changed
+                else await self._make_evaluation_run_data(
+                    project_id=project_id,
+                    user_id=user_id,
+                    #
+                    query_steps=evaluation.data.query_steps,
+                    testset_steps=evaluation.data.testset_steps,
+                    application_steps=evaluation.data.application_steps,
+                    evaluator_steps=evaluation.data.evaluator_steps,
+                    #
+                    repeats=_evaluation.data.repeats,
+                    #
+                    is_live=(_evaluation.flags.is_live if _evaluation.flags else None),
+                )
             )
 
             run_edit = EvaluationRunEdit(
@@ -2686,7 +2679,7 @@ class SimpleEvaluationsService:
                 user_id=user_id,
                 #
                 run=run_edit,
-                locked_check=locked_check,
+                editor=editor,
             )
 
             if not run:
