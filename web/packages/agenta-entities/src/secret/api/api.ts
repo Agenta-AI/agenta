@@ -31,7 +31,7 @@ export const fetchVaultSecret = async ({
 }: {
     projectId: string
 }): Promise<LlmProvider[]> => {
-    const result = await getSecretsClient().listSecrets(projectScopedRequest(projectId))
+    const result = await getSecretsClient().listSecrets({}, projectScopedRequest(projectId))
     return transformSecret(result)
 }
 

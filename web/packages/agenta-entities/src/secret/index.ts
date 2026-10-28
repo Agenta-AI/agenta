@@ -32,6 +32,7 @@
 export type {
     AgentConnectionMode,
     AgentConnectionNamespace,
+    AgentConnectionScope,
     AgentSecretBinding,
     AgentModelCandidate,
     AgentModelSelection,
@@ -84,6 +85,9 @@ export {
     isAgentDeploymentProviderKind,
     resolveAgentModelSelection,
     connectionNamespaceFrom,
+    savedConnectionNamespace,
+    connectionScopeFrom,
+    explicitAgentConnection,
     selectableAgentHarnesses,
     HIDDEN_AGENT_HARNESSES,
     soleAgentHarnessProviderFamily,

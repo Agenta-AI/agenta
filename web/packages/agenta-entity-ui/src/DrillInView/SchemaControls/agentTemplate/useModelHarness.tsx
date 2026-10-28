@@ -350,6 +350,11 @@ export function useModelHarness({
                     mode: patch.mode !== undefined ? patch.mode : connection.mode,
                     slug: nextSlug,
                     namespace: nextNamespace,
+                    // The scope qualifies the slug too: kept only while the slug is kept.
+                    scope:
+                        patch.slug !== undefined || patch.modelId !== undefined
+                            ? null
+                            : connection.scope,
                     existing: llm,
                 }),
             )

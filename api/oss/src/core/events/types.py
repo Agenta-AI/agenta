@@ -22,6 +22,9 @@ class EventType(str, Enum):
     AGENTS_SHARING_CHANGED = "agents.sharing.changed"
     SESSIONS_SHARING_CHANGED = "sessions.sharing.changed"
 
+    # One event per organization credential write (ids and kinds only, never a value).
+    ORGANIZATION_SECRETS_CHANGED = "organization_secrets.changed"
+
     # Tracing reads
     TRACES_FETCHED = "traces.fetched"
     TRACES_QUERIED = "traces.queried"
