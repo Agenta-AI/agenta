@@ -1276,6 +1276,10 @@ class VaultConnectionResolver:
                     raise OrganizationConnectionUnavailableError(
                         slug=model.connection.slug or ""
                     )
+                # Each person's own key is served only by the gateway (M7). The vault
+                # path would answer the project's key, which this agent did not pick.
+                if model.connection.is_caller_account:
+                    raise refusal
                 return await self._resolve_from_vault(
                     api_base=api_base,
                     authorization=authorization,

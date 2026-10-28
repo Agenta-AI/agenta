@@ -7,6 +7,7 @@ from uuid import uuid4
 
 import pytest
 
+import oss.src.core.credentials.bindings as bindings_module
 from oss.src.core.access.dtos import PrincipalKind, PrincipalRef, RunAuthority
 from oss.src.core.credentials.bindings import (
     Binding,
@@ -57,39 +58,47 @@ def test_project_default_is_never_signed():
     assert binding_claims_for_revision(revision) == []
 
 
-def test_each_persons_own_account_is_signed_per_connection():
+def test_each_persons_own_model_key_is_signed():
     revision = _revision(
         llm={"model": "openai/gpt-5", "connection": {"binding": "caller_account"}},
-        tools=[
-            {
-                "type": "gateway_connection",
-                "connection": {
-                    "integration": "gmail",
-                    "slug": "gmail-support",
-                    "binding": "caller_account",
-                },
-            }
-        ],
-        mcps=[
-            {
-                "name": "notes",
-                "connection": {
-                    "type": "gateway",
-                    "namespace": "custom",
-                    "slug": "notes",
-                    "scope": "user",
-                    "binding": "caller_account",
-                },
-            }
-        ],
     )
-    claims = binding_claims_for_revision(revision)
+    [claim] = binding_claims_for_revision(revision)
+    assert claim.key == ConnectionKey(kind="model", service="openai")
+    assert claim.binding == Binding.CALLER_ACCOUNT
+
+
+def test_personal_composio_and_mcp_wait_for_their_stores(monkeypatch):
+    tool = {
+        "type": "gateway_connection",
+        "connection": {
+            "integration": "gmail",
+            "slug": "gmail-support",
+            "binding": "caller_account",
+        },
+    }
+    mcp = {
+        "name": "notes",
+        "connection": {
+            "type": "gateway",
+            "namespace": "custom",
+            "slug": "notes",
+            "scope": "user",
+            "binding": "caller_account",
+        },
+    }
+    # Refused, never read as the project's account, until the run path resolves them.
+    with pytest.raises(InvalidBinding):
+        binding_claims_for_revision(_revision(tools=[tool]))
+    with pytest.raises(InvalidBinding):
+        binding_claims_for_revision(_revision(mcps=[mcp]))
+
+    monkeypatch.setattr(bindings_module, "PERSONAL_TOOLS_AVAILABLE", True)
+    monkeypatch.setattr(bindings_module, "PERSONAL_MCP_AVAILABLE", True)
+    claims = binding_claims_for_revision(_revision(tools=[tool], mcps=[mcp]))
     assert [claim.key for claim in claims] == [
-        ConnectionKey(kind="model", service="openai"),
         ConnectionKey(kind="tool", service="composio:gmail"),
         ConnectionKey(kind="mcp", service="notes", scope="user"),
     ]
-    assert all(claim.binding == Binding.CALLER_ACCOUNT for claim in claims)
 
 
 def test_a_personal_subscription_login_is_not_available_yet():

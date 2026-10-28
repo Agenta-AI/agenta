@@ -14,9 +14,8 @@ A personal credential (M7) is a `secrets` row with `organization_id` and `user_i
   canonical slugs (the provider), so this is the one-account-per-service rule.
 
 The FK and the checks are added NOT VALID in one transaction under a short lock timeout,
-and validated in an autocommit block. The index rebuild runs concurrently: the old
-organization index is dropped and built again with the new predicate, so for that moment
-organization slugs are unique only by the DAO's check.
+and validated in an autocommit block. The organization slug index is rebuilt
+concurrently under a temporary name while the old one still guards, then swapped in.
 
 Old code on the new schema: it never writes `user_id`, and the M5 organization reads
 (`project_id IS NULL`) would read a user row as an organization row. No user row exists
@@ -76,6 +75,13 @@ _INDEXES = (
         "CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS uq_secrets_user_slug "
         "ON secrets (organization_id, user_id, slug) WHERE user_id IS NOT NULL",
     ),
+)
+
+_NEXT_ORGANIZATION_SLUG_INDEX = "uq_secrets_organization_id_slug_m7"
+_NEXT_ORGANIZATION_SLUG_CREATE = (
+    "CREATE UNIQUE INDEX CONCURRENTLY IF NOT EXISTS uq_secrets_organization_id_slug_m7 "
+    "ON secrets (organization_id, slug) "
+    "WHERE project_id IS NULL AND user_id IS NULL AND slug IS NOT NULL"
 )
 
 _M5_ORGANIZATION_SLUG_INDEX = (
@@ -140,12 +146,17 @@ def upgrade() -> None:
         op.execute(f"ALTER TABLE secrets ADD CONSTRAINT {name} {definition} NOT VALID")
 
     with op.get_context().autocommit_block():
-        # The M5 organization slug index counts every row with no project; rebuild it
-        # without user rows. A rerun finds the new predicate and keeps it.
+        # The M5 organization slug index counts every row with no project. Its
+        # replacement (without user rows) is built under a temporary name while the old
+        # one still guards organization slugs, then swapped in. A rerun finds the new
+        # predicate on the real name and keeps it.
         name, create = _INDEXES[0]
         predicate = _index_predicate(name)
         if predicate is not None and "user_id" not in predicate:
+            _build(_NEXT_ORGANIZATION_SLUG_INDEX, _NEXT_ORGANIZATION_SLUG_CREATE)
             op.execute(f"DROP INDEX CONCURRENTLY IF EXISTS {name}")
+        if _index_valid(_NEXT_ORGANIZATION_SLUG_INDEX) is True:
+            op.execute(f"ALTER INDEX {_NEXT_ORGANIZATION_SLUG_INDEX} RENAME TO {name}")
         for name, create in _INDEXES:
             _build(name, create)
 

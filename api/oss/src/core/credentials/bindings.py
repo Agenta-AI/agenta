@@ -23,6 +23,12 @@ from pydantic import BaseModel, ConfigDict
 from oss.src.core.access.dtos import PrincipalKind, RunAuthority
 
 
+# The stores whose personal rows the run path resolves. A `caller_account` binding on
+# any other kind is refused at commit and at run start, never read as the shared account.
+PERSONAL_TOOLS_AVAILABLE = False  # Composio connections
+PERSONAL_MCP_AVAILABLE = False  # personal MCP servers and per-person MCP sign-ins
+
+
 class Binding(str, Enum):
     CALLER_ACCOUNT = "caller_account"
     PROJECT_DEFAULT = "project_default"
@@ -173,6 +179,12 @@ def _tool_claims(agent: Dict[str, Any]) -> Iterable[BindingClaim]:
         integration = connection.get("integration")
         if binding != Binding.CALLER_ACCOUNT or not isinstance(integration, str):
             continue
+        if not PERSONAL_TOOLS_AVAILABLE:
+            # Refused rather than ignored: ignoring it would run the project's account.
+            raise InvalidBinding(
+                where=where,
+                message="each person's own Composio account is not available yet.",
+            )
         yield BindingClaim(
             key=ConnectionKey(kind="tool", service=f"composio:{integration}"),
             binding=binding,
@@ -203,6 +215,12 @@ def _mcp_claims(agent: Dict[str, Any]) -> Iterable[BindingClaim]:
             )
         if binding != Binding.CALLER_ACCOUNT:
             continue
+        if not PERSONAL_MCP_AVAILABLE:
+            # Refused rather than ignored: ignoring it would run the project's server.
+            raise InvalidBinding(
+                where=where,
+                message="each person's own MCP account is not available yet.",
+            )
         slug = connection.get("slug")
         if connection.get("namespace") != "custom" or not isinstance(slug, str):
             raise InvalidBinding(
