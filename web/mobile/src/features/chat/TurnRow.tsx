@@ -52,6 +52,7 @@ import {TurnFiles} from "./TurnFiles"
 import {mobileTurnRowClass} from "./turnRowClass"
 import {UserQuoteBlock} from "./UserQuoteBlock"
 import {ARRIVED_ANSWER_ATTR, LAST_TURN_ATTR} from "./useTranscriptAutoScroll"
+import {useTurnRowMetrics} from "./useTurnRowMetrics"
 
 /** The byte size the transcript replay records on an attachment part, when it has one. */
 const attachmentSize = (metadata: unknown): number | undefined => {
@@ -103,6 +104,11 @@ const TurnRowInner = ({
         turn.message.parts as {state?: string; errorText?: string}[],
     )
     const usage = getMessageUsage(turn.message)
+    const turnRow = useTurnRowMetrics({
+        sessionId,
+        traceId: turn.isUser ? null : traceId,
+        settled: !turn.isStreamingTurn,
+    })
     const openProviders = useProviderRecovery()
     const openBilling = useBillingRoute()
     const canBuyCredits = useCanBuyCredits(turn.status.errorCode)
@@ -143,6 +149,7 @@ const TurnRowInner = ({
         turnTraceId: turn.turnTraceId,
         isStreaming: turn.isStreamingTurn,
         usage,
+        turnRow,
         copyText,
         // Rewinding the last turn re-runs the current one; hidden, as on desktop.
         onRewind: onRewind && !turn.isLast ? () => onRewind(turn) : undefined,

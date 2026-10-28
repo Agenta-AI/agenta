@@ -297,6 +297,8 @@ export type MetricsBucket = z.infer<typeof metricsBucketSchema>
 export const analyticsResponseSchema = z.object({
     count: z.number().optional(),
     buckets: z.array(metricsBucketSchema).optional().nullable(),
+    /** M9: `restricted` is true when the totals leave out traces the caller may not read. */
+    access: z.object({restricted: z.boolean().optional()}).optional().nullable(),
 })
 export type AnalyticsResponse = z.infer<typeof analyticsResponseSchema>
 

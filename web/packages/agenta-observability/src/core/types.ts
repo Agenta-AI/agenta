@@ -49,6 +49,8 @@ export interface DashboardData {
     avg_latency: number
     total_tokens: number
     avg_tokens: number
+    /** The totals leave out traces of private chats the reader cannot open (`access.restricted`). */
+    partial: boolean
 }
 
 // ============================================================================

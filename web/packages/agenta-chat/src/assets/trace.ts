@@ -114,3 +114,18 @@ export const mergeTurnMetrics = <T extends MessageUsageMetrics>(
     totalTokens: traceMetrics.totalTokens ?? usage?.totalTokens,
     totalCost: traceMetrics.totalCost ?? usage?.totalCost,
 })
+
+/** A turn's figures stored on its turn row (M9): tokens, cost and latency. */
+export interface TurnRowMetrics extends MessageUsageMetrics {
+    durationMs?: number
+}
+
+/**
+ * The trace a turn's metrics read, or `""` for none. A turn whose row carries usage reads no
+ * trace: the row is the record, and it is readable without trace access. Only a turn with no
+ * stored usage falls back to the trace root (when the reader may read it).
+ */
+export const turnMetricsTraceKey = (
+    traceId: string | null | undefined,
+    turnRow: TurnRowMetrics | undefined,
+): string => (turnRow ? "" : (traceId ?? ""))

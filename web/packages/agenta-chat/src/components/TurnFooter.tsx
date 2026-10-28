@@ -5,7 +5,7 @@ import {ChatActionIconButton, MetaSeparator} from "@agenta/ui/components/present
 import {ArrowClockwise, Check, Copy, TreeStructure} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
-import type {MessageUsageMetrics} from "../assets"
+import type {MessageUsageMetrics, TurnRowMetrics} from "../assets"
 
 import {TurnMetrics} from "./TurnMetrics"
 import {TurnTimestamp} from "./TurnTimestamp"
@@ -31,6 +31,7 @@ export const TurnFooter = ({
     isUser,
     isStreaming = false,
     usage,
+    turnRow,
     copyText,
     onRewind,
     onViewTrace,
@@ -46,6 +47,8 @@ export const TurnFooter = ({
     /** The answer is still arriving. Hides copy, which would take a half-written reply. */
     isStreaming?: boolean
     usage?: MessageUsageMetrics
+    /** The figures stored on the turn row. When present, the metrics read no trace. */
+    turnRow?: TurnRowMetrics
     /** What the copy button puts on the clipboard. Omitted (or empty) hides the button. */
     copyText?: string
     /** Re-run from this turn. Omitted hides the button. */
@@ -89,7 +92,13 @@ export const TurnFooter = ({
         <>
             <TurnTimestamp messageId={messageId} traceId={traceId} turnTraceId={turnTraceId} />
             {isUser ? null : (
-                <TurnMetrics traceId={traceId} usage={usage} separator show={metrics} />
+                <TurnMetrics
+                    traceId={traceId}
+                    usage={usage}
+                    turnRow={turnRow}
+                    separator
+                    show={metrics}
+                />
             )}
             {hasActions ? <MetaSeparator className="first:hidden" /> : null}
             {showCopy ? (

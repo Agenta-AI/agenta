@@ -7,6 +7,7 @@ import {
     getMessageTraceId,
     getMessageUsage,
     mergeTurnMetrics,
+    turnMetricsTraceKey,
 } from "../../../src/assets/trace"
 
 describe("getMessageTraceId", () => {
@@ -175,5 +176,17 @@ describe("mergeTurnMetrics", () => {
             durationMs: 900,
             ...usage,
         })
+    })
+})
+
+describe("turnMetricsTraceKey", () => {
+    it("reads no trace when the turn row carries usage", () => {
+        expect(turnMetricsTraceKey("trace-1", {totalTokens: 10})).toBe("")
+        expect(turnMetricsTraceKey("trace-1", {})).toBe("")
+    })
+
+    it("falls back to the trace when the turn row has no usage", () => {
+        expect(turnMetricsTraceKey("trace-1", undefined)).toBe("trace-1")
+        expect(turnMetricsTraceKey(null, undefined)).toBe("")
     })
 })

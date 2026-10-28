@@ -136,5 +136,6 @@ export function analyticsToDashboard(analytics: AnalyticsResponse, range: string
         avg_latency: totalDurationCount ? totalDurationMs / totalDurationCount : 0, // ms
         total_tokens: totalTokens,
         avg_tokens: totalCount ? totalTokens / totalCount : 0,
+        partial: analytics.access?.restricted === true,
     }
 }
