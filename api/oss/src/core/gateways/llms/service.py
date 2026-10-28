@@ -833,8 +833,7 @@ class LLMGatewayService:
         """The target an agent connection names, and the model it runs there.
 
         The model changes only for a retired starter-credits model, which resolves to the
-        built-in model. Shared by the run's resolve and the needs-setup check, so both read
-        the same connection the same way."""
+        built-in model."""
         if (
             connection_scope == SecretOwnerKind.ORGANIZATION
             or connection_namespace == GatewayEndpointNamespace.ORGANIZATION

@@ -141,10 +141,20 @@ async def test_a_channel_edit_is_checked_only_when_it_turns_a_binding_on(
     if refused:
         with pytest.raises(AgentNeedsSetupRefused):
             await service._check_needs_setup(
-                project_id=uuid4(), agent=edited, stored=same
+                project_id=uuid4(),
+                agent=edited,
+                stored=same,
+                guard_artifact_id=None,
+                guard_user_id=None,
             )
     else:
-        await service._check_needs_setup(project_id=uuid4(), agent=edited, stored=same)
+        await service._check_needs_setup(
+            project_id=uuid4(),
+            agent=edited,
+            stored=same,
+            guard_artifact_id=None,
+            guard_user_id=None,
+        )
     assert guard.calls == (1 if refused else 0)
 
 
@@ -154,5 +164,64 @@ async def test_pointing_an_active_binding_at_another_agent_is_checked():
     edited = _binding(active=True, slug="b")
     with pytest.raises(AgentNeedsSetupRefused):
         await _channels(stored, guard)._check_needs_setup(
-            project_id=uuid4(), agent=edited, stored=stored
+            project_id=uuid4(),
+            agent=edited,
+            stored=stored,
+            guard_artifact_id=None,
+            guard_user_id=None,
         )
+
+
+async def test_a_private_agent_of_someone_else_is_refused_before_the_setup_check(
+    monkeypatch,
+):
+    """The setup answer names the agent's items, so the owner rule runs first."""
+    from oss.src.core import channels as channels_pkg  # noqa: F401
+    from oss.src.core.channels import service as channels_service
+    from oss.src.core.sharing.dtos import Visibility
+    from oss.src.core.sharing.types import SharedItemNotFound
+
+    policy = SimpleNamespace(visibility=Visibility.PRIVATE, owner_user_id=uuid4())
+
+    class _Sharing:
+        async def fetch_agent_policy_cached(self, *, project_id, artifact_id):
+            return SimpleNamespace(policy=policy)
+
+    monkeypatch.setattr(channels_service, "get_sharing_service", lambda: _Sharing())
+    guard = _Guard()
+    with pytest.raises(SharedItemNotFound):
+        await _channels(None, guard)._check_needs_setup(
+            project_id=uuid4(),
+            agent=_binding(active=True, slug="a"),
+            stored=None,
+            guard_artifact_id=uuid4(),
+            guard_user_id=uuid4(),
+        )
+    assert guard.calls == 0
+
+
+async def test_an_edit_that_turns_a_binding_on_is_refused_before_the_write(monkeypatch):
+    """Through the write path itself: `_edit_agent_row` runs the check, so the DAO never
+    writes a binding of an agent whose model needs setup."""
+    guard = _Guard()
+    stored = _binding(active=False, slug="a")
+    edited = _binding(active=True, slug="a")
+    edited.id = stored.id
+    edited.data.references = stored.data.references
+    service = _channels(stored, guard)
+    writes: List[Any] = []
+
+    async def _no_guard(**_kwargs):
+        return None
+
+    async def _edit_agent(**kwargs):
+        writes.append(kwargs)
+
+    monkeypatch.setattr(service, "_activation_guard", _no_guard)
+    service.channels_dao.edit_agent = _edit_agent
+
+    with pytest.raises(AgentNeedsSetupRefused):
+        await service._edit_agent_row(
+            project_id=uuid4(), user_id=uuid4(), guard_user_id=uuid4(), agent=edited
+        )
+    assert writes == [] and guard.calls == 1

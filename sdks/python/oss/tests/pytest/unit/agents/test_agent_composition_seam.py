@@ -356,7 +356,7 @@ async def test_default_composition_rejects_unconsumable_deployment_post_resolve(
     )
     handler = make_agent_handler(comp)
 
-    with pytest.raises(UnsupportedDeploymentError):
+    with pytest.raises(AgentNeedsSetupError) as raised:
         await handler(
             request=_request(),
             messages=[{"role": "user", "content": "hi"}],
@@ -365,6 +365,7 @@ async def test_default_composition_rejects_unconsumable_deployment_post_resolve(
                 model={"provider": "anthropic", "model": "anthropic.claude-x"},
             ),
         )
+    assert isinstance(raised.value.__cause__, UnsupportedDeploymentError)
 
 
 async def test_named_connection_defers_provider_reject_to_post_resolve():

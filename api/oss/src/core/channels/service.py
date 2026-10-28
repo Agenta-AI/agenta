@@ -84,6 +84,8 @@ from oss.src.core.secrets.dtos import (
 from oss.src.core.secrets.enums import ChannelSecretKind, SecretKind
 from oss.src.core.shared.dtos import Header, Reference, Status, Windowing
 from oss.src.core.shared.exceptions import EntityCreationConflict
+from oss.src.core.sharing.dtos import Visibility
+from oss.src.core.sharing.service import get_sharing_service
 from oss.src.core.sharing.types import SharedItemNotFound
 from oss.src.core.workflows.types import AgentReferenceUnresolved
 from oss.src.utils.logging import get_module_logger
@@ -1339,7 +1341,13 @@ class ChannelsService:
         return artifact_id
 
     async def _check_needs_setup(
-        self, *, project_id: UUID, agent: Any, stored: Optional[Any]
+        self,
+        *,
+        project_id: UUID,
+        agent: Any,
+        stored: Optional[Any],
+        guard_artifact_id: Optional[UUID],
+        guard_user_id: Optional[UUID],
     ) -> None:
         """Refuse a write that turns a binding on, or points an active binding at another
         agent, while that agent's model needs setup. A rename or a turn-off is never
@@ -1357,6 +1365,19 @@ class ChannelsService:
             and stored.data.references == agent.data.references
         ):
             return
+        if guard_artifact_id is not None:
+            # The DAO refuses a private agent of someone else inside the write. The
+            # needs-setup answer names the agent's items, so the same rule runs first.
+            access = await get_sharing_service().fetch_agent_policy_cached(
+                project_id=project_id, artifact_id=guard_artifact_id
+            )
+            policy = access.policy
+            if (
+                policy is not None
+                and policy.visibility == Visibility.PRIVATE
+                and (guard_user_id is None or policy.owner_user_id != guard_user_id)
+            ):
+                raise SharedItemNotFound()
         await self.needs_setup_guard.check(
             project_id=project_id,
             references={
@@ -1402,7 +1423,13 @@ class ChannelsService:
             references=agent.data.references,
             is_active=agent.flags.is_active,
         )
-        await self._check_needs_setup(project_id=project_id, agent=agent, stored=stored)
+        await self._check_needs_setup(
+            project_id=project_id,
+            agent=agent,
+            stored=stored,
+            guard_artifact_id=guard_artifact_id,
+            guard_user_id=guard_user_id,
+        )
         return await self.channels_dao.edit_agent(
             project_id=project_id,
             user_id=user_id,
@@ -1434,7 +1461,13 @@ class ChannelsService:
             references=agent.data.references,
             is_active=agent.flags.is_active,
         )
-        await self._check_needs_setup(project_id=project_id, agent=agent, stored=None)
+        await self._check_needs_setup(
+            project_id=project_id,
+            agent=agent,
+            stored=None,
+            guard_artifact_id=guard_artifact_id,
+            guard_user_id=guard_user_id,
+        )
         return await self.channels_dao.create_agent(
             project_id=project_id,
             user_id=user_id,

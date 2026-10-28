@@ -22,6 +22,7 @@ from .connections.errors import (
     ConnectionNotFoundError,
     MissingCredentialError,
     MissingProviderError,
+    UnsupportedDeploymentError,
     UnsupportedProviderError,
 )
 from .mcp import MCPGatewayConnection, MCPServerConfig
@@ -402,11 +403,19 @@ def model_requirement_from_error(
     """The model-item requirement a run-start resolve failure means, or None when the
     failure is not a missing item (an outage, a malformed configuration, a refusal)."""
     code = getattr(error, "failure_code", None)
-    if code == "model_not_available" or isinstance(error, UnsupportedProviderError):
+    if code == "model_not_available":
+        return requirement(llm.model_item(), reason=REASON_NOT_AVAILABLE, code=code)
+    # The harness cannot drive this provider or deployment: the same pair check the
+    # API's needs-setup check applies.
+    if isinstance(error, (UnsupportedProviderError, UnsupportedDeploymentError)):
         return requirement(
             llm.model_item(),
             reason=REASON_NOT_AVAILABLE,
-            code=code if code == "model_not_available" else "unsupported_provider",
+            code=(
+                "unsupported_provider"
+                if isinstance(error, UnsupportedProviderError)
+                else "unsupported_deployment"
+            ),
         )
     item = llm.connection_item()
     if item is None:

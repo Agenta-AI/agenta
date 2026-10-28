@@ -9,6 +9,8 @@ import pytest
 from agenta.sdk.agents.connections import (
     GatewayConnectionRefusedError,
     SubscriptionLoginRequiredError,
+    UnsupportedDeploymentError,
+    UnsupportedProviderError,
 )
 from agenta.sdk.agents.handler import AgentComposition, make_agent_handler
 from agenta.sdk.agents.mcp import ResolvedMCPServer
@@ -224,3 +226,22 @@ async def test_the_error_body_carries_the_requirements():
     assert response.status.details == {
         "requirements": [{"key": "model:openai/x", "kind": "model"}]
     }
+
+
+@pytest.mark.parametrize(
+    "error, code",
+    [
+        (
+            UnsupportedProviderError(provider="openai", harness="claude"),
+            "unsupported_provider",
+        ),
+        (
+            UnsupportedDeploymentError(deployment="vertex_ai", harness="pi_core"),
+            "unsupported_deployment",
+        ),
+    ],
+)
+def test_a_pair_the_harness_cannot_drive_makes_the_model_not_available(error, code):
+    needs = model_requirement_from_error(error, _llm(slug="my-key"))
+    assert (needs["kind"], needs["reason"]) == ("model", "not_available")
+    assert needs["detail"] == {"code": code}
