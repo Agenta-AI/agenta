@@ -132,13 +132,13 @@ Organization-scoped decisions and organization credentials (M5):
 - An agent names its connection by scope and slug (`project`, the default, or
   `organization`). Nothing is inherited or overridden: a project slug reads project rows
   only, no connection means the project default, and an organization connection resolves
-  only by `VaultService.get_organization_connection` (or `get_connection_secret_by_id` for
-  a bound reference), in the gateway namespace `organization`. `SecretsResolver` is built
+  only by `VaultService.get_organization_connection` (or `get_available_organization_secret_by_id`
+  for a bound reference), in the gateway namespace `organization`. `SecretsResolver` is built
   per plane; only the LLM plane answers an organization connection. The `/secrets/` routes
   serve both owners. The caller states the owner (`scope`, default `project`); with
   `organization` the route runs `decide_organization`, otherwise it is the project route as
   before. `PUT /secrets/{id}/projects` addresses organization rows only. `GET /secrets/?include_organization=true` adds the organization
-  rows available to the project without values, never under the `secret-resolve` grant.
+  rows available to the project without values (also for the `secret-resolve` grant).
 - A project's vault lives in ONE cache entry (`effective_secrets`, keyed on the full
   project id), filled by one statement (`SecretsDAO.load_effective`), with the project's
   rows and the available organization rows. Do not add a second cache read for

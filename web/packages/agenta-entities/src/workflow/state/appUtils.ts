@@ -30,7 +30,6 @@ import {buildWorkflowUri, parseWorkflowKeyFromUri} from "../core"
 
 import {
     applyAgentModelSelection,
-    withExplicitAgentConnection,
     agentCreationPrefsAtom,
     ensureEnabledSandbox,
     selectionFromAgentCreationPrefs,
@@ -270,10 +269,9 @@ export async function createEphemeralAppFromTemplate({
             candidates: candidateState.candidates,
             last: selectionFromAgentCreationPrefs(store.get(agentCreationPrefsAtom)),
         })
-        // Every new agent stores an explicit connection, the project default included (M5).
         const resolvedAgent = selected
             ? applyAgentModelSelection(agentConfig, selected)
-            : withExplicitAgentConnection(agentConfig)
+            : agentConfig
         // Seed a deployment-valid sandbox before commit so a daytona-only deployment doesn't
         // commit an unrunnable `local` default and then show a phantom Advanced draft on open.
         parameters = {

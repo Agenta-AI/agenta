@@ -223,7 +223,7 @@ describe("createEphemeralAppFromTemplate (agent tools)", () => {
                 expect(agent.llm).toEqual({
                     model,
                     provider,
-                    connection: {mode: "agenta", slug: provider, scope: "project"},
+                    connection: {mode: "agenta", slug: provider},
                 })
                 expect(agent.runner).toEqual({permissions: {default: policy}})
                 expect(agent.tools).toEqual(PI_DEFAULT_BUILTINS)
@@ -284,7 +284,7 @@ describe("createEphemeralAppFromTemplate (agent tools)", () => {
         expect(agent.harness).toEqual({kind: "pi_core"})
         expect(agent.llm).toEqual({
             model: "Agenta/custom/vertex_ai/gemini-3.6-flash",
-            connection: {mode: "agenta", slug: "starter-credits", scope: "project"},
+            connection: {mode: "agenta", slug: "starter-credits"},
         })
     })
 

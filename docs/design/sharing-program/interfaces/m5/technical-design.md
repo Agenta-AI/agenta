@@ -38,7 +38,6 @@ Scope: backend first. OpenSpec `tasks.md` sections 1 (schema), 2 (core), 3 (acce
 | `oss/src/core/gateways/llms/types.py` | `LLM_GATEWAY_SERVED_DEPLOYMENT_KINDS`; NEW `LLMNamedConnectionNotFoundError`, `LLMOrganizationConnectionSlugRequiredError`. |
 | `oss/src/core/gateways/llms/service.py` | `_ResolvedLlmTarget.secret_owner_kind` and `resolved_secret`; `connection_scope` on `resolve_agent_connection`; `_organization_target`; `_resolve_slug_target` (one pass over project shapes). |
 | `oss/src/core/workflows/service.py` | `_reject_unrunnable_agent_connection` at every agent commit. |
-| `oss/src/core/agent_templates/compiler.py` | The explicit project default connection. |
 
 ### 1.3 Router layer and wiring
 
@@ -54,8 +53,8 @@ Scope: backend first. OpenSpec `tasks.md` sections 1 (schema), 2 (core), 3 (acce
 ### 1.4 SDK and web
 
 - SDK (`sdks/python/agenta/sdk/agents/**`): `Connection.scope`, the `organization` namespace, `connection_scope` on resolve, `OrganizationConnectionUnavailableError` on every plaintext path, `WireConnection.scope` (interfaces 3.9).
-- Web (`web/packages/agenta-entities`, `agenta-entity-ui`): every save path writes the connection explicitly (`explicitAgentConnection`, `withExplicitAgentConnection`, `composeModelValue`).
-- Runner: no change for a key or custom provider (it holds no provider key in gateway mode, and routing comes from the resolved base URL). For an organization subscription login: the `organizationSubscription` wire field and the fence check in `run-plan.ts`, `subscriptionOwner: "organization"`, the `?scope=organization` upkeep URLs and `organizationId` on device login attempts (section 2.8, interfaces 4.5).
+- Web (`web/packages/agenta-entities`, `agenta-entity-ui`): a save writes an organization connection with its scope and namespace (`explicitAgentConnection`, `composeModelValue`); the project default stays unwritten.
+- Runner: no change for a key or custom provider (it holds no provider key in gateway mode, and routing comes from the resolved base URL). For an organization subscription login: the `organizationSubscription` wire field and the fence check in `run-plan.ts`, `subscription.owner: "organization"`, the `?scope=organization` upkeep URLs and `organizationId` on device login attempts (section 2.8, interfaces 4.5).
 
 ## 2. Key flows
 
@@ -162,7 +161,7 @@ Every existing request is equal or lower in every cache mode. M5 adds no HTTP ca
 
 - Gateway audit (`gateways.called`): NEW attribute `secret_owner_kind` (`project` or `organization`) when a secret was resolved.
 - Organization credential writes publish NEW `EventType.ORGANIZATION_SECRETS_CHANGED` (`organization_secrets.changed`) with `organization_id`, `secret_id`, `kind`, `action`, `availability`, project count, and the acting user id. No value, no name.
-- Logs: `[access] organization decision denied` (info); `[secrets] organization mismatch` (warning); `[secrets] cache invalidation failed` (warning); `[secrets] include_organization ignored for a resolve grant` (info). Ids and kinds only.
+- Logs: `[access] organization decision denied` (info); `[secrets] organization mismatch` (warning); `[secrets] cache invalidation failed` (warning);. Ids and kinds only.
 
 ## 8. Test plan
 
@@ -192,7 +191,7 @@ Every existing request is equal or lower in every cache mode. M5 adds no HTTP ca
 | Plaintext paths | The run's `GET /secrets/` has no organization row; the sandbox env has no organization key; a named organization connection without the gateway fails. A completion app and an AI evaluator run on project keys only. | local stack |
 | Redaction | Every project role and the organization owner: no response carries an organization value or preview. | local stack, both editions |
 | Organization authorization | EE hobby org `editor` 403; owner API key 403; owner run credential 403; owner and admin 200. | local stack |
-| Saved agents | Every save path and the template default write an explicit connection; an incomplete organization connection is refused at save; `self_managed` with or without a slug commits as on v0.125.0. | local stack |
+| Saved agents | No connection means the project default, unwritten as on v0.125.x; an incomplete organization connection is refused at save; `self_managed` with or without a slug commits as on v0.125.0. | local stack |
 | EE limit | A limited connection is invisible to other projects (list and resolve); deleting the only selected project leaves it with no project; OSS gets 403. | local stack |
 | Mixed versions | The migration runs while the pre-M5 API image serves; pre-M5 rows behave as before; an old services image refuses an organization connection. | local EE stack |
 

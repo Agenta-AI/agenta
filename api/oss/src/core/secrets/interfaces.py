@@ -119,7 +119,8 @@ class SecretsDAOInterface:
         secret_id: UUID,
         authorize_delete: Optional[Callable[[SecretResponseDTO], None]] = None,
         shareable: bool = False,
-    ) -> None:
+    ) -> Optional[SecretResponseDTO]:
+        """The deleted row, or None when the owner holds no such row."""
         raise NotImplementedError
 
     async def load_effective(self, *, project_id: UUID) -> CachedEffectiveSecrets:

@@ -248,11 +248,12 @@ class InMemorySecretsDAO:
         self.calls.append("delete")
         stored = self._find(owner, secret_id, shareable)
         if stored is None:
-            return
+            return None
         if authorize_delete is not None:
             authorize_delete(stored)
         self.records.pop(secret_id, None)
         self.selected.pop(secret_id, None)
+        return stored
 
     # effective set ----------------------------------------------------------------
 

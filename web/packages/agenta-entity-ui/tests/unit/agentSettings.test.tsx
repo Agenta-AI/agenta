@@ -281,12 +281,7 @@ describe("shared agent settings", () => {
         }
         await act(async () => update(newer))
         await click(button("Save", drawer))
-        expect(live.llm).toEqual({
-            model: "gpt-5",
-            provider: "openai",
-            connection: {mode: "agenta", scope: "project"},
-            extras: {seed: 2},
-        })
+        expect(live.llm).toEqual({model: "gpt-5", provider: "openai", extras: {seed: 2}})
         expect(live.harness).toEqual({kind: "pi_core", permissions: newer.harness.permissions})
         expect(live.runner).toEqual(newer.runner)
         expect(live.sandbox).toEqual(newer.sandbox)

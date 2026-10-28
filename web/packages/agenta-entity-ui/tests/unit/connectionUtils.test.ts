@@ -169,25 +169,19 @@ describe("connectionUtils: composeModelValue (always a ModelRef)", () => {
         expect(compose("agenta", "agenta").connection).toEqual({
             mode: "agenta",
             slug: "agenta",
-            scope: "project",
             namespace: "builtin",
         })
-        // The project default is written explicitly too (M5), with no namespace.
-        expect(compose("agenta", null).connection).toEqual({mode: "agenta", scope: "project"})
+        expect(compose("agenta", null).connection).toBeUndefined()
         expect(compose("self_managed", "chatgpt").connection).toEqual({
             mode: "self_managed",
             slug: "chatgpt",
         })
     })
 
-    it("writes the default connection explicitly (no bare string, no omitted connection)", () => {
+    it("returns a structured object even for the default connection (no bare string)", () => {
         expect(
             composeModelValue({modelId: "gpt-5.5", provider: "openai", mode: "agenta", slug: null}),
-        ).toEqual({
-            model: "gpt-5.5",
-            provider: "openai",
-            connection: {mode: "agenta", scope: "project"},
-        })
+        ).toEqual({model: "gpt-5.5", provider: "openai"})
     })
 
     it("writes an organization pick with its scope and the organization namespace", () => {
@@ -218,7 +212,7 @@ describe("connectionUtils: composeModelValue (always a ModelRef)", () => {
         ).toEqual({
             model: "gpt-5.5",
             provider: "openai",
-            connection: {mode: "agenta", slug: "openai-prod", scope: "project"},
+            connection: {mode: "agenta", slug: "openai-prod"},
         })
     })
 
@@ -254,7 +248,7 @@ describe("connectionUtils: composeModelValue (always a ModelRef)", () => {
         const value = {
             model: "gpt-5.5",
             provider: "openai",
-            connection: {mode: "agenta", slug: "openai-prod", scope: "project"},
+            connection: {mode: "agenta", slug: "openai-prod"},
         }
         const fields = connectionFromConfig(value)
         const round = composeModelValue({modelId: modelIdFromConfig(value), ...fields})
@@ -274,7 +268,7 @@ describe("connectionUtils: composeModelValue (always a ModelRef)", () => {
             params: {reasoning_effort: "high"},
             model: "gpt-5.6",
             provider: "openai",
-            connection: {mode: "agenta", slug: "openai-prod", scope: "project"},
+            connection: {mode: "agenta", slug: "openai-prod"},
         })
     })
 })
@@ -993,7 +987,7 @@ describe("connectionUtils: a custom pick keeps the slug and omits the provider",
         })
         expect(ref).toEqual({
             model: "gpt-oss",
-            connection: {mode: "agenta", slug: "my-gateway", scope: "project"},
+            connection: {mode: "agenta", slug: "my-gateway"},
         })
         expect(ref).not.toHaveProperty("provider")
     })

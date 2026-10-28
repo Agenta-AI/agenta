@@ -1107,7 +1107,7 @@ describe("the persisted ModelRef", () => {
         ).toEqual({
             model: "openai/gpt-5.5",
             provider: "openai",
-            connection: {mode: "agenta", slug: "openai-2", scope: "project"},
+            connection: {mode: "agenta", slug: "openai-2"},
         })
     })
 
@@ -1120,7 +1120,6 @@ describe("the persisted ModelRef", () => {
         expect(persist({connectionMode: "agenta", provider: "openai"}, existing)).toEqual({
             model: "openai/gpt-5.5",
             provider: "openai",
-            connection: {mode: "agenta", scope: "project"},
         })
     })
 
@@ -1190,7 +1189,7 @@ describe("a deployment-hosted connection's provider family", () => {
         ).toEqual({
             model: "claude-3-sonnet-20240229-v1:0",
             provider: "anthropic",
-            connection: {mode: "agenta", slug: "aws-bedrock-52e8f59f0d07", scope: "project"},
+            connection: {mode: "agenta", slug: "aws-bedrock-52e8f59f0d07"},
         })
     })
 

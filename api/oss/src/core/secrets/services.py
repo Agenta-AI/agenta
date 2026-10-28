@@ -42,7 +42,6 @@ from oss.src.core.secrets.redaction import (
 )
 from oss.src.core.secrets.types import (
     OrganizationSecretKindNotShareable,
-    OrganizationSecretNotFound,
     OrganizationSecretNotServed,
     OrganizationSecretValueNotScannable,
     OrganizationSecretValueTooShort,
@@ -1040,13 +1039,27 @@ class VaultService:
                 ),
                 user_id=user_id,
                 resolve_update=resolve,
+                # An organization login is a connection: read with its selected projects.
+                shareable=organization_id is not None,
             )
 
         if changed and project_id is not None:
             await self._invalidate_project(project_id)
+        elif changed and organization_id is not None and user_id is not None:
+            # A person signed the organization login in (a pasted token, a device login):
+            # the change is audited like every other organization write.
+            await self._organization_written(
+                organization_id=organization_id,
+                secret_id=secret_id,
+                kind=secret_dto.kind,
+                availability=secret_dto.availability or SecretAvailability.ALL_PROJECTS,
+                selected_count=len(secret_dto.selected_project_ids or []),
+                action="updated",
+                user_id=user_id,
+            )
         elif changed and organization_id is not None:
-            # An organization subscription login moved (a device login, a refresh pushed by
-            # a run): every project entry of the organization holds the row.
+            # A refresh pushed by a run: every project entry of the organization holds the
+            # row.
             await self._invalidate_organization(organization_id=organization_id)
         return secret_dto
 
@@ -1141,8 +1154,7 @@ class VaultService:
         secret_id: UUID,
         project_id: UUID | None = None,
         organization_id: UUID | None = None,
-    ) -> bool:
-        """Whether a row was deleted."""
+    ) -> None:
         # The DAO hands the row to `authorize_delete` under its write lock; capturing it
         # there is what tells us which endpoint slug to drop, without a second read.
         deleted: list[SecretResponseDTO] = []
@@ -1170,7 +1182,6 @@ class VaultService:
                 project_id=project_id,
                 secret_dto=stored_secret_dto,
             )
-        return bool(deleted)
 
     # -- organization credentials (M5) --------------------------------------------
 
@@ -1426,25 +1437,24 @@ class VaultService:
         secret_id: UUID,
         user_id: Optional[UUID] = None,
     ) -> bool:
-        deleted: List[SecretResponseDTO] = []
         with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
-            await self.secrets_dao.delete(
+            deleted = await self.secrets_dao.delete(
                 owner=_organization(organization_id),
                 secret_id=secret_id,
-                authorize_delete=deleted.append,
                 shareable=True,
             )
-        for secret_dto in deleted:
-            await self._organization_written(
-                organization_id=organization_id,
-                secret_id=secret_id,
-                kind=secret_dto.kind,
-                availability=secret_dto.availability or SecretAvailability.ALL_PROJECTS,
-                selected_count=len(secret_dto.selected_project_ids or []),
-                action="deleted",
-                user_id=user_id,
-            )
-        return bool(deleted)
+        if deleted is None:
+            return False
+        await self._organization_written(
+            organization_id=organization_id,
+            secret_id=secret_id,
+            kind=deleted.kind,
+            availability=deleted.availability or SecretAvailability.ALL_PROJECTS,
+            selected_count=len(deleted.selected_project_ids or []),
+            action="deleted",
+            user_id=user_id,
+        )
+        return True
 
     async def set_organization_secret_availability(
         self,
@@ -1455,22 +1465,9 @@ class VaultService:
         project_ids: Sequence[UUID],
         user_id: Optional[UUID],
     ) -> Optional[SecretResponseDTO]:
-        try:
-            await self._check_project_limit(
-                organization_id=organization_id, availability=availability
-            )
-        except ProjectLimitNotAllowed:
-            # An id that names no credential of this organization (an SSO row, another
-            # organization's row, a missing one) answers not found, as on every other
-            # organization route. Read only on this refusal path.
-            if (
-                await self.fetch_organization_secret(
-                    organization_id=organization_id, secret_id=secret_id
-                )
-                is None
-            ):
-                raise OrganizationSecretNotFound() from None
-            raise
+        await self._check_project_limit(
+            organization_id=organization_id, availability=availability
+        )
         with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
             secret_dto = await self.secrets_dao.set_availability(
                 owner=_organization(organization_id),

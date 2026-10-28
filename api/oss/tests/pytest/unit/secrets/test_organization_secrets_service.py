@@ -606,3 +606,47 @@ async def test_a_failed_project_list_logs_and_does_not_raise(
     messages = " ".join(r.getMessage() for r in caplog.records)
     assert "cache invalidation failed" in messages
     assert "event not published" in messages
+
+
+async def test_a_login_write_is_audited_when_a_person_makes_it(world):
+    vault = world["vault"](_AllowLimits())
+    created = await vault.create_organization_secret(
+        organization_id=world["organization_id"],
+        create_secret_dto=CreateSecretDTO.model_validate(
+            {
+                "header": {},
+                "secret": {
+                    "kind": "subscription_provider",
+                    "data": {"provider": "claude"},
+                },
+                "scope": "organization",
+            }
+        ),
+        user_id=uuid4(),
+        availability=SecretAvailability.SELECTED_PROJECTS,
+        project_ids=[world["sales"]],
+    )
+    world["events"].clear()
+
+    def rename(stored):
+        return UpdateSecretDTO.model_validate({"header": {"name": "Claude"}})
+
+    person = uuid4()
+    await vault.update_secret_atomically(
+        secret_id=created.id,
+        organization_id=world["organization_id"],
+        user_id=person,
+        resolve_update=rename,
+    )
+    # A refresh a run pushes is no person's change: cache only, no event.
+    await vault.update_secret_atomically(
+        secret_id=created.id,
+        organization_id=world["organization_id"],
+        resolve_update=rename,
+    )
+
+    assert len(world["events"]) == 1
+    attributes = world["events"][0]["event"].attributes
+    assert attributes["action"] == "updated"
+    assert attributes["user_id"] == str(person)
+    assert attributes["project_count"] == 1

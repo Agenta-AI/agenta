@@ -85,6 +85,7 @@ export {
     isAgentDeploymentProviderKind,
     resolveAgentModelSelection,
     connectionNamespaceFrom,
+    savedConnectionNamespace,
     connectionScopeFrom,
     explicitAgentConnection,
     selectableAgentHarnesses,

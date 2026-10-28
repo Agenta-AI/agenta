@@ -203,6 +203,8 @@ class SecretsDAO(SecretsDAOInterface):
         project_ids: Sequence[UUID] = (),
         user_id: Optional[UUID] = None,
     ) -> SecretResponseDTO:
+        """`availability` set is the shareable create: an organization connection with its
+        selected projects, answered with them."""
         columns = owner_columns(owner)
 
         secrets_dbe = map_secrets_dto_to_dbe(
@@ -410,24 +412,26 @@ class SecretsDAO(SecretsDAOInterface):
         secret_id: UUID,
         authorize_delete: Optional[Callable[[SecretResponseDTO], None]] = None,
         shareable: bool = False,
-    ) -> None:
+    ) -> Optional[SecretResponseDTO]:
         try:
             async with self.engine.session() as session:
                 vault_secret_dbe, selected = await self._locked(
                     session, owner=owner, secret_id=secret_id, shareable=shareable
                 )
                 if vault_secret_dbe is None:
-                    return
+                    return None
 
+                deleted = (
+                    _shareable_dto(vault_secret_dbe, selected)
+                    if shareable
+                    else map_secrets_dbe_to_dto(secrets_dbe=vault_secret_dbe)
+                )
                 if authorize_delete is not None:
-                    authorize_delete(
-                        _shareable_dto(vault_secret_dbe, selected)
-                        if shareable
-                        else map_secrets_dbe_to_dto(secrets_dbe=vault_secret_dbe)
-                    )
+                    authorize_delete(deleted)
 
                 await session.delete(vault_secret_dbe)
                 await session.commit()
+                return deleted
         except DBAPIError as error:
             raise _conflict_from(error) from None
 

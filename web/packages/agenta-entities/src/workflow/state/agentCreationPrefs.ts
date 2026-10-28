@@ -7,7 +7,7 @@
 import {atomWithStorage} from "jotai/utils"
 
 import {
-    connectionNamespaceFrom,
+    savedConnectionNamespace,
     explicitAgentConnection,
     type AgentModelSelection,
 } from "../../secret/core"
@@ -52,7 +52,7 @@ export function selectionFromAgentCreationPrefs(
         // Under `self_managed` a slug names a stored subscription sign-in; no slug means a
         // login mounted on the runner. Both are real routes, so the slug is kept in either mode.
         slug: prefs.connectionSlug ?? null,
-        namespace: mode === "agenta" ? connectionNamespaceFrom(prefs.connectionNamespace) : null,
+        namespace: savedConnectionNamespace(mode, prefs.connectionNamespace),
         harness: prefs.harness,
     }
 }
@@ -125,24 +125,6 @@ export function applyAgentCreationPrefs(
     }
 
     return next
-}
-
-/**
- * Give an agent config that names no model connection the explicit project default, so a saved
- * agent keeps the connection it was saved with. A config that already names one is unchanged.
- */
-export function withExplicitAgentConnection(
-    agentConfig: Record<string, unknown>,
-): Record<string, unknown> {
-    const llm = objectAt(agentConfig, "llm")
-    const connection = llm.connection
-    if (connection && typeof connection === "object" && !Array.isArray(connection)) {
-        return agentConfig
-    }
-    return {
-        ...agentConfig,
-        llm: {...llm, connection: explicitAgentConnection({mode: "agenta"})},
-    }
 }
 
 /** The object at `key`, or `{}` when the config carries nothing usable there. */

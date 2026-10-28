@@ -33,6 +33,18 @@ export const connectionNamespaceFrom = (value: unknown): AgentConnectionNamespac
         : null
 
 /**
+ * The namespace a saved pick keeps: any one beside an `agenta` slug, and `organization` in either
+ * mode, since it names the organization's connection rather than the project's.
+ */
+export const savedConnectionNamespace = (
+    mode: AgentConnectionMode,
+    value: unknown,
+): AgentConnectionNamespace | null => {
+    const namespace = connectionNamespaceFrom(value)
+    return mode === "agenta" || namespace === "organization" ? namespace : null
+}
+
+/**
  * Whose connection an `agenta` slug names: the project's, or the organization's. An agent uses an
  * organization connection only when it names it (with namespace `organization`).
  */
@@ -42,10 +54,9 @@ export const connectionScopeFrom = (value: unknown): AgentConnectionScope | null
     value === "project" || value === "organization" ? value : null
 
 /**
- * The `agent.llm.connection` object a save writes. Every save writes one explicitly, so an agent
- * keeps the connection it was saved with. An `agenta` connection names its scope; an organization
- * one also carries namespace `organization`, so an older runtime refuses it rather than reading its
- * slug as a project connection.
+ * The `agent.llm.connection` object for a connection. An organization connection names its scope
+ * and carries namespace `organization`, so an older runtime refuses it rather than reading its
+ * slug as a project connection; omitted, the scope is the project's.
  */
 export const explicitAgentConnection = ({
     mode,
@@ -67,9 +78,7 @@ export const explicitAgentConnection = ({
         connection.namespace = "organization"
         return connection
     }
-    if (mode !== "agenta") return connection
-    connection.scope = "project"
-    if (slug && namespace && namespace !== "organization") connection.namespace = namespace
+    if (mode === "agenta" && slug && namespace) connection.namespace = namespace
     return connection
 }
 

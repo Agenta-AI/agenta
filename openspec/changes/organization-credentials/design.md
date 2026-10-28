@@ -22,7 +22,7 @@ An organization credential value (the primary value and every credential extras 
 
 The LLM gateway resolves organization connections in process, and the sandbox receives only a gateway-audience credential. HTTP reads treat organization rows as follows:
 
-- `GET /secrets/` lists project rows, as today. With `include_organization=true` it adds the organization rows available to the project, without values and without previews. A request with the `secret-resolve` grant never receives organization rows; the parameter is ignored for it.
+- `GET /secrets/` lists project rows, as today. With `include_organization=true` it adds the organization rows available to the project, without values and without previews. The runtime never asks for them, and a request with the `secret-resolve` grant that did would still get no value.
 - `GET /secrets/{id}`, `PUT` and `DELETE /secrets/{id}` answer a project caller exactly as before. They reach an organization row only for an owner or admin of the organization (route section).
 - An organization row never returns a value or a partial value (no key preview), also to owners. Admins replace values; they do not read them back.
 - `POST /providers/probe` tests an organization connection as saved for any member of a project it is available to (`secret_scope = organization`); a probe that changes a stored field needs the organization access decision. The value goes from the API to the provider only.
@@ -47,7 +47,7 @@ An agent names its connection with a scope: `project` (the default, also for age
 
 An organization connection is saved as `{"mode": "agenta", "scope": "organization", "namespace": "organization", "slug": ...}`. The SDK `Connection` model fills the namespace when it is omitted, and the commit check refuses an incomplete one (`invalid_agent_connection`). A services image older than M5 does not know the `organization` namespace and refuses the connection instead of reading the slug as a project connection. Without the gateway, the SDK refuses an organization connection (`organization_connection_unavailable`) and never reads the vault for it. The runner holds no provider key in gateway mode, so its version does not matter here.
 
-Every save path writes the connection explicitly: the `/m` model picker and the agent create path write `{"mode": "agenta", "scope": "project"}` for the project default, and the template compiler writes it when the base revision names none. A save never checks whether a named item exists or is usable (owner decision, 2026-10-26); a `self_managed` connection commits with or without a slug, as on v0.125.0, and the runner decides at run time.
+An agent that names no connection uses the project default, as on v0.125.x; no save path writes that default (conductor decision, 2026-10-28: nothing reads it). A save never checks whether a named item exists or is usable (owner decision, 2026-10-26); a `self_managed` connection commits with or without a slug, as on v0.125.0, and the runner decides at run time.
 
 ### D6. EE project limit
 

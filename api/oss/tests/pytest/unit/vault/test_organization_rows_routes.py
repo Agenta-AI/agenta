@@ -20,6 +20,7 @@ from oss.src.apis.fastapi.vault.router import (
     VaultRouter,
 )
 from oss.src.core.access.context import reset_request_access, set_request_access
+from oss.src.middlewares.auth import SECRET_RESOLVE_GRANT
 from oss.src.core.memberships.dtos import OrganizationMember
 from oss.src.core.secrets.dtos import CreateSecretDTO, SecretOwner
 from oss.src.core.secrets.enums import SecretOwnerKind
@@ -116,6 +117,8 @@ def world(monkeypatch):
             request.state.user_id = str(state["user"])
             request.state.organization_id = str(state["organization"])
             request.state.project_id = str(sales)
+            if state["credential"] == "run_credential":
+                request.state.token_grants = (SECRET_RESOLVE_GRANT,)
             access = make_request_access(
                 envelope=make_envelope(kind="human", principal_id=state["user"]),
                 credential_kind=state["credential"],
@@ -205,9 +208,18 @@ def test_a_caller_who_does_not_manage_the_organization_gets_403_and_reads_nothin
         world["state"].update(user=user, credential=credential)
         for method, path, body in _routes(uuid4()):
             response = _call(client, method, path, body)
+            read_by_id = (
+                method == "get" and path.split("?")[0].strip("/").count("/") == 1
+            )
+            if credential == "run_credential" and read_by_id:
+                # The run's own credential reads by scope only the login it names, by slug:
+                # an id names none.
+                assert response.status_code == 404, (method, path)
+                continue
             assert response.status_code == 403, (method, path, credential)
             assert response.json() == {"detail": ORGANIZATION_DENIED_MESSAGE}
-    assert world["dao"].calls == []
+    # Only the run's release read touched storage, and only the project's own entry.
+    assert set(world["dao"].calls) <= {"load_effective"}
 
 
 @pytest.mark.parametrize("who", ["owner", "admin"])
@@ -462,7 +474,7 @@ def test_logs_carry_no_value(world, caplog, capsys, monkeypatch):
     assert SENTINEL_KEY not in captured.out + captured.err
 
 
-def test_a_limit_on_an_unknown_sso_or_foreign_id_answers_404_before_403(world):
+def test_a_limit_the_organization_may_not_set_answers_403_for_any_id(world):
     client, _ = world["client"](NoProjectLimits())
     sso = world["dao"]._store(
         world["dao"]._build(
@@ -501,7 +513,7 @@ def test_a_limit_on_an_unknown_sso_or_foreign_id_answers_404_before_403(world):
     }
     for secret_id in (uuid4(), sso.id, foreign.id):
         response = client.put(f"/secrets/{secret_id}/projects", json=limited)
-        assert response.status_code == 404, (secret_id, response.text)
+        assert response.status_code == 403, (secret_id, response.text)
     own = _create(client, org_secret_payload(slug="own")).json()
     assert client.put(f"/secrets/{own['id']}/projects", json=limited).status_code == 403
 

@@ -10,7 +10,7 @@ A company with ten projects pastes the same OpenAI key ten times, and edits ten 
 - An admin chooses which projects may use each connection: all projects (the default for a new connection) or, in EE, selected projects. OSS runs the same code but refuses the limit setting.
 - An agent uses exactly the connection it picked, by scope and name: a project connection, or an organization connection. Nothing is inherited or overridden automatically. A project connection and an organization connection with the same name are two separate connections. See CONTRACT.md section 8.
 - An agent with no connection keeps today's behavior: the project's default for the provider. No data is backfilled.
-- Every save path and the template default write an explicit connection. A save never checks whether a named item exists or is usable.
+- An agent that names no connection keeps the project default, as on v0.125.x. A save never checks whether a named item exists or is usable.
 - Organization owners and admins may also hold ChatGPT and Claude subscription logins (owner decision, 2026-10-26). An agent uses one only when it names it. Once released to the run, it behaves exactly like a project subscription login of the same provider, on the same engines (owner decision, 2026-10-27).
 - Organization API keys and custom providers never leave the API. Runs use them only through the LLM gateway. Paths that deliver plaintext values (the SDK vault fallback, the legacy vault middleware) never receive them.
 - Project members see the organization connections their project may use (name, provider, status) in the project connection list, never their values, and may test one as saved.

@@ -104,16 +104,12 @@ A new organization connection SHALL start with `availability = all_projects` unl
 - **WHEN** an owner posts an OpenAI `provider_key` with no name and no availability
 - **THEN** Agenta SHALL store it with availability `all_projects` and the name "OpenAI (Organization)".
 
-### Requirement: Saved agents name their connection explicitly
-Every agent save path and the template default SHALL write an explicit `agent.llm.connection`. An organization connection SHALL be saved with scope `organization`, its slug and namespace `organization`; a commit missing any of them SHALL be refused with HTTP 422 (`invalid_agent_connection`).
+### Requirement: An organization connection is saved complete
+An agent with no `agent.llm.connection` SHALL keep the project default, as on v0.125.x; no save path writes that default. An organization connection SHALL be saved with scope `organization`, its slug and namespace `organization`; a commit missing any of them SHALL be refused with HTTP 422 (`invalid_agent_connection`).
 
 #### Scenario: Incomplete organization connection
 - **WHEN** an agent is saved with scope `organization` and no slug
 - **THEN** Agenta SHALL return HTTP 422 and SHALL NOT store the revision.
-
-#### Scenario: Template agent
-- **WHEN** an agent is created from a template whose base revision names no connection
-- **THEN** the stored agent SHALL carry `{"mode": "agenta", "scope": "project"}`.
 
 ### Requirement: A save does not check that named items exist or are usable
 A commit SHALL NOT be refused because a named connection is missing or unusable where it runs. A `self_managed` connection SHALL commit with or without a slug, as on v0.125.0; the runner decides at run time.
