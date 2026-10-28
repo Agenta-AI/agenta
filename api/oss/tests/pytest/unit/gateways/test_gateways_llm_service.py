@@ -42,7 +42,6 @@ from oss.src.core.gateways.llms.types import (
 from oss.src.core.gateways.policy.dtos import (
     BoundSecretRef,
     ProviderKeyRef,
-    SecretMode,
     SecretOwner,
     SecretOwnerKind,
     GatewayUsage,
@@ -161,8 +160,8 @@ class _MockResolver(SecretsResolverInterface):
         self.connections = connections or {}
         self.resolve_calls: List[tuple] = []
 
-    async def resolve(self, *, scope, ref, mode):
-        self.resolve_calls.append((scope, ref, mode))
+    async def resolve(self, *, scope, ref):
+        self.resolve_calls.append((scope, ref))
         assert self.secret is not None, "resolve() called with no secret stubbed"
         return self.secret
 
@@ -1473,7 +1472,6 @@ async def test_successful_non_streaming_call_records_before_it_returns():
 
     assert result is adapter_result
     assert len(adapter.calls) == 1
-    assert resolver.resolve_calls[0][2] == SecretMode.PROJECT_ONLY
 
     # Adapters fill usage while the body generator runs, so the recording still waits for
     # the drain — but on this path the SERVICE is what drains, because the caller builds a

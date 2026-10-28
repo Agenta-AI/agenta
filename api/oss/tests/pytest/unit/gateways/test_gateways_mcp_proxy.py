@@ -33,7 +33,7 @@ from oss.src.core.gateways.mcps.types import (
     MCPToolNotAllowedError,
     MCPUpstreamError,
 )
-from oss.src.core.gateways.policy.dtos import SecretMode, SecretOwnerKind
+from oss.src.core.gateways.policy.dtos import SecretOwnerKind
 from oss.src.core.gateways.policy.types import (
     CeilingExceededError,
     SecretInvalidError,
@@ -230,7 +230,6 @@ def _scope_insufficient():
 
 def _secret_missing():
     return SecretNotFoundError(
-        mode=SecretMode.PROJECT_ONLY,
         missing=SecretOwnerKind.PROJECT,
         target="custom/acme-notion",
     )

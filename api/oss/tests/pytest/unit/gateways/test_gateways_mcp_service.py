@@ -60,7 +60,6 @@ from oss.src.core.gateways.policy.dtos import (
     SecretOwnerKind,
     PolicyDecision,
     ResolvedSecret,
-    SecretMode,
     SecretOrigin,
 )
 from oss.src.core.gateways.policy.service import GatewayPolicyService
@@ -671,14 +670,12 @@ class MockResolver:
 
     def __init__(self, *, secret=None, raise_exc=None, provider_keys=None) -> None:
         self.resolve_calls = 0
-        self.last_mode = None
         self._secret = secret
         self._raise = raise_exc
         self._provider_keys = provider_keys or set()
 
-    async def resolve(self, *, scope, ref, mode):
+    async def resolve(self, *, scope, ref):
         self.resolve_calls += 1
-        self.last_mode = mode
         if self._raise is not None:
             raise self._raise
         return self._secret
@@ -906,7 +903,6 @@ async def test_relay_standard_composio_resolves_only_the_project_provider_key():
 
     assert result.status_code == 200
     assert resolver.resolve_calls == 1
-    assert resolver.last_mode.value == "project_only"
     assert isinstance(adapter.last_auth, MCPDirectAuth)
     assert adapter.last_route.project_id == scope.project_id
 
@@ -1433,7 +1429,6 @@ async def test_an_oauth_connection_naming_a_grant_the_vault_lost_offers_a_reconn
             raise_exc=SecretNotFoundError(
                 missing=SecretOwnerKind.PROJECT,
                 target="custom/acme-notion",
-                mode=SecretMode.PROJECT_ONLY,
             )
         ),
         adapters={"http": MockUpstreamAdapter()},
@@ -1741,9 +1736,8 @@ class _SequenceResolver(MockResolver):
         super().__init__()
         self._secrets = list(secrets)
 
-    async def resolve(self, *, scope, ref, mode):
+    async def resolve(self, *, scope, ref):
         self.resolve_calls += 1
-        self.last_mode = mode
         return self._secrets[min(self.resolve_calls, len(self._secrets)) - 1]
 
 
@@ -2911,7 +2905,6 @@ async def test_the_url_secret_is_the_project_secret_the_relay_would_send():
     resolver.resolve.assert_awaited_once_with(
         scope=scope,
         ref=BoundSecretRef(secret_id=secret_id),
-        mode=SecretMode.PROJECT_ONLY,
     )
 
 

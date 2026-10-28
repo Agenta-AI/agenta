@@ -25,7 +25,7 @@ from oss.src.core.gateways.llms.types import (
     LLMUpstreamTimeoutError,
 )
 from oss.src.core.access.permissions.types import Permission
-from oss.src.core.gateways.policy.dtos import SecretMode, SecretOwnerKind
+from oss.src.core.gateways.policy.dtos import SecretOwnerKind
 from oss.src.core.gateways.policy.types import (
     CeilingExceededError,
     SecretInvalidError,
@@ -364,7 +364,6 @@ _DENIAL_CASES = [
     ),
     (
         SecretNotFoundError(
-            mode=SecretMode.PROJECT_ONLY,
             missing=SecretOwnerKind.PROJECT,
             target="t",
         ),
@@ -820,9 +819,7 @@ async def test_an_upstream_failure_does_not_relay_its_adapters_message():
 @pytest.mark.parametrize(
     "exc",
     [
-        SecretNotFoundError(
-            mode=SecretMode.PROJECT_ONLY, missing=SecretOwnerKind.PROJECT, target="t"
-        ),
+        SecretNotFoundError(missing=SecretOwnerKind.PROJECT, target="t"),
         SecretInvalidError(target="t", detail="revoked"),
     ],
 )

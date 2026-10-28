@@ -5,7 +5,7 @@
 
 ## 2. Binding service and claims
 
-- [ ] 2.1 `core/credentials/` and `CredentialBindingService`; replace `SecretMode` and the policy-level `SecretOwner`. Spec: connection-bindings.
+- [x] 2.1 `core/credentials/` and `CredentialBindingService`; replace `SecretMode` and the policy-level `SecretOwner`. Spec: connection-bindings.
 - [ ] 2.2 Owner-scoped DAO methods; organization-row readers filter `user_id IS NULL`.
 - [ ] 2.3 Sign `gateway_bindings` in `_prepare_invoke`, copy it in `issue_gateway_credentials`, apply it in the gateway and vault reads. Spec: "Bindings come from the server".
 

@@ -9,7 +9,6 @@ from pydantic import BaseModel
 from oss.src.core.gateways.policy.dtos import (
     GatewayOutcome,
     GatewayTarget,
-    SecretMode,
     SecretRef,
     ResolvedSecret,
     SpendAdmission,
@@ -41,19 +40,11 @@ class SecretsResolverInterface(ABC):
         scope: AuthScope,
         #
         ref: SecretRef,
-        mode: SecretMode,
     ) -> ResolvedSecret:
         """Resolve one secret for one call.
 
-        The mode logic, in full (`secrets.md`):
-          PROJECT_ONLY  -> the project secret; SecretNotFoundError(PROJECT) if absent.
-          USER_REQUIRED -> the (project, user) secret; SecretNotFoundError(USER)
-                           if absent — NEVER falls back.
-          USER_OPTIONAL -> the (project, user) secret if present, else the
-                           project's; SecretNotFoundError(USER) naming the
-                           narrower owner if neither exists.
-
-        User-owned secrets are not currently resolved.
+        Resolves the project's secret. A person's own secret goes through
+        select_personal_credential, never through this method.
 
         By ref arm:
           ProviderKeyRef -> scan the project's provider_key / custom_provider
