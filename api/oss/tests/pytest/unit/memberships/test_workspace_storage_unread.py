@@ -13,6 +13,7 @@ from pathlib import Path
 from oss.src.dbs.postgres.shared.base import Base
 from oss.src.dbs.postgres.shared.dbas import ScopeDBA
 from oss.src.models import db_models
+from oss.src.services import db_manager
 
 _API = Path(__file__).resolve().parents[5]
 _DEPLOYED = (_API / "oss" / "src", _API / "ee" / "src", _API / "entrypoints")
@@ -29,6 +30,10 @@ _PATTERNS = {
         re.S,
     ),
     "meters.workspace_id": re.compile(r"\b(meters|MeterDBE)\.workspace_id\b"),
+    # A wildcard over `projects` reads `workspace_id` while the column exists.
+    "projects wildcard": re.compile(
+        r"\bp\.\*|(UPDATE|INSERT INTO|FROM) projects\b[^\"]*?RETURNING \*", re.S
+    ),
     "workspace models": re.compile(
         r"\b(WorkspaceDB|WorkspaceMemberDB|WorkspaceScopeDBA)\b"
     ),
@@ -61,3 +66,8 @@ def test_the_orm_maps_no_workspace_table_or_column():
     assert not hasattr(db_models, "WorkspaceDB")
     assert not hasattr(db_models, "WorkspaceMemberDB")
     assert not hasattr(ScopeDBA, "workspace_id")
+
+
+def test_explicit_project_columns_are_the_mapped_ones():
+    mapped = {column.name for column in db_models.ProjectDB.__table__.columns}
+    assert set(db_manager._PROJECT_COLUMNS.split(", ")) == mapped

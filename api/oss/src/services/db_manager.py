@@ -113,15 +113,23 @@ async def fetch_projects_by_organization(
 # every time. Without a default, the organization's first project by the same order.
 _ORGANIZATION_PROJECT_ORDER = "p.created_at ASC NULLS LAST, p.id ASC"
 
+# The columns `ProjectDB` maps, named one by one: a wildcard would also read the legacy
+# workspace column, which no code reads since workspace removal step 2b.
+_PROJECT_COLUMNS = (
+    "id, project_name, is_default, organization_id, created_at, updated_at, "
+    "deleted_at, created_by_id, updated_by_id, deleted_by_id"
+)
+_P_PROJECT_COLUMNS = ", ".join(f"p.{c}" for c in _PROJECT_COLUMNS.split(", "))
+
 _PROJECT_BY_ORGANIZATION_SQL = f"""
-SELECT p.* FROM projects p
+SELECT {_P_PROJECT_COLUMNS} FROM projects p
 WHERE p.organization_id = CAST(:organization_id AS uuid)
 ORDER BY (p.is_default IS TRUE) DESC, {_ORGANIZATION_PROJECT_ORDER}
 LIMIT 1
 """
 
 _FIRST_PROJECT_BY_ORGANIZATION_SQL = f"""
-SELECT p.* FROM projects p
+SELECT {_P_PROJECT_COLUMNS} FROM projects p
 WHERE p.organization_id = CAST(:organization_id AS uuid)
 ORDER BY {_ORGANIZATION_PROJECT_ORDER}
 LIMIT 1
@@ -908,13 +916,13 @@ SELECT pg_advisory_xact_lock(
 FROM projects p WHERE p.id = :id
 """
 
-_SET_DEFAULT_PROJECT_SQL = """
+_SET_DEFAULT_PROJECT_SQL = f"""
 WITH cleared AS (
     UPDATE projects SET is_default = false
     WHERE organization_id = :organization_id AND is_default IS TRUE AND id <> :id
 )
 UPDATE projects SET is_default = true WHERE id = :id
-RETURNING *
+RETURNING {_PROJECT_COLUMNS}
 """
 
 
@@ -1376,7 +1384,7 @@ async def admin_create_organization(
         return org_db
 
 
-_ADMIN_INSERT_PROJECT_SQL = """
+_ADMIN_INSERT_PROJECT_SQL = f"""
 WITH cleared AS (
     UPDATE projects SET is_default = false
     WHERE organization_id = :organization_id AND is_default IS TRUE
@@ -1385,7 +1393,7 @@ WITH cleared AS (
 INSERT INTO projects (id, project_name, is_default, organization_id,
                       created_at, updated_at)
 VALUES (:id, :name, :is_default, :organization_id, now(), now())
-RETURNING *
+RETURNING {_PROJECT_COLUMNS}
 """
 
 

@@ -1458,8 +1458,13 @@ async def test_org_details_list_the_members_of_the_organization_default():
             assert len(statements) == 1
             # Step 2b: the project the member routes use (the organization default,
             # else its oldest project); no workspace row decides.
-            expected = await db_manager.get_project_by_workspace(organization_id)
-            assert project.id == expected.id, organization_id
+            expected = await fetch_all(
+                "SELECT id FROM projects WHERE organization_id = :o "
+                "ORDER BY is_default IS TRUE DESC, created_at ASC NULLS LAST, id ASC "
+                "LIMIT 1",
+                {"o": seeded.organization_id},
+            )
+            assert project.id == expected[0]["id"], organization_id
             details = await db_manager.get_org_details(
                 await db_manager.get_organization(organization_id)
             )
@@ -1471,7 +1476,8 @@ async def test_org_details_list_the_members_of_the_organization_default():
                     {"p": project.id},
                 )
             }
-            assert members <= listed, organization_id
+            # No invitation is pending in these fixtures: exactly the project's members.
+            assert members == listed, organization_id
     finally:
         for seeded in fixtures:
             await delete_seeded_organization(seeded)
