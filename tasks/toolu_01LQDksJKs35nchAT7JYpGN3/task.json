@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01LQDksJKs35nchAT7JYpGN3",
+  "agent_id": "aa38c51ecd345179f",
+  "subagent_type": "Explore",
+  "task_description": "Review chat and drive retention",
+  "token_usage": {
+    "input_tokens": 70,
+    "cache_creation_tokens": 81123,
+    "cache_read_tokens": 2091387,
+    "output_tokens": 11897,
+    "api_call_count": 35
+  },
+  "started_at": "2026-10-27T16:26:47.987886431+01:00",
+  "completed_at": "2026-10-27T16:28:57.722187384+01:00"
+}

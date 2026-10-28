@@ -1,0 +1,180 @@
+the box is full disk and memory can you help me fix that? propose what can we close very quickly
+
+---
+
+<task-notification>
+<task-id>bz1501yjl</task-id>
+<tool-use-id>toolu_01UTxL2J4HDjQBA5ddU5YJmg</tool-use-id>
+<output-file>/tmp/claude-1000/-home-mahmoud-code-agenta/b385fd57-efb2-436a-9e8e-8f9485b5a086/tasks/bz1501yjl.output</output-file>
+<status>failed</status>
+<summary>Background command "Read partial disk scan and Docker root" failed with exit code 1</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>b6yukgyys</task-id>
+<tool-use-id>toolu_017rcVuBY6TRXHqSZdTuAa4q</tool-use-id>
+<output-file>/tmp/claude-1000/-home-mahmoud-code-agenta/b385fd57-efb2-436a-9e8e-8f9485b5a086/tasks/b6yukgyys.output</output-file>
+<status>completed</status>
+<summary>Background command "Measure size of top-level home and data folders" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>b7b2hqut3</task-id>
+<tool-use-id>toolu_01So9PxJfPn2pDXhECthGDjS</tool-use-id>
+<output-file>/tmp/claude-1000/-home-mahmoud-code-agenta/b385fd57-efb2-436a-9e8e-8f9485b5a086/tasks/b7b2hqut3.output</output-file>
+<status>completed</status>
+<summary>Background command "Find the biggest directories on disk" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<!-- reply 3 -->
+> /data/backups/hetzner/seaweedfs	283 GB	A copy of the oss-team drive data from the Hetzner move on Oct 12–13. oss-team has run on this box since then.
+
+if this is an old backup and not the thing we use, let's remove it
+
+<!-- reply -->
+> /data/backups/seaweedfs/oss-team	235 GB	The nightly backups (Oct 18 and Oct 25).
+
+why is it so large, do we have a file or folder too large that we can remove?
+
+<!-- reply -->
+> ~/code/agenta/.claude/worktrees holds 55 GB. These are 46 worktrees that subagents created with isolation: worktree. Many are probably left over from finished work. Some may still hold commits that were never pushed, so this cleanup is not instant. I would need to check each worktree, remove only the ones with no unpushed or uncommitted work, and list the rest for you. That takes about 10 to 15 minutes, not seconds.
+
+let's then go over these and remove the old ones (more than two weeks not touched where everything is already pushed to remote)
+
+---
+
+<task-notification>
+<task-id>ba85sx5gh</task-id>
+<tool-use-id>toolu_012UdWbtUiyYe512nNPasChT</tool-use-id>
+<output-file>/tmp/claude-1000/-home-mahmoud-code-agenta/b385fd57-efb2-436a-9e8e-8f9485b5a086/tasks/ba85sx5gh.output</output-file>
+<status>completed</status>
+<summary>Background command "Delete the old Hetzner backup snapshots" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>b1odptwx9</task-id>
+<tool-use-id>toolu_014TCojj8S64dwDXrGY62CEY</tool-use-id>
+<output-file>/tmp/claude-1000/-home-mahmoud-code-agenta/b385fd57-efb2-436a-9e8e-8f9485b5a086/tasks/b1odptwx9.output</output-file>
+<status>completed</status>
+<summary>Background command "Measure each mount inside the largest project" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<!-- reply 1 -->
+> Delete the old logs in those sessions. This frees the most space, both in the store and in every backup. But it is the team’s live data. The people who use those sessions would lose their history, and a session may stop resuming. I recommend that you or the team decide which sessions are finished. I will not delete anything there on my own.
+
+let's remove these sessions. also review whether we have some retention period for chats? are these retained infinitely?
+
+---
+
+<task-notification>
+<task-id>aa38c51ecd345179f</task-id>
+<tool-use-id>toolu_01LQDksJKs35nchAT7JYpGN3</tool-use-id>
+<output-file>/tmp/claude-1000/-home-mahmoud-code-agenta/b385fd57-efb2-436a-9e8e-8f9485b5a086/tasks/aa38c51ecd345179f.output</output-file>
+<status>completed</status>
+<summary>Agent "Review chat and drive retention" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>## 1. Retention: is there any?
+
+**Answer: No for the session itself, its turns, its mounts and the harness logs. Those are kept forever. Two narrow exceptions apply: session records (the event log) in EE cloud plans, and old object versions on the bundled SeaweedFS.**
+
+**Nothing purges sessions, turns, interactions or mounts.**
+- I found no TTL, retention setting or scheduled job for `session_streams`, `session_turns`, `session_interactions`, `session_inputs`, `session_commands` or `mounts`.
+- Searching `api/oss/src/core/sessions`, `core/mounts`, `dbs/postgres/{sessions,mounts}`, `api/ee/src/core/sessions` and `api/entrypoints` for retention, TTL, purge, sweep, cleanup and prune finds no such job. There is also no query that deletes rows by `deleted_at` age anywhere in `api/oss/src` or `api/ee/src`.
+- The OSS cron jobs are `api/oss/src/crons/{gateways,queries,triggers}.txt`. They only call the OAuth-attempt sweep, evaluation-run refresh and trigger-schedule refresh. None of them touches sessions or mounts.
+- Archiving is soft and reversible. It sets `deleted_at` on the stream row and the session's mounts (`api/oss/src/core/sessions/service.py:369-400`, `api/oss/src/core/mounts/service.py:981-1029`). Nothing ever purges archived items later.
+- Generic mounts can only be archived (`mounts/service.py:905`). Outside session delete, they have no hard-delete path.
+- The startup "orphan sweep" (`api/entrypoints/routers.py:384-392`) only settles dead executions. It deletes nothing.
+
+**Exception 1 (EE only): retention for session records.**
+- Session records are the `records` table, which is the session event log.
+- Cron: `api/ee/src/crons/records.txt` runs at minutes 14 and 44 of every hour. It calls `POST /admin/records/flush` (`api/ee/src/crons/records.sh`, router at `api/ee/src/apis/fastapi/sessions/records/router.py:1-60`, mounted at `api/ee/src/main.py:169`).
+- `RecordsRetentionService.flush_records` deletes rows whose `created_at` is older than the cutoff, plan by plan (`api/ee/src/core/sessions/records/service.py:26-122`, `api/ee/src/dbs/postgres/sessions/records/dao.py` around lines 89-121).
+- The retention period comes from the plan's `Counter.RECORDS_INGESTED` setting in `api/ee/src/core/access/entitlements/types.py`:
+  - Hobby: weekly, 7 days (line 358-359)
+  - Pro: monthly, 31 days (line 450-451)
+  - Business: quarterly, 92 days (line 540-541)
+  - `CLOUD_V0_AGENTA_AI` (line 627) and `SELF_HOSTED_ENTERPRISE` (line 665): no retention set, so records are skipped ("unlimited retention").
+- OSS has no records retention at all.
+- This only deletes records. Turns, streams and mounts stay. `service.py:6` and `:350` say that tracing retention owns records.
+
+**Harness logs (`.codex/sessions`, `agents/sessions`): kept forever.**
+- The runner deliberately writes them to the durable cwd mount so that native resume survives a sandbox replacement (`services/runner/src/engines/sandbox_agent/codex-assets.ts:1-5`, `:41-45`; Pi works the same way at `pi-assets.ts:872`, `:882`).
+- The runner's `rmSync` calls only clear local sandbox directories (`session-pool.ts:156`, `:325`, `pi-assets.ts:851`). They never touch object storage.
+- These files are removed only when the session is hard-deleted (section 2).
+
+**`.versions` and old object versions.**
+- The `.versions` folders are not created by Agenta code. Searching for `.versions` finds nothing related. They are most likely how SeaweedFS stores object versions internally, which follows from bucket versioning being on.
+- `store.ensure_version_retention` (`api/oss/src/core/store/storage.py:203-247`) runs at API startup (`api/entrypoints/routers.py:367-382`). It does two things:
+  - turns on bucket versioning;
+  - installs a lifecycle rule named `agenta-noncurrent-version-expiration` with `NoncurrentVersionExpiration(noncurrent_days=N)` on the whole bucket (prefix `""`) (`storage.py:40`, `:268-290`).
+- `N` is `AGENTA_STORE_VERSION_RETENTION_DAYS`, which defaults to 30 (`api/oss/src/utils/env.py:1580-1588`, `:1626-1632`).
+- Setting `N` to 0 removes the rule but leaves versioning on (`storage.py:225-234`). Old versions would then be kept forever. The docs at `docs/docs/self-host/agents/06-back-up-agent-files.mdx` say 0 "turns the whole thing off", which does not match the code.
+- This applies to the bundled SeaweedFS only (`storage.py:220`, `is_seaweedfs` at `:164-168`). For a remote S3 bucket, versioning and lifecycle are left to the operator.
+- Only noncurrent versions expire. Current files are never expired.
+- One thing I could not confirm: whether SeaweedFS 4.47, started as plain `weed server ... -s3` (`hosting/kubernetes/helm/templates/seaweedfs-statefulset.yaml:66`), actually enforces `NoncurrentVersionExpiration`. Nothing in the repo checks this.
+
+## 2. Deletion
+
+There are three different "delete" operations.
+
+| Operation | Endpoint | Effect |
+|---|---|---|
+| Delete session | **`DELETE /sessions/?session_id=&lt;id&gt;`** (operation `delete_session`, permission `EDIT_SESSIONS`) | **Hard delete, including the mount storage** |
+| Archive session | `POST /sessions/archive`, reversed by `POST /sessions/unarchive` | Soft (`deleted_at`) on the stream row and the mounts. Files are untouched |
+| Kill session | `DELETE /sessions/streams/?session_id=&lt;id&gt;` (operation `delete_session_stream`, permission `RUN_SESSIONS`) | Tears down the sandbox, cancels pending interactions, and soft-deletes the stream row. Mounts and files are untouched |
+
+The delete and archive routes are at `api/oss/src/apis/fastapi/sessions/router.py:2117-2160`, and the delete handler is at `:2408-2430`. The kill route is at `router.py:445-450`, its handler at `:630-660`, and the soft delete at `streams/service.py:415-430`.
+
+**What hard delete does.** `SessionsService.delete_session` (`api/oss/src/core/sessions/service.py:336-367`) runs these steps:
+1. Hard-deletes `session_turns` (`turns/dao.py:331-339`, `sa_delete`).
+2. Hard-deletes `session_interactions` (`interactions/dao.py:281-290`).
+3. Calls `mounts_service.delete_session_mounts` (`api/oss/src/core/mounts/service.py:958-979`). This:
+   - hard-deletes every mount row with that `session_id` (`dbs/postgres/mounts/dao.py:237-262`);
+   - then calls `delete_prefix` on `[&lt;namespace&gt;/]mounts/&lt;project_id&gt;/&lt;mount_id&gt;/` for each mount (prefix built at `service.py:447-460`).
+   - This covers the `__ag__session__&lt;uuid5&gt;__cwd` mount, including `.codex/sessions` and `agents/sessions`, and the attachments mount.
+4. Hard-deletes the stream row (`streams/service.py:1134-1149`).
+
+**What hard delete leaves behind.**
+- Records are deliberately kept (`service.py:350`).
+- `session_inputs`, `session_commands`, `session_executions` and `session_attachments` rows are not touched by this fan-out.
+
+**Caveats on purging the files.**
+- `delete_prefix` (`api/oss/src/core/store/storage.py:742-751`) lists the current keys and calls `remove_objects` without version IDs (`delete_keys` at `:723-740`). On the versioned bundled SeaweedFS, this only writes delete markers. The file contents stay as noncurrent versions until the 30-day lifecycle rule expires them, and only if SeaweedFS enforces that rule.
+- On a remote S3 bucket where the operator turned versioning on, the contents stay until the operator's own lifecycle policy removes them.
+- So the files are not purged immediately.
+- Storage deletion is skipped silently if `mounts_store` or `bucket` is not configured (`mounts/service.py:972`).
+
+**Admin path.** There is no admin endpoint that hard-deletes a session or purges mount storage. The only `/admin` routes are billing, spans, events, records, triggers, gateways, evaluations and accounts (`api/ee/src/main.py:148-169`, `api/entrypoints/routers.py:1988`, `:2025`, `:2039`, `:2115`).
+- `delete_prefix` has exactly one caller, `delete_session_mounts`.
+- Deleting a project cascades the `mounts` rows through a foreign key (`dbs/postgres/mounts/dbes.py:17-21`). It does not delete the objects under `mounts/&lt;project_id&gt;/`, so those are left orphaned.
+
+**Bottom line:**
+- **Kept forever?** Yes: session rows, turns, harness logs and cwd mount files stay until the user deletes the session. Archiving and killing do not remove them.
+- **Exceptions:** EE cloud plans prune records after 7, 31 or 92 days. The bundled SeaweedFS expires noncurrent object versions after 30 days by default.
+- **Hard delete with storage:** `DELETE /sessions/?session_id=` is the only path. It removes the rows and the current objects, but on versioned storage the old versions remain until the lifecycle rule expires them.</result>
+<usage><subagent_tokens>84663</subagent_tokens><tool_uses>36</tool_uses><duration_ms>129883</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>by76q2f9o</task-id>
+<tool-use-id>toolu_01MnPCxM6dbTk8j8v1JZC89H</tool-use-id>
+<output-file>/tmp/claude-1000/-home-mahmoud-code-agenta/b385fd57-efb2-436a-9e8e-8f9485b5a086/tasks/by76q2f9o.output</output-file>
+<status>completed</status>
+<summary>Background command "Wait for chunk deletion to settle, then compact the store" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+Yes, file a GitHub issue covering: no retention for sessions and harness logs, delete leaving old versions on versioned SeaweedFS, owner-only delete blocking API keys, and project delete orphaning mount files.
