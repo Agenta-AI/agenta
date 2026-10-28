@@ -244,3 +244,13 @@ it("says channels answer in none while the Channels switch is off", async () => 
         "Channels are switched off above, so it answers in none.",
     )
 })
+
+it("shows the stored channels again when a save fails", async () => {
+    const onSave = vi.fn(async () => {
+        throw new Error("Could not save this setting.")
+    })
+    await openAnswersIn({dm: true, group: true, channels: ["s2"]}, onSave)
+    await click("channels-advanced-answers-all")
+    expect(container.textContent).toContain("Could not save this setting.")
+    expect(byId("channels-advanced-answers-only").dataset.checked).toBe("true")
+})

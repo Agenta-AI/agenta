@@ -76,6 +76,9 @@ const AnswersInRow = ({
         try {
             await onSave(next)
         } catch (e) {
+            // Show what the backend still holds, not what the refused save asked for.
+            setChoice(stored === null ? "all" : "only")
+            setDraft(stored ?? [])
             setError(errorMessage(e, "Could not save this setting."))
         } finally {
             setSaving(false)

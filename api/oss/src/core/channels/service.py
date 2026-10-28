@@ -2,7 +2,7 @@ import json
 import re
 import secrets as token_secrets
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Tuple
 from uuid import UUID, uuid4
 
 from sqlalchemy.exc import IntegrityError
@@ -1361,7 +1361,7 @@ class ChannelsService:
         guard_user_id: Optional[UUID],
         #
         agent: ChannelAgentEdit,
-        limits_artifact_id: Optional[UUID] = None,
+        limits_artifact_ids: Sequence[UUID] = (),
     ) -> Optional[ChannelAgent]:
         """Every binding write. The write names its references and its whole flags,
         taken from the stored row when the edit sends none, and it is guarded when
@@ -1385,13 +1385,10 @@ class ChannelsService:
                 update={"data": data, "flags": agent.flags or stored.flags}
             )
 
-        guard_artifact_id = (
-            await self._activation_guard(
-                project_id=project_id,
-                references=agent.data.references,
-                is_active=agent.flags.is_active,
-            )
-            or limits_artifact_id
+        guard_artifact_id = await self._activation_guard(
+            project_id=project_id,
+            references=agent.data.references,
+            is_active=agent.flags.is_active,
         )
         return await self.channels_dao.edit_agent(
             project_id=project_id,
@@ -1401,6 +1398,7 @@ class ChannelsService:
             #
             guard_artifact_id=guard_artifact_id,
             guard_user_id=guard_user_id,
+            limits_artifact_ids=limits_artifact_ids,
         )
 
     async def create_agent(
@@ -1463,14 +1461,29 @@ class ChannelsService:
         if existing is None:
             return None
 
-        limits_artifact_id = None
-        if (
-            agent.data is not None
-            and "audience" in agent.data.model_fields_set
-            and agent.data.audience != existing.data.audience
-        ):
-            limits_artifact_id = await self._limits_guard(
-                project_id=project_id, agent=existing
+        # The limits (people list, rules) belong to the binding. Changing the
+        # people list is a limits write for the bound agent; pointing the binding
+        # at another agent hands it the binding's limits, so it is a limits write
+        # for that agent. Either way the agent must be the caller's to limit,
+        # active binding or not.
+        merged = _layer_agent_edit(existing=existing, edit=agent)
+        limits_artifact_ids: List[UUID] = []
+        if merged.data.references != existing.data.references:
+            limits_artifact_ids.append(
+                await self._limits_guard(
+                    project_id=project_id,
+                    agent=existing.model_copy(
+                        update={
+                            "data": existing.data.model_copy(
+                                update={"references": merged.data.references}
+                            )
+                        }
+                    ),
+                )
+            )
+        elif merged.data.audience != existing.data.audience:
+            limits_artifact_ids.append(
+                await self._limits_guard(project_id=project_id, agent=existing)
             )
 
         edited = await self._edit_agent_row(
@@ -1478,8 +1491,8 @@ class ChannelsService:
             user_id=user_id,
             guard_user_id=guard_user_id,
             #
-            agent=_layer_agent_edit(existing=existing, edit=agent),
-            limits_artifact_id=limits_artifact_id,
+            agent=merged,
+            limits_artifact_ids=_present(*limits_artifact_ids),
         )
         await self._invalidate_bindings(
             binding_ids=[existing.id], source="channels.edit_agent"
@@ -2239,17 +2252,15 @@ class ChannelsService:
         live_agent = (
             agent is not None and agent.deleted_at is None and agent.flags.is_active
         )
+        # a switched-off place, or no live agent: stored, never answered
+        answers_here = live_agent and space.deleted_at is None and space.flags.is_active
 
         # The agent's people list ("Who can message it"), in memory on the row
         # just read. A refused person's message is not attached to the space,
         # so it never reaches the agent as context, also while the binding is
         # off (it would come back as context when the binding is turned on).
         if agent is not None and not agent.data.audience.admits(_sender_id(event)):
-            if (
-                not live_agent
-                or space.deleted_at is not None
-                or not space.flags.is_active
-            ):
+            if not answers_here:
                 return ChannelRouting()
             return self._refusal(
                 reason=ChannelRefusalReason.SENDER_NOT_ALLOWED,
@@ -2268,8 +2279,7 @@ class ChannelsService:
             space_id=space.id,
         )
 
-        # a switched-off place, or no live agent: stored, never answered
-        if space.deleted_at is not None or not space.flags.is_active or not live_agent:
+        if not answers_here:
             return ChannelRouting()
 
         matching_grants = await self.channels_dao.query_matching_grants(

@@ -538,14 +538,20 @@ class ChannelsDAO(ChannelsDAOInterface):
         #
         guard_artifact_id: Optional[UUID] = None,
         guard_user_id: Optional[UUID] = None,
+        limits_artifact_ids: Sequence[UUID] = (),
     ) -> Optional[ChannelAgent]:
         async with self.engine.session() as session:
+            # Before the binding row: the artifact locks come first, in a fixed
+            # order. `limits_artifact_ids`: the agents whose channel limits this
+            # write changes, checked the same way, active binding or not.
+            guarded = set(limits_artifact_ids)
             if guard_artifact_id is not None:
-                # Before the binding row: the artifact lock comes first.
+                guarded.add(guard_artifact_id)
+            for artifact_id in sorted(guarded):
                 await guard_agent_activation(
                     session,
                     project_id=project_id,
-                    artifact_id=guard_artifact_id,
+                    artifact_id=artifact_id,
                     user_id=guard_user_id,
                 )
 
@@ -1088,8 +1094,9 @@ class ChannelsDAO(ChannelsDAOInterface):
         )
 
         async with self.engine.session() as session:
-            # the owner checks hold their locks through this write
-            for artifact_id in guard_artifact_ids:
+            # the owner checks hold their locks through this write; a fixed lock
+            # order, so two opposite writes cannot deadlock
+            for artifact_id in sorted(set(guard_artifact_ids)):
                 await guard_agent_activation(
                     session,
                     project_id=project_id,
@@ -1192,8 +1199,9 @@ class ChannelsDAO(ChannelsDAOInterface):
         guard_user_id: Optional[UUID] = None,
     ) -> Optional[ChannelGrant]:
         async with self.engine.session() as session:
-            # the owner checks hold their locks through this write
-            for artifact_id in guard_artifact_ids:
+            # the owner checks hold their locks through this write; a fixed lock
+            # order, so two opposite writes cannot deadlock
+            for artifact_id in sorted(set(guard_artifact_ids)):
                 await guard_agent_activation(
                     session,
                     project_id=project_id,
@@ -1238,8 +1246,9 @@ class ChannelsDAO(ChannelsDAOInterface):
         guard_user_id: Optional[UUID] = None,
     ) -> bool:
         async with self.engine.session() as session:
-            # the owner checks hold their locks through this write
-            for artifact_id in guard_artifact_ids:
+            # the owner checks hold their locks through this write; a fixed lock
+            # order, so two opposite writes cannot deadlock
+            for artifact_id in sorted(set(guard_artifact_ids)):
                 await guard_agent_activation(
                     session,
                     project_id=project_id,

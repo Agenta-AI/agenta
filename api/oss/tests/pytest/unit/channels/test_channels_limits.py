@@ -373,7 +373,11 @@ def _sync_guarded(refuse, result):
     given an agent to guard and the caller is not its owner."""
 
     async def write(**kwargs):
-        guarded = kwargs.get("guard_artifact_id") or kwargs.get("guard_artifact_ids")
+        guarded = (
+            kwargs.get("guard_artifact_id")
+            or kwargs.get("guard_artifact_ids")
+            or kwargs.get("limits_artifact_ids")
+        )
         if refuse and guarded:
             raise SharedItemNotFound()
         return result(kwargs)
@@ -432,6 +436,7 @@ async def test_an_edit_that_leaves_the_people_list_alone_is_not_guarded():
         agent=ChannelAgentEdit(id=agent.id, name="renamed"),
     )
     assert dao.edit_agent.await_args.kwargs["guard_artifact_id"] is None
+    assert not dao.edit_agent.await_args.kwargs["limits_artifact_ids"]
 
 
 async def test_someone_else_cannot_add_a_rule_to_a_private_agent():
@@ -806,3 +811,27 @@ async def test_an_excluded_person_writing_in_a_switched_off_place_is_not_stored(
 
     assert routing.resolution is None and routing.refusal is None
     dao.attach_event_to_space.assert_not_awaited()
+
+
+async def test_pointing_an_off_binding_at_someone_elses_private_agent_is_refused():
+    """Otherwise a binding's limits could be changed on another agent and the
+    binding pointed back at the private agent."""
+
+    agent = _agent(senders=[])
+    agent.flags.is_active = False
+    dao = _dao(agent=agent)
+    service = _guarded_service(dao, refuse=True)
+
+    with pytest.raises(SharedItemNotFound):
+        await service.edit_agent(
+            project_id=uuid4(),
+            user_id=uuid4(),
+            guard_user_id=uuid4(),
+            agent=ChannelAgentEdit(
+                id=agent.id,
+                data=ChannelAgentDataEdit(
+                    references={"workflow_revision": {"id": str(uuid4())}}
+                ),
+            ),
+        )
+    assert dao.edit_agent.await_args.kwargs["limits_artifact_ids"]

@@ -197,6 +197,7 @@ class ChannelsDAOInterface(ABC):
         #
         guard_artifact_id: Optional[UUID] = None,
         guard_user_id: Optional[UUID] = None,
+        limits_artifact_ids: Sequence[UUID] = (),
     ) -> Optional[ChannelAgent]:
         """`guard_artifact_id` and `guard_user_id` as in `create_agent`."""
 

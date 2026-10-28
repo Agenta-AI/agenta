@@ -47,7 +47,8 @@ const GROUP =
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 // How long the picker waits after the last key before it searches.
 const SEARCH_DELAY_MS = 250
-// How often the picker asks again while the workspace list loads, and how many times.
+// How often the picker asks again while the workspace list loads, and after how many asks
+// it slows down.
 const LOADING_POLL_MS = 3000
 const LOADING_POLLS = 20
 
@@ -153,11 +154,12 @@ export const ChannelPeopleSection = ({
             polls.current = 0
             return
         }
-        if (polls.current >= LOADING_POLLS) return
+        // Slower after a while: a large workspace can take minutes to list.
+        const wait = polls.current < LOADING_POLLS ? LOADING_POLL_MS : LOADING_POLL_MS * 5
         const timer = setTimeout(() => {
             polls.current += 1
             void search(isSlack ? draft : "")
-        }, LOADING_POLL_MS)
+        }, wait)
         return () => clearTimeout(timer)
     }, [restricted, directory, draft, isSlack, search])
 
