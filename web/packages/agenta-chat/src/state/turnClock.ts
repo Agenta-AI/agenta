@@ -149,7 +149,13 @@ export const settleTurnSpanAtom = atom(
     (get, set, messageId: string, waitingOnReader = false) => {
         const current = get(turnSpanMapAtom)
         const span = current[messageId]
-        if (!span || span.endedAt) return
+        if (!span) return
+        // Already stopped: a wait on the reader that starts now still marks the gate.
+        if (span.endedAt) {
+            if (waitingOnReader && !span.gated)
+                set(turnSpanMapAtom, {...current, [messageId]: {...span, gated: true}})
+            return
+        }
         set(turnSpanMapAtom, {
             ...current,
             [messageId]: {

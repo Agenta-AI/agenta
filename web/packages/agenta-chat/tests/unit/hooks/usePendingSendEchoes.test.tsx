@@ -182,14 +182,22 @@ describe("usePendingSendEchoes", () => {
         expect(result.current.rows).toHaveLength(0)
     })
 
-    it("drops an echo a rewind stranded below its origin", () => {
-        const {result, rerender} = setup([user("h1", "old"), user("h2", "older")])
+    it("keeps an echo when the view remounts on a shorter transcript than it was sent on", () => {
+        const sessionId = nextSessionId()
+        const first = renderHook(() =>
+            usePendingSendEchoes({
+                sessionId,
+                messages: [user("h1", "old"), user("h2", "older")],
+                dockedInputIds: NO_DOCK,
+            }),
+        )
+        act(() => first.result.current.add({id: "m1", text: "new"}))
+        first.unmount()
 
-        act(() => result.current.add({id: "m1", text: "new"}))
-        expect(texts(result.current.rows)).toEqual(["new"])
-
-        rerender({messages: [], dockedInputIds: NO_DOCK})
-        expect(result.current.rows).toHaveLength(0)
+        const second = renderHook(() =>
+            usePendingSendEchoes({sessionId, messages: [], dockedInputIds: NO_DOCK}),
+        )
+        expect(texts(second.result.current.rows)).toEqual(["new"])
     })
 })
 

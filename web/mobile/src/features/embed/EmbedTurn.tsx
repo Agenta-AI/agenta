@@ -116,6 +116,7 @@ const EmbedTurnInner = ({
                             steps={activity.steps}
                             streaming={live}
                             answerStarted={activity.messages.length > 0}
+                            writing={activity.messages.at(-1)?.part.state === "streaming"}
                             waitingOnUser={turn.isLast && waitingOnUser}
                         />
                         {activity.messages.map((message) => (

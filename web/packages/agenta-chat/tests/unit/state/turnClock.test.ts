@@ -185,6 +185,14 @@ describe("turn span gates and send anchors", () => {
         expect(store.get(turnSpanAtomFamily("run"))?.gated).toBe(true)
     })
 
+    it("still marks a gate when the wait begins after the clock already stopped", () => {
+        const store = createStore()
+        store.set(startTurnSpanAtom, "run")
+        store.set(settleTurnSpanAtom, "run")
+        store.set(settleTurnSpanAtom, "run", true)
+        expect(store.get(turnSpanAtomFamily("run"))?.gated).toBe(true)
+    })
+
     it("counts from the send without marking the start as an unsafe anchor", () => {
         vi.useFakeTimers()
         vi.setSystemTime(20_000)

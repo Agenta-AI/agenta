@@ -118,7 +118,10 @@ from oss.src.core.sessions.streams.service import (
     SessionStreamsService,
     derive_command_mode,
 )
-from oss.src.core.sessions.commands.service import SessionCommandsService
+from oss.src.core.sessions.commands.service import (
+    SessionCommandsService,
+    steer_cancel_key,
+)
 from oss.src.core.sessions.commands.types import (
     ExecutionExpectationFailed,
     SessionCommandIdempotencyConflict,
@@ -3576,7 +3579,7 @@ class SessionControlRouter:
                     user_id=UUID(str(user_id)) if user_id else None,
                     session_id=payload.session_id,
                     expected_execution_id=admission.execution_id,
-                    idempotency_key=f"steer:{admission.input.id}",
+                    idempotency_key=steer_cancel_key(admission.input.id),
                     steer_input_id=admission.input.id,
                 )
             except Exception as error:  # noqa: BLE001 - the input is already durable

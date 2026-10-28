@@ -29,9 +29,11 @@ export const formatElapsed = (ms: number, {live}: {live: boolean}): string => {
 export const useTurnClock = (
     messageId: string,
     live: boolean,
-    startedAt?: number,
-    seenFromSend = false,
-    waitingOnReader = false,
+    {
+        startedAt,
+        seenFromSend = false,
+        waitingOnReader = false,
+    }: {startedAt?: number; seenFromSend?: boolean; waitingOnReader?: boolean} = {},
 ): number | null => {
     const span = useAtomValue(turnSpanAtomFamily(messageId))
     const start = useSetAtom(startTurnSpanAtom)

@@ -531,7 +531,15 @@ export const useAgentChatQueue = ({
                         echoes.markFailed(message.id)
                     },
                 })
-            const admit = () => (after ? after.then(submitNow) : submitNow())
+            // A failed `after` means the message never left, so it is not a failed send.
+            let blocked = false
+            const admit = () =>
+                after
+                    ? after.then(submitNow, (error: unknown) => {
+                          blocked = true
+                          throw error
+                      })
+                    : submitNow()
             const admitted = waiting ? admissionChainRef.current.then(admit) : admit()
             admissionChainRef.current = admitted
                 .then(
@@ -547,7 +555,7 @@ export const useAgentChatQueue = ({
                 },
                 (error: unknown) => {
                     echoes.drop(message.id)
-                    onSendFailedRef.current?.(message, error)
+                    if (!blocked) onSendFailedRef.current?.(message, error)
                     if (forgetDeferredRemoval(message.id)) return
                     throw error
                 },
@@ -648,6 +656,8 @@ export const useAgentChatQueue = ({
             },
             options?: {after?: Promise<unknown>},
         ) => {
+            // Handled here and rethrown below, so a refusal before it is awaited is not unhandled.
+            options?.after?.catch(() => undefined)
             // A run parked on a client tool counts as busy. Its heartbeat is not in the snapshot
             // (a parked run reads `idle`), but the turn is still open server-side: the host's
             // dismiss-then-steer over a parked question or connection resumes it, and the steer

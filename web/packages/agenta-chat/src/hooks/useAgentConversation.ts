@@ -110,6 +110,7 @@ import {
     setSessionStatusAtom,
     holdSessionStatusAtom,
 } from "../state/sessionMessages"
+import {clearPendingSendEchoes} from "../state/pendingSendEchoStore"
 import {clearTurnClockAtom, startTurnClockAtom} from "../state/turnClock"
 
 import {useAgentChatQueue, type QueuedMessage} from "./useAgentChatQueue"
@@ -1311,6 +1312,8 @@ export const useAgentConversation = ({
                     if (at < 0) return
                     editedSourceRef.current = current[at]
                     saveDisplayEdit(sessionId, current[at])
+                    // Sends after the rewind point belong to a history that no longer exists.
+                    clearPendingSendEchoes(sessionId)
                     setMessages(current.slice(0, at))
                 } else {
                     clearSessionTurnId(sessionId)

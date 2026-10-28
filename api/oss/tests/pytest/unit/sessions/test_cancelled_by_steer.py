@@ -1,7 +1,7 @@
 """A turn a Steer cancelled is told apart from a turn the user stopped.
 
 The runner ends both the same way, so the cancel command is the only witness. A Steer's own
-cancel carries the key `steer:{input id}`. A Steer that bound to a Stop already open keeps that
+cancel carries `steer_cancel_key(input id)`. A Steer that bound to a Stop already open keeps that
 Stop's key: the user did press Stop, so that turn still reads as stopped.
 """
 
@@ -15,7 +15,10 @@ from oss.src.core.sessions.commands.dtos import (
     SessionCommandKind,
     SessionCommandState,
 )
-from oss.src.core.sessions.commands.service import SessionCommandsService
+from oss.src.core.sessions.commands.service import (
+    SessionCommandsService,
+    steer_cancel_key,
+)
 
 _PROJECT = uuid4()
 _SESSION = "session-steer-cause"
@@ -65,7 +68,7 @@ async def _steered(command: Optional[SessionCommand]) -> bool:
 async def test_a_steers_own_cancel_is_a_steer():
     input_id = str(uuid4())
     command = _cancel(
-        idempotency_key=f"steer:{input_id}", data={"steer_input_id": input_id}
+        idempotency_key=steer_cancel_key(input_id), data={"steer_input_id": input_id}
     )
     assert await _steered(command) is True
 

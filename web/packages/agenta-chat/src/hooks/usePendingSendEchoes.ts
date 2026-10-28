@@ -130,7 +130,6 @@ export const usePendingSendEchoes = ({
                     policy: input.policy,
                     docked: input.docked,
                     coveredAtUserCount: nextPendingSendCoverage(at, current),
-                    createdAtUserCount: at,
                 },
             ])
         },
@@ -194,7 +193,6 @@ export const usePendingSendEchoes = ({
                         fileParts: recreate.fileParts,
                         failed: true,
                         coveredAtUserCount: Number.POSITIVE_INFINITY,
-                        createdAtUserCount: 0,
                     },
                 ]
             })

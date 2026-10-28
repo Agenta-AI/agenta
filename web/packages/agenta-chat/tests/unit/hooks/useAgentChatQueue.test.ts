@@ -203,7 +203,7 @@ describe("useAgentChatQueue", () => {
         )
     })
 
-    it("takes the steer echo back when the card dismissal fails", async () => {
+    it("takes the steer echo back when the card dismissal fails, without a failed send", async () => {
         const server: ServerQueueAdapter = {
             busy: false,
             queued: [],
@@ -211,10 +211,12 @@ describe("useAgentChatQueue", () => {
             submit: vi.fn().mockResolvedValue(undefined),
             remove: vi.fn().mockResolvedValue(undefined),
         }
+        const onSendFailed = vi.fn()
         const {result} = setup({
             messages: [userTurn("u1", "go"), assistantAwaitingQuestion("a1")],
             stopped: false,
             server,
+            onSendFailed,
         })
 
         await act(async () => {
@@ -228,6 +230,7 @@ describe("useAgentChatQueue", () => {
 
         expect(result.current.pendingSendRows).toEqual([])
         expect(server.submit).not.toHaveBeenCalled()
+        expect(onSendFailed).not.toHaveBeenCalled()
     })
 
     it("admits Steer while the run is parked on a client tool, before the snapshot says busy", async () => {

@@ -178,9 +178,13 @@ const TurnRowInner = ({
     // message followed by a call or a card is never mistaken for thinking.
     const activity = useMemo(() => splitTurnActivity(turn.items), [turn.items])
     const answered = activity.messages.length > 0
+    const writing = activity.messages.at(-1)?.part.state === "streaming"
+    // Parked on the reader is open too: a message before a question is not the answer yet.
+    const runOpen = live || (turn.isLast && (waitingOnUser || resuming))
     // An answer present at mount is history (reload, session open); a later one arrived live.
     // By message id alone: adoption can shift the answer's index without it being a new answer.
-    const answerKey = answered ? turn.message.id : null
+    // Only once the run is over: an interim message must not pin the scroll while work goes on.
+    const answerKey = answered && !runOpen ? turn.message.id : null
     const mountAnswerKeyRef = useRef(answerKey)
     const rowMarkers = turn.isLast
         ? {
@@ -245,6 +249,7 @@ const TurnRowInner = ({
                 steps={activity.steps}
                 streaming={live}
                 answerStarted={answered}
+                writing={writing}
                 waitingOnUser={turn.isLast && waitingOnUser}
                 resuming={turn.isLast && resuming}
                 hadGate={turn.hadGate}
@@ -256,8 +261,12 @@ const TurnRowInner = ({
             />
             {answered ? (
                 <div {...quoteProps} className="flex min-w-0 flex-col gap-3">
-                    {activity.messages.map((message) => (
-                        <AnswerReveal key={message.index} animate={live}>
+                    {activity.messages.map((message, at) => (
+                        <AnswerReveal
+                            key={message.index}
+                            animate={live}
+                            answer={at === activity.messages.length - 1}
+                        >
                             <AssistantMarkdown
                                 streaming={isLiveTextItem(turn, message.index)}
                                 text={message.part.text}

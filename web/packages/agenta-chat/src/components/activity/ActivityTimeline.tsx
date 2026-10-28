@@ -253,6 +253,8 @@ export interface ActivityTimelineProps {
     streaming: boolean
     /** The answer has begun: the fold settles even though the turn is still streaming. */
     answerStarted: boolean
+    /** The agent is writing a message right now. */
+    writing?: boolean
     /** The session whose turn stage the line narrates until the first step. */
     sessionId?: string
     /** The run is parked on the reader (a question, a connect). */
@@ -289,6 +291,7 @@ export const ActivityTimeline = ({
     steps,
     streaming,
     answerStarted,
+    writing = false,
     sessionId,
     waitingOnUser = false,
     resuming = false,
@@ -334,13 +337,11 @@ export const ActivityTimeline = ({
           ? parseTraceTime(trace.rootSpan?.start_time)
           : undefined
     // The clock counts the agent's work: from the run's start, paused while parked on the reader.
-    const measured = useTurnClock(
-        clockId,
-        live && !awaiting && steps.length > 0,
+    const measured = useTurnClock(clockId, live && !awaiting && steps.length > 0, {
         startedAt,
-        fromSend && streamedHere,
-        awaiting,
-    )
+        seenFromSend: fromSend && streamedHere,
+        waitingOnReader: awaiting,
+    })
     // A tab that joined later cannot account for earlier waits. A clock already anchored to
     // the trace start is also unsafe if gate history arrives after that start was applied.
     const counted =
@@ -405,7 +406,7 @@ export const ActivityTimeline = ({
             ? {text: stageWord, format: "working"}
             : resuming && !current
               ? {text: "Working", format: "working"}
-              : answerStarted && !current
+              : writing && !current
                 ? {text: "Answering", format: "writing"}
                 : idle || !verbStep
                   ? {text: "Working", format: "working"}

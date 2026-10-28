@@ -11,7 +11,6 @@ const echo = (patch: Partial<PendingSendEcho> = {}): PendingSendEcho => ({
     id: "e1",
     text: "hello",
     coveredAtUserCount: 1,
-    createdAtUserCount: 0,
     ...patch,
 })
 
