@@ -52,7 +52,7 @@ To read the result later, use either endpoint:
 | `POST /api/sessions/records/query`      | The session's records for the body `{"session_id": "<id>"}`. A finished turn ends with the agent message and a `done` record.     |
 | `GET /api/sessions/{session_id}/events` | The durable events, replayed from `after=<cursor>`, then the live stream. See [Session events](/reference/agents/session-events). |
 
-Agenta does not call a webhook when a run ends. Poll the records, or keep the event stream open. A background turn that needs an approval stops with `stop_reason: "paused"`; answer it as described in [Pause and resume](#pause-and-resume).
+Agenta does not call a webhook when a run ends. Poll the records, or keep the event stream open. A background turn that needs approval stores `attributes.stopReason: "paused"` on the final `done` record returned by records query. The events endpoint reports the same condition as `execution.stopped.payload.reason: "paused"`. Answer it as described in [Pause and resume](#pause-and-resume).
 
 ## Busy sessions
 
