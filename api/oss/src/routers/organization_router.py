@@ -37,7 +37,6 @@ from oss.src.core.access.permissions.types import Permission
 from oss.src.core.organizations.exceptions import (
     OrganizationCreationNotAllowedError,
 )
-from oss.src.services.db_manager import get_user_org_and_workspace_id
 from oss.src.core.memberships.service import get_memberships_service
 from oss.src.core.memberships.types import MemberNotFound, OrganizationNotFound
 
@@ -75,17 +74,9 @@ async def list_organizations(
         HTTPException: If there is an error retrieving the organizations from the database.
     """
 
-    if is_ee():
-        user_org_workspace_data: dict = await get_user_org_and_workspace_id(
-            request.state.user_id
-        )
-        organizations_db = await db_manager.get_organizations_by_list_ids(
-            user_org_workspace_data["organization_ids"]
-        )
-    else:
-        organizations_db = await db_manager.get_user_organizations(
-            request.state.user_id
-        )
+    organizations_db = await db_manager.get_user_organizations(request.state.user_id)
+    # A user can hold two membership rows in one organization: one item each.
+    organizations_db = list({o.id: o for o in organizations_db}.values())
 
     response = [
         Organization(

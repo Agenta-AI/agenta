@@ -70,7 +70,6 @@ class PrincipalsDAOInterface(ABC):
         self,
         *,
         organization_ids: Sequence[UUID] = (),
-        workspace_ids: Sequence[UUID] = (),
         project_ids: Sequence[UUID] = (),
     ) -> ScopePrincipals:
         """The projects of these scopes and the keys and bindings in them, for the

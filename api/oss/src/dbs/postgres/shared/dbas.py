@@ -13,15 +13,6 @@ class OrganizationScopeDBA:
     )
 
 
-class WorkspaceScopeDBA:
-    __abstract__ = True
-
-    workspace_id = Column(
-        UUID(as_uuid=True),
-        nullable=False,
-    )
-
-
 class ProjectScopeDBA:
     __abstract__ = True
 
@@ -44,10 +35,6 @@ class ScopeDBA:
     __abstract__ = True
 
     organization_id = Column(
-        UUID(as_uuid=True),
-        nullable=True,
-    )
-    workspace_id = Column(
         UUID(as_uuid=True),
         nullable=True,
     )

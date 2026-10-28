@@ -8,7 +8,10 @@ from sqlalchemy import and_, distinct, func
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 from sqlalchemy.future import select
 
-from oss.src.models.db_models import WorkspaceMemberDB as WorkspaceMemberDBE
+# Frozen legacy schema: the runtime models no longer map workspaces.
+from ee.databases.postgres.migrations.core.deprecated_models import (
+    DeprecatedWorkspaceMemberDB as WorkspaceMemberDBE,
+)
 from oss.src.core.environments.dtos import (
     EnvironmentCreate,
     EnvironmentRevisionCommit,
@@ -22,7 +25,9 @@ from oss.src.dbs.postgres.environments.dbes import (
     EnvironmentVariantDBE,
 )
 from oss.src.dbs.postgres.git.dao import GitDAO
-from oss.src.models.db_models import ProjectDB as ProjectDBE
+from ee.databases.postgres.migrations.core.deprecated_models import (
+    DeprecatedProjectDB as ProjectDBE,
+)
 
 DEFAULT_BATCH_SIZE = 200
 DEFAULT_ENVIRONMENTS = ("development", "staging", "production")

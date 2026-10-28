@@ -93,13 +93,6 @@ WITH scoped AS (
     SELECT p.id FROM projects p
     WHERE p.id = ANY(CAST(:projects AS uuid[]))
        OR p.organization_id = ANY(CAST(:organizations AS uuid[]))
-       OR p.workspace_id = ANY(CAST(:workspaces AS uuid[]))
-       -- A legacy project can sit in a workspace of a deleted organization; deletes of
-       -- that organization remove it too, so the snapshot covers it.
-       OR p.workspace_id IN (
-           SELECT w.id FROM workspaces w
-           WHERE w.organization_id = ANY(CAST(:organizations AS uuid[]))
-       )
 )
 SELECT
   ARRAY(SELECT id FROM scoped) AS project_ids,
@@ -162,7 +155,6 @@ class PrincipalsDAO(PrincipalsDAOInterface):
         self,
         *,
         organization_ids: Sequence[UUID] = (),
-        workspace_ids: Sequence[UUID] = (),
         project_ids: Sequence[UUID] = (),
     ) -> ScopePrincipals:
         async with self.engine.session() as session:
@@ -171,7 +163,6 @@ class PrincipalsDAO(PrincipalsDAOInterface):
                     text(_LIST_SCOPE_PRINCIPALS_SQL),
                     {
                         "organizations": list(organization_ids),
-                        "workspaces": list(workspace_ids),
                         "projects": list(project_ids),
                     },
                 )

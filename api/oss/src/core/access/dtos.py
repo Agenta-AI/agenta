@@ -203,7 +203,7 @@ class UserPrincipals(BaseModel):
 
 
 class ScopePrincipals(BaseModel):
-    """What deleting organizations, workspaces or projects must invalidate, read
+    """What deleting organizations or projects must invalidate, read
     before the delete: the projects that go, and the API keys and channel bindings in
     them (removed by the cascade)."""
 
