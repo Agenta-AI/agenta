@@ -202,9 +202,20 @@ class SessionTurnsDAO(SessionTurnsDAOInterface):
         trace_id: UUID,
         usage: SessionTurnUsage,
     ) -> int:
-        values = map_turn_usage_to_columns(
-            usage=usage, source=SessionTurnUsageSource.TRACE
-        )
+        # A field the trace does not report keeps the value the turn has.
+        values = {
+            column: (
+                value
+                if column == "usage_source"
+                else func.coalesce(
+                    literal(value, type_=SessionTurnDBE.__table__.c[column].type),
+                    getattr(SessionTurnDBE, column),
+                )
+            )
+            for column, value in map_turn_usage_to_columns(
+                usage=usage, source=SessionTurnUsageSource.TRACE
+            ).items()
+        }
         # A trace shared by several turns (a caller's traceparent reused) holds their
         # combined usage, which is no turn's own: those turns keep their runner value.
         turns_of_trace = (

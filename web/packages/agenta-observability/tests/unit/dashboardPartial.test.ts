@@ -4,9 +4,9 @@ import {analyticsToDashboard} from "../../src/core/analytics"
 
 describe("analyticsToDashboard access", () => {
     it("marks the totals partial when the scope removed traces", () => {
-        expect(analyticsToDashboard({buckets: [], access: {restricted: true}}, "30_days").partial).toBe(
-            true,
-        )
+        expect(
+            analyticsToDashboard({buckets: [], access: {restricted: true}}, "30_days").partial,
+        ).toBe(true)
     })
 
     it("is not partial without access or when unrestricted", () => {

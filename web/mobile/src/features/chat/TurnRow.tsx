@@ -37,6 +37,8 @@ import {
 import type {ToolUIPart} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 
+import {cn} from "@/lib/utils"
+
 import {AnswerReveal} from "./AnswerReveal"
 import {AssistantMarkdown, UserMarkdown} from "./AssistantMarkdown"
 import {isLiveTextItem} from "./markdownStream"
@@ -51,8 +53,6 @@ import {mobileTurnRowClass} from "./turnRowClass"
 import {UserQuoteBlock} from "./UserQuoteBlock"
 import {ARRIVED_ANSWER_ATTR, LAST_TURN_ATTR} from "./useTranscriptAutoScroll"
 import {useTurnRowFooter} from "./useTurnRowFooter"
-
-import {cn} from "@/lib/utils"
 
 /** The byte size the transcript replay records on an attachment part, when it has one. */
 const attachmentSize = (metadata: unknown): number | undefined => {

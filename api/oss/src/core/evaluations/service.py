@@ -1448,11 +1448,6 @@ class EvaluationsService:
             log.warning("No steps metrics keys found")
             return []
 
-        # The metrics are stored on the run, so the run's principal reads the traces,
-        # whoever asks for the refresh. Built once per refresh; a run without a
-        # principal, or a scope that cannot be computed, fails the refresh.
-        scope = await evaluation_run_trace_scope(project_id=project_id, run=run)
-
         step_keys = list(steps_metrics_keys.keys())
 
         steps_trace_ids: Dict[str, List[str]] = dict()
@@ -1507,6 +1502,11 @@ class EvaluationsService:
             if expected_traces:
                 log.warning("[METRICS] No trace_ids found! Cannot extract metrics.")
             return []
+
+        # The metrics are stored on the run, so the run's principal reads the traces,
+        # whoever asks for the refresh. Built once, only when traces are read; a run
+        # without a principal, or a scope that cannot be computed, fails the refresh.
+        scope = await evaluation_run_trace_scope(project_id=project_id, run=run)
 
         # Resolved metric keys per step (declared schema, else trace-inferred);
         # become the run's `mappings`. Rewrite only when something was inferred.

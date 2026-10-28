@@ -1206,6 +1206,7 @@ class TracingDAO(TracingDAOInterface):
             realtime: If True, use last_active (mutable, shows recent activity but unstable cursors).
                      If False/None, use first_active (immutable, stable cursors but doesn't reflect new activity).
         """
+        require_scope(scope, project_id=project_id)
         async with self.engine.session() as session:
             # TIMEOUT
             await session.execute(TIMEOUT_STMT)
