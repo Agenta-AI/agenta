@@ -66,15 +66,22 @@ const parseItems = (value, key, file) => {
 
 const absolutizeLinks = (markdown) => markdown.replace(/\]\(\/(?!\/)/g, `](${DOCS_ORIGIN}/`)
 
-// The app renders plain markdown, so MDX components, embeds and comments would show as raw text.
-const stripMdx = (markdown) =>
-    markdown
-        .replace(/\{\/\*[\s\S]*?\*\/\}/g, "")
-        .replace(/<(iframe|video|div)\b[\s\S]*?<\/\1>/g, "")
-        .replace(/<[A-Za-z][^>]*\/>/g, "")
-        // Escape what is left, so no fragment can form a tag in the app.
-        .replace(/</g, "&lt;")
+// Skips MDX tag and comment lines until they close, then escapes any stray "<".
+const stripMdx = (markdown) => {
+    const kept = []
+    let inMdx = false
+    for (const line of markdown.split("\n")) {
+        const text = line.trim()
+        if (!inMdx && (text.startsWith("<") || text.startsWith("{/*"))) inMdx = true
+        if (!inMdx) kept.push(line)
+        else if (text.endsWith(">") || text.endsWith("*/}")) inMdx = false
+    }
+    return kept
+        .join("\n")
+        .replace(/\n{3,}/g, "\n\n")
         .trim()
+        .replace(/</g, "&lt;")
+}
 
 const semverParts = (id) => id.slice(1).split(".").map(Number)
 const compareSemverDesc = (a, b) => {
