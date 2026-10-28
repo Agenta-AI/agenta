@@ -68,7 +68,7 @@ async def _mark(project_id: UUID, session_id: str):
         "WHERE project_id = :p AND session_id = :s",
         {"p": project_id, "s": session_id},
     )
-    return rows[0][0]
+    return rows[0]["personal_credentials_used_at"]
 
 
 def _invite(user_id: UUID) -> SessionSharingChange:
