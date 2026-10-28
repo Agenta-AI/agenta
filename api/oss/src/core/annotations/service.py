@@ -3,6 +3,7 @@ from uuid import UUID, uuid4
 
 from genson import SchemaBuilder
 
+from oss.src.core.tracing.access import SpanReadScope
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.evaluators.service import EvaluatorsService
@@ -248,6 +249,7 @@ class AnnotationsService:
         #
         trace_id: str,
         span_id: Optional[str] = None,
+        scope: SpanReadScope,
     ):
         annotation_link = Link(
             trace_id=trace_id,
@@ -255,6 +257,7 @@ class AnnotationsService:
         )
 
         annotation: Optional[Annotation] = await self._fetch_annotation(
+            scope=scope,
             project_id=project_id,
             user_id=user_id,
             #
@@ -273,6 +276,7 @@ class AnnotationsService:
         span_id: Optional[str] = None,
         #
         annotation_edit: AnnotationEdit,
+        scope: SpanReadScope,
     ):
         annotation_link = Link(
             trace_id=trace_id,
@@ -280,6 +284,7 @@ class AnnotationsService:
         )
 
         annotation: Optional[Annotation] = await self._fetch_annotation(
+            scope=scope,
             project_id=project_id,
             user_id=user_id,
             #
@@ -464,6 +469,7 @@ class AnnotationsService:
         #
         trace_id: str,
         span_id: Optional[str] = None,
+        scope: SpanReadScope,
     ):
         annotation_link = Link(
             trace_id=trace_id,
@@ -471,6 +477,7 @@ class AnnotationsService:
         )
 
         annotation_link = await self._delete_annotation(
+            scope=scope,
             project_id=project_id,
             user_id=user_id,
             #
@@ -490,6 +497,7 @@ class AnnotationsService:
         annotation_links: Optional[AnnotationLinks] = None,
         #
         windowing: Optional[Windowing] = None,
+        scope: SpanReadScope,
     ):
         annotation = annotation_query if annotation_query else None
         annotation_flags = AnnotationQueryFlags()
@@ -518,6 +526,7 @@ class AnnotationsService:
         _annotation_links = annotation.links if annotation else None
 
         annotations = await self._query_annotation(
+            scope=scope,
             project_id=project_id,
             user_id=user_id,
             #
@@ -604,11 +613,13 @@ class AnnotationsService:
         user_id: Optional[UUID] = None,
         #
         annotation_link: Link,
+        scope: SpanReadScope,
     ) -> Optional[Annotation]:
         if not annotation_link.trace_id:
             return None
 
         trace = await self.tracing_service.fetch_trace(
+            scope=scope,
             project_id=project_id,
             trace_id=annotation_link.trace_id,
         )
@@ -747,11 +758,13 @@ class AnnotationsService:
         user_id: UUID,
         #
         annotation_link: Link,
+        scope: SpanReadScope,
     ) -> Optional[Link]:
         if not annotation_link.trace_id:
             return None
 
         links = await self.tracing_service.delete_trace(
+            scope=scope,
             project_id=project_id,
             trace_id=annotation_link.trace_id,
         )
@@ -774,6 +787,7 @@ class AnnotationsService:
         annotation_links: Optional[List[Link]] = None,
         #
         windowing: Optional[Windowing] = None,
+        scope: SpanReadScope,
     ) -> List[Annotation]:
         query = build_simple_trace_query(
             trace_kind="annotation",
@@ -787,6 +801,7 @@ class AnnotationsService:
         )
 
         traces = await self.tracing_service.query_traces(
+            scope=scope,
             project_id=project_id,
             query=query,
         )

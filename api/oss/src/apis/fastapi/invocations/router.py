@@ -3,6 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Request, status, Response, HTTPException
 
+from oss.src.apis.fastapi.shared.trace_scope import request_span_read_scope
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 
@@ -145,6 +146,7 @@ class InvocationsRouter:
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
         invocation = await self.invocations_service.fetch(
+            scope=await request_span_read_scope(request),
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id) if request.state.user_id else None,
             #
@@ -177,6 +179,7 @@ class InvocationsRouter:
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
         invocation = await self.invocations_service.edit(
+            scope=await request_span_read_scope(request),
             organization_id=UUID(request.state.organization_id),
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -210,6 +213,7 @@ class InvocationsRouter:
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
         invocation_link: Optional[Link] = await self.invocations_service.delete(
+            scope=await request_span_read_scope(request),
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
@@ -240,6 +244,7 @@ class InvocationsRouter:
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
         invocations = await self.invocations_service.query(
+            scope=await request_span_read_scope(request),
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id) if request.state.user_id else None,
             #

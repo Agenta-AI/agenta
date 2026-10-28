@@ -28,6 +28,12 @@ from oss.src.utils.exceptions import suppress_exceptions
 
 from oss.src.core.shared.dtos import Windowing
 from oss.src.core.tracing.interfaces import TracingDAOInterface
+from oss.src.core.tracing.access import (
+    SpanReadScope,
+    TraceScopeError,
+    require_scope,
+)
+from oss.src.core.tracing.utils.trees import trace_root_usage
 from oss.src.core.tracing.dtos import (
     OTelLink,
     OTelFlatSpan,
@@ -40,6 +46,7 @@ from oss.src.core.tracing.dtos import (
     Condition,
     ListOperator,
     AnalyticsQueryTimeoutError,
+    TraceTotals,
 )
 
 from oss.src.dbs.postgres.shared.utils import apply_windowing
@@ -66,6 +73,7 @@ from oss.src.dbs.postgres.tracing.utils import (
     build_statistics_stmt,
     get_sampling_percent,
     fill_empty_buckets,
+    read_scope_clause,
     #
     compute_range,
     parse_pcts,
@@ -229,24 +237,31 @@ class TracingDAO(TracingDAOInterface):
         project_id: UUID,
         #
         query: TracingQuery,  # type: ignore
+        scope: SpanReadScope,
     ) -> List[OTelFlatSpan]:
-        span_dtos, _ = await self.query_page(project_id=project_id, query=query)
+        span_dtos, _ = await self.query_page(
+            project_id=project_id, query=query, scope=scope
+        )
 
         return span_dtos
 
-    @suppress_exceptions(default=([], None))
+    @suppress_exceptions(default=([], None), exclude=[TraceScopeError])
     async def query_page(
         self,
         *,
         project_id: UUID,
         #
         query: TracingQuery,  # type: ignore
+        scope: SpanReadScope,
     ) -> Tuple[List[OTelFlatSpan], Optional[Windowing]]:
         """Return the spans of one page and the windowing of the next page.
 
         The next windowing is None when the page is not full (no `limit`, or fewer
         rows than `limit`). With focus=trace, `limit` counts traces.
         """
+        require_scope(scope, project_id=project_id)
+        hidden = read_scope_clause(scope)
+
         # DE-STRUCTURING
         focus = query.formatting.focus if query.formatting else None
 
@@ -284,6 +299,8 @@ class TracingDAO(TracingDAOInterface):
 
                 # SCOPING
                 base = base.filter(SpanDBE.project_id == project_id)
+                if hidden is not None:
+                    base = base.filter(hidden)
                 # -------
 
                 # FILTERING
@@ -457,7 +474,9 @@ class TracingDAO(TracingDAOInterface):
             log.error(format_exc())
             raise e
 
-    @suppress_exceptions(default=[], exclude=[AnalyticsQueryTimeoutError])
+    @suppress_exceptions(
+        default=[], exclude=[AnalyticsQueryTimeoutError, TraceScopeError]
+    )
     async def analytics(
         self,
         *,
@@ -465,7 +484,9 @@ class TracingDAO(TracingDAOInterface):
         #
         query: TracingQuery,
         specs: List[MetricSpec],
+        scope: SpanReadScope,
     ) -> List[MetricsBucket]:
+        require_scope(scope, project_id=project_id)
         # DEBUGGING
         # log.trace(query.model_dump(mode="json", exclude_none=True))
         # log.trace([s.model_dump(mode="json", exclude_none=True) for s in specs])
@@ -541,6 +562,7 @@ class TracingDAO(TracingDAOInterface):
             #
             filtering=query.filtering,
             focus=focus,
+            scope=scope,
         )
 
         if base_cte is None:
@@ -692,14 +714,17 @@ class TracingDAO(TracingDAOInterface):
 
         return sort_buckets_by_timestamp(buckets)
 
-    @suppress_exceptions(default=[])
+    @suppress_exceptions(default=[], exclude=[TraceScopeError])
     async def legacy_analytics(
         self,
         *,
         project_id: UUID,
         #
         query: TracingQuery,
+        scope: SpanReadScope,
     ) -> List[Bucket]:
+        require_scope(scope, project_id=project_id)
+        hidden = read_scope_clause(scope)
         # DEBUGGING
         # log.trace(query.model_dump(mode="json", exclude_none=True))
         # ---------
@@ -801,6 +826,10 @@ class TracingDAO(TracingDAOInterface):
                 errors_stmt = errors_stmt.filter_by(
                     project_id=project_id,
                 )
+
+                if hidden is not None:
+                    total_stmt = total_stmt.filter(hidden)
+                    errors_stmt = errors_stmt.filter(hidden)
                 # -------
 
                 # TOTAL vs ERRORS
@@ -907,7 +936,7 @@ class TracingDAO(TracingDAOInterface):
 
     ### TRACES
 
-    @suppress_exceptions(default=[])
+    @suppress_exceptions(default=[], exclude=[TraceScopeError])
     async def fetch(
         self,
         *,
@@ -915,13 +944,19 @@ class TracingDAO(TracingDAOInterface):
         #
         trace_ids: Optional[List[UUID]] = None,
         span_ids: Optional[List[UUID]] = None,
+        scope: SpanReadScope,
     ) -> List[OTelFlatSpan]:
         """Fetch spans by trace IDs and/or span IDs."""
+        require_scope(scope, project_id=project_id)
         if not trace_ids and not span_ids:
             return []
 
         async with self.engine.session() as session:
             stmt = select(SpanDBE).filter(SpanDBE.project_id == project_id)
+
+            hidden = read_scope_clause(scope)
+            if hidden is not None:
+                stmt = stmt.filter(hidden)
 
             if trace_ids:
                 stmt = stmt.filter(SpanDBE.trace_id.in_(trace_ids))
@@ -946,15 +981,18 @@ class TracingDAO(TracingDAOInterface):
 
             return span_dtos
 
-    @suppress_exceptions(default=[])
+    @suppress_exceptions(default=[], exclude=[TraceScopeError])
     async def delete(
         self,
         *,
         project_id: UUID,
         #
         trace_ids: List[UUID],
+        scope: SpanReadScope,
     ) -> List[OTelLink]:
-        """Delete all spans for the given trace IDs."""
+        """Delete all spans for the given trace IDs. A trace the scope hides is left
+        alone, as if it did not exist."""
+        require_scope(scope, project_id=project_id)
         if not trace_ids:
             return []
 
@@ -963,6 +1001,9 @@ class TracingDAO(TracingDAOInterface):
                 SpanDBE.project_id == project_id,
                 SpanDBE.trace_id.in_(trace_ids),
             )
+            hidden = read_scope_clause(scope)
+            if hidden is not None:
+                stmt = stmt.filter(hidden)
 
             result = await session.execute(stmt)
 
@@ -993,12 +1034,15 @@ class TracingDAO(TracingDAOInterface):
         #
         recompute: Callable[[List[OTelFlatSpan]], Dict[str, Dict[str, Any]]],
         max_spans: int,
-    ) -> Optional[int]:
+        scope: SpanReadScope,
+    ) -> Optional[TraceTotals]:
         """Rewrite the cumulative metrics of one trace from all its stored spans.
 
-        Returns the number of cumulative values written, or None when the trace has more
-        than `max_spans` spans and is skipped.
+        Returns what was written, whether a span carries a session id, and the root's
+        usage after the roll-up; None when the trace has more than `max_spans` spans and
+        is skipped.
         """
+        require_scope(scope, project_id=project_id)
         async with self.engine.session() as session:
             # Serializes recomputes of one trace, so an older read never lands last.
             await session.execute(
@@ -1015,6 +1059,7 @@ class TracingDAO(TracingDAOInterface):
                     SpanDBE.end_time,
                     SpanDBE.attributes["ag"]["metrics"].label("metrics"),
                     SpanDBE.attributes["ag"]["flags"].label("flags"),
+                    SpanDBE.session_id,
                 )
                 .where(
                     SpanDBE.project_id == project_id,
@@ -1076,11 +1121,15 @@ class TracingDAO(TracingDAOInterface):
 
             await session.commit()
 
-            return len(params)
+            return TraceTotals(
+                written=len(params),
+                linked=any(row.session_id for row in rows),
+                root_usage=trace_root_usage(span_dtos),
+            )
 
     ### SESSIONS AND USERS
 
-    @suppress_exceptions(default=([], None))
+    @suppress_exceptions(default=([], None), exclude=[TraceScopeError])
     async def sessions(
         self,
         *,
@@ -1089,6 +1138,7 @@ class TracingDAO(TracingDAOInterface):
         realtime: Optional[bool] = None,
         #
         windowing: Optional[Windowing] = None,
+        scope: SpanReadScope,
     ) -> Tuple[List[str], Optional[datetime]]:
         """Query unique session IDs with windowing support."""
         return await self._query_by_group(
@@ -1099,9 +1149,10 @@ class TracingDAO(TracingDAOInterface):
             windowing=windowing,
             #
             group="session",
+            scope=scope,
         )
 
-    @suppress_exceptions(default=([], None))
+    @suppress_exceptions(default=([], None), exclude=[TraceScopeError])
     async def users(
         self,
         *,
@@ -1110,6 +1161,7 @@ class TracingDAO(TracingDAOInterface):
         realtime: Optional[bool] = None,
         #
         windowing: Optional[Windowing] = None,
+        scope: SpanReadScope,
     ) -> Tuple[List[str], Optional[datetime]]:
         """Query unique user IDs with windowing support."""
         return await self._query_by_group(
@@ -1120,6 +1172,7 @@ class TracingDAO(TracingDAOInterface):
             windowing=windowing,
             #
             group="user",
+            scope=scope,
         )
 
     async def _query_by_group(
@@ -1132,6 +1185,7 @@ class TracingDAO(TracingDAOInterface):
         realtime: Optional[bool] = None,
         #
         windowing: Optional[Windowing] = None,
+        scope: SpanReadScope,
     ) -> Tuple[List[str], Optional[datetime]]:
         """Query unique session or user IDs with windowing support.
 
@@ -1165,6 +1219,9 @@ class TracingDAO(TracingDAOInterface):
                 .filter(SpanDBE.project_id == project_id)
                 .filter(SpanDBE.attributes["ag"][group].has_key("id"))
             )
+            hidden = read_scope_clause(scope)
+            if hidden is not None:
+                base = base.filter(hidden)
 
             # Apply time-range filters on base query (before deduplication)
             # Follows apply_windowing() logic for oldest/newest based on order direction

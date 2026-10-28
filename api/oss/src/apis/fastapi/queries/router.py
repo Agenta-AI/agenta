@@ -3,6 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Request, status, Depends, HTTPException
 
+from oss.src.apis.fastapi.shared.trace_scope import request_span_read_scope
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 from oss.src.utils.caching import get_cache, set_cache
@@ -1071,6 +1072,9 @@ class QueriesRouter:
                 retrieval_info,
             ) = await self.queries_service.retrieve_query_revision(
                 project_id=UUID(request.state.project_id),
+                scope=(
+                    await request_span_read_scope(request) if not should_cache else None
+                ),
                 #
                 query_ref=query_revision_retrieve_request.query_ref,
                 query_variant_ref=query_revision_retrieve_request.query_variant_ref,

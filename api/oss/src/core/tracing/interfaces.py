@@ -11,7 +11,9 @@ from oss.src.core.tracing.dtos import (
     Bucket,
     MetricSpec,
     MetricsBucket,
+    TraceTotals,
 )
+from oss.src.core.tracing.access import SpanReadScope
 
 
 class TracingDAOInterface(ABC):
@@ -38,6 +40,7 @@ class TracingDAOInterface(ABC):
         project_id: UUID,
         #
         query: TracingQuery,
+        scope: SpanReadScope,
     ) -> List[OTelFlatSpan]:
         raise NotImplementedError
 
@@ -48,6 +51,7 @@ class TracingDAOInterface(ABC):
         project_id: UUID,
         #
         query: TracingQuery,
+        scope: SpanReadScope,
     ) -> Tuple[List[OTelFlatSpan], Optional[Windowing]]:
         raise NotImplementedError
 
@@ -59,6 +63,7 @@ class TracingDAOInterface(ABC):
         #
         query: TracingQuery,
         specs: List[MetricSpec],
+        scope: SpanReadScope,
     ) -> List[MetricsBucket]:
         raise NotImplementedError
 
@@ -69,6 +74,7 @@ class TracingDAOInterface(ABC):
         project_id: UUID,
         #
         query: TracingQuery,
+        scope: SpanReadScope,
     ) -> List[Bucket]:
         raise NotImplementedError
 
@@ -82,6 +88,7 @@ class TracingDAOInterface(ABC):
         #
         trace_ids: Optional[List[UUID]] = None,
         span_ids: Optional[List[UUID]] = None,
+        scope: SpanReadScope,
     ) -> List[OTelFlatSpan]:
         raise NotImplementedError
 
@@ -92,6 +99,7 @@ class TracingDAOInterface(ABC):
         project_id: UUID,
         #
         trace_ids: List[UUID],
+        scope: SpanReadScope,
     ) -> List[OTelLink]:
         raise NotImplementedError
 
@@ -104,7 +112,8 @@ class TracingDAOInterface(ABC):
         #
         recompute: Callable[[List[OTelFlatSpan]], Dict[str, Dict[str, Any]]],
         max_spans: int,
-    ) -> Optional[int]:
+        scope: SpanReadScope,
+    ) -> Optional[TraceTotals]:
         raise NotImplementedError
 
     ### SESSIONS AND USERS
@@ -118,6 +127,7 @@ class TracingDAOInterface(ABC):
         realtime: Optional[bool] = None,
         #
         windowing: Optional[Windowing] = None,
+        scope: SpanReadScope,
     ) -> Tuple[List[str], Optional[datetime]]:
         raise NotImplementedError
 
@@ -130,5 +140,6 @@ class TracingDAOInterface(ABC):
         realtime: Optional[bool] = None,
         #
         windowing: Optional[Windowing] = None,
+        scope: SpanReadScope,
     ) -> Tuple[List[str], Optional[datetime]]:
         raise NotImplementedError

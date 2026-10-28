@@ -279,6 +279,24 @@ class MetricsBucket(BaseModel):
 # SIMPLE TRACE: INVOCATIONS & ANNOTATIONS --------------------------------------
 
 
+class TraceRootUsage(BaseModel):
+    """The priced usage of a trace root, after the roll-up. Null is unknown."""
+
+    input_tokens: Optional[int] = None
+    output_tokens: Optional[int] = None
+    total_tokens: Optional[int] = None
+    cost: Optional[float] = None
+
+
+class TraceTotals(BaseModel):
+    """What one recompute of a trace's cumulative metrics wrote and found."""
+
+    written: int
+    # True when a span of the trace carries a session id.
+    linked: bool = False
+    root_usage: Optional[TraceRootUsage] = None
+
+
 class SimpleTraceOrigin(str, Enum):
     CUSTOM = "custom"  # custom
     HUMAN = "human"  # human

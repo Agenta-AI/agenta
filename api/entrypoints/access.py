@@ -15,6 +15,10 @@ from oss.src.core.memberships.service import (
 )
 from oss.src.dbs.postgres.access.dao import PrincipalsDAO
 from oss.src.core.sharing.service import SharingService, register_sharing_service
+from oss.src.core.tracing.access import (
+    TraceAccessService,
+    register_trace_access_service,
+)
 from oss.src.dbs.postgres.memberships.dao import MembershipsDAO
 from oss.src.dbs.postgres.sharing.dao import SharingDAO
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
@@ -57,6 +61,9 @@ def bootstrap_access() -> AccessService:
 
     register_memberships_service(memberships_service=memberships_service)
     register_sharing_service(sharing_service=sharing_service)
+    register_trace_access_service(
+        service=TraceAccessService(sharing_service=sharing_service)
+    )
     register_access_service(access_service=access_service)
 
     return access_service

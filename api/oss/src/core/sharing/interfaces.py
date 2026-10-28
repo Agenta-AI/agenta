@@ -103,6 +103,18 @@ class SharingDAOInterface(ABC):
     ) -> List[UserSessionGrant]: ...
 
     @abstractmethod
+    async def list_unreadable_session_ids(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        granted_stream_ids: List[UUID],
+    ) -> List[str]:
+        """The ids of the project's sessions that `user_id` may not read: the private
+        sessions it does not own and is not granted (`granted_stream_ids`), and the
+        tombstones of private sessions it did not own. `user_id` None: all of them."""
+
+    @abstractmethod
     async def set_session_sharing(
         self,
         *,

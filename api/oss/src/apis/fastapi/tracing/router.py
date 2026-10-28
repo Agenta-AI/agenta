@@ -3,6 +3,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query, Request, Depends, status, HTTPException, Body
 
+from oss.src.apis.fastapi.shared.trace_scope import request_span_read_scope
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
@@ -384,6 +385,7 @@ class TracingRouter:
                 spans_or_traces,
                 next_windowing,
             ) = await self.service.query_spans_or_traces_page(
+                scope=await request_span_read_scope(request),
                 project_id=UUID(request.state.project_id),
                 query=merged_query,
             )
@@ -530,6 +532,7 @@ class TracingRouter:
 
         try:
             buckets = await self.service.analytics(
+                scope=await request_span_read_scope(request),
                 project_id=UUID(request.state.project_id),
                 query=query,
                 specs=specs,
@@ -596,6 +599,7 @@ class TracingRouter:
         # ---------
 
         buckets = await self.service.legacy_analytics(
+            scope=await request_span_read_scope(request),
             project_id=UUID(request.state.project_id),
             query=merged_query,
         )
@@ -697,6 +701,7 @@ class TracingRouter:
 
         try:
             trace = await self.service.fetch_trace(
+                scope=await request_span_read_scope(request),
                 project_id=UUID(request.state.project_id),
                 #
                 trace_id=trace_id,
@@ -847,6 +852,7 @@ class TracingRouter:
 
         try:
             links = await self.service.delete_trace(
+                scope=await request_span_read_scope(request),
                 project_id=UUID(request.state.project_id),
                 trace_id=trace_id,
             )
@@ -897,6 +903,7 @@ class TracingRouter:
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
         session_ids, activity_cursor = await self.service.sessions(
+            scope=await request_span_read_scope(request),
             project_id=request.state.project_id,
             #
             realtime=sessions_query_request.realtime,
@@ -941,6 +948,7 @@ class TracingRouter:
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
         user_ids, activity_cursor = await self.service.users(
+            scope=await request_span_read_scope(request),
             project_id=request.state.project_id,
             #
             realtime=users_query_request.realtime,
@@ -1172,6 +1180,7 @@ class SpansRouter:
 
         try:
             spans, next_windowing = await self.service.query_spans_page(
+                scope=await request_span_read_scope(request),
                 project_id=project_id,
                 #
                 query=query,
@@ -1246,6 +1255,7 @@ class SpansRouter:
 
         try:
             spans = await self.service.fetch_spans(
+                scope=await request_span_read_scope(request),
                 project_id=UUID(request.state.project_id),
                 #
                 trace_ids=trace_id_values,
@@ -1303,6 +1313,7 @@ class SpansRouter:
 
         try:
             span = await self.service.fetch_span(
+                scope=await request_span_read_scope(request),
                 project_id=UUID(request.state.project_id),
                 #
                 trace_id=trace_id,
@@ -1364,6 +1375,7 @@ class SpansRouter:
 
         try:
             buckets = await self.service.analytics(
+                scope=await request_span_read_scope(request),
                 project_id=UUID(request.state.project_id),
                 query=query,
                 specs=specs,
@@ -1396,6 +1408,7 @@ class SpansRouter:
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
         session_ids, activity_cursor = await self.service.sessions(
+            scope=await request_span_read_scope(request),
             project_id=request.state.project_id,
             realtime=sessions_query_request.realtime,
             windowing=sessions_query_request.windowing,
@@ -1426,6 +1439,7 @@ class SpansRouter:
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
         user_ids, activity_cursor = await self.service.users(
+            scope=await request_span_read_scope(request),
             project_id=request.state.project_id,
             realtime=users_query_request.realtime,
             windowing=users_query_request.windowing,
@@ -1655,6 +1669,7 @@ class TracesRouter:
 
         try:
             traces, next_windowing = await self.service.query_traces_page(
+                scope=await request_span_read_scope(request),
                 project_id=project_id,
                 #
                 query=query,
@@ -1934,6 +1949,7 @@ class TracesRouter:
 
         try:
             traces_list = await self.service.fetch_traces(
+                scope=await request_span_read_scope(request),
                 project_id=UUID(request.state.project_id),
                 #
                 trace_ids=ids,
@@ -1999,6 +2015,7 @@ class TracesRouter:
 
         try:
             trace = await self.service.fetch_trace(
+                scope=await request_span_read_scope(request),
                 project_id=UUID(request.state.project_id),
                 #
                 trace_id=trace_id,
@@ -2050,6 +2067,7 @@ class TracesRouter:
 
         try:
             links = await self.service.delete_trace(
+                scope=await request_span_read_scope(request),
                 project_id=UUID(request.state.project_id),
                 trace_id=trace_id,
             )

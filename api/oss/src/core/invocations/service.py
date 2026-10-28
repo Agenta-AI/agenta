@@ -1,6 +1,7 @@
 from typing import Optional, List
 from uuid import UUID, uuid4
 
+from oss.src.core.tracing.access import SpanReadScope
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.applications.service import (
@@ -212,6 +213,7 @@ class InvocationsService:
         #
         trace_id: str,
         span_id: Optional[str] = None,
+        scope: SpanReadScope,
     ):
         invocation_link = Link(
             trace_id=trace_id,
@@ -219,6 +221,7 @@ class InvocationsService:
         )
 
         invocation: Optional[Invocation] = await self._fetch_invocation(
+            scope=scope,
             project_id=project_id,
             user_id=user_id,
             #
@@ -237,6 +240,7 @@ class InvocationsService:
         span_id: Optional[str] = None,
         #
         invocation_edit: InvocationEdit,
+        scope: SpanReadScope,
     ):
         invocation_link = Link(
             trace_id=trace_id,
@@ -244,6 +248,7 @@ class InvocationsService:
         )
 
         invocation: Optional[Invocation] = await self._fetch_invocation(
+            scope=scope,
             project_id=project_id,
             user_id=user_id,
             #
@@ -402,6 +407,7 @@ class InvocationsService:
         #
         trace_id: str,
         span_id: Optional[str] = None,
+        scope: SpanReadScope,
     ):
         invocation_link = Link(
             trace_id=trace_id,
@@ -409,6 +415,7 @@ class InvocationsService:
         )
 
         invocation_link = await self._delete_invocation(
+            scope=scope,
             project_id=project_id,
             user_id=user_id,
             #
@@ -428,6 +435,7 @@ class InvocationsService:
         invocation_links: Optional[List[Link]] = None,
         #
         windowing: Optional[Windowing] = None,
+        scope: SpanReadScope,
     ):
         invocation = invocation_query if invocation_query else None
         invocation_flags = InvocationQueryFlags()
@@ -454,6 +462,7 @@ class InvocationsService:
         _invocation_links = invocation.links if invocation else None
 
         invocations = await self._query_invocation(
+            scope=scope,
             project_id=project_id,
             user_id=user_id,
             #
@@ -540,11 +549,13 @@ class InvocationsService:
         user_id: Optional[UUID] = None,
         #
         invocation_link: Link,
+        scope: SpanReadScope,
     ) -> Optional[Invocation]:
         if not invocation_link.trace_id:
             return None
 
         trace = await self.tracing_service.fetch_trace(
+            scope=scope,
             project_id=project_id,
             trace_id=invocation_link.trace_id,
         )
@@ -673,11 +684,13 @@ class InvocationsService:
         user_id: UUID,
         #
         invocation_link: Link,
+        scope: SpanReadScope,
     ) -> Optional[Link]:
         if not invocation_link.trace_id:
             return None
 
         links = await self.tracing_service.delete_trace(
+            scope=scope,
             project_id=project_id,
             trace_id=invocation_link.trace_id,
         )
@@ -700,6 +713,7 @@ class InvocationsService:
         invocation_links: Optional[List[Link]] = None,
         #
         windowing: Optional[Windowing] = None,
+        scope: SpanReadScope,
     ) -> List[Invocation]:
         query = build_simple_trace_query(
             trace_kind="invocation",
@@ -713,6 +727,7 @@ class InvocationsService:
         )
 
         traces = await self.tracing_service.query_traces(
+            scope=scope,
             project_id=project_id,
             query=query,
         )

@@ -7,7 +7,8 @@ from math import ceil, floor
 from sqlalchemy import case, cast, literal, text
 from sqlalchemy import and_, or_, not_, Column, bindparam, Text
 from sqlalchemy import values, column, true
-from sqlalchemy import Float
+from sqlalchemy import Float, any_
+from sqlalchemy.orm import aliased
 from sqlalchemy.sql import func, Select, ClauseElement
 from sqlalchemy.types import Numeric, Boolean, Integer, String, BigInteger
 from sqlalchemy.future import select
@@ -19,6 +20,7 @@ from sqlalchemy.dialects.postgresql import aggregate_order_by
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.dbs.postgres.tracing.dbes import SpanDBE
+from oss.src.core.tracing.access import SpanReadScope
 
 from oss.src.core.tracing.dtos import (
     Filtering,
@@ -1055,6 +1057,7 @@ def build_base_cte(
     rate: Optional[float] = None,
     filtering: Optional[Filtering] = None,
     focus: Optional[Focus] = None,
+    scope: SpanReadScope,
 ) -> Optional[FromClause]:
     # start_time, not created_at: late or backfilled spans belong to when they ran.
     timestamp = func.date_bin(
@@ -1080,6 +1083,10 @@ def build_base_cte(
             SpanDBE.start_time < newest,
         )
     )
+
+    hidden = read_scope_clause(scope)
+    if hidden is not None:
+        base_stmt = base_stmt.where(hidden)
 
     # Roots carry each trace's cumulative metrics.
     if focus != Focus.SPAN:
@@ -2178,3 +2185,27 @@ def fill_empty_buckets(
             per_timestamp[timestamp] = dict()
 
     return per_timestamp
+
+
+def read_scope_clause(scope: SpanReadScope) -> Optional[ColumnElement]:
+    """The clause that hides every trace with a span of a session the reader may not
+    read, or None when the scope hides nothing (the query runs unchanged).
+
+    A hashed subplan over `ix_spans_project_id_session_id`: the deny list names
+    sessions, a trace is hidden whole, children included."""
+
+    if not scope.denied_session_ids:
+        return None
+    denied = aliased(SpanDBE, name="denied_spans")
+    denied_traces = select(denied.trace_id).where(
+        denied.project_id == scope.project_id,
+        denied.session_id
+        == any_(
+            bindparam(
+                "denied_session_ids",
+                value=list(scope.denied_session_ids),
+                type_=ARRAY(String),
+            )
+        ),
+    )
+    return SpanDBE.trace_id.not_in(denied_traces)

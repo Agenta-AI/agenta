@@ -10,6 +10,7 @@ from oss.src.core.tracing.dtos import (
     OTelSpansTree,
     OTelTraceTree,
     Span,
+    TraceRootUsage,
     TraceType,
 )
 from oss.src.core.tracing.utils.pricing import price_tokens, resolve_pricing_model
@@ -120,6 +121,29 @@ def recompute_cumulative_metrics(
                 changes.setdefault(span_dto.span_id, {})[metric] = value
 
     return changes
+
+
+def trace_root_usage(span_dtos: List[OTelFlatSpan]) -> Optional[TraceRootUsage]:
+    """The cumulative tokens and cost of the trace's one root span, after the roll-up.
+    None when the trace has no single root or the root carries no usage."""
+
+    roots = [span for span in span_dtos if span.parent_id is None]
+    if len(roots) != 1:
+        return None
+    tokens = _read_breakdown(roots[0], "tokens", "cumulative")
+    costs = _read_breakdown(roots[0], "costs", "cumulative")
+    if not tokens and not costs:
+        return None
+
+    def _int(value) -> Optional[int]:
+        return int(value) if value is not None else None
+
+    return TraceRootUsage(
+        input_tokens=_int(tokens.get("prompt")),
+        output_tokens=_int(tokens.get("completion")),
+        total_tokens=_int(tokens.get("total")),
+        cost=costs.get("total"),
+    )
 
 
 def calculate_and_propagate_metrics_by_trace(
