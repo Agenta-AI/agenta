@@ -437,16 +437,17 @@ class ChannelAgentAudience(BaseModel):
     """Whom this agent answers on its connection. Empty `senders` is everyone.
     Platform user ids (a Slack member id, a Telegram user id), as strings."""
 
-    senders: List[str] = Field(default_factory=list)
+    senders: List[str] = Field(default_factory=list, max_length=1000)
     labels: Dict[str, ChannelAudienceLabel] = Field(default_factory=dict)
 
     @field_validator("senders", mode="before")
     @classmethod
     def _ids_as_strings(cls, value: Any) -> Any:
         # Telegram ids arrive as numbers from older rows and some clients; the
-        # check compares strings
+        # check compares strings. Nulls and blanks are dropped, repeats kept once.
         if isinstance(value, list):
-            return [str(item).strip() for item in value if str(item).strip()]
+            ids = [str(item).strip() for item in value if item is not None]
+            return list(dict.fromkeys(item for item in ids if item))
         return value
 
     def admits(self, sender_id: Optional[Any]) -> bool:

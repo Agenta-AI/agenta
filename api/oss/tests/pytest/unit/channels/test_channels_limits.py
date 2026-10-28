@@ -162,6 +162,11 @@ def test_an_empty_people_list_answers_everyone_and_ids_compare_as_strings():
     assert ChannelAgentAudience(senders=["U1"]).admits(None) is False
     # Telegram ids stored as numbers by older rows still match
     assert ChannelAgentAudience(senders=[8883745180]).admits("8883745180") is True
+    # nulls and blanks are dropped, repeats kept once
+    assert ChannelAgentAudience(senders=[None, "", "U1", "U1"]).senders == ["U1"]
+    assert (
+        ChannelAgentAudience(senders=[None]).admits("None") is True
+    )  # empty: everyone
 
 
 def test_agent_data_without_audience_reads_as_everyone():
