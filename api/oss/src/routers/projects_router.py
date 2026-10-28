@@ -311,15 +311,13 @@ async def update_project(
     await _require(request, project_id, Permission.EDIT_WORKSPACE)
     if payload.make_default:
         # Making a project the default changes which project carries organization
-        # writes, so it also needs the permission on the current default project.
-        try:
-            default_project_id = await db_manager.get_default_project_id_from_workspace(
-                workspace_id=str(listing.summary.organization_id)
-            )
-        except NoResultFound as exc:
-            raise HTTPException(status_code=400, detail=_CONTEXT_REQUIRED) from exc
-        if str(default_project_id) != str(project_id):
-            await _require(request, default_project_id, Permission.EDIT_WORKSPACE)
+        # writes, so it also needs the permission on the organization's current default
+        # (its first project by the same order when it has no default).
+        current = await db_manager.get_project_by_workspace(
+            str(listing.summary.organization_id)
+        )
+        if str(current.id) != str(project_id):
+            await _require(request, current.id, Permission.EDIT_WORKSPACE)
 
     if payload.name is None and payload.make_default is None:
         raise HTTPException(

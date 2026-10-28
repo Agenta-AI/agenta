@@ -1060,12 +1060,8 @@ RETURNING *
 
 
 async def set_default_project(project_id: str) -> ProjectDB:
-    """Make the project the one default project of its organization.
-
-    Two statements in one transaction: the organization lock (with the project's
-    immutable organization id), then one statement that clears every other default of the
-    organization and sets this one, on a snapshot taken after the lock.
-    """
+    """Make the project the organization's one default. The organization lock comes
+    first, so two writers cannot both see "no other default"."""
 
     project_uuid = uuid.UUID(project_id)
     engine = get_transactions_engine()
@@ -1562,12 +1558,8 @@ async def admin_create_project(
     *,
     is_default: bool = False,
 ) -> ProjectDB:
-    """Create a project of the organization (no workspace); with `is_default`, it
-    becomes the organization's one default.
-
-    The organization lock first (admin only: one statement more than before), then one
-    insert that also clears the other defaults.
-    """
+    """Create a project without a workspace; `is_default` clears the organization's
+    other defaults, under the organization lock."""
 
     engine = get_transactions_engine()
 

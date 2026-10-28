@@ -229,6 +229,11 @@ async def test_make_default_needs_the_permission_on_the_current_default(
     state.access.side_effect = lambda **kwargs: kwargs["project_id"] == str(project_id)
     set_default = AsyncMock()
     monkeypatch.setattr(projects_router.db_manager, "set_default_project", set_default)
+    monkeypatch.setattr(
+        projects_router.db_manager,
+        "get_project_by_workspace",
+        AsyncMock(return_value=SimpleNamespace(id=state.default_project)),
+    )
 
     with pytest.raises(HTTPException) as error:
         await projects_router.update_project(
@@ -241,6 +246,32 @@ async def test_make_default_needs_the_permission_on_the_current_default(
     checked = [call.kwargs["project_id"] for call in state.access.await_args_list]
     assert checked == [str(project_id), str(state.default_project)]
     set_default.assert_not_awaited()
+
+
+async def test_make_default_without_a_default_checks_the_first_project(
+    routes, monkeypatch
+):
+    # No default (an admin-made organization): the reader rule answers the first
+    # project; when that is the project itself, its own permission is enough.
+    state = routes(listing=_listing("owner"))
+    project_id = uuid4()
+    set_default = AsyncMock()
+    monkeypatch.setattr(projects_router.db_manager, "set_default_project", set_default)
+    monkeypatch.setattr(
+        projects_router.db_manager,
+        "get_project_by_workspace",
+        AsyncMock(return_value=SimpleNamespace(id=project_id)),
+    )
+
+    await projects_router.update_project(
+        project_id=project_id,
+        payload=projects_router.UpdateProjectRequest(make_default=True),
+        request=_request(),
+    )
+
+    checked = [call.kwargs["project_id"] for call in state.access.await_args_list]
+    assert checked == [str(project_id)]
+    set_default.assert_awaited_once_with(str(project_id))
 
 
 async def test_non_member_gets_404_on_update_and_delete(routes):
