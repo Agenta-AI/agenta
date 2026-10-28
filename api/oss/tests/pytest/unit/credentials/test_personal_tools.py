@@ -13,10 +13,15 @@ import pytest
 
 import oss.src.core.credentials.policy as policy_module
 from oss.src.core.access.context import reset_request_access, set_request_access
-from oss.src.core.credentials.bindings import Binding, BindingClaim, ConnectionKey
+import oss.src.core.credentials.selection as selection_module
+from oss.src.core.credentials.bindings import Binding, BindingClaim, tool_key
 from oss.src.core.credentials.lifecycle import PersonalCredentialsService
 from oss.src.core.credentials.policy import PersonalCredentialRefused
-from oss.src.core.gateway.connections.dtos import Connection, ConnectionCreate
+from oss.src.core.gateway.connections.dtos import (
+    Connection,
+    ConnectionCreate,
+    provider_entity,
+)
 from oss.src.core.gateway.connections.service import ConnectionsService
 from oss.src.core.gateway.connections.utils import decode_oauth_state
 from oss.src.core.secrets.dtos import SecretOwner
@@ -26,7 +31,7 @@ from oss.src.utils.env import env
 from oss.tests.pytest.utils.principals import make_envelope, make_request_access
 
 GMAIL = BindingClaim(
-    key=ConnectionKey(kind="tool", service="composio:gmail"),
+    key=tool_key(integration="gmail", slug="gmail-support"),
     binding=Binding.CALLER_ACCOUNT,
 )
 
@@ -35,6 +40,11 @@ GMAIL = BindingClaim(
 def _open_gate(monkeypatch):
     monkeypatch.setattr(env.agenta.access, "personal_credentials_enabled", True)
     monkeypatch.setattr(policy_module, "is_ee", lambda: False)
+
+    async def private_session(*, project_id, session_id):
+        return True
+
+    selection_module.set_personal_use_guard(private_session)
 
 
 def _connection(*, owner=None, project_id=None, slug="gmail-support"):
@@ -59,8 +69,8 @@ def _owner(organization_id, user_id):
 def test_the_provider_entity_is_computed_from_the_owner():
     organization_id, user_id, project_id = uuid4(), uuid4(), uuid4()
     personal = _connection(owner=_owner(organization_id, user_id))
-    assert personal.provider_entity == f"org:{organization_id}:user:{user_id}"
-    assert _connection(project_id=project_id).provider_entity == str(project_id)
+    assert provider_entity(personal) == f"org:{organization_id}:user:{user_id}"
+    assert provider_entity(_connection(project_id=project_id)) == str(project_id)
 
 
 async def test_bob_connects_his_own_gmail():
@@ -77,13 +87,13 @@ async def test_bob_connects_his_own_gmail():
         connections_dao=dao, adapter_registry=MagicMock(get=lambda _: adapter)
     )
 
-    created = await service.initiate_personal_connection(
-        organization_id=organization_id,
+    created = await service.initiate_connection(
         project_id=project_id,
         user_id=bob,
         connection_create=ConnectionCreate(
             slug="gmail", provider_key="composio", integration_key="gmail"
         ),
+        owner=_owner(organization_id, bob),
     )
 
     request = adapter.initiate_connection.await_args.kwargs["request"]
@@ -106,7 +116,7 @@ def _run(*, organization_id, principal_id, kind="human", bindings=()):
     )
     access = make_request_access(
         envelope=envelope, credential_kind="run_credential"
-    ).model_copy(update={"bindings": tuple(bindings)})
+    ).model_copy(update={"bindings": tuple(bindings), "session_id": "s-private"})
     token = set_request_access(access)
     try:
         yield
@@ -139,7 +149,7 @@ async def test_a_bound_integration_uses_the_persons_own_connection():
             connection_slug="gmail-support",
         )
     assert resolved.id == mine.id
-    assert resolved.provider_entity == f"org:{organization_id}:user:{alice}"
+    assert provider_entity(resolved) == f"org:{organization_id}:user:{alice}"
     connections.query_connections.assert_not_awaited()
     kwargs = connections.query_personal_connections.await_args.kwargs
     assert kwargs["user_id"] == alice and kwargs["organization_id"] == organization_id
@@ -229,3 +239,42 @@ async def test_a_failed_provider_revoke_does_not_block_the_delete():
         )
         == 1
     )
+
+
+async def test_another_entry_of_the_same_integration_keeps_the_project_account():
+    """The binding names its own entry (integration and slug). A second Gmail entry
+    that names the project's support connection still uses that connection."""
+    organization_id, alice = uuid4(), uuid4()
+    mine = _connection(owner=_owner(organization_id, alice), slug="gmail")
+    shared = _connection(project_id=uuid4(), slug="gmail-shared")
+    tools, _ = _tools(personal=[mine], project=[shared])
+    with _run(organization_id=organization_id, principal_id=alice, bindings=[GMAIL]):
+        resolved = await tools.resolve_connection_by_slug(
+            project_id=uuid4(),
+            provider_key="composio",
+            integration_key="gmail",
+            connection_slug="gmail-shared",
+        )
+    assert resolved.id == shared.id
+
+
+async def test_an_unsigned_personal_entry_is_refused_at_resolve():
+    from oss.src.core.tools.dtos import GatewayConnectionTool  # noqa: PLC0415
+
+    tools, connections = _tools(project=[_connection(project_id=uuid4())])
+    ref = GatewayConnectionTool.model_validate(
+        {
+            "type": "gateway_connection",
+            "connection": {
+                "provider": "composio",
+                "integration": "gmail",
+                "slug": "gmail-support",
+                "binding": "caller_account",
+            },
+        }
+    )
+    with _run(organization_id=uuid4(), principal_id=uuid4(), bindings=()):
+        with pytest.raises(PersonalCredentialRefused) as refused:
+            await tools._resolve_gateway_connection(project_id=uuid4(), ref=ref)
+    assert refused.value.code == "binding_not_signed"
+    connections.query_connections.assert_not_awaited()

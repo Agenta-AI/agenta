@@ -65,6 +65,14 @@ class ConnectionDBE(
             "AND user_id IS NOT NULL)",
             name="ck_gateway_connections_owner",
         ),
+        # The OAuth callback's lookup of a person's own row.
+        Index(
+            "ix_gateway_connections_user_account",
+            "organization_id",
+            "user_id",
+            text("(data ->> 'connected_account_id')"),
+            postgresql_where=text("user_id IS NOT NULL"),
+        ),
         Index(
             "uq_gateway_connections_user_integration",
             "organization_id",

@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
+from oss.src.core.secrets.dtos import SecretOwner
 from oss.src.core.gateway.connections.dtos import (
     Connection,
     ConnectionCreate,
@@ -19,10 +20,11 @@ class ConnectionsDAOInterface(ABC):
     async def create_connection(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID],
         user_id: UUID,
         #
         connection_create: ConnectionCreate,
+        owner: Optional[SecretOwner] = None,
     ) -> Optional[Connection]: ...
 
     @abstractmethod
@@ -81,6 +83,33 @@ class ConnectionsDAOInterface(ABC):
         provider_connection_id: str,
     ) -> Optional[Connection]: ...
 
+    # -- a person's own connections (M7): always by the full owner (person and
+    # organization); a project read never sees these rows.
+
+    @abstractmethod
+    async def query_owned_connections(
+        self,
+        *,
+        owner: SecretOwner,
+        provider_key: Optional[str] = None,
+        integration_key: Optional[str] = None,
+    ) -> List[Connection]: ...
+
+    @abstractmethod
+    async def get_owned_connection(
+        self, *, owner: SecretOwner, connection_id: UUID
+    ) -> Optional[Connection]: ...
+
+    @abstractmethod
+    async def delete_owned_connections(
+        self, *, owner: SecretOwner, connection_id: Optional[UUID] = None
+    ) -> int: ...
+
+    @abstractmethod
+    async def activate_owned_connection_by_provider_id(
+        self, *, owner: SecretOwner, provider_connection_id: str
+    ) -> Optional[Connection]: ...
+
 
 class ConnectionsGatewayInterface(ABC):
     """Adapter port for external connection providers (Composio, Agenta, etc.).
@@ -129,21 +158,3 @@ class ConnectionsGatewayInterface(ABC):
         *,
         provider_connection_id: str,
     ) -> bool: ...
-
-    # -- a person's own connections (M7) -----------------------------------------------
-
-    async def query_owned_connections(
-        self, *, owner, provider_key=None, integration_key=None
-    ) -> List[Connection]:
-        raise NotImplementedError
-
-    async def get_owned_connection(self, *, owner, connection_id: UUID):
-        raise NotImplementedError
-
-    async def delete_owned_connections(self, *, owner, connection_id=None) -> int:
-        raise NotImplementedError
-
-    async def activate_owned_connection_by_provider_id(
-        self, *, owner, provider_connection_id: str
-    ):
-        raise NotImplementedError

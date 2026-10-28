@@ -236,7 +236,6 @@ class ConnectionsDAO(ConnectionsDAOInterface):
             self.ConnectionDBE.user_id == owner.id,
         )
 
-    @suppress_exceptions(default=[])
     async def query_owned_connections(
         self,
         *,
@@ -269,7 +268,6 @@ class ConnectionsDAO(ConnectionsDAOInterface):
             dbe = result.scalars().first()
             return map_connection_dbe_to_dto(dbe=dbe) if dbe else None
 
-    @suppress_exceptions(default=False)
     async def delete_owned_connections(
         self, *, owner: SecretOwner, connection_id: Optional[UUID] = None
     ) -> int:

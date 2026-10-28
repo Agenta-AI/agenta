@@ -1177,12 +1177,6 @@ class VaultService:
 
     # -- personal credentials (M7) -------------------------------------------------
 
-    @staticmethod
-    def _personal_owner(*, organization_id: UUID, user_id: UUID) -> SecretOwner:
-        return SecretOwner(
-            kind=SecretOwnerKind.USER, id=user_id, organization_id=organization_id
-        )
-
     async def create_personal_secret(
         self,
         *,
@@ -1210,7 +1204,7 @@ class VaultService:
             )
         with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
             return await self.secrets_dao.create(
-                owner=self._personal_owner(
+                owner=SecretOwner.for_user(
                     organization_id=organization_id, user_id=user_id
                 ),
                 create_secret_dto=create_secret_dto,
@@ -1222,7 +1216,7 @@ class VaultService:
         """Only the person's own rows in that organization."""
         with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
             return await self.secrets_dao.list(
-                owner=self._personal_owner(
+                owner=SecretOwner.for_user(
                     organization_id=organization_id, user_id=user_id
                 )
             )
@@ -1234,7 +1228,7 @@ class VaultService:
         read, made only for a `caller_account` connection."""
         with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
             return await self.secrets_dao.get_by_slug(
-                owner=self._personal_owner(
+                owner=SecretOwner.for_user(
                     organization_id=organization_id, user_id=user_id
                 ),
                 secret_slug=service,
@@ -1245,7 +1239,7 @@ class VaultService:
     ) -> bool:
         with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
             deleted = await self.secrets_dao.delete(
-                owner=self._personal_owner(
+                owner=SecretOwner.for_user(
                     organization_id=organization_id, user_id=user_id
                 ),
                 secret_id=secret_id,

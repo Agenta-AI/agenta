@@ -306,7 +306,9 @@ async def _capture_created_flags(
             return _Adapter()
 
     class _Dao:
-        async def create_connection(self, *, project_id, user_id, connection_create):
+        async def create_connection(
+            self, *, project_id, user_id, connection_create, owner=None
+        ):
             captured["flags"] = dict(connection_create.flags or {})
             captured["data"] = dict(connection_create.data or {})
             return connection_create

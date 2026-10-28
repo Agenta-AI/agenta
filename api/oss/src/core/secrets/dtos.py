@@ -756,6 +756,13 @@ class SecretOwner(BaseModel):
     # person owns credentials per organization, so a user owner is never read without it.
     organization_id: Optional[UUID] = None
 
+    @classmethod
+    def for_user(cls, *, organization_id: UUID, user_id: UUID) -> "SecretOwner":
+        """A person, inside one organization (M7)."""
+        return cls(
+            kind=SecretOwnerKind.USER, id=user_id, organization_id=organization_id
+        )
+
     @model_validator(mode="after")
     def _user_owner_names_its_organization(self) -> "SecretOwner":
         if (self.kind == SecretOwnerKind.USER) != (self.organization_id is not None):

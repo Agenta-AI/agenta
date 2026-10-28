@@ -19,7 +19,7 @@ from oss.src.core.gateway.connections.exceptions import (
 from oss.src.core.gateway.connections.utils import make_oauth_state
 from oss.src.core.credentials.policy import check_personal_credentials_allowed
 from oss.src.core.secrets.dtos import SecretOwner
-from oss.src.core.secrets.enums import SecretOwnerKind
+from oss.src.core.gateway.connections.dtos import entity_for
 
 
 log = get_module_logger(__name__)
@@ -152,8 +152,17 @@ class ConnectionsService:
         user_id: UUID,
         #
         connection_create: ConnectionCreate,
+        owner: Optional[SecretOwner] = None,
     ) -> Connection:
-        """Initiate a provider connection and persist it locally in pending state."""
+        """Initiate a provider connection and persist it locally in pending state.
+
+        With a user `owner` (M7) the connection is that person's own, in their
+        organization: the provider user is computed from the owner, the OAuth state signs
+        the owner so the callback activates that row only, and no project is stored."""
+        if owner is not None:
+            await check_personal_credentials_allowed(
+                organization_id=owner.organization_id
+            )
         provider_key = connection_create.provider_key.value
         integration_key = connection_create.integration_key
 
@@ -167,6 +176,8 @@ class ConnectionsService:
             secret_key=env.agenta.crypt_key,
             slug=connection_create.slug,
             integration_key=integration_key,
+            is_human=owner is not None,
+            owner_organization_id=owner.organization_id if owner else None,
         )
         callback_url = f"{env.agenta.api_url}{_CALLBACK_PATH}?state={state}"
 
@@ -174,7 +185,7 @@ class ConnectionsService:
         connection_create_data = connection_create.data
         provider_result = await adapter.initiate_connection(
             request=ConnectionRequest(
-                user_id=str(project_id),
+                user_id=entity_for(owner=owner, project_id=project_id),
                 integration_key=integration_key,
                 auth_scheme=connection_create_data.auth_scheme.value
                 if connection_create_data and connection_create_data.auth_scheme
@@ -193,7 +204,8 @@ class ConnectionsService:
         # Merge provider-returned connection_data with service-level project_id.
         # The adapter owns provider-specific field names; the service adds project scope.
         data: Dict[str, Any] = dict(provider_result.connection_data)
-        data["project_id"] = str(project_id)
+        if owner is None:
+            data["project_id"] = str(project_id)
         data["auth_scheme"] = auth_scheme
         connection_create.data = data
 
@@ -209,77 +221,14 @@ class ConnectionsService:
 
         # Persist locally
         return await self.connections_dao.create_connection(
-            project_id=project_id,
+            project_id=None if owner is not None else project_id,
             user_id=user_id,
             #
             connection_create=connection_create,
+            owner=owner,
         )
 
     # -- a person's own connections (M7) -----------------------------------------------
-
-    @staticmethod
-    def personal_owner(*, organization_id: UUID, user_id: UUID) -> SecretOwner:
-        return SecretOwner(
-            kind=SecretOwnerKind.USER, id=user_id, organization_id=organization_id
-        )
-
-    async def initiate_personal_connection(
-        self,
-        *,
-        organization_id: UUID,
-        project_id: UUID,
-        user_id: UUID,
-        #
-        connection_create: ConnectionCreate,
-    ) -> Connection:
-        """Start the person's own connection to an integration, in their organization.
-
-        The provider-side user is `org:<organization>:user:<user>`, computed from the
-        owner columns; the OAuth state signs the owner, so the callback activates this
-        person's row and no project row. One per integration: a second is a conflict."""
-        await check_personal_credentials_allowed(organization_id=organization_id)
-        owner = self.personal_owner(organization_id=organization_id, user_id=user_id)
-        provider_key = connection_create.provider_key.value
-        integration_key = connection_create.integration_key
-        adapter = self.adapter_registry.get(provider_key)
-
-        state = make_oauth_state(
-            project_id=project_id,
-            user_id=user_id,
-            secret_key=env.agenta.crypt_key,
-            slug=connection_create.slug,
-            integration_key=integration_key,
-            is_human=True,
-            owner_organization_id=organization_id,
-        )
-        callback_url = f"{env.agenta.api_url}{_CALLBACK_PATH}?state={state}"
-        create_data = connection_create.data
-        auth_scheme = (
-            create_data.auth_scheme.value
-            if create_data and create_data.auth_scheme
-            else None
-        )
-        provider_result = await adapter.initiate_connection(
-            request=ConnectionRequest(
-                user_id=f"org:{organization_id}:user:{user_id}",
-                integration_key=integration_key,
-                auth_scheme=auth_scheme,
-                callback_url=callback_url,
-            ),
-        )
-        data: Dict[str, Any] = dict(provider_result.connection_data)
-        data["auth_scheme"] = auth_scheme
-        connection_create.data = data
-        connection_create.flags = {
-            "is_active": True,
-            "is_valid": bool(data.get("no_auth")),
-        }
-        return await self.connections_dao.create_connection(
-            project_id=None,
-            user_id=user_id,
-            connection_create=connection_create,
-            owner=owner,
-        )
 
     async def query_personal_connections(
         self,
@@ -290,7 +239,9 @@ class ConnectionsService:
         integration_key: Optional[str] = None,
     ) -> List[Connection]:
         return await self.connections_dao.query_owned_connections(
-            owner=self.personal_owner(organization_id=organization_id, user_id=user_id),
+            owner=SecretOwner.for_user(
+                organization_id=organization_id, user_id=user_id
+            ),
             provider_key=provider_key,
             integration_key=integration_key,
         )
@@ -299,7 +250,9 @@ class ConnectionsService:
         self, *, organization_id: UUID, user_id: UUID, provider_connection_id: str
     ) -> Optional[Connection]:
         return await self.connections_dao.activate_owned_connection_by_provider_id(
-            owner=self.personal_owner(organization_id=organization_id, user_id=user_id),
+            owner=SecretOwner.for_user(
+                organization_id=organization_id, user_id=user_id
+            ),
             provider_connection_id=provider_connection_id,
         )
 
@@ -312,7 +265,7 @@ class ConnectionsService:
     ) -> int:
         """Delete one of the person's connections, or all of them in the organization
         (when they leave it). The provider revoke is best effort and never blocks."""
-        owner = self.personal_owner(organization_id=organization_id, user_id=user_id)
+        owner = SecretOwner.for_user(organization_id=organization_id, user_id=user_id)
         connections = (
             [
                 c

@@ -5,9 +5,11 @@ from time import perf_counter
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 from uuid import UUID
 
+from oss.src.core.credentials.policy import PersonalCredentialRefused
+from oss.src.core.secrets.dtos import SecretOwner
 from oss.src.core.gateway.connections.dtos import provider_entity
 from oss.src.core.access.context import get_request_access
-from oss.src.core.credentials.bindings import ConnectionKey, bound_to_caller
+from oss.src.core.credentials.bindings import bound_to_caller, tool_key
 from oss.src.core.credentials.selection import select_personal_credential
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
@@ -498,11 +500,13 @@ class ToolsService:
         user_id: UUID,
         connection_create: ToolConnectionCreate,
     ) -> Optional[ToolConnection]:
-        conn = await self.connections_service.initiate_personal_connection(
-            organization_id=organization_id,
+        conn = await self.connections_service.initiate_connection(
             project_id=project_id,
             user_id=user_id,
             connection_create=connection_create,
+            owner=SecretOwner.for_user(
+                organization_id=organization_id, user_id=user_id
+            ),
         )
         return self._as_tool_connection(conn)
 
@@ -696,7 +700,9 @@ class ToolsService:
         access = get_request_access()
         if access is not None and bound_to_caller(
             access.bindings,
-            ConnectionKey(kind="tool", service=f"{provider_key}:{integration_key}"),
+            tool_key(
+                provider=provider_key, integration=integration_key, slug=connection_slug
+            ),
         ):
             return await self._resolve_personal_connection(
                 access=access,
@@ -812,6 +818,29 @@ class ToolsService:
         connection_slug = ref.connection.slug
 
         _validate_slug_segments(provider_key, (integration_key, connection_slug))
+
+        # An entry that asks for each person's own account, in a run that carries no
+        # signed binding for it (a run started outside the API), is refused, never
+        # answered with the project's connection of that slug.
+        access = get_request_access()
+        if ref.connection.binding == "caller_account" and not (
+            access is not None
+            and bound_to_caller(
+                access.bindings,
+                tool_key(
+                    provider=provider_key,
+                    integration=integration_key,
+                    slug=connection_slug,
+                ),
+            )
+        ):
+            raise PersonalCredentialRefused(
+                code="binding_not_signed",
+                message=(
+                    "This agent uses each person's own account. Start it from a "
+                    "conversation in Agenta."
+                ),
+            )
 
         await self.resolve_connection_by_slug(
             project_id=project_id,
