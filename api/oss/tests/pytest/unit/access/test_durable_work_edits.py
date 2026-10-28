@@ -439,3 +439,23 @@ async def test_refusal_for_api_key_work():
         DurableWorkOwnerOnly(kind=DurableWorkKind.SUBSCRIPTION, executing=KEY)
     )
     assert "an API key" in error.detail["message"]
+
+
+async def test_the_evaluation_rule_is_checked_on_the_locked_row():
+    run = _run()
+    service, dao = _evaluations(run)
+    moved_by_alice = _run().data
+    locked = run.model_copy(update={"data": moved_by_alice})
+
+    async def edit_with_lock(**kwargs):
+        kwargs["check"](locked)
+        return None
+
+    dao.edit_run = AsyncMock(side_effect=edit_with_lock)
+    with pytest.raises(DurableWorkOwnerOnly):
+        await service.edit_run(
+            project_id=uuid4(),
+            user_id=BOB.id,
+            run=EvaluationRunEdit(id=run.id, name="renamed", data=run.data),
+            editor=BOB,
+        )

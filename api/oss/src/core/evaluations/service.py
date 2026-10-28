@@ -878,6 +878,16 @@ class EvaluationsService:
             #
             run=run,
             **({"principal": principal} if principal is not None else {}),
+            # Checked again on the locked row, so a concurrent edit cannot slip past it.
+            **(
+                {
+                    "check": lambda locked: _check_run_edit(
+                        editor=editor, prior_run=locked, edit=run
+                    )
+                }
+                if editor is not None
+                else {}
+            ),
         )
         if edited_run:
             edited_run = await self._reconcile_run(

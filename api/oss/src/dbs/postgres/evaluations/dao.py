@@ -1,5 +1,5 @@
 import asyncio
-from typing import Optional, List, Tuple, Dict
+from typing import Callable, Optional, List, Tuple, Dict
 from uuid import UUID
 from datetime import datetime, timezone
 
@@ -12,6 +12,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.inspection import inspect
 
+from oss.src.core.access.durable_work import DurableWorkOwnerOnly
 from oss.src.core.access.dtos import PrincipalRef
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import suppress_exceptions
@@ -338,7 +339,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             )
             await session.commit()
 
-    @suppress_exceptions(exclude=[EvaluationClosedConflict])
+    @suppress_exceptions(exclude=[EvaluationClosedConflict, DurableWorkOwnerOnly])
     async def edit_run(
         self,
         *,
@@ -347,7 +348,10 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         #
         run: EvaluationRunEdit,
         principal: Optional[PrincipalRef] = None,
+        check: Optional[Callable[[EvaluationRun], None]] = None,
     ) -> Optional[EvaluationRun]:
+        """`check` runs on the row locked for the write (the M7 edit rule), so the row
+        it judged is the row the edit replaces."""
         async with self.engine.session() as session:
             stmt = select(EvaluationRunDBE).filter(
                 EvaluationRunDBE.project_id == project_id,
@@ -358,6 +362,8 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             )
 
             stmt = stmt.limit(1)
+            if check is not None:
+                stmt = stmt.with_for_update()
 
             res = await session.execute(stmt)
 
@@ -365,6 +371,9 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             if run_dbe is None:
                 return None
+
+            if check is not None:
+                check(create_dto_from_dbe(DTO=EvaluationRun, dbe=run_dbe))
 
             run_flags = run_dbe.flags or {}
             base_flags = EvaluationRunFlags(**run_flags)
