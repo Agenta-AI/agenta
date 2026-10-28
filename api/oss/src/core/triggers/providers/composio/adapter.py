@@ -34,6 +34,8 @@ def normalize_webhook_event(envelope: Dict[str, Any]) -> Optional[Dict[str, Any]
     if envelope.get("type") != _WEBHOOK_EVENT:
         return None
     metadata = envelope.get("metadata") or {}
+    if not isinstance(metadata, dict):
+        return None
     trigger_id = metadata.get("trigger_id")
     event_id = envelope.get("id")
     if not trigger_id or not event_id:

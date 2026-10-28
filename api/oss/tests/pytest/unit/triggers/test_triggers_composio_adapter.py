@@ -103,6 +103,8 @@ def test_normalize_webhook_event_maps_v3_envelope():
         {**_V3_ENVELOPE, "type": "composio.connected_account.expired"},
         {k: v for k, v in _V3_ENVELOPE.items() if k != "id"},
         {**_V3_ENVELOPE, "metadata": {"trigger_slug": "X"}},
+        {**_V3_ENVELOPE, "metadata": ["ti_1"]},
+        {**_V3_ENVELOPE, "metadata": "ti_1"},
     ],
 )
 def test_normalize_webhook_event_rejects_unroutable_envelopes(envelope):
