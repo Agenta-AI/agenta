@@ -26,7 +26,16 @@ The two data migrations change data in one direction and have no down migration.
 
 ### Upgrade from 0.127.0
 
-Run 0.127.0 on every pod before you start 0.128.0. A rolling upgrade from 0.126.0 or older is not supported. To go back to 0.127.0, set `ALEMBIC_AUTO_MIGRATIONS=false` (in Helm, `alembic.autoMigrations: false`) and deploy the 0.127.0 images; 0.127.0 reads the data that 0.128.0 leaves.
+Run 0.127.0 on every pod before you start 0.128.0. A rolling upgrade from 0.126.0 or older is not supported. To go back to 0.127.0, set `ALEMBIC_AUTO_MIGRATIONS=false` (in Helm, `alembic.autoMigrations: false`) and deploy the 0.127.0 images; 0.127.0 reads the data that 0.128.0 leaves. One exception: 0.128.0 no longer deletes the old workspace membership of a member it removes, and 0.127.0 still reads those rows. Before 0.127.0 serves traffic, run once:
+
+```sql
+DELETE FROM workspace_members wm USING workspaces w
+WHERE w.id = wm.workspace_id
+  AND NOT EXISTS (
+    SELECT 1 FROM organization_members om
+    WHERE om.organization_id = w.organization_id AND om.user_id = wm.user_id
+  );
+```
 
 ### Old workspace ids are unknown ids
 
