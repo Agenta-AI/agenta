@@ -221,7 +221,8 @@ def _check_run_edit(
     executes. Name, tags, flags and status are lifecycle (M7 edit rule)."""
     change = (
         DurableWorkChange.EXECUTION
-        if execution_changed(prior_run.data, edit.data)
+        # An edit without `data` leaves the stored configuration as it is.
+        if edit.data is not None and execution_changed(prior_run.data, edit.data)
         else DurableWorkChange.LIFECYCLE
     )
     check_durable_work_change(
@@ -238,11 +239,21 @@ def _simple_targets(data: Optional[SimpleEvaluationData]) -> Dict[str, Any]:
     if data is None:
         return {}
     return {
-        "query_steps": data.query_steps,
-        "testset_steps": data.testset_steps,
-        "application_steps": data.application_steps,
-        "evaluator_steps": data.evaluator_steps,
+        "query_steps": _target_ids(data.query_steps),
+        "testset_steps": _target_ids(data.testset_steps),
+        "application_steps": _target_ids(data.application_steps),
+        "evaluator_steps": _target_ids(data.evaluator_steps),
     }
+
+
+def _target_ids(target: Any) -> List[str]:
+    """A target's ids, whichever shape it has: a list of ids, a map of id to origin (as a
+    stored run reads back), or nothing."""
+    if isinstance(target, dict):
+        return sorted(str(key) for key in target)
+    if isinstance(target, (list, tuple)):
+        return sorted(str(item) for item in target)
+    return []
 
 
 class EvaluationsService:
@@ -916,6 +927,16 @@ class EvaluationsService:
                 prior_run = prior_by_id.get(run.id)
                 if prior_run is not None:
                     _check_run_edit(editor=editor, prior_run=prior_run, edit=run)
+            # A user's batch is written run by run, each checked again on its locked row,
+            # so a concurrent change by the executing principal cannot be overwritten.
+            edited = []
+            for run in runs:
+                edited_run = await self.edit_run(
+                    project_id=project_id, user_id=user_id, run=run, editor=editor
+                )
+                if edited_run is not None:
+                    edited.append(edited_run)
+            return edited
         prior_step_keys_by_id = {
             prior_run.id: self._step_keys(prior_run) for prior_run in prior_runs
         }

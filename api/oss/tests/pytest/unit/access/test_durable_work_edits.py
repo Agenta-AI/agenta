@@ -538,3 +538,38 @@ async def test_a_stored_configuration_changed_before_the_lock_refuses_the_rename
             run=EvaluationRunEdit(id=run.id, name="renamed", data=run.data),
             editor=BOB,
         )
+
+
+async def test_a_rename_without_configuration_is_a_lifecycle_edit():
+    run = _run()
+    service, dao = _evaluations(run)
+    await service.edit_run(
+        project_id=uuid4(),
+        user_id=BOB.id,
+        run=EvaluationRunEdit(id=run.id, name="renamed"),
+        editor=BOB,
+    )
+    dao.edit_run.assert_awaited_once()
+
+
+def test_simple_targets_compare_by_ids_whatever_their_shape():
+    from oss.src.core.evaluations.service import _simple_targets  # noqa: PLC0415
+
+    testset = uuid4()
+    as_list = SimpleEvaluationData(testset_steps=[testset])
+    as_map = SimpleEvaluationData(testset_steps={testset: "custom"})
+    assert not execution_changed(_simple_targets(as_list), _simple_targets(as_map))
+
+
+async def test_a_user_batch_is_checked_on_each_locked_row():
+    run = _run()
+    service, dao = _evaluations(run.model_copy(update={"data": _run().data}))
+    dao.fetch_runs = AsyncMock(return_value=[run])
+    with pytest.raises(DurableWorkOwnerOnly):
+        await service.edit_runs(
+            project_id=uuid4(),
+            user_id=BOB.id,
+            runs=[EvaluationRunEdit(id=run.id, name="renamed", data=run.data)],
+            editor=BOB,
+        )
+    dao.edit_runs.assert_not_awaited()
