@@ -136,6 +136,37 @@
         "label": "Skill: review-loop",
         "default_collapsed": true
       }
+    },
+    {
+      "id": "claude-skill-toolu_016NFjztZc2JAUk1XNPbLMX8",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "qa-loop"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "deab97314868",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 511,
+        "end": 512,
+        "entry_ids": [
+          "bdc9e8b2-befe-4e96-b932-b490692c9909"
+        ],
+        "tool_use_id": "toolu_016NFjztZc2JAUk1XNPbLMX8"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_016NFjztZc2JAUk1XNPbLMX8"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: qa-loop",
+        "default_collapsed": true
+      }
     }
   ],
   "session_metrics": {
