@@ -95,7 +95,12 @@ export const ProjectsPage = ({
     const scopedProjects = useMemo(() => {
         if (!projects) return []
         if (!workspaceId) return projects
-        return projects.filter((project) => project.workspace_id === workspaceId)
+        // The segment is the organization id (workspace removal step 2) or a legacy
+        // workspace id: an API pod of either version answers the same projects.
+        return projects.filter(
+            (project) =>
+                project.workspace_id === workspaceId || project.organization_id === workspaceId,
+        )
     }, [projects, workspaceId])
     const canDeleteProjects = scopedProjects.length > 1
     // A host that brings no dialogs gets the list read-only rather than affordances that open nothing.

@@ -106,7 +106,7 @@ def test_attributes_carry_principal_target_decision_outcome():
     )
 
     assert attributes["organization_id"] == str(scope.organization_id)
-    assert attributes["workspace_id"] == str(scope.workspace_id)
+    assert "workspace_id" not in attributes
     assert attributes["project_id"] == str(scope.project_id)
     assert attributes["user_id"] == str(scope.user_id)
     assert attributes["plane"] == "llm"

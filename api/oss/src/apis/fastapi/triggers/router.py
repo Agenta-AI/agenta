@@ -56,6 +56,7 @@ from oss.src.core.triggers.exceptions import (
     TriggerReferenceInvalid,
     TriggerScheduleInvalid,
 )
+from oss.src.core.triggers.providers.composio.adapter import normalize_webhook_event
 from oss.src.core.triggers.service import TriggersService
 
 
@@ -1646,12 +1647,14 @@ class TriggersRouter:
                 detail="Invalid payload",
             )
 
-        metadata = envelope.get("metadata") or {}
-        trigger_id = metadata.get("trigger_id") or metadata.get("nano_id")
-        event_id = metadata.get("id")
+        event = normalize_webhook_event(envelope)
 
-        if not trigger_id or not event_id:
-            # Nothing to route — accept (no-op) so the provider does not retry.
+        if event is None:
+            log.warning(
+                "[TRIGGERS] composio event not routable type=%r",
+                str(envelope.get("type"))[:64],
+            )
+            # Accept (no-op) so the provider does not retry.
             return TriggerEventAck(
                 status="accepted", detail="No trigger_id/id to route"
             )
@@ -1660,9 +1663,9 @@ class TriggersRouter:
             try:
                 await asyncio.wait_for(
                     self.dispatch_task.kiq(
-                        trigger_id=str(trigger_id),
-                        event_id=str(event_id),
-                        event=envelope,
+                        trigger_id=str(event["metadata"]["trigger_id"]),
+                        event_id=str(event["metadata"]["id"]),
+                        event=event,
                     ),
                     timeout=_ENQUEUE_TIMEOUT_SECONDS,
                 )

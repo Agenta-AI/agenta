@@ -1,5 +1,11 @@
 [
     {
+        "id": "changelog-2026-10-12-credit-plans-and-reliability-fixes",
+        "title": "Credit-based plans",
+        "description": "Plans now use credits, with 75 free credits a day. Also fixes for analytics, live replies and Gemini on Vertex AI.",
+        "link": "https://agenta.ai/docs/changelog/credit-plans-and-reliability-fixes"
+    },
+    {
         "id": "changelog-2026-10-07-agent-analytics",
         "title": "Analytics",
         "description": "See cost, runs, success rate and tokens for every agent, and the runs behind each number.",

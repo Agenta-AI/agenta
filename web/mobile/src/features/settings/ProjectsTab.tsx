@@ -37,7 +37,7 @@ export const ProjectsTab = ({workspaceId, projectId}: SettingsTabProps) => {
             onChanged={() => void queryClient.invalidateQueries({queryKey: ["mobile", "projects"]})}
             onSwitch={(project) =>
                 switchSettingsContext(router, {
-                    workspaceId: project.workspace_id ?? workspaceId,
+                    workspaceId: project.organization_id ?? project.workspace_id ?? workspaceId,
                     projectId: project.project_id,
                     tab: "projects",
                 })

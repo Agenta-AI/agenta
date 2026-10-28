@@ -24,6 +24,26 @@ log = get_module_logger(__name__)
 _WEBHOOK_EVENT = "composio.trigger.message"
 
 
+def normalize_webhook_event(envelope: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Map a Composio V3 webhook envelope to the internal trigger event shape.
+
+    V3 carries the event id at the top level and the message under ``data``;
+    the dispatcher reads ``metadata.id`` and ``payload``. Returns None when the
+    envelope is not a routable trigger message.
+    """
+    if envelope.get("type") != _WEBHOOK_EVENT:
+        return None
+    metadata = envelope.get("metadata") or {}
+    trigger_id = metadata.get("trigger_id")
+    event_id = envelope.get("id")
+    if not trigger_id or not event_id:
+        return None
+    return {
+        "metadata": {**metadata, "id": event_id},
+        "payload": envelope.get("data"),
+    }
+
+
 class ComposioTriggersAdapter(ComposioTriggersCatalogClient, TriggersGatewayInterface):
     """Composio V3 triggers adapter — uses httpx directly (no SDK).
 

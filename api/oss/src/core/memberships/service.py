@@ -438,7 +438,6 @@ class MembershipsService:
         self,
         *,
         organization_id: UUID,
-        workspace_id: UUID,
         name: str,
         is_default: bool,
         #
@@ -446,7 +445,6 @@ class MembershipsService:
     ) -> ProjectScope:
         created = await self._dao.create_project(
             organization_id=organization_id,
-            workspace_id=workspace_id,
             name=name,
             is_default=is_default,
         )
@@ -462,7 +460,6 @@ class MembershipsService:
         log.info(
             "[memberships] project created",
             organization_id=str(organization_id),
-            workspace_id=str(workspace_id),
             project_id=str(created.scope.project_id),
             actor_user_id=str(actor_user_id) if actor_user_id else None,
             seeded_count=created.seeded_count,
