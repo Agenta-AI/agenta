@@ -12,7 +12,13 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from oss.src.core.tracing.dtos import OTelFlatSpan, SpanType
+from oss.src.core.tracing.access import MaintenanceOperation, maintenance_scope
+from oss.src.core.tracing.dtos import (
+    OTelFlatSpan,
+    SpanType,
+    TraceRootUsage,
+    TraceTotals,
+)
 from oss.src.core.tracing.streaming import serialize_span
 from oss.src.core.tracing.utils.trees import (
     calculate_and_propagate_metrics_by_trace,
@@ -184,7 +190,7 @@ class _Engine:
         yield _Session(self)
 
 
-def _row(span_id, parent_id, span_type, offset_s, metrics, flags=None):
+def _row(span_id, parent_id, span_type, offset_s, metrics, flags=None, session=None):
     return SimpleNamespace(
         span_id=span_id,
         parent_id=parent_id,
@@ -193,6 +199,13 @@ def _row(span_id, parent_id, span_type, offset_s, metrics, flags=None):
         end_time=T0 + timedelta(seconds=offset_s),
         metrics=metrics,
         flags=flags,
+        session_id=session,
+    )
+
+
+def _ingest_scope(project_id):
+    return maintenance_scope(
+        project_id=project_id, operation=MaintenanceOperation.INGEST
     )
 
 
@@ -227,17 +240,20 @@ async def test_dao_writes_only_changed_cumulative_values_in_span_order():
     engine = _Engine(rows)
     project_id, trace_id = uuid4(), uuid4()
 
-    written = await TracingDAO(engine=engine).recompute_trace_metrics(
+    totals = await TracingDAO(engine=engine).recompute_trace_metrics(
         project_id=project_id,
         trace_id=trace_id,
         recompute=recompute_cumulative_metrics,
         max_spans=10,
+        scope=_ingest_scope(project_id),
     )
 
     assert "pg_advisory_xact_lock" in str(engine.executed[0][0])
     update_stmt, params = engine.executed[-1]
     assert update_stmt is UPDATE_CUMULATIVE_METRIC_STMT
-    assert written == 2
+    assert totals.written == 2
+    assert totals.linked is False
+    assert totals.root_usage.cost == pytest.approx(0.03)
     assert [(p["span_id"], p["metric"]) for p in params] == [
         (child_a, "costs"),
         (root, "costs"),
@@ -250,12 +266,120 @@ async def test_dao_skips_a_trace_over_the_span_limit():
     rows = [_row(UUID(int=i), None, SpanType.TASK, i, None) for i in range(3)]
     engine = _Engine(rows)
 
+    project_id = uuid4()
     written = await TracingDAO(engine=engine).recompute_trace_metrics(
-        project_id=uuid4(),
+        project_id=project_id,
         trace_id=uuid4(),
         recompute=recompute_cumulative_metrics,
         max_spans=2,
+        scope=_ingest_scope(project_id),
     )
 
     assert written is None
     assert len(engine.executed) == 2
+
+
+async def test_dao_reports_a_session_link_and_the_root_usage():
+    root, child = UUID(int=2), UUID(int=1)
+    rows = [
+        _row(root, None, SpanType.WORKFLOW, 0, None),
+        _row(
+            child,
+            root,
+            SpanType.CHAT,
+            1,
+            {
+                "costs": {"incremental": {"total": 0.02}},
+                "tokens": {"incremental": {"prompt": 10, "completion": 5}},
+            },
+            session="s-1",
+        ),
+    ]
+    project_id = uuid4()
+
+    totals = await TracingDAO(engine=_Engine(rows)).recompute_trace_metrics(
+        project_id=project_id,
+        trace_id=uuid4(),
+        recompute=recompute_cumulative_metrics,
+        max_spans=10,
+        scope=_ingest_scope(project_id),
+    )
+
+    assert totals.linked is True
+    usage = totals.root_usage
+    assert (usage.input_tokens, usage.output_tokens, usage.total_tokens) == (10, 5, 15)
+    assert usage.cost == pytest.approx(0.02)
+
+
+async def test_dao_refuses_a_recompute_without_a_scope():
+    with pytest.raises(Exception, match="read scope"):
+        await TracingDAO(engine=_Engine([])).recompute_trace_metrics(
+            project_id=uuid4(),
+            trace_id=uuid4(),
+            recompute=recompute_cumulative_metrics,
+            max_spans=10,
+            scope=None,
+        )
+
+
+class _Turns:
+    def __init__(self):
+        self.written = []
+
+    async def record_trace_usage(self, *, project_id, trace_id, usage):
+        self.written.append((project_id, trace_id, usage))
+        return 1
+
+
+class _TotalsService(_StoringService):
+    def __init__(self, totals):
+        super().__init__()
+        self.totals = totals
+
+    async def recompute_trace_totals(self, *, project_id, trace_id):
+        await super().recompute_trace_totals(project_id=project_id, trace_id=trace_id)
+        return self.totals
+
+
+def _usage_worker(totals, turns):
+    return TracingWorker(
+        service=_TotalsService(totals),
+        redis_client=None,
+        stream_name="streams:spans",
+        consumer_group="worker-spans",
+        consumer_name="test",
+        turns_service=turns,
+    )
+
+
+async def test_a_session_trace_writes_its_root_usage_to_the_turn():
+    turns = _Turns()
+    usage = TraceRootUsage(input_tokens=3, output_tokens=4, total_tokens=7, cost=0.5)
+    worker = _usage_worker(TraceTotals(written=1, linked=True, root_usage=usage), turns)
+    ids = dict(organization_id=uuid4(), project_id=uuid4(), user_id=uuid4())
+    trace_id = uuid4()
+
+    await worker.process_batch([_message(ids, _span(trace_id, uuid4(), None, 0))])
+
+    assert len(turns.written) == 1
+    project_id, written_trace, written_usage = turns.written[0]
+    assert (project_id, written_trace) == (ids["project_id"], trace_id)
+    assert written_usage.model_dump() == usage.model_dump()
+
+
+@pytest.mark.parametrize(
+    "totals",
+    [
+        None,
+        TraceTotals(written=0, linked=False, root_usage=TraceRootUsage(cost=1.0)),
+        TraceTotals(written=0, linked=True, root_usage=None),
+    ],
+)
+async def test_an_unlinked_or_unpriced_trace_writes_no_turn(totals):
+    turns = _Turns()
+    worker = _usage_worker(totals, turns)
+    ids = dict(organization_id=uuid4(), project_id=uuid4(), user_id=uuid4())
+
+    await worker.process_batch([_message(ids, _span(uuid4(), uuid4(), None, 0))])
+
+    assert turns.written == []
