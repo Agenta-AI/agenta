@@ -35,6 +35,7 @@ from oss.src.core.gateways.mcps.oauth.types import (
 from oss.src.core.gateways.mcps.registry import MCPUpstreamRegistry
 from oss.src.core.gateways.mcps.service import MCPGatewayService
 from oss.src.core.gateways.mcps.types import MCPConnectionBusyError
+from oss.src.core.gateways.policy.dtos import GatewayPlane
 from oss.src.core.gateways.policy.resolution import SecretsResolver
 from oss.src.core.gateways.policy.service import GatewayPolicyService
 from oss.src.core.secrets.dtos import (
@@ -69,7 +70,7 @@ def services(local_mcp_oauth_provider, _public_dns_for_the_oauth_provider):
         endpoints_dao=endpoints,
         resolve=lambda _hostname: ["10.0.0.1"],
     )
-    resolver = SecretsResolver(vault_service=vault)
+    resolver = SecretsResolver(vault_service=vault, plane=GatewayPlane.MCP)
     gateway = MCPGatewayService(
         mcp_endpoints_dao=endpoints,
         policy=GatewayPolicyService(resolver=resolver),

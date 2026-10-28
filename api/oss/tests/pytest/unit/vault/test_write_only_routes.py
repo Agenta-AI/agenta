@@ -25,6 +25,10 @@ from oss.src.core.secrets.subscription_login import SubscriptionLoginRunnerClien
 from oss.src.core.secrets.subscription_service import SubscriptionLoginService
 from oss.src.middlewares.auth import SECRET_RESOLVE_GRANT
 from oss.tests.pytest.utils.principals import envelope_for_claims
+from oss.tests.pytest.utils.organization_secrets import (
+    load_effective_from_list,
+    owner_scope,
+)
 
 
 def _vault_router(vault_service: VaultService) -> VaultRouter:
@@ -47,10 +51,19 @@ KEY = "sk-test-openai-secret"
 
 
 class _FakeSecretsDAO:
+    load_effective = load_effective_from_list
+
     def __init__(self):
         self.records: dict = {}
 
-    async def create(self, project_id, organization_id, create_secret_dto):
+    async def create(
+        self,
+        *,
+        owner,
+        create_secret_dto,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         record = SecretResponseDTO(
             id=uuid4(),
             slug=create_secret_dto.slug,
@@ -62,13 +75,33 @@ class _FakeSecretsDAO:
         self.records[str(record.id)] = record
         return record
 
-    async def list(self, project_id, organization_id):
+    async def list(
+        self,
+        *,
+        owner,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         return list(self.records.values())
 
-    async def get_by_id(self, secret_id, project_id, organization_id):
+    async def get_by_id(
+        self,
+        *,
+        owner,
+        secret_id,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         return self.records.get(str(secret_id))
 
-    async def get_by_slug(self, secret_slug, project_id, organization_id):
+    async def get_by_slug(
+        self,
+        *,
+        owner,
+        secret_slug,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         return next(
             (r for r in self.records.values() if r.slug == secret_slug),
             None,
@@ -76,13 +109,15 @@ class _FakeSecretsDAO:
 
     async def update(
         self,
+        *,
+        owner,
         secret_id,
         update_secret_dto,
-        project_id,
-        organization_id,
         user_id=None,
         resolve_update=None,
+        **_kwargs,
     ):
+        project_id, organization_id = owner_scope(owner)
         stored = self.records.get(str(secret_id))
         if stored is None:
             return None
@@ -105,8 +140,14 @@ class _FakeSecretsDAO:
         return updated
 
     async def delete(
-        self, secret_id, project_id, organization_id, authorize_delete=None
+        self,
+        *,
+        owner,
+        secret_id,
+        authorize_delete=None,
+        **_kwargs,
     ):
+        project_id, organization_id = owner_scope(owner)
         stored = self.records.get(str(secret_id))
         if stored is not None and authorize_delete is not None:
             authorize_delete(stored)

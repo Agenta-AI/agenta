@@ -59,6 +59,7 @@ from oss.src.core.gateways.mcps.types import (
     MCPAuthRequiredError,
     MCPUpstreamError,
 )
+from oss.src.core.gateways.policy.dtos import GatewayPlane
 from oss.src.core.gateways.policy.resolution import SecretsResolver
 from oss.src.core.gateways.policy.service import GatewayPolicyService
 from oss.src.core.secrets.enums import SecretKind
@@ -116,7 +117,9 @@ def relay_service(
     _public_dns_for_the_oauth_provider,
 ) -> MCPGatewayService:
     """The relay as a deployment wires it, with the provider standing in for the socket."""
-    resolver = SecretsResolver(vault_service=VaultService(secrets_dao=SecretsDAO()))
+    resolver = SecretsResolver(
+        vault_service=VaultService(secrets_dao=SecretsDAO()), plane=GatewayPlane.MCP
+    )
     return MCPGatewayService(
         mcp_endpoints_dao=MCPEndpointsDAO(engine=get_transactions_engine()),
         policy=GatewayPolicyService(resolver=resolver),
@@ -1152,7 +1155,9 @@ def _relay_over(transport, *, provider, connect_service) -> MCPGatewayService:
     that the relay reaches it with the token it actually sent. That is a second claim,
     and it lives in a different function (D82).
     """
-    resolver = SecretsResolver(vault_service=VaultService(secrets_dao=SecretsDAO()))
+    resolver = SecretsResolver(
+        vault_service=VaultService(secrets_dao=SecretsDAO()), plane=GatewayPlane.MCP
+    )
     return MCPGatewayService(
         mcp_endpoints_dao=MCPEndpointsDAO(engine=get_transactions_engine()),
         policy=GatewayPolicyService(resolver=resolver),

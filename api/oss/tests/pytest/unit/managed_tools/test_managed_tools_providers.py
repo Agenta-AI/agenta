@@ -345,7 +345,7 @@ def _mcp_with_key(upstream, key):
             ),
             header=Header(name="key"),
         ),
-        owner=SecretOwner(kind=SecretOwnerKind.PROJECT),
+        owner=SecretOwner(kind=SecretOwnerKind.PROJECT, id=uuid4()),
         origin=SecretOrigin.LOCAL,
     )
     return MCPActionProvider(
