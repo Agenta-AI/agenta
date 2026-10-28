@@ -9,6 +9,11 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from urllib.parse import urlparse
 from uuid import UUID, uuid4
 
+from oss.src.core.access.context import get_request_access
+from oss.src.core.credentials.bindings import bound_to_caller, mcp_key
+from oss.src.core.credentials.policy import check_personal_credentials_allowed
+from oss.src.core.credentials.selection import select_personal_credential
+from oss.src.core.secrets.dtos import SecretOwner
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.gateway.connections.dtos import Connection
 from oss.src.core.gateway.connections.service import ConnectionsService
@@ -68,6 +73,7 @@ from oss.src.core.gateways.mcps.types import (
     MCPScopeInsufficientError,
     MCPToolNotAllowedError,
     MCPUpstreamError,
+    PersonalMCPAuthNotSupportedError,
 )
 from oss.src.core.gateways.policy.dtos import (
     BoundSecretRef,
@@ -1057,6 +1063,13 @@ class MCPGatewayService:
                 connection=connection,
             )
 
+        if namespace == GatewayEndpointNamespace.USER:
+            return _ResolvedTarget(
+                namespace=namespace,
+                name=name,
+                endpoint=await self._personal_endpoint(slug=name),
+            )
+
         # CUSTOM
         endpoint = await self.mcp_endpoints_dao.fetch_endpoint_by_slug(
             project_id=project_id, slug=name
@@ -1064,6 +1077,78 @@ class MCPGatewayService:
         if endpoint is None:
             raise MCPEndpointNotFoundError(namespace=namespace, name=name)
         return _ResolvedTarget(namespace=namespace, name=name, endpoint=endpoint)
+
+    async def _personal_endpoint(self, *, slug: str) -> MCPEndpoint:
+        """The run's person's own server with this slug (M7), for a run whose signed
+        bindings name it. Without that binding the route answers nothing, so sandbox
+        code cannot reach a person's server on its own; a person without one is refused
+        and the project's server of that slug is never used."""
+        access = get_request_access()
+        if access is None or not bound_to_caller(access.bindings, mcp_key(slug=slug)):
+            raise MCPEndpointNotFoundError(
+                namespace=GatewayEndpointNamespace.USER, name=slug
+            )
+        authority = access.authority
+        return await select_personal_credential(
+            authority=authority,
+            session_id=access.session_id,
+            label=slug,
+            read=lambda user_id: self.mcp_endpoints_dao.fetch_owned_endpoint_by_slug(
+                owner=SecretOwner.for_user(
+                    organization_id=authority.organization_id, user_id=user_id
+                ),
+                slug=slug,
+            ),
+        )
+
+    # -- a person's own servers (M7) ---------------------------------------------------
+
+    async def create_personal_endpoint(
+        self,
+        *,
+        organization_id: UUID,
+        user_id: UUID,
+        endpoint: MCPEndpointCreate,
+    ) -> Optional[MCPEndpoint]:
+        """A person's own MCP server in their organization. Only servers that need no
+        sign-in for now: a personal API key or OAuth grant needs storage this step does
+        not have."""
+        await check_personal_credentials_allowed(organization_id=organization_id)
+        if endpoint.auth_mode != MCPAuthScheme.NONE or endpoint.secret_id is not None:
+            raise PersonalMCPAuthNotSupportedError()
+        if not endpoint.slug:
+            endpoint = endpoint.model_copy(
+                update={"slug": derive_endpoint_slug(endpoint)}
+            )
+        return await self.mcp_endpoints_dao.create_endpoint(
+            project_id=None,
+            user_id=user_id,
+            endpoint=endpoint,
+            owner=SecretOwner.for_user(
+                organization_id=organization_id, user_id=user_id
+            ),
+        )
+
+    async def list_personal_endpoints(
+        self, *, organization_id: UUID, user_id: UUID
+    ) -> List[MCPEndpoint]:
+        return await self.mcp_endpoints_dao.query_owned_endpoints(
+            owner=SecretOwner.for_user(organization_id=organization_id, user_id=user_id)
+        )
+
+    async def delete_personal_endpoints(
+        self,
+        *,
+        organization_id: UUID,
+        user_id: UUID,
+        endpoint_id: Optional[UUID] = None,
+    ) -> int:
+        return await self.mcp_endpoints_dao.delete_owned_endpoints(
+            owner=SecretOwner.for_user(
+                organization_id=organization_id, user_id=user_id
+            ),
+            endpoint_id=endpoint_id,
+        )
 
     @staticmethod
     def _check_active(target: _ResolvedTarget) -> None:

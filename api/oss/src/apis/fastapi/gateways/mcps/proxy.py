@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from fastapi import APIRouter, Request, Response, status
 
+from oss.src.core.credentials.policy import PersonalCredentialRefused
 from oss.src.apis.fastapi.gateways.mcps.utils import (
     MCPRequestBodyError,
     parse_mcp_call_context,
@@ -54,6 +55,7 @@ _JSONRPC_SERVER_ERROR = -32000
 
 # Exceptions represented as JSON-RPC gateway errors.
 _MAPPED_EXCEPTIONS = (
+    PersonalCredentialRefused,
     GatewayPlaneDisabledError,
     GatewayEndpointInactiveError,
     ValueError,
@@ -117,6 +119,14 @@ def _protocol_error(
 
 
 def _map_gateway_exception(e: BaseException) -> Response:
+    if isinstance(e, PersonalCredentialRefused):
+        # Each person's own server cannot be used (M7). The message is for the person.
+        return _protocol_error(
+            status_code=status.HTTP_403_FORBIDDEN,
+            code=_JSONRPC_SERVER_ERROR,
+            message=e.message,
+            cause=e.code,
+        )
     if isinstance(e, GatewayPlaneDisabledError):
         return _protocol_error(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -269,11 +279,18 @@ class MCPGatewayProxy:
             methods=["POST"],
             operation_id="mcp_gateway_relay_custom",
         )
+        self.router.add_api_route(
+            "/user/{slug}",
+            self.relay_user,
+            methods=["POST"],
+            operation_id="mcp_gateway_relay_user",
+        )
 
         for path in (
             "/standard/{provider}",
             "/builtin/{provider}/{rest:path}",
             "/custom/{slug}",
+            "/user/{slug}",
         ):
             self.router.add_api_route(
                 path,
@@ -352,6 +369,16 @@ class MCPGatewayProxy:
         return await self._relay(
             request=request,
             namespace=GatewayEndpointNamespace.CUSTOM,
+            name=slug,
+        )
+
+    @intercept_exceptions()
+    async def relay_user(self, request: Request, slug: str) -> Response:
+        # The run's person's own server (M7): only for a run whose signed bindings name
+        # this server as each person's own.
+        return await self._relay(
+            request=request,
+            namespace=GatewayEndpointNamespace.USER,
             name=slug,
         )
 

@@ -4,6 +4,8 @@ import pytest
 from pydantic import ValidationError
 
 from agenta.sdk.agents.connections.models import Connection
+from agenta.sdk.agents.mcp.models import MCPGatewayConnection
+from agenta.sdk.agents.mcp.resolver import _gateway_mcp_route
 from agenta.sdk.agents.tools.models import GatewayConnectionRef
 
 
@@ -40,3 +42,35 @@ def test_each_persons_own_account_parses_on_every_reference():
 def test_unsupported_bindings_are_refused(build):
     with pytest.raises(ValidationError):
         build()
+
+
+def test_a_personal_mcp_server_routes_to_the_user_namespace():
+    personal = MCPGatewayConnection(
+        namespace="custom", slug="notes", scope="user", binding="caller_account"
+    )
+    route = _gateway_mcp_route(
+        connection=personal, name="notes", gateway_base_url="https://api.x/api"
+    )
+    assert route == "https://api.x/api/gateways/mcps/user/notes"
+    # An unset scope and binding serialize as before M7.
+    assert (
+        "scope" not in MCPGatewayConnection(namespace="custom", slug="n").model_dump()
+    )
+
+
+@pytest.mark.parametrize(
+    "fields",
+    [
+        {"namespace": "custom", "slug": "n", "scope": "user"},
+        {
+            "namespace": "custom",
+            "slug": "n",
+            "scope": "user",
+            "binding": "project_default",
+        },
+        {"namespace": "custom", "slug": "n", "binding": "caller_account"},
+    ],
+)
+def test_unsupported_personal_mcp_references_are_refused(fields):
+    with pytest.raises(ValidationError):
+        MCPGatewayConnection(**fields)

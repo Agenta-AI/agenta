@@ -1008,12 +1008,6 @@ connections_service = ConnectionsService(
     adapter_registry=connections_adapter_registry,
 )
 
-# A person's own credentials end when they leave an organization (M7).
-register_personal_credentials_service(
-    PersonalCredentialsService(
-        vault_service=vault_service, connections_service=connections_service
-    )
-)
 
 # Shared catalog adapter + service (providers + integrations; tools AND triggers)
 _composio_catalog_adapters = {}
@@ -1579,6 +1573,15 @@ mcp_gateway_service = MCPGatewayService(
     # holds the vault and the OAuth client that can spend a refresh token (OR55).
     oauth_refresher=mcp_oauth_connect_service,
     managed_tools=managed_mcp_adapter,
+)
+
+# A person's own credentials end when they leave an organization (M7).
+register_personal_credentials_service(
+    PersonalCredentialsService(
+        vault_service=vault_service,
+        connections_service=connections_service,
+        mcp_service=mcp_gateway_service,
+    )
 )
 
 gateway_credentials_router = GatewayCredentialsRouter()

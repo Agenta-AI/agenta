@@ -36,6 +36,11 @@ class MCPEndpointDBA(
 
     __abstract__ = True
 
+    # Overrides `ProjectScopeDBA`: a person's own server has no project (M7).
+    project_id = Column(UUID(as_uuid=True), nullable=True)
+    organization_id = Column(UUID(as_uuid=True), nullable=True)
+    user_id = Column(UUID(as_uuid=True), nullable=True)
+
     auth_mode = Column(
         SQLEnum(MCPAuthScheme, name="gatewayauthscheme_enum"), nullable=False
     )

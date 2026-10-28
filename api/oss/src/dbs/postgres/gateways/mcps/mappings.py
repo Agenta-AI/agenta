@@ -1,8 +1,10 @@
 """MCP endpoint DBE and DTO mappings."""
 
 from datetime import datetime, timezone
+from typing import Optional
 from uuid import UUID
 
+from oss.src.core.secrets.dtos import SecretOwner
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.mcps.dtos import (
     MCPEndpoint,
@@ -17,13 +19,16 @@ from oss.src.dbs.postgres.gateways.mcps.dbes import MCPEndpointDBE
 
 def map_mcp_endpoint_create_to_dbe(
     *,
-    project_id: UUID,
+    project_id: Optional[UUID],
     user_id: UUID,
     #
     dto: MCPEndpointCreate,
+    owner: Optional[SecretOwner] = None,
 ) -> MCPEndpointDBE:
     return MCPEndpointDBE(
-        project_id=project_id,
+        project_id=None if owner is not None else project_id,
+        organization_id=owner.organization_id if owner is not None else None,
+        user_id=owner.id if owner is not None else None,
         slug=dto.slug,
         name=dto.name,
         description=dto.description,
@@ -67,6 +72,13 @@ def map_mcp_endpoint_dbe_to_dto(
         status=status,
         tags=dbe.tags,
         meta=dbe.meta,
+        owner=(
+            SecretOwner.for_user(
+                organization_id=dbe.organization_id, user_id=dbe.user_id
+            )
+            if getattr(dbe, "user_id", None) is not None
+            else None
+        ),
         #
         created_at=dbe.created_at,
         updated_at=dbe.updated_at,

@@ -10,11 +10,12 @@ log = get_module_logger(__name__)
 
 class PersonalCredentialsService:
     """Deletes everything a person owns in one organization: provider keys, Composio
-    connections (provider revoke best effort) and, later, personal MCP servers."""
+    connections (provider revoke best effort) and personal MCP servers."""
 
-    def __init__(self, *, vault_service, connections_service) -> None:
+    def __init__(self, *, vault_service, connections_service, mcp_service) -> None:
         self.vault_service = vault_service
         self.connections_service = connections_service
+        self.mcp_service = mcp_service
 
     async def end_for_member(self, *, organization_id: UUID, user_id: UUID) -> int:
         removed = 0
@@ -28,6 +29,9 @@ class PersonalCredentialsService:
             ):
                 removed += 1
         removed += await self.connections_service.delete_personal_connections(
+            organization_id=organization_id, user_id=user_id
+        )
+        removed += await self.mcp_service.delete_personal_endpoints(
             organization_id=organization_id, user_id=user_id
         )
         log.info(

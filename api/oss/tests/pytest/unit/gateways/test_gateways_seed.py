@@ -429,6 +429,10 @@ def test_mcp_relay_result_and_ports():
             "query_endpoints",
             # Serializes every change to one connection's OAuth state.
             "oauth_lock",
+            # A person's own servers (M7), always by the full owner.
+            "query_owned_endpoints",
+            "fetch_owned_endpoint_by_slug",
+            "delete_owned_endpoints",
         }
     )
     assert MCPUpstreamInterface.__abstractmethods__ == frozenset({"relay"})

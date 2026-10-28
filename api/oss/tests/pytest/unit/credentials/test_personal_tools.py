@@ -209,12 +209,17 @@ async def test_leaving_the_organization_ends_the_persons_credentials():
     vault.delete_personal_secret = AsyncMock(return_value=True)
     connections = MagicMock()
     connections.delete_personal_connections = AsyncMock(return_value=1)
+    mcp = MagicMock()
+    mcp.delete_personal_endpoints = AsyncMock(return_value=1)
     service = PersonalCredentialsService(
-        vault_service=vault, connections_service=connections
+        vault_service=vault, connections_service=connections, mcp_service=mcp
     )
     assert (
         await service.end_for_member(organization_id=organization_id, user_id=alice)
-        == 3
+        == 4
+    )
+    mcp.delete_personal_endpoints.assert_awaited_once_with(
+        organization_id=organization_id, user_id=alice
     )
     for call in vault.delete_personal_secret.await_args_list:
         assert call.kwargs["organization_id"] == organization_id

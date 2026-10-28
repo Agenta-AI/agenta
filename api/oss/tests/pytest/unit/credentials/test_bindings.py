@@ -82,7 +82,7 @@ def test_a_personal_composio_entry_is_signed_with_its_own_slug():
     assert claim.key == ConnectionKey(kind="tool", service="composio:gmail:gmail-mine")
 
 
-def test_personal_mcp_waits_for_its_store():
+def test_a_personal_mcp_server_is_signed_by_slug():
     mcp = {
         "name": "notes",
         "connection": {
@@ -90,9 +90,24 @@ def test_personal_mcp_waits_for_its_store():
             "namespace": "custom",
             "slug": "notes",
             "scope": "user",
+            "binding": "caller_account",
         },
     }
-    # Refused, never read as the project's server, until the run path serves it.
+    [claim] = binding_claims_for_revision(_revision(mcps=[mcp]))
+    assert claim.key == ConnectionKey(kind="mcp", service="notes")
+
+
+def test_each_persons_sign_in_to_a_project_server_waits():
+    mcp = {
+        "name": "github",
+        "connection": {
+            "type": "gateway",
+            "namespace": "custom",
+            "slug": "github",
+            "binding": "caller_account",
+        },
+    }
+    # Refused, never read as the project's sign-in, until the run path serves it.
     with pytest.raises(InvalidBinding):
         binding_claims_for_revision(_revision(mcps=[mcp]))
 

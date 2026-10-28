@@ -150,3 +150,12 @@ class MCPConnectionNameTakenError(GatewaysError):
             "Another connection in this project already uses this name; "
             "pick a different one."
         )
+
+
+class PersonalMCPAuthNotSupportedError(GatewaysError):
+    """A person's own MCP server can only be one that needs no sign-in for now (M7)."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "A personal MCP server can only be one that needs no sign-in for now."
+        )

@@ -2,13 +2,15 @@
 
 import html as html_lib
 import json
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional
 from urllib.parse import urlsplit
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse
 
+from oss.src.apis.fastapi.shared.personal import require_person
+from oss.src.core.gateways.mcps.types import PersonalMCPAuthNotSupportedError
 from oss.src.apis.fastapi.gateways.exceptions import handle_gateway_exceptions
 from oss.src.apis.fastapi.gateways.flags import MCP_GATEWAY_ENABLED
 from oss.src.apis.fastapi.gateways.mcps.models import (
@@ -334,7 +336,31 @@ class MCPGatewayRouter:
         request: Request,
         *,
         body: MCPEndpointCreateRequest,
+        scope_kind: Literal["project", "user"] = Query(
+            default="project", alias="scope"
+        ),
     ) -> MCPEndpointResponse:
+        if scope_kind == "user":
+            # The caller's own server, in their organization (M7).
+            organization_id, user_id = await require_person(request)
+            _guard_custom_endpoint_url(url=body.endpoint.data.route.base_url)
+            try:
+                endpoint = await self.service.create_personal_endpoint(
+                    organization_id=organization_id,
+                    user_id=user_id,
+                    endpoint=body.endpoint,
+                )
+            except PersonalMCPAuthNotSupportedError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=e.message
+                ) from e
+            if endpoint is None:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="the MCP endpoint could not be created",
+                )
+            return MCPEndpointResponse(count=1, endpoint=endpoint)
+
         scope = get_auth_scope()
         await self._check(scope, Permission.EDIT_MCP_ENDPOINTS)
 
@@ -362,7 +388,18 @@ class MCPGatewayRouter:
     async def list_endpoints(
         self,
         request: Request,
+        scope_kind: Literal["project", "user"] = Query(
+            default="project", alias="scope"
+        ),
     ) -> MCPEndpointsResponse:
+        if scope_kind == "user":
+            # Only the caller's own servers (M7).
+            organization_id, user_id = await require_person(request)
+            endpoints = await self.service.list_personal_endpoints(
+                organization_id=organization_id, user_id=user_id
+            )
+            return MCPEndpointsResponse(count=len(endpoints), endpoints=endpoints)
+
         scope = get_auth_scope()
         await self._check(scope, Permission.VIEW_MCP_ENDPOINTS)
 
@@ -457,6 +494,9 @@ class MCPGatewayRouter:
         *,
         endpoint_id: UUID,
         pending_auth_mode: Optional[GatewayAuthScheme] = Query(default=None),
+        scope_kind: Literal["project", "user"] = Query(
+            default="project", alias="scope"
+        ),
     ) -> None:
         """Delete a connection.
 
@@ -468,6 +508,18 @@ class MCPGatewayRouter:
         sign-in is in flight. A change to another field, such as the name or URL, does not
         by itself keep the row.
         """
+        if scope_kind == "user":
+            organization_id, user_id = await require_person(request)
+            if not await self.service.delete_personal_endpoints(
+                organization_id=organization_id,
+                user_id=user_id,
+                endpoint_id=endpoint_id,
+            ):
+                raise MCPEndpointNotFoundError(
+                    namespace=GatewayEndpointNamespace.USER, name=str(endpoint_id)
+                )
+            return None
+
         scope = get_auth_scope()
         await self._check(scope, Permission.EDIT_MCP_ENDPOINTS)
 

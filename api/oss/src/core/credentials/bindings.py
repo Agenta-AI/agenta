@@ -28,7 +28,7 @@ class Binding(str, Enum):
     PROJECT_DEFAULT = "project_default"
 
 
-ConnectionKind = Literal["model", "tool"]
+ConnectionKind = Literal["model", "tool", "mcp"]
 
 
 class ConnectionKey(BaseModel):
@@ -36,8 +36,9 @@ class ConnectionKey(BaseModel):
 
     - model: `service` is the provider family (`openai`).
     - tool: `service` is `composio:<integration>:<slug>`, the entry's own connection.
-    Personal subscription logins and MCP accounts are later steps; a binding on them is
-    refused, so they have no key yet.
+    - mcp: `service` is the slug of the person's own MCP server (reference scope `user`).
+    Personal subscription logins and per-person sign-ins to a project's MCP server are
+    later steps; a binding on them is refused, so they have no key.
     """
 
     model_config = ConfigDict(frozen=True, extra="forbid")
@@ -189,20 +190,42 @@ def tool_key(
     return ConnectionKey(kind="tool", service=f"{provider}:{integration}:{slug}")
 
 
-def _refuse_personal_mcp(agent: Dict[str, Any]) -> None:
-    """Personal MCP servers and per-person MCP sign-ins are a later step. A reference
-    that asks for one is refused, never read as the project's server."""
+def _mcp_claims(agent: Dict[str, Any]) -> List[BindingClaim]:
+    """A reference with scope `user` names the person's own server by slug and always
+    uses each person's own account. Each person's own sign-in to a project's server is
+    a later step, so `caller_account` on a project server is refused."""
+    claims = []
     for index, entry in enumerate(_entries(agent.get("mcps"))):
         connection = entry.get("connection")
         if not isinstance(connection, dict) or connection.get("type") != "gateway":
             continue
         where = f"agent.mcps[{index}].connection"
         binding = _binding(connection.get("binding"), where=where)
-        if binding == Binding.CALLER_ACCOUNT or connection.get("scope") == "user":
+        if connection.get("scope") != "user":
+            if binding == Binding.CALLER_ACCOUNT:
+                raise InvalidBinding(
+                    where=where,
+                    message="each person's own sign-in to a project's MCP server is "
+                    "not available yet.",
+                )
+            continue
+        slug = connection.get("slug")
+        if (
+            binding != Binding.CALLER_ACCOUNT
+            or connection.get("namespace") != "custom"
+            or not isinstance(slug, str)
+        ):
             raise InvalidBinding(
                 where=where,
-                message="each person's own MCP account is not available yet.",
+                message="a personal MCP server (scope 'user') needs namespace "
+                "'custom', its slug, and each person's own account.",
             )
+        claims.append(BindingClaim(key=mcp_key(slug=slug), binding=binding))
+    return claims
+
+
+def mcp_key(*, slug: str) -> ConnectionKey:
+    return ConnectionKey(kind="mcp", service=slug)
 
 
 def _entries(value: Any) -> List[Dict[str, Any]]:
@@ -224,8 +247,7 @@ def binding_claims_for_revision(revision_data: Any) -> List[BindingClaim]:
     if not agent:
         return []
     claims: List[BindingClaim] = []
-    _refuse_personal_mcp(agent)
-    for claim in (*_model_claims(agent), *_tool_claims(agent)):
+    for claim in (*_model_claims(agent), *_tool_claims(agent), *_mcp_claims(agent)):
         if claim not in claims:
             claims.append(claim)
     return claims

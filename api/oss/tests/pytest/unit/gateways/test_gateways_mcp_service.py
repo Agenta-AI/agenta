@@ -92,15 +92,30 @@ from oss.src.utils.env import env
 class MockMCPEndpointsDAO(MCPEndpointsDAOInterface):
     """In-memory endpoint_id -> MCPEndpoint map. Records every call for assertion."""
 
+    # A person's own servers (M7): the project service paths never call these.
+    async def query_owned_endpoints(self, *, owner):
+        return [e for e in self._endpoints_by_owner(owner)]
+
+    async def fetch_owned_endpoint_by_slug(self, *, owner, slug):
+        return next(
+            (e for e in self._endpoints_by_owner(owner) if e.slug == slug), None
+        )
+
+    async def delete_owned_endpoints(self, *, owner, endpoint_id=None):
+        return 0
+
+    def _endpoints_by_owner(self, owner):
+        return [e for e in self._by_id.values() if getattr(e, "owner", None) == owner]
+
     def __init__(self) -> None:
         self._by_id: Dict[UUID, MCPEndpoint] = {}
         self.calls: List[str] = []
 
     async def create_endpoint(
-        self, *, project_id, user_id, endpoint
+        self, *, project_id, user_id, endpoint, owner=None
     ) -> Optional[MCPEndpoint]:
         self.calls.append("create_endpoint")
-        created = MCPEndpoint(id=uuid4(), **endpoint.model_dump())
+        created = MCPEndpoint(id=uuid4(), owner=owner, **endpoint.model_dump())
         self._by_id[created.id] = created
         return created
 

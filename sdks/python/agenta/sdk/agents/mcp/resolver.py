@@ -55,6 +55,9 @@ def _gateway_mcp_route(
         return f"{base}/custom/{name}"
     if connection.namespace == "custom":
         assert connection.slug is not None
+        # A personal server (M7): the run's person's own server with that slug.
+        if connection.is_personal:
+            return f"{base}/user/{connection.slug}"
         return f"{base}/custom/{connection.slug}"
     assert connection.provider is not None
     if connection.namespace == "builtin":

@@ -16,6 +16,7 @@ from oss.src.core.gateways.mcps.dtos import (
     MCPRelayAuth,
     MCPResolvedRoute,
 )
+from oss.src.core.secrets.dtos import SecretOwner
 from oss.src.core.shared.dtos import Windowing
 
 
@@ -26,11 +27,31 @@ class MCPEndpointsDAOInterface(ABC):
     async def create_endpoint(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID],
         user_id: UUID,
         #
         endpoint: MCPEndpointCreate,
+        owner: Optional[SecretOwner] = None,
     ) -> Optional[MCPEndpoint]:
+        raise NotImplementedError
+
+    # -- a person's own servers (M7): always by the full owner (person and
+    # organization); a project read never sees these rows.
+
+    @abstractmethod
+    async def query_owned_endpoints(self, *, owner: SecretOwner) -> List[MCPEndpoint]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def fetch_owned_endpoint_by_slug(
+        self, *, owner: SecretOwner, slug: str
+    ) -> Optional[MCPEndpoint]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def delete_owned_endpoints(
+        self, *, owner: SecretOwner, endpoint_id: Optional[UUID] = None
+    ) -> int:
         raise NotImplementedError
 
     @abstractmethod

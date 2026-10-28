@@ -8,6 +8,7 @@ from sqlalchemy import delete, select, text
 from sqlalchemy.exc import DBAPIError, IntegrityError
 from sqlalchemy.orm.attributes import flag_modified
 
+from oss.src.core.secrets.dtos import SecretOwner
 from oss.src.core.gateways.mcps.dtos import (
     MCPEndpointCheck,
     MCPOAuthData,
@@ -75,22 +76,27 @@ class MCPEndpointsDAO(MCPEndpointsDAOInterface):
         user_id: UUID,
         #
         endpoint: MCPEndpointCreate,
+        owner: Optional[SecretOwner] = None,
     ) -> Optional[MCPEndpoint]:
+        """With a user `owner` (M7) the row is that person's own server, with no
+        project; it binds no secret."""
         dbe = map_mcp_endpoint_create_to_dbe(
             project_id=project_id,
             user_id=user_id,
             #
             dto=endpoint,
+            owner=owner,
         )
 
         try:
             async with self.engine.session() as session:
-                await check_secret_is_owned_by_project(
-                    session,
-                    project_id=project_id,
-                    bound_secret=dbe.secret_id,
-                    target=f"custom/{dbe.slug}",
-                )
+                if owner is None:
+                    await check_secret_is_owned_by_project(
+                        session,
+                        project_id=project_id,
+                        bound_secret=dbe.secret_id,
+                        target=f"custom/{dbe.slug}",
+                    )
 
                 session.add(dbe)
                 await session.commit()
@@ -100,13 +106,59 @@ class MCPEndpointsDAO(MCPEndpointsDAOInterface):
 
         except IntegrityError as e:
             error_str = str(e.orig) if e.orig else str(e)
-            if "uq_mcps_endpoints_project_slug" in error_str:
+            if (
+                "uq_mcps_endpoints_project_slug" in error_str
+                or "uq_mcps_endpoints_user_slug" in error_str
+            ):
                 raise EntityCreationConflict(
                     entity="MCPEndpoint",
                     message=f"MCP endpoint with slug '{endpoint.slug}' already exists.",
                     conflict={"slug": endpoint.slug},
                 ) from e
             raise
+
+    # -- a person's own servers (M7): always by the full owner; a project read never
+    # sees these rows, and these reads never see project rows.
+
+    def _owned(self, owner: SecretOwner):
+        return (
+            self.MCPEndpointDBE.organization_id == owner.organization_id,
+            self.MCPEndpointDBE.user_id == owner.id,
+        )
+
+    async def query_owned_endpoints(self, *, owner: SecretOwner) -> List[MCPEndpoint]:
+        async with self.engine.session() as session:
+            result = await session.execute(
+                select(self.MCPEndpointDBE)
+                .filter(*self._owned(owner))
+                .order_by(self.MCPEndpointDBE.created_at.desc())
+            )
+            return [map_mcp_endpoint_dbe_to_dto(dbe=dbe) for dbe in result.scalars()]
+
+    async def fetch_owned_endpoint_by_slug(
+        self, *, owner: SecretOwner, slug: str
+    ) -> Optional[MCPEndpoint]:
+        async with self.engine.session() as session:
+            result = await session.execute(
+                select(self.MCPEndpointDBE)
+                .filter(*self._owned(owner), self.MCPEndpointDBE.slug == slug)
+                .limit(1)
+            )
+            dbe = result.scalars().first()
+            return map_mcp_endpoint_dbe_to_dto(dbe=dbe) if dbe else None
+
+    async def delete_owned_endpoints(
+        self, *, owner: SecretOwner, endpoint_id: Optional[UUID] = None
+    ) -> int:
+        """Delete one of the person's servers, or (no id) all of them in the
+        organization. Returns how many rows went."""
+        async with self.engine.session() as session:
+            stmt = delete(self.MCPEndpointDBE).where(*self._owned(owner))
+            if endpoint_id is not None:
+                stmt = stmt.where(self.MCPEndpointDBE.id == endpoint_id)
+            result = await session.execute(stmt)
+            await session.commit()
+            return result.rowcount
 
     @suppress_exceptions(default=None)
     async def fetch_endpoint(

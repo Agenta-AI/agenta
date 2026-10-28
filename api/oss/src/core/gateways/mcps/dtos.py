@@ -8,6 +8,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, StringConstraints, model_validator
 
+from oss.src.core.secrets.dtos import SecretOwner
 from oss.src.core.gateway.connections.dtos import Connection
 from oss.src.core.gateways.dtos import (
     GatewayAuthScheme,
@@ -240,6 +241,9 @@ class MCPEndpoint(Identifier, Slug, Header, Lifecycle, Metadata):
     data: MCPEndpointData
     flags: MCPEndpointFlags = Field(default_factory=MCPEndpointFlags)
     status: Optional[Status] = None
+    # Set on a person's own server only (M7): kind `user`, the person and their
+    # organization. A project server carries None, as before.
+    owner: Optional[SecretOwner] = None
 
 
 def is_oauth_connection_at(
