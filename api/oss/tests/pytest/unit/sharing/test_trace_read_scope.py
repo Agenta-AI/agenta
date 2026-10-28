@@ -16,9 +16,8 @@ from oss.src.core.sharing.dtos import AccessPolicy, SessionRole, Visibility
 from oss.src.core.tracing.access import (
     MaintenanceOperation,
     SpanReadScope,
-    TraceAccessService,
     TraceScopeError,
-    maintenance_scope,
+    TraceAccessService,
     require_scope,
 )
 from oss.src.dbs.postgres.tracing.utils import read_scope_clause
@@ -179,7 +178,7 @@ def test_every_dao_read_needs_a_scope_of_its_project():
     with pytest.raises(TraceScopeError):
         require_scope(SpanReadScope(project_id=project_id), project_id=project_id)
 
-    scope = maintenance_scope(
+    scope = TraceAccessService.maintenance(
         project_id=project_id, operation=MaintenanceOperation.INGEST
     )
     assert require_scope(scope, project_id=project_id) is scope
@@ -227,7 +226,6 @@ def test_a_deny_list_hides_whole_traces():
     scope = SpanReadScope(
         project_id=uuid4(),
         principal=_human(uuid4()),
-        restricted=True,
         denied_session_ids=("s-1", "s-2"),
     )
     sql = str(read_scope_clause(scope).compile())

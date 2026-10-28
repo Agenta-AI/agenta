@@ -6,6 +6,7 @@ Keeps the same batching, grouping, and entitlements logic.
 """
 
 import asyncio
+from functools import partial
 from typing import Dict, List, Set, Tuple, Optional
 from uuid import UUID
 from redis.asyncio import Redis
@@ -214,12 +215,14 @@ class TracingWorker(StreamConsumer):
         for project_id, trace_id in sorted(touched_traces):
             for attempt in range(1, RECOMPUTE_ATTEMPTS + 1):
                 try:
-                    totals = await self.service.recompute_trace_totals(
+                    await self.service.recompute_trace_totals(
                         project_id=project_id,
                         trace_id=trace_id,
-                    )
-                    await self._write_turn_usage(
-                        project_id=project_id, trace_id=trace_id, totals=totals
+                        on_totals=partial(
+                            self._write_turn_usage,
+                            project_id=project_id,
+                            trace_id=trace_id,
+                        ),
                     )
                     break
                 except Exception:
@@ -239,23 +242,28 @@ class TracingWorker(StreamConsumer):
 
     async def _write_turn_usage(
         self,
+        totals: TraceTotals,
         *,
         project_id: UUID,
         trace_id: UUID,
-        totals: Optional[TraceTotals],
     ) -> None:
         """A trace linked to a session gives its root's priced usage to the turn with
-        the same trace id. Unlinked traces cost no core statement."""
+        the same trace id. It runs under the trace's recompute lock, so a later
+        recompute writes last. Unlinked traces cost no core statement. A failed write
+        is logged: it never fails the recompute."""
 
-        if (
-            self.turns_service is None
-            or totals is None
-            or not totals.linked
-            or totals.root_usage is None
-        ):
+        if self.turns_service is None or not totals.linked or not totals.root_usage:
             return
-        await self.turns_service.record_trace_usage(
-            project_id=project_id,
-            trace_id=trace_id,
-            usage=SessionTurnUsage(**totals.root_usage.model_dump()),
-        )
+        try:
+            await self.turns_service.record_trace_usage(
+                project_id=project_id,
+                trace_id=trace_id,
+                usage=SessionTurnUsage(**totals.root_usage.model_dump()),
+            )
+        except Exception:
+            log.error(
+                "[INGEST] Failed to write turn usage",
+                project_id=str(project_id),
+                trace_id=str(trace_id),
+                exc_info=True,
+            )

@@ -1,4 +1,14 @@
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Awaitable,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Union,
+)
 from uuid import UUID, uuid4
 from datetime import datetime
 
@@ -16,7 +26,7 @@ from oss.src.core.tracing.interfaces import TracingDAOInterface
 from oss.src.core.tracing.access import (
     MaintenanceOperation,
     SpanReadScope,
-    maintenance_scope,
+    TraceAccessService,
 )
 from oss.src.core.tracing.utils.parsing import (
     parse_span_id_to_uuid,
@@ -140,18 +150,20 @@ class TracingService:
         *,
         project_id: UUID,
         trace_id: UUID,
+        on_totals: Optional[Callable[[TraceTotals], Awaitable[None]]] = None,
     ) -> Optional[TraceTotals]:
         """Recompute cumulative metrics of one trace from all its stored spans, under
-        the ingest maintenance scope."""
+        the ingest maintenance scope. `on_totals` runs under the trace's lock."""
         return await self.tracing_dao.recompute_trace_metrics(
             project_id=project_id,
             trace_id=trace_id,
             #
             recompute=recompute_cumulative_metrics,
             max_spans=env.agenta.otlp.totals_max_spans,
-            scope=maintenance_scope(
+            scope=TraceAccessService.maintenance(
                 project_id=project_id, operation=MaintenanceOperation.INGEST
             ),
+            on_totals=on_totals,
         )
 
     async def ingest_span_dtos(

@@ -12,7 +12,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from oss.src.core.tracing.access import MaintenanceOperation, maintenance_scope
+from oss.src.core.tracing.access import MaintenanceOperation, TraceAccessService
 from oss.src.core.tracing.dtos import (
     OTelFlatSpan,
     SpanType,
@@ -49,7 +49,7 @@ class _StoringService:
         for span_dto in calculate_and_propagate_metrics_by_trace(span_dtos):
             self.spans[span_dto.span_id] = deepcopy(span_dto)
 
-    async def recompute_trace_totals(self, *, project_id, trace_id):
+    async def recompute_trace_totals(self, *, project_id, trace_id, on_totals=None):
         self.recomputed.append((project_id, trace_id))
         if self.recompute_failures:
             self.recompute_failures -= 1
@@ -177,7 +177,7 @@ class _Session:
         return _Result([])
 
     async def commit(self):
-        pass
+        self.engine.executed.append(("COMMIT", None))
 
 
 class _Engine:
@@ -204,7 +204,7 @@ def _row(span_id, parent_id, span_type, offset_s, metrics, flags=None, session=N
 
 
 def _ingest_scope(project_id):
-    return maintenance_scope(
+    return TraceAccessService.maintenance(
         project_id=project_id, operation=MaintenanceOperation.INGEST
     )
 
@@ -249,7 +249,7 @@ async def test_dao_writes_only_changed_cumulative_values_in_span_order():
     )
 
     assert "pg_advisory_xact_lock" in str(engine.executed[0][0])
-    update_stmt, params = engine.executed[-1]
+    update_stmt, params = engine.executed[-2]
     assert update_stmt is UPDATE_CUMULATIVE_METRIC_STMT
     assert totals.written == 2
     assert totals.linked is False
@@ -336,8 +336,10 @@ class _TotalsService(_StoringService):
         super().__init__()
         self.totals = totals
 
-    async def recompute_trace_totals(self, *, project_id, trace_id):
+    async def recompute_trace_totals(self, *, project_id, trace_id, on_totals=None):
         await super().recompute_trace_totals(project_id=project_id, trace_id=trace_id)
+        if self.totals is not None and on_totals is not None:
+            await on_totals(self.totals)
         return self.totals
 
 
@@ -383,3 +385,48 @@ async def test_an_unlinked_or_unpriced_trace_writes_no_turn(totals):
     await worker.process_batch([_message(ids, _span(uuid4(), uuid4(), None, 0))])
 
     assert turns.written == []
+
+
+async def test_a_failed_usage_write_does_not_fail_the_recompute():
+    class _Down(_Turns):
+        async def record_trace_usage(self, **_):
+            raise ConnectionError("core database down")
+
+    usage = TraceRootUsage(cost=0.5)
+    service = _TotalsService(TraceTotals(written=1, linked=True, root_usage=usage))
+    worker = TracingWorker(
+        service=service,
+        redis_client=None,
+        stream_name="streams:spans",
+        consumer_group="worker-spans",
+        consumer_name="test",
+        turns_service=_Down(),
+    )
+    ids = dict(organization_id=uuid4(), project_id=uuid4(), user_id=uuid4())
+
+    await worker.process_batch([_message(ids, _span(uuid4(), uuid4(), None, 0))])
+
+    assert len(service.recomputed) == 1
+
+
+async def test_dao_hands_the_totals_on_before_the_commit():
+    rows = [_row(UUID(int=1), None, SpanType.WORKFLOW, 0, None, session="s-1")]
+    engine = _Engine(rows)
+    project_id = uuid4()
+    seen = []
+
+    async def on_totals(totals):
+        seen.append(totals.linked)
+        assert ("COMMIT", None) not in engine.executed
+
+    await TracingDAO(engine=engine).recompute_trace_metrics(
+        project_id=project_id,
+        trace_id=uuid4(),
+        recompute=recompute_cumulative_metrics,
+        max_spans=10,
+        scope=_ingest_scope(project_id),
+        on_totals=on_totals,
+    )
+
+    assert seen == [True]
+    assert engine.executed[-1] == ("COMMIT", None)

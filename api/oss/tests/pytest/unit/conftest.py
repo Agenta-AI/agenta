@@ -128,3 +128,16 @@ def _allow_resource_checks(request, monkeypatch):
         _write_allowed,
         raising=False,
     )
+
+
+@pytest.fixture(autouse=True)
+def _trace_access_service(monkeypatch):
+    """Trace reads build their read scope through the registered TraceAccessService.
+    With the session filter off (the default) it reads nothing."""
+    from oss.src.core.tracing import access
+
+    monkeypatch.setattr(
+        access,
+        "_trace_access_service",
+        access.TraceAccessService(sharing_service=None),
+    )

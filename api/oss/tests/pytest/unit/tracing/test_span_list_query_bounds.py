@@ -27,6 +27,7 @@ from oss.src.core.tracing.service import TracingService
 from oss.src.dbs.postgres.tracing.dao import TracingDAO
 from oss.src.dbs.postgres.tracing.dbes import SpanDBE
 from oss.src.utils.env import env
+from oss.tests.pytest.utils.trace_scope import scoped  # noqa: E402
 
 SKILLS_PATH = "#- '{ag,data,parameters,agent,skills}'"
 
@@ -112,7 +113,7 @@ async def test_list_query_selects_attributes_without_skills(anyio_backend):
     engine = _Engine(rows=[(_dbe(), trimmed)])
 
     spans, _ = await TracingDAO(engine=engine).query_page(
-        project_id=uuid4(),
+        **scoped(),
         query=_query(focus=Focus.SPAN, windowing=Windowing(limit=10)),
     )
 
@@ -132,7 +133,7 @@ async def test_trace_focus_list_query_selects_attributes_without_skills(
     engine = _Engine(rows=[(_dbe(), datetime.now(timezone.utc), {"ag": {}})])
 
     await TracingDAO(engine=engine).query_page(
-        project_id=uuid4(),
+        **scoped(),
         query=_query(focus=Focus.TRACE, windowing=Windowing(limit=10)),
     )
 
@@ -146,7 +147,7 @@ async def test_trace_focus_list_query_selects_attributes_without_skills(
 async def test_fetch_keeps_the_whole_attributes(anyio_backend):
     engine = _Engine(rows=[])
 
-    await TracingDAO(engine=engine).fetch(project_id=uuid4(), trace_ids=[uuid4()])
+    await TracingDAO(engine=engine).fetch(**scoped(), trace_ids=[uuid4()])
 
     sql = _sql(engine.executed[-1])
     assert SKILLS_PATH not in sql
@@ -164,7 +165,7 @@ async def test_span_focus_full_page_returns_next_windowing(anyio_backend):
     oldest = now - timedelta(days=7)
 
     _, next_windowing = await TracingDAO(engine=engine).query_page(
-        project_id=uuid4(),
+        **scoped(),
         query=_query(
             focus=Focus.SPAN,
             windowing=Windowing(limit=3, oldest=oldest, newest=now),
@@ -186,7 +187,7 @@ async def test_span_focus_ascending_full_page_moves_oldest(anyio_backend):
     engine = _Engine(rows=[(dbe, {}) for dbe in dbes])
 
     _, next_windowing = await TracingDAO(engine=engine).query_page(
-        project_id=uuid4(),
+        **scoped(),
         query=_query(
             focus=Focus.SPAN,
             windowing=Windowing(
@@ -206,7 +207,7 @@ async def test_span_focus_short_page_has_no_next_windowing(anyio_backend):
     engine = _Engine(rows=[(_dbe(), {})])
 
     _, next_windowing = await TracingDAO(engine=engine).query_page(
-        project_id=uuid4(),
+        **scoped(),
         query=_query(focus=Focus.SPAN, windowing=Windowing(limit=2)),
     )
 
@@ -228,7 +229,7 @@ async def test_trace_focus_cursor_uses_the_trace_rank(anyio_backend):
     engine = _Engine(rows=rows)
 
     spans, next_windowing = await TracingDAO(engine=engine).query_page(
-        project_id=uuid4(),
+        **scoped(),
         query=_query(focus=Focus.TRACE, windowing=Windowing(limit=2)),
     )
 
@@ -236,7 +237,7 @@ async def test_trace_focus_cursor_uses_the_trace_rank(anyio_backend):
     assert next_windowing == Windowing(newest=rank_second, next=second, limit=2)
 
     _, no_next = await TracingDAO(engine=_Engine(rows=rows)).query_page(
-        project_id=uuid4(),
+        **scoped(),
         query=_query(focus=Focus.TRACE, windowing=Windowing(limit=3)),
     )
     assert no_next is None

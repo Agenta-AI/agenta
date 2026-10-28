@@ -30,8 +30,8 @@ DENIED_SESSIONS_WARNING_SIZE = 10_000
 
 
 class MaintenanceOperation(str, Enum):
-    INGEST = "ingest"  # metric roll-up and session linkage inside ingest
-    USAGE_WRITE_BACK = "usage_write_back"  # a trace root's usage to its turn
+    # The metric roll-up of ingest, which also reports the usage written back to turns.
+    INGEST = "ingest"
 
 
 class SpanReadScope(BaseModel):
@@ -42,10 +42,13 @@ class SpanReadScope(BaseModel):
     project_id: UUID
     principal: Optional[PrincipalRef] = None  # None only for maintenance
     maintenance: Optional[MaintenanceOperation] = None
-    # True when the scope removes data for this reader in this project.
-    restricted: bool = False
     # The session ids of the project whose traces this reader may not read.
     denied_session_ids: Tuple[str, ...] = ()
+
+    @property
+    def restricted(self) -> bool:
+        """True when the scope removes data for this reader in this project."""
+        return bool(self.denied_session_ids)
 
 
 class TraceScopeError(Exception):
@@ -113,23 +116,17 @@ class TraceAccessService:
         return SpanReadScope(
             project_id=project_id,
             principal=principal,
-            restricted=bool(denied),
             denied_session_ids=tuple(sorted(denied)),
         )
 
+    @staticmethod
     def maintenance(
-        self, *, project_id: UUID, operation: MaintenanceOperation
+        *, project_id: UUID, operation: MaintenanceOperation
     ) -> SpanReadScope:
-        return maintenance_scope(project_id=project_id, operation=operation)
+        """The unrestricted scope of a named maintenance operation. No I/O and no
+        registered service, so a worker without the access bootstrap can use it."""
 
-
-def maintenance_scope(
-    *, project_id: UUID, operation: MaintenanceOperation
-) -> SpanReadScope:
-    """The unrestricted scope of a named maintenance operation. No I/O, so workers that
-    run no access bootstrap use it directly."""
-
-    return SpanReadScope(project_id=project_id, maintenance=operation)
+        return SpanReadScope(project_id=project_id, maintenance=operation)
 
 
 _trace_access_service: Optional[TraceAccessService] = None

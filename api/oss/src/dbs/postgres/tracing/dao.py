@@ -2,6 +2,7 @@ import json
 from typing import (
     Tuple,
     Any,
+    Awaitable,
     Callable,
     Dict,
     Optional,
@@ -1040,12 +1041,14 @@ class TracingDAO(TracingDAOInterface):
         recompute: Callable[[List[OTelFlatSpan]], Dict[str, Dict[str, Any]]],
         max_spans: int,
         scope: SpanReadScope,
+        on_totals: Optional[Callable[[TraceTotals], Awaitable[None]]] = None,
     ) -> Optional[TraceTotals]:
         """Rewrite the cumulative metrics of one trace from all its stored spans.
 
         Returns what was written, whether a span carries a session id, and the root's
         usage after the roll-up; None when the trace has more than `max_spans` spans and
-        is skipped.
+        is skipped. `on_totals` runs before the commit, under the trace's lock, so two
+        recomputes of one trace hand on their totals in order.
         """
         require_scope(scope, project_id=project_id)
         async with self.engine.session() as session:
@@ -1124,13 +1127,17 @@ class TracingDAO(TracingDAOInterface):
             if params:
                 await session.execute(UPDATE_CUMULATIVE_METRIC_STMT, params)
 
-            await session.commit()
-
-            return TraceTotals(
+            totals = TraceTotals(
                 written=len(params),
                 linked=any(row.session_id for row in rows),
                 root_usage=trace_root_usage(span_dtos),
             )
+            if on_totals is not None:
+                await on_totals(totals)
+
+            await session.commit()
+
+            return totals
 
     ### SESSIONS AND USERS
 

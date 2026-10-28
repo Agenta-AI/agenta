@@ -542,9 +542,9 @@ async def _query_trace_spans(
     if tracing_service is None or not trace_id:
         return []
 
-    # The test run's spans are read as the run that started it.
+    # The test run's spans are read as the principal of the run that started it.
     scope = await get_trace_access_service().read_scope(
-        authority=authority, principal=authority.principal, project_id=project_id
+        authority=None, principal=authority.principal, project_id=project_id
     )
 
     query = TracingQuery(

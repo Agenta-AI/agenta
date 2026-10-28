@@ -1,4 +1,4 @@
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 from uuid import UUID
 from abc import ABC, abstractmethod
 from datetime import datetime
@@ -113,6 +113,7 @@ class TracingDAOInterface(ABC):
         recompute: Callable[[List[OTelFlatSpan]], Dict[str, Dict[str, Any]]],
         max_spans: int,
         scope: SpanReadScope,
+        on_totals: Optional[Callable[[TraceTotals], Awaitable[None]]] = None,
     ) -> Optional[TraceTotals]:
         raise NotImplementedError
 

@@ -18,6 +18,7 @@ from oss.src.core.annotations.types import (  # noqa: E402
     AnnotationOrigin,
 )
 from oss.src.core.shared.dtos import Link  # noqa: E402
+from oss.tests.pytest.utils.trace_scope import scoped  # noqa: E402
 
 
 @pytest.mark.asyncio
@@ -71,7 +72,7 @@ async def test_edit_returns_updated_references_and_links():
     ):
         result = await service.edit(
             organization_id=uuid4(),
-            project_id=uuid4(),
+            **scoped(),
             user_id=uuid4(),
             trace_id="old-trace",
             annotation_edit=annotation_edit,
