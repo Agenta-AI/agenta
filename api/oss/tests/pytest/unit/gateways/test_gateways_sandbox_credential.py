@@ -110,7 +110,6 @@ async def _runtime_credential() -> str:
     token = await auth.sign_secret_token(
         user_id=USER_ID,
         project_id=PROJECT_ID,
-        workspace_id=WORKSPACE_ID,
         organization_id=ORGANIZATION_ID,
         gateway_run_id=RUN_ID,
         grants=[auth.SECRET_RESOLVE_GRANT],
@@ -126,7 +125,6 @@ async def _granted_credential_without_run() -> str:
     token = await auth.sign_secret_token(
         user_id=USER_ID,
         project_id=PROJECT_ID,
-        workspace_id=WORKSPACE_ID,
         organization_id=ORGANIZATION_ID,
         grants=[auth.SECRET_RESOLVE_GRANT],
         envelope=envelope_for_claims(
@@ -141,7 +139,6 @@ async def _ungranted_credential() -> str:
     token = await auth.sign_secret_token(
         user_id=USER_ID,
         project_id=PROJECT_ID,
-        workspace_id=WORKSPACE_ID,
         organization_id=ORGANIZATION_ID,
         gateway_run_id=RUN_ID,
         envelope=envelope_for_claims(
@@ -174,7 +171,6 @@ class _RecordingLlmService:
 def _scope() -> AuthScope:
     return AuthScope(
         organization_id=ORGANIZATION_ID,
-        workspace_id=WORKSPACE_ID,
         project_id=PROJECT_ID,
         user_id=USER_ID,
     )

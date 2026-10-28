@@ -63,11 +63,8 @@ async def _check_scope_access(
     if scope_type == "project":
         allow_scope = str(auth_scope.project_id) == str(scope_id)
     elif scope_type == "workspace":
-        # A workspace id, or the organization id where a workspace id is expected.
-        allow_scope = str(scope_id) in {
-            str(auth_scope.workspace_id),
-            str(auth_scope.organization_id),
-        }
+        # Workspaces were removed: the organization id is where a workspace id was.
+        allow_scope = str(scope_id) == str(auth_scope.organization_id)
     elif not scope_type and not scope_id:
         allow_scope = True
 
@@ -285,7 +282,6 @@ class AccessRouter:
             user_id=user_id,
             user_email=getattr(request.state, "user_email", None),
             project_id=project_id,
-            workspace_id=str(ctx.scope.workspace_id),
             organization_id=str(ctx.scope.organization_id),
             organization_name=getattr(request.state, "organization_name", None),
             grants=grants or None,

@@ -55,13 +55,11 @@ export const DrawerProjectSwitcher = ({
         [query.data],
     )
 
-    // Matched on the project, not the workspace: one org can hold several workspaces.
+    // Matched on the project: the route segment can be a legacy workspace id or the
+    // organization id for the same project (workspace removal step 2).
     const currentGroup =
         groups.find((group) =>
-            group.projects.some(
-                (project) =>
-                    project.project_id === projectId && project.workspace_id === workspaceId,
-            ),
+            group.projects.some((project) => project.project_id === projectId),
         ) ?? groups.find((group) => group.projects.some((p) => p.workspace_id === workspaceId))
     const currentProject = currentGroup?.projects.find(
         (project) => project.project_id === projectId,
@@ -114,7 +112,7 @@ export const DrawerProjectSwitcher = ({
             setCreateOpen(false)
             // Refetch first: the destination reads this same query for its title.
             await query.refetch()
-            goTo(created.workspace_id ?? workspaceId, created.project_id)
+            goTo(created.organization_id ?? created.workspace_id ?? workspaceId, created.project_id)
         },
         // The API's refusal is written for people (e.g. the plan's project limit).
         onError: (error) => {

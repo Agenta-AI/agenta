@@ -219,12 +219,67 @@ async def test_editor_cannot_rename_a_project(routes):
     state.rename.assert_not_awaited()
 
 
+async def test_make_default_needs_the_permission_on_the_current_default(
+    routes, monkeypatch
+):
+    # A key or member allowed on the project only must not move the organization
+    # default to it: the default project carries organization writes.
+    state = routes(listing=_listing("owner"))
+    project_id = uuid4()
+    state.access.side_effect = lambda **kwargs: kwargs["project_id"] == str(project_id)
+    set_default = AsyncMock()
+    monkeypatch.setattr(projects_router.db_manager, "set_default_project", set_default)
+    monkeypatch.setattr(
+        projects_router.db_manager,
+        "get_project_by_workspace",
+        AsyncMock(return_value=SimpleNamespace(id=state.default_project)),
+    )
+
+    with pytest.raises(HTTPException) as error:
+        await projects_router.update_project(
+            project_id=project_id,
+            payload=projects_router.UpdateProjectRequest(make_default=True),
+            request=_request(),
+        )
+
+    assert (error.value.status_code, error.value.detail) == (403, DENIED)
+    checked = [call.kwargs["project_id"] for call in state.access.await_args_list]
+    assert checked == [str(project_id), str(state.default_project)]
+    set_default.assert_not_awaited()
+
+
+async def test_make_default_without_a_default_checks_the_first_project(
+    routes, monkeypatch
+):
+    # No default (an admin-made organization): the reader rule answers the first
+    # project; when that is the project itself, its own permission is enough.
+    state = routes(listing=_listing("owner"))
+    project_id = uuid4()
+    set_default = AsyncMock()
+    monkeypatch.setattr(projects_router.db_manager, "set_default_project", set_default)
+    monkeypatch.setattr(
+        projects_router.db_manager,
+        "get_project_by_workspace",
+        AsyncMock(return_value=SimpleNamespace(id=project_id)),
+    )
+
+    await projects_router.update_project(
+        project_id=project_id,
+        payload=projects_router.UpdateProjectRequest(make_default=True),
+        request=_request(),
+    )
+
+    checked = [call.kwargs["project_id"] for call in state.access.await_args_list]
+    assert checked == [str(project_id)]
+    set_default.assert_awaited_once_with(str(project_id))
+
+
 async def test_non_member_gets_404_on_update_and_delete(routes):
-    workspace_id = uuid4()
+    organization_id = uuid4()
     state = routes(
         listing=None,
         project=SimpleNamespace(
-            id=uuid4(), workspace_id=workspace_id, organization_id=uuid4()
+            id=uuid4(), workspace_id=uuid4(), organization_id=organization_id
         ),
     )
 
@@ -238,7 +293,7 @@ async def test_non_member_gets_404_on_update_and_delete(routes):
 
     with pytest.raises(HTTPException) as error:
         await projects_router.delete_project(
-            project_id=uuid4(), request=_request(workspace_id=str(workspace_id))
+            project_id=uuid4(), request=_request(organization_id=str(organization_id))
         )
     assert (error.value.status_code, error.value.detail) == (404, "Project not found")
     state.access.assert_not_awaited()
@@ -254,7 +309,7 @@ async def test_delete_outside_the_request_workspace_is_404(routes):
 
     with pytest.raises(HTTPException) as error:
         await projects_router.delete_project(
-            project_id=uuid4(), request=_request(workspace_id=str(uuid4()))
+            project_id=uuid4(), request=_request(organization_id=str(uuid4()))
         )
 
     assert error.value.status_code == 404
@@ -262,18 +317,18 @@ async def test_delete_outside_the_request_workspace_is_404(routes):
 
 
 async def test_admin_cannot_delete_a_project(routes):
-    workspace_id = uuid4()
+    organization_id = uuid4()
     state = routes(
         allowed=False,
         listing=_listing("admin"),
         project=SimpleNamespace(
-            id=uuid4(), workspace_id=workspace_id, organization_id=uuid4()
+            id=uuid4(), workspace_id=uuid4(), organization_id=organization_id
         ),
     )
 
     with pytest.raises(HTTPException) as error:
         await projects_router.delete_project(
-            project_id=uuid4(), request=_request(workspace_id=str(workspace_id))
+            project_id=uuid4(), request=_request(organization_id=str(organization_id))
         )
 
     assert error.value.status_code == 403
@@ -373,6 +428,9 @@ async def test_organization_scope_lists_every_project_for_an_owner_or_admin(
     assert [project.project_id for project in response] == [p.id for p in projects]
     assert response[0].is_default_project is True
     assert all(project.user_role is None for project in response)
+    # Like the member scope, the workspace field carries the organization id: the
+    # project's own workspace row is no longer the routing key.
+    assert all(project.workspace_id == organization_id for project in response)
 
 
 @pytest.mark.parametrize(

@@ -10,7 +10,10 @@ export const useSettingsOrg = (workspaceId: string) => {
     })
     const organizationId =
         projects.data?.find(
-            (project) => project.organization_id && project.workspace_id === workspaceId,
+            // The segment is the organization id (step 2) or a legacy workspace id.
+            (project) =>
+                project.organization_id &&
+                (project.organization_id === workspaceId || project.workspace_id === workspaceId),
         )?.organization_id ?? undefined
     const org = useQuery({
         queryKey: ["selectedOrg", organizationId],
