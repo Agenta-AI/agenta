@@ -227,3 +227,25 @@ async def test_another_persons_private_agent_is_not_checked(scope, sharing):
         project_id=scope.project_id, references={"workflow": {"slug": "a"}}
     )
     assert requirements.calls == 0
+
+
+async def test_an_api_key_of_the_owner_does_not_see_a_private_agent(
+    scope, sharing, monkeypatch
+):
+    """Only the owner as a person passes the private-agent rule, never their API key."""
+    from oss.src.core.agent_requirements import guard as guard_module
+    from oss.src.core.sharing.dtos import Visibility
+
+    sharing.policy = SimpleNamespace(
+        visibility=Visibility.PRIVATE, owner_user_id=scope.user_id
+    )
+    api_key = SimpleNamespace(principal=SimpleNamespace(kind="api_key", id=uuid4()))
+    monkeypatch.setattr(guard_module, "get_request_access", lambda: api_key)
+    requirements = _Requirements([_requirement()])
+    guard = ModelSetupGuard(
+        workflows_service=_Workflows({"agent": {}}), requirements_service=requirements
+    )
+    await guard.check(
+        project_id=scope.project_id, references={"workflow": {"slug": "a"}}
+    )
+    assert requirements.calls == 0
