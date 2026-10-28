@@ -425,10 +425,41 @@ class ChannelAgentToolSettings(BaseModel):
     readable_space_keys: Optional[List[UUID]] = None
 
 
+class ChannelAudienceLabel(BaseModel):
+    """How the settings screen shows one person. Display only: the check never
+    reads it, so a stale name never lets the wrong person in."""
+
+    name: Optional[str] = None
+    email: Optional[str] = None
+
+
+class ChannelAgentAudience(BaseModel):
+    """Whom this agent answers on its connection. Empty `senders` is everyone.
+    Platform user ids (a Slack member id, a Telegram user id), as strings."""
+
+    senders: List[str] = Field(default_factory=list)
+    labels: Dict[str, ChannelAudienceLabel] = Field(default_factory=dict)
+
+    @field_validator("senders", mode="before")
+    @classmethod
+    def _ids_as_strings(cls, value: Any) -> Any:
+        # Telegram ids arrive as numbers from older rows and some clients; the
+        # check compares strings
+        if isinstance(value, list):
+            return [str(item).strip() for item in value if str(item).strip()]
+        return value
+
+    def admits(self, sender_id: Optional[Any]) -> bool:
+        if not self.senders:
+            return True
+        return sender_id is not None and str(sender_id) in self.senders
+
+
 class ChannelAgentData(BaseModel):
     references: Dict[str, Reference]  # the bound workflow/variant/revision
     policy: Optional[ChannelPolicy] = None
     tools: ChannelAgentToolSettings = Field(default_factory=ChannelAgentToolSettings)
+    audience: ChannelAgentAudience = Field(default_factory=ChannelAgentAudience)
 
     @field_validator("references")
     @classmethod
@@ -671,6 +702,8 @@ class ChannelAgentDataEdit(BaseModel):
     references: Optional[Dict[str, Reference]] = None
     policy: Optional[ChannelPolicy] = None
     tools: Optional[ChannelAgentToolSettings] = None
+    # replaced whole when sent: the list and its labels change together
+    audience: Optional[ChannelAgentAudience] = None
 
     @model_validator(mode="before")
     @classmethod
@@ -695,6 +728,11 @@ class ChannelAgentDataEdit(BaseModel):
             raise ValueError(
                 "tools cannot be null on an edit; omit it to keep the stored "
                 "settings, or send the fields to change"
+            )
+        if "audience" in self.model_fields_set and self.audience is None:
+            raise ValueError(
+                "audience cannot be null on an edit; send an empty senders "
+                "list to answer everyone"
             )
         return self
 
@@ -776,6 +814,31 @@ class ChannelSpaceCandidate(BaseModel):
     # list stores these, so a channel can be picked before it has a row
     external_key: Optional[UUID] = None
     membership: Optional[ChannelSpaceMembership] = None
+
+
+class ChannelPerson(BaseModel):
+    """One person the settings screen can add to an agent's people list. Not
+    an entity: read from the platform or from stored messages, never stored as
+    a row. `id` is what the people list stores and the check compares."""
+
+    id: str
+    name: Optional[str] = None
+    username: Optional[str] = None
+    email: Optional[str] = None
+    is_guest: Optional[bool] = None
+    is_bot: Optional[bool] = None
+    is_deleted: Optional[bool] = None
+    # where the picker found the person: they wrote to the bot, the cached
+    # workspace directory, or a live lookup of a full email
+    source: Optional[Literal["messaged", "directory", "email"]] = None
+
+
+class ChannelPeopleDirectory(BaseModel):
+    """The cached workspace people list behind the picker. `unavailable` when
+    the platform cannot list people (Telegram) or refused (a missing scope)."""
+
+    state: Literal["ready", "loading", "unavailable"]
+    updated_at: Optional[datetime] = None
 
 
 # ---------------------------------------------------------------------------
@@ -1053,6 +1116,31 @@ class ChannelResolution(BaseModel):
     resolved_choice: Optional[str] = None
 
 
+class ChannelRefusalReason(str, Enum):
+    # the person is not on the agent's people list
+    SENDER_NOT_ALLOWED = "sender_not_allowed"
+    # the agent's rules do not let it answer in this place (or in DMs)
+    PLACE_OFF = "place_off"
+
+
+class ChannelRefusal(BaseModel):
+    """A message that addressed an agent the agent must not answer. Only an
+    addressed message (a DM, or a mention or command elsewhere) is reported;
+    anything else ends silently."""
+
+    reason: ChannelRefusalReason
+    space: ChannelSpace
+    agent: ChannelAgent
+    sender_id: str
+
+
+class ChannelRouting(BaseModel):
+    """`resolve_or_refuse`: a resolution, a refusal worth a note, or neither."""
+
+    resolution: Optional[ChannelResolution] = None
+    refusal: Optional[ChannelRefusal] = None
+
+
 class ChannelTurnInput(BaseModel):
     """What the agent sees: this event, plus whatever fill the policy allowed."""
 
@@ -1188,6 +1276,22 @@ class ChannelSpacesResponse(BaseModel):
 class ChannelSpaceCandidatesResponse(BaseModel):
     count: int = 0
     candidates: List[ChannelSpaceCandidate] = Field(default_factory=list)
+
+
+class ChannelPeopleQuery(BaseModel):
+    # a name, a handle, or a full email; empty lists people who wrote first
+    text: Optional[str] = None
+
+
+class ChannelPeopleQueryRequest(BaseModel):
+    people: Optional[ChannelPeopleQuery] = None
+    windowing: Optional[Windowing] = None
+
+
+class ChannelPeopleResponse(BaseModel):
+    count: int = 0
+    people: List[ChannelPerson] = Field(default_factory=list)
+    directory: Optional[ChannelPeopleDirectory] = None
 
 
 class ChannelGrantRequest(BaseModel):

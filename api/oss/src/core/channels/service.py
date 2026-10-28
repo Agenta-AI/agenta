@@ -37,7 +37,12 @@ from oss.src.core.channels.dtos import (
     ChannelInboxTriggerCreate,
     ChannelKeyGrain,
     ChannelPendingChoice,
+    ChannelPeopleDirectory,
+    ChannelPerson,
+    ChannelRefusal,
+    ChannelRefusalReason,
     ChannelResolution,
+    ChannelRouting,
     ChannelSessionScope,
     ChannelSetup,
     ChannelSetupIdentity,
@@ -72,7 +77,12 @@ from oss.src.core.channels.types import (
     ChannelSpaceNotFound,
     ChannelThreadNotFound,
 )
-from oss.src.core.channels.utils import compose_external_key, evaluate_grant_effect
+from oss.src.core.channels import people
+from oss.src.core.channels.utils import (
+    compose_external_key,
+    evaluate_grant_effect,
+    resolve_policy,
+)
 from oss.src.core.secrets.dtos import (
     ChannelSecretDTO,
     ChannelSecretSettingsDTO,
@@ -970,6 +980,9 @@ class ChannelsService:
         await self._invalidate_bindings(
             binding_ids=binding_ids, source="channels.archive_connection"
         )
+        await people.forget_directory(
+            project_id=project_id, connection_id=connection_id
+        )
         return archived
 
     async def unarchive_connection(
@@ -1114,11 +1127,15 @@ class ChannelsService:
         #
         connection_id: UUID,
     ) -> bool:
-        return await self.channels_dao.delete_connection(
+        deleted = await self.channels_dao.delete_connection(
             project_id=project_id,
             #
             connection_id=connection_id,
         )
+        await people.forget_directory(
+            project_id=project_id, connection_id=connection_id
+        )
+        return deleted
 
     async def query_connections(
         self,
@@ -1442,6 +1459,17 @@ class ChannelsService:
         if existing is None:
             return None
 
+        if (
+            agent.data is not None
+            and "audience" in agent.data.model_fields_set
+            and agent.data.audience != existing.data.audience
+        ):
+            await self._guard_limits(
+                project_id=project_id,
+                agent=existing,
+                guard_user_id=guard_user_id,
+            )
+
         edited = await self._edit_agent_row(
             project_id=project_id,
             user_id=user_id,
@@ -1679,6 +1707,106 @@ class ChannelsService:
 
         return candidates
 
+    # --- limits ----------------------------------------------------------- #
+
+    async def _guard_limits(
+        self,
+        *,
+        project_id: UUID,
+        agent: ChannelAgent,
+        guard_user_id: Optional[UUID],
+    ) -> None:
+        """Only its owner changes a private agent's limits (its rules and its
+        people list), active binding or not. Raises SharedItemNotFound, what an
+        unknown agent answers. A binding whose references resolve to no agent
+        has no private agent to protect. Settings time only."""
+
+        if self.workflows_service is None:
+            return
+        try:
+            artifact_id = await self.workflows_service.resolve_agent_artifact_id(
+                project_id=project_id,
+                references=channel_agent_references(agent.data.references),
+            )
+        except (AgentReferenceUnresolved, SharedItemNotFound):
+            return
+        if artifact_id is None:
+            return
+        await self.channels_dao.guard_agent_owner(
+            project_id=project_id,
+            artifact_id=artifact_id,
+            user_id=guard_user_id,
+        )
+
+    async def _guard_grant_limits(
+        self,
+        *,
+        project_id: UUID,
+        grant_id: UUID,
+        guard_user_id: Optional[UUID],
+    ) -> None:
+        grants = await self.channels_dao.query_grants(project_id=project_id)
+        existing = next((g for g in grants if g.id == grant_id), None)
+        if existing is None:
+            return
+        agent = await self.channels_dao.fetch_agent(
+            project_id=project_id, agent_id=existing.agent_id
+        )
+        if agent is not None:
+            await self._guard_limits(
+                project_id=project_id,
+                agent=agent,
+                guard_user_id=guard_user_id,
+            )
+
+    async def query_people(
+        self,
+        *,
+        project_id: UUID,
+        connection_id: UUID,
+        text: Optional[str] = None,
+    ) -> Tuple[List[ChannelPerson], ChannelPeopleDirectory]:
+        """People the settings screen can add to an agent's people list."""
+
+        connection = await self.fetch_connection(
+            project_id=project_id,
+            connection_id=connection_id,
+        )
+        if connection is None or connection.deleted_at is not None:
+            raise ChannelConnectionNotFound(connection_id=connection_id)
+        senders = await self.channels_dao.query_recent_senders(
+            project_id=project_id,
+            connection_id=connection_id,
+            limit=people.RECENT_EVENTS,
+        )
+        return await people.query_people(
+            adapter=self.adapter_registry.get(connection.channel),
+            connection=connection,
+            project_id=project_id,
+            senders=senders,
+            text=text,
+        )
+
+    async def refresh_people(
+        self,
+        *,
+        project_id: UUID,
+        connection_id: UUID,
+    ) -> ChannelPeopleDirectory:
+        """Reload the cached workspace people list in the background."""
+
+        connection = await self.fetch_connection(
+            project_id=project_id,
+            connection_id=connection_id,
+        )
+        if connection is None or connection.deleted_at is not None:
+            raise ChannelConnectionNotFound(connection_id=connection_id)
+        return await people.refresh_people(
+            adapter=self.adapter_registry.get(connection.channel),
+            connection=connection,
+            project_id=project_id,
+        )
+
     # --- grants ----------------------------------------------------------- #
 
     async def create_grant(
@@ -1686,6 +1814,7 @@ class ChannelsService:
         *,
         project_id: UUID,
         user_id: UUID,
+        guard_user_id: Optional[UUID] = None,
         #
         grant: ChannelGrantCreate,
     ) -> ChannelGrant:
@@ -1697,6 +1826,11 @@ class ChannelsService:
         )
         if agent is None:
             raise ChannelAgentNotFound(agent_id=grant.agent_id)
+        await self._guard_limits(
+            project_id=project_id,
+            agent=agent,
+            guard_user_id=guard_user_id,
+        )
 
         if grant.space_id is not None:
             space = await self.channels_dao.fetch_space(
@@ -1718,9 +1852,13 @@ class ChannelsService:
         *,
         project_id: UUID,
         user_id: UUID,
+        guard_user_id: Optional[UUID] = None,
         #
         grant: ChannelGrantEdit,
     ) -> Optional[ChannelGrant]:
+        await self._guard_grant_limits(
+            project_id=project_id, grant_id=grant.id, guard_user_id=guard_user_id
+        )
         # effect is immutable (it is part of the row's identity in the
         # partial unique indexes), so it never rides the edit payload -- but
         # a DENY row picking up is_default via this edit still needs catching.
@@ -1743,9 +1881,13 @@ class ChannelsService:
         self,
         *,
         project_id: UUID,
+        guard_user_id: Optional[UUID] = None,
         #
         grant_id: UUID,
     ) -> bool:
+        await self._guard_grant_limits(
+            project_id=project_id, grant_id=grant_id, guard_user_id=guard_user_id
+        )
         return await self.channels_dao.delete_grant(
             project_id=project_id,
             #
@@ -1899,8 +2041,6 @@ class ChannelsService:
         agent_id: UUID,
         space_id: UUID,
     ) -> ChannelEffectivePolicy:
-        from oss.src.core.channels.utils import resolve_policy
-
         agent = await self.channels_dao.fetch_agent(
             project_id=project_id, agent_id=agent_id
         )
@@ -1977,13 +2117,32 @@ class ChannelsService:
         connection_id: UUID,
         event: ChannelInboxEvent,
     ) -> Optional[ChannelResolution]:
-        """Who runs, and under what policy.
+        """Who runs, and under what policy. `None` on any refusal; the worker
+        uses `resolve_or_refuse` to tell an addressed refusal apart."""
+
+        routing = await self.resolve_or_refuse(
+            project_id=project_id,
+            connection_id=connection_id,
+            event=event,
+        )
+        return routing.resolution
+
+    async def resolve_or_refuse(
+        self,
+        *,
+        project_id: UUID,
+        connection_id: UUID,
+        event: ChannelInboxEvent,
+    ) -> ChannelRouting:
+        """Who runs, and under what policy, or why the addressed agent refused.
 
         A never-seen space is created on first contact rather than refused —
         the row's existence stopped being what authorises an agent to answer
-        there; the grant is. `None` on a DENY, on no addressed agent, or on
-        no matching ALLOW for an agent that is not otherwise unrestricted —
-        all read identically to the worker, which is the point.
+        there; the grant is. No resolution on a DENY, on no addressed agent,
+        or on no matching ALLOW for an agent that is not otherwise
+        unrestricted. A refusal by the agent's people list or by its place
+        rules is reported only when the message addressed the agent, so the
+        worker can send one note; every other refusal stays silent.
         """
 
         connection = await self.fetch_connection(
@@ -2000,13 +2159,7 @@ class ChannelsService:
             or not connection.flags.is_active
             or not connection.flags.is_verified
         ):
-            return None
-
-        # An allow-list on the connection ("Allowed users" on the agent page):
-        # when it names anyone, a sender outside it is dropped before any
-        # space is provisioned. Empty means everyone.
-        if not _sender_allowed(connection, event):
-            return None
+            return ChannelRouting()
 
         capabilities = await self.fetch_capabilities(
             channel=connection.channel, connection=connection
@@ -2035,16 +2188,13 @@ class ChannelsService:
                 ),
             )
 
-        # the ingress wrote this row before any space existed; attach it before
-        # the refusal paths, so an unanswered message still belongs to its space
-        await self.channels_dao.attach_event_to_space(
-            project_id=project_id,
-            event_id=event.id,
-            space_id=space.id,
-        )
-
         if space.deleted_at is not None or not space.flags.is_active:
-            return None
+            await self.channels_dao.attach_event_to_space(
+                project_id=project_id,
+                event_id=event.id,
+                space_id=space.id,
+            )
+            return ChannelRouting()
 
         agent = await self._agent_awaiting_answer(
             project_id=project_id,
@@ -2070,8 +2220,33 @@ class ChannelsService:
         # archiving a connection cascades deleted_at onto its agents; without
         # this an archived bot stays off the configuration surface but keeps
         # answering. A deactivated agent refuses exactly like an absent one.
-        if agent is None or agent.deleted_at is not None or not agent.flags.is_active:
-            return None
+        live_agent = (
+            agent is not None and agent.deleted_at is None and agent.flags.is_active
+        )
+
+        # The agent's people list ("Who can message it"), in memory on the row
+        # just read. A refused person's message is not attached to the space,
+        # so it never reaches the agent as context.
+        if live_agent and not agent.data.audience.admits(_sender_id(event)):
+            return self._refusal(
+                reason=ChannelRefusalReason.SENDER_NOT_ALLOWED,
+                event=event,
+                space=space,
+                agent=agent,
+                capabilities=capabilities,
+            )
+
+        # the ingress wrote this row before any space existed; attach it before
+        # the remaining refusal paths, so an unanswered message still belongs
+        # to its space
+        await self.channels_dao.attach_event_to_space(
+            project_id=project_id,
+            event_id=event.id,
+            space_id=space.id,
+        )
+
+        if not live_agent:
+            return ChannelRouting()
 
         matching_grants = await self.channels_dao.query_matching_grants(
             project_id=project_id,
@@ -2083,7 +2258,13 @@ class ChannelsService:
 
         grant = None
         if effect is ChannelGrantEffect.DENY:
-            return None
+            return self._refusal(
+                reason=ChannelRefusalReason.PLACE_OFF,
+                event=event,
+                space=space,
+                agent=agent,
+                capabilities=capabilities,
+            )
         elif effect is ChannelGrantEffect.ALLOW:
             grant = _admitting_grant(matching_grants, space_id=space.id)
         else:
@@ -2093,11 +2274,15 @@ class ChannelsService:
                 agent_id=agent.id,
             )
             if has_any_grant:
-                # refuse silently and identically to "no such agent"
-                return None
+                # "Only these channels": a place no rule names is off
+                return self._refusal(
+                    reason=ChannelRefusalReason.PLACE_OFF,
+                    event=event,
+                    space=space,
+                    agent=agent,
+                    capabilities=capabilities,
+                )
             # zero grants anywhere for this agent: unrestricted
-
-        from oss.src.core.channels.utils import resolve_policy
 
         channel_defaults = _channel_defaults(capabilities)
         policy = resolve_policy(
@@ -2159,7 +2344,7 @@ class ChannelsService:
                 "unknown) for event=%s — ignored, nothing posted",
                 event.id,
             )
-            return None
+            return ChannelRouting()
 
         # the label, not the token: the agent gets back its own words, never
         # the internal id it never issued and the user never saw
@@ -2193,7 +2378,7 @@ class ChannelsService:
                 space.id,
                 space.kind.value,
             )
-            return None
+            return ChannelRouting()
 
         if thread is None or not thread.flags.is_active:
             thread = await self.channels_dao.create_thread(
@@ -2220,14 +2405,63 @@ class ChannelsService:
             else None
         )
 
-        return ChannelResolution(
+        return ChannelRouting(
+            resolution=ChannelResolution(
+                space=space,
+                agent=agent,
+                thread=thread,
+                policy=policy,
+                answered_interaction_id=answered_interaction_id,
+                resolved_token=resolved_token,
+                resolved_choice=resolved_choice,
+            )
+        )
+
+    def _refusal(
+        self,
+        *,
+        reason: ChannelRefusalReason,
+        event: ChannelInboxEvent,
+        space: ChannelSpace,
+        agent: ChannelAgent,
+        capabilities: ChannelCapabilities,
+    ) -> ChannelRouting:
+        """A refusal, reported only when the message addressed the agent: a DM,
+        or a mention or command elsewhere. The trigger rules come from the
+        agent and the space alone (no grant admitted it), all in memory."""
+
+        policy = resolve_policy(
+            capabilities,
+            _channel_defaults(capabilities),
+            agent.data.policy,
+            space.data.policy,
+            None,
+        )
+        sender_id = _sender_id(event)
+        addressed = event.kind is ChannelEventKind.MESSAGE and _is_trigger(
+            event=event,
             space=space,
-            agent=agent,
-            thread=thread,
             policy=policy,
-            answered_interaction_id=answered_interaction_id,
-            resolved_token=resolved_token,
-            resolved_choice=resolved_choice,
+            resolved_token=None,
+            capabilities=capabilities,
+        )
+        log.info(
+            "[CHANNELS] event=%s refused (%s) in space=%s for agent=%s, addressed=%s",
+            event.id,
+            reason.value,
+            space.id,
+            agent.id,
+            addressed,
+        )
+        if not addressed or sender_id is None:
+            return ChannelRouting()
+        return ChannelRouting(
+            refusal=ChannelRefusal(
+                reason=reason,
+                space=space,
+                agent=agent,
+                sender_id=str(sender_id),
+            )
         )
 
     async def _agent_awaiting_answer(
@@ -2816,16 +3050,10 @@ def _context_part(context: Optional[Dict[str, Any]]) -> Optional[dict]:
     }
 
 
-def _sender_allowed(connection: ChannelConnection, event: ChannelInboxEvent) -> bool:
-    data = connection.data if isinstance(connection.data, dict) else {}
-    allowed = data.get("allowed_senders")
-    if not isinstance(allowed, list) or not allowed:
-        return True
+def _sender_id(event: ChannelInboxEvent) -> Optional[str]:
     sender = event.data.processed.sender if event.data and event.data.processed else {}
     sender_id = sender.get("id") if isinstance(sender, dict) else None
-    if sender_id is None:
-        return False
-    return str(sender_id) in {str(item) for item in allowed}
+    return str(sender_id) if sender_id not in (None, "") else None
 
 
 def _admitting_grant(
@@ -3049,7 +3277,10 @@ def _layer_agent_edit(
         "tags": existing.tags,
         "meta": existing.meta,
         "data": ChannelAgentDataEdit(
-            references=data.references, policy=data.policy, tools=data.tools
+            references=data.references,
+            policy=data.policy,
+            tools=data.tools,
+            audience=data.audience,
         ),
         "flags": flags,
     }

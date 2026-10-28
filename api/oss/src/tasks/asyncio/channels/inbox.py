@@ -54,7 +54,10 @@ from oss.src.core.channels.dtos import (
     ChannelKeyGrain,
     ChannelOutboxEventCreate,
     ChannelOutboxEventData,
+    ChannelRefusal,
+    ChannelRefusalReason,
     ChannelResolution,
+    ChannelSpaceKind,
     ChannelThreadCreate,
     ChannelThreadData,
     ChannelTriggerState,
@@ -65,6 +68,9 @@ from oss.src.core.channels.render.dtos import RenderItem
 from oss.src.core.channels.render.render import (
     OPTED_IN_TEXT,
     OPTED_OUT_TEXT,
+    REFUSED_CHANNEL_TEXT,
+    REFUSED_DIRECT_MESSAGE_TEXT,
+    REFUSED_SENDER_TEXT,
     UNSUPPORTED_TEXT,
     render_busy,
     render_failed_start,
@@ -84,6 +90,7 @@ from oss.src.core.channels.fill import run_backfill
 from oss.src.core.channels.service import ChannelsService
 from oss.src.core.channels.types import (
     ChannelConnectionNotFound,
+    ChannelsError,
     ChannelThreadNotFound,
 )
 from oss.src.core.shared.dtos import Status
@@ -112,6 +119,9 @@ InvokeFn = Callable[..., Awaitable[str]]
 # the runner's refusal of a second turn on a running session, as the workflow
 # service reports it in the first frame of a detached start
 _TURN_IN_USE_CODE = "session_turn_in_use"
+
+# the refusal note's outbox key: person, place, reason and day
+_REFUSAL_NOTE_NAMESPACE = UUID("6f1d2a7c-3b8e-5c41-9a0d-c2e7b5f48a13")
 
 # answers one parked session interaction: (project_id, user_id, interaction_id, answer)
 RespondInteractionFn = Callable[..., Awaitable[None]]
@@ -633,11 +643,20 @@ class InboxDispatcher:
         under that order. A matched command never opens a turn.
         """
 
-        resolution = await self.channels_service.resolve(
+        routing = await self.channels_service.resolve_or_refuse(
             project_id=project_id,
             connection_id=connection_id,
             event=event,
         )
+        if routing.refusal is not None:
+            await self._send_refusal_note(
+                project_id=project_id,
+                connection_id=connection_id,
+                event=event,
+                refusal=routing.refusal,
+            )
+            return
+        resolution = routing.resolution
         if resolution is None:
             # default-deny, no addressed agent, or a silent grant refusal —
             # the logged row is all there is.
@@ -792,6 +811,124 @@ class InboxDispatcher:
             request_locator=event.data.external_locator,
             envelope=envelope,
         )
+
+    async def _send_refusal_note(
+        self,
+        *,
+        project_id: UUID,
+        connection_id: UUID,
+        event: ChannelInboxEvent,
+        refusal: ChannelRefusal,
+    ) -> None:
+        """One short private note to a person the agent refused, at most once a
+        day per person, place and reason. The row is claimed before the send
+        (the nonce tells this worker's insert apart from a concurrent one), and
+        a failed send is logged and dropped: a note is never retried.
+
+        A DM gets a normal reply; a shared place gets a message only that
+        person sees, where the platform has one (Slack), else nothing (a
+        Telegram group). No turn opens, no session, no credits."""
+
+        try:
+            connection = await self.channels_service.fetch_connection(
+                project_id=project_id,
+                connection_id=connection_id,
+            )
+            if connection is None:
+                return
+            space = refusal.space
+            day = datetime.now(timezone.utc).date().isoformat()
+            key = uuid5(
+                _REFUSAL_NOTE_NAMESPACE,
+                f"{connection.id}:{refusal.sender_id}:{space.id}:"
+                f"{refusal.reason.value}:{day}",
+            )
+            dao = self.channels_service.channels_dao
+            if await dao.fetch_outbox_event_by_key(project_id=project_id, key=key):
+                return
+
+            is_dm = space.kind is ChannelSpaceKind.PRIVATE
+            if refusal.reason is ChannelRefusalReason.SENDER_NOT_ALLOWED:
+                text = REFUSED_SENDER_TEXT
+            elif is_dm:
+                text = REFUSED_DIRECT_MESSAGE_TEXT
+            else:
+                text = REFUSED_CHANNEL_TEXT
+
+            capabilities = await self.channels_service.fetch_capabilities(
+                channel=connection.channel,
+                connection=connection,
+            )
+            item = render_notice(capabilities=capabilities, text=text)
+            content = [part.model_dump(exclude_none=True) for part in item.parts]
+            adapter = self.channels_service.adapter_registry.get(connection.channel)
+            locator = dict(event.data.external_locator or {})
+            if is_dm:
+                # top level in a DM, like every reply there
+                locator.pop("thread_ts", None)
+            elif not capabilities.rendering.controls.ephemeral:
+                return  # no private message in a shared place (Telegram)
+
+            nonce = str(uuid4())
+            row = await dao.record_outbox_event(
+                project_id=project_id,
+                event=ChannelOutboxEventCreate(
+                    connection_id=connection.id,
+                    space_id=space.id,
+                    turn_id=f"refusal:{refusal.reason.value}",
+                    key=key,
+                    data=ChannelOutboxEventData(processed={"attempt": nonce}),
+                ),
+            )
+            if (row.data.processed or {}).get("attempt") != nonce:
+                return  # a concurrent worker claimed today's note
+
+            try:
+                if is_dm:
+                    receipt = await adapter.post_message(
+                        connection=connection,
+                        locator=locator,
+                        content=content,
+                        idempotency_key=key,
+                    )
+                else:
+                    if not await adapter.post_ephemeral(
+                        connection=connection,
+                        locator=locator,
+                        user_id=refusal.sender_id,
+                        content=content,
+                    ):
+                        raise ChannelsError("no private message in this place")
+                    receipt = None
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                log.warning(
+                    "[INBOX DISPATCHER] refusal note not delivered event=%s: %s",
+                    event.id,
+                    str(e)[:200],
+                )
+                await dao.transition_outbox_event(
+                    project_id=project_id,
+                    event_id=row.id,
+                    state=ChannelDeliveryState.FAILED,
+                    status=Status(code="refusal_note_failed"),
+                )
+                return
+            await dao.transition_outbox_event(
+                project_id=project_id,
+                event_id=row.id,
+                state=ChannelDeliveryState.SENT,
+                status=Status(code="sent"),
+                data=ChannelOutboxEventData(
+                    external_locator=receipt,
+                    processed={"content": content},
+                ),
+            )
+        except Exception:  # pylint: disable=broad-exception-caught
+            log.error(
+                "[INBOX DISPATCHER] refusal note failed event=%s",
+                event.id,
+                exc_info=True,
+            )
 
     async def _handle_consent(
         self,

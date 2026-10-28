@@ -1282,6 +1282,45 @@ class ChannelsDAO(ChannelsDAOInterface):
 
             return len(result.scalars().all())
 
+    async def query_recent_senders(
+        self,
+        *,
+        project_id: UUID,
+        connection_id: UUID,
+        limit: int,
+    ) -> List[Dict[str, Any]]:
+        async with self.engine.session() as session:
+            sender = ChannelInboxEventDBE.data["processed"]["sender"]
+            stmt = (
+                select(sender)
+                .where(
+                    ChannelInboxEventDBE.project_id == project_id,
+                    ChannelInboxEventDBE.connection_id == connection_id,
+                )
+                .order_by(ChannelInboxEventDBE.created_at.desc())
+                .limit(limit)
+            )
+
+            result = await session.execute(stmt)
+
+            return [row for row in result.scalars().all() if isinstance(row, dict)]
+
+    async def guard_agent_owner(
+        self,
+        *,
+        project_id: UUID,
+        artifact_id: UUID,
+        user_id: Optional[UUID],
+    ) -> None:
+        async with self.engine.session() as session:
+            await guard_agent_activation(
+                session,
+                project_id=project_id,
+                artifact_id=artifact_id,
+                user_id=user_id,
+            )
+            await session.commit()
+
     # --- threads -------------------------------------------------------- #
 
     async def create_thread(

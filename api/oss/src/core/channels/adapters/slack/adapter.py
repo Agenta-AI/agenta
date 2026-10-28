@@ -37,6 +37,7 @@ from oss.src.core.channels.dtos import (
     ChannelHistoryPage,
     ChannelInboundEvent,
     ChannelInboxEventProcessed,
+    ChannelPerson,
     ChannelRequestContext,
     ChannelSetupDoc,
     ChannelSetupIdentity,
@@ -65,6 +66,11 @@ _LISTING_PAGE_SIZE = 200
 # Default page size for backfill; clamped further to the install's own rate
 # tier at fetch time.
 _DEFAULT_BACKFILL_LIMIT = int(os.getenv("AGENTA_CHANNELS_BACKFILL_LIMIT") or 50)
+
+# users.list page size. Slack recommends at most 200.
+_PEOPLE_PAGE_SIZE = 200
+# users.list is a slow rate tier: a rate-limited page is tried this many times.
+_RATE_LIMIT_ATTEMPTS = 5
 
 # Downloading a file is one long GET, not a quick API call.
 _MEDIA_TIMEOUT_SECONDS = 30.0
@@ -169,6 +175,7 @@ class SlackAdapter(ChannelAdapterInterface):
     channel = "slack"
     # Unit tests turn this off (no network); see tests' conftest.
     resolve_sender_names = True
+    lists_people = True
     _member_page_size = _LISTING_PAGE_SIZE
 
     def __init__(self, *, http_client: Optional[httpx.AsyncClient] = None) -> None:
@@ -547,6 +554,27 @@ class SlackAdapter(ChannelAdapterInterface):
         # The last chunk's receipt is what edit_message targets.
         return receipts[-1]
 
+    async def post_ephemeral(
+        self,
+        *,
+        connection: ChannelConnection,
+        locator: Dict[str, Any],
+        user_id: str,
+        content: List[Dict[str, Any]],
+    ) -> bool:
+        text, _ = _render_content(content)
+        await self._call(
+            connection,
+            "chat.postEphemeral",
+            {
+                "channel": locator["channel"],
+                "user": user_id,
+                "thread_ts": locator.get("thread_ts"),
+                "text": text,
+            },
+        )
+        return True
+
     async def edit_message(
         self,
         *,
@@ -735,6 +763,62 @@ class SlackAdapter(ChannelAdapterInterface):
             if not cursor:
                 break
         return spaces
+
+    # --- people --- #
+
+    async def list_people(
+        self, *, connection: ChannelConnection
+    ) -> List[ChannelPerson]:
+        """users.list, every page. A slow rate tier, so a rate-limited page
+        waits as Slack asks and is tried again a few times."""
+
+        people: List[ChannelPerson] = []
+        cursor = ""
+        while True:
+            params: Dict[str, Any] = {"limit": _PEOPLE_PAGE_SIZE}
+            if cursor:
+                params["cursor"] = cursor
+            response = await self._call_waiting_on_rate_limit(
+                connection, "users.list", params
+            )
+            for member in response.get("members") or []:
+                if not isinstance(member, dict) or not member.get("id"):
+                    continue
+                if member.get("id") == "USLACKBOT":
+                    continue
+                people.append(_person_from_member(member, source="directory"))
+            cursor = (response.get("response_metadata") or {}).get("next_cursor") or ""
+            if not cursor:
+                break
+        return people
+
+    async def find_person_by_email(
+        self, *, connection: ChannelConnection, email: str
+    ) -> Optional[ChannelPerson]:
+        try:
+            response = await self._call(
+                connection, "users.lookupByEmail", {"email": email}, as_query=True
+            )
+        except _SlackApiError as e:
+            if e.error == "users_not_found":
+                return None
+            raise
+        member = response.get("user")
+        if not isinstance(member, dict) or not member.get("id"):
+            return None
+        return _person_from_member(member, source="email")
+
+    async def _call_waiting_on_rate_limit(
+        self, connection: ChannelConnection, method: str, params: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        for attempt in range(_RATE_LIMIT_ATTEMPTS):
+            try:
+                return await self._call(connection, method, params, as_query=True)
+            except _SlackApiError as e:
+                if e.error != "ratelimited" or attempt == _RATE_LIMIT_ATTEMPTS - 1:
+                    raise
+                await asyncio.sleep(min(e.retry_after or 5, 60))
+        raise RuntimeError("unreachable")
 
     async def join_space(
         self, *, connection: ChannelConnection, locator: Dict[str, Any]
@@ -979,6 +1063,22 @@ class _SlackApiError(Exception):
         self.status_code = status_code
         self.retry_after = retry_after
         super().__init__(f"Slack API error: {error}")
+
+
+def _person_from_member(member: Dict[str, Any], *, source: str) -> ChannelPerson:
+    profile = member.get("profile") if isinstance(member.get("profile"), dict) else {}
+    fields = _profile_fields(member)
+    return ChannelPerson(
+        id=str(member["id"]),
+        name=fields.get("name"),
+        username=fields.get("username"),
+        email=profile.get("email") or None,
+        # a multi-channel or single-channel guest
+        is_guest=bool(member.get("is_restricted") or member.get("is_ultra_restricted")),
+        is_bot=bool(member.get("is_bot")),
+        is_deleted=bool(member.get("deleted")),
+        source=source,
+    )
 
 
 def _retry_after(value: Optional[str]) -> Optional[int]:

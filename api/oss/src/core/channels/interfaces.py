@@ -447,6 +447,29 @@ class ChannelsDAOInterface(ABC):
         windowing: Optional[Windowing] = None,
     ) -> List[ChannelGrant]: ...
 
+    async def query_recent_senders(
+        self,
+        *,
+        project_id: UUID,
+        connection_id: UUID,
+        limit: int,
+    ) -> List[Dict[str, Any]]:
+        """The senders of this connection's newest stored messages, newest
+        first, one entry per message (`{id, name, username}` as the adapter
+        parsed them). For the settings screen's people picker only."""
+        raise NotImplementedError
+
+    async def guard_agent_owner(
+        self,
+        *,
+        project_id: UUID,
+        artifact_id: UUID,
+        user_id: Optional[UUID],
+    ) -> None:
+        """Raise SharedItemNotFound when the agent is private and `user_id` is
+        not its owner. Reads the agent's policy uncached."""
+        raise NotImplementedError
+
     @abstractmethod
     async def count_grants(
         self,

@@ -38,6 +38,8 @@ from oss.src.apis.fastapi.channels.models import (
     ChannelPolicyResolveRequest,
     ChannelPolicyResponse,
     ChannelSetupResponse,
+    ChannelPeopleQueryRequest,
+    ChannelPeopleResponse,
     ChannelSpaceCandidatesResponse,
     ChannelSpaceCreateRequest,
     ChannelSpaceDiscoverRequest,
@@ -302,6 +304,23 @@ class ChannelsRouter:
             methods=["GET"],
             operation_id="fetch_channel_connection_setup",
             response_model=ChannelConnectionSetupResponse,
+            response_model_exclude_none=True,
+        )
+
+        self.router.add_api_route(
+            "/connections/{connection_id}/people/query",
+            self.query_channel_people,
+            methods=["POST"],
+            operation_id="query_channel_people",
+            response_model=ChannelPeopleResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/connections/{connection_id}/people/refresh",
+            self.refresh_channel_people,
+            methods=["POST"],
+            operation_id="refresh_channel_people",
+            response_model=ChannelPeopleResponse,
             response_model_exclude_none=True,
         )
 
@@ -1053,6 +1072,52 @@ class ChannelsRouter:
         return ChannelConnectionSetupResponse(count=1, setup=setup)
 
     # -----------------------------------------------------------------------
+    # People (the settings screen's picker; never on the message path)
+    # -----------------------------------------------------------------------
+
+    @intercept_exceptions()
+    async def query_channel_people(
+        self,
+        request: Request,
+        *,
+        connection_id: UUID,
+        body: Optional[ChannelPeopleQueryRequest] = None,
+    ) -> ChannelPeopleResponse:
+        await self._check(request, Permission.EDIT_CHANNELS)
+
+        try:
+            people, directory = await self.channels_service.query_people(
+                project_id=UUID(request.state.project_id),
+                connection_id=connection_id,
+                text=body.people.text if body and body.people else None,
+            )
+        except ChannelConnectionNotFound as e:
+            raise HTTPException(status_code=404, detail=e.message) from e
+
+        return ChannelPeopleResponse(
+            count=len(people), people=people, directory=directory
+        )
+
+    @intercept_exceptions()
+    async def refresh_channel_people(
+        self,
+        request: Request,
+        *,
+        connection_id: UUID,
+    ) -> ChannelPeopleResponse:
+        await self._check(request, Permission.EDIT_CHANNELS)
+
+        try:
+            directory = await self.channels_service.refresh_people(
+                project_id=UUID(request.state.project_id),
+                connection_id=connection_id,
+            )
+        except ChannelConnectionNotFound as e:
+            raise HTTPException(status_code=404, detail=e.message) from e
+
+        return ChannelPeopleResponse(count=0, directory=directory)
+
+    # -----------------------------------------------------------------------
     # Agents
     # -----------------------------------------------------------------------
 
@@ -1376,11 +1441,15 @@ class ChannelsRouter:
             grant = await self.channels_service.create_grant(
                 project_id=UUID(request.state.project_id),
                 user_id=UUID(str(request.state.user_id)),
+                guard_user_id=_human_user_id(request),
                 #
                 grant=body.grant,
             )
         except (ChannelAgentNotFound, ChannelSpaceNotFound) as e:
             raise HTTPException(status_code=404, detail=e.message) from e
+        except SharedItemNotFound as e:
+            # only its owner changes a private agent's limits
+            raise not_found_exception() from e
         return ChannelGrantResponse(count=1 if grant else 0, grant=grant)
 
     @intercept_exceptions()
@@ -1426,12 +1495,16 @@ class ChannelsRouter:
                 detail="Path grant_id does not match body id",
             )
 
-        grant = await self.channels_service.edit_grant(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(str(request.state.user_id)),
-            #
-            grant=body.grant,
-        )
+        try:
+            grant = await self.channels_service.edit_grant(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(str(request.state.user_id)),
+                guard_user_id=_human_user_id(request),
+                #
+                grant=body.grant,
+            )
+        except SharedItemNotFound as e:
+            raise not_found_exception() from e
         if grant is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -1449,11 +1522,15 @@ class ChannelsRouter:
     ) -> None:
         await self._check(request, Permission.EDIT_CHANNELS)
 
-        deleted = await self.channels_service.delete_grant(
-            project_id=UUID(request.state.project_id),
-            #
-            grant_id=grant_id,
-        )
+        try:
+            deleted = await self.channels_service.delete_grant(
+                project_id=UUID(request.state.project_id),
+                guard_user_id=_human_user_id(request),
+                #
+                grant_id=grant_id,
+            )
+        except SharedItemNotFound as e:
+            raise not_found_exception() from e
         if not deleted:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
