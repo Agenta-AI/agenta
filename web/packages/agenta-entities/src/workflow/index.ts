@@ -85,6 +85,30 @@ export {
     type AgentModelCandidatesState,
 } from "./state/agentModelCandidates"
 
+// Needs setup: the items an agent names that are not ready where it runs.
+export {
+    agentRequirementsQueryAtomFamily,
+    agentRequirementsAtomFamily,
+    invalidateAgentRequirements,
+} from "./state/agentRequirements"
+export {queryAgentRequirements} from "./api/requirements"
+export {
+    AGENT_NEEDS_SETUP_CODE,
+    AGENT_NEEDS_SETUP_TITLE,
+    MODEL_NEEDS_SETUP_MESSAGE,
+    MODEL_SETUP_PLACEHOLDER,
+    NEEDS_SETUP_LABEL,
+    agentRequirementSchema,
+    agentRequirementsSchema,
+    canFixRequirement,
+    modelRequirement,
+    needsSetupReasonLabel,
+    requirementAtPath,
+    requirementForItem,
+    type AgentRequirementItem,
+    type AgentRequirementsResult,
+} from "./requirements"
+
 export {
     type SubscriptionStatusResponse,
     type SubscriptionRunnerState,
