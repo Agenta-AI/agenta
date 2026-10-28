@@ -183,3 +183,39 @@ async def test_no_sandbox_in_the_result_stamps_nothing(make_backend):
         )
 
     assert "ag.meta.agent.sandbox" not in dict(span.attributes or {})
+
+
+async def test_session_id_lands_on_the_workflow_span(make_backend):
+    """The workflow span is the trace root of an agent run; ingest copies its session id to the
+    spans of the same batch, and trace reads filter by it."""
+    backend = make_backend(result=AgentResult(output="ok"))
+    handler = make_agent_handler(
+        AgentComposition(select_backend=lambda template: backend)
+    )
+    span = _workflow_span()
+
+    with otel_trace.use_span(span, end_on_exit=False):
+        await handler(
+            request=WorkflowServiceRequest(session_id="sess-root-1"),
+            messages=_messages(),
+            parameters=_params(),
+        )
+
+    assert span.attributes["ag.session.id"] == "sess-root-1"
+
+
+async def test_no_session_id_on_a_run_without_a_session(make_backend):
+    backend = make_backend(result=AgentResult(output="ok"))
+    handler = make_agent_handler(
+        AgentComposition(select_backend=lambda template: backend)
+    )
+    span = _workflow_span()
+
+    with otel_trace.use_span(span, end_on_exit=False):
+        await handler(
+            request=WorkflowServiceRequest(),
+            messages=_messages(),
+            parameters=_params(),
+        )
+
+    assert "ag.session.id" not in dict(span.attributes or {})
