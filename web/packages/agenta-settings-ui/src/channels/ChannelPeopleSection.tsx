@@ -207,6 +207,7 @@ export const ChannelPeopleSection = ({
 
     const pick = async (person: ChannelPerson) => {
         if (person.isBot) return
+        setDraftError(null)
         if (await add([{id: person.id, name: person.name, email: person.email}])) setDraft("")
     }
 
