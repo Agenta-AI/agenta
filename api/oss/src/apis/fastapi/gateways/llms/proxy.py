@@ -42,6 +42,7 @@ from oss.src.core.gateways.llms.types import (
     LLMEndpointNotFoundError,
     LLMModelIdentifierInvalidError,
     LLMModelNotAllowedError,
+    LLMNamedConnectionNotFoundError,
     LLMRoutingFieldNotAllowedError,
     LLMCapabilityNotAllowedError,
     LLMUpstreamError,
@@ -86,6 +87,7 @@ _DOMAIN_EXCEPTIONS = (
     SecretNotFoundError,
     SecretInvalidError,
     LLMEndpointNotFoundError,
+    LLMNamedConnectionNotFoundError,
     LLMUpstreamError,
 )
 
@@ -317,6 +319,13 @@ def _map_domain_exception(exc: Exception) -> JSONResponse:
             error_type="invalid_request_error",
             code="endpoint_not_found",
         )
+    if isinstance(exc, LLMNamedConnectionNotFoundError):
+        return _openai_error(
+            status_code=404,
+            message=exc.message,
+            error_type="invalid_request_error",
+            code="connection_not_found",
+        )
     if isinstance(exc, LLMUpstreamTimeoutError):
         # 408, as LiteLLM answers its own timeout: the gateway gave up waiting, which is
         # not the same as a provider answering 504.
@@ -447,6 +456,12 @@ class LLMGatewayProxy:
             operation_id="llm_gateway_chat_completions_custom",
         )
         self.router.add_api_route(
+            "/organization/{slug}/v1/chat/completions",
+            self.chat_completions_organization,
+            methods=["POST"],
+            operation_id="llm_gateway_chat_completions_organization",
+        )
+        self.router.add_api_route(
             "/builtin/{provider}/v1/responses",
             self.responses_builtin,
             methods=["POST"],
@@ -463,6 +478,12 @@ class LLMGatewayProxy:
             self.responses_custom,
             methods=["POST"],
             operation_id="llm_gateway_responses_custom",
+        )
+        self.router.add_api_route(
+            "/organization/{slug}/v1/responses",
+            self.responses_organization,
+            methods=["POST"],
+            operation_id="llm_gateway_responses_organization",
         )
         self.router.add_api_route(
             "/builtin/{provider}/v1/messages",
@@ -489,6 +510,12 @@ class LLMGatewayProxy:
             operation_id="llm_gateway_gemini_stream_builtin",
         )
         self.router.add_api_route(
+            "/organization/{slug}/v1/messages",
+            self.messages_organization,
+            methods=["POST"],
+            operation_id="llm_gateway_messages_organization",
+        )
+        self.router.add_api_route(
             "/builtin/{provider}/v1/models",
             self.list_models_builtin,
             methods=["GET"],
@@ -505,6 +532,12 @@ class LLMGatewayProxy:
             self.list_models_custom,
             methods=["GET"],
             operation_id="llm_gateway_list_models_custom",
+        )
+        self.router.add_api_route(
+            "/organization/{slug}/v1/models",
+            self.list_models_organization,
+            methods=["GET"],
+            operation_id="llm_gateway_list_models_organization",
         )
 
     # --- chat completions ---------------------------------------------------- #
@@ -540,6 +573,17 @@ class LLMGatewayProxy:
             protocol=LLMProtocol.CHAT_COMPLETIONS,
         )
 
+    async def chat_completions_organization(
+        self, request: Request, slug: str
+    ) -> Response:
+        return await self._relay(
+            request,
+            namespace=GatewayEndpointNamespace.ORGANIZATION,
+            name=slug,
+            parser=parse_llm_call_context,
+            protocol=LLMProtocol.CHAT_COMPLETIONS,
+        )
+
     # --- responses -------------------------------------------------------------- #
 
     async def responses_builtin(self, request: Request, provider: str) -> Response:
@@ -564,6 +608,15 @@ class LLMGatewayProxy:
         return await self._relay(
             request,
             namespace=GatewayEndpointNamespace.CUSTOM,
+            name=slug,
+            parser=parse_responses_call_context,
+            protocol=LLMProtocol.RESPONSES,
+        )
+
+    async def responses_organization(self, request: Request, slug: str) -> Response:
+        return await self._relay(
+            request,
+            namespace=GatewayEndpointNamespace.ORGANIZATION,
             name=slug,
             parser=parse_responses_call_context,
             protocol=LLMProtocol.RESPONSES,
@@ -620,6 +673,15 @@ class LLMGatewayProxy:
             name=provider,
             parser=lambda body: parse_gemini_call_context(body=body, model=model),
             protocol=LLMProtocol.GEMINI,
+        )
+
+    async def messages_organization(self, request: Request, slug: str) -> Response:
+        return await self._relay(
+            request,
+            namespace=GatewayEndpointNamespace.ORGANIZATION,
+            name=slug,
+            parser=parse_messages_call_context,
+            protocol=LLMProtocol.MESSAGES,
         )
 
     # Shared relay
@@ -725,6 +787,11 @@ class LLMGatewayProxy:
     async def list_models_custom(self, slug: str) -> Any:
         return await self._list_models(
             namespace=GatewayEndpointNamespace.CUSTOM, name=slug
+        )
+
+    async def list_models_organization(self, slug: str) -> Any:
+        return await self._list_models(
+            namespace=GatewayEndpointNamespace.ORGANIZATION, name=slug
         )
 
     async def _list_models(

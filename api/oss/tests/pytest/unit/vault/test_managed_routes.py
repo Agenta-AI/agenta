@@ -12,6 +12,10 @@ from oss.src.core.secrets.services import VaultService
 from oss.src.core.secrets.claude_token import ClaudeTokenClient
 from oss.src.core.secrets.subscription_login import SubscriptionLoginRunnerClient
 from oss.src.core.secrets.subscription_service import SubscriptionLoginService
+from oss.tests.pytest.utils.organization_secrets import (
+    load_effective_from_list,
+    owner_scope,
+)
 
 
 def _vault_router(vault_service: VaultService) -> VaultRouter:
@@ -31,6 +35,8 @@ USER_ID = str(uuid4())
 
 
 class _DAO:
+    load_effective = load_effective_from_list
+
     def __init__(self):
         self.record = SecretResponseDTO(
             id=uuid4(),
@@ -44,31 +50,59 @@ class _DAO:
             ),
         )
 
-    async def list(self, project_id, organization_id):
+    async def list(
+        self,
+        *,
+        owner,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         return [self.record]
 
-    async def get_by_id(self, secret_id, project_id, organization_id):
+    async def get_by_id(
+        self,
+        *,
+        owner,
+        secret_id,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         return self.record if secret_id == self.record.id else None
 
-    async def get_by_slug(self, secret_slug, project_id, organization_id):
+    async def get_by_slug(
+        self,
+        *,
+        owner,
+        secret_slug,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         return self.record if secret_slug == self.record.slug else None
 
     async def update(
         self,
+        *,
+        owner,
         secret_id,
         update_secret_dto,
-        project_id,
-        organization_id,
         user_id=None,
         resolve_update=None,
+        **_kwargs,
     ):
+        project_id, organization_id = owner_scope(owner)
         if resolve_update:
             resolve_update(self.record, update_secret_dto)
         return self.record
 
     async def delete(
-        self, secret_id, project_id, organization_id, authorize_delete=None
+        self,
+        *,
+        owner,
+        secret_id,
+        authorize_delete=None,
+        **_kwargs,
     ):
+        project_id, organization_id = owner_scope(owner)
         if authorize_delete:
             authorize_delete(self.record)
 

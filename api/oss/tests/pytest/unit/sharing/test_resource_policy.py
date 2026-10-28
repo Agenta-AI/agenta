@@ -264,13 +264,19 @@ async def test_s2_members_send_in_a_channel_session(people):
     [Permission.VIEW_SESSIONS, Permission.RUN_SESSIONS, Permission.EDIT_SESSIONS],
 )
 async def test_a_binding_acts_in_a_private_channel_session(people, action):
-    """The channel session of a private agent is private to the agent's owner. The
-    owner's own channel binding reads, runs and edits it; a binding someone else
-    created does not, nor does another member. The owner does."""
-    state = people.world.add_session(policy=_private(people.alice), is_channel=True)
+    """The channel session of a private agent is private to the agent's owner. Its own
+    channel binding, created by that owner, reads, runs and edits it. Another binding
+    does not, also one the same owner created, nor a binding someone else created, nor
+    another member. The owner does."""
     binding = _installation()
+    state = people.world.add_session(
+        policy=_private(people.alice), channel_binding_id=binding.id
+    )
     with _bound_by(binding, people.alice):
         assert await people.session(binding, state, action) is None
+    other = _installation()
+    with _bound_by(other, people.alice):
+        assert await people.session(other, state, action) == DENIED
     with _bound_by(binding, people.bob):
         assert await people.session(binding, state, action) == DENIED
     assert await people.session(_human(people.bob), state, action) == DENIED

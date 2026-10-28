@@ -2,6 +2,7 @@ import {useCallback, useMemo, useState} from "react"
 
 import {
     buildConnectionModelGroups,
+    organizationProviderConnectionsAtom,
     providerConnectionsAtom,
     vaultSecretsQueryAtom,
 } from "@agenta/entities/secret"
@@ -39,6 +40,8 @@ const vaultLoadedAtom = atom((get) => Array.isArray(get(vaultSecretsQueryAtom).d
  */
 export function useLLMProviderConfig() {
     const connections = useAtomValue(providerConnectionsAtom)
+    // Listed in the drawer as agents only; the picker never offers them (same vault request).
+    const organizationConnections = useAtomValue(organizationProviderConnectionsAtom)
     // The curated model names ("GPT-5.6 Luna"), from the same catalog the agent picker labels its
     // rows off. Null until it resolves, which just leaves the rows on their model ids.
     const capabilities = useAtomValue(harnessCapabilitiesAtomFamily(HARNESS_CATALOG_KEY))
@@ -111,6 +114,7 @@ export function useLLMProviderConfig() {
                     // rows need a harness this surface never runs.
                     context="completion"
                     connections={connections}
+                    organizationConnections={organizationConnections}
                     onSaved={() => refetchVault()}
                 />
                 <ConfigureProviderDrawer
@@ -123,6 +127,7 @@ export function useLLMProviderConfig() {
         [
             isProviderDrawerOpen,
             connections,
+            organizationConnections,
             refetchVault,
             isConfigProviderOpen,
             initialProviderKind,

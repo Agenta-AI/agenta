@@ -3,4 +3,4 @@ export type { FetchLlmEndpointRequest } from "./FetchLlmEndpointRequest.js";
 export type { LlmEndpointCreateRequest } from "./LlmEndpointCreateRequest.js";
 export type { LlmEndpointEditRequest } from "./LlmEndpointEditRequest.js";
 export type { LlmEndpointQueryRequest } from "./LlmEndpointQueryRequest.js";
-export type { LlmGatewayConnectionResolveRequest } from "./LlmGatewayConnectionResolveRequest.js";
+export { LlmGatewayConnectionResolveRequest } from "./LlmGatewayConnectionResolveRequest.js";

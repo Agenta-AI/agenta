@@ -82,9 +82,11 @@ _CREDENTIALS_HEADER = "X-AG-Credentials"
 
 # `/gateways/{plane}/{namespace}/...` is the data plane; `/gateways/{plane}/endpoints/...`
 # is ordinary CRUD. No namespace can spell `endpoints`, which is what keeps the two apart
-# under one mount prefix.
+# under one mount prefix. Only the LLM plane has the `organization` namespace (M5).
 _GATEWAY_DATA_PLANE = re_compile(
-    r"^(?:/api)?/gateways/(?:llms|mcps)/(?:builtin|standard|custom)(?:/|$)"
+    r"^(?:/api)?/gateways/"
+    r"(?:llms/(?:builtin|standard|custom|organization)|mcps/(?:builtin|standard|custom))"
+    r"(?:/|$)"
 )
 
 

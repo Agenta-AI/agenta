@@ -47,6 +47,38 @@ def is_always_write_only(kind) -> bool:
         return False
 
 
+# Who owns a stored secret (CONTRACT section 8). Storage keeps the typed columns
+# (`project_id`, `organization_id`); the DAO maps the kind to the column.
+class SecretOwnerKind(str, Enum):
+    ORGANIZATION = "organization"
+    PROJECT = "project"
+    USER = "user"  # M7; no rows in M5
+
+
+# Which projects an organization credential reaches. `selected_projects` with no listed
+# project reaches no project; it never means "every project".
+class SecretAvailability(str, Enum):
+    ALL_PROJECTS = "all_projects"
+    SELECTED_PROJECTS = "selected_projects"
+
+
+# The kinds an organization can share with its projects. An agent uses a shared row only
+# when it names it. Every other kind stays project-owned (or, for SSO, organization-only).
+ORGANIZATION_SECRET_KINDS = frozenset(
+    {
+        SecretKind.PROVIDER_KEY,
+        SecretKind.CUSTOM_PROVIDER,
+        SecretKind.SUBSCRIPTION_PROVIDER,
+    }
+)
+# The organization kinds the LLM gateway serves. Their values never leave the API. An
+# organization subscription login is the one kind that does: it reaches the runner of a
+# run that named it, which uses it like a project login.
+ORGANIZATION_GATEWAY_KINDS = frozenset(
+    {SecretKind.PROVIDER_KEY, SecretKind.CUSTOM_PROVIDER}
+)
+
+
 class ChannelSecretKind(str, Enum):
     SLACK = "slack"
     TELEGRAM = "telegram"
