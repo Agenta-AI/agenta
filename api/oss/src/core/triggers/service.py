@@ -1206,12 +1206,16 @@ class TriggersService:
         if existing is None:
             return None
 
-        check_durable_work_change(
-            kind=DurableWorkKind.SUBSCRIPTION,
-            principal=editor,
-            executing=existing.principal,
-            change=_subscription_change(existing=existing, edit=subscription),
-        )
+        def check(locked: TriggerSubscription) -> None:
+            check_durable_work_change(
+                kind=DurableWorkKind.SUBSCRIPTION,
+                principal=editor,
+                executing=locked.principal,
+                change=_subscription_change(existing=locked, edit=subscription),
+            )
+
+        # Refused before any provider change when the stored row already shows it.
+        check(existing)
 
         # Test subscriptions skip the bound-workflow requirement and stay "on".
         # Turning test OFF (test → prod) re-imposes it: references must resolve,
@@ -1242,12 +1246,15 @@ class TriggersService:
                     is_valid=existing.flags.is_valid,
                 )
 
-            # The principal stays; the target agent follows the edited references.
+            # The principal stays; the target agent follows the edited references. The
+            # rule is checked again on the locked row, so a concurrent edit cannot slip
+            # past it.
             return await self.dao.edit_subscription(
                 project_id=project_id,
                 user_id=user_id,
                 subscription=subscription,
                 artifact_id=artifact_id,
+                check=check,
             )
 
         if target_changed:
@@ -1297,6 +1304,7 @@ class TriggersService:
                 subscription=subscription,
                 artifact_id=artifact_id,
                 trigger_id=trigger_id,
+                check=check,
             )
         except Exception:
             if replacement is not None:
@@ -1857,13 +1865,6 @@ class TriggersService:
         if existing is None:
             return None
 
-        check_durable_work_change(
-            kind=DurableWorkKind.SCHEDULE,
-            principal=editor,
-            executing=existing.principal,
-            change=_schedule_change(existing=existing, edit=schedule),
-        )
-
         self._validate_schedule(schedule.data.schedule)
         self._normalize_window(schedule.data)
 
@@ -1872,12 +1873,23 @@ class TriggersService:
             references=schedule.data.references,
         )
 
-        # The principal stays; the target agent follows the edited references.
+        def check(locked: TriggerSchedule) -> None:
+            check_durable_work_change(
+                kind=DurableWorkKind.SCHEDULE,
+                principal=editor,
+                executing=locked.principal,
+                change=_schedule_change(existing=locked, edit=schedule),
+            )
+
+        check(existing)
+        # The principal stays; the target agent follows the edited references. The rule
+        # is checked again on the locked row, so a concurrent edit cannot slip past it.
         return await self.dao.edit_schedule(
             project_id=project_id,
             user_id=user_id,
             schedule=schedule,
             artifact_id=artifact_id,
+            check=check,
         )
 
     async def delete_schedule(

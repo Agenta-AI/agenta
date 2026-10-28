@@ -92,9 +92,35 @@ def test_execution_change_needs_the_executing_principal(principal, executing, al
         assert refused.value.executing == executing
 
 
-def test_execution_changed_ignores_container_shape():
-    assert not execution_changed({"a": [1, 2], "b": None}, {"a": (1, 2)})
+def test_execution_changed_ignores_container_shape_only():
+    assert not execution_changed({"a": [1, 2]}, {"a": (1, 2)})
     assert execution_changed({"a": [1, 2]}, {"a": [2, 1]})
+    # An explicit null input and a type change are real changes of what runs.
+    assert execution_changed({"a": 1}, {"a": 1, "b": None})
+    assert execution_changed({"a": True}, {"a": 1})
+
+
+async def test_the_rule_is_checked_on_the_locked_row():
+    """Bob's rename passes against the row he read; if Alice changed what it runs in
+    between, his full write would restore her old target. The DAO runs the check on the
+    row it locked, so the write is refused."""
+    existing = _schedule()
+    service, dao = _triggers(schedule=existing)
+    moved_by_alice = _schedule_edit(existing, references=AGENT_B)
+    locked = existing.model_copy(update={"data": moved_by_alice.data})
+
+    async def edit_with_lock(**kwargs):
+        kwargs["check"](locked)
+        return kwargs["schedule"]
+
+    dao.edit_schedule = AsyncMock(side_effect=edit_with_lock)
+    with pytest.raises(DurableWorkOwnerOnly):
+        await service.edit_schedule(
+            project_id=uuid4(),
+            user_id=BOB.id,
+            schedule=_schedule_edit(existing, schedule="30 6 * * *"),
+            editor=BOB,
+        )
 
 
 # --- schedules and subscriptions ----------------------------------------------------

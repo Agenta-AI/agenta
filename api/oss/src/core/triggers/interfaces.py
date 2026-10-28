@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from uuid import UUID
 
 from oss.src.core.access.dtos import PrincipalRef
@@ -148,6 +148,7 @@ class TriggersDAOInterface(ABC):
         #
         artifact_id: Any = KEEP_ARTIFACT_ID,
         trigger_id: Optional[str] = None,
+        check: Optional[Callable[[Any], None]] = None,
     ) -> Optional[TriggerSubscription]: ...
 
     @abstractmethod
@@ -398,6 +399,7 @@ class TriggersDAOInterface(ABC):
         schedule: TriggerScheduleEdit,
         #
         artifact_id: Any = KEEP_ARTIFACT_ID,
+        check: Optional[Callable[[Any], None]] = None,
     ) -> Optional[TriggerSchedule]: ...
 
     @abstractmethod

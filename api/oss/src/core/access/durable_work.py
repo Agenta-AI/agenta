@@ -10,6 +10,7 @@ The rule exists because of personal credentials: without it, Bob could point Ali
 schedule at another agent and make it act with Alice's own accounts.
 """
 
+import json
 from enum import Enum
 from typing import Any, Optional
 
@@ -65,24 +66,24 @@ def check_durable_work_change(
 
 
 def execution_changed(before: Any, after: Any) -> bool:
-    """Compare the execution fields of two shapes by their JSON form, so equal values
-    in different containers (a tuple and a list, a model and a dict) compare equal.
-    A missing field and an explicit null compare equal."""
+    """Compare the execution fields of two shapes by their canonical JSON. Nulls and
+    JSON types are kept, so adding a null input or turning `true` into `1` is a change;
+    a tuple and a list, or a model and its dict, compare equal."""
 
-    return _normalized(before) != _normalized(after)
+    return _canonical(before) != _canonical(after)
 
 
-def _normalized(value: Any) -> Any:
+def _canonical(value: Any) -> str:
+    return json.dumps(_jsonable(value), sort_keys=True, separators=(",", ":"))
+
+
+def _jsonable(value: Any) -> Any:
     if hasattr(value, "model_dump"):
-        value = value.model_dump(mode="json", exclude_none=True)
+        return value.model_dump(mode="json")
     if isinstance(value, dict):
-        return {
-            str(key): _normalized(item)
-            for key, item in value.items()
-            if item is not None
-        }
+        return {str(key): _jsonable(item) for key, item in value.items()}
     if isinstance(value, (list, tuple)):
-        return [_normalized(item) for item in value]
+        return [_jsonable(item) for item in value]
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
     return str(value)
