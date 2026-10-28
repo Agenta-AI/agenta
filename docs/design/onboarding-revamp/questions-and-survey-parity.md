@@ -106,6 +106,7 @@ SELECT
     properties['company_size_v2'] IN ('11-50','51-200','201+')
     AND lower(properties['user_role_v2']) NOT LIKE 'hobbyist%'
     AND properties['user_role_v2'] != 'Student'
+    AND trim(properties['user_role_v2']) != ''
     AND properties['agent_experience_v2'] NOT IN ('Not yet — just exploring', '')
   ) AS icp,
   count() AS people
@@ -137,4 +138,6 @@ the question ids from the survey without noting them here.
 
 The form resolves a question by id first and falls back to matching its text
 (`/hear about (us|agenta)/i`, `/best describes you/i`, `/size of your company/i`). Reword a
-question and the fallback is what keeps the property write alive.
+question and the fallback is what keeps the property write alive. When you edit the survey, keep
+each question id. If a question gets a new id and new wording at the same time, add the new id
+to the table above and to the form, or the form stops writing that property.
