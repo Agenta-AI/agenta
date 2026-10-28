@@ -1,0 +1,52 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "01M61YWS73QQ8P1RQ6RP6SFB5A",
+  "session_id": "a2e1fd2f-52a9-413a-b094-4c5daefe43d9",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-28T19:13:21.730534112Z",
+  "branch": "fix/044-p6-plan",
+  "checkpoints_count": 1,
+  "save_step_count": 1,
+  "files_touched": [
+    ".husky/post-checkout",
+    ".husky/pre-commit",
+    ".husky/pre-push",
+    "docs/design/agent-workflows/scratch/agent-coordination.md",
+    "sdks/python/agenta/sdk/managers/secrets.py",
+    "sdks/python/oss/tests/pytest/unit/test_llm_v0_provider_key_binding.py",
+    "sdks/python/oss/tests/pytest/unit/test_secrets_manager_connection_slug.py",
+    "sdks/python/oss/tests/pytest/unit/test_secrets_manager_custom_provider_ssrf.py",
+    "services/runner/README.md",
+    "services/runner/src/tracing/output-budget.ts",
+    "services/runner/tests/unit/output-budget.test.ts",
+    "web/mobile/src/features/automations/useUnsavedGuard.ts"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5-5",
+  "turn_id": "bb8a4b5aa98f",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 2,
+    "cache_creation_tokens": 39836,
+    "cache_read_tokens": 42877,
+    "output_tokens": 37,
+    "api_call_count": 1
+  },
+  "redaction": {
+    "replacements": 4,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 4,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "session_metrics": {
+    "turn_count": 1
+  }
+}
