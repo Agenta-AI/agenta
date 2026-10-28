@@ -84,14 +84,26 @@ async def test_a_channel_turn_skips_the_guard():
     assert guard.calls == 0
 
 
-@pytest.mark.parametrize("session_id", [None, selection.UNKNOWN_PROTECTION_SESSION])
-async def test_a_run_with_no_private_conversation_is_refused(session_id):
-    """An evaluation or a direct call leaves output in project traces; a child of an
-    unknown conversation cannot be checked. Refused without a database call."""
+async def test_a_run_with_no_private_conversation_is_refused_before_any_read(
+    monkeypatch,
+):
+    """An evaluation, a direct call, or a child of a run with no conversation leaves
+    output in project traces. Refused before the policy, the credential or the guard
+    is read."""
     guard = _Guard(True)
     selection.set_personal_use_guard(guard)
+
+    async def no_policy_read(**kwargs):
+        raise AssertionError("the policy must not be read")
+
+    async def no_credential_read(user_id):
+        raise AssertionError("the credential must not be read")
+
+    monkeypatch.setattr(selection, "check_personal_credentials_allowed", no_policy_read)
     with pytest.raises(PersonalCredentialRefused) as refused:
-        await _select(_authority(), session_id)
+        await selection.select_personal_credential(
+            authority=_authority(), label="Gmail", read=no_credential_read
+        )
     assert refused.value.code == "no_private_conversation"
     assert guard.calls == 0
 
@@ -100,7 +112,6 @@ def test_the_protection_session_of_a_child_run_is_its_parents():
     from types import SimpleNamespace
 
     from oss.src.core.access.context import reset_request_access, set_request_access
-    from oss.src.core.credentials.selection import UNKNOWN_PROTECTION_SESSION
     from oss.src.core.workflows.service import _protection_session
     from oss.tests.pytest.utils.principals import make_envelope, make_request_access
 
@@ -113,7 +124,7 @@ def test_the_protection_session_of_a_child_run_is_its_parents():
     )
     for parent_session, expected in (
         ("s-parent", "s-parent"),
-        (None, UNKNOWN_PROTECTION_SESSION),
+        (None, None),
     ):
         token = set_request_access(
             access.model_copy(update={"session_id": parent_session})

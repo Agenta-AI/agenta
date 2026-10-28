@@ -69,13 +69,14 @@ def world(monkeypatch):
         resolver=SecretsResolver(vault_service=vault, plane=GatewayPlane.LLM),
         upstream_registry=LLMUpstreamRegistry(adapters={}),
     )
-    return dict(
+    yield dict(
         vault=vault,
         service=service,
         organization_id=organization_id,
         project_id=project_id,
         scope=make_auth_scope(organization_id=organization_id, project_id=project_id),
     )
+    selection_module.set_personal_use_guard(None)
 
 
 @contextmanager

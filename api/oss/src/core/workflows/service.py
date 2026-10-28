@@ -175,7 +175,6 @@ from oss.src.core.sharing.dtos import (
 from oss.src.core.sharing.service import invalidate_sharing_caches
 from oss.src.core.workflows.static_catalog import normalize_static_version
 from oss.src.core.workflows.dtos import WorkflowServiceDetachedResponse
-from oss.src.core.credentials.selection import UNKNOWN_PROTECTION_SESSION
 from oss.src.core.credentials.bindings import (
     BindingClaim,
     InvalidBinding,
