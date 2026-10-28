@@ -1597,6 +1597,31 @@ class RecordsRouter:
                 terminal_outcome=ending,
             )
 
+        attributes = body.attributes
+        if (
+            self.commands_service is not None
+            and body.record_type == TERMINAL_RECORD_TYPE
+            and body.turn_id
+            and (attributes or {}).get("stopReason") == "cancelled"
+        ):
+            # The runner cannot tell a Steer from a Stop: both abort the turn the same way. The
+            # cancel command can, so name the cause on the record and the transcript does not
+            # call a turn the user's own reply replaced "Stopped".
+            try:
+                if await self.commands_service.cancelled_by_steer(
+                    project_id=UUID(project_id),
+                    session_id=body.session_id,
+                    execution_id=body.turn_id,
+                ):
+                    attributes = {**(attributes or {}), "cancelledBy": "steer"}
+            except Exception:  # noqa: BLE001 - the cause is a label; the record must land
+                log.warning(
+                    "cancel cause lookup failed session=%s turn=%s",
+                    body.session_id,
+                    body.turn_id,
+                    exc_info=True,
+                )
+
         published = await publish_record(
             organization_id=UUID(request.state.organization_id),
             project_id=UUID(project_id),
@@ -1608,7 +1633,7 @@ class RecordsRouter:
                 timestamp=body.timestamp,
                 record_type=body.record_type,
                 record_source=body.record_source,
-                attributes=body.attributes,
+                attributes=attributes,
                 turn_id=body.turn_id,
                 span_id=body.span_id,
             ),

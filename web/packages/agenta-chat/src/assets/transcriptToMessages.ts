@@ -770,12 +770,19 @@ export function transcriptToMessages(
                 ) {
                     target.approvalContinuation.state = "done"
                 }
+                // A Steer's own cancel is the user's reply replacing the run, not a Stop: no label,
+                // and no empty carrier row to hold one.
+                const steered = p.cancelledBy === "steer"
+                if (steered && current?.role !== "assistant") {
+                    current = null
+                    continue
+                }
                 // Keep a carrier so a content-free cancellation can still render Stopped.
                 if (!current || current.role !== "assistant") {
                     current = newDraft(row.id, "assistant")
                     drafts.push(current)
                 }
-                current.runStopped = true
+                if (!steered) current.runStopped = true
                 current.paused = false
                 for (const part of current.parts) {
                     if (part.state === "approval-requested") part.state = "output-denied"

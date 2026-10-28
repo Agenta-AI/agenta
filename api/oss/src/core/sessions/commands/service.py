@@ -594,6 +594,29 @@ class SessionCommandsService:
             command=command, execution_id=target_turn_id, accepted=True
         )
 
+    async def cancelled_by_steer(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        execution_id: str,
+    ) -> bool:
+        """True when a Steer, not a Stop, cancelled this execution.
+
+        A Steer's own cancel carries the key `steer:{input id}`. A Steer that bound to a Stop
+        already open keeps that Stop's key, so the turn still reads as stopped by the user."""
+        command = await self._dao.fetch_turn_cancel(
+            project_id=project_id,
+            session_id=session_id,
+            target_turn_id=execution_id,
+        )
+        steer_input_id = ((command.data or {}) if command else {}).get("steer_input_id")
+        return (
+            command is not None
+            and steer_input_id is not None
+            and command.idempotency_key == f"steer:{steer_input_id}"
+        )
+
     async def respond_interaction(
         self,
         *,
