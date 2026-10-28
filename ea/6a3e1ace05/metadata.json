@@ -1,0 +1,43 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "ea6a3e1ace05",
+  "strategy": "manual-commit",
+  "checkpoints_count": 5,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/ea/6a3e1ace05/0/metadata.json",
+      "transcript": "/ea/6a3e1ace05/0/full.jsonl",
+      "compact_transcript": "/ea/6a3e1ace05/0/transcript.jsonl",
+      "content_hash": "/ea/6a3e1ace05/0/content_hash.txt",
+      "prompt": "/ea/6a3e1ace05/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 148,
+    "cache_creation_tokens": 169916,
+    "cache_read_tokens": 10732890,
+    "output_tokens": 30437,
+    "api_call_count": 71
+  },
+  "redaction": {
+    "replacements": 48,
+    "layers": {
+      "betterleaks": 2,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 5,
+      "credentialed_uri": 0,
+      "entropy": 41,
+      "key_context": 0,
+      "provider_token": 3,
+      "shell_stdin": 0
+    }
+  },
+  "linked_commits": [
+    {
+      "sha": "26311eb268bd1ae2f4310275cf9cd2e1760d2fb7",
+      "repo": "gh/Agenta-AI/agenta"
+    }
+  ]
+}

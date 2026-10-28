@@ -1,0 +1,2 @@
+I ahve this automation in cloud https://eu.cloud.agenta.ai/m/w/01909172-68b6-702f-995b-4aa63af8fabc/p/01a0ce8f-dff6-7871-932a-c8e4c6c2312c/automations/01a0ddff-4a65-7fe3-94c8-ba99478c6f13 that is supposed to run for each new New Pull Request Created
+but it never ran. can you debug the issue
