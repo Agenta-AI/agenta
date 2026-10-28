@@ -1,10 +1,13 @@
 from sqlalchemy import (
+    UUID,
+    CheckConstraint,
     Column,
     ForeignKeyConstraint,
     Index,
     PrimaryKeyConstraint,
     String,
     UniqueConstraint,
+    text,
 )
 
 from oss.src.dbs.postgres.shared.base import Base
@@ -38,7 +41,39 @@ class ConnectionDBE(
     __tablename__ = "gateway_connections"
 
     __table_args__ = (
-        PrimaryKeyConstraint("project_id", "id"),
+        PrimaryKeyConstraint("id", name="pk_gateway_connections"),
+        # The `trigger_subscriptions` FK target: a subscription names a project row.
+        UniqueConstraint(
+            "project_id", "id", name="uq_gateway_connections_project_id_id"
+        ),
+        ForeignKeyConstraint(
+            ["organization_id"],
+            ["organizations.id"],
+            ondelete="CASCADE",
+            name="fk_gateway_connections_organization_id",
+        ),
+        ForeignKeyConstraint(
+            ["user_id"],
+            ["users.id"],
+            ondelete="CASCADE",
+            name="fk_gateway_connections_user_id",
+        ),
+        # A project row, or a person's own row in one organization (M7).
+        CheckConstraint(
+            "(project_id IS NOT NULL AND organization_id IS NULL AND user_id IS NULL) "
+            "OR (project_id IS NULL AND organization_id IS NOT NULL "
+            "AND user_id IS NOT NULL)",
+            name="ck_gateway_connections_owner",
+        ),
+        Index(
+            "uq_gateway_connections_user_integration",
+            "organization_id",
+            "user_id",
+            "provider_key",
+            "integration_key",
+            unique=True,
+            postgresql_where=text("user_id IS NOT NULL"),
+        ),
         UniqueConstraint(
             "project_id",
             "provider_key",
@@ -63,6 +98,11 @@ class ConnectionDBE(
             postgresql_using="gin",
         ),
     )
+
+    # Overrides `ProjectScopeDBA`: a person's own row has no project (M7).
+    project_id = Column(UUID(as_uuid=True), nullable=True)
+    organization_id = Column(UUID(as_uuid=True), nullable=True)
+    user_id = Column(UUID(as_uuid=True), nullable=True)
 
     provider_key = Column(
         String,

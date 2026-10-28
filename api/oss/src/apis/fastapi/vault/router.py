@@ -66,11 +66,7 @@ from oss.src.apis.fastapi.vault.models import (
 from oss.src.apis.fastapi.shared.runner_auth import assert_runner_token
 
 from oss.src.core.access.context import get_request_access
-from oss.src.core.access.dtos import PrincipalKind
-from oss.src.core.credentials.policy import (
-    PersonalCredentialRefused,
-    check_personal_credentials_allowed,
-)
+from oss.src.apis.fastapi.shared.personal import require_person
 from oss.src.core.access.organizations import OrganizationAction, decide_organization
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
@@ -425,7 +421,7 @@ class VaultRouter:
     @handle_secrets_exceptions()
     async def create_secret(self, request: Request, body: CreateSecretDTO):
         if body.scope == "user":
-            organization_id, user_id = await self._require_person(request)
+            organization_id, user_id = await require_person(request)
             secret = await self.service.create_personal_secret(
                 organization_id=organization_id,
                 user_id=user_id,
@@ -461,7 +457,7 @@ class VaultRouter:
     ):
         if scope == "user":
             # The caller's own credentials in this organization, without values.
-            organization_id, user_id = await self._require_person(
+            organization_id, user_id = await require_person(
                 request, enforce_policy=False
             )
             secrets = await self.service.list_personal_secrets(
@@ -659,7 +655,7 @@ class VaultRouter:
         self, request: Request, secret_id: str, scope: OwnerScope = "project"
     ):
         if scope == "user":
-            organization_id, user_id = await self._require_person(
+            organization_id, user_id = await require_person(
                 request, enforce_policy=False
             )
             if not await self.service.delete_personal_secret(
@@ -690,40 +686,6 @@ class VaultRouter:
             secret_id=UUID(secret_id),
         )
         return status.HTTP_204_NO_CONTENT
-
-    @staticmethod
-    async def _require_person(
-        request: Request, *, enforce_policy: bool = True
-    ) -> tuple:
-        """The organization and person a personal credential route acts for (M7): only
-        the person themselves, signed in. No role, admin or API key reaches another
-        person's credentials, and nothing is stored while the gate is closed or the
-        organization's policy forbids it."""
-        access = get_request_access()
-        organization_id = getattr(request.state, "organization_id", None)
-        if (
-            access is None
-            or access.principal.kind != PrincipalKind.HUMAN
-            or access.envelope is not None
-            or not organization_id
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only you can manage your personal accounts, signed in to the app.",
-            )
-        organization_id = UUID(str(organization_id))
-        # The policy stops new personal credentials, never a person seeing or removing
-        # the ones they already stored.
-        if not enforce_policy:
-            return organization_id, access.principal.id
-        try:
-            await check_personal_credentials_allowed(organization_id=organization_id)
-        except PersonalCredentialRefused as e:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail={"code": e.code, "message": e.message},
-            ) from e
-        return organization_id, access.principal.id
 
     async def _require(self, request: Request, *permissions: Permission) -> None:
         for permission in permissions:

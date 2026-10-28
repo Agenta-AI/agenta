@@ -3,6 +3,7 @@ from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field
 
+from oss.src.core.secrets.dtos import SecretOwner
 from oss.src.core.shared.dtos import (
     Header,
     Identifier,
@@ -64,6 +65,22 @@ class Connection(
     data: Optional[Json] = None
     #
     status: Optional[ConnectionStatus] = None
+    # Set on a person's own connection only (M7): kind `user`, the person and their
+    # organization. A project connection carries None, as before.
+    owner: Optional[SecretOwner] = None
+
+    @property
+    def provider_entity(self) -> Optional[str]:
+        """The provider-side user this connection was made for. A project connection is
+        its project; a person's own connection is `org:<organization>:user:<user>`,
+        computed from the owner columns (design open question 2: this format lives at
+        Composio, so changing it means every person reconnects)."""
+        if self.owner is not None and self.owner.organization_id is not None:
+            return f"org:{self.owner.organization_id}:user:{self.owner.id}"
+        if self.data and isinstance(self.data, dict):
+            value = self.data.get("project_id")
+            return str(value) if value else None
+        return None
 
     @property
     def provider_connection_id(self) -> Optional[str]:

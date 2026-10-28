@@ -1,7 +1,10 @@
+from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel
 
+from oss.src.core.secrets.dtos import SecretOwner
+from oss.src.core.secrets.enums import SecretOwnerKind
 from oss.src.core.gateway.connections.dtos import (
     Connection,
     ConnectionCreate,
@@ -12,10 +15,11 @@ from oss.src.dbs.postgres.gateway.connections.dbes import ConnectionDBE
 
 def map_connection_create_to_dbe(
     *,
-    project_id: UUID,
+    project_id: Optional[UUID],
     user_id: UUID,
     #
     dto: ConnectionCreate,
+    owner: Optional[SecretOwner] = None,
 ) -> ConnectionDBE:
     # The service replaces data with a provider-shaped dict before persistence;
     # a typed model (validate-on-assignment is off) is dumped, dropping unset keys.
@@ -32,7 +36,9 @@ def map_connection_create_to_dbe(
     flags.setdefault("is_valid", False)
 
     return ConnectionDBE(
-        project_id=project_id,
+        project_id=None if owner is not None else project_id,
+        organization_id=owner.organization_id if owner is not None else None,
+        user_id=owner.id if owner is not None else None,
         slug=dto.slug,
         name=dto.name,
         description=dto.description,
@@ -75,6 +81,15 @@ def map_connection_dbe_to_dto(
         data=data,
         status=status,
         meta=dbe.meta,
+        owner=(
+            SecretOwner(
+                kind=SecretOwnerKind.USER,
+                id=dbe.user_id,
+                organization_id=dbe.organization_id,
+            )
+            if getattr(dbe, "user_id", None) is not None
+            else None
+        ),
         #
         created_at=dbe.created_at,
         updated_at=dbe.updated_at,

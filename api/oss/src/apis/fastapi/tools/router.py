@@ -4,7 +4,7 @@ import json
 import re
 from datetime import datetime, timezone
 from functools import wraps
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
@@ -14,6 +14,8 @@ from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from oss.src.core.workflows.types import InvalidAgentConnectionError
+from oss.src.apis.fastapi.shared.personal import require_person
+from oss.src.core.credentials.policy import PersonalCredentialRefused
 from oss.src.core.access.principals import access_denied_error
 from oss.src.core.access.service import get_access_service
 from oss.src.core.access.types import AccessDenied
@@ -992,8 +994,24 @@ class ToolsRouter:
         *,
         provider_key: Optional[str] = Query(default=None),
         integration_key: Optional[str] = Query(default=None),
+        scope: Literal["project", "user"] = Query(default="project"),
     ) -> ToolConnectionsResponse:
-        """Query connections with optional filtering."""
+        """Query connections with optional filtering. `scope=user`: the caller's own
+        connections in this organization (M7)."""
+        if scope == "user":
+            organization_id, user_id = await require_person(
+                request, enforce_policy=False
+            )
+            connections = await self.tools_service.query_personal_connections(
+                organization_id=organization_id,
+                user_id=user_id,
+                provider_key=provider_key,
+                integration_key=integration_key,
+            )
+            return ToolConnectionsResponse(
+                count=len(connections), connections=connections
+            )
+
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
@@ -1018,15 +1036,21 @@ class ToolsRouter:
         request: Request,
         *,
         body: ToolConnectionCreateRequest,
+        scope: Literal["project", "user"] = Query(default="project"),
     ) -> ToolConnectionResponse:
-        """Create a new tool connection."""
-        has_permission = await check_action_access(
-            user_uid=request.state.user_id,
-            project_id=request.state.project_id,
-            permission=Permission.EDIT_TOOLS,
-        )
-        if not has_permission:
-            raise FORBIDDEN_EXCEPTION
+        """Create a new tool connection. `scope=user`: the caller's own connection to
+        the integration, in this organization (M7); one per integration."""
+        personal = None
+        if scope == "user":
+            personal = await require_person(request)
+        else:
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_TOOLS,
+            )
+            if not has_permission:
+                raise FORBIDDEN_EXCEPTION
 
         slug = body.connection.slug
         if "." in slug or "__" in slug:
@@ -1042,12 +1066,21 @@ class ToolsRouter:
             )
 
         try:
-            connection = await self.tools_service.create_connection(
-                project_id=UUID(request.state.project_id),
-                user_id=UUID(request.state.user_id),
-                #
-                connection_create=body.connection,
-            )
+            if personal is not None:
+                organization_id, user_id = personal
+                connection = await self.tools_service.create_personal_connection(
+                    organization_id=organization_id,
+                    project_id=UUID(request.state.project_id),
+                    user_id=user_id,
+                    connection_create=body.connection,
+                )
+            else:
+                connection = await self.tools_service.create_connection(
+                    project_id=UUID(request.state.project_id),
+                    user_id=UUID(request.state.user_id),
+                    #
+                    connection_create=body.connection,
+                )
         except ConnectionAdapterError as e:
             # Composio has no managed ("use_composio_managed_auth") auth config for
             # this toolkit in this environment — it only offers use_custom_auth.
@@ -1108,8 +1141,23 @@ class ToolsRouter:
         self,
         request: Request,
         connection_id: UUID,
+        scope: Literal["project", "user"] = Query(default="project"),
     ) -> None:
-        """Delete a connection by ID."""
+        """Delete a connection by ID. `scope=user`: one of the caller's own (M7)."""
+        if scope == "user":
+            organization_id, user_id = await require_person(
+                request, enforce_policy=False
+            )
+            if not await self.tools_service.delete_personal_connections(
+                organization_id=organization_id,
+                user_id=user_id,
+                connection_id=connection_id,
+            ):
+                return JSONResponse(
+                    status_code=404, content={"detail": "Connection not found"}
+                )
+            return None
+
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
@@ -1249,12 +1297,19 @@ class ToolsRouter:
         # Activate the connection — this is the critical path.
         conn = None
         try:
-            conn = (
-                await self.tools_service.activate_connection_by_provider_connection_id(
+            if state_payload.get("owner") == "user":
+                # A person's own connection (M7): the signed state names the person and
+                # their organization; never a project row.
+                conn = await self.tools_service.activate_personal_connection(
+                    organization_id=UUID(state_payload["organization_id"]),
+                    user_id=UUID(state_payload["user_id"]),
+                    provider_connection_id=connected_account_id,
+                )
+            else:
+                conn = await self.tools_service.activate_connection_by_provider_connection_id(
                     provider_connection_id=connected_account_id,
                     project_id=project_id,
                 )
-            )
             if not conn:
                 log.error("OAuth callback: connection not found for provider ID")
                 return HTMLResponse(
@@ -1367,6 +1422,10 @@ class ToolsRouter:
                 project_id=UUID(request.state.project_id),
                 tools=body.tools,
             )
+        except PersonalCredentialRefused as e:
+            raise HTTPException(
+                status_code=403, detail={"code": e.code, "message": e.message}
+            ) from e
         except ConnectionNotFoundError as e:
             raise HTTPException(status_code=404, detail=e.message) from e
         except ConnectionInactiveError as e:
@@ -1485,6 +1544,10 @@ class ToolsRouter:
                 integration_key=integration_key,
                 connection_slug=connection_slug,
             )
+        except PersonalCredentialRefused as e:
+            raise HTTPException(
+                status_code=403, detail={"code": e.code, "message": e.message}
+            ) from e
         except ConnectionNotFoundError as e:
             raise HTTPException(status_code=404, detail=e.message) from e
         except ConnectionInactiveError as e:
@@ -1492,12 +1555,9 @@ class ToolsRouter:
         except ConnectionInvalidError as e:
             raise HTTPException(status_code=400, detail=e.message) from e
 
-        # Use stored project_id as Composio user_id (matches entity used at initiation)
-        user_id = (
-            connection.data.get("project_id")
-            if isinstance(connection.data, dict)
-            else None
-        )
+        # The Composio user the connection was made for (its project, or the person's
+        # own entity, M7): the entity used at initiation.
+        user_id = connection.provider_entity
 
         # Parse arguments — OpenAI returns them as a JSON string; normalise to dict.
         arguments = body.data.function.arguments
@@ -1785,6 +1845,17 @@ class ToolsRouter:
                     ),
                     retryable=False,
                     next_step="Search again and run the tool from the integration search returned.",
+                ),
+            )
+        except PersonalCredentialRefused as e:
+            # Each person's own account cannot be used (M7). The message is written for
+            # the person, so the model can pass it on; nothing else is tried.
+            return _agent_error_result(
+                body=body,
+                error=AgentError(
+                    code=e.code,
+                    message=e.message,
+                    retryable=False,
                 ),
             )
         except (

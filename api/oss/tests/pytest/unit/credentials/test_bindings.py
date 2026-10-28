@@ -69,15 +69,20 @@ def test_each_persons_own_model_key_is_signed():
     assert claim.binding == Binding.CALLER_ACCOUNT
 
 
-def test_personal_composio_and_mcp_wait_for_their_stores():
+def test_a_personal_composio_entry_is_signed_with_its_own_slug():
     tool = {
         "type": "gateway_connection",
         "connection": {
             "integration": "gmail",
-            "slug": "gmail-support",
+            "slug": "gmail-mine",
             "binding": "caller_account",
         },
     }
+    [claim] = binding_claims_for_revision(_revision(tools=[tool]))
+    assert claim.key == ConnectionKey(kind="tool", service="composio:gmail:gmail-mine")
+
+
+def test_personal_mcp_waits_for_its_store():
     mcp = {
         "name": "notes",
         "connection": {
@@ -87,9 +92,7 @@ def test_personal_composio_and_mcp_wait_for_their_stores():
             "scope": "user",
         },
     }
-    # Refused, never read as the project's account, until the run path serves them.
-    with pytest.raises(InvalidBinding):
-        binding_claims_for_revision(_revision(tools=[tool]))
+    # Refused, never read as the project's server, until the run path serves it.
     with pytest.raises(InvalidBinding):
         binding_claims_for_revision(_revision(mcps=[mcp]))
 

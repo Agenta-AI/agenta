@@ -4,6 +4,7 @@ from uuid import UUID
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 
+from oss.src.core.credentials.lifecycle import get_personal_credentials_service
 from oss.src.utils.logging import get_module_logger
 from oss.src.services import db_manager, organization_service
 from oss.src.utils.common import APIRouter, is_ee
@@ -363,12 +364,21 @@ async def remove_user_from_workspace(
             )
 
     try:
-        await get_memberships_service().remove_member(
+        removed_user_id = await get_memberships_service().remove_member(
             organization_id=project.organization_id,
             email=email,
             actor_user_id=_actor(request),
         )
     except OrganizationOwnerProtected as exc:
         raise _owner_protected() from exc
+
+    # The member's own credentials in this organization go with them (M7). Their
+    # credentials in other organizations stay.
+    personal = get_personal_credentials_service()
+    if removed_user_id is not None and personal is not None:
+        await personal.end_for_member(
+            organization_id=UUID(str(project.organization_id)),
+            user_id=removed_user_id,
+        )
 
     return True

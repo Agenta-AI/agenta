@@ -129,3 +129,21 @@ class ConnectionsGatewayInterface(ABC):
         *,
         provider_connection_id: str,
     ) -> bool: ...
+
+    # -- a person's own connections (M7) -----------------------------------------------
+
+    async def query_owned_connections(
+        self, *, owner, provider_key=None, integration_key=None
+    ) -> List[Connection]:
+        raise NotImplementedError
+
+    async def get_owned_connection(self, *, owner, connection_id: UUID):
+        raise NotImplementedError
+
+    async def delete_owned_connections(self, *, owner, connection_id=None) -> int:
+        raise NotImplementedError
+
+    async def activate_owned_connection_by_provider_id(
+        self, *, owner, provider_connection_id: str
+    ):
+        raise NotImplementedError

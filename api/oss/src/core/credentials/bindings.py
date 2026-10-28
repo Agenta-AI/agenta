@@ -156,9 +156,10 @@ def _model_claims(agent: Dict[str, Any]) -> Iterable[BindingClaim]:
     )
 
 
-def _refuse_personal_tools_and_mcp(agent: Dict[str, Any]) -> None:
-    """Personal Composio accounts and personal MCP servers or sign-ins are not served
-    yet. A reference that asks for one is refused, never read as the project's account."""
+def _tool_claims(agent: Dict[str, Any]) -> List[BindingClaim]:
+    """A tool entry's personal binding names its own connection: the integration AND
+    the entry's slug, so another entry of the same integration keeps its own account."""
+    claims = []
     for index, entry in enumerate(_entries(agent.get("tools"))):
         connection = entry.get("connection")
         if entry.get("type") != "gateway_connection" or not isinstance(
@@ -166,11 +167,31 @@ def _refuse_personal_tools_and_mcp(agent: Dict[str, Any]) -> None:
         ):
             continue
         where = f"agent.tools[{index}].connection"
-        if _binding(connection.get("binding"), where=where) == Binding.CALLER_ACCOUNT:
+        binding = _binding(connection.get("binding"), where=where)
+        integration, slug = connection.get("integration"), connection.get("slug")
+        if binding != Binding.CALLER_ACCOUNT:
+            continue
+        if not isinstance(integration, str) or not isinstance(slug, str):
             raise InvalidBinding(
-                where=where,
-                message="each person's own Composio account is not available yet.",
+                where=where, message="a connection needs its integration and slug."
             )
+        claims.append(
+            BindingClaim(
+                key=tool_key(integration=integration, slug=slug), binding=binding
+            )
+        )
+    return claims
+
+
+def tool_key(
+    *, integration: str, slug: str, provider: str = "composio"
+) -> ConnectionKey:
+    return ConnectionKey(kind="tool", service=f"{provider}:{integration}:{slug}")
+
+
+def _refuse_personal_mcp(agent: Dict[str, Any]) -> None:
+    """Personal MCP servers and per-person MCP sign-ins are a later step. A reference
+    that asks for one is refused, never read as the project's server."""
     for index, entry in enumerate(_entries(agent.get("mcps"))):
         connection = entry.get("connection")
         if not isinstance(connection, dict) or connection.get("type") != "gateway":
@@ -203,8 +224,8 @@ def binding_claims_for_revision(revision_data: Any) -> List[BindingClaim]:
     if not agent:
         return []
     claims: List[BindingClaim] = []
-    _refuse_personal_tools_and_mcp(agent)
-    for claim in _model_claims(agent):
+    _refuse_personal_mcp(agent)
+    for claim in (*_model_claims(agent), *_tool_claims(agent)):
         if claim not in claims:
             claims.append(claim)
     return claims

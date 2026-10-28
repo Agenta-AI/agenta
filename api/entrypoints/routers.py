@@ -13,6 +13,10 @@ from supertokens_python.framework.fastapi import (
     get_middleware as get_supertokens_middleware,
 )
 
+from oss.src.core.credentials.lifecycle import (
+    PersonalCredentialsService,
+    register_personal_credentials_service,
+)
 from oss.src.core.sessions.commands.delivery import (
     deliver_continue_input,
     deliver_continue_interaction,
@@ -1002,6 +1006,13 @@ connections_adapter_registry = ConnectionsGatewayRegistry(
 connections_service = ConnectionsService(
     connections_dao=connections_dao,
     adapter_registry=connections_adapter_registry,
+)
+
+# A person's own credentials end when they leave an organization (M7).
+register_personal_credentials_service(
+    PersonalCredentialsService(
+        vault_service=vault_service, connections_service=connections_service
+    )
 )
 
 # Shared catalog adapter + service (providers + integrations; tools AND triggers)

@@ -6,6 +6,7 @@ from sqlalchemy import select, delete
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.attributes import flag_modified
 
+from oss.src.core.secrets.dtos import SecretOwner
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import suppress_exceptions
 
@@ -50,13 +51,17 @@ class ConnectionsDAO(ConnectionsDAOInterface):
         user_id: UUID,
         #
         connection_create: ConnectionCreate,
+        owner: Optional[SecretOwner] = None,
     ) -> Optional[Connection]:
-        """Insert a new connection row. Raises EntityCreationConflict on slug collision."""
+        """Insert a new connection row. Raises EntityCreationConflict on slug collision.
+        With a user `owner` (M7), the row is that person's own, with no project; a second
+        one for the same integration is a conflict."""
         dbe = map_connection_create_to_dbe(
             project_id=project_id,
             user_id=user_id,
             #
             dto=connection_create,
+            owner=owner,
         )
 
         try:
@@ -69,7 +74,10 @@ class ConnectionsDAO(ConnectionsDAOInterface):
 
         except IntegrityError as e:
             error_str = str(e.orig) if e.orig else str(e)
-            if "uq_gateway_connections_project_provider_integration_slug" in error_str:
+            if (
+                "uq_gateway_connections_project_provider_integration_slug" in error_str
+                or "uq_gateway_connections_user_integration" in error_str
+            ):
                 raise EntityCreationConflict(
                     entity="Connection",
                     message="Connection with slug '{{slug}}' already exists for this integration.".replace(
@@ -216,6 +224,88 @@ class ConnectionsDAO(ConnectionsDAOInterface):
             dbes = result.scalars().all()
 
             return [map_connection_dbe_to_dto(dbe=dbe) for dbe in dbes]
+
+    # -- a person's own connections (M7) ------------------------------------------
+    #
+    # Always by the full owner: the person AND their organization. A project read never
+    # sees these rows (their project_id is NULL), and these reads never see project rows.
+
+    def _owned(self, owner: SecretOwner):
+        return (
+            self.ConnectionDBE.organization_id == owner.organization_id,
+            self.ConnectionDBE.user_id == owner.id,
+        )
+
+    @suppress_exceptions(default=[])
+    async def query_owned_connections(
+        self,
+        *,
+        owner: SecretOwner,
+        provider_key: Optional[str] = None,
+        integration_key: Optional[str] = None,
+    ) -> List[Connection]:
+        async with self.engine.session() as session:
+            stmt = select(self.ConnectionDBE).filter(*self._owned(owner))
+            if provider_key:
+                stmt = stmt.filter(self.ConnectionDBE.provider_key == provider_key)
+            if integration_key:
+                stmt = stmt.filter(
+                    self.ConnectionDBE.integration_key == integration_key
+                )
+            stmt = stmt.order_by(self.ConnectionDBE.created_at.desc())
+            result = await session.execute(stmt)
+            return [map_connection_dbe_to_dto(dbe=dbe) for dbe in result.scalars()]
+
+    @suppress_exceptions(default=None)
+    async def get_owned_connection(
+        self, *, owner: SecretOwner, connection_id: UUID
+    ) -> Optional[Connection]:
+        async with self.engine.session() as session:
+            result = await session.execute(
+                select(self.ConnectionDBE)
+                .filter(*self._owned(owner), self.ConnectionDBE.id == connection_id)
+                .limit(1)
+            )
+            dbe = result.scalars().first()
+            return map_connection_dbe_to_dto(dbe=dbe) if dbe else None
+
+    @suppress_exceptions(default=False)
+    async def delete_owned_connections(
+        self, *, owner: SecretOwner, connection_id: Optional[UUID] = None
+    ) -> int:
+        """Delete one of the person's connections, or (no id) all of them in the
+        organization. Returns how many rows went."""
+        async with self.engine.session() as session:
+            stmt = delete(self.ConnectionDBE).where(*self._owned(owner))
+            if connection_id is not None:
+                stmt = stmt.where(self.ConnectionDBE.id == connection_id)
+            result = await session.execute(stmt)
+            await session.commit()
+            return result.rowcount
+
+    @suppress_exceptions(default=None)
+    async def activate_owned_connection_by_provider_id(
+        self, *, owner: SecretOwner, provider_connection_id: str
+    ) -> Optional[Connection]:
+        async with self.engine.session() as session:
+            result = await session.execute(
+                select(self.ConnectionDBE)
+                .filter(
+                    *self._owned(owner),
+                    self.ConnectionDBE.data["connected_account_id"].astext
+                    == provider_connection_id,
+                )
+                .limit(1)
+            )
+            dbe = result.scalars().first()
+            if not dbe:
+                return None
+            dbe.flags = {**(dbe.flags or {}), "is_valid": True, "is_active": True}
+            flag_modified(dbe, "flags")
+            dbe.updated_at = datetime.now(timezone.utc)
+            await session.commit()
+            await session.refresh(dbe)
+            return map_connection_dbe_to_dto(dbe=dbe)
 
     @suppress_exceptions(default=None)
     async def activate_connection_by_provider_id(
