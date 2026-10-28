@@ -77,10 +77,25 @@ export const connectionRowText = (
               : "Bot token revoked"
         return {title, detail}
     }
-    const nonDm = connection.chats.filter((chat) => chat.type !== "dm").length
+    const behavior = connection.behavior
+    const nonDm = !behavior
+        ? connection.chats.filter((chat) => chat.type !== "dm").length
+        : !behavior.group
+          ? 0
+          : behavior.channels !== null
+            ? behavior.channels.length
+            : connection.chats.filter((chat) => chat.type !== "dm").length
     const noun = slack ? "channel" : "group"
-    const where = nonDm ? `DMs and ${nonDm} ${noun}${nonDm > 1 ? "s" : ""}` : "DMs"
-    return {title, detail: `${connectionKindLabel(connection)} · ${where}`}
+    const places = [
+        ...(behavior && !behavior.dm ? [] : ["DMs"]),
+        ...(nonDm ? [`${nonDm} ${noun}${nonDm > 1 ? "s" : ""}`] : []),
+    ]
+    const where = places.length ? places.join(" and ") : "Answers nowhere"
+    const people = connection.peopleCount ?? 0
+    const who = people
+        ? ` · Only ${people} ${slack ? (people === 1 ? "person" : "people") : people === 1 ? "account" : "accounts"}`
+        : ""
+    return {title, detail: `${connectionKindLabel(connection)} · ${where}${who}`}
 }
 
 /** How one of several connections on a platform is told apart: its handle, and on Slack the
@@ -354,10 +369,12 @@ export const NOOP_ACTIONS: ChannelsActions = {
     listSpaces: async () => [],
     discoverSpaces: async () => [],
     addSpace: async () => {},
-    readBehavior: async () => ({dm: true, group: true}),
+    readBehavior: async () => ({dm: true, group: true, channels: null}),
     writeBehavior: async () => {},
-    readAllowedUsers: async () => [],
-    writeAllowedUsers: async () => {},
+    readAudience: async () => [],
+    writeAudience: async () => {},
+    queryPeople: async () => ({people: [], directory: {state: "unavailable", updatedAt: null}}),
+    refreshPeople: async () => ({state: "unavailable", updatedAt: null}),
     updateCredentials: async () => {},
     readToolSettings: async () => DEFAULT_TOOL_SETTINGS,
     writeToolSettings: async () => {},

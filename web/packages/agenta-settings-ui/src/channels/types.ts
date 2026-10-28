@@ -84,16 +84,50 @@ export interface ChannelReadableChannel {
 }
 
 /**
- * The two behavior switches, as the agent's kind-level grants express them.
+ * Where the agent answers: the two behavior switches and the Advanced "Channels it answers
+ * in" choice, as the agent's grants express them.
  *
- * An agent with no grant at all answers everywhere; once any grant exists, a kind nobody
- * named is denied. Both switches on therefore means "no kind-level grants".
+ * An agent with no grant at all answers everywhere; once any grant exists, a place no rule
+ * names is refused, and any deny wins. Both switches on with every channel is "no grant".
  */
 export interface ChannelBehaviorState {
     /** The agent answers a direct message. */
     dm: boolean
     /** The agent answers in a group chat (and, on Slack, in a channel). */
     group: boolean
+    /** The channels it answers in: null for every channel the bot is in, else the space ids
+     *  it answers in ([] answers in none). Group DMs count as channels. */
+    channels: string[] | null
+}
+
+/** One person on the agent's "Who can message it" list. The name and email are only for
+ *  display; the bot compares the platform user id. */
+export interface ChannelAudiencePerson {
+    id: string
+    name: string | null
+    email: string | null
+}
+
+/** A person the people picker found. */
+export interface ChannelPerson extends ChannelAudiencePerson {
+    username: string | null
+    isGuest: boolean
+    isBot: boolean
+    isDeleted: boolean
+    /** Where the picker found them: they wrote to the bot, the workspace list, or an email. */
+    source: "messaged" | "directory" | "email" | null
+}
+
+/** The cached workspace people list behind the picker (Slack only). */
+export interface ChannelPeopleDirectory {
+    state: "ready" | "loading" | "unavailable"
+    /** When the cached list was loaded, ISO 8601. */
+    updatedAt: string | null
+}
+
+export interface ChannelPeopleResult {
+    people: ChannelPerson[]
+    directory: ChannelPeopleDirectory
 }
 
 /** The agent a connection answers as. `name` is null when the host could not resolve it. */
@@ -130,6 +164,10 @@ export interface ChannelConnection {
     workspaceName?: string | null
     /** The Slack app's id (A0…); tells two apps apart when neither stored a bot name. */
     appId?: string | null
+    /** Where the answering agent answers, when the host read it. */
+    behavior?: ChannelBehaviorState
+    /** How many people the answering agent answers; 0 is everyone. */
+    peopleCount?: number
     /** WhatsApp only: the callback URL and verify token to paste into Meta's App Dashboard. */
     webhookUrl?: string | null
     webhookVerifyToken?: string | null
@@ -234,18 +272,23 @@ export interface ChannelsActions {
     discoverSpaces: (connectionId: string) => Promise<ChannelSpaceCandidate[]>
     /** Turn a discovered candidate into a space the agent answers in. */
     addSpace: (connectionId: string, candidate: ChannelSpaceCandidate) => Promise<void>
-    /** Read the two behavior switches from this agent's kind-level grants. */
+    /** Read where the agent answers from its grants. */
     readBehavior: (platform: ChannelPlatform, connectionId: string) => Promise<ChannelBehaviorState>
-    /** Write the two behavior switches back as kind-level grants. */
+    /** Write where the agent answers back as one rule set. */
     writeBehavior: (
         platform: ChannelPlatform,
         connectionId: string,
         next: ChannelBehaviorState,
     ) => Promise<void>
-    /** The Telegram accounts allowed to message the bot; empty means everyone. */
-    readAllowedUsers: (connectionId: string) => Promise<string[]>
-    /** Replace the allowed Telegram accounts; an empty list opens the bot to everyone. */
-    writeAllowedUsers: (connectionId: string, ids: string[]) => Promise<void>
+    /** The people the agent answers on this connection; empty means everyone. */
+    readAudience: (connectionId: string) => Promise<ChannelAudiencePerson[]>
+    /** Replace the people the agent answers; an empty list answers everyone. */
+    writeAudience: (connectionId: string, people: ChannelAudiencePerson[]) => Promise<void>
+    /** Search people for "Who can message it": people who wrote to the bot, the workspace
+     *  list, and a full email. */
+    queryPeople: (connectionId: string, text: string) => Promise<ChannelPeopleResult>
+    /** Reload the cached workspace people list. */
+    refreshPeople: (connectionId: string) => Promise<ChannelPeopleDirectory>
     /** Replace the secrets of a custom app/bot (a rotated Telegram token, a new Slack pair). */
     updateCredentials: (connectionId: string, credentials: Record<string, string>) => Promise<void>
     /** Read the channel tool settings of the bot answering on this connection. */
