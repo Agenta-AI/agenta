@@ -90,9 +90,6 @@ interface AgentMessageProps {
     /** The previous turn was also an empty (content-less) assistant turn. Used to collapse a
      * run of "no response" bubbles down to the first one. */
     precededByEmptyAssistant?: boolean
-    /** The turn's trace id for a USER message (its paired assistant's trace) — lets the user turn
-     * borrow the run's real start time so it dates from the trace, not this browser's first-seen. */
-    turnTraceId?: string
     /** Re-run this failed turn — the same regenerate wiring as the Stopped → Resend affordance.
      * Stable across renders (the message to retry is passed in, not closed over); the parent
      * passes it only on the last turn while a retry can actually run, so it gates position. */
@@ -272,7 +269,6 @@ const AgentMessage = ({
     onRewind,
     onClientToolOutput,
     precededByEmptyAssistant = false,
-    turnTraceId,
     onRetry,
 }: AgentMessageProps) => {
     const message = useMemo(() => displayMessage(sourceMessage), [sourceMessage])
@@ -596,7 +592,6 @@ const AgentMessage = ({
                 <TurnFooter
                     messageId={message.id}
                     traceId={traceId}
-                    turnTraceId={turnTraceId}
                     isUser={isUser}
                     isStreaming={isStreaming}
                     usage={usage}

@@ -80,7 +80,7 @@ export interface MessageUsageMetrics {
 /**
  * Usage (tokens + cost) the service stamps onto `message.metadata.usage` via the
  * `finish` part's messageMetadata (`{input, output, total, cost}`), mapped to the
- * metrics-display field names. The fallback for figures the trace does not carry.
+ * metrics-display field names. The footer shows it while the turn runs.
  */
 export const getMessageUsage = (message: UIMessage): MessageUsageMetrics | undefined => {
     const usage = (message.metadata as {usage?: Record<string, unknown>} | undefined)?.usage

@@ -19,8 +19,6 @@ interface AgentTurnProps {
     isStreaming: boolean
     /** The previous turn is a settled assistant turn with no content at all. */
     precededByEmptyAssistant: boolean
-    /** A user turn borrows the paired assistant turn's trace so its timestamp dates from the run. */
-    turnTraceId?: string
     /** This turn is the inspector's current target — tint it. */
     inspected: boolean
     /** Inspector panel open + assistant turn → clicking the row re-points the inspector here. */
@@ -54,7 +52,6 @@ const AgentTurn = ({
     isLast,
     isStreaming,
     precededByEmptyAssistant,
-    turnTraceId,
     inspected,
     rowInspectable,
     showInspect,
@@ -86,7 +83,6 @@ const AgentTurn = ({
                 onRewind={onRewind}
                 onClientToolOutput={onClientToolOutput}
                 precededByEmptyAssistant={precededByEmptyAssistant}
-                turnTraceId={turnTraceId}
                 // A transient run failure offers "Try again" — the same regenerate wiring as the
                 // Stopped → Resend pair, and gated the same way: last turn only, never while busy.
                 onRetry={isLast && !resendDisabled ? onResend : undefined}

@@ -8,7 +8,7 @@ import {
 import {useAtomValue} from "jotai"
 
 export interface TurnRowFooter {
-    /** The figures stored on the turn row; undefined when it has no usage (or no row yet). */
+    /** The figures stored on the turn row; undefined when it knows none (or no row yet). */
     figures?: TurnFigures
     /** The start of the turn row, for the footer's time. */
     startedAt?: string | null

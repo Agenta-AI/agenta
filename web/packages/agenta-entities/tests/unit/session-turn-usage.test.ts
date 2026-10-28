@@ -36,7 +36,17 @@ describe("turnFigures", () => {
         expect(figures?.durationMs).toBeUndefined()
     })
 
-    it("returns undefined for a turn with no usage", () => {
+    it("keeps the latency of a turn with no usage, tokens and cost unavailable", () => {
+        expect(
+            turnFigures({
+                start_time: "2026-10-28T10:00:00Z",
+                end_time: "2026-10-28T10:00:01Z",
+                usage: null,
+            }),
+        ).toEqual({durationMs: 1000})
+    })
+
+    it("returns undefined when the row knows no figure", () => {
         expect(turnFigures({trace_id: "a", usage: null})).toBeUndefined()
     })
 })
@@ -63,14 +73,17 @@ describe("turnsMayChange", () => {
         expect(turnsMayChange([{end_time: null}], now)).toBe(false)
     })
 
-    it("is true for a recent turn waiting for its priced usage", () => {
+    it("is true for every turn that ended under 2 minutes ago, priced or not", () => {
         expect(
             turnsMayChange([{end_time: "2026-10-28T10:04:30Z", usage: {total_tokens: 3}}], now),
         ).toBe(true)
+        expect(turnsMayChange([{end_time: "2026-10-28T10:04:30Z", usage: {cost: 0.01}}], now)).toBe(
+            true,
+        )
     })
 
-    it("is false once usage is priced or the turn is old", () => {
-        expect(turnsMayChange([{end_time: "2026-10-28T10:04:30Z", usage: {cost: 0.01}}], now)).toBe(
+    it("is false once the turn ended 2 minutes ago or more", () => {
+        expect(turnsMayChange([{end_time: "2026-10-28T10:02:00Z", usage: {cost: 0.01}}], now)).toBe(
             false,
         )
         expect(turnsMayChange([{end_time: "2026-10-28T09:00:00Z"}], now)).toBe(false)

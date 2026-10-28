@@ -16,7 +16,7 @@ export const sessionTurnsQueryKey = (projectId: string, sessionId: string) =>
     ["session", "turns", projectId, sessionId] as const
 
 const SESSION_TURNS_STALE_MS = 15_000
-/** Re-read while a turn runs or waits for its priced usage. */
+/** Re-read while a turn runs or just ended (its trace usage lands after ingest). */
 const SESSION_TURNS_POLL_MS = 10_000
 
 export const sessionTurnsQueryFamily = atomFamily((sessionId: string) =>
