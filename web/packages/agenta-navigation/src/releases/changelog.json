@@ -10,8 +10,42 @@
                 "link": "https://agenta.ai/docs/changelog/private-agents-and-chats"
             }
         ],
-        "improvements": [],
-        "fixes": []
+        "improvements": [
+            {
+                "area": "Models",
+                "text": "Claude Haiku 5.5 is available for agents, also on Pi"
+            },
+            {
+                "area": "Models",
+                "text": "Built-in Gemini models use Google's native protocol"
+            },
+            {
+                "area": "Runs",
+                "text": "Agent turns start faster"
+            }
+        ],
+        "fixes": [
+            {
+                "area": "Chat",
+                "text": "Stop keeps the partial answer and ends the turn as stopped"
+            },
+            {
+                "area": "Chat",
+                "text": "A message that you send stays when you switch to another chat"
+            },
+            {
+                "area": "Channels",
+                "text": "You can write to channel chats in the app, and private agents stay connected to their channels"
+            },
+            {
+                "area": "Runs",
+                "text": "A turn that reaches its time limit keeps the work it did"
+            },
+            {
+                "area": "Runs",
+                "text": "Long turns are no longer cut short by the output budget"
+            }
+        ]
     },
     {
         "id": "v0.124.1",
@@ -24,8 +58,22 @@
                 "link": "https://agenta.ai/docs/changelog/project-provider-keys-only"
             }
         ],
-        "improvements": [],
-        "fixes": []
+        "improvements": [
+            {
+                "area": "Models",
+                "text": "Built-in Gemini uses gemini-3.8-flash with low thinking by default"
+            }
+        ],
+        "fixes": [
+            {
+                "area": "Models",
+                "text": "Built-in Gemini turns no longer hang when a Vertex call stalls"
+            },
+            {
+                "area": "Sign-up",
+                "text": "Gmail addresses with dots or a +tag count as one address at sign-up"
+            }
+        ]
     },
     {
         "id": "v0.124.0",
@@ -38,8 +86,18 @@
                 "link": "https://agenta.ai/docs/changelog/project-access-and-permissions"
             }
         ],
-        "improvements": [],
-        "fixes": []
+        "improvements": [
+            {
+                "area": "Security",
+                "text": "Agenta checks organization admin rights, SSO domains, credentials and password resets more strictly"
+            }
+        ],
+        "fixes": [
+            {
+                "area": "Self-hosting",
+                "text": "The membership repair migration stays fast on large databases"
+            }
+        ]
     },
     {
         "id": "v0.123.0",
@@ -52,8 +110,66 @@
                 "link": "https://agenta.ai/docs/changelog/chat-redesign-and-office-previews"
             }
         ],
-        "improvements": [],
-        "fixes": []
+        "improvements": [
+            {
+                "area": "Playground",
+                "text": "Opening an agent opens the playground, not the overview"
+            }
+        ],
+        "fixes": [
+            {
+                "area": "Models",
+                "text": "Claude 5 models return JSON that matches your schema"
+            },
+            {
+                "area": "Models",
+                "text": "Kimi K3.1 Pro agent turns no longer fail with a provider error"
+            },
+            {
+                "area": "Runs",
+                "text": "Stopping a run while its sandbox starts ends the run as cancelled"
+            },
+            {
+                "area": "Traces",
+                "text": "The trace drawer no longer swaps spans while you read them"
+            },
+            {
+                "area": "Tools",
+                "text": "One invalid MCP endpoint no longer hides the valid ones"
+            }
+        ]
+    },
+    {
+        "id": "v0.122.11",
+        "date": "2026-10-23",
+        "features": [
+            {
+                "id": "built-in-models-for-agent-runs",
+                "title": "Built-in models now serve only agent runs",
+                "body": "The built-in models that Agenta provides now serve only the agent runs that the platform starts. A direct call to the built-in model route with an API key, or with a credential exchanged from one, gets a `403` with the code `builtin_requires_agent_run`.\n\nCalls with your own provider keys and connections work as before.",
+                "link": "https://agenta.ai/docs/changelog/built-in-models-for-agent-runs"
+            }
+        ],
+        "improvements": [
+            {
+                "area": "Security",
+                "text": "Code evaluators receive a scoped credential and no write-only provider keys"
+            },
+            {
+                "area": "Security",
+                "text": "On Daytona, the gateway token stays out of the sandbox environment"
+            }
+        ],
+        "fixes": [
+            {
+                "area": "Agents",
+                "text": "The first run of a new agent that uses a stored Claude or ChatGPT sign-in no longer fails"
+            },
+            {
+                "area": "Pi",
+                "text": "Pi's ChatGPT subscription no longer offers models that ChatGPT refuses"
+            }
+        ]
     },
     {
         "id": "v0.122.5",
@@ -138,26 +254,6 @@
                 "title": "Send files and voice notes to your agent in Slack, Telegram and WhatsApp",
                 "body": "You can now send photos, documents, voice notes and videos to your agent in Slack, Telegram and WhatsApp. They reach the agent as attachments, so you can hand it a screenshot or a quick voice note from the chat app you already use.",
                 "link": "https://agenta.ai/docs/changelog/send-files-from-slack-telegram-whatsapp"
-            }
-        ],
-        "improvements": [],
-        "fixes": []
-    },
-    {
-        "id": "v0.121.6",
-        "date": "2026-09-30",
-        "features": [
-            {
-                "id": "let-the-agent-set-itself-up",
-                "title": "Let the agent set itself up",
-                "body": "Setting up an agent is now mostly a conversation. The **+** on Integrations, Skills and Automations has a **Create with AI** option that starts the request in chat, so the agent does the setup for you.\n\nAgents created from a template also ask for the accounts they need before their first task, instead of failing halfway through it.",
-                "link": "https://agenta.ai/docs/changelog/let-the-agent-set-itself-up"
-            },
-            {
-                "id": "new-models-and-cost-tracking",
-                "title": "New models and more accurate cost tracking",
-                "body": "You can now run agents on Claude Opus 5.5, Claude Sonnet 5.5 and xAI's Grok. Connect xAI directly from AI providers, no OpenRouter needed.\n\nCost tracking is also more accurate. Costs now account for cached tokens and cache writes, each model call is priced on its own, and calls we can't price are marked instead of showing $0.",
-                "link": "https://agenta.ai/docs/changelog/new-models-and-cost-tracking"
             }
         ],
         "improvements": [],
