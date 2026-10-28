@@ -1,0 +1,250 @@
+yes please implement this faeature. make usure to use the skills for review loop
+
+---
+
+<task-notification>
+<task-id>adf9c0d74576b29a3</task-id>
+<tool-use-id>toolu_014haNF2ehXaYQTcA1nbUR7U</tool-use-id>
+<output-file>/tmp/claude-1000/-home-mahmoud-code-agenta--claude-worktrees-agent-tools-credential-ttl-ee308a/3bae79ce-5bf4-432b-bef4-f0bf1a620d7e/tasks/adf9c0d74576b29a3.output</output-file>
+<status>completed</status>
+<summary>Agent "Implement runner credential refresh fix" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>I implemented all five parts of the fix in the worktree. Nothing is committed. Runner: `pnpm test` passes 282 files and 4491 tests, and `pnpm run typecheck` passes with no errors. API: ruff format and ruff check are clean, and 233 tests pass in `test_gateways_mcp_router.py`, `test_gateways_sandbox_credential.py` and `test_gateways_builtin_agenta.py`. Before I changed anything, I checked each cause in the brief against the code. All of them were correct.
+
+## Credential selection design
+
+Every tool request now reads the credential immediately before it sends. There is one source per turn: a runner-only `ToolCallbackRuntime { endpoint; credential: () =&gt; string | undefined }` in `src/tools/run-credential.ts`. `runTurn` builds it once per turn and passes the same object to `startToolRelay` and to `buildApprovedContentWiring`, which passes it to the config-text fetcher. `ToolCallbackContext` in `protocol.ts` is unchanged. There is no property getter named `authorization`.
+
+`startToolCallbackRuntime` picks the credential this way:
+- **Session-owned turn:** it reuses the watchdog lease only if that lease started from the same value as `toolCallback.authorization`. The watchdog starts from `platformCredentialForRequest(request)`, so I compare that value with the callback credential.
+- **Standalone turn with Agenta ingest:** it reuses the existing lease in `runTurn` on the same condition (that lease starts from `runCredential(request)`).
+- **Any other turn** (no watchdog, no tracing, an external collector, or a different credential): the turn starts its own lease from `toolCallback.authorization`. The refresh goes to the base of `toolCallback.endpoint` with `/tools/call` removed. That is the origin that already receives this credential, so the refresh sends it nowhere new. The turn releases the lease in its `finally` block.
+- **No credential in the callback:** the getter returns `undefined` and no lease starts.
+
+Why: the comparison is the simplest rule that can never send an external collector key on a tool call or into the refresh. The collector key can only be selected when it is equal to the callback credential. Warm sessions get a new runtime each turn, and it is never stored on the pooled environment.
+
+## Files changed
+
+**Runner**
+- `src/tools/run-credential.ts` (new): `ToolCallbackRuntime`, `startToolCallbackRuntime`, `RunCredentialExpiredError`, `isExpiredSignatureResponse`, and the envelope constant.
+- `src/sessions/auth.ts`: `refreshCredential` now has a timeout (`DEFAULT_CREDENTIAL_REFRESH_TIMEOUT_MS = 30_000`). The abort signal also stops the `res.json()` body read, and a failure still keeps the last credential.
+- `src/tools/callback.ts` and `src/tools/direct.ts`: they throw the typed error on a 401 whose `detail.reason` is `expired_signature`.
+- `src/tools/relay.ts`: it takes the runtime and calls `credential()` before each request. Search passes the expired error through before its `tool_search_unavailable` mapping.
+- `src/tools/config-text.ts`: it reads `callback?.credential()`.
+- `src/tools/commit-authorization.ts`: the expired error is no longer turned into a retryable `source_base_unavailable`. The relay path returns the envelope.
+- `src/engines/sandbox_agent/approved-content.ts`: it takes the runtime. The gate path returns the envelope in `detail`.
+- `src/engines/sandbox_agent/run-turn.ts`: it builds the runtime per turn, passes it to the relay and the approved-content wiring, and releases it in `finally`.
+
+**API**
+- `api/oss/src/apis/fastapi/gateways/mcps/router.py`: the built-in Agenta MCP mint now passes `expires_in=env.gateway_credentials.ttl_seconds`, as `credentials_router.py` does.
+- `api/oss/tests/pytest/unit/gateways/test_gateways_mcp_router.py`: one new test checks that the mint TTL follows the setting.
+
+**Docs**
+- `docs/design/agent-workflows/interfaces/cross-service/runner-to-tool-callback.md`: new "The credential" section, and the wording about the static `toolCallback.authorization` is fixed.
+- `docs/design/agent-workflows/interfaces/README.md`: the index row lists the new files and tests.
+- `docs/design/composio-tools-rework/runtime-tools.md` and `contracts.md`: they document the `run_credential_expired` exception to `tool_search_unavailable`.
+- No other docs describe the static callback credential. The services/runner/README.md and docs/docs pages needed no change.
+
+**Tests**
+- New: `tests/unit/tool-credential-rotation.test.ts` (11 tests), `tests/unit/tool-callback-credential.test.ts` (6 tests), and `tests/utils/tool-callback.ts` (a `fixedToolCallback` helper).
+- `tests/unit/credential-refresh.test.ts`: three tests added (timeout, no overlap with a later success, release during a refresh).
+- Nine existing test files changed only because the relay and config-text signatures changed.
+
+## New model-facing strings
+
+- `code`: "run_credential_expired"
+- `message`: "The platform credential for this turn expired."
+- `retryable`: false
+- `next_step`: "Report that the platform credential for this turn expired, and stop retrying."
+
+The error's message is the JSON of this envelope. Every path that turns a thrown error into tool text therefore carries the envelope.
+
+## What the tests cover
+
+- **Rotation:** one relay; the credential changes from A to B; direct calls, callback calls, search and config-text reads all send B.
+- **Credential selection:** with no tracing, the turn refreshes the callback credential against the callback base. With an external collector, `Bearer collector-key` never reaches a refresh or a tool call. A session lease that holds the same credential is reused, and no second lease starts. On a warm session, the next turn gets a new runtime with its own credential.
+- **Expired 401:** an ordinary tool, a callback tool and search all return the envelope. On the approved-content read, both the gate path and the relay path return it.
+- **Unchanged cases:** these keep today's errors: a 401 with another reason, a 401 with a non-JSON body, a 401 with a string detail, a 403 that names `expired_signature`, and a transport failure. Search still returns `tool_search_unavailable` for a 500. Approved content still returns `source_base_unavailable` for a 401 with `invalid_token`.
+- **Mutation checks:** I broke the turn-owned lease and the reuse of the watchdog lease. The selection tests failed both times.
+
+## What I could not do, and limits
+
+- On the approval gate path, the envelope reaches only the operator log. `PermissionReply` is a bare enum, so the model is only told "rejected". This was already true before the change (there is a code comment about it in `acp-interactions.ts`).
+- I installed runner `node_modules`, ran `build:extension` (the gateway composition tests need `dist/`), and ran `uv sync` in `api/`. None of these show in git status.
+
+## Side bugs found (not fixed)
+
+1. In `runTurn`, `credential = opts.credential ?? platformCredentialLease?.credential ?? initialCredential`. The last fallback is `runCredential(request)`, the raw OTLP header. On a turn without a watchdog that exports to an external collector, platform calls (`completeTurn` in the turn ledger, the subscription-recovery API) receive the collector key. `loadDurableDecisions` in `engine.ts`, `server.ts` lines 361 and 417, and `reportRecordsIncomplete` at `server.ts` line 1336 also read `runCredential(request)` directly.
+2. When `AGENTA_API_URL` is set and the OTLP endpoint is a collector, the watchdog gets `""` as its credential. Heartbeat, persistence and the turn ledger then send no credential, while tool calls now have a valid, refreshed one.</result>
+<usage><subagent_tokens>263974</subagent_tokens><tool_uses>103</tool_uses><duration_ms>959086</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>aae492a521abba8fb</task-id>
+<tool-use-id>toolu_016rhw93Ubi4b96EW1CKshSJ</tool-use-id>
+<output-file>/tmp/claude-1000/-home-mahmoud-code-agenta--claude-worktrees-agent-tools-credential-ttl-ee308a/3bae79ce-5bf4-432b-bef4-f0bf1a620d7e/tasks/aae492a521abba8fb.output</output-file>
+<status>completed</status>
+<summary>Agent "Opus simplify review round 1" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Rating: Low. The change is about as small as it can be. I found two suggestions, and the owner can decline both.
+
+1. In `run-turn.ts`, the code that decides whether to share an existing credential lease works out again what that lease started from. It does this in two different ways, and each one copies a value that is set somewhere else (`server.ts:845` and `run-turn.ts:241`). If either place changes, the match fails without notice. The turn then quietly starts a second lease, which is safe but wasted. There are two fixes:
+   - Put the start value on the lease itself, so the code reads it from there.
+   - Always give the tool callback its own lease. This adds one refresh call every 5 minutes per turn.
+2. In `run-credential.ts`, an endpoint that does not end in `/tools/call` falls back to a credential that is never refreshed, and nothing is logged. The API does not send that shape today. If it ever does, the turn fails after 15 minutes, which is the bug this PR fixes, with no log line to explain why.
+
+The report is at `/home/mahmoud/agenta-build-run-credential-refresh/review-ss/r1-claude-simplify.md`.</result>
+<usage><subagent_tokens>94329</subagent_tokens><tool_uses>9</tool_uses><duration_ms>69681</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bat6u3how</task-id>
+<tool-use-id>toolu_01Ef1zfYXGA8PafJrcYWgu6D</tool-use-id>
+<output-file>/tmp/claude-1000/-home-mahmoud-code-agenta--claude-worktrees-agent-tools-credential-ttl-ee308a/3bae79ce-5bf4-432b-bef4-f0bf1a620d7e/tasks/bat6u3how.output</output-file>
+<status>completed</status>
+<summary>Background command "Run four Codex review lenses in parallel" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>ac8f4fe02d8c772d1</task-id>
+<tool-use-id>toolu_01UkHUde5KmnHWi5WRd6Xpqh</tool-use-id>
+<output-file>/tmp/claude-1000/-home-mahmoud-code-agenta--claude-worktrees-agent-tools-credential-ttl-ee308a/3bae79ce-5bf4-432b-bef4-f0bf1a620d7e/tasks/ac8f4fe02d8c772d1.output</output-file>
+<status>completed</status>
+<summary>Agent "Opus slop review round 1" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Rating: Low. The core approach is sound: it builds one `ToolCallbackRuntime` per turn, reuses the existing credential lease code, and keeps the wire type the same. The tests use the real relay, the real `runTurn` and the real approval wiring.
+
+There are three small findings:
+1. The commit path in `CommitAuthorizer.authorize` handles an expired credential without writing the usual refusal log line. It also returns a different shape than the approval-card path, which includes the error details.
+2. In `relay.ts`, a comment block now sits below the lines it describes, and the sentence the change added contradicts the paragraph it was added to.
+3. In `run-turn.ts`, the check that reuses the session lease only works because `server.ts` computes the same value in a separate place. Nothing ties the two together. If one changes, the turn quietly starts a second lease. That does no harm beyond an extra refresh.
+
+The full report is at /home/mahmoud/agenta-build-run-credential-refresh/review-ss/r1-claude-slop.md.</result>
+<usage><subagent_tokens>106540</subagent_tokens><tool_uses>18</tool_uses><duration_ms>100091</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>adf9c0d74576b29a3</task-id>
+<tool-use-id>toolu_01N2EWHB5RNAaBYWxb8VdGnN</tool-use-id>
+<output-file>/tmp/claude-1000/-home-mahmoud-code-agenta--claude-worktrees-agent-tools-credential-ttl-ee308a/3bae79ce-5bf4-432b-bef4-f0bf1a620d7e/tasks/adf9c0d74576b29a3.output</output-file>
+<status>completed</status>
+<summary>Agent "Implement runner credential refresh fix" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>I fixed all four findings in the worktree. Nothing is committed or pushed. In `services/runner`, `pnpm test` passes 282 files and 4492 tests, and `pnpm run typecheck` passes with no errors.
+
+1. **The commit refusal now logs and returns the same shape on both paths** (`src/tools/commit-authorization.ts`). On the relay path, an expired credential now writes `[commit-auth] refused tool=... call=... code=run_credential_expired`. It also returns `detail: { ...error.envelope }`, the same shape the gate path in `approved-content.ts` returns. I widened the return type of `authorizeExecution` and of `RelayExecutionAuthorizer` in `relay.ts` with an optional `detail`.
+
+2. **The search comment block is together again** (`src/tools/relay.ts`). The two `gateway.memory` lines are back under the "exactly one shape" paragraph. The sentence "An expired run credential is the one exception: retrying cannot fix it." is now directly above the `instanceof RunCredentialExpiredError` branch.
+
+3. **`runTurn` no longer re-derives a lease's start value.**
+   - `PlatformCredentialLease` in `src/sessions/auth.ts` now has `seed` (the value the lease started from).
+   - A new read-side type, `PlatformCredentialSource`, holds `credential` and `seed`.
+   - The watchdog in `alive.ts` exposes `credentialLease`.
+   - To pass the lease itself, I replaced the getter option `credential?: () =&gt; string` with `credentialLease?: PlatformCredentialSource`. This touched `RunAgentOptions` and the `aliveWatchdog` type in `server.ts`, `RunTurnOptions` in `runtime-contracts.ts`, `KeepaliveContext` and `runCold` in `session-coordinator.ts`, and `runSandboxAgent` in `engine.ts`.
+   - In `run-turn.ts`, `platformLease = opts.credentialLease ?? platformCredentialLease` goes straight into `startToolCallbackRuntime`, and the match is `platform.seed === authorization`. The muted `platformCredentialForRequest(request, () =&gt; {})` call and the nested ternary are gone.
+   - Behavior does not change: the watchdog's seed is still `platformCredentialForRequest(request)`.
+   - This fix reaches further than the reviewer's sketch: the option rename touches five source files.
+
+4. **A callback endpoint that cannot be placed now gets a log line** (`src/tools/run-credential.ts`). When the endpoint does not end in `/tools/call` or does not parse, `startToolCallbackRuntime` logs one line with no credential in it: "[tools] the tool callback endpoint is not &lt;api base&gt;/tools/call; the tool credential will not be refreshed this turn". It then keeps the static credential. The function takes an optional `log` argument, and `runTurn` passes the turn logger.
+
+**Test changes:**
+- New assertions:
+  - `credential-refresh.test.ts`: `lease.seed` stays "Secret initial" after a refresh.
+  - `tool-credential-rotation.test.ts`: the relay path returns `detail` and writes the refusal log line.
+  - `tool-callback-credential.test.ts`: one new test for the endpoint case. It checks that one line is logged, that the line has no credential, that nothing is refreshed, and that the static credential is kept.
+- Changed only for the new `seed` field and the option name: `inprocess/command-sandbox`, `interaction-credential`, `sandbox-agent-orchestration`, `sandbox-usage`, `server`, `session-keepalive-dispatch`, `subscription-login-publish` and `turn-ledger-credential` tests. One case in `turn-ledger-credential.test.ts` now passes a real lease object directly.</result>
+<usage><subagent_tokens>301757</subagent_tokens><tool_uses>25</tool_uses><duration_ms>472002</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a28950605743bb3e6</task-id>
+<tool-use-id>toolu_01ForKNbyMujdB3Yy5n5t6AS</tool-use-id>
+<output-file>/tmp/claude-1000/-home-mahmoud-code-agenta--claude-worktrees-agent-tools-credential-ttl-ee308a/3bae79ce-5bf4-432b-bef4-f0bf1a620d7e/tasks/a28950605743bb3e6.output</output-file>
+<status>completed</status>
+<summary>Agent "Opus slop delta review round 2" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>Rating: Low. The `credential` to `credentialLease` rename is complete across all five files, and the seed values have not changed. I found three small problems. The main one: `authorizeExecution` now returns a new `detail` field on the relay path, but `RelayRefusal` keeps only `reason`, so nothing reads `detail`. The new test checks a value that nothing uses.
+
+The report is at `/home/mahmoud/agenta-build-run-credential-refresh/review-ss/r2-claude-slop.md`.</result>
+<usage><subagent_tokens>91121</subagent_tokens><tool_uses>10</tool_uses><duration_ms>83077</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>ba7kr6693</task-id>
+<tool-use-id>toolu_019wi5ySZ4xNevtTSCxecb8c</tool-use-id>
+<output-file>/tmp/claude-1000/-home-mahmoud-code-agenta--claude-worktrees-agent-tools-credential-ttl-ee308a/3bae79ce-5bf4-432b-bef4-f0bf1a620d7e/tasks/ba7kr6693.output</output-file>
+<status>completed</status>
+<summary>Background command "Run Codex delta reviews for round 2" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a57be00e90b3ea322</task-id>
+<tool-use-id>toolu_01BYs3cxNXn7RzETn7HqAuio</tool-use-id>
+<output-file>/tmp/claude-1000/-home-mahmoud-code-agenta--claude-worktrees-agent-tools-credential-ttl-ee308a/3bae79ce-5bf4-432b-bef4-f0bf1a620d7e/tasks/a57be00e90b3ea322.output</output-file>
+<status>completed</status>
+<summary>Agent "Live QA long-turn tool call" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>I stopped before Step 1. I have not started or changed any container, and cells 4 and 5 are still pending.
+
+**Head:** `6df9e06c7c3f3fa4f6578022fa122c75307dac12`, which matches the head you gave. The worktree is clean.
+
+**Why I stopped:** Every running Agenta stack belongs to another session.
+- `agenta-ee-dev-sharing` and `agenta-oss-dev-sharing` run from `/home/mahmoud/code/agenta-sharing`. The sharing program in your memory notes owns them.
+- `agenta-ee-dev-onb7853` runs from `/data/mahmoud/agenta-onboarding-7853`.
+- `agenta-oss-team` runs from `/home/team/agenta`. It is the oss-team stack.
+
+No stack comes from this worktree. Your PR #7880 build folder, `/home/mahmoud/agenta-build-run-credential-refresh/resources.md`, lists no stack either. Swapping in this head's runner and api means editing another session's `services/runner/src` mount and recreating its `runner` and `api` containers. You told me not to do that.
+
+**What I checked:**
+- The box has 62 GB of memory, with about 34 GB available and 6 GB free. The inotify instance limit is 8192, not the 128 in my notes.
+- Free ports from my `ss` check: 8480/8481, 8580/8581 and 5436 appeared free.
+- The sharing EE runner mounts `/home/mahmoud/code/agenta-sharing/services/runner/src` directly. It runs 13 hours old code from that checkout.
+
+**Which option should I take?** Decide, then I proceed right away.
+1. **Own full stack (Recipe D, 16 containers).** I build private image tags from this worktree and use a new port block, for example 8580/8581 web, 5451 Postgres and 8790 sidecar. I record everything in `resources.md`. This is slow because the web build is heavy, but nothing else is disturbed.
+2. **Borrow a sharing stack.** You approve swapping only its `runner` and `api` to this head's code. This is faster, but those containers run the sharing branch's code. If its api migrations differ from this branch's, that adds risk.
+3. **Own runner and api only.** I add them on a borrowed stack's network, with a Traefik that hides the original `api`. The skill marks this recipe as not verified in practice.
+
+I recommend option 1. It is the only one that proves this head's runner and api together without touching anyone else's work, and the box has room.
+
+**Daytona (cell 5):** I have not checked whether any stack has Daytona configured. I will do that after you pick a stack, and I will record "not run" with the reason if none does.</result>
+<usage><subagent_tokens>78254</subagent_tokens><tool_uses>4</tool_uses><duration_ms>30294</duration_ms></usage>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>a9db53fa784dd6904</task-id>
+<tool-use-id>toolu_01RsfwhfugsLB8tx5LP2aZyn</tool-use-id>
+<output-file>/tmp/claude-1000/-home-mahmoud-code-agenta--claude-worktrees-agent-tools-credential-ttl-ee308a/3bae79ce-5bf4-432b-bef4-f0bf1a620d7e/tasks/a9db53fa784dd6904.output</output-file>
+<status>completed</status>
+<summary>Agent "QA test suites cells 1-3" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>All three cells pass on HEAD `6df9e06c7c3f…`, so no base-worktree comparison was needed. I updated the Result column for cells 1-3 in `cells.md`.
+
+| Cell | Command | Result |
+| --- | --- | --- |
+| 1 | `cd services/runner &amp;&amp; pnpm test`, then `pnpm run typecheck` (Node 24.16) | Pass. 4492 of 4492 tests passed in 282 files. `tsc --noEmit` was clean. |
+| 2 | `cd services/runner &amp;&amp; pnpm test:integration` | Pass. 41 passed, 4 skipped, 0 failed (5 files passed, 1 skipped). |
+| 3 | `cd api &amp;&amp; uv sync --locked &amp;&amp; uv run --no-sync python run-tests.py oss/tests/pytest/unit/gateways/` | Pass. 2139 passed, 0 failed, 70 warnings. |
+
+- **Cell 2 skips:** the 4 skipped tests are all of `tests/integration/inprocess/sandbox-drive.test.ts`. The test file skips itself. I did not look into why.
+- **Cell 3 path:** `run-tests.py` accepted the path argument, so the pytest fallback was not needed.
+
+Evidence is in `/home/mahmoud/agenta-qa/run-credential-refresh/6df9e06c7c/`: `cell1-runner-unit.log`, `cell1-runner-typecheck.log`, `cell2-runner-integration.log` and `cell3-api-gateways.log`.</result>
+<usage><subagent_tokens>66517</subagent_tokens><tool_uses>6</tool_uses><duration_ms>204626</duration_ms></usage>
+</task-notification>

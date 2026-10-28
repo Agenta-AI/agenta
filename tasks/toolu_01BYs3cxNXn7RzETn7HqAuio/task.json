@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01BYs3cxNXn7RzETn7HqAuio",
+  "agent_id": "a57be00e90b3ea322",
+  "subagent_type": "general-purpose",
+  "task_description": "Live QA long-turn tool call",
+  "token_usage": {
+    "input_tokens": 38,
+    "cache_creation_tokens": 81154,
+    "cache_read_tokens": 1404810,
+    "output_tokens": 9012,
+    "api_call_count": 17
+  },
+  "started_at": "2026-10-28T17:27:58.422802359+01:00",
+  "completed_at": "2026-10-28T17:28:28.398251002+01:00"
+}
