@@ -442,9 +442,6 @@ def invitation(monkeypatch):
     async def _project(project_id):
         return project
 
-    async def _workspace(workspace_id):
-        return SimpleNamespace(id=project.workspace_id)
-
     async def _update(invitation_id, values_to_update):
         updates.append(values_to_update)
 
@@ -457,14 +454,6 @@ def invitation(monkeypatch):
         db, "get_project_invitation_by_organization_token_and_email", _invite
     )
     monkeypatch.setattr(db, "get_project_by_id", _project)
-
-    async def _scoped(*, project_id):
-        return db.ProjectWithWorkspaceOrganization(
-            project=project, workspace_organization_id=project.organization_id
-        )
-
-    monkeypatch.setattr(db, "fetch_project_with_workspace_organization", _scoped)
-    monkeypatch.setattr(db, "get_workspace", _workspace)
     monkeypatch.setattr(db, "update_invitation", _update)
     monkeypatch.setattr(organization_service, "notify_org_admin_invitation", _notify)
     return SimpleNamespace(user=user, project=project, updates=updates)

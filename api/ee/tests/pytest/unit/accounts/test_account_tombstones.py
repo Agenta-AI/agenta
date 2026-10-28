@@ -224,7 +224,7 @@ def deletion(monkeypatch, daos):
         calls.append(("cascade", uid))
         return [ORG_A, ORG_B]
 
-    async def _batch(*, org_ids, workspace_ids, project_ids, user_ids):
+    async def _batch(*, org_ids, project_ids, user_ids):
         calls.append(("batch", list(user_ids)))
 
     monkeypatch.setattr(m, "is_ee", lambda: True)

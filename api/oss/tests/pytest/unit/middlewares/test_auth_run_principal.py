@@ -79,37 +79,29 @@ def bearer_world(monkeypatch, cache):
     async def _project(project_id):
         return SimpleNamespace(
             id=project.project_id,
-            workspace_id=project.workspace_id,
             organization_id=project.organization_id,
             organization=SimpleNamespace(name="Org"),
         )
 
-    async def _workspace(workspace_id):
-        return SimpleNamespace(
-            id=project.workspace_id, organization_id=project.organization_id
-        )
-
-    async def _default_workspace(user_id):
-        return str(project.workspace_id)
+    async def _oldest_organization(*, user_id):
+        return str(project.organization_id)
 
     async def _default_project(workspace_id):
         return str(project.project_id)
 
     monkeypatch.setattr(auth, "get_session", _get_session)
     monkeypatch.setattr(auth.db_manager, "get_project_by_id", _project)
-    monkeypatch.setattr(auth.db_manager, "get_workspace", _workspace)
-    monkeypatch.setattr(auth.db_manager, "get_default_workspace_id", _default_workspace)
+    monkeypatch.setattr(
+        auth.db_manager, "fetch_oldest_organization_id", _oldest_organization
+    )
     monkeypatch.setattr(
         auth.db_manager, "get_default_project_id_from_workspace", _default_project
     )
 
-    async def _fetch_default_project(*, workspace_or_organization_id):
+    async def _fetch_default_project(*, organization_id):
         return auth.db_manager.DefaultProjectRef(
             project_id=project.project_id,
             project_organization_id=project.organization_id,
-            project_workspace_id=project.workspace_id,
-            ref_workspace_id=project.workspace_id,
-            ref_organization_id=project.organization_id,
         )
 
     monkeypatch.setattr(
