@@ -82,6 +82,25 @@ def _span_ids(caller, trace_ids):
     return {span["span_id"] for span in response.json().get("spans") or []}
 
 
+def _trace_span_ids(caller, trace_id):
+    """The spans `GET /tracing/traces/{trace_id}` answers (the trace drawer)."""
+
+    response = caller("GET", f"/tracing/traces/{trace_id}")
+    assert response.status_code == 200, response.text
+    traces = response.json().get("traces") or {}
+    ids = set()
+
+    def walk(spans):
+        for value in (spans or {}).values():
+            for span in value if isinstance(value, list) else [value]:
+                ids.add(span["span_id"])
+                walk(span.get("spans"))
+
+    for tree in traces.values():
+        walk(tree.get("spans"))
+    return ids
+
+
 def _analytics_restricted(caller) -> bool:
     response = caller(
         "POST",
@@ -128,6 +147,8 @@ def test_trace_rule_share_unshare_delete(sharing_team):
 
     # Bob: nothing of the private chat, root or child; the rest stays readable.
     assert _span_ids(bob, traces) == visible_spans | {free_span}
+    assert _trace_span_ids(bob, private_trace) == set()
+    assert _trace_span_ids(alice, private_trace) == private_spans
     assert _analytics_restricted(bob) is True
     assert _analytics_restricted(alice) is False
 
