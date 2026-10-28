@@ -362,7 +362,10 @@ export class CommitAuthorizer {
     toolName: string;
     toolCallId: string;
     args: unknown;
-  }): Promise<{ ok: true; args: unknown } | { ok: false; reason: string }> {
+  }): Promise<
+    | { ok: true; args: unknown }
+    | { ok: false; reason: string; detail?: Record<string, unknown> }
+  > {
     const required = this.markersIn(input.args);
     if (required.length === 0) return { ok: true, args: input.args };
 
@@ -430,7 +433,10 @@ export class CommitAuthorizer {
       // re-approves the whole commit.
       this.options.store.discardAll(recordKey);
       if (error instanceof RunCredentialExpiredError) {
-        return { ok: false, reason: error.message };
+        this.options.log?.(
+          `[commit-auth] refused tool=${input.toolName} call=${input.toolCallId} code=${error.envelope.code}`,
+        );
+        return { ok: false, reason: error.message, detail: { ...error.envelope } };
       }
       const failure = toCommitError(error);
       this.options.log?.(

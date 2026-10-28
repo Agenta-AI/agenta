@@ -2225,7 +2225,7 @@ describe("createAgentServer", () => {
     vi.stubEnv("AGENTA_API_URL", "https://agenta.example.test/api");
     let engineCredential: string | undefined;
     const s = await listen(async (_request, _emit, _signal, options) => {
-      engineCredential = options?.credential?.();
+      engineCredential = options?.credentialLease?.credential();
       return { ok: true, output: "done", events: [] };
     });
     const realFetch = globalThis.fetch.bind(globalThis);
@@ -2301,7 +2301,7 @@ describe("createAgentServer", () => {
     vi.stubEnv("AGENTA_API_INTERNAL_URL", "http://api:8000");
     let engineCredential: string | undefined;
     const s = await listen(async (_request, _emit, _signal, options) => {
-      engineCredential = options?.credential?.();
+      engineCredential = options?.credentialLease?.credential();
       return { ok: true, output: "done", events: [] };
     });
     const realFetch = globalThis.fetch.bind(globalThis);

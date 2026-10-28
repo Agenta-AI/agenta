@@ -51,6 +51,7 @@ describe("platform credential lease", () => {
       },
     ]);
     assert.equal(lease.credential(), "Secret refreshed");
+    assert.equal(lease.seed, "Secret initial", "the seed stays the value the lease started from");
 
     lease.release();
     await vi.advanceTimersByTimeAsync(5_000);

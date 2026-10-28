@@ -255,7 +255,7 @@ describe("an approved-content read with an expired credential", () => {
     },
   };
 
-  function wiring() {
+  function wiring(log?: (msg: string) => void) {
     const cwd = mkdtempSync(join(tmpdir(), "agenta-expired-"));
     mkdirSync(join(cwd, ".agenta-imports"), { recursive: true });
     writeFileSync(join(cwd, ".agenta-imports", "notes.md"), "new text\n");
@@ -270,12 +270,14 @@ describe("an approved-content read with an expired credential", () => {
       toolSpecs: [commitSpec],
       turnId: "turn-1",
       sessionId: "session-1",
+      log,
     });
   }
 
   it("is not turned into a retryable source_base_unavailable on either path", async () => {
     stubFetch(expired);
-    const w = wiring();
+    const logs: string[] = [];
+    const w = wiring((msg) => logs.push(msg));
 
     const gate = await w.onResolveApprovedContent({
       toolName: commitSpec.name,
@@ -294,6 +296,13 @@ describe("an approved-content read with an expired credential", () => {
     assert.deepEqual(
       JSON.parse((relay as { reason: string }).reason),
       RUN_CREDENTIAL_EXPIRED_ERROR,
+    );
+    assert.deepEqual((relay as { detail?: unknown }).detail, RUN_CREDENTIAL_EXPIRED_ERROR);
+    assert.ok(
+      logs.includes(
+        "[commit-auth] refused tool=commit_revision call=call-relay code=run_credential_expired",
+      ),
+      logs.join("\n"),
     );
   });
 

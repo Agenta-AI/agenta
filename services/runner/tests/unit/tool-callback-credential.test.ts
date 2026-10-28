@@ -74,7 +74,7 @@ function request(overrides: Partial<AgentRunRequest> = {}): AgentRunRequest {
 /** Run one turn; mid-turn, let one refresh interval pass and read the relay's credential. */
 async function credentialAfterOneRefresh(
   req: AgentRunRequest,
-  turnOptions: { credential?: () => string } = {},
+  turnOptions: { credentialLease?: { credential: () => string; seed: string } } = {},
 ): Promise<string | undefined> {
   vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
   let seen: string | undefined;
@@ -139,10 +139,13 @@ describe("the turn's tool credential", () => {
         } as never,
       }),
       {
-        credential: () => {
-          const current = watchdog;
-          watchdog = "Secret W";
-          return current;
+        credentialLease: {
+          seed: "Secret S",
+          credential: () => {
+            const current = watchdog;
+            watchdog = "Secret W";
+            return current;
+          },
         },
       },
     );
@@ -183,6 +186,24 @@ describe("startToolCallbackRuntime", () => {
 
     assert.equal(runtime?.credential(), undefined);
     assert.deepEqual(refreshes, []);
+    release();
+  });
+
+  it("says once that it cannot refresh a callback endpoint it cannot place, and keeps the credential", async () => {
+    vi.useFakeTimers();
+    const logs: string[] = [];
+    const { runtime, release } = startToolCallbackRuntime(
+      { endpoint: "https://api.example/api/other", authorization: "Secret S" },
+      undefined,
+      (message) => logs.push(message),
+    );
+    await vi.advanceTimersByTimeAsync(DEFAULT_PLATFORM_CREDENTIAL_REFRESH_INTERVAL_MS * 2);
+
+    assert.equal(runtime?.credential(), "Secret S");
+    assert.deepEqual(refreshes, []);
+    assert.equal(logs.length, 1);
+    assert.match(logs[0], /will not be refreshed/);
+    assert.ok(!logs[0].includes("Secret S"), "the log line carries no credential");
     release();
   });
 

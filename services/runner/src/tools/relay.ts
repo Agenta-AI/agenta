@@ -184,7 +184,10 @@ export type RelayExecutionGuard = (
 export type RelayExecutionAuthorizer = (
   spec: ResolvedToolSpec,
   req: ExecuteRelayRequest,
-) => Promise<{ ok: true; args: unknown } | { ok: false; reason: string }>;
+) => Promise<
+  | { ok: true; args: unknown }
+  | { ok: false; reason: string; detail?: Record<string, unknown> }
+>;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -601,14 +604,15 @@ async function executeAllowedRelayedTool(
       // A `gateway.run` failure keeps its provider detail — that detail is what lets the model
       // correct a rejected but well-formed request, and its suggestion list was sanitized above.
       if (resolved.kind === "run") throw err;
-      gateway.memory.searches += 1;
-      gateway.memory.offered = [];
       // A `gateway.search` failure does NOT. Every non-result search body becomes the one fixed
       // envelope, whatever the API said: a business-level failure throws out of `callAgentaTool`
       // before the filter can run, and its detail is the API's own text — which can name a
       // toolkit this agent never configured, or carry routing the model must not see. This is
       // the same envelope the unparsable-body path writes, so "search did not work" has exactly
-      // one shape. An expired run credential is the one exception: retrying cannot fix it.
+      // one shape.
+      gateway.memory.searches += 1;
+      gateway.memory.offered = [];
+      // An expired run credential is the one exception: retrying cannot fix it.
       if (err instanceof RunCredentialExpiredError) {
         log?.(
           `[gateway] search outcome=failed reason=run_credential_expired ` +

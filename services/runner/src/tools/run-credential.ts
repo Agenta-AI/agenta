@@ -7,7 +7,10 @@
  * getter is a refreshed platform lease.
  */
 import type { ToolCallbackContext } from "../protocol.ts";
-import { startPlatformCredentialLease } from "../sessions/auth.ts";
+import {
+  startPlatformCredentialLease,
+  type PlatformCredentialSource,
+} from "../sessions/auth.ts";
 
 /** Runner-only view of the tool callback. Never serialized; the wire type stays unchanged. */
 export interface ToolCallbackRuntime {
@@ -69,14 +72,15 @@ function callbackPlatformBase(endpoint: string): string | undefined {
  * Bind one turn's tool callback to a current credential.
  *
  * `platform` is the turn's existing platform lease (the session watchdog's, or the standalone
- * turn's) together with the credential it started from. It is reused only when that start value
- * IS the callback credential. Otherwise the turn owns a lease for the callback credential,
- * refreshed against the base the callback already sends it to, and `release` stops it. An
- * external collector key never reaches this function as `platform`, and never rides a tool call.
+ * turn's). It is reused only when it started from the callback credential. Otherwise the turn
+ * owns a lease for the callback credential, refreshed against the base the callback already
+ * sends it to, and `release` stops it. An external collector key never rides a tool call.
  */
 export function startToolCallbackRuntime(
   callback: ToolCallbackContext | undefined,
-  platform?: { seed: string; credential: () => string },
+  platform?: PlatformCredentialSource,
+  log: (message: string) => void = (message) =>
+    process.stderr.write(`${message}\n`),
 ): { runtime: ToolCallbackRuntime | undefined; release: () => void } {
   if (!callback) return { runtime: undefined, release: () => {} };
   const authorization = callback.authorization?.trim() ?? "";
@@ -90,7 +94,13 @@ export function startToolCallbackRuntime(
     return runtime(() => shared() || undefined);
   }
   const base = callbackPlatformBase(callback.endpoint);
-  if (!base) return runtime(() => authorization);
+  if (!base) {
+    log(
+      "[tools] the tool callback endpoint is not <api base>/tools/call; " +
+        "the tool credential will not be refreshed this turn",
+    );
+    return runtime(() => authorization);
+  }
   const lease = startPlatformCredentialLease(base, authorization);
   return {
     runtime: { endpoint: callback.endpoint, credential: lease.credential },

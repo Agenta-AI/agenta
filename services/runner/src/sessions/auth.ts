@@ -71,8 +71,16 @@ export const DEFAULT_PLATFORM_CREDENTIAL_REFRESH_INTERVAL_MS = 5 * 60 * 1000;
 
 export interface PlatformCredentialLease {
   credential: () => string;
+  /** The credential the lease started from. */
+  seed: string;
   release: () => void;
 }
+
+/** The read side of a lease, as long-turn consumers receive it. */
+export type PlatformCredentialSource = Pick<
+  PlatformCredentialLease,
+  "credential" | "seed"
+>;
 
 /**
  * Keep one Agenta platform credential fresh for the lifetime of a runner-owned operation.
@@ -98,7 +106,7 @@ export function startPlatformCredentialLease(
     options.intervalMs ?? DEFAULT_PLATFORM_CREDENTIAL_REFRESH_INTERVAL_MS;
 
   if (!credential) {
-    return { credential: () => credential, release: () => {} };
+    return { credential: () => credential, seed: authorization, release: () => {} };
   }
 
   const interval = setInterval(() => {
@@ -121,6 +129,7 @@ export function startPlatformCredentialLease(
 
   return {
     credential: () => credential,
+    seed: authorization,
     release: () => {
       released = true;
       clearInterval(interval);
