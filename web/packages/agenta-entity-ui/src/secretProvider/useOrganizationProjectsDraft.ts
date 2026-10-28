@@ -25,11 +25,14 @@ const refusalCode = (error: unknown): string | null => {
 }
 
 /**
- * What a refused organization write says when the refusal is the caller's role or a project that
+ * What a refused organization write says when the refusal is the plan, the caller's role, or a project that
  * left the organization; null for any other failure, whose own message the caller shows.
  */
 export const organizationRefusal = (error: unknown, org: string): string | null => {
     const status = httpStatusOf(error)
+    if (status === 403 && refusalCode(error) === "project_limit_not_allowed") {
+        return "Choosing projects is available on Business and Enterprise plans."
+    }
     if (status === 403) {
         return `You are no longer an owner or admin of ${org}, so you can't change organization connections.`
     }

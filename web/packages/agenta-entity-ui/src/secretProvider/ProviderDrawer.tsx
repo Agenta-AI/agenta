@@ -17,7 +17,7 @@
  *
  * Design: providers-drawer-final/README.md
  */
-import {createElement, useCallback, useEffect, useMemo, useState} from "react"
+import {createElement, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     hostedSubscriptionFamilies,
@@ -198,17 +198,29 @@ const ProviderDrawer = ({
         setView(next)
     }, [])
 
-    // Opens on the connection's card, else a new card for `kind`, else the catalog.
+    // Opens on the connection's card, else a new card for `kind`, else the catalog. Keyed by the
+    // connection's id: a refetch of the same connection must not reset the view or its save state.
+    const latestConnection = useRef(connection)
+    latestConnection.current = connection
+    const connectionId = connection?.id ?? null
     useEffect(() => {
         if (!open) return
+        const opened = latestConnection.current
         showView(
-            connection
-                ? {level: "connection", kind: connection.kind, connection, pushed: false}
+            opened
+                ? {level: "connection", kind: opened.kind, connection: opened, pushed: false}
                 : kind
                   ? {level: "connection", kind, connection: null, pushed: false}
                   : {level: "catalog"},
         )
-    }, [open, connection, kind, showView])
+    }, [open, connectionId, kind, showView])
+    // The card reads the connection as currently stored, not as it was when the drawer opened.
+    const cardConnection =
+        view.level === "connection" && view.connection && view.connection.id === connection?.id
+            ? connection
+            : view.level === "connection"
+              ? view.connection
+              : null
 
     const onPickProvider = (entry: ProviderCatalogEntry) =>
         showView({level: "connection", kind: entry.kind, connection: null, pushed: true})
@@ -396,7 +408,7 @@ const ProviderDrawer = ({
                 <ProviderConnectionCard
                     key={view.connection?.id ?? view.kind}
                     kind={view.kind}
-                    connection={view.connection}
+                    connection={cardConnection}
                     connections={ownConnections}
                     organization={organization}
                     onSaveStateChange={setCardSave}

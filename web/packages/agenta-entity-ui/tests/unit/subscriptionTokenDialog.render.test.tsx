@@ -364,6 +364,42 @@ describe("an organization subscription", () => {
         expect(onClose).toHaveBeenCalledOnce()
     })
 
+    it("sends no token when Done saves only the projects", async () => {
+        await render("claude", organizationConnection(claudeConnection("pending_login")), ACME)
+        await type(TOKEN)
+        await chooseSelectedProjects()
+        await press("Done")
+
+        expect(setToken).not.toHaveBeenCalled()
+        expect(createConnection).not.toHaveBeenCalled()
+        expect(setProjects).toHaveBeenCalledWith({
+            connectionId: "claude-1",
+            projects: {availability: "selected_projects", projectIds: []},
+        })
+    })
+
+    it("names the plan when the organization may not limit projects", async () => {
+        setProjects.mockRejectedValueOnce(
+            Object.assign(new Error("Status code: 403"), {
+                statusCode: 403,
+                body: {
+                    detail: {
+                        code: "project_limit_not_allowed",
+                        message:
+                            "Limiting a credential to selected projects is not available for this organization.",
+                    },
+                },
+            }),
+        )
+        await render("claude", organizationConnection(claudeConnection("pending_login")), ACME)
+        await chooseSelectedProjects()
+        await press("Done")
+
+        expect(text()).toContain("Choosing projects is available on Business and Enterprise plans.")
+        expect(text()).not.toContain("no longer an owner or admin")
+        expect(onClose).not.toHaveBeenCalled()
+    })
+
     it("saves its projects while a device sign-in waits", async () => {
         const chatgpt = organizationConnection({
             ...claudeConnection("pending_login"),

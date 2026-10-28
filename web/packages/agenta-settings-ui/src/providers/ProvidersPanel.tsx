@@ -61,7 +61,11 @@ export interface ProvidersSource {
     onSaved?: () => void
 }
 
-type DrawerTarget = {connection: ProviderConnection} | {kind: string}
+/**
+ * What the drawer is open on. A saved connection is held by id and read from the current list,
+ * so a save that lands in part (the projects but not the key) shows the drawer what is stored.
+ */
+type DrawerTarget = {connectionId: string} | {kind: string}
 
 /** What a credential-set kind's form asks for, read off its fields in `providerFields.ts`. */
 const FORM_FIELDS_BY_KIND: Record<string, string> = {
@@ -138,6 +142,11 @@ export const ProvidersPanel = ({
     subscriptionDocsUrl: string
 }) => {
     const [drawerTarget, setDrawerTarget] = useState<DrawerTarget | null>(null)
+    const drawerConnection =
+        drawerTarget && "connectionId" in drawerTarget
+            ? (source.connections.find((candidate) => candidate.id === drawerTarget.connectionId) ??
+              null)
+            : null
     const [signInProvider, setSignInProvider] = useState<"chatgpt" | "claude" | null>(null)
     const [pendingRemoval, setPendingRemoval] = useState<ProviderConnection | null>(null)
     const [removing, setRemoving] = useState(false)
@@ -184,7 +193,7 @@ export const ProvidersPanel = ({
             statusLabel: "Connected",
             onOpen:
                 (source.canOpen?.(connection) ?? true)
-                    ? () => setDrawerTarget({connection})
+                    ? () => setDrawerTarget({connectionId: connection.id})
                     : undefined,
             menu: source.manage ? (
                 <SettingsRowMenu
@@ -194,7 +203,7 @@ export const ProvidersPanel = ({
                             key: "edit",
                             label: "Edit",
                             icon: <PencilSimpleLine size={14} />,
-                            onClick: () => setDrawerTarget({connection}),
+                            onClick: () => setDrawerTarget({connectionId: connection.id}),
                         },
                         {type: "divider"},
                         {
@@ -310,9 +319,7 @@ export const ProvidersPanel = ({
                 onClose={() => setDrawerTarget(null)}
                 context="settings"
                 connections={source.connections}
-                connection={
-                    drawerTarget && "connection" in drawerTarget ? drawerTarget.connection : null
-                }
+                connection={drawerConnection}
                 kind={drawerTarget && "kind" in drawerTarget ? drawerTarget.kind : null}
                 onSaved={source.onSaved}
                 subscriptionDocsUrl={subscriptionDocsUrl}
