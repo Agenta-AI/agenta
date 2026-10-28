@@ -73,17 +73,15 @@
   align-items: center;
   gap: 6px;
   margin-top: 14px;
-  padding-bottom: 1px;
-  border-bottom: 1px solid var(--borderdark);
   font-size: 14px;
   line-height: 20px;
   color: var(--contentprimary);
   text-decoration: none !important;
-  transition: border-color var(--ifm-transition-fast) ease;
+  transition: color var(--ifm-transition-fast) ease;
 }
 
 .readMore:hover {
-  border-color: var(--contentprimary);
+  color: var(--contentsecondary);
 }
 
 .readMore svg {
