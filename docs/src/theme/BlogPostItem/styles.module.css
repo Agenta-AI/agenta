@@ -92,6 +92,82 @@
   flex-shrink: 0;
 }
 
+/* Improvements and fixes from the entry's frontmatter. */
+.releaseItems {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+/* The global `details` box style uses !important; only the header carries a fill. */
+.releaseItems .releaseSection {
+  margin: 0;
+  border: 0 !important;
+  border-radius: 0;
+  background-color: transparent !important;
+}
+
+.releaseSummary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background-color: var(--bgelevated1);
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 22px;
+  color: var(--contentprimary);
+  cursor: pointer;
+  list-style: none;
+}
+
+.releaseSummary::-webkit-details-marker {
+  display: none;
+}
+
+.releaseCount {
+  font-weight: 400;
+  color: var(--contentsecondary);
+}
+
+.releaseChevron {
+  width: 16px;
+  height: 16px;
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--contentsecondary);
+  transition: transform var(--ifm-transition-fast) ease;
+}
+
+.releaseSection[open] .releaseChevron {
+  transform: rotate(180deg);
+}
+
+.releaseList {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 14px 14px 8px;
+  list-style: none;
+}
+
+.releaseRow {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 16px;
+  margin: 0;
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--contentprimary);
+}
+
+.releaseArea {
+  color: var(--contentsecondary);
+}
+
 @media (max-width: 996px) {
   .item {
     grid-template-columns: minmax(0, 1fr);

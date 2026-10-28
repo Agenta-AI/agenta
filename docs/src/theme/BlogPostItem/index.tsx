@@ -12,6 +12,71 @@ import styles from "./styles.module.css";
 
 type Props = WrapperProps<typeof BlogPostItemType>;
 
+interface ReleaseItem {
+  area: string;
+  text: string;
+}
+
+const asItems = (value: unknown): ReleaseItem[] =>
+  Array.isArray(value)
+    ? value.filter(
+        (item): item is ReleaseItem =>
+          typeof item?.area === "string" && typeof item?.text === "string",
+      )
+    : [];
+
+function ReleaseItemsSection({
+  title,
+  items,
+}: {
+  title: string;
+  items: ReleaseItem[];
+}): ReactNode {
+  if (items.length === 0) return null;
+  return (
+    <details className={styles.releaseSection} open>
+      <summary className={styles.releaseSummary}>
+        <span>{title}</span>
+        <span className={styles.releaseCount}>{items.length}</span>
+        <svg
+          className={styles.releaseChevron}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden="true">
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </summary>
+      <ul className={styles.releaseList}>
+        {items.map((item, index) => (
+          <li key={`${item.area}-${index}`} className={styles.releaseRow}>
+            <span className={styles.releaseArea}>{item.area}</span>
+            <span>{item.text}</span>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
+/** The entry's `improvements` and `fixes` frontmatter, after its content. */
+function ReleaseItems(): ReactNode {
+  const {frontMatter} = useBlogPost();
+  const data = frontMatter as Record<string, unknown>;
+  const improvements = asItems(data.improvements);
+  const fixes = asItems(data.fixes);
+  if (improvements.length === 0 && fixes.length === 0) return null;
+  return (
+    <div className={styles.releaseItems}>
+      <ReleaseItemsSection title="Improvements" items={improvements} />
+      <ReleaseItemsSection title="Fixes" items={fixes} />
+    </div>
+  );
+}
+
 /**
  * Changelog-style list item: date and version in a left meta column,
  * linked title and (truncated) content on the right.
@@ -36,6 +101,7 @@ function ChangelogItem({children}: {children: ReactNode}): ReactNode {
         <div className="markdown">
           <MDXContent>{children}</MDXContent>
         </div>
+        <ReleaseItems />
         {hasTruncateMarker && (
           <Link
             to={permalink}
@@ -63,7 +129,12 @@ function ChangelogItem({children}: {children: ReactNode}): ReactNode {
 export default function BlogPostItemWrapper(props: Props): ReactNode {
   const {isBlogPostPage} = useBlogPost();
   if (isBlogPostPage) {
-    return <BlogPostItem {...props} />;
+    return (
+      <BlogPostItem {...props}>
+        {props.children}
+        <ReleaseItems />
+      </BlogPostItem>
+    );
   }
   return <ChangelogItem>{props.children}</ChangelogItem>;
 }
