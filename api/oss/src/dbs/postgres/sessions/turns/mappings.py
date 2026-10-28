@@ -5,6 +5,9 @@ from oss.src.core.sessions.turns.dtos import (
     HarnessKind,
     SessionTurn,
     SessionTurnCreate,
+    SessionTurnStoredUsage,
+    SessionTurnUsage,
+    SessionTurnUsageSource,
 )
 from oss.src.dbs.postgres.sessions.references import (
     references_from_json,
@@ -112,7 +115,38 @@ def map_turn_dbe_to_dto(
         end_time=turn_dbe.end_time,
         #
         **map_turn_attribution_dbe_to_dto(turn_dbe=turn_dbe),
+        usage=map_turn_usage_dbe_to_dto(turn_dbe=turn_dbe),
     )
+
+
+def map_turn_usage_dbe_to_dto(
+    *, turn_dbe: SessionTurnDBE
+) -> Optional[SessionTurnStoredUsage]:
+    if turn_dbe.usage_source is None:
+        return None
+    try:
+        source = SessionTurnUsageSource(turn_dbe.usage_source)
+    except ValueError:
+        return None
+    return SessionTurnStoredUsage(
+        input_tokens=turn_dbe.input_tokens,
+        output_tokens=turn_dbe.output_tokens,
+        total_tokens=turn_dbe.total_tokens,
+        cost=float(turn_dbe.cost) if turn_dbe.cost is not None else None,
+        source=source,
+    )
+
+
+def map_turn_usage_to_columns(
+    *, usage: SessionTurnUsage, source: SessionTurnUsageSource
+) -> dict:
+    return {
+        "input_tokens": usage.input_tokens,
+        "output_tokens": usage.output_tokens,
+        "total_tokens": usage.total_tokens,
+        "cost": usage.cost,
+        "usage_source": source.value,
+    }
 
 
 def map_turn_attribution_dbe_to_dto(*, turn_dbe: SessionTurnDBE) -> dict:

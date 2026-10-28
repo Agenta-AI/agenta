@@ -2752,17 +2752,18 @@ class SessionTurnsRouter:
                 request, session_id=body.session_id, turn_id=None
             ):
                 raise SessionTurnNotFound(body.session_id, body.turn_index)
+            # Runtime handles and usage are kept only from the runner.
+            runner_verified = has_valid_runner_token(request)
             turn = await self.turns_service.complete_turn(
                 project_id=project_id,
                 turn=SessionTurnComplete(
                     session_id=body.session_id,
                     turn_index=body.turn_index,
                     agent_session_id=(
-                        body.agent_session_id
-                        if has_valid_runner_token(request)
-                        else None
+                        body.agent_session_id if runner_verified else None
                     ),
                     end_time=body.end_time,
+                    usage=body.usage if runner_verified else None,
                     envelope=request_run_envelope(request),
                 ),
             )

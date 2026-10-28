@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, TIMESTAMP, UUID
+from sqlalchemy import BigInteger, Column, Integer, Numeric, String, TIMESTAMP, UUID
 from sqlalchemy.dialects.postgresql import JSONB
 
 from oss.src.dbs.postgres.shared.dbas import (
@@ -53,3 +53,11 @@ class SessionTurnDBA(
     origin_id = Column(String, nullable=True)
     parent_run_id = Column(String, nullable=True)
     approved_by = Column(JSONB(none_as_null=True), nullable=True)
+
+    # Usage of the turn. Null means unknown. `usage_source` names the writer: `runner`
+    # (the runner's figure at completion) or `trace` (the priced trace root, which wins).
+    input_tokens = Column(BigInteger, nullable=True)
+    output_tokens = Column(BigInteger, nullable=True)
+    total_tokens = Column(BigInteger, nullable=True)
+    cost = Column(Numeric(18, 9), nullable=True)
+    usage_source = Column(String, nullable=True)

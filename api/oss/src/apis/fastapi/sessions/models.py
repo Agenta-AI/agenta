@@ -27,7 +27,12 @@ from oss.src.core.sessions.interactions.dtos import (
     SessionInteractionStatus,
 )
 from oss.src.core.sessions.mounts.dtos import SessionMount, SessionMountQuery
-from oss.src.core.sessions.turns.dtos import HarnessKind, SessionTurn, SessionTurnQuery
+from oss.src.core.sessions.turns.dtos import (
+    HarnessKind,
+    SessionTurn,
+    SessionTurnQuery,
+    SessionTurnUsage,
+)
 from oss.src.core.sessions.types import SessionReference
 from oss.src.core.sessions.inputs.dtos import PendingInputUpdate, PendingInput
 from oss.src.core.shared.dtos import OTelSpanId, Windowing
@@ -453,6 +458,8 @@ class SessionTurnCompleteRequest(BaseModel):
     turn_index: int
     agent_session_id: Optional[str] = None
     end_time: datetime
+    # The runner's usage of the turn; kept only from the runner.
+    usage: Optional[SessionTurnUsage] = None
 
 
 class SessionTurnQueryRequest(BaseModel):

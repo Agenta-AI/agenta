@@ -15,6 +15,7 @@ from oss.src.core.sessions.turns.dtos import (
     SessionTurnComplete,
     SessionTurnCreate,
     SessionTurnQuery,
+    SessionTurnUsage,
 )
 from oss.src.core.sessions.turns.interfaces import SessionTurnsDAOInterface
 from oss.src.core.sessions.turns.types import SessionTurnNotFound
@@ -92,6 +93,22 @@ class SessionTurnsService:
         except Exception:
             log.error("[SESSIONS] Failed to publish turn-ended", exc_info=True)
         return completed
+
+    async def record_trace_usage(
+        self,
+        *,
+        project_id: UUID,
+        trace_id: UUID,
+        usage: SessionTurnUsage,
+    ) -> int:
+        """Ingest's write-back: the priced usage of a session trace's root goes to its
+        turn, with source `trace`. It replaces a runner value; a runner value never
+        replaces it."""
+        return await self._dao.record_trace_usage(
+            project_id=project_id,
+            trace_id=trace_id,
+            usage=usage,
+        )
 
     async def query_turns(
         self,

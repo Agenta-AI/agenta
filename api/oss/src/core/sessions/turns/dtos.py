@@ -1,4 +1,5 @@
 from datetime import datetime
+from enum import Enum
 from typing import List, Optional
 from uuid import UUID
 
@@ -15,6 +16,24 @@ from oss.src.core.access.dtos import (
 )
 from oss.src.core.sessions.types import SessionReference
 from oss.src.core.shared.dtos import Identifier, Lifecycle, OTelSpanId
+
+
+class SessionTurnUsageSource(str, Enum):
+    RUNNER = "runner"
+    TRACE = "trace"
+
+
+class SessionTurnUsage(BaseModel):
+    """Usage of one turn. A null field is unknown, never zero."""
+
+    input_tokens: Optional[int] = None
+    output_tokens: Optional[int] = None
+    total_tokens: Optional[int] = None
+    cost: Optional[float] = None
+
+
+class SessionTurnStoredUsage(SessionTurnUsage):
+    source: SessionTurnUsageSource
 
 
 class SessionTurn(Identifier, Lifecycle):
@@ -36,6 +55,8 @@ class SessionTurn(Identifier, Lifecycle):
     sender: Optional[RunSender] = None
     context: Optional[RunContext] = None
     approved_by: Optional[RunApproval] = None
+    # Null when no writer has reported usage yet.
+    usage: Optional[SessionTurnStoredUsage] = None
 
 
 class SessionTurnCreate(BaseModel):
@@ -60,6 +81,8 @@ class SessionTurnComplete(BaseModel):
     turn_index: int
     agent_session_id: Optional[str] = None
     end_time: datetime
+    # The runner's usage of the turn; stored only when the turn has no usage yet.
+    usage: Optional[SessionTurnUsage] = None
     # Server-set. Fills the attribution only on a row that has none.
     envelope: Optional[RunEnvelope] = None
 

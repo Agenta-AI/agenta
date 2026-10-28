@@ -9,6 +9,7 @@ from oss.src.core.sessions.turns.dtos import (
     SessionTurnComplete,
     SessionTurnCreate,
     SessionTurnQuery,
+    SessionTurnUsage,
 )
 
 
@@ -31,6 +32,18 @@ class SessionTurnsDAOInterface(ABC):
         #
         turn: SessionTurnComplete,
     ) -> Optional[SessionTurn]: ...
+
+    @abstractmethod
+    async def record_trace_usage(
+        self,
+        *,
+        project_id: UUID,
+        trace_id: UUID,
+        usage: SessionTurnUsage,
+    ) -> int:
+        """Write a trace's priced usage to the turns with that trace id, over any
+        runner value. Returns the number of turns written."""
+        ...
 
     @abstractmethod
     async def fetch_turn(
