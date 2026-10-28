@@ -73,50 +73,52 @@ export const OnboardingTemplateDetail = ({
     ]
 
     return (
-        <section aria-label={template.name} className="bg-muted flex min-w-0 flex-col rounded-xl">
-            <div className="flex items-start gap-3 p-3">
-                <OnboardingTemplateTile template={template} size="panel" />
-                <div className="flex min-w-0 flex-1 flex-col gap-1">
-                    <h2 className="m-0 flex items-center gap-2 text-base font-semibold leading-6 tracking-[-0.01em]">
-                        {template.name}
-                        <span className="bg-background text-muted-foreground ring-border rounded-[5px] px-1.5 py-px text-[11px] font-medium leading-4 tracking-normal ring-1">
-                            {copy.template}
-                        </span>
-                    </h2>
-                    <p className="text-muted-foreground m-0 text-sm leading-5 text-pretty">
-                        {template.description}
-                    </p>
+        <section
+            aria-label={template.name}
+            className="bg-muted flex min-w-0 flex-col overflow-hidden rounded-xl md:h-full"
+        >
+            <div className="flex min-h-0 flex-col md:flex-1 md:overflow-y-auto">
+                <div className="flex items-start gap-3 p-3">
+                    <OnboardingTemplateTile template={template} size="panel" />
+                    <div className="flex min-w-0 flex-1 flex-col gap-1">
+                        <h2 className="m-0 flex items-center gap-2 text-base font-semibold leading-6 tracking-[-0.01em]">
+                            {template.name}
+                            <span className="bg-background text-muted-foreground ring-border rounded-[5px] px-1.5 py-px text-[11px] font-medium leading-4 tracking-normal ring-1">
+                                {copy.template}
+                            </span>
+                        </h2>
+                        <p className="text-muted-foreground m-0 text-sm leading-5 text-pretty">
+                            {template.description}
+                        </p>
+                    </div>
+                </div>
+                <div className="flex flex-col gap-4 px-3 pb-3 pt-1">
+                    <OnboardingTemplateApps template={template} />
+                    <div className="flex flex-col gap-2">
+                        <span className={ONBOARDING_COPY.kickerClass}>{copy.howItWorks}</span>
+                        <ol className="m-0 flex list-none flex-col p-0">
+                            {nodes.map((node, index) => (
+                                <li key={node.key} className="flex gap-3">
+                                    <div className="flex w-7 shrink-0 flex-col items-center">
+                                        <NodeTile>{node.tile}</NodeTile>
+                                        {index < nodes.length - 1 ? (
+                                            <span className="border-border min-h-2 w-0 flex-1 border-0 border-l border-dashed" />
+                                        ) : null}
+                                    </div>
+                                    <div className="flex flex-col gap-0.5 pb-3">
+                                        <span className={ONBOARDING_COPY.kickerClass}>
+                                            {node.label}
+                                        </span>
+                                        <span className="text-sm leading-5">{node.text}</span>
+                                    </div>
+                                </li>
+                            ))}
+                        </ol>
+                    </div>
                 </div>
             </div>
-            <div className="flex flex-col gap-4 px-3 pb-3 pt-1">
-                <OnboardingTemplateApps template={template} />
-                <div className="flex flex-col gap-2">
-                    <span className={ONBOARDING_COPY.kickerClass}>{copy.howItWorks}</span>
-                    <ol className="m-0 flex list-none flex-col p-0">
-                        {nodes.map((node, index) => (
-                            <li key={node.key} className="flex gap-3">
-                                <div className="flex w-7 shrink-0 flex-col items-center">
-                                    <NodeTile>{node.tile}</NodeTile>
-                                    {index < nodes.length - 1 ? (
-                                        <span className="border-border min-h-2 w-0 flex-1 border-0 border-l border-dashed" />
-                                    ) : null}
-                                </div>
-                                <div className="flex flex-col gap-0.5 pb-3">
-                                    <span className={ONBOARDING_COPY.kickerClass}>
-                                        {node.label}
-                                    </span>
-                                    <span className="text-sm leading-5">{node.text}</span>
-                                </div>
-                            </li>
-                        ))}
-                    </ol>
-                </div>
-            </div>
-            <div className="flex flex-col gap-2 px-3 pb-3 pt-1">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
-                    <span className="text-muted-foreground text-xs leading-[18px]">
-                        {copy.useHint}
-                    </span>
+            <div className="border-border flex shrink-0 flex-col gap-2 border-0 border-t border-solid px-3 py-3">
+                <div className="flex sm:justify-end">
                     <LoadingButton
                         size="sm"
                         className="max-sm:h-10 max-sm:w-full"
