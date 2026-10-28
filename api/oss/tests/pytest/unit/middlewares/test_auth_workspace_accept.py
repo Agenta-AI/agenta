@@ -417,7 +417,8 @@ async def test_bearer_without_parameters_refuses_a_workspace_row_without_members
     with pytest.raises(HTTPException) as error:
         await _bearer(world)
     assert error.value.status_code == 401
-    assert world.dao.reads == ["fetch_membership_row"]
+    # Refused on the default project, then no other project to open.
+    assert world.dao.reads == ["fetch_membership_row", "list_membership_rows"]
     assert not _denied(world)
 
 
@@ -488,7 +489,8 @@ async def test_bearer_without_parameters_refuses_a_changed_default_for_a_non_mem
         await _bearer(world)
     assert error.value.status_code == 401
     assert world.reads == ["get_default_workspace_id", "fetch_default_project"]
-    assert world.dao.reads == ["fetch_membership_row"]
+    # Refused on the default project, then no other project to open.
+    assert world.dao.reads == ["fetch_membership_row", "list_membership_rows"]
     assert not _denied(world)
 
 
@@ -545,7 +547,8 @@ async def test_bearer_without_parameters_refuses_the_fallback_for_a_non_member(w
     with pytest.raises(HTTPException) as error:
         await _bearer(world)
     assert error.value.status_code == 401
-    assert world.dao.reads == ["fetch_membership_row"]
+    # Refused on the default project, then no other project to open.
+    assert world.dao.reads == ["fetch_membership_row", "list_membership_rows"]
     assert not _denied(world)
 
 
@@ -558,3 +561,60 @@ async def test_bearer_without_parameters_on_the_invite_accept_route_checks_membe
     state = await _bearer(world, path=path)
     assert state.project_id == str(world.project.project_id)
     assert world.dao.reads == ["fetch_membership_row"]
+
+
+# --- a project the user may open, when the organization default is not one -------- #
+
+
+def _ee_member_of_the_secondary_project_only(world, monkeypatch):
+    """EE policy; the user has a project row on the second project of the organization,
+    not on its default project (after the 053 consolidation)."""
+
+    monkeypatch.setattr(world.service, "_policy", MembershipPolicy.PROJECT_ROWS)
+    world.member()
+    world.dao.add_project_member(
+        project_id=world.no_workspace.project_id, user_id=world.user, role="editor"
+    )
+    picked = []
+
+    async def _pick_fallback_project(*, project_ids, ref_workspace_id):
+        picked.append((list(project_ids), ref_workspace_id))
+        return project_ids[0] if project_ids else None
+
+    monkeypatch.setattr(
+        auth.db_manager, "pick_fallback_project", _pick_fallback_project
+    )
+    return picked
+
+
+async def test_bearer_without_parameters_lands_on_a_project_the_member_may_open(
+    world, monkeypatch
+):
+    picked = _ee_member_of_the_secondary_project_only(world, monkeypatch)
+    state = await _bearer(world)
+    assert state.project_id == str(world.no_workspace.project_id)
+    assert state.organization_id == str(world.organization_id)
+    assert picked == [([world.no_workspace.project_id], world.workspace_a)]
+
+
+async def test_bearer_workspace_only_lands_on_a_project_the_member_may_open(
+    world, monkeypatch
+):
+    picked = _ee_member_of_the_secondary_project_only(world, monkeypatch)
+    state = await _bearer(world, workspace_id=world.organization_id)
+    assert state.project_id == str(world.no_workspace.project_id)
+    assert picked == [([world.no_workspace.project_id], None)]
+
+
+async def test_bearer_without_parameters_reads_nothing_more_for_a_default_member(
+    world, monkeypatch
+):
+    # The usual path: the user may open the default project; no fallback read.
+    picked = _ee_member_of_the_secondary_project_only(world, monkeypatch)
+    world.dao.add_project_member(
+        project_id=world.project.project_id, user_id=world.user, role="editor"
+    )
+    state = await _bearer(world)
+    assert state.project_id == str(world.project.project_id)
+    assert world.dao.reads == ["fetch_membership_row"]
+    assert picked == []

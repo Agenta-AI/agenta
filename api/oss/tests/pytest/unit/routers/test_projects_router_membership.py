@@ -219,6 +219,30 @@ async def test_editor_cannot_rename_a_project(routes):
     state.rename.assert_not_awaited()
 
 
+async def test_make_default_needs_the_permission_on_the_current_default(
+    routes, monkeypatch
+):
+    # A key or member allowed on the project only must not move the organization
+    # default to it: the default project carries organization writes.
+    state = routes(listing=_listing("owner"))
+    project_id = uuid4()
+    state.access.side_effect = lambda **kwargs: kwargs["project_id"] == str(project_id)
+    set_default = AsyncMock()
+    monkeypatch.setattr(projects_router.db_manager, "set_default_project", set_default)
+
+    with pytest.raises(HTTPException) as error:
+        await projects_router.update_project(
+            project_id=project_id,
+            payload=projects_router.UpdateProjectRequest(make_default=True),
+            request=_request(),
+        )
+
+    assert (error.value.status_code, error.value.detail) == (403, DENIED)
+    checked = [call.kwargs["project_id"] for call in state.access.await_args_list]
+    assert checked == [str(project_id), str(state.default_project)]
+    set_default.assert_not_awaited()
+
+
 async def test_non_member_gets_404_on_update_and_delete(routes):
     organization_id = uuid4()
     state = routes(

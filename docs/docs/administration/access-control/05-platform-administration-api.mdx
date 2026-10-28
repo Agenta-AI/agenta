@@ -36,7 +36,7 @@ This is separate from regular user authentication and API keys. Only requests wi
 
 ### Create a user account
 
-The simplest way to provision a user is the **simple account** endpoint. It creates a user along with a default organization, workspace, and project in one call.
+The simplest way to provision a user is the **simple account** endpoint. It creates a user along with a default organization and project in one call.
 
 ```bash
 curl -X POST https://your-agenta-instance/api/admin/simple/accounts/ \
@@ -63,7 +63,7 @@ curl -X POST https://your-agenta-instance/api/admin/simple/accounts/ \
   }'
 ```
 
-The response includes IDs for all created entities:
+The response includes IDs for all created entities. Workspaces were removed: the `workspaces` entry carries the organization id.
 
 ```json
 {
@@ -71,7 +71,7 @@ The response includes IDs for all created entities:
     "alice": {
       "user": { "id": "<user-id>", "email": "alice@example.com" },
       "organizations": { "org": { "id": "<org-id>" } },
-      "workspaces": { "wrk": { "id": "<workspace-id>" } },
+      "workspaces": { "wrk": { "id": "<org-id>" } },
       "projects": { "prj": { "id": "<project-id>" } },
       "api_keys": { "key": "<api-key>" }
     }
@@ -207,6 +207,8 @@ You can also create entities independently using the precision endpoints:
 | Add project membership | POST | `/admin/simple/accounts/projects/memberships/` |
 
 Each entity also has a corresponding `DELETE` endpoint for removal.
+
+Workspaces were removed, and these endpoints keep their workspace shape for older callers. Creating a workspace writes no workspace and answers the organization. A workspace membership answers the user's membership of the organization, so add the organization membership first.
 
 ## Advanced: full account graph
 

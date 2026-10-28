@@ -520,6 +520,35 @@ async def test_member_routes_and_bearer_pick_the_same_project():
         await delete_seeded_organization(seeded)
 
 
+async def test_fallback_project_prefers_the_referenced_workspace():
+    # After 053 the organization has one default (project 1). A user who may open only
+    # projects 0 and 2 lands on the project of the referenced workspace, else on the
+    # first by the organization order (the oldest workspace, project 0).
+    seeded = await _consolidated(await _multi_default_organization())
+    try:
+        candidates = [seeded.project_ids[2], seeded.project_ids[0]]
+        for workspace_index, expected in ((2, 2), (0, 0)):
+            picked = await db_manager.pick_fallback_project(
+                project_ids=candidates,
+                ref_workspace_id=seeded.workspace_ids[workspace_index],
+            )
+            assert picked == seeded.project_ids[expected]
+        assert (
+            await db_manager.pick_fallback_project(
+                project_ids=candidates, ref_workspace_id=None
+            )
+            == seeded.project_ids[0]
+        )
+        assert (
+            await db_manager.pick_fallback_project(
+                project_ids=[], ref_workspace_id=None
+            )
+            is None
+        )
+    finally:
+        await delete_seeded_organization(seeded)
+
+
 async def test_readers_pick_the_d11_default_when_two_remain():
     seeded = await _consolidated(await _multi_default_organization())
     try:
@@ -1474,6 +1503,34 @@ async def test_org_details_answer_the_organization():
             assert details["workspaces"] == [str(empty.organization_id)]
         finally:
             await delete_seeded_organization(empty)
+    finally:
+        await delete_seeded_organization(seeded)
+
+
+async def test_org_details_list_an_invitation_of_another_project():
+    # The organization's default moved to a new project without a workspace; an
+    # invitation stored there is listed although the details list workspace 0's members.
+    seeded = await seed_organization(members={"m": "editor"}, workspaces=2)
+    try:
+        moved = await _add_project(
+            organization_id=seeded.organization_id, workspace_id=None, is_default=False
+        )
+        email = f"pending-{uuid4().hex[:10]}@test.agenta.ai"
+        for project_id, used in ((moved, False), (seeded.project_ids[1], True)):
+            await execute(
+                "INSERT INTO project_invitations (id, token, email, used, role, "
+                "project_id, expiration_date, created_at) VALUES (gen_random_uuid(), "
+                ":t, :e, :u, 'viewer', :p, now() + interval '1 day', now())",
+                {"t": uuid4().hex, "e": email, "u": used, "p": project_id},
+            )
+        organization = await db_manager.get_organization(str(seeded.organization_id))
+        details = await db_manager.get_org_details(organization)
+        pending = [
+            m["user"]
+            for m in details["default_workspace"]["members"]
+            if m["user"]["email"] == email
+        ]
+        assert [user["status"] for user in pending] == ["pending"]
     finally:
         await delete_seeded_organization(seeded)
 

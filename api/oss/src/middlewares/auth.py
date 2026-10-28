@@ -794,6 +794,27 @@ async def is_interactive_session(request: Request) -> bool:
     return session is not None and not credentials.startswith(_APIKEY_TOKEN_PREFIX)
 
 
+async def _member_fallback_project(*, user_id, default) -> Optional[UUID]:
+    """A project of the default project's organization that the user may open.
+
+    After workspace removal step 2 an organization has one default project. A user who is
+    not a member of it (EE: no project row on it) lands on a project they may open, chosen
+    as `db_manager.pick_fallback_project` orders them. Runs only after the default project
+    was refused, so the usual path reads nothing more.
+    """
+
+    listings = await get_memberships_service().list_for_user(user_id=UUID(str(user_id)))
+    project_ids = [
+        listing.summary.project_id
+        for listing in listings
+        if str(listing.summary.organization_id) == str(default.project_organization_id)
+    ]
+    return await db_manager.pick_fallback_project(
+        project_ids=project_ids,
+        ref_workspace_id=default.ref_workspace_id,
+    )
+
+
 async def verify_bearer_token(
     request: Request,
     bearer_token: str,  # pylint: disable=unused-argument / NOT IMPLEMENTED YET
@@ -1114,7 +1135,9 @@ async def verify_bearer_token(
             organization_id = default.project_organization_id
 
             # The resolver decides, as `?project_id=` would: a workspace row alone does
-            # not make a member (CONTRACT section 2). Not cached on a denial.
+            # not make a member (CONTRACT section 2). A user who may not open the
+            # organization's default project lands on a project they may open. Not
+            # cached on a denial.
             if (
                 await get_memberships_service().read_membership(
                     user_id=UUID(str(user_id)),
@@ -1122,8 +1145,12 @@ async def verify_bearer_token(
                 )
                 is None
             ):
-                _deny("membership", "default_project_member")
-                raise HTTPException(status_code=401, detail="Unauthorized")
+                project_id = await _member_fallback_project(
+                    user_id=user_id, default=default
+                )
+                if project_id is None:
+                    _deny("membership", "default_project_member")
+                    raise HTTPException(status_code=401, detail="Unauthorized")
 
         project_id = str(project_id)
         organization_id = str(organization_id)
@@ -1166,6 +1193,15 @@ async def verify_bearer_token(
                     )
                     is not None
                 )
+                if not is_member:
+                    # Not a member of the organization's default project: a project
+                    # of that organization the user may open, as without parameters.
+                    fallback = await _member_fallback_project(
+                        user_id=user_id, default=default
+                    )
+                    if fallback is not None:
+                        project_id = str(fallback)
+                        is_member = True
 
             if not is_member:
                 _deny(

@@ -203,6 +203,45 @@ async def fetch_default_project(
     )
 
 
+# Among projects the caller may open, the one a request without `project_id` lands on when
+# the organization's default project is not one of them: the project of the referenced
+# workspace first (the step 1 answer), then the default, then the organization order.
+_MEMBER_FALLBACK_PROJECT_SQL = f"""
+SELECT p.id FROM projects p
+{_PROJECT_WORKSPACE_JOIN}
+WHERE p.id = ANY(CAST(:project_ids AS uuid[]))
+ORDER BY (p.workspace_id = CAST(:ref_workspace_id AS uuid)) DESC NULLS LAST,
+         (p.is_default IS TRUE) DESC,
+         {_ORGANIZATION_DEFAULT_ORDER}
+LIMIT 1
+"""
+
+
+async def pick_fallback_project(
+    *,
+    project_ids: List[uuid.UUID],
+    ref_workspace_id: Optional[uuid.UUID],
+) -> Optional[uuid.UUID]:
+    """The project of `project_ids` a request without `project_id` lands on."""
+
+    if not project_ids:
+        return None
+    engine = get_transactions_engine()
+    async with engine.session() as session:
+        row = (
+            await session.execute(
+                text(_MEMBER_FALLBACK_PROJECT_SQL),
+                {
+                    "project_ids": [str(project_id) for project_id in project_ids],
+                    "ref_workspace_id": (
+                        str(ref_workspace_id) if ref_workspace_id else None
+                    ),
+                },
+            )
+        ).first()
+    return row.id if row else None
+
+
 async def get_project_by_workspace(
     workspace_id: str,
     *,
@@ -1929,12 +1968,11 @@ async def get_org_details(organization) -> dict:
 async def _org_details_members(organization, project) -> List[dict]:
     members = []
 
-    invitations = await get_project_invitations_filtered(
-        project_id=str(project.id), invitation_used=False
-    )
+    # Pending invitations of every project of the organization: invitations go to the
+    # organization's default project, which may not be the project listed here (one per
+    # email, the newest).
+    invitations = await fetch_pending_organization_invitations(organization.id)
     for invitation in invitations:
-        if invitation.used or str(invitation.project_id) != str(project.id):
-            continue
         user = await get_user_with_email(invitation.email)
         members.append(
             {
@@ -2010,20 +2048,26 @@ async def _org_details_members(organization, project) -> List[dict]:
     return members
 
 
-async def get_project_invitations_filtered(project_id: str, **kwargs):
-    """Get project invitations, optionally filtered to pending ones."""
+async def fetch_pending_organization_invitations(organization_id) -> List[InvitationDB]:
+    """The unused invitations of the organization's projects, the newest per email."""
 
     engine = get_transactions_engine()
-
     async with engine.session() as session:
-        stmt = select(InvitationDB).filter(
-            InvitationDB.project_id == uuid.UUID(project_id)
+        result = await session.execute(
+            select(InvitationDB)
+            .join(ProjectDB, ProjectDB.id == InvitationDB.project_id)
+            .filter(
+                ProjectDB.organization_id == uuid.UUID(str(organization_id)),
+                InvitationDB.used.is_not(True),
+            )
+            .order_by(InvitationDB.created_at.desc(), InvitationDB.id.desc())
         )
-        if kwargs.get("has_pending", False):
-            stmt = stmt.filter(InvitationDB.used == kwargs["invitation_used"])
-
-        result = await session.execute(stmt)
-        invitations = result.scalars().all()
+        invitations, emails = [], set()
+        for invitation in result.scalars().all():
+            if invitation.email in emails:
+                continue
+            emails.add(invitation.email)
+            invitations.append(invitation)
         return invitations
 
 
