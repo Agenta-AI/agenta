@@ -14,6 +14,7 @@ from oss.tests.pytest.acceptance.organization_secrets.conftest import (
     MOCK_LLM_URL,
     MOCK_UPSTREAM_TOKEN,
     custom_provider,
+    llm_gateway_disabled,
     organization_scope,
     provider_key,
     unique,
@@ -32,6 +33,32 @@ def company(org):
         "POST",
         "/secrets/",
         json=organization_scope(provider_key(slug=unique("openai-company"), key=KEY)),
+    )
+    assert created.status_code == 200, created.text
+    return created.json()
+
+
+@pytest.fixture(scope="module")
+def gateway_off(org) -> bool:
+    return llm_gateway_disabled(org)
+
+
+@pytest.fixture(scope="module")
+def company_login(org):
+    """An organization ChatGPT login (never signed in). Listed with the gateway on or off:
+    a login runs without the gateway, an organization key does not."""
+    created = org.call(
+        "POST",
+        "/secrets/",
+        json=organization_scope(
+            {
+                "header": {},
+                "secret": {
+                    "kind": "subscription_provider",
+                    "data": {"provider": "chatgpt"},
+                },
+            }
+        ),
     )
     assert created.status_code == 200, created.text
     return created.json()
@@ -73,7 +100,9 @@ def _resolve(org, *, slug, project=None, scope="organization"):
 
 
 @pytest.mark.parametrize("who", ROLES)
-def test_organization_list_carries_names_and_status_never_the_value(org, company, who):
+def test_organization_list_carries_names_and_status_never_the_value(
+    org, company, company_login, gateway_off, who
+):
     response = org.call(
         "GET",
         "/secrets/",
@@ -83,17 +112,24 @@ def test_organization_list_carries_names_and_status_never_the_value(org, company
     )
     assert response.status_code == 200, response.text
     rows = {row["id"]: row for row in response.json()}
-    row = rows[company["id"]]
-    assert row["owner"]["kind"] == "organization"
-    assert row["slug"] == company["slug"]
-    assert row["header"]["name"] == company["header"]["name"]
-    assert row["data"]["kind"] == "openai"
-    assert row["value_status"] == {"configured": True}
-    assert "availability" not in row and "selected_project_ids" not in row
     assert KEY not in response.text
+    # With the gateway off, an organization key is not offered (it could not run); the
+    # login is, and carries the same listing shape.
+    shown = company_login if gateway_off else company
+    if gateway_off:
+        assert company["id"] not in rows
+    row = rows[shown["id"]]
+    assert row["owner"]["kind"] == "organization"
+    assert row["slug"] == shown["slug"]
+    assert row["header"]["name"] == shown["header"]["name"]
+    assert "availability" not in row and "selected_project_ids" not in row
+    if not gateway_off:
+        assert row["data"]["kind"] == "openai"
+        assert row["value_status"] == {"configured": True}
 
     plain = org.call("GET", "/secrets/", as_=who, project=org.marketing)
-    assert company["id"] not in {row["id"] for row in plain.json()}
+    plain_ids = {row["id"] for row in plain.json()}
+    assert company["id"] not in plain_ids and company_login["id"] not in plain_ids
 
 
 def test_no_route_returns_an_organization_value(org, company):
@@ -413,7 +449,9 @@ def test_deleting_the_only_selected_project_leaves_the_row_with_no_project(
         assert created["id"] not in {row["id"] for row in listed.json()}
 
 
-def test_a_new_project_lists_an_all_projects_connection(org):
+def test_a_new_project_lists_an_all_projects_connection(
+    org, company_login, gateway_off
+):
     project = org._project("New")
     try:
         created = org.call(
@@ -429,7 +467,10 @@ def test_a_new_project_lists_an_all_projects_connection(org):
             params={"include_organization": "true"},
         )
         assert listed.status_code == 200, listed.text
-        assert created["id"] in {row["id"] for row in listed.json()}
+        listed_ids = {row["id"] for row in listed.json()}
+        # The login is offered with the gateway on or off; the key only with it on.
+        assert company_login["id"] in listed_ids
+        assert (created["id"] in listed_ids) is not gateway_off
     finally:
         org.admin_api("DELETE", f"/admin/simple/accounts/projects/{project}")
 
