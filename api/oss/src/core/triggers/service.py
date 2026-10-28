@@ -2047,6 +2047,7 @@ class TriggersService:
     async def ensure_webhook_registered(self) -> None:
         """Ensure Composio's delivery webhook exists (startup, herd-safe)."""
         await self.webhook_secret_resolver.resolve()
+        await self.webhook_secret_resolver.report_webhook_url()
 
     @staticmethod
     def _is_fresh(timestamp: str) -> bool:
