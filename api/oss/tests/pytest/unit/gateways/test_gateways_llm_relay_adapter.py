@@ -8,6 +8,8 @@ an IP address. The routing tests below therefore assert on :func:`_routed_url`, 
 the authority back; the pin itself is asserted in `test_gateways_egress.py`.
 """
 
+from uuid import uuid4
+
 import json
 import re
 from typing import Optional
@@ -93,7 +95,7 @@ def _standard_secret(key: str = "sk-standard") -> ResolvedSecret:
             ),
             header=Header(name="openai"),
         ),
-        owner=SecretOwner(kind=SecretOwnerKind.PROJECT),
+        owner=SecretOwner(kind=SecretOwnerKind.PROJECT, id=uuid4()),
         origin=SecretOrigin.VAULT,
     )
 
@@ -115,7 +117,7 @@ def _custom_secret(
             data=data,
             header=Header(name="my-custom"),
         ),
-        owner=SecretOwner(kind=SecretOwnerKind.PROJECT),
+        owner=SecretOwner(kind=SecretOwnerKind.PROJECT, id=uuid4()),
         origin=SecretOrigin.VAULT,
     )
 

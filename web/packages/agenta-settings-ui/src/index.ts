@@ -22,6 +22,7 @@ export {NamedSecretTable, type NamedSecretTableProps} from "./secrets/NamedSecre
 export {
     AIProvidersPage,
     SUBSCRIPTION_DOCS_URL,
+    type AIProvidersOrganization,
     type AIProvidersPageProps,
     type ProviderRemovalState,
 } from "./providers/AIProvidersPage"

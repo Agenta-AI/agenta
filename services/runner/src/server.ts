@@ -1430,7 +1430,7 @@ function readBodyCapped(
 /** The route prefix every subscription-login request shares. */
 const SUBSCRIPTION_LOGIN_ROUTE = "/subscription-login/attempts";
 
-/** The start body is `{ provider, projectId, secretId }`. */
+/** The start body is `{ provider, projectId | organizationId, secretId }`. */
 const SUBSCRIPTION_LOGIN_BODY_MAX_BYTES = 4 * 1024;
 
 /**
@@ -1473,7 +1473,12 @@ async function handleSubscriptionLoginRoute(
   res.setHeader("cache-control", "no-store");
 
   if (req.method === "POST" && path === SUBSCRIPTION_LOGIN_ROUTE) {
-    let body: { provider?: unknown; projectId?: unknown; secretId?: unknown };
+    let body: {
+      provider?: unknown;
+      projectId?: unknown;
+      organizationId?: unknown;
+      secretId?: unknown;
+    };
     try {
       const raw = await readBodyCapped(req, SUBSCRIPTION_LOGIN_BODY_MAX_BYTES);
       body = raw.trim() ? JSON.parse(raw) : {};
@@ -1493,16 +1498,24 @@ async function handleSubscriptionLoginRoute(
     }
     // Where the outcome goes. Without them the loop could not report, and the user's poll would
     // wait out the provider's whole window for nothing.
+    // A project's login names its project; an organization's login (M5) names its organization.
     const projectId = readRequiredId(body.projectId);
+    const organizationId = readRequiredId(body.organizationId);
     const secretId = readRequiredId(body.secretId);
-    if (!projectId || !secretId) {
+    if (!secretId || Boolean(projectId) === Boolean(organizationId)) {
       return send(res, 400, {
         ok: false,
-        error: "projectId and secretId are required",
+        error:
+          "secretId and exactly one of projectId and organizationId are required",
       });
     }
     try {
-      const view = await attempts.start(provider, { projectId, secretId });
+      const view = await attempts.start(
+        provider,
+        organizationId
+          ? { organizationId, secretId }
+          : { projectId: projectId as string, secretId },
+      );
       // The API keeps this pod's own address on the attempt, so a cancel reaches the pod that
       // runs the provider poll rather than whichever pod the Service URL picks. The id lets the
       // API check, before the cancel, that the address still belongs to this pod.

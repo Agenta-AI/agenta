@@ -30,3 +30,10 @@ class SecretsDBA(LifecycleDBA, HeaderDBA):
         UUID(as_uuid=True),
         nullable=True,
     )
+    # Read only for organization rows (M5): `all_projects` or `selected_projects`, the
+    # latter with the projects listed in `secret_projects`. Project rows keep the default.
+    availability = Column(
+        String,
+        nullable=False,
+        server_default="all_projects",
+    )

@@ -20,7 +20,11 @@ from typing import Any, Dict, Optional
 from ..capabilities import PROVIDER_ENV_VARS
 from ..model_catalog import model_input_modalities
 from .endpoints import build_resolved_connection
-from .errors import MissingCredentialError, UnsupportedProviderError
+from .errors import (
+    MissingCredentialError,
+    OrganizationConnectionUnavailableError,
+    UnsupportedProviderError,
+)
 from .models import (
     Endpoint,
     ModelRef,
@@ -63,6 +67,13 @@ class EnvConnectionResolver:
         model: ModelRef,
         context: RuntimeAuthContext,
     ) -> ResolvedConnection:
+        if model.connection.is_organization:
+            # An organization connection (key or subscription login) never resolves from
+            # this process, in any mode.
+            raise OrganizationConnectionUnavailableError(
+                slug=model.connection.slug or ""
+            )
+
         if model.connection.mode == "self_managed":
             provider = model.provider or ""
             return build_resolved_connection(
@@ -140,6 +151,11 @@ class StaticConnectionResolver:
         model: ModelRef,
         context: RuntimeAuthContext,
     ) -> ResolvedConnection:
+        if model.connection.is_organization:
+            # A supplied key never stands in for a named organization connection.
+            raise OrganizationConnectionUnavailableError(
+                slug=model.connection.slug or ""
+            )
         provider = self._provider or model.provider or ""
         if model.connection.mode == "self_managed":
             return build_resolved_connection(

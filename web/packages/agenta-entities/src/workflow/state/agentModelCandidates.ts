@@ -15,7 +15,7 @@ import {
     type BuiltinModelEndpoint,
     type ProviderConnection,
 } from "../../secret/core"
-import {subscriptionPairModelsAtom, vaultSecretsQueryAtom} from "../../secret/state"
+import {subscriptionPairModelsAtom, vaultSecretsWithOrganizationQueryAtom} from "../../secret/state"
 import {
     fetchBuiltinModelEndpoints,
     fetchHarnessCapabilities,
@@ -163,7 +163,8 @@ export const builtinModelEndpointsQueryAtom = atomWithQuery<BuiltinModelEndpoint
 
 export const agentModelCandidatesAtomFamily = atomFamily((showSubscriptions: boolean) =>
     atom<AgentModelCandidatesState>((get) => {
-        const vault = get(vaultSecretsQueryAtom)
+        // With the organization connections this project may use: an agent can name one.
+        const vault = get(vaultSecretsWithOrganizationQueryAtom)
         const harnessCatalog = get(harnessCatalogQueryAtom)
         const builtin = get(builtinModelEndpointsQueryAtom)
         const subscription = showSubscriptions

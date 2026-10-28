@@ -23,7 +23,10 @@
 import {
     bareModelId,
     connectionNamespaceFrom,
+    connectionScopeFrom,
+    explicitAgentConnection,
     type AgentConnectionNamespace,
+    type SecretOwnerScope,
 } from "@agenta/entities/secret"
 import type {
     HarnessCapabilities,
@@ -54,6 +57,8 @@ export interface ConnectionFields {
     slug: string | null
     /** The gateway namespace an `agenta` slug was picked from; null lets the gateway infer it. */
     namespace: AgentConnectionNamespace | null
+    /** Whose connection the slug names; null reads as the project's. */
+    scope: SecretOwnerScope | null
 }
 
 /** The structured `agent.llm` object shape (a subset; extra keys round-trip untouched). */
@@ -61,7 +66,12 @@ interface ModelRefObject {
     provider?: string | null
     model?: string | null
     extras?: Record<string, unknown>
-    connection?: {mode?: string | null; slug?: string | null; namespace?: string | null} | null
+    connection?: {
+        mode?: string | null
+        slug?: string | null
+        namespace?: string | null
+        scope?: string | null
+    } | null
     [key: string]: unknown
 }
 
@@ -99,9 +109,10 @@ export function connectionFromConfig(model: unknown): ConnectionFields {
             mode: coerceMode(connection.mode),
             slug: typeof connection.slug === "string" ? connection.slug : null,
             namespace: connectionNamespaceFrom(connection.namespace),
+            scope: connectionScopeFrom(connection.scope),
         }
     }
-    return {provider: null, mode: "agenta", slug: null, namespace: null}
+    return {provider: null, mode: "agenta", slug: null, namespace: null, scope: null}
 }
 
 export interface ComposeModelValueArgs {
@@ -111,6 +122,8 @@ export interface ComposeModelValueArgs {
     slug: string | null
     /** Written only beside an `agenta` slug; omitted, the gateway infers it from the slug. */
     namespace?: AgentConnectionNamespace | null
+    /** Whose connection the slug names; written only for an organization connection. */
+    scope?: SecretOwnerScope | null
     /**
      * The prior `agent.llm` value. When it is a structured object, its extra keys (notably
      * `extras`, set via the raw-JSON hatch) are carried through so a form edit never silently
@@ -136,6 +149,7 @@ export function composeModelValue({
     mode,
     slug,
     namespace,
+    scope,
     existing,
 }: ComposeModelValueArgs): Record<string, unknown> {
     const id = modelId ?? ""
@@ -154,10 +168,7 @@ export function composeModelValue({
 
     const isDefaultConnection = mode === "agenta" && !slug
     if (!isDefaultConnection) {
-        const connection: Record<string, unknown> = {mode}
-        if (slug) connection.slug = slug
-        if (slug && mode === "agenta" && namespace) connection.namespace = namespace
-        result.connection = connection
+        result.connection = explicitAgentConnection({mode, slug, namespace, scope})
     }
 
     return result

@@ -12,6 +12,8 @@ export const sharingCopy = {
         `You can view this chat, but you cannot send to it. Ask ${owner} for "Can send" access.`,
     composerPrivateAgent:
         "The agent of this chat is private. You can read the history, but you cannot send.",
+    // A channel chat the reader's project role cannot send to (the Share panel's sentence).
+    composerRoleViewOnly: sessionSharingCopy.panelYouViewOnly,
     composerNoOwner:
         "An API key or an automation started this chat. You can read it, but you cannot send to it here.",
     composerOwnerLeft: (owner: string) =>
@@ -55,7 +57,7 @@ export const sharingCopy = {
     ownerNone: "No owner",
     ownerFormer: "Former member",
     // The lock on the reader's own private agent (the privacy panel's line for a private agent).
-    agentPrivateMarker: "Only you can see and use it.",
+    agentPrivateMarker: "Only you can see and use it in Agenta.",
 } as const
 
 /** The display name of a channel platform, as the agent privacy dialog names it. */

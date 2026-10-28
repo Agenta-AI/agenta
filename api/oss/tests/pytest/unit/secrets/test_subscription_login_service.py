@@ -38,6 +38,10 @@ from oss.src.dbs.postgres.secrets.mappings import (
     map_secrets_dto_to_dbe,
     map_secrets_dto_to_dbe_update,
 )
+from oss.tests.pytest.utils.organization_secrets import (
+    load_effective_from_list,
+    owner_scope,
+)
 
 
 PROJECT_ID = uuid4()
@@ -84,6 +88,8 @@ def _later(minutes: int = 10) -> str:
 class _FakeSecretsDAO:
     """Stores rows the way the postgres DAO does: mapped, encrypted-shaped, JSON."""
 
+    load_effective = load_effective_from_list
+
     def __init__(self):
         self.rows: dict = {}
         # Counts the updates that actually reached the row, so a test can prove a poll
@@ -91,8 +97,14 @@ class _FakeSecretsDAO:
         self.writes = 0
 
     async def create(
-        self, project_id, organization_id, create_secret_dto, management=None
+        self,
+        *,
+        owner,
+        create_secret_dto,
+        management=None,
+        **_kwargs,
     ):
+        project_id, organization_id = owner_scope(owner)
         dbe = map_secrets_dto_to_dbe(
             project_id=project_id,
             organization_id=organization_id,
@@ -102,14 +114,34 @@ class _FakeSecretsDAO:
         self.rows[str(dbe.id)] = dbe
         return map_secrets_dbe_to_dto(secrets_dbe=dbe)
 
-    async def list(self, project_id, organization_id):
+    async def list(
+        self,
+        *,
+        owner,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         return [map_secrets_dbe_to_dto(secrets_dbe=dbe) for dbe in self.rows.values()]
 
-    async def get_by_id(self, secret_id, project_id, organization_id):
+    async def get_by_id(
+        self,
+        *,
+        owner,
+        secret_id,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         dbe = self.rows.get(str(secret_id))
         return map_secrets_dbe_to_dto(secrets_dbe=dbe) if dbe else None
 
-    async def get_by_slug(self, secret_slug, project_id, organization_id):
+    async def get_by_slug(
+        self,
+        *,
+        owner,
+        secret_slug,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         for dbe in self.rows.values():
             if dbe.slug == secret_slug:
                 return map_secrets_dbe_to_dto(secrets_dbe=dbe)
@@ -117,13 +149,15 @@ class _FakeSecretsDAO:
 
     async def update(
         self,
+        *,
+        owner,
         secret_id,
         update_secret_dto,
-        project_id,
-        organization_id,
         user_id=None,
         resolve_update=None,
+        **_kwargs,
     ):
+        project_id, organization_id = owner_scope(owner)
         dbe = self.rows.get(str(secret_id))
         if dbe is None:
             return None
@@ -148,8 +182,14 @@ class _FakeSecretsDAO:
         return map_secrets_dbe_to_dto(secrets_dbe=dbe)
 
     async def delete(
-        self, secret_id, project_id, organization_id, authorize_delete=None
+        self,
+        *,
+        owner,
+        secret_id,
+        authorize_delete=None,
+        **_kwargs,
     ):
+        project_id, organization_id = owner_scope(owner)
         self.rows.pop(str(secret_id), None)
 
 
@@ -177,11 +217,18 @@ class _FakeRunner:
     def calls(self) -> int:
         return self.started + len(self.deleted)
 
-    async def start_attempt(self, *, provider, project_id, secret_id):
+    async def start_attempt(
+        self, *, provider, project_id, secret_id, organization_id=None
+    ):
         self.started += 1
-        self.started_with.append(
-            {"provider": provider, "project_id": project_id, "secret_id": secret_id}
-        )
+        started = {
+            "provider": provider,
+            "project_id": project_id,
+            "secret_id": secret_id,
+        }
+        if organization_id is not None:
+            started["organization_id"] = organization_id
+        self.started_with.append(started)
         if self.raises is not None:
             raise self.raises
         answer = self.starts.pop(0) if self.starts else None

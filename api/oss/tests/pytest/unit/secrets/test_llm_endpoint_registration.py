@@ -23,6 +23,10 @@ from oss.src.core.secrets.managed import (
 )
 from oss.src.core.secrets.redaction import redact_secret_response
 from oss.src.core.secrets.services import VaultService
+from oss.tests.pytest.utils.organization_secrets import (
+    load_effective_from_list,
+    owner_scope,
+)
 
 
 PROJECT_ID = uuid4()
@@ -36,12 +40,20 @@ class _FakeSecretsDAO:
     """Enough of the postgres DAO to exercise create, update and delete, including the two
     callbacks the real DAO invokes under its write lock."""
 
+    load_effective = load_effective_from_list
+
     def __init__(self):
         self.records: list[SecretResponseDTO] = []
 
     async def create(
-        self, project_id, organization_id, create_secret_dto, management=None, **_
+        self,
+        *,
+        owner,
+        create_secret_dto,
+        management=None,
+        **_kwargs,
     ):
+        project_id, organization_id = owner_scope(owner)
         del project_id, organization_id
         record = SecretResponseDTO(
             id=uuid4(),
@@ -54,19 +66,27 @@ class _FakeSecretsDAO:
         self.records.append(record)
         return record
 
-    async def list(self, project_id, organization_id):
+    async def list(
+        self,
+        *,
+        owner,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         del project_id, organization_id
         return list(self.records)
 
     async def update(
         self,
+        *,
+        owner,
         secret_id,
         update_secret_dto,
-        project_id,
-        organization_id,
         user_id=None,
         resolve_update=None,
+        **_kwargs,
     ):
+        project_id, organization_id = owner_scope(owner)
         del project_id, organization_id, user_id
         stored = next((r for r in self.records if r.id == secret_id), None)
         if stored is None:
@@ -92,18 +112,21 @@ class _FakeSecretsDAO:
 
     async def delete(
         self,
+        *,
+        owner,
         secret_id,
-        project_id,
-        organization_id,
         authorize_delete=None,
+        **_kwargs,
     ):
+        project_id, organization_id = owner_scope(owner)
         del project_id, organization_id
         stored = next((r for r in self.records if r.id == secret_id), None)
         if stored is None:
-            return
+            return None
         if authorize_delete is not None:
             authorize_delete(stored)
         self.records.remove(stored)
+        return stored
 
 
 class _FakeRegistrar:
