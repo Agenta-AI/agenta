@@ -186,7 +186,7 @@ export type RelayExecutionAuthorizer = (
   req: ExecuteRelayRequest,
 ) => Promise<
   | { ok: true; args: unknown }
-  | { ok: false; reason: string; detail?: Record<string, unknown> }
+  | { ok: false; reason: string }
 >;
 
 function isRecord(value: unknown): value is Record<string, unknown> {

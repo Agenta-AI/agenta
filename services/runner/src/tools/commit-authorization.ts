@@ -364,7 +364,7 @@ export class CommitAuthorizer {
     args: unknown;
   }): Promise<
     | { ok: true; args: unknown }
-    | { ok: false; reason: string; detail?: Record<string, unknown> }
+    | { ok: false; reason: string }
   > {
     const required = this.markersIn(input.args);
     if (required.length === 0) return { ok: true, args: input.args };
@@ -436,7 +436,7 @@ export class CommitAuthorizer {
         this.options.log?.(
           `[commit-auth] refused tool=${input.toolName} call=${input.toolCallId} code=${error.envelope.code}`,
         );
-        return { ok: false, reason: error.message, detail: { ...error.envelope } };
+        return { ok: false, reason: error.message };
       }
       const failure = toCommitError(error);
       this.options.log?.(

@@ -189,7 +189,7 @@ describe("startToolCallbackRuntime", () => {
     release();
   });
 
-  it("says once that it cannot refresh a callback endpoint it cannot place, and keeps the credential", async () => {
+  it("says once per turn that it cannot refresh a callback endpoint it cannot place, and keeps the credential", async () => {
     vi.useFakeTimers();
     const logs: string[] = [];
     const { runtime, release } = startToolCallbackRuntime(

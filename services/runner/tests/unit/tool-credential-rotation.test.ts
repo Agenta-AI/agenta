@@ -297,7 +297,6 @@ describe("an approved-content read with an expired credential", () => {
       JSON.parse((relay as { reason: string }).reason),
       RUN_CREDENTIAL_EXPIRED_ERROR,
     );
-    assert.deepEqual((relay as { detail?: unknown }).detail, RUN_CREDENTIAL_EXPIRED_ERROR);
     assert.ok(
       logs.includes(
         "[commit-auth] refused tool=commit_revision call=call-relay code=run_credential_expired",
