@@ -14,6 +14,7 @@ import pytest
 from fastapi import FastAPI, HTTPException, Request
 
 from oss.src.apis.fastapi.channels.models import (
+    ChannelPeopleQueryRequest,
     ChannelAgentCreateRequest,
     ChannelAgentEditRequest,
     ChannelAgentQueryRequest,
@@ -262,7 +263,9 @@ def _grant(grant_id, agent_id, space_id) -> ChannelGrant:
             True,
         ),
         (
-            lambda r, req: r.query_channel_people(req, connection_id=uuid4()),
+            lambda r, req: r.query_channel_people(
+                req, connection_id=uuid4(), body=ChannelPeopleQueryRequest()
+            ),
             False,
         ),
         (

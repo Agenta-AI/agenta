@@ -1081,7 +1081,7 @@ class ChannelsRouter:
         request: Request,
         *,
         connection_id: UUID,
-        body: Optional[ChannelPeopleQueryRequest] = None,
+        body: ChannelPeopleQueryRequest,
     ) -> ChannelPeopleResponse:
         await self._check(request, Permission.EDIT_CHANNELS)
 
@@ -1089,8 +1089,8 @@ class ChannelsRouter:
             people, directory = await self.channels_service.query_people(
                 project_id=UUID(request.state.project_id),
                 connection_id=connection_id,
-                text=body.people.text if body and body.people else None,
-                ids=body.people.ids if body and body.people else None,
+                text=body.people.text if body.people else None,
+                ids=body.people.ids if body.people else None,
             )
         except ChannelConnectionNotFound as e:
             raise HTTPException(status_code=404, detail=e.message) from e
