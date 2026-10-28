@@ -113,8 +113,16 @@ class ProvidersRouter:
         kind: Optional[str],
         typed: ProviderCredentials,
         organization_id: Optional[UUID] = None,
+        organization_admin: bool = False,
     ) -> Tuple[str, ProviderCredentials]:
-        if organization_id is not None:
+        if organization_id is not None and organization_admin:
+            # An owner or admin manages every organization connection, so tests it from
+            # any project; never a project row.
+            secret = await self.vault_service.fetch_organization_secret(
+                organization_id=organization_id,
+                secret_id=secret_id,
+            )
+        elif organization_id is not None:
             # An organization connection available to this project; never a project row.
             secret = await self.vault_service.get_available_organization_secret_by_id(
                 organization_id=organization_id,
@@ -179,18 +187,21 @@ class ProvidersRouter:
             ),
         )
         organization_id = None
+        organization_admin = False
         if has_permission and organization_scope:
             raw = getattr(request.state, "organization_id", None)
             organization_id = UUID(str(raw)) if raw else None
             if organization_id is None or body.secret_id is None:
                 has_permission = False
-            elif _has_typed_fields(body.provider) or body.kind is not None:
+            else:
                 decision = await decide_organization(
                     access=get_request_access(),
                     organization_id=organization_id,
                     action=OrganizationAction.MANAGE_ORGANIZATION_SECRETS,
                 )
-                has_permission = decision.allowed
+                organization_admin = decision.allowed
+                if _has_typed_fields(body.provider) or body.kind is not None:
+                    has_permission = organization_admin
 
         if not has_permission:
             error_msg = "You do not have access to perform this action. Please contact your organization admin."
@@ -207,6 +218,7 @@ class ProvidersRouter:
                 kind=kind,
                 typed=credentials,
                 organization_id=organization_id,
+                organization_admin=organization_admin,
             )
 
         # An organization value never reaches a project member (M5): a provider that echoes
