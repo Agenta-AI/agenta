@@ -76,6 +76,21 @@ class LlmReference:
     def is_organization(self) -> bool:
         return self.scope == "organization"
 
+    @classmethod
+    def from_model_ref(
+        cls, model_ref: ModelRef, *, harness: Optional[str], prefix: str = "agent."
+    ) -> "LlmReference":
+        return cls(
+            model=model_ref.model,
+            provider=model_ref.provider,
+            mode=model_ref.connection.mode,
+            slug=_string(model_ref.connection.slug),
+            namespace=model_ref.connection.namespace,
+            scope=model_ref.connection.scope,
+            harness=harness,
+            prefix=prefix,
+        )
+
     def connection_item(self) -> Optional[ItemReference]:
         """The model key or the subscription login, or None for the operator's login."""
         path = f"{self.prefix}llm.connection"
@@ -357,3 +372,43 @@ class AgentNeedsSetupError(ErrorStatus, ValueError):
         )
         self.requirements = requirements
         self.failure_details = {"requirements": requirements}
+
+
+# The run's own failure codes, read from a model item's resolve failure.
+_CONNECTION_REASONS = {
+    "endpoint_not_found": REASON_NOT_FOUND,
+    "connection_not_found": REASON_NOT_FOUND,
+    "endpoint_inactive": REASON_TURNED_OFF,
+    "subscription_connection_missing": REASON_NOT_FOUND,
+    "subscription_login_required": REASON_NEEDS_SIGN_IN,
+}
+_CLASS_CODES = {
+    # The vault fallback path names no code; these are the class names logs already show.
+    "ConnectionNotFoundError": ("connection_not_found", REASON_NOT_FOUND),
+    "MissingProviderError": ("missing_provider", REASON_NOT_CHOSEN),
+    "MissingCredentialError": ("missing_credential", REASON_NOT_CHOSEN),
+}
+
+
+def model_requirement_from_error(
+    error: BaseException, llm: LlmReference
+) -> Optional[Dict[str, Any]]:
+    """The model-item requirement a run-start resolve failure means, or None when the
+    failure is not a missing item (an outage, a malformed configuration, a refusal)."""
+    code = getattr(error, "failure_code", None)
+    name = type(error).__name__
+    if code == "model_not_available" or name == "UnsupportedProviderError":
+        return requirement(
+            llm.model_item(),
+            reason=REASON_NOT_AVAILABLE,
+            code=code if code == "model_not_available" else "unsupported_provider",
+        )
+    item = llm.connection_item()
+    if item is None:
+        return None
+    if isinstance(code, str) and code in _CONNECTION_REASONS:
+        return requirement(item, reason=_CONNECTION_REASONS[code], code=code)
+    if name in _CLASS_CODES:
+        class_code, reason = _CLASS_CODES[name]
+        return requirement(item, reason=reason, code=class_code)
+    return None

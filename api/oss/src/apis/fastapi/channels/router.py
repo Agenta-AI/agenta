@@ -86,6 +86,7 @@ from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 from oss.src.apis.fastapi.sharing.utils import not_found_exception
 from oss.src.core.sharing.service import human_id
 from oss.src.core.sharing.types import SharedItemNotFound
+from oss.src.core.agent_requirements.guard import AgentNeedsSetupRefused
 
 if TYPE_CHECKING:
     from oss.src.core.channels.service import ChannelsService
@@ -562,6 +563,8 @@ class ChannelsRouter:
                 guard_user_id=_human_user_id(request),
                 references=body.references,
             )
+        except AgentNeedsSetupRefused as e:
+            raise HTTPException(status_code=422, detail=e.envelope()) from e
         except SharedItemNotFound as e:
             # An unknown or unresolvable agent, or a private agent of someone else, cannot
             # answer a channel.
@@ -1075,6 +1078,8 @@ class ChannelsRouter:
             )
         except ChannelConnectionNotFound as e:
             raise HTTPException(status_code=404, detail=e.message) from e
+        except AgentNeedsSetupRefused as e:
+            raise HTTPException(status_code=422, detail=e.envelope()) from e
         except SharedItemNotFound as e:
             # An unknown or unresolvable agent, or a private agent of someone else, cannot
             # answer a channel.
@@ -1155,6 +1160,8 @@ class ChannelsRouter:
                 #
                 agent=body.agent,
             )
+        except AgentNeedsSetupRefused as e:
+            raise HTTPException(status_code=422, detail=e.envelope()) from e
         except SharedItemNotFound as e:
             raise not_found_exception() from e
         if agent is None:
@@ -1204,6 +1211,8 @@ class ChannelsRouter:
             )
         except ChannelAgentNotFound as e:
             raise HTTPException(status_code=404, detail=e.message) from e
+        except AgentNeedsSetupRefused as e:
+            raise HTTPException(status_code=422, detail=e.envelope()) from e
         except SharedItemNotFound as e:
             raise not_found_exception() from e
 

@@ -266,6 +266,7 @@ from oss.src.dbs.postgres.sessions.inputs.dbes import SessionInputDBE  # noqa: F
 from oss.src.dbs.postgres.sessions.inputs.dao import SessionInputsDAO
 from oss.src.core.sessions.inputs.service import SessionInputsService
 from oss.src.core.sessions.starts.service import SessionStartsService
+from oss.src.core.agent_requirements.guard import ModelSetupGuard
 from oss.src.core.agent_requirements.service import AgentRequirementsService
 from oss.src.core.agent_templates.bindings import TemplateBindingResolver
 from oss.src.core.agent_templates.catalog import AgentTemplateCatalog
@@ -1549,6 +1550,12 @@ agent_requirements_service = AgentRequirementsService(
     connections_service=connections_service,
 )
 workflows.requirements_service = agent_requirements_service
+needs_setup_guard = ModelSetupGuard(
+    workflows_service=workflows_service,
+    requirements_service=agent_requirements_service,
+)
+triggers_service.needs_setup_guard = needs_setup_guard
+channels_service.needs_setup_guard = needs_setup_guard
 
 gateway_credentials_router = GatewayCredentialsRouter()
 llm_gateway_router = LLMGatewayRouter(llm_gateway_service=llm_gateway_service)

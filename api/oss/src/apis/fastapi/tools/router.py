@@ -1365,6 +1365,7 @@ class ToolsRouter:
             resolution = await self.tools_service.resolve_tools(
                 project_id=UUID(request.state.project_id),
                 tools=body.tools,
+                omit_unavailable=body.omit_unavailable,
             )
         except ConnectionNotFoundError as e:
             raise HTTPException(status_code=404, detail=e.message) from e
@@ -1382,6 +1383,7 @@ class ToolsRouter:
             builtins=resolution.builtins,
             custom=resolution.custom,
             gateway_connections=resolution.gateway_connections,
+            unavailable_connections=resolution.unavailable_connections,
         )
 
     @intercept_exceptions()

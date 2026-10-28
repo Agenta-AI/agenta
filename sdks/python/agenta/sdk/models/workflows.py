@@ -234,6 +234,9 @@ class WorkflowServiceStatus(Status):
     # temporary and the server can say how long. It also rides the response's `Retry-After`
     # header. Set only when the raised exception names one.
     retry_after: Optional[int] = None
+    # Structured facts about the failure that a client acts on, for a failure class that
+    # has them (``agent_needs_setup`` carries its ``requirements`` here). Never a secret.
+    details: Optional[Dict[str, Any]] = None
 
 
 def failure_code_of(exception: BaseException) -> Optional[str]:
@@ -248,6 +251,16 @@ def failure_code_of(exception: BaseException) -> Optional[str]:
     """
     code = getattr(exception, "failure_code", None)
     return code if isinstance(code, str) and code else None
+
+
+def details_of(exception: BaseException) -> Optional[Dict[str, Any]]:
+    """The structured failure facts an exception declares, or ``None``.
+
+    Read by the same two sites as :func:`failure_code_of`, for the same reason. Only a
+    non-empty dict counts.
+    """
+    details = getattr(exception, "failure_details", None)
+    return details if isinstance(details, dict) and details else None
 
 
 def retry_after_of(exception: BaseException) -> Optional[int]:

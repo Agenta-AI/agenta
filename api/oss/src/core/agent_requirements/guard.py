@@ -1,0 +1,90 @@
+"""The turn-on check of an automation: refused only while a model item needs setup.
+
+A schedule, a trigger or a channel can be saved and turned off with any agent. Turning
+one on asks the needs-setup check about the revision it targets, and refuses only when the
+agent's model, model key or subscription login needs setup. Every other missing item is
+left out of the runs, as it is for a chat.
+
+Runs inside the turn-on request, never on a run path. Checked in the request's project
+scope: every item that can block a run today belongs to the project or its organization,
+so the result does not depend on which principal the automation runs as.
+"""
+
+from typing import Any, Dict, List, Optional
+from uuid import UUID
+
+from agenta.sdk.decorators.running import WorkflowServiceRequest
+
+from oss.src.core.agent_requirements.dtos import AgentRequirement
+from oss.src.core.agent_requirements.service import AgentRequirementsService
+from oss.src.core.workflows.service import WorkflowsService
+from oss.src.utils.context import get_auth_scope
+from oss.src.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
+
+
+class AgentNeedsSetupRefused(Exception):
+    """An automation was not turned on: the agent's model needs setup."""
+
+    message = "The model needs setup before this agent can run."
+
+    def __init__(self, requirements: List[AgentRequirement]):
+        super().__init__(self.message)
+        self.requirements = requirements
+
+    def envelope(self) -> Dict[str, Any]:
+        return {
+            "code": "agent_needs_setup",
+            "message": self.message,
+            "retryable": False,
+            "next_step": "Set up the agent's model, then turn this on again.",
+            "details": {
+                "requirements": [
+                    requirement.model_dump(mode="json", exclude_none=True)
+                    for requirement in self.requirements
+                ]
+            },
+        }
+
+
+class ModelSetupGuard:
+    def __init__(
+        self,
+        *,
+        workflows_service: WorkflowsService,
+        requirements_service: AgentRequirementsService,
+    ) -> None:
+        self.workflows_service = workflows_service
+        self.requirements_service = requirements_service
+
+    async def check(
+        self,
+        *,
+        project_id: UUID,
+        references: Optional[Dict[str, Any]],
+        selector: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        """Raise `AgentNeedsSetupRefused` when the target agent's model needs setup."""
+        if not references:
+            return
+        try:
+            scope = get_auth_scope()
+        except Exception:  # pylint: disable=broad-except
+            return
+        if str(scope.project_id) != str(project_id):
+            return
+        revision = await self.workflows_service.fetch_request_revision(
+            project_id=project_id,
+            request=WorkflowServiceRequest(references=references, selector=selector),
+        )
+        parameters = (
+            revision.data.parameters if revision is not None and revision.data else None
+        )
+        if not isinstance(parameters, dict):
+            return
+        requirements = await self.requirements_service.model_requirements(
+            scope=scope, parameters=parameters
+        )
+        if requirements:
+            raise AgentNeedsSetupRefused(requirements)

@@ -366,6 +366,8 @@ class TriggersService:
         self.connections_service = connections_service
         self.workflows_service = workflows_service
         self.schedule_dispatch_task = schedule_dispatch_task
+        # Refuses a turn-on while the agent's model needs setup. Set at wiring.
+        self.needs_setup_guard: Optional[Any] = None
         self.webhook_secret_resolver = WebhookSecretResolver(
             adapter_registry=adapter_registry,
         )
@@ -1288,6 +1290,30 @@ class TriggersService:
             is_valid=False,
         )
 
+    async def _check_needs_setup(self, *, project_id: UUID, trigger: Any) -> None:
+        """Refuse turning on a trigger whose agent's model needs setup."""
+        if self.needs_setup_guard is None:
+            return
+        data = getattr(trigger, "data", None)
+        references = getattr(data, "references", None)
+        selector = getattr(data, "selector", None)
+        await self.needs_setup_guard.check(
+            project_id=project_id,
+            references=(
+                {
+                    key: ref.model_dump(mode="json", exclude_none=True)
+                    for key, ref in references.items()
+                }
+                if references
+                else None
+            ),
+            selector=(
+                selector.model_dump(mode="json", exclude_none=True)
+                if selector is not None
+                else None
+            ),
+        )
+
     async def set_subscription_active(
         self,
         *,
@@ -1318,6 +1344,7 @@ class TriggersService:
             await recheck_trigger_principal(
                 project_id=project_id, trigger=existing, origin=RunOrigin.SUBSCRIPTION
             )
+            await self._check_needs_setup(project_id=project_id, trigger=existing)
 
         edit = TriggerSubscriptionEdit(
             id=existing.id,
@@ -1742,6 +1769,7 @@ class TriggersService:
             await recheck_trigger_principal(
                 project_id=project_id, trigger=existing, origin=RunOrigin.SCHEDULE
             )
+            await self._check_needs_setup(project_id=project_id, trigger=existing)
 
         edit = TriggerScheduleEdit(
             id=existing.id,

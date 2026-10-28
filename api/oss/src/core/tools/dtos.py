@@ -347,6 +347,14 @@ class GatewaySearchResults(BaseModel):
     results: List[GatewaySearchResult] = Field(default_factory=list)
 
 
+class UnavailableToolConnection(BaseModel):
+    """A connection a tool reference names that is not usable now (needs setup)."""
+
+    provider: str
+    integration: str
+    connection: str
+
+
 class ToolsResolution(BaseModel):
     """Outcome of resolving a ``tools`` list.
 
@@ -358,6 +366,11 @@ class ToolsResolution(BaseModel):
     builtins: List[str] = Field(default_factory=list)
     custom: List[ResolvedTool] = Field(default_factory=list)
     gateway_connections: List[ResolvedGatewayConnection] = Field(default_factory=list)
+    # Connections left out because they need setup (missing, turned off, signed out),
+    # only when the caller asked for that instead of a refusal.
+    unavailable_connections: List[UnavailableToolConnection] = Field(
+        default_factory=list
+    )
 
 
 # ---------------------------------------------------------------------------

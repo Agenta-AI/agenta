@@ -38,6 +38,7 @@ from oss.src.core.tools.dtos import (
     ToolProviderKind,
     ToolReference,
     ToolsResolution,
+    UnavailableToolConnection,
 )
 from oss.src.core.tools.discovery import (
     is_object_schema,
@@ -123,6 +124,17 @@ _CATALOG_CACHE_NAMESPACE = "tools:catalog:all"
 
 # Enough to correct a typo without turning the error into a menu.
 _MAX_TOOL_KEY_SUGGESTIONS = 5
+
+
+def _connection_triple(ref: ToolReference) -> Tuple[str, str, str]:
+    """The `(provider, integration, connection)` a gateway tool reference names."""
+    if isinstance(ref, GatewayConnectionTool):
+        return (
+            ref.connection.provider,
+            ref.connection.integration,
+            ref.connection.slug,
+        )
+    return (ref.provider, ref.integration, ref.connection)
 
 
 class ToolsService:
@@ -638,6 +650,7 @@ class ToolsService:
         *,
         project_id: UUID,
         tools: List[ToolReference],
+        omit_unavailable: bool = False,
     ) -> ToolsResolution:
         """Resolve a list of tool references into model-ready specs.
 
@@ -665,7 +678,17 @@ class ToolsService:
                 else self._resolve_composio_tool
             )
             async with semaphore:
-                return await resolve(project_id=project_id, ref=ref)
+                try:
+                    return await resolve(project_id=project_id, ref=ref)
+                except (
+                    ConnectionNotFoundError,
+                    ConnectionInactiveError,
+                    ConnectionInvalidError,
+                ):
+                    # Needs setup: the run starts without this connection's tools.
+                    if not omit_unavailable:
+                        raise
+                    return None
 
         # The references do not depend on each other, so they resolve together. The error the
         # caller sees is still the first failing reference in request order.
@@ -673,16 +696,27 @@ class ToolsService:
         gateway_connections: List[ResolvedGatewayConnection] = [
             item
             for ref, item in zip(refs, resolved)
-            if isinstance(ref, GatewayConnectionTool)
+            if isinstance(ref, GatewayConnectionTool) and item is not None
         ]
         custom: List[ResolvedTool] = [
-            item for ref, item in zip(refs, resolved) if isinstance(ref, ComposioTool)
+            item
+            for ref, item in zip(refs, resolved)
+            if isinstance(ref, ComposioTool) and item is not None
         ]
+        unavailable: Dict[Tuple[str, str, str], UnavailableToolConnection] = {}
+        for ref, item in zip(refs, resolved):
+            if item is not None:
+                continue
+            key = _connection_triple(ref)
+            unavailable[key] = UnavailableToolConnection(
+                provider=key[0], integration=key[1], connection=key[2]
+            )
 
         return ToolsResolution(
             builtins=builtins,
             custom=custom,
             gateway_connections=gateway_connections,
+            unavailable_connections=list(unavailable.values()),
         )
 
     async def _resolve_gateway_connection(

@@ -12,6 +12,10 @@ from .dtos import ResolvedSandboxCredential, SandboxCredentialConfig
 from .mcp import ResolvedMCPServer
 from .platform.secrets import resolve_named_secrets
 
+from agenta.sdk.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
+
 ENVIRONMENT_NAME_PATTERN = r"^[A-Za-z_][A-Za-z0-9_]*$"
 RESERVED_SANDBOX_ENVIRONMENT_NAMES = frozenset(
     {
@@ -119,8 +123,11 @@ async def resolve_sandbox_credentials(
     values = await (resolver or resolve_named_secrets)(slugs)
     missing = [slug for slug in slugs if not values.get(slug)]
     if missing:
-        raise SandboxCredentialError(
-            f"{len(missing)} configured sandbox credential secret(s) could not be resolved"
+        # Only a model item blocks a run (needs setup). A missing custom secret is left
+        # out of the sandbox; the editor tags it. Counts only, never names.
+        log.info(
+            "agent: %d sandbox credential secret(s) missing, left out of the run",
+            len(missing),
         )
 
     return [
@@ -129,4 +136,5 @@ async def resolve_sandbox_credentials(
             value=values[item.secret.slug],
         )
         for item in credentials
+        if values.get(item.secret.slug)
     ]

@@ -117,6 +117,8 @@ class ChannelsService:
         # resolve the agent the binding runs (the activation guard). Without it, such a
         # write fails closed.
         self.workflows_service = workflows_service
+        # Refuses binding an agent whose model needs setup. Set at wiring.
+        self.needs_setup_guard: Optional[Any] = None
 
     # --- principal invalidation ------------------------------------------------ #
     #
@@ -1403,6 +1405,14 @@ class ChannelsService:
             references=agent.data.references,
             is_active=agent.flags.is_active,
         )
+        if agent.flags.is_active and self.needs_setup_guard is not None:
+            await self.needs_setup_guard.check(
+                project_id=project_id,
+                references={
+                    key: ref.model_dump(mode="json", exclude_none=True)
+                    for key, ref in agent.data.references.items()
+                },
+            )
         return await self.channels_dao.create_agent(
             project_id=project_id,
             user_id=user_id,
