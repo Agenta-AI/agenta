@@ -135,7 +135,8 @@ export const OnboardingFlowHost = ({
         // A template's package sets its own name, instructions, tools, trigger and model.
         const created = await newAgent.createFromPrompt({
             text: firstMessage,
-            name,
+            // Empty for a blank start: the create core's default, which the agent renames from its task.
+            name: name || undefined,
             entityId,
             templateKey: templateKey ?? undefined,
             sessionId,

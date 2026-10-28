@@ -7,14 +7,21 @@ Give one answer to "is this user a member of this project, and with which role",
 ## ADDED Requirements
 
 ### Requirement: One resolver decides project membership
-`MembershipsService.resolve(user_id, project_id)` SHALL be the only way the API decides project membership (CONTRACT.md section 2). It SHALL return a `ProjectMembership` or `None`. Permission checks and Bearer selection SHALL call it; the project list and fetch SHALL apply the same policy (`list_for_user`, `fetch_for_user`). The project list query SHALL live in the memberships DAO, not in `db_manager.py`. No caller SHALL read `project_members` or `workspace_members` to decide membership.
+`MembershipsService.resolve(user_id, project_id)`, or its uncached entry point `read_membership` (same policy and DAO read), SHALL be the only way the API decides project membership (CONTRACT.md section 2). It SHALL return a `ProjectMembership` or `None`. Permission checks and Bearer selection SHALL call one of them; the project list and fetch SHALL apply the same policy (`list_for_user`, `fetch_for_user`). No caller SHALL read `project_members` or `workspace_members` to decide membership.
 
 #### Scenario: Workspace row deleted
 - **WHEN** a member's `workspace_members` row is deleted
 - **THEN** `resolve` SHALL return the same membership
 
+### Requirement: The resolver has one uncached entry point
+`MembershipsService.read_membership(user_id, project_id)` SHALL use the same policy and DAO read as `resolve`, without its cache. A caller SHALL use it only when another cache stores the result (the Bearer workspace-only and no-parameter branches cache their state).
+
+#### Scenario: Workspace-only Bearer request
+- **WHEN** a Bearer request names only a workspace or an organization
+- **THEN** authentication SHALL check membership in the selected default project with `read_membership`, and SHALL send no `resolve_membership` cache command
+
 ### Requirement: Membership reads keep today's statement count
-Each membership read SHALL be one SQL statement: `resolve` and the project fetch read one row, and the project list reads all of a user's projects in one statement, whatever their number. A project row SHALL count as a membership by its presence, also when its role is null.
+The project list query SHALL live in the memberships DAO, not in `db_manager.py`. Each membership read SHALL be one SQL statement: `resolve` and the project fetch read one row, and the project list reads all of a user's projects in one statement, whatever their number. A project row SHALL count as a membership by its presence, also when its role is null.
 
 #### Scenario: Project list for a user in many projects
 - **WHEN** a user who is a member of 12 projects in 3 organizations lists projects
@@ -44,7 +51,7 @@ The composition root SHALL build the resolver with `organization_wide` when `is_
 
 
 ### Requirement: The project list and Bearer selection use the resolver
-`GET /projects` and `GET /projects/{project_id}` SHALL list the projects for which `resolve` returns a membership, with the resolved role as `user_role`. Bearer `?project_id=` SHALL be accepted only when `is_member` is true. The `?workspace_id=` path SHALL keep its legacy check until M4.
+`GET /projects` and `GET /projects/{project_id}` SHALL list the projects for which `resolve` returns a membership, with the resolved role as `user_role`. Bearer `?project_id=` SHALL be accepted only when `is_member` is true. Before the M4b accept step, the workspace-only `?workspace_id=` path SHALL keep its legacy check; from the accept step it SHALL check membership in the selected default project through `read_membership`.
 
 #### Scenario: OSS project created by another member
 - **WHEN** another member creates a project in an OSS organization

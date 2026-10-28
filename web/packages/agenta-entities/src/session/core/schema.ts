@@ -322,16 +322,6 @@ export const sessionStreamResponseSchema = z.object({
     stream: sessionStreamSchema.nullish(),
 })
 
-/** Control-call result for the prompt × force command matrix. */
-export const sessionStreamCommandResponseSchema = z.object({
-    mode: z.string(),
-    session_id: z.string(),
-    turn_id: z.string().nullish(),
-    watcher_id: z.string().nullish(),
-    detached: z.boolean().nullish(),
-    cancelled_turn_ids: z.array(z.string()).nullish(),
-})
-
 export const sessionCancelExecutionResponseSchema = z.object({
     command: z.object({id: z.string(), state: z.string()}),
     execution: z.object({
@@ -354,7 +344,6 @@ export type SessionDelivery = z.infer<typeof sessionDeliverySchema>
 export type SessionMessagePreview = z.infer<typeof sessionMessagePreviewSchema>
 export type SessionWindowing = z.infer<typeof sessionWindowingSchema>
 export type SessionsQueryResponse = z.infer<typeof sessionsQueryResponseSchema>
-export type SessionStreamCommandResponse = z.infer<typeof sessionStreamCommandResponseSchema>
 export type PendingSessionInput = z.infer<typeof pendingSessionInputSchema>
 
 /** One entry in a mount's durable file listing. `path` is relative to the mount root; folders

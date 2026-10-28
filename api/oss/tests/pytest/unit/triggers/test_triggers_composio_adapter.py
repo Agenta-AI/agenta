@@ -4,7 +4,10 @@ import httpx
 import pytest
 
 from oss.src.core.triggers.exceptions import AdapterError
-from oss.src.core.triggers.providers.composio.adapter import ComposioTriggersAdapter
+from oss.src.core.triggers.providers.composio.adapter import (
+    ComposioTriggersAdapter,
+    normalize_webhook_event,
+)
 
 
 def _status_error(status_code):
@@ -67,3 +70,40 @@ async def test_set_subscription_status_propagates_other_provider_failures():
         await adapter.set_subscription_status(trigger_id="ti_live", enabled=False)
 
     assert exc_info.value.operation == "set_subscription_status"
+
+
+_V3_ENVELOPE = {
+    "id": "msg_1",
+    "timestamp": "2026-10-28T10:43:20Z",
+    "type": "composio.trigger.message",
+    "metadata": {
+        "log_id": "log_1",
+        "trigger_slug": "GITHUB_PULL_REQUEST_CREATED",
+        "trigger_id": "ti_1",
+        "connected_account_id": "ca_1",
+        "auth_config_id": "ac_1",
+        "user_id": "u_1",
+    },
+    "data": {"number": 7},
+}
+
+
+def test_normalize_webhook_event_maps_v3_envelope():
+    event = normalize_webhook_event(_V3_ENVELOPE)
+
+    assert event["metadata"]["id"] == "msg_1"
+    assert event["metadata"]["trigger_id"] == "ti_1"
+    assert event["metadata"]["trigger_slug"] == "GITHUB_PULL_REQUEST_CREATED"
+    assert event["payload"] == {"number": 7}
+
+
+@pytest.mark.parametrize(
+    "envelope",
+    [
+        {**_V3_ENVELOPE, "type": "composio.connected_account.expired"},
+        {k: v for k, v in _V3_ENVELOPE.items() if k != "id"},
+        {**_V3_ENVELOPE, "metadata": {"trigger_slug": "X"}},
+    ],
+)
+def test_normalize_webhook_event_rejects_unroutable_envelopes(envelope):
+    assert normalize_webhook_event(envelope) is None

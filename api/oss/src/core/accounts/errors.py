@@ -53,6 +53,30 @@ class AdminWorkspaceNotFoundError(AdminError):
         )
 
 
+class AdminWorkspaceIsOrganizationError(AdminError):
+    """A workspace delete names an organization id (the alias workspace removal step 2
+    answers): it deletes nothing, never the organization."""
+
+    def __init__(self, ref: str):
+        super().__init__(
+            code="workspace_is_organization",
+            message=(
+                "This id is an organization, not a workspace. "
+                "Delete the organization instead."
+            ),
+            details={"ref": ref},
+        )
+
+
+class AdminOwnerProtectedError(AdminError):
+    def __init__(self, ref: str):
+        super().__init__(
+            code="owner_protected",
+            message="The organization owner cannot be removed.",
+            details={"ref": ref},
+        )
+
+
 class AdminProjectNotFoundError(AdminError):
     def __init__(self, ref: str):
         super().__init__(

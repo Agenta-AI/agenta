@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import {AGENT_ICON_COLORS} from "@agenta/ui/agent-icon"
 import {afterEach, describe, expect, it, vi} from "vitest"
 
 vi.mock("@agenta/entities/workflow", () => ({
@@ -6,13 +7,14 @@ vi.mock("@agenta/entities/workflow", () => ({
     templateProviderSlugs: () => ["github", "slack"],
 }))
 
-import {galleryTemplates} from "@/features/onboarding/onboardingChoices"
+import {galleryTemplates, ICON_CHOICES} from "@/features/onboarding/onboardingChoices"
 import {
     BLANK_AGENT,
     blankAgentInput,
     EMPTY_ONBOARDING_DRAFT,
     onboardingDraftKey,
     onboardingReducer,
+    randomAgentIcon,
     readOnboardingDraft,
     saveOnboardingDraft,
     templateAgentInput,
@@ -169,17 +171,26 @@ describe("onboarding answers", () => {
 })
 
 describe("first agent input", () => {
-    it("needs a first message on a blank start, and names it", () => {
-        const agent = {...BLANK_AGENT, name: " Atlas "}
-        expect(blankAgentInput(agent, "  ")).toBeNull()
-        expect(blankAgentInput(BLANK_AGENT, " Plan my week ")).toEqual({
-            name: "My first agent",
+    it("needs a first message on a blank start, leaves the name to the agent, draws a look", () => {
+        const look = {icon: "globe", color: "#123456"}
+        expect(blankAgentInput("  ", () => look)).toBeNull()
+        expect(blankAgentInput(" Plan my week ", () => look)).toEqual({
+            name: "",
             firstMessage: "Plan my week",
             templateKey: null,
-            icon: BLANK_AGENT.icon,
+            icon: look,
             apps: [],
         })
-        expect(blankAgentInput(agent, "Hi")?.name).toBe("Atlas")
+    })
+
+    it("draws a random look from the offered glyphs and swatches", () => {
+        expect(randomAgentIcon(() => 0)).toEqual({
+            icon: ICON_CHOICES[0],
+            color: AGENT_ICON_COLORS[0][0],
+        })
+        const last = randomAgentIcon(() => 0.9999)
+        expect(last.icon).toBe(ICON_CHOICES[ICON_CHOICES.length - 1])
+        expect(last.color).toBe(AGENT_ICON_COLORS[AGENT_ICON_COLORS.length - 1][0])
     })
 
     it("creates a template from its package, look and connected apps", () => {
