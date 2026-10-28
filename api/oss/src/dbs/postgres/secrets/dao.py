@@ -75,6 +75,8 @@ _COLUMNS = (
 
 # ONE statement: the project row's organization, the project's rows, and the shareable
 # organization rows available to the project. An unknown project returns no row.
+# No ORDER BY: the project's rows come back in the order the project list always had, which
+# the "first key of a provider" readers depend on; the organization rows are sorted after.
 _LOAD_EFFECTIVE_SQL = f"""
 SELECT p.organization_id AS project_organization_id, e.*
 FROM projects p
@@ -89,7 +91,6 @@ LEFT JOIN LATERAL (
            WHERE sp.secret_id = s.id AND sp.project_id = p.id))
 ) e ON true
 WHERE p.id = CAST(:project_id AS UUID)
-ORDER BY e.from_organization, e.created_at, e.id
 """
 
 # Only projects of the organization are inserted; the caller compares the count.
@@ -448,13 +449,17 @@ class SecretsDAO(SecretsDAOInterface):
         if not rows:
             return CachedEffectiveSecrets(project_id=project_id)
 
-        secrets: List[SecretResponseDTO] = []
-        organization: List[SecretResponseDTO] = []
-        for row in rows:
-            if row["id"] is None:  # a project with no rows: the LEFT JOIN's empty match
-                continue
-            (organization if row["from_organization"] else secrets).append(_dto(row))
-
+        # A project with no rows comes back as the LEFT JOIN's empty match (id NULL).
+        secrets = [
+            _dto(row) for row in rows if row["id"] and not row["from_organization"]
+        ]
+        organization = [
+            _dto(row)
+            for row in sorted(
+                (row for row in rows if row["id"] and row["from_organization"]),
+                key=lambda row: (row["created_at"], str(row["id"])),
+            )
+        ]
         return CachedEffectiveSecrets(
             project_id=project_id,
             organization_id=rows[0]["project_organization_id"],

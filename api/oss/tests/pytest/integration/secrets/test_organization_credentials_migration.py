@@ -120,6 +120,21 @@ async def _upgrade(scratch, **op_kwargs):
     await scratch.connection.run_sync(run)
 
 
+async def _downgrade(scratch):
+    module = load_revision_module(REVISION)
+
+    def run(sync_conn):
+        module.op = _Op(sync_conn)
+        try:
+            module.downgrade()
+            sync_conn.commit()
+        except BaseException:
+            sync_conn.rollback()
+            raise
+
+    await scratch.connection.run_sync(run)
+
+
 async def _scalar(scratch, sql, params=None):
     result = await scratch.connection.execute(text(sql), params or {})
     value = result.scalar()
@@ -348,3 +363,52 @@ async def test_availability_check_rejects_an_unknown_value(scratch):
             {"s": secret_id},
         )
     await scratch.connection.rollback()
+
+
+async def test_a_rollback_never_widens_a_limited_organization_connection(scratch):
+    await _upgrade(scratch)
+    organization_id, project_a = await _organization_and_project(scratch)
+    project_b = uuid4()
+    await _exec(
+        scratch,
+        "INSERT INTO projects (id, organization_id) VALUES (:p, :o)",
+        {"p": project_b, "o": organization_id},
+    )
+    limited = await _secret(scratch, organization_id=organization_id, slug="limited")
+    await _exec(
+        scratch,
+        "UPDATE secrets SET availability = 'selected_projects' WHERE id = :s",
+        {"s": limited},
+    )
+    await _exec(
+        scratch,
+        "INSERT INTO secret_projects (secret_id, project_id) VALUES (:s, :p)",
+        {"s": limited, "p": project_a},
+    )
+    login = await _secret(
+        scratch,
+        organization_id=organization_id,
+        slug="chatgpt",
+        kind="SUBSCRIPTION_PROVIDER",
+    )
+    sso = await _secret(scratch, organization_id=organization_id, kind="SSO_PROVIDER")
+    project_key = await _secret(scratch, project_id=project_a, slug="openai")
+
+    await _downgrade(scratch)
+    assert not await _has_column(scratch)
+    remaining = await _scalar(scratch, "SELECT array_agg(id ORDER BY id) FROM secrets")
+    assert sorted(remaining) == sorted([sso, project_key])
+    assert limited not in remaining and login not in remaining
+
+    # Upgraded again, no organization connection is offered to project B.
+    await _upgrade(scratch)
+    offered_to_b = await _scalar(
+        scratch,
+        "SELECT count(*) FROM secrets s WHERE s.project_id IS NULL "
+        "AND s.organization_id = :o AND s.kind <> 'SSO_PROVIDER' "
+        "AND (s.availability = 'all_projects' OR EXISTS (SELECT 1 FROM secret_projects sp "
+        "WHERE sp.secret_id = s.id AND sp.project_id = :b))",
+        {"o": organization_id, "b": project_b},
+    )
+    assert offered_to_b == 0
+    assert await _count(scratch, "kind = 'SSO_PROVIDER'") == 1

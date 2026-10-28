@@ -26,6 +26,11 @@ invalid after the build stops the upgrade with the repair instruction.
 Old code on the new schema: it ignores the column and the table, and it writes only rows
 with one owner, which the constraint accepts.
 
+The downgrade deletes the organization connections (organization rows of the kinds this
+revision made shareable; SSO rows and project rows stay) before it drops the column and
+the table. Kept, they would come back on a later upgrade available to every project,
+whatever projects they were limited to. A rollback loses the organization connections.
+
 Revision ID: oss000000054
 Revises: oss000000052
 Create Date: 2026-10-25 00:00:00.000000
@@ -85,6 +90,13 @@ _CREATE_SECRET_PROJECTS_INDEX_SQL = (
 
 _DELETE_ORPHANS_SQL = (
     "DELETE FROM secrets WHERE project_id IS NULL AND organization_id IS NULL"
+)
+
+# The kinds an organization may share (provider_key, custom_provider,
+# subscription_provider). Postgres enum labels are the member NAMES.
+_DELETE_ORGANIZATION_CONNECTIONS_SQL = (
+    "DELETE FROM secrets WHERE project_id IS NULL AND organization_id IS NOT NULL "
+    "AND kind IN ('PROVIDER_KEY', 'CUSTOM_PROVIDER', 'SUBSCRIPTION_PROVIDER')"
 )
 
 _COUNT_BOTH_OWNERS_SQL = (
@@ -190,6 +202,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    deleted = op.get_bind().execute(text(_DELETE_ORGANIZATION_CONNECTIONS_SQL)).rowcount
+    log.info("[secrets] deleted %s organization connections", deleted)
+
     with op.get_context().autocommit_block():
         for name, _ in reversed(_INDEXES):
             op.execute(f"DROP INDEX CONCURRENTLY IF EXISTS {name}")

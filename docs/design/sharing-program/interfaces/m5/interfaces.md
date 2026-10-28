@@ -86,7 +86,7 @@ def upgrade() -> None:
         op.execute("ALTER TABLE secrets VALIDATE CONSTRAINT ck_secrets_single_owner")
 ```
 
-- `downgrade()` drops both indexes, both constraints, the table and the column.
+- `downgrade()` first deletes the organization connections (organization rows of kind `provider_key`, `custom_provider` or `subscription_provider`; SSO rows and project rows stay), then drops both indexes, both constraints, the table and the column. Kept, a limited connection would come back on a later upgrade available to every project.
 - Migration gate: passes without the label. The `NOT NULL ... DEFAULT` column and the recovery `DROP INDEX` of an invalid index are "reported, do not fail" (`api/AGENTS.md`), and on Postgres 11 and later it is a metadata change with no table rewrite. `DELETE` is not flagged. The table is new.
 - Every statement is rerun-safe (`IF NOT EXISTS`, guarded constraint adds through a `pg_constraint` lookup, `secret_projects` created only when `to_regclass('secret_projects') IS NULL`).
 - Refusals roll back: the two guards run in the first transaction after the orphan `DELETE`, so a refusal rolls the delete back with everything else and changes nothing.
@@ -455,7 +455,7 @@ Bodies keep the vault router's existing shape (`{"detail": <message>}` through `
 These points were settled while the backend was built. They extend the sections above.
 
 - `secret_projects` carries the six lifecycle columns of the table convention (`created_at`, `updated_at`, `deleted_at`, `created_by_id`, `updated_by_id`, `deleted_by_id`). Only `created_at` and `created_by_id` are written.
-- `load_effective` skips rows whose `kind` is NULL and returns rows oldest first (`created_at`, then `id`), so the provider tie rule picks the oldest matching row.
+- `load_effective` skips rows whose `kind` is NULL. It returns the project's rows in the order the project list always had (no `ORDER BY`), so the "first key of a provider" readers pick the same key as before M5; the organization rows are sorted oldest first (`created_at`, then `id`).
 - Organization writes invalidate each project entry with one batched `DEL` (`utils/caching.py::invalidate_cache_entries`, no `SCAN`).
 - The audit event `organization_secrets.changed` is published on the organization's default project, because the event store is keyed by project. The project list read for invalidation provides it, so no statement is added.
 - Organization credential values that the gateway puts in a header (the primary `key` and every credential extras value except the `vertex_ai_credentials` document) are stripped of surrounding whitespace, must be at least 8 characters long, and may hold only printable ASCII characters that JSON encoders do not escape. A value with a quote, a backslash, `<`, `>`, `&`, a space or a non-ASCII character is refused with 422 ("This credential holds characters that cannot be shared. Use letters, digits and common symbols only."). A non-text extras value is refused too.
