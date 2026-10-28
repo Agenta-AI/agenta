@@ -143,6 +143,7 @@ every request to the API.
 | `AGENTA_API_THROTTLING_BOOKKEEPING_RATE` | `agenta.api.throttling.bookkeeping_rate` | Not mapped; set it in the API's environment |
 | `AGENTA_API_TRACING_QUERY_DEFAULT_LIMIT` | `agenta.api.tracing.query_default_limit` | Not mapped; set it in the API's environment |
 | `AGENTA_API_TRACING_QUERY_MAX_LIMIT` | `agenta.api.tracing.query_max_limit` | Not mapped; set it in the API's environment |
+| `AGENTA_API_TRACING_SESSION_FILTER_ENABLED` | `agenta.api.tracing.session_filter_enabled` | Not mapped; set it in the API's environment |
 
 The two throttling variables apply to Enterprise Edition deployments, which throttle API requests
 per organization and plan. They size a separate budget for the agent runtime's own calls: the
@@ -161,6 +162,12 @@ The two tracing variables bound one page of a span or trace list query: `POST /a
 `windowing` object; send it back as `windowing` to read the next page. A query that filters only on
 `trace_id` returns whole traces and has no limit. A higher maximum lets one request use more API
 memory: agent run spans can be hundreds of KB each.
+
+`AGENTA_API_TRACING_SESSION_FILTER_ENABLED` turns on trace privacy (default `false`). With it on,
+every trace read leaves out the traces of private chats that the reader cannot open, also after
+such a chat is deleted, and analytics answers carry `access.restricted: true` when they leave
+traces out. Turn it on after every API instance runs a version that supports it. With it off,
+everyone who can read traces in a project reads every trace there.
 
 ## Agenta logging
 

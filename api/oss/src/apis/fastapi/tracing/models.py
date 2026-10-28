@@ -366,8 +366,22 @@ class SpansQueryRequest(BaseModel):
     )
 
 
+class TraceAccess(BaseModel):
+    """What the caller's trace read scope did to this answer."""
+
+    restricted: bool = Field(
+        default=False,
+        description=(
+            "True when the totals leave out traces of sessions the caller may not "
+            "read, so they are partial."
+        ),
+    )
+
+
 class OldAnalyticsResponse(BaseModel):
     """Legacy analytics response with a fixed metric schema."""
+
+    access: TraceAccess = Field(default_factory=TraceAccess)
 
     count: int = Field(
         default=0,
@@ -384,6 +398,8 @@ class OldAnalyticsResponse(BaseModel):
 
 class AnalyticsResponse(BaseModel):
     """Analytics response with user-specified metric specs."""
+
+    access: TraceAccess = Field(default_factory=TraceAccess)
 
     count: int = Field(
         default=0,

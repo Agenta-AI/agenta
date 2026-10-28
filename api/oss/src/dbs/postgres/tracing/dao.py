@@ -216,6 +216,11 @@ class TracingDAO(TracingDAOInterface):
                 }
                 update_fields["updated_at"] = datetime.now(timezone.utc)
                 update_fields["updated_by_id"] = user_id
+                # A span keeps its session link: a later write without one (an edit)
+                # must not unhide the trace.
+                update_fields["session_id"] = func.coalesce(
+                    stmt.excluded.session_id, SpanDBE.session_id
+                )
 
                 stmt = stmt.on_conflict_do_update(
                     index_elements=["project_id", "trace_id", "span_id"],

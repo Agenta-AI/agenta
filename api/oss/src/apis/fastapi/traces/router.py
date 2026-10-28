@@ -6,6 +6,7 @@ from fastapi import APIRouter, Request, status, Response, HTTPException
 from oss.src.apis.fastapi.shared.trace_scope import request_span_read_scope
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
+from oss.src.core.tracing.access import TraceScopeError
 from oss.src.core.events.utils import publish_trace_fetched, publish_trace_queried
 
 from oss.src.core.tracing.service import SimpleTracesService
@@ -155,7 +156,9 @@ class SimpleTracesRouter:
         )
 
     @intercept_exceptions()
-    @suppress_exceptions(default=SimpleTraceResponse(), exclude=[HTTPException])
+    @suppress_exceptions(
+        default=SimpleTraceResponse(), exclude=[HTTPException, TraceScopeError]
+    )
     async def fetch_trace(
         self,
         request: Request,
@@ -272,7 +275,9 @@ class SimpleTracesRouter:
         )
 
     @intercept_exceptions()
-    @suppress_exceptions(default=SimpleTracesResponse(), exclude=[HTTPException])
+    @suppress_exceptions(
+        default=SimpleTracesResponse(), exclude=[HTTPException, TraceScopeError]
+    )
     async def query_traces(
         self,
         request: Request,

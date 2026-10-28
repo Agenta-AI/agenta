@@ -11,7 +11,9 @@ from uuid import UUID
 from redis.asyncio import Redis
 
 from oss.src.core.tracing.service import TracingService
-from oss.src.core.tracing.dtos import OTelFlatSpan
+from oss.src.core.tracing.dtos import OTelFlatSpan, TraceTotals
+from oss.src.core.sessions.turns.dtos import SessionTurnUsage
+from oss.src.core.sessions.turns.service import SessionTurnsService
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.common import is_ee
 from oss.src.core.tracing.streaming import deserialize_span
@@ -44,7 +46,8 @@ class TracingWorker(StreamConsumer):
     4. Check entitlements per org (Layer 2 - authoritative)
     5. Bulk create spans per project/user if allowed
     6. Recompute the totals of every trace the batch touched
-    7. ACK + DEL messages — StreamConsumer
+    7. Write the usage of each session trace's root to its turn
+    8. ACK + DEL messages — StreamConsumer
     """
 
     log_prefix = "[INGEST]"
@@ -60,6 +63,7 @@ class TracingWorker(StreamConsumer):
         max_block_ms: int = 5000,  # 5 seconds
         max_delay_ms: int = 250,  # 250 milliseconds
         max_batch_mb: int = 50,  # 50 MB
+        turns_service: Optional[SessionTurnsService] = None,
     ):
         super().__init__(
             redis_client=redis_client,
@@ -72,6 +76,8 @@ class TracingWorker(StreamConsumer):
             max_batch_mb=max_batch_mb,
         )
         self.service = service
+        # Writes a session trace's priced usage to its turn (step 7).
+        self.turns_service = turns_service
 
     async def process_batch(
         self, batch: List[Tuple[bytes, Dict[bytes, bytes]]]
@@ -208,9 +214,12 @@ class TracingWorker(StreamConsumer):
         for project_id, trace_id in sorted(touched_traces):
             for attempt in range(1, RECOMPUTE_ATTEMPTS + 1):
                 try:
-                    await self.service.recompute_trace_totals(
+                    totals = await self.service.recompute_trace_totals(
                         project_id=project_id,
                         trace_id=trace_id,
+                    )
+                    await self._write_turn_usage(
+                        project_id=project_id, trace_id=trace_id, totals=totals
                     )
                     break
                 except Exception:
@@ -227,3 +236,26 @@ class TracingWorker(StreamConsumer):
 
         # Return count and message IDs for ACK/DEL
         return (processed_count, processed_message_ids)
+
+    async def _write_turn_usage(
+        self,
+        *,
+        project_id: UUID,
+        trace_id: UUID,
+        totals: Optional[TraceTotals],
+    ) -> None:
+        """A trace linked to a session gives its root's priced usage to the turn with
+        the same trace id. Unlinked traces cost no core statement."""
+
+        if (
+            self.turns_service is None
+            or totals is None
+            or not totals.linked
+            or totals.root_usage is None
+        ):
+            return
+        await self.turns_service.record_trace_usage(
+            project_id=project_id,
+            trace_id=trace_id,
+            usage=SessionTurnUsage(**totals.root_usage.model_dump()),
+        )

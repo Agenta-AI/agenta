@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 from oss.src.core.access.dtos import Action, DecisionReason, PrincipalRef, ResourceRef
 from oss.src.core.access.interfaces import ResourcePolicyInterface
 from oss.src.core.sharing.dtos import (
+    Visibility,
     AccessPolicy,
     AgentPolicyWriteResult,
     SessionGrant,
@@ -209,6 +210,30 @@ class InMemorySharingDAO(SharingDAOInterface):
             for grant in grants
             if grant.user_id == user_id
         ]
+
+    async def list_unreadable_session_ids(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        granted_stream_ids: List[UUID],
+    ) -> List[str]:
+        self.reads.append("list_unreadable_session_ids")
+        granted = set(granted_stream_ids)
+        private = {
+            session_id
+            for (p, session_id), state in self.sessions.items()
+            if p == project_id
+            and state.policy.visibility == Visibility.PRIVATE
+            and state.policy.owner_user_id != user_id
+            and state.stream_id not in granted
+        }
+        deleted = {
+            session_id
+            for (p, session_id), owner in self.tombstones.items()
+            if p == project_id and (owner is None or owner != user_id)
+        }
+        return sorted(private | deleted)
 
     async def set_session_sharing(
         self,

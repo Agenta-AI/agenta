@@ -17,6 +17,7 @@ from oss.src.dbs.postgres.shared.engine import (
     get_analytics_engine,
 )
 from oss.src.dbs.postgres.tracing.dbes import SpanDBE
+from oss.src.dbs.postgres.sharing.dbes import SessionTraceTombstoneDBE
 
 from ee.src.dbs.postgres.subscriptions.dbes import SubscriptionDBE
 
@@ -241,3 +242,32 @@ class TracingRetentionDAO:
             spans_deleted = int(row[1]) if row and row[1] is not None else 0
 
             return (traces_selected, spans_deleted)
+
+    async def delete_session_tombstones_before_cutoff(
+        self,
+        *,
+        cutoff: datetime,
+        project_ids: List[UUID],
+    ) -> int:
+        """Delete the privacy tombstones of deleted private sessions whose traces have
+        expired: `deleted_at` before `cutoff` (the trace cutoff minus one day)."""
+
+        if not project_ids:
+            return 0
+
+        async with self.transactions_engine.session() as session:
+            result = await session.execute(
+                delete(SessionTraceTombstoneDBE).where(
+                    SessionTraceTombstoneDBE.project_id
+                    == any_(
+                        bindparam(
+                            "project_ids",
+                            value=project_ids,
+                            type_=ARRAY(PG_UUID(as_uuid=True)),
+                        )
+                    ),
+                    SessionTraceTombstoneDBE.deleted_at < cutoff,
+                )
+            )
+            await session.commit()
+            return result.rowcount or 0
