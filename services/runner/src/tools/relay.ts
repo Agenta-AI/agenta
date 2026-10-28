@@ -50,8 +50,11 @@ import type {
   GatewayPolicy,
   ResolvedToolSpec,
   RunContext,
-  ToolCallbackContext,
 } from "../protocol.ts";
+import {
+  RunCredentialExpiredError,
+  type ToolCallbackRuntime,
+} from "./run-credential.ts";
 import {
   filterGatewaySearchResult,
   gatewayToolUnavailableText,
@@ -421,7 +424,7 @@ interface GatewaySeam {
 async function executeRelayedTool(
   spec: ResolvedToolSpec,
   req: ExecuteRelayRequest,
-  callback: ToolCallbackContext | undefined,
+  callback: ToolCallbackRuntime | undefined,
   runContext: RunContext | undefined,
   clientToolRelay: ClientToolRelay | undefined,
   guard: RelayExecutionGuard | undefined,
@@ -552,7 +555,7 @@ async function executeRelayedTool(
 async function executeAllowedRelayedTool(
   spec: ResolvedToolSpec,
   req: ExecuteRelayRequest,
-  callback: ToolCallbackContext | undefined,
+  callback: ToolCallbackRuntime | undefined,
   runContext: RunContext | undefined,
   gateway: GatewaySeam,
   resolved: GatewayExecution | undefined,
@@ -572,7 +575,7 @@ async function executeAllowedRelayedTool(
     try {
       text = await callAgentaTool(
         callback.endpoint,
-        callback.authorization,
+        callback.credential(),
         spec.callRef ?? "",
         req.toolCallId,
         resolved.args,
@@ -598,14 +601,21 @@ async function executeAllowedRelayedTool(
       // A `gateway.run` failure keeps its provider detail — that detail is what lets the model
       // correct a rejected but well-formed request, and its suggestion list was sanitized above.
       if (resolved.kind === "run") throw err;
+      gateway.memory.searches += 1;
+      gateway.memory.offered = [];
       // A `gateway.search` failure does NOT. Every non-result search body becomes the one fixed
       // envelope, whatever the API said: a business-level failure throws out of `callAgentaTool`
       // before the filter can run, and its detail is the API's own text — which can name a
       // toolkit this agent never configured, or carry routing the model must not see. This is
       // the same envelope the unparsable-body path writes, so "search did not work" has exactly
-      // one shape.
-      gateway.memory.searches += 1;
-      gateway.memory.offered = [];
+      // one shape. An expired run credential is the one exception: retrying cannot fix it.
+      if (err instanceof RunCredentialExpiredError) {
+        log?.(
+          `[gateway] search outcome=failed reason=run_credential_expired ` +
+            `envelope=${err.envelope.code}`,
+        );
+        return new RelayRefusal(err.message);
+      }
       log?.(
         `[gateway] search outcome=failed reason=callback_error ` +
           `envelope=${TOOL_SEARCH_UNAVAILABLE_ERROR.code}`,
@@ -687,7 +697,7 @@ async function executeAllowedRelayedTool(
     for (const name of pathParamNames(spec.call.path)) {
       deepDelete(body, name);
     }
-    return callDirect(spec.call.method, url, callback.authorization, body, {
+    return callDirect(spec.call.method, url, callback.credential(), body, {
       runKind: runContext?.run?.kind,
     });
   }
@@ -698,7 +708,7 @@ async function executeAllowedRelayedTool(
     : dispatchArgs;
   return callAgentaTool(
     callback.endpoint,
-    callback.authorization,
+    callback.credential(),
     spec.callRef ?? "",
     req.toolCallId,
     args,
@@ -808,7 +818,7 @@ export function startToolRelay(
   host: RelayHost,
   relayDir: string,
   specs: ResolvedToolSpec[],
-  callback: ToolCallbackContext | undefined,
+  callback: ToolCallbackRuntime | undefined,
   runContext?: RunContext,
   clientToolRelay?: ClientToolRelay,
   guard?: RelayExecutionGuard,

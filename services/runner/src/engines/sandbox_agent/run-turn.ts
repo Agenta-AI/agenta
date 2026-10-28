@@ -20,6 +20,7 @@ import {
   thrownFields,
 } from "../../subscription-events.ts";
 import { startPlatformCredentialLease } from "../../sessions/auth.ts";
+import { startToolCallbackRuntime } from "../../tools/run-credential.ts";
 import {
   ApprovalResponder,
   ApprovedExecutionGrants,
@@ -137,6 +138,7 @@ import {
   type SessionEnvironment,
 } from "./runtime-contracts.ts";
 import {
+  platformCredentialForRequest,
   resolveRunOtlpTarget,
   runCredential,
   mcpPermissionsFromRequest,
@@ -558,6 +560,22 @@ export async function runTurn(
         "(the transport's own sandbox-gone report still ends the turn)",
     );
   }
+
+  // Built per turn, never kept on the pooled environment, so a warm turn reads its own credential.
+  const toolCallback = startToolCallbackRuntime(
+    request.toolCallback as ToolCallbackContext | undefined,
+    opts.credential
+      ? {
+          seed: platformCredentialForRequest(request, () => {}),
+          credential: opts.credential,
+        }
+      : platformCredentialLease
+        ? {
+            seed: runCredential(request),
+            credential: platformCredentialLease.credential,
+          }
+        : undefined,
+  );
 
   // Declared outside the `try` so the failure path can see it: an approval reply is never
   // re-prompted after a stall (see `stalledBeforeFirstResponse` below).
@@ -1316,7 +1334,7 @@ export async function runTurn(
       isDaytona: plan.isDaytona,
       workspaceCwd: plan.workspace.cwd,
       sandbox: env.sandbox,
-      callback: request.toolCallback as ToolCallbackContext | undefined,
+      callback: toolCallback.runtime,
       runContext: request.runContext,
       permissionPlan,
       toolSpecs: plan.tools.toolSpecs,
@@ -1498,7 +1516,7 @@ export async function runTurn(
           : (deps.localRelayHost ?? localRelayHost)(),
         plan.workspace.relayDir,
         plan.tools.toolSpecs,
-        request.toolCallback as ToolCallbackContext | undefined,
+        toolCallback.runtime,
         toolRunContext,
         env.clientToolRelayRef.current,
         relayGuard,
@@ -2234,6 +2252,7 @@ export async function runTurn(
     };
   } finally {
     platformCredentialLease?.release();
+    toolCallback.release();
     // Backstop for the exits that reach neither branch above (cancel, abort). Idempotent via the
     // resolved-token set, so the ordered calls make this a no-op on the paths that took them, and
     // never throws — a row whose gate is gone is unanswerable however the turn ended.

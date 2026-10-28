@@ -367,6 +367,7 @@ the model.
 | Case | `code` | `retryable` |
 | --- | --- | --- |
 | Provider search failed | `tool_search_unavailable` | `true` |
+| Run credential expired (runner-written, from HTTP 401 `expired_signature`) | `run_credential_expired` | `false` |
 | Unknown or stale tool key | `tool_not_found` | `false` |
 | Tool key not in that integration | `tool_not_in_integration` | `false` |
 | Arguments are not an object | `invalid_arguments` | `false` |

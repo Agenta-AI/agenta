@@ -48,6 +48,7 @@ from oss.src.core.gateways.mcps.oauth.types import (
     MCPOAuthStateInvalidError,
 )
 from oss.src.utils.context import AuthScope
+from oss.src.utils.env import env
 
 
 FIXED_SCOPE = AuthScope(
@@ -426,6 +427,22 @@ async def test_agenta_credential_confines_the_issued_value_to_the_gateway_audien
     )
 
     assert signer.await_args.kwargs["audience"] == GATEWAY_TOKEN_AUDIENCE
+
+
+@pytest.mark.asyncio
+async def test_agenta_credential_lives_as_long_as_the_gateway_credential_setting(
+    router, signer, allow, monkeypatch
+):
+    monkeypatch.setattr(env.gateway_credentials, "ttl_seconds", 1800)
+
+    await router.issue_agenta_credential(
+        request=_mint_request(gateway_run_id="run-1"),
+        body=MCPAgentaCredentialRequest(
+            tools=[_tool("read_config", _READ_CONFIG_CALL_REF)]
+        ),
+    )
+
+    assert signer.await_args.kwargs["expires_in"] == 1800
 
 
 @pytest.mark.asyncio
