@@ -25,7 +25,17 @@ class _Workflows:
         self.parameters = parameters
 
     async def fetch_request_revision(self, *, project_id, request):
-        return SimpleNamespace(data=SimpleNamespace(parameters=self.parameters))
+        return SimpleNamespace(
+            artifact_id=uuid4(), data=SimpleNamespace(parameters=self.parameters)
+        )
+
+
+class _Sharing:
+    def __init__(self, policy: Any = None):
+        self.policy = policy
+
+    async def fetch_agent_policy_cached(self, *, project_id, artifact_id):
+        return SimpleNamespace(policy=self.policy)
 
 
 class _Requirements:
@@ -39,7 +49,16 @@ class _Requirements:
 
 
 @pytest.fixture
-def scope():
+def sharing(monkeypatch):
+    from oss.src.core.agent_requirements import guard as guard_module
+
+    value = _Sharing()
+    monkeypatch.setattr(guard_module, "get_sharing_service", lambda: value)
+    return value
+
+
+@pytest.fixture
+def scope(sharing):
     value = AuthScope(
         organization_id=uuid4(),
         workspace_id=uuid4(),
@@ -144,16 +163,12 @@ async def test_a_channel_edit_is_checked_only_when_it_turns_a_binding_on(
                 project_id=uuid4(),
                 agent=edited,
                 stored=same,
-                guard_artifact_id=None,
-                guard_user_id=None,
             )
     else:
         await service._check_needs_setup(
             project_id=uuid4(),
             agent=edited,
             stored=same,
-            guard_artifact_id=None,
-            guard_user_id=None,
         )
     assert guard.calls == (1 if refused else 0)
 
@@ -167,37 +182,7 @@ async def test_pointing_an_active_binding_at_another_agent_is_checked():
             project_id=uuid4(),
             agent=edited,
             stored=stored,
-            guard_artifact_id=None,
-            guard_user_id=None,
         )
-
-
-async def test_a_private_agent_of_someone_else_is_refused_before_the_setup_check(
-    monkeypatch,
-):
-    """The setup answer names the agent's items, so the owner rule runs first."""
-    from oss.src.core import channels as channels_pkg  # noqa: F401
-    from oss.src.core.channels import service as channels_service
-    from oss.src.core.sharing.dtos import Visibility
-    from oss.src.core.sharing.types import SharedItemNotFound
-
-    policy = SimpleNamespace(visibility=Visibility.PRIVATE, owner_user_id=uuid4())
-
-    class _Sharing:
-        async def fetch_agent_policy_cached(self, *, project_id, artifact_id):
-            return SimpleNamespace(policy=policy)
-
-    monkeypatch.setattr(channels_service, "get_sharing_service", lambda: _Sharing())
-    guard = _Guard()
-    with pytest.raises(SharedItemNotFound):
-        await _channels(None, guard)._check_needs_setup(
-            project_id=uuid4(),
-            agent=_binding(active=True, slug="a"),
-            stored=None,
-            guard_artifact_id=uuid4(),
-            guard_user_id=uuid4(),
-        )
-    assert guard.calls == 0
 
 
 async def test_an_edit_that_turns_a_binding_on_is_refused_before_the_write(monkeypatch):
@@ -225,3 +210,20 @@ async def test_an_edit_that_turns_a_binding_on_is_refused_before_the_write(monke
             project_id=uuid4(), user_id=uuid4(), guard_user_id=uuid4(), agent=edited
         )
     assert writes == [] and guard.calls == 1
+
+
+async def test_another_persons_private_agent_is_not_checked(scope, sharing):
+    """The answer would name that agent's items; the write's owner rule refuses it."""
+    from oss.src.core.sharing.dtos import Visibility
+
+    sharing.policy = SimpleNamespace(
+        visibility=Visibility.PRIVATE, owner_user_id=uuid4()
+    )
+    requirements = _Requirements([_requirement()])
+    guard = ModelSetupGuard(
+        workflows_service=_Workflows({"agent": {}}), requirements_service=requirements
+    )
+    await guard.check(
+        project_id=scope.project_id, references={"workflow": {"slug": "a"}}
+    )
+    assert requirements.calls == 0

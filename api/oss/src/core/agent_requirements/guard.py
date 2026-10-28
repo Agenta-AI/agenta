@@ -21,6 +21,8 @@ from agenta.sdk.decorators.running import WorkflowServiceRequest
 
 from oss.src.core.agent_requirements.dtos import AgentRequirement
 from oss.src.core.agent_requirements.service import AgentRequirementsService
+from oss.src.core.sharing.dtos import Visibility
+from oss.src.core.sharing.service import get_sharing_service
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.utils.context import get_auth_scope
 from oss.src.utils.logging import get_module_logger
@@ -62,6 +64,23 @@ class ModelSetupGuard:
         self.workflows_service = workflows_service
         self.requirements_service = requirements_service
 
+    @staticmethod
+    async def _may_read(
+        *, project_id: UUID, scope: Any, artifact_id: Optional[UUID]
+    ) -> bool:
+        """The private-agent rule (A2): only its owner may see a private agent."""
+        if artifact_id is None:
+            return True
+        access = await get_sharing_service().fetch_agent_policy_cached(
+            project_id=project_id, artifact_id=artifact_id
+        )
+        policy = access.policy
+        return not (
+            policy is not None
+            and policy.visibility == Visibility.PRIVATE
+            and policy.owner_user_id != scope.user_id
+        )
+
     async def check(
         self,
         *,
@@ -82,9 +101,13 @@ class ModelSetupGuard:
             project_id=project_id,
             request=WorkflowServiceRequest(references=references, selector=selector),
         )
-        parameters = (
-            revision.data.parameters if revision is not None and revision.data else None
-        )
+        if revision is None or not await self._may_read(
+            project_id=project_id, scope=scope, artifact_id=revision.artifact_id
+        ):
+            # Another person's private agent: the answer would name its items. The
+            # write's own owner rule refuses it, with the answer an unknown agent gets.
+            return
+        parameters = revision.data.parameters if revision.data else None
         if not isinstance(parameters, dict):
             return
         requirements = await self.requirements_service.model_requirements(

@@ -18,6 +18,7 @@ from agenta.sdk.agents.capabilities import (
     harness_allows_provider,
 )
 from agenta.sdk.agents.dtos import AgentTemplate
+from agenta.sdk.agents.platform.connections import subscription_runs_on
 from agenta.sdk.agents.requirements import (
     AgentReferences,
     ItemReference,
@@ -358,6 +359,12 @@ class AgentRequirementsService:
             ):
                 reason = _REASON.NOT_SHARED
             return [_Found(item, reason=reason, candidates=candidates)]
+        # The run's order: a login this harness cannot drive is a model to change,
+        # before its sign-in state matters.
+        provider = getattr(row.data, "provider", None)
+        provider = str(getattr(provider, "value", provider) or "")
+        if not subscription_runs_on(provider, _harness_kind(llm.harness)):
+            return [_Found(llm.model_item(), reason=_REASON.NOT_AVAILABLE)]
         if not _subscription_ready(row):
             return [_Found(item, reason=_REASON.NEEDS_SIGN_IN, candidates=candidates)]
         return []
@@ -497,16 +504,21 @@ def _harness_allows(harness: Optional[str], provider: str) -> bool:
     """The run's pre-resolve provider check, for a connection with no slug. An agent
     with no harness runs the default one; an unknown harness is refused by the run
     itself, not reported here."""
-    kind = harness or str(getattr(_DEFAULT_HARNESS, "value", _DEFAULT_HARNESS))
+    kind = _harness_kind(harness)
     if kind not in HARNESS_CONNECTION_CAPABILITIES:
         return True
     return harness_allows_provider(kind, provider)
 
 
+def _harness_kind(harness: Optional[str]) -> str:
+    """The harness a run uses: the agent's, or the default one."""
+    return harness or str(getattr(_DEFAULT_HARNESS, "value", _DEFAULT_HARNESS))
+
+
 def _harness_allows_pair(
     harness: Optional[str], provider: Optional[str], deployment: Optional[str]
 ) -> bool:
-    kind = harness or str(getattr(_DEFAULT_HARNESS, "value", _DEFAULT_HARNESS))
+    kind = _harness_kind(harness)
     if kind not in HARNESS_CONNECTION_CAPABILITIES or not provider or not deployment:
         return True
     return harness_allows_pair(kind, provider, deployment)

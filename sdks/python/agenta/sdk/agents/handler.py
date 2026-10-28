@@ -134,9 +134,6 @@ def _default_select_backend(agent_template: AgentTemplate) -> Backend:
 
 
 async def _default_resolve_tools(tools, **kwargs) -> ResolvedToolSet:
-    # A code tool whose custom secret is missing runs without it: only a model item
-    # blocks a run (needs setup); the editor tags the missing secret.
-    kwargs.setdefault("missing_secret_policy", MissingSecretPolicy.OMIT)
     return await _platform_resolve_tools(tools, **kwargs)
 
 
@@ -532,6 +529,9 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
                 run_tools,
                 permission_default=agent_template.permission_default,
                 session_id=session_id,
+                # A code tool whose custom secret is missing runs without it: only a
+                # model item blocks a run (needs setup); the editor tags the secret.
+                missing_secret_policy=MissingSecretPolicy.OMIT,
             )
             resolved_mcp = await comp.resolve_mcp_servers(
                 agent_template.mcp_servers,

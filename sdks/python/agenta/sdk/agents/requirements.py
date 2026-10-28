@@ -21,7 +21,7 @@ from .connections import ModelRef
 from .connections.errors import (
     ConnectionNotFoundError,
     MissingCredentialError,
-    MissingProviderError,
+    SubscriptionNotSupportedError,
     UnsupportedDeploymentError,
     UnsupportedProviderError,
 )
@@ -389,10 +389,16 @@ _CONNECTION_REASONS = {
     "subscription_connection_missing": REASON_NOT_FOUND,
     "subscription_login_required": REASON_NEEDS_SIGN_IN,
 }
+# The harness cannot run this model through this connection or login.
+_UNSUPPORTED_CODES = (
+    (UnsupportedProviderError, "unsupported_provider"),
+    (UnsupportedDeploymentError, "unsupported_deployment"),
+    (SubscriptionNotSupportedError, "subscription_not_supported"),
+)
+
 # The vault fallback path names no code; these keep the class name logs already show.
 _CLASS_CODES = (
     (ConnectionNotFoundError, "connection_not_found", REASON_NOT_FOUND),
-    (MissingProviderError, "missing_provider", REASON_NOT_CHOSEN),
     (MissingCredentialError, "missing_credential", REASON_NOT_CHOSEN),
 )
 
@@ -407,16 +413,11 @@ def model_requirement_from_error(
         return requirement(llm.model_item(), reason=REASON_NOT_AVAILABLE, code=code)
     # The harness cannot drive this provider or deployment: the same pair check the
     # API's needs-setup check applies.
-    if isinstance(error, (UnsupportedProviderError, UnsupportedDeploymentError)):
-        return requirement(
-            llm.model_item(),
-            reason=REASON_NOT_AVAILABLE,
-            code=(
-                "unsupported_provider"
-                if isinstance(error, UnsupportedProviderError)
-                else "unsupported_deployment"
-            ),
-        )
+    for error_class, unsupported_code in _UNSUPPORTED_CODES:
+        if isinstance(error, error_class):
+            return requirement(
+                llm.model_item(), reason=REASON_NOT_AVAILABLE, code=unsupported_code
+            )
     item = llm.connection_item()
     if item is None:
         return None

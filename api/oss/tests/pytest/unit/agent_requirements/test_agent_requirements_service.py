@@ -414,6 +414,7 @@ async def test_a_member_who_does_not_manage_the_organization_reads_not_found():
                 _secret(
                     "my-chatgpt",
                     SecretKind.SUBSCRIPTION_PROVIDER,
+                    provider="chatgpt",
                     login_state="needs_login",
                     login=None,
                 )
@@ -566,3 +567,36 @@ async def test_a_named_connection_the_harness_cannot_consume_makes_the_model_not
     [requirement] = result.requirements
     assert requirement.kind.value == "model"
     assert requirement.reason.value == "not_available"
+
+
+@pytest.mark.asyncio
+async def test_a_subscription_the_harness_cannot_drive_makes_the_model_not_available():
+    """A ChatGPT login runs only on Pi: on Codex the run refuses it."""
+    row = _secret(
+        "my-chatgpt",
+        SecretKind.SUBSCRIPTION_PROVIDER,
+        provider="chatgpt",
+        login_state="ready",
+        login={"token": "x"},
+    )
+    result = await _service(vault=_Vault(project=[row])).check(
+        scope=_scope(),
+        parameters={
+            "agent": {
+                "harness": {"kind": "codex"},
+                "llm": {
+                    "model": "gpt-5.5",
+                    "provider": "openai",
+                    "connection": {"mode": "self_managed", "slug": "my-chatgpt"},
+                },
+            }
+        },
+        can_edit_agent=_yes,
+        allowed=_Allowed(),
+        manages_organization=_no,
+    )
+    [requirement] = result.requirements
+    assert (requirement.kind.value, requirement.reason.value) == (
+        "model",
+        "not_available",
+    )

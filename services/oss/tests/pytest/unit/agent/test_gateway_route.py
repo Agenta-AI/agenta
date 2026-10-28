@@ -9,10 +9,13 @@ flattened before they reach the caller.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 import ast
 from pathlib import Path
 
 import pytest
+
+from agenta.sdk.agents.requirements import AgentNeedsSetupError
 
 from agenta.sdk.agents import AgentResult, AgentTemplate, ResolvedToolSet
 from agenta.sdk.agents.connections import (
@@ -163,12 +166,15 @@ async def test_connection_refusal_keeps_its_status_code(monkeypatch, fake_backen
         lambda: AgentTemplate(instructions="x", model="m"),
     )
 
-    with pytest.raises(MissingCredentialError) as excinfo:
+    with pytest.raises(AgentNeedsSetupError) as needs:
         await app._agent(
             request=WorkflowServiceRequest(),
             messages=[{"role": "user", "content": "hi"}],
             parameters={"agent": {"harness": {"kind": "pi_core"}}},
         )
+    # Needs setup: one agent_needs_setup error that keeps the old failure as its cause.
+    assert isinstance(needs.value.__cause__, MissingCredentialError)
+    excinfo = SimpleNamespace(value=needs.value.__cause__)
 
     assert excinfo.value.status_code == 422
 
@@ -219,12 +225,15 @@ async def test_a_control_plane_refusal_reaches_the_caller_with_its_code(
         lambda: AgentTemplate(instructions="x", model="m"),
     )
 
-    with pytest.raises(GatewayConnectionRefusedError) as excinfo:
+    with pytest.raises(AgentNeedsSetupError) as needs:
         await app._agent(
             request=WorkflowServiceRequest(),
             messages=[{"role": "user", "content": "hi"}],
             parameters={"agent": {"harness": {"kind": "pi_core"}}},
         )
+    # Needs setup: one agent_needs_setup error that keeps the old failure as its cause.
+    assert isinstance(needs.value.__cause__, GatewayConnectionRefusedError)
+    excinfo = SimpleNamespace(value=needs.value.__cause__)
 
     error = excinfo.value
     # What the normalizer puts on the status: a client error, the gateway's own failure code,

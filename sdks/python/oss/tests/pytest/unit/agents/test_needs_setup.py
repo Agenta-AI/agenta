@@ -245,3 +245,29 @@ def test_a_pair_the_harness_cannot_drive_makes_the_model_not_available(error, co
     needs = model_requirement_from_error(error, _llm(slug="my-key"))
     assert (needs["kind"], needs["reason"]) == ("model", "not_available")
     assert needs["detail"] == {"code": code}
+
+
+async def test_a_service_tool_resolver_is_told_to_leave_missing_secrets_out():
+    """The deployed service overrides `resolve_tools`; the handler still asks it to run a
+    code tool without a missing custom secret instead of failing the run."""
+    from agenta.sdk.agents.tools import MissingSecretPolicy, ResolvedToolSet
+
+    seen: List[Any] = []
+
+    async def _tools(tools, **kwargs):
+        seen.append(kwargs.get("missing_secret_policy"))
+        return ResolvedToolSet(tool_specs=[])
+
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: _FakeBackend(),
+            resolve_connection=_no_connection,
+            resolve_tools=_tools,
+        )
+    )
+    await handler(
+        request=_request(),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(model="openai/gpt-5.5"),
+    )
+    assert seen == [MissingSecretPolicy.OMIT]
