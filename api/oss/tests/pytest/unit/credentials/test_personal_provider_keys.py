@@ -10,6 +10,7 @@ from uuid import uuid4
 import pytest
 
 import oss.src.core.credentials.policy as policy_module
+import oss.src.core.credentials.selection as selection_module
 import oss.src.core.secrets.services as services_module
 from oss.src.core.access.context import reset_request_access, set_request_access
 from oss.src.core.credentials.bindings import Binding, BindingClaim, ConnectionKey
@@ -55,6 +56,11 @@ def world(monkeypatch):
         policy_module.env.agenta.access, "personal_credentials_enabled", True
     )
     monkeypatch.setattr(policy_module, "is_ee", lambda: False)
+
+    async def private_session(*, project_id, session_id):
+        return True
+
+    selection_module.set_personal_use_guard(private_session)
     organization_id, project_id = uuid4(), uuid4()
     vault = VaultService(InMemorySecretsDAO(projects={project_id: organization_id}))
     service = LLMGatewayService(
@@ -84,7 +90,7 @@ def _run(world, *, kind="human", principal_id=None, linked_user_id=None, binding
     )
     access = make_request_access(
         envelope=envelope, credential_kind="run_credential"
-    ).model_copy(update={"bindings": tuple(bindings)})
+    ).model_copy(update={"bindings": tuple(bindings), "session_id": "s-private"})
     token = set_request_access(access)
     try:
         yield access

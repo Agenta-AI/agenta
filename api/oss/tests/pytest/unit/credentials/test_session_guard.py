@@ -75,13 +75,24 @@ async def test_without_a_guard_a_session_is_refused():
         await _select(_authority(), "s-1")
 
 
-async def test_a_run_without_a_session_and_a_channel_turn_skip_the_guard():
+async def test_a_channel_turn_skips_the_guard():
     guard = _Guard(False)
     selection.set_personal_use_guard(guard)
-    await _select(_authority(), None)
     linked = uuid4()
     channel = _authority(PrincipalKind.INSTALLATION, linked_user_id=linked)
     assert await _select(channel, "s-channel") == f"key-of-{linked}"
+    assert guard.calls == 0
+
+
+@pytest.mark.parametrize("session_id", [None, selection.UNKNOWN_PROTECTION_SESSION])
+async def test_a_run_with_no_private_conversation_is_refused(session_id):
+    """An evaluation or a direct call leaves output in project traces; a child of an
+    unknown conversation cannot be checked. Refused without a database call."""
+    guard = _Guard(True)
+    selection.set_personal_use_guard(guard)
+    with pytest.raises(PersonalCredentialRefused) as refused:
+        await _select(_authority(), session_id)
+    assert refused.value.code == "no_private_conversation"
     assert guard.calls == 0
 
 
@@ -89,10 +100,8 @@ def test_the_protection_session_of_a_child_run_is_its_parents():
     from types import SimpleNamespace
 
     from oss.src.core.access.context import reset_request_access, set_request_access
-    from oss.src.core.workflows.service import (
-        UNKNOWN_PROTECTION_SESSION,
-        _protection_session,
-    )
+    from oss.src.core.credentials.selection import UNKNOWN_PROTECTION_SESSION
+    from oss.src.core.workflows.service import _protection_session
     from oss.tests.pytest.utils.principals import make_envelope, make_request_access
 
     request = SimpleNamespace(session_id="s-child")

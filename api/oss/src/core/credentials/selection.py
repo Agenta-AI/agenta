@@ -66,6 +66,20 @@ def shared_session_refusal(*, label: str) -> PersonalCredentialRefused:
     )
 
 
+def no_private_conversation_refusal(*, label: str) -> PersonalCredentialRefused:
+    return PersonalCredentialRefused(
+        code="no_private_conversation",
+        message=(
+            f"{label} is set to use each person's own account, which works only in "
+            "a private conversation."
+        ),
+    )
+
+
+# A child run whose parent credential named no session (see `_protection_session`).
+UNKNOWN_PROTECTION_SESSION = "__unknown__"
+
+
 # The shared-session guard (M7, design D6): `(project_id, session_id) -> allowed`. It
 # locks the session row, refuses a shared session, and sets the sticky mark. The
 # composition root installs the DAO's; without one, every run with a session is refused.
@@ -87,13 +101,15 @@ def set_personal_use_guard(guard: Optional[PersonalUseGuard]) -> None:
 async def _check_session(
     *, authority: RunAuthority, session_id: Optional[str], label: str
 ) -> None:
-    # A run without a session has no other reader.
-    if session_id is None:
-        return
     # A channel turn uses the linked person's own account (owner decision, 2026-10-28),
     # although its session is the channel's. The guard would refuse every one of them.
     if authority.principal.kind == PrincipalKind.INSTALLATION:
         return
+    # A run with no conversation (an evaluation, a direct API call) leaves its output in
+    # traces the whole project reads, and a child run whose parent named no conversation
+    # cannot be checked. Neither is a private conversation.
+    if session_id is None or session_id == UNKNOWN_PROTECTION_SESSION:
+        raise no_private_conversation_refusal(label=label)
     key = (authority.project_id, session_id)
     if key in _marked:
         return
