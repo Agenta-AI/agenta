@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_014haNF2ehXaYQTcA1nbUR7U",
+  "agent_id": "adf9c0d74576b29a3",
+  "subagent_type": "general-purpose",
+  "task_description": "Implement runner credential refresh fix",
+  "token_usage": {
+    "input_tokens": 206,
+    "cache_creation_tokens": 259645,
+    "cache_read_tokens": 18110367,
+    "output_tokens": 59739,
+    "api_call_count": 102
+  },
+  "started_at": "2026-10-28T16:59:08.145964221+01:00",
+  "completed_at": "2026-10-28T17:15:07.098177368+01:00"
+}

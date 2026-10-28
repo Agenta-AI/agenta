@@ -1,0 +1,80 @@
+yes please implement this faeature. make usure to use the skills for review loop
+
+---
+
+<task-notification>
+<task-id>adf9c0d74576b29a3</task-id>
+<tool-use-id>toolu_014haNF2ehXaYQTcA1nbUR7U</tool-use-id>
+<output-file>/tmp/claude-1000/-home-mahmoud-code-agenta--claude-worktrees-agent-tools-credential-ttl-ee308a/3bae79ce-5bf4-432b-bef4-f0bf1a620d7e/tasks/adf9c0d74576b29a3.output</output-file>
+<status>completed</status>
+<summary>Agent "Implement runner credential refresh fix" finished</summary>
+<note>A task-notification fires each time this agent stops with no live background children of its own. The user can send it another message and resume it, so the same task-id may notify more than once.</note>
+<result>I implemented all five parts of the fix in the worktree. Nothing is committed. Runner: `pnpm test` passes 282 files and 4491 tests, and `pnpm run typecheck` passes with no errors. API: ruff format and ruff check are clean, and 233 tests pass in `test_gateways_mcp_router.py`, `test_gateways_sandbox_credential.py` and `test_gateways_builtin_agenta.py`. Before I changed anything, I checked each cause in the brief against the code. All of them were correct.
+
+## Credential selection design
+
+Every tool request now reads the credential immediately before it sends. There is one source per turn: a runner-only `ToolCallbackRuntime { endpoint; credential: () =&gt; string | undefined }` in `src/tools/run-credential.ts`. `runTurn` builds it once per turn and passes the same object to `startToolRelay` and to `buildApprovedContentWiring`, which passes it to the config-text fetcher. `ToolCallbackContext` in `protocol.ts` is unchanged. There is no property getter named `authorization`.
+
+`startToolCallbackRuntime` picks the credential this way:
+- **Session-owned turn:** it reuses the watchdog lease only if that lease started from the same value as `toolCallback.authorization`. The watchdog starts from `platformCredentialForRequest(request)`, so I compare that value with the callback credential.
+- **Standalone turn with Agenta ingest:** it reuses the existing lease in `runTurn` on the same condition (that lease starts from `runCredential(request)`).
+- **Any other turn** (no watchdog, no tracing, an external collector, or a different credential): the turn starts its own lease from `toolCallback.authorization`. The refresh goes to the base of `toolCallback.endpoint` with `/tools/call` removed. That is the origin that already receives this credential, so the refresh sends it nowhere new. The turn releases the lease in its `finally` block.
+- **No credential in the callback:** the getter returns `undefined` and no lease starts.
+
+Why: the comparison is the simplest rule that can never send an external collector key on a tool call or into the refresh. The collector key can only be selected when it is equal to the callback credential. Warm sessions get a new runtime each turn, and it is never stored on the pooled environment.
+
+## Files changed
+
+**Runner**
+- `src/tools/run-credential.ts` (new): `ToolCallbackRuntime`, `startToolCallbackRuntime`, `RunCredentialExpiredError`, `isExpiredSignatureResponse`, and the envelope constant.
+- `src/sessions/auth.ts`: `refreshCredential` now has a timeout (`DEFAULT_CREDENTIAL_REFRESH_TIMEOUT_MS = 30_000`). The abort signal also stops the `res.json()` body read, and a failure still keeps the last credential.
+- `src/tools/callback.ts` and `src/tools/direct.ts`: they throw the typed error on a 401 whose `detail.reason` is `expired_signature`.
+- `src/tools/relay.ts`: it takes the runtime and calls `credential()` before each request. Search passes the expired error through before its `tool_search_unavailable` mapping.
+- `src/tools/config-text.ts`: it reads `callback?.credential()`.
+- `src/tools/commit-authorization.ts`: the expired error is no longer turned into a retryable `source_base_unavailable`. The relay path returns the envelope.
+- `src/engines/sandbox_agent/approved-content.ts`: it takes the runtime. The gate path returns the envelope in `detail`.
+- `src/engines/sandbox_agent/run-turn.ts`: it builds the runtime per turn, passes it to the relay and the approved-content wiring, and releases it in `finally`.
+
+**API**
+- `api/oss/src/apis/fastapi/gateways/mcps/router.py`: the built-in Agenta MCP mint now passes `expires_in=env.gateway_credentials.ttl_seconds`, as `credentials_router.py` does.
+- `api/oss/tests/pytest/unit/gateways/test_gateways_mcp_router.py`: one new test checks that the mint TTL follows the setting.
+
+**Docs**
+- `docs/design/agent-workflows/interfaces/cross-service/runner-to-tool-callback.md`: new "The credential" section, and the wording about the static `toolCallback.authorization` is fixed.
+- `docs/design/agent-workflows/interfaces/README.md`: the index row lists the new files and tests.
+- `docs/design/composio-tools-rework/runtime-tools.md` and `contracts.md`: they document the `run_credential_expired` exception to `tool_search_unavailable`.
+- No other docs describe the static callback credential. The services/runner/README.md and docs/docs pages needed no change.
+
+**Tests**
+- New: `tests/unit/tool-credential-rotation.test.ts` (11 tests), `tests/unit/tool-callback-credential.test.ts` (6 tests), and `tests/utils/tool-callback.ts` (a `fixedToolCallback` helper).
+- `tests/unit/credential-refresh.test.ts`: three tests added (timeout, no overlap with a later success, release during a refresh).
+- Nine existing test files changed only because the relay and config-text signatures changed.
+
+## New model-facing strings
+
+- `code`: "run_credential_expired"
+- `message`: "The platform credential for this turn expired."
+- `retryable`: false
+- `next_step`: "Report that the platform credential for this turn expired, and stop retrying."
+
+The error's message is the JSON of this envelope. Every path that turns a thrown error into tool text therefore carries the envelope.
+
+## What the tests cover
+
+- **Rotation:** one relay; the credential changes from A to B; direct calls, callback calls, search and config-text reads all send B.
+- **Credential selection:** with no tracing, the turn refreshes the callback credential against the callback base. With an external collector, `Bearer collector-key` never reaches a refresh or a tool call. A session lease that holds the same credential is reused, and no second lease starts. On a warm session, the next turn gets a new runtime with its own credential.
+- **Expired 401:** an ordinary tool, a callback tool and search all return the envelope. On the approved-content read, both the gate path and the relay path return it.
+- **Unchanged cases:** these keep today's errors: a 401 with another reason, a 401 with a non-JSON body, a 401 with a string detail, a 403 that names `expired_signature`, and a transport failure. Search still returns `tool_search_unavailable` for a 500. Approved content still returns `source_base_unavailable` for a 401 with `invalid_token`.
+- **Mutation checks:** I broke the turn-owned lease and the reuse of the watchdog lease. The selection tests failed both times.
+
+## What I could not do, and limits
+
+- On the approval gate path, the envelope reaches only the operator log. `PermissionReply` is a bare enum, so the model is only told "rejected". This was already true before the change (there is a code comment about it in `acp-interactions.ts`).
+- I installed runner `node_modules`, ran `build:extension` (the gateway composition tests need `dist/`), and ran `uv sync` in `api/`. None of these show in git status.
+
+## Side bugs found (not fixed)
+
+1. In `runTurn`, `credential = opts.credential ?? platformCredentialLease?.credential ?? initialCredential`. The last fallback is `runCredential(request)`, the raw OTLP header. On a turn without a watchdog that exports to an external collector, platform calls (`completeTurn` in the turn ledger, the subscription-recovery API) receive the collector key. `loadDurableDecisions` in `engine.ts`, `server.ts` lines 361 and 417, and `reportRecordsIncomplete` at `server.ts` line 1336 also read `runCredential(request)` directly.
+2. When `AGENTA_API_URL` is set and the OTLP endpoint is a collector, the watchdog gets `""` as its credential. Heartbeat, persistence and the turn ledger then send no credential, while tool calls now have a valid, refreshed one.</result>
+<usage><subagent_tokens>263974</subagent_tokens><tool_uses>103</tool_uses><duration_ms>959086</duration_ms></usage>
+</task-notification>
