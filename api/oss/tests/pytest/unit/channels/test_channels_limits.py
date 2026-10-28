@@ -368,14 +368,30 @@ def test_an_edit_may_not_send_a_null_audience():
 # --- who may change the limits -------------------------------------------------- #
 
 
+def _sync_guarded(refuse, result):
+    """A DAO write that, like the real one, refuses inside the write when it is
+    given an agent to guard and the caller is not its owner."""
+
+    async def write(**kwargs):
+        if refuse and kwargs.get("guard_artifact_id") is not None:
+            raise SharedItemNotFound()
+        return result(kwargs)
+
+    return write
+
+
 def _guarded_service(dao, *, refuse):
     workflows = MagicMock()
     workflows.resolve_agent_artifact_id = AsyncMock(return_value=uuid4())
-    dao.guard_agent_owner = AsyncMock(
-        side_effect=SharedItemNotFound() if refuse else None
+    dao.edit_agent = AsyncMock(
+        side_effect=_sync_guarded(refuse, lambda kw: kw["agent"])
     )
-    dao.edit_agent = AsyncMock(side_effect=lambda **kw: kw["agent"])
-    dao.create_grant = AsyncMock(return_value=MagicMock())
+    dao.create_grant = AsyncMock(
+        side_effect=_sync_guarded(refuse, lambda kw: MagicMock())
+    )
+    dao.edit_grant = AsyncMock(
+        side_effect=_sync_guarded(refuse, lambda kw: MagicMock())
+    )
     service = ChannelsService(
         channels_dao=dao,
         adapter_registry=ChannelAdapterRegistry(adapters={}),
@@ -400,7 +416,6 @@ async def test_someone_else_cannot_change_a_private_agents_people_list():
                 id=agent.id, data=ChannelAgentDataEdit(audience={"senders": ["BEN"]})
             ),
         )
-    dao.edit_agent.assert_not_awaited()
 
 
 async def test_an_edit_that_leaves_the_people_list_alone_is_not_guarded():
@@ -415,7 +430,7 @@ async def test_an_edit_that_leaves_the_people_list_alone_is_not_guarded():
         guard_user_id=uuid4(),
         agent=ChannelAgentEdit(id=agent.id, name="renamed"),
     )
-    dao.guard_agent_owner.assert_not_awaited()
+    assert dao.edit_agent.await_args.kwargs["guard_artifact_id"] is None
 
 
 async def test_someone_else_cannot_add_a_rule_to_a_private_agent():
@@ -435,7 +450,6 @@ async def test_someone_else_cannot_add_a_rule_to_a_private_agent():
                 data=ChannelGrantData(),
             ),
         )
-    dao.create_grant.assert_not_awaited()
 
 
 async def test_the_owner_adds_a_rule():
@@ -455,6 +469,7 @@ async def test_the_owner_adds_a_rule():
         ),
     )
     dao.create_grant.assert_awaited_once()
+    assert dao.create_grant.await_args.kwargs["guard_artifact_id"] is not None
 
 
 # --- the note ------------------------------------------------------------------- #
@@ -716,7 +731,6 @@ async def test_someone_else_cannot_move_a_private_agents_default_grant():
     dao = _dao(agent=agent)
     dao.query_grants = AsyncMock(return_value=[grant])
     dao.fetch_default_grant = AsyncMock(return_value=None)
-    dao.edit_grant = AsyncMock()
     service = _guarded_service(dao, refuse=True)
 
     with pytest.raises(SharedItemNotFound):
@@ -726,4 +740,19 @@ async def test_someone_else_cannot_move_a_private_agents_default_grant():
             guard_user_id=uuid4(),
             grant_id=grant.id,
         )
-    dao.edit_grant.assert_not_awaited()
+    # refused inside the write, with the agent to guard
+    assert dao.edit_grant.await_args.kwargs["guard_artifact_id"] is not None
+
+
+async def test_an_excluded_person_writing_while_the_binding_is_off_is_not_stored():
+    agent = _agent(senders=["ANA"])
+    agent.flags.is_active = False
+    dao = _dao(agent=agent)
+
+    routing = await _service(dao).resolve_or_refuse(
+        project_id=uuid4(), connection_id=uuid4(), event=_event(sender="BEN")
+    )
+
+    assert routing.resolution is None
+    assert routing.refusal is None  # silent: the binding is off
+    dao.attach_event_to_space.assert_not_awaited()

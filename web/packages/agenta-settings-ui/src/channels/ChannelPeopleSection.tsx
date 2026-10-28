@@ -110,6 +110,30 @@ export const ChannelPeopleSection = ({
 
     const restricted = restrictDraft || (people?.length ?? 0) > 0
 
+    // Slack people who left the workspace stay listed until removed; the workspace list says
+    // who they are. Read once the list is known.
+    const [leftIds, setLeftIds] = useState<string[]>([])
+    const listedKey = (people ?? []).map((person) => person.id).join(",")
+    useEffect(() => {
+        if (!isSlack || !listedKey) {
+            setLeftIds([])
+            return
+        }
+        let live = true
+        actions
+            .queryPeople(connectionId, "", listedKey.split(","))
+            .then((result) => {
+                if (live)
+                    setLeftIds(result.people.filter((person) => person.isDeleted).map((p) => p.id))
+            })
+            .catch(() => {
+                /* the names stay as stored */
+            })
+        return () => {
+            live = false
+        }
+    }, [isSlack, listedKey, actions, connectionId])
+
     const search = useCallback(
         async (text: string) => {
             const seq = ++searchSeq.current
@@ -504,7 +528,9 @@ export const ChannelPeopleSection = ({
                                             {person.name ?? person.id}
                                         </span>
                                         <span className="truncate text-xs text-muted-foreground">
-                                            {person.email ?? person.id}
+                                            {leftIds.includes(person.id)
+                                                ? "No longer in Slack"
+                                                : (person.email ?? person.id)}
                                         </span>
                                     </>
                                 ) : (

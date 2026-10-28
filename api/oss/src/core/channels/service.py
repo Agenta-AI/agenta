@@ -1361,6 +1361,7 @@ class ChannelsService:
         guard_user_id: Optional[UUID],
         #
         agent: ChannelAgentEdit,
+        limits_artifact_id: Optional[UUID] = None,
     ) -> Optional[ChannelAgent]:
         """Every binding write. The write names its references and its whole flags,
         taken from the stored row when the edit sends none, and it is guarded when
@@ -1384,10 +1385,13 @@ class ChannelsService:
                 update={"data": data, "flags": agent.flags or stored.flags}
             )
 
-        guard_artifact_id = await self._activation_guard(
-            project_id=project_id,
-            references=agent.data.references,
-            is_active=agent.flags.is_active,
+        guard_artifact_id = (
+            await self._activation_guard(
+                project_id=project_id,
+                references=agent.data.references,
+                is_active=agent.flags.is_active,
+            )
+            or limits_artifact_id
         )
         return await self.channels_dao.edit_agent(
             project_id=project_id,
@@ -1459,15 +1463,14 @@ class ChannelsService:
         if existing is None:
             return None
 
+        limits_artifact_id = None
         if (
             agent.data is not None
             and "audience" in agent.data.model_fields_set
             and agent.data.audience != existing.data.audience
         ):
-            await self._guard_limits(
-                project_id=project_id,
-                agent=existing,
-                guard_user_id=guard_user_id,
+            limits_artifact_id = await self._limits_guard(
+                project_id=project_id, agent=existing
             )
 
         edited = await self._edit_agent_row(
@@ -1476,6 +1479,7 @@ class ChannelsService:
             guard_user_id=guard_user_id,
             #
             agent=_layer_agent_edit(existing=existing, edit=agent),
+            limits_artifact_id=limits_artifact_id,
         )
         await self._invalidate_bindings(
             binding_ids=[existing.id], source="channels.edit_agent"
@@ -1709,22 +1713,21 @@ class ChannelsService:
 
     # --- limits ----------------------------------------------------------- #
 
-    async def _guard_limits(
+    async def _limits_guard(
         self,
         *,
         project_id: UUID,
         agent: ChannelAgent,
-        guard_user_id: Optional[UUID],
-    ) -> None:
-        """Only its owner changes a private agent's limits (its rules and its
-        people list), active binding or not. Raises SharedItemNotFound, what an
-        unknown agent answers. Settings time only."""
+    ) -> Optional[UUID]:
+        """The agent a limits write must guard: only its owner changes a private
+        agent's limits (its rules and its people list), active binding or not.
+        The DAO checks the owner under a lock inside the write. A reference that
+        resolves to nothing (an archived agent) fails closed with
+        SharedItemNotFound: whether that agent is private cannot be told, and a
+        change saved now would come back with it. Settings time only."""
 
         if self.workflows_service is None:
-            return
-        # A reference that resolves to nothing (an archived agent) fails closed:
-        # whether that agent is private cannot be told, and a change saved now
-        # would come back with it.
+            return None
         try:
             artifact_id = await self.workflows_service.resolve_agent_artifact_id(
                 project_id=project_id,
@@ -1734,32 +1737,24 @@ class ChannelsService:
             raise SharedItemNotFound() from e
         if artifact_id is None:
             raise SharedItemNotFound()
-        await self.channels_dao.guard_agent_owner(
-            project_id=project_id,
-            artifact_id=artifact_id,
-            user_id=guard_user_id,
-        )
+        return artifact_id
 
-    async def _guard_grant_limits(
+    async def _grant_limits_guard(
         self,
         *,
         project_id: UUID,
         grant_id: UUID,
-        guard_user_id: Optional[UUID],
-    ) -> None:
+    ) -> Optional[UUID]:
         grants = await self.channels_dao.query_grants(project_id=project_id)
         existing = next((g for g in grants if g.id == grant_id), None)
         if existing is None:
-            return
+            return None
         agent = await self.channels_dao.fetch_agent(
             project_id=project_id, agent_id=existing.agent_id
         )
-        if agent is not None:
-            await self._guard_limits(
-                project_id=project_id,
-                agent=agent,
-                guard_user_id=guard_user_id,
-            )
+        if agent is None:
+            return None
+        return await self._limits_guard(project_id=project_id, agent=agent)
 
     async def query_people(
         self,
@@ -1767,6 +1762,7 @@ class ChannelsService:
         project_id: UUID,
         connection_id: UUID,
         text: Optional[str] = None,
+        ids: Optional[List[str]] = None,
     ) -> Tuple[List[ChannelPerson], ChannelPeopleDirectory]:
         """People the settings screen can add to an agent's people list."""
 
@@ -1787,6 +1783,7 @@ class ChannelsService:
             project_id=project_id,
             senders=senders,
             text=text,
+            ids=ids,
         )
 
     async def refresh_people(
@@ -1828,11 +1825,7 @@ class ChannelsService:
         )
         if agent is None:
             raise ChannelAgentNotFound(agent_id=grant.agent_id)
-        await self._guard_limits(
-            project_id=project_id,
-            agent=agent,
-            guard_user_id=guard_user_id,
-        )
+        guard_artifact_id = await self._limits_guard(project_id=project_id, agent=agent)
 
         if grant.space_id is not None:
             space = await self.channels_dao.fetch_space(
@@ -1847,6 +1840,9 @@ class ChannelsService:
             user_id=user_id,
             #
             grant=grant,
+            #
+            guard_artifact_id=guard_artifact_id,
+            guard_user_id=guard_user_id,
         )
 
     async def edit_grant(
@@ -1858,8 +1854,8 @@ class ChannelsService:
         #
         grant: ChannelGrantEdit,
     ) -> Optional[ChannelGrant]:
-        await self._guard_grant_limits(
-            project_id=project_id, grant_id=grant.id, guard_user_id=guard_user_id
+        guard_artifact_id = await self._grant_limits_guard(
+            project_id=project_id, grant_id=grant.id
         )
         # effect is immutable (it is part of the row's identity in the
         # partial unique indexes), so it never rides the edit payload -- but
@@ -1877,6 +1873,9 @@ class ChannelsService:
             user_id=user_id,
             #
             grant=grant,
+            #
+            guard_artifact_id=guard_artifact_id,
+            guard_user_id=guard_user_id,
         )
 
     async def delete_grant(
@@ -1887,13 +1886,16 @@ class ChannelsService:
         #
         grant_id: UUID,
     ) -> bool:
-        await self._guard_grant_limits(
-            project_id=project_id, grant_id=grant_id, guard_user_id=guard_user_id
+        guard_artifact_id = await self._grant_limits_guard(
+            project_id=project_id, grant_id=grant_id
         )
         return await self.channels_dao.delete_grant(
             project_id=project_id,
             #
             grant_id=grant_id,
+            #
+            guard_artifact_id=guard_artifact_id,
+            guard_user_id=guard_user_id,
         )
 
     async def query_grants(
@@ -1930,15 +1932,18 @@ class ChannelsService:
             project_id=project_id,
             space_id=grant.space_id,
         )
-        # both rows change: each agent's owner rule applies before either write
-        for changed in {grant.id} | (
-            {current_default.id}
-            if current_default is not None and current_default.id != grant_id
-            else set()
-        ):
-            await self._guard_grant_limits(
-                project_id=project_id, grant_id=changed, guard_user_id=guard_user_id
+        # both rows change: each write checks its own agent's owner under a lock,
+        # and both agents resolve before either write
+        guard_artifact_id = await self._grant_limits_guard(
+            project_id=project_id, grant_id=grant.id
+        )
+        current_guard_artifact_id = (
+            await self._grant_limits_guard(
+                project_id=project_id, grant_id=current_default.id
             )
+            if current_default is not None and current_default.id != grant_id
+            else None
+        )
         if current_default is not None and current_default.id != grant_id:
             current_default.flags.is_default = False
             await self.channels_dao.edit_grant(
@@ -1954,6 +1959,8 @@ class ChannelsService:
                     data=current_default.data,
                     flags=current_default.flags,
                 ),
+                guard_artifact_id=current_guard_artifact_id,
+                guard_user_id=guard_user_id,
             )
 
         grant.flags.is_default = True
@@ -1970,6 +1977,8 @@ class ChannelsService:
                 data=grant.data,
                 flags=grant.flags,
             ),
+            guard_artifact_id=guard_artifact_id,
+            guard_user_id=guard_user_id,
         )
         return updated
 
@@ -2238,8 +2247,11 @@ class ChannelsService:
 
         # The agent's people list ("Who can message it"), in memory on the row
         # just read. A refused person's message is not attached to the space,
-        # so it never reaches the agent as context.
-        if live_agent and not agent.data.audience.admits(_sender_id(event)):
+        # so it never reaches the agent as context, also while the binding is
+        # off (it would come back as context when the binding is turned on).
+        if agent is not None and not agent.data.audience.admits(_sender_id(event)):
+            if not live_agent:
+                return ChannelRouting()
             return self._refusal(
                 reason=ChannelRefusalReason.SENDER_NOT_ALLOWED,
                 event=event,

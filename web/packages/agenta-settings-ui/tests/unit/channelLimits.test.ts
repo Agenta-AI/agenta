@@ -143,6 +143,14 @@ describe("Where the agent answers", () => {
         expect(created).toEqual([
             {agent_id: "agent-row", effect: "allow", space_id: "s1", data: {}},
         ])
+        // the new rule lands before any old one goes, so the agent never has no rule at all
+        const firstDelete = Math.min(
+            ...vi.mocked(client.deleteChannelGrant).mock.invocationCallOrder,
+        )
+        const lastCreate = Math.max(
+            ...vi.mocked(client.createChannelGrant).mock.invocationCallOrder,
+        )
+        expect(lastCreate).toBeLessThan(firstDelete)
     })
 })
 

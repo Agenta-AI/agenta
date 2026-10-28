@@ -1090,6 +1090,7 @@ class ChannelsRouter:
                 project_id=UUID(request.state.project_id),
                 connection_id=connection_id,
                 text=body.people.text if body and body.people else None,
+                ids=body.people.ids if body and body.people else None,
             )
         except ChannelConnectionNotFound as e:
             raise HTTPException(status_code=404, detail=e.message) from e

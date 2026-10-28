@@ -98,6 +98,10 @@ const FALLBACK_SECRETS: Record<ChannelPlatform, ChannelSetupField[]> = {
     ],
 }
 
+/** A discovered place's stable identity: its kind and platform address. */
+const candidateKey = (candidate: ChannelSpaceCandidate): string =>
+    `${candidate.kind}:${JSON.stringify(candidate.externalLocator)}`
+
 const spaceIcon = (kind: ChannelSpaceKind, isSlack: boolean) => {
     if (kind === "private") return <ChatCircle size={15} />
     return isSlack ? <Hash size={15} /> : <UsersThree size={15} />
@@ -181,8 +185,8 @@ export const ChannelManagePanel = ({
     const [candidates, setCandidates] = useState<ChannelSpaceCandidate[] | null>(null)
     const [pickerError, setPickerError] = useState<string | null>(null)
     const [pickerQuery, setPickerQuery] = useState("")
-    // The candidates checked to add, by their position in `candidates`.
-    const [picked, setPicked] = useState<ChannelSpaceCandidate[]>([])
+    // The candidates checked to add, by key, so a reloaded list keeps them checked.
+    const [picked, setPicked] = useState<string[]>([])
     const [adding, setAdding] = useState(false)
 
     const openPicker = async () => {
@@ -200,22 +204,29 @@ export const ChannelManagePanel = ({
         }
     }
 
-    const togglePicked = (candidate: ChannelSpaceCandidate, checked: boolean) =>
+    const togglePicked = (candidate: ChannelSpaceCandidate, checked: boolean) => {
+        const key = candidateKey(candidate)
         setPicked((current) =>
-            checked ? [...current, candidate] : current.filter((c) => c !== candidate),
+            checked
+                ? current.includes(key)
+                    ? current
+                    : [...current, key]
+                : current.filter((k) => k !== key),
         )
+    }
 
     const addPicked = async () => {
-        if (!connectionId || !picked.length) return
+        const chosen = (candidates ?? []).filter((c) => picked.includes(candidateKey(c)))
+        if (!connectionId || !chosen.length) return
         setPickerError(null)
         setAdding(true)
-        const failed: ChannelSpaceCandidate[] = []
+        const failed: string[] = []
         let firstError: unknown = null
-        for (const candidate of picked) {
+        for (const candidate of chosen) {
             try {
                 await actions.addSpace(connectionId, candidate)
             } catch (e) {
-                failed.push(candidate)
+                failed.push(candidateKey(candidate))
                 firstError = firstError ?? e
             }
         }
@@ -852,7 +863,9 @@ export const ChannelManagePanel = ({
                                                     data-testid="channels-space-candidate"
                                                 >
                                                     <Checkbox
-                                                        checked={picked.includes(candidate)}
+                                                        checked={picked.includes(
+                                                            candidateKey(candidate),
+                                                        )}
                                                         disabled={blocked || adding}
                                                         onCheckedChange={(value) =>
                                                             togglePicked(candidate, value === true)

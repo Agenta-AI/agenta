@@ -377,7 +377,12 @@ class ChannelsDAOInterface(ABC):
         user_id: UUID,
         #
         grant: ChannelGrantCreate,
-    ) -> ChannelGrant: ...
+        #
+        guard_artifact_id: Optional[UUID] = None,
+        guard_user_id: Optional[UUID] = None,
+    ) -> ChannelGrant:
+        """`guard_artifact_id`: refuse, inside the write, a private agent whose
+        owner is not `guard_user_id` (SharedItemNotFound)."""
 
     @abstractmethod
     async def fetch_grant(
@@ -425,6 +430,9 @@ class ChannelsDAOInterface(ABC):
         user_id: UUID,
         #
         grant: ChannelGrantEdit,
+        #
+        guard_artifact_id: Optional[UUID] = None,
+        guard_user_id: Optional[UUID] = None,
     ) -> Optional[ChannelGrant]: ...
 
     @abstractmethod
@@ -434,6 +442,9 @@ class ChannelsDAOInterface(ABC):
         project_id: UUID,
         #
         grant_id: UUID,
+        #
+        guard_artifact_id: Optional[UUID] = None,
+        guard_user_id: Optional[UUID] = None,
     ) -> bool: ...
 
     @abstractmethod
@@ -457,17 +468,6 @@ class ChannelsDAOInterface(ABC):
         """The senders of this connection's newest stored messages, newest
         first, one entry per message (`{id, name, username}` as the adapter
         parsed them). For the settings screen's people picker only."""
-        raise NotImplementedError
-
-    async def guard_agent_owner(
-        self,
-        *,
-        project_id: UUID,
-        artifact_id: UUID,
-        user_id: Optional[UUID],
-    ) -> None:
-        """Raise SharedItemNotFound when the agent is private and `user_id` is
-        not its owner. Reads the agent's policy uncached."""
         raise NotImplementedError
 
     @abstractmethod

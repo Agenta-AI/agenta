@@ -591,8 +591,9 @@ export const buildAgentChannelsActions = ({
         const wantedKeys = new Set(wanted.map(keyOf))
         const kept = new Set<string>()
 
-        // Drop what the new state does not hold, a space's default-agent rule included: the
-        // backend counts it as an allow rule for that place.
+        // Which stored rows stay, and which go: a space's default-agent rule included, since
+        // the backend counts it as an allow rule for that place.
+        const obsolete: string[] = []
         for (const grant of grants) {
             const rule = ruleOf(grant)
             if (!rule) continue
@@ -602,11 +603,11 @@ export const buildAgentChannelsActions = ({
                 continue
             }
             const grantId = asString(grant.id)
-            if (!grantId) continue
-            await client
-                .deleteChannelGrant({grant_id: grantId}, scope())
-                .catch(rethrow("Could not save this setting."))
+            if (grantId) obsolete.push(grantId)
         }
+        // New rules first, then the old ones go. In between, the stored rules are the old and
+        // the new together, which never admits a place that neither admits; removing first
+        // could pass through "no rule at all", which answers everywhere.
         for (const rule of wanted) {
             if (kept.has(keyOf(rule))) continue
             await client
@@ -621,6 +622,11 @@ export const buildAgentChannelsActions = ({
                     },
                     scope(),
                 )
+                .catch(rethrow("Could not save this setting."))
+        }
+        for (const grantId of obsolete) {
+            await client
+                .deleteChannelGrant({grant_id: grantId}, scope())
                 .catch(rethrow("Could not save this setting."))
         }
     }
@@ -645,9 +651,12 @@ export const buildAgentChannelsActions = ({
             .catch(rethrow("Could not save who can message it."))
     }
 
-    const queryPeople = async (connectionId: string, text: string) => {
+    const queryPeople = async (connectionId: string, text: string, ids?: string[]) => {
         const res = await client
-            .queryChannelPeople({connection_id: connectionId, people: {text}}, scope())
+            .queryChannelPeople(
+                {connection_id: connectionId, people: {text, ...(ids?.length ? {ids} : {})}},
+                scope(),
+            )
             .catch(rethrow("Could not search people."))
         return {
             people: asArray(asRecord(res).people).map(mapPersonRow),

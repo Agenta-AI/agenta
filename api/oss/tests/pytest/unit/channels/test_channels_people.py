@@ -254,3 +254,26 @@ async def test_a_refused_load_reports_failed_and_waits_for_refresh(cache):
     await _settle()
     assert refreshed.state == "loading"
     assert adapter.list_calls == 2
+
+
+async def test_people_on_the_list_come_back_with_their_workspace_state(cache):
+    adapter = _Adapter([_member(1), _member(2, is_deleted=True)])
+    project_id = uuid4()
+    await people.query_people(
+        adapter=adapter,
+        connection=CONNECTION,
+        project_id=project_id,
+        senders=[],
+        text="",
+    )
+    await _settle()
+
+    found, _ = await people.query_people(
+        adapter=adapter,
+        connection=CONNECTION,
+        project_id=project_id,
+        senders=[],
+        text="",
+        ids=["U2"],
+    )
+    assert [(p.id, p.is_deleted) for p in found] == [("U2", True)]

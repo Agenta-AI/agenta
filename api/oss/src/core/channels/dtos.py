@@ -1282,11 +1282,13 @@ class ChannelSpaceCandidatesResponse(BaseModel):
 class ChannelPeopleQuery(BaseModel):
     # a name, a handle, or a full email; empty lists people who wrote first
     text: Optional[str] = None
+    # people already on the list, returned from the workspace list when it has
+    # them, so the screen can mark one who left ("No longer in Slack")
+    ids: Optional[List[str]] = None
 
 
 class ChannelPeopleQueryRequest(BaseModel):
     people: Optional[ChannelPeopleQuery] = None
-    windowing: Optional[Windowing] = None
 
 
 class ChannelPeopleResponse(BaseModel):

@@ -349,6 +349,33 @@ it("adds several channels from the picker at once", async () => {
     expect(container.querySelector('[data-testid="channels-space-picker"]')).toBeNull()
 })
 
+it("keeps a channel that failed to add checked for a retry", async () => {
+    const addSpace = vi
+        .fn()
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error("Slack refused #ops."))
+    // discovery returns fresh objects every time, as the real client does
+    const discoverSpaces = vi.fn(async () => [candidate("#support"), candidate("#ops")])
+    await render({addSpace, discoverSpaces}, {platform: "slack", kind: "custom"})
+    await act(async () =>
+        (
+            container.querySelector('[data-testid="channels-add-space"]') as HTMLButtonElement
+        ).click(),
+    )
+    for (const box of container.querySelectorAll('[data-testid="channels-space-candidate"] input'))
+        await act(async () => (box as HTMLInputElement).click())
+    await act(async () =>
+        (
+            container.querySelector('[data-testid="channels-space-add"]') as HTMLButtonElement
+        ).click(),
+    )
+    expect(container.textContent).toContain("Slack refused #ops.")
+    const checked = [
+        ...container.querySelectorAll('[data-testid="channels-space-candidate"]'),
+    ].filter((row) => (row.querySelector("input") as HTMLInputElement).checked)
+    expect(checked.map((row) => row.textContent)).toEqual(["#opsIn channel"])
+})
+
 function person(id: string) {
     return {id, name: null, email: null}
 }

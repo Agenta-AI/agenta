@@ -170,9 +170,11 @@ async def query_people(
     project_id: UUID,
     senders: List[Dict[str, Any]],
     text: Optional[str],
+    ids: Optional[List[str]] = None,
 ) -> Tuple[List[ChannelPerson], ChannelPeopleDirectory]:
     """The picker's matches, and the state of the workspace list. `senders`
-    are the stored senders, newest first."""
+    are the stored senders, newest first. `ids` are people already on the
+    list: the workspace list's entry for each is returned too, deleted or not."""
 
     needle = (text or "").strip().lower()
     found: Dict[str, ChannelPerson] = {}
@@ -200,6 +202,10 @@ async def query_people(
                 known = by_id.get(person_id)
                 if known is not None:
                     found[person_id] = known.model_copy(update={"source": "messaged"})
+            for person_id in ids or []:
+                known = by_id.get(person_id)
+                if known is not None and person_id not in found:
+                    found[person_id] = known
             if needle:
                 for person in cached.people:
                     if person.is_bot or person.is_deleted or person.id in found:

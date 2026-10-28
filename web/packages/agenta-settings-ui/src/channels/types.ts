@@ -287,7 +287,11 @@ export interface ChannelsActions {
     writeAudience: (connectionId: string, people: ChannelAudiencePerson[]) => Promise<void>
     /** Search people for "Who can message it": people who wrote to the bot, the workspace
      *  list, and a full email. */
-    queryPeople: (connectionId: string, text: string) => Promise<ChannelPeopleResult>
+    queryPeople: (
+        connectionId: string,
+        text: string,
+        ids?: string[],
+    ) => Promise<ChannelPeopleResult>
     /** Reload the cached workspace people list. */
     refreshPeople: (connectionId: string) => Promise<ChannelPeopleDirectory>
     /** Replace the secrets of a custom app/bot (a rotated Telegram token, a new Slack pair). */

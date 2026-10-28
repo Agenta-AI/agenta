@@ -1076,6 +1076,9 @@ class ChannelsDAO(ChannelsDAOInterface):
         user_id: UUID,
         #
         grant: ChannelGrantCreate,
+        #
+        guard_artifact_id: Optional[UUID] = None,
+        guard_user_id: Optional[UUID] = None,
     ) -> ChannelGrant:
         grant_dbe = map_grant_dto_to_dbe_create(
             project_id=project_id,
@@ -1085,6 +1088,15 @@ class ChannelsDAO(ChannelsDAOInterface):
         )
 
         async with self.engine.session() as session:
+            if guard_artifact_id is not None:
+                # the owner check holds its lock through this write
+                await guard_agent_activation(
+                    session,
+                    project_id=project_id,
+                    artifact_id=guard_artifact_id,
+                    user_id=guard_user_id,
+                )
+
             session.add(grant_dbe)
 
             await session.commit()
@@ -1175,8 +1187,20 @@ class ChannelsDAO(ChannelsDAOInterface):
         user_id: UUID,
         #
         grant: ChannelGrantEdit,
+        #
+        guard_artifact_id: Optional[UUID] = None,
+        guard_user_id: Optional[UUID] = None,
     ) -> Optional[ChannelGrant]:
         async with self.engine.session() as session:
+            if guard_artifact_id is not None:
+                # the owner check holds its lock through this write
+                await guard_agent_activation(
+                    session,
+                    project_id=project_id,
+                    artifact_id=guard_artifact_id,
+                    user_id=guard_user_id,
+                )
+
             stmt = select(ChannelGrantDBE).where(
                 ChannelGrantDBE.project_id == project_id,
                 ChannelGrantDBE.id == grant.id,
@@ -1209,8 +1233,20 @@ class ChannelsDAO(ChannelsDAOInterface):
         project_id: UUID,
         #
         grant_id: UUID,
+        #
+        guard_artifact_id: Optional[UUID] = None,
+        guard_user_id: Optional[UUID] = None,
     ) -> bool:
         async with self.engine.session() as session:
+            if guard_artifact_id is not None:
+                # the owner check holds its lock through this write
+                await guard_agent_activation(
+                    session,
+                    project_id=project_id,
+                    artifact_id=guard_artifact_id,
+                    user_id=guard_user_id,
+                )
+
             stmt = select(ChannelGrantDBE).where(
                 ChannelGrantDBE.project_id == project_id,
                 ChannelGrantDBE.id == grant_id,
@@ -1304,22 +1340,6 @@ class ChannelsDAO(ChannelsDAOInterface):
             result = await session.execute(stmt)
 
             return [row for row in result.scalars().all() if isinstance(row, dict)]
-
-    async def guard_agent_owner(
-        self,
-        *,
-        project_id: UUID,
-        artifact_id: UUID,
-        user_id: Optional[UUID],
-    ) -> None:
-        async with self.engine.session() as session:
-            await guard_agent_activation(
-                session,
-                project_id=project_id,
-                artifact_id=artifact_id,
-                user_id=user_id,
-            )
-            await session.commit()
 
     # --- threads -------------------------------------------------------- #
 
