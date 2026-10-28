@@ -118,6 +118,8 @@ from oss.src.core.evaluations.types import (
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
+from oss.src.apis.fastapi.shared.durable_work import durable_work_refused
+from oss.src.core.access.durable_work import DurableWorkOwnerOnly
 
 if is_ee():
     from ee.src.core.access.entitlements.service import check_entitlements, Counter
@@ -661,12 +663,16 @@ class EvaluationsRouter:
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        runs = await self.evaluations_service.edit_runs(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            #
-            runs=runs_edit_request.runs,
-        )
+        try:
+            runs = await self.evaluations_service.edit_runs(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                #
+                runs=runs_edit_request.runs,
+                editor=_caller(request),
+            )
+        except DurableWorkOwnerOnly as e:
+            raise await durable_work_refused(e) from e
 
         runs_response = EvaluationRunsResponse(
             count=len(runs),
@@ -871,12 +877,16 @@ class EvaluationsRouter:
         if str(run_id) != str(run_edit_request.run.id):
             return EvaluationRunResponse()
 
-        run = await self.evaluations_service.edit_run(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            #
-            run=run_edit_request.run,
-        )
+        try:
+            run = await self.evaluations_service.edit_run(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                #
+                run=run_edit_request.run,
+                editor=_caller(request),
+            )
+        except DurableWorkOwnerOnly as e:
+            raise await durable_work_refused(e) from e
 
         run_response = EvaluationRunResponse(
             count=1 if run else 0,
@@ -2099,12 +2109,16 @@ class SimpleEvaluationsRouter:
 
         evaluation_edit = evaluation_edit_request.evaluation
 
-        evaluation = await self.simple_evaluations_service.edit(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            #
-            evaluation=evaluation_edit,
-        )
+        try:
+            evaluation = await self.simple_evaluations_service.edit(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                #
+                evaluation=evaluation_edit,
+                editor=_caller(request),
+            )
+        except DurableWorkOwnerOnly as e:
+            raise await durable_work_refused(e) from e
 
         response = SimpleEvaluationResponse(
             count=1 if evaluation else 0,

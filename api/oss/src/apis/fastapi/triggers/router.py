@@ -14,7 +14,9 @@ from oss.src.core.access.principals import (
     access_denied_error,
     missing_principal_error,
 )
+from oss.src.core.access.durable_work import DurableWorkOwnerOnly
 from oss.src.core.access.types import AccessDenied, MissingPrincipal
+from oss.src.apis.fastapi.shared.durable_work import durable_work_refused
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, set_cache
@@ -1171,7 +1173,10 @@ class TriggersRouter:
                 user_id=UUID(str(request.state.user_id)),
                 #
                 subscription=body.subscription,
+                editor=_request_principal(request),
             )
+        except DurableWorkOwnerOnly as e:
+            raise await durable_work_refused(e) from e
         except TriggerReferenceInvalid as e:
             raise HTTPException(status_code=422, detail=e.message) from e
         if not subscription:
@@ -1428,7 +1433,10 @@ class TriggersRouter:
                 user_id=UUID(str(request.state.user_id)),
                 #
                 schedule=body.schedule,
+                editor=_request_principal(request),
             )
+        except DurableWorkOwnerOnly as e:
+            raise await durable_work_refused(e) from e
         except TriggerScheduleInvalid as e:
             raise HTTPException(status_code=422, detail=e.message) from e
         except TriggerReferenceInvalid as e:

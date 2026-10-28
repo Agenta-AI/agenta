@@ -17,6 +17,19 @@ import {buildAutomationEdit, type AutomationEditBody} from "./automationEdit"
 import {automationInputsFields, type Automation} from "./automationModel"
 import type {EventSelection} from "./pickers/EventPickerPanel"
 
+/**
+ * The server's sentence when someone other than the person an automation runs as changes what it
+ * runs (`owner_only`). It names that person, so it says more than the generic failure.
+ */
+const ownerOnlyMessage = (error: unknown): string | null => {
+    const detail = (
+        error as {response?: {data?: {detail?: {code?: unknown; message?: unknown}}}} | null
+    )?.response?.data?.detail
+    return detail?.code === "owner_only" && typeof detail.message === "string"
+        ? detail.message
+        : null
+}
+
 /** The three config fields, held together because they are saved together. */
 export interface AutomationConfigDraft {
     agentId: string | null
@@ -155,9 +168,9 @@ export const useAutomationDraft = (automation: Automation | null, edit: SaveAuto
             // footer standing over changes that are already saved.
             setState((current) => ({baseline: current.draft, draft: current.draft}))
             message.success("Changes saved")
-        } catch {
+        } catch (error) {
             // The draft is untouched, so the footer stays and nothing typed is lost.
-            message.error("Couldn't save this automation")
+            message.error(ownerOnlyMessage(error) ?? "Couldn't save this automation")
         } finally {
             setSaving(false)
         }

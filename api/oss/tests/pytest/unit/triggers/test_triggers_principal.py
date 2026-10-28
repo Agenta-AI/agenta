@@ -20,12 +20,17 @@ from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 _DEFAULT_TARGET = object()
+_OWNER = PrincipalRef(kind=PrincipalKind.HUMAN, id=uuid4())
 
 
 def _service(*, revision_artifact_id=None):
     dao = MagicMock()
     dao.create_schedule = AsyncMock(side_effect=lambda **kw: kw)
-    dao.fetch_schedule = AsyncMock(return_value=SimpleNamespace(id=uuid4()))
+    dao.fetch_schedule = AsyncMock(
+        return_value=SimpleNamespace(
+            id=uuid4(), principal=_OWNER, data=_schedule_data(None)
+        )
+    )
     dao.edit_schedule = AsyncMock(side_effect=lambda **kw: kw)
     workflows = MagicMock()
     workflows.retrieve_workflow_revision = AsyncMock(
@@ -92,6 +97,7 @@ async def test_edit_keeps_principal_recomputes_artifact():
         schedule=TriggerScheduleEdit(
             id=uuid4(), data=_schedule_data({"workflow": {"id": str(new_artifact)}})
         ),
+        editor=_OWNER,
     )
     kwargs = dao.edit_schedule.await_args.kwargs
     assert kwargs["artifact_id"] == new_artifact

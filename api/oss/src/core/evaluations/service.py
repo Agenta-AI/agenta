@@ -7,6 +7,13 @@ from datetime import datetime, timedelta, timezone
 from genson import SchemaBuilder
 
 from oss.src.core.access.dtos import PrincipalRef
+from oss.src.core.access.durable_work import (
+    DurableWorkChange,
+    DurableWorkKind,
+    DurableWorkOwnerOnly,
+    check_durable_work_change,
+    execution_changed,
+)
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.shared.dtos import Reference, Windowing, Tags, Meta
@@ -205,6 +212,37 @@ def _is_invocation_query(data: Any) -> bool:
             return True
 
     return False
+
+
+def _check_run_edit(
+    *, editor: PrincipalRef, prior_run: EvaluationRun, edit: EvaluationRunEdit
+) -> None:
+    """The run's configuration (`data`: steps, mappings, repeats, concurrency) is what it
+    executes. Name, tags, flags and status are lifecycle (M7 edit rule)."""
+    change = (
+        DurableWorkChange.EXECUTION
+        if execution_changed(prior_run.data, edit.data)
+        else DurableWorkChange.LIFECYCLE
+    )
+    check_durable_work_change(
+        kind=DurableWorkKind.EVALUATION_RUN,
+        principal=editor,
+        executing=prior_run.principal,
+        change=change,
+    )
+
+
+def _simple_targets(data: Optional[SimpleEvaluationData]) -> Dict[str, Any]:
+    """What a simple evaluation executes: its query, testset, application and evaluator
+    steps."""
+    if data is None:
+        return {}
+    return {
+        "query_steps": data.query_steps,
+        "testset_steps": data.testset_steps,
+        "application_steps": data.application_steps,
+        "evaluator_steps": data.evaluator_steps,
+    }
 
 
 class EvaluationsService:
@@ -821,12 +859,17 @@ class EvaluationsService:
         #
         run: EvaluationRunEdit,
         principal: Optional[PrincipalRef] = None,
+        editor: Optional[PrincipalRef] = None,
     ) -> Optional[EvaluationRun]:
+        """`editor` is the requesting principal of a user edit; internal callers leave it
+        None. Only the run's executing principal may change its configuration (M7)."""
         run.version = CURRENT_VERSION
 
         # Capture the prior graph so reconciliation can prune any step the edit
         # drops. An edit that omits a step is a destructive removal.
         prior_run = await self.fetch_run(project_id=project_id, run_id=run.id)
+        if editor is not None and prior_run is not None:
+            _check_run_edit(editor=editor, prior_run=prior_run, edit=run)
         prior_step_keys = self._step_keys(prior_run)
 
         edited_run = await self.evaluations_dao.edit_run(
@@ -852,6 +895,7 @@ class EvaluationsService:
         user_id: UUID,
         #
         runs: List[EvaluationRunEdit],
+        editor: Optional[PrincipalRef] = None,
     ) -> List[EvaluationRun]:
         for run in runs:
             run.version = CURRENT_VERSION
@@ -860,6 +904,13 @@ class EvaluationsService:
             project_id=project_id,
             run_ids=[run.id for run in runs],
         )
+        if editor is not None:
+            # Check every run before writing any, so a refusal changes nothing.
+            prior_by_id = {prior_run.id: prior_run for prior_run in prior_runs}
+            for run in runs:
+                prior_run = prior_by_id.get(run.id)
+                if prior_run is not None:
+                    _check_run_edit(editor=editor, prior_run=prior_run, edit=run)
         prior_step_keys_by_id = {
             prior_run.id: self._step_keys(prior_run) for prior_run in prior_runs
         }
@@ -2475,7 +2526,10 @@ class SimpleEvaluationsService:
         user_id: UUID,
         #
         evaluation: SimpleEvaluationEdit,
+        editor: Optional[PrincipalRef] = None,
     ) -> Optional[SimpleEvaluation]:
+        """`editor` is the requesting principal; only the run's executing principal may
+        change its targets (M7)."""
         evaluation.flags = evaluation.flags or SimpleEvaluationFlags(
             is_closed=False,
             is_live=False,
@@ -2526,6 +2580,19 @@ class SimpleEvaluationsService:
             if _evaluation.flags.is_closed:
                 log.error("[EVAL] [failure] cannot edit closed evaluation run")
                 return None
+
+            if editor is not None and execution_changed(
+                _simple_targets(_evaluation.data), _simple_targets(evaluation.data)
+            ):
+                stored_run = await self.evaluations_service.fetch_run(
+                    project_id=project_id, run_id=_evaluation.id
+                )
+                check_durable_work_change(
+                    kind=DurableWorkKind.EVALUATION_RUN,
+                    principal=editor,
+                    executing=stored_run.principal if stored_run else None,
+                    change=DurableWorkChange.EXECUTION,
+                )
 
             was_active = _evaluation.flags.is_active
 
@@ -2629,6 +2696,8 @@ class SimpleEvaluationsService:
 
             return _evaluation
 
+        except DurableWorkOwnerOnly:
+            raise
         except Exception:  # pylint: disable=broad-except
             log.error("[EVAL] [failure]     ", exc_info=True)
             return None

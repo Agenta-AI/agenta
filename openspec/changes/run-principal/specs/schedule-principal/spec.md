@@ -14,11 +14,11 @@ Make the principal and agent of schedules and subscriptions explicit, check the 
 - **THEN** the row SHALL store principal `human` with the user id and the agent's artifact id
 
 ### Requirement: Edits keep the stored principal
-An edit by any principal with `EDIT_TRIGGERS` SHALL be allowed, as today, and SHALL NOT change the stored principal. The edit rule ships in M7 (CONTRACT.md section 6).
+An edit SHALL NOT change the stored principal. Since M7, only the stored principal may change what a schedule or subscription executes (its target, event and inputs); others with `EDIT_TRIGGERS` may rename, pause or delete it (`personal-credentials-bindings`, durable-work-edits).
 
 #### Scenario: Bob edits Alice's schedule
 - **WHEN** Bob, with `EDIT_TRIGGERS`, changes the target agent of Alice's schedule
-- **THEN** the change SHALL succeed and the schedule SHALL keep principal Alice
+- **THEN** the change SHALL be refused and the schedule SHALL keep its target and principal Alice
 
 ### Requirement: Each tick resolves its target and is rechecked before the claim
 `TriggersDispatcher._run` SHALL resolve the current target, including environment references, then call `decide(RUN_WORKFLOWS, resource=agent)` with the stored principal, and only then claim the delivery. The invoke SHALL run the resolved revision.

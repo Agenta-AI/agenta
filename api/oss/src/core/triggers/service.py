@@ -9,6 +9,12 @@ from uuid import UUID
 from croniter import croniter
 
 from oss.src.core.access.dtos import PrincipalRef, RunOrigin
+from oss.src.core.access.durable_work import (
+    DurableWorkChange,
+    DurableWorkKind,
+    check_durable_work_change,
+    execution_changed,
+)
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.principals import stored_work_envelope
 from oss.src.core.access.service import get_access_service
@@ -330,6 +336,43 @@ async def recheck_trigger_principal(
         # The router names the principal kind in the refusal.
         denied.principal_kind = trigger.principal.kind
         raise
+
+
+# What a subscription or a schedule executes (M7 edit rule). The schedule's timing
+# (cron, start, end), names, tags and flags are lifecycle: anyone with the capability
+# may change them.
+_SUBSCRIPTION_EXECUTION_FIELDS = (
+    "event_key",
+    "trigger_config",
+    "inputs_fields",
+    "references",
+    "selector",
+)
+_SCHEDULE_EXECUTION_FIELDS = ("event_key", "inputs_fields", "references", "selector")
+
+
+def _execution_fields(data: Any, fields: Tuple[str, ...]) -> Dict[str, Any]:
+    return {field: getattr(data, field, None) for field in fields}
+
+
+def _subscription_change(
+    *, existing: TriggerSubscription, edit: TriggerSubscriptionEdit
+) -> DurableWorkChange:
+    before = _execution_fields(existing.data, _SUBSCRIPTION_EXECUTION_FIELDS)
+    after = _execution_fields(edit.data, _SUBSCRIPTION_EXECUTION_FIELDS)
+    if existing.connection_id != edit.connection_id or execution_changed(before, after):
+        return DurableWorkChange.EXECUTION
+    return DurableWorkChange.LIFECYCLE
+
+
+def _schedule_change(
+    *, existing: TriggerSchedule, edit: TriggerScheduleEdit
+) -> DurableWorkChange:
+    before = _execution_fields(existing.data, _SCHEDULE_EXECUTION_FIELDS)
+    after = _execution_fields(edit.data, _SCHEDULE_EXECUTION_FIELDS)
+    if execution_changed(before, after):
+        return DurableWorkChange.EXECUTION
+    return DurableWorkChange.LIFECYCLE
 
 
 def _resumed_meta(meta):
@@ -1149,15 +1192,26 @@ class TriggersService:
         user_id: UUID,
         #
         subscription: TriggerSubscriptionEdit,
+        editor: PrincipalRef,
     ) -> Optional[TriggerSubscription]:
         """Full-PUT edit. Reflects the connection, event, trigger_config and the
-        combined is_active/is_valid onto the provider ``ti_*``."""
+        combined is_active/is_valid onto the provider ``ti_*``.
+
+        Only the executing principal may change what the subscription executes: its
+        connection, event, inputs and target (M7). Others may rename it or pause it."""
         existing = await self.dao.fetch_subscription(
             project_id=project_id,
             subscription_id=subscription.id,
         )
         if existing is None:
             return None
+
+        check_durable_work_change(
+            kind=DurableWorkKind.SUBSCRIPTION,
+            principal=editor,
+            executing=existing.principal,
+            change=_subscription_change(existing=existing, edit=subscription),
+        )
 
         # Test subscriptions skip the bound-workflow requirement and stay "on".
         # Turning test OFF (test → prod) re-imposes it: references must resolve,
@@ -1790,14 +1844,25 @@ class TriggersService:
         user_id: UUID,
         #
         schedule: TriggerScheduleEdit,
+        editor: PrincipalRef,
     ) -> Optional[TriggerSchedule]:
-        """Full-PUT edit (load the current row, override owned fields)."""
+        """Full-PUT edit (load the current row, override owned fields).
+
+        Only the executing principal may change what the schedule executes: its event,
+        inputs and target (M7). Others may rename it, pause it or move its times."""
         existing = await self.dao.fetch_schedule(
             project_id=project_id,
             schedule_id=schedule.id,
         )
         if existing is None:
             return None
+
+        check_durable_work_change(
+            kind=DurableWorkKind.SCHEDULE,
+            principal=editor,
+            executing=existing.principal,
+            change=_schedule_change(existing=existing, edit=schedule),
+        )
 
         self._validate_schedule(schedule.data.schedule)
         self._normalize_window(schedule.data)
