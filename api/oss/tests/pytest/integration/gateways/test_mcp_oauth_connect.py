@@ -125,7 +125,6 @@ def test_dashboard_connect_callback_and_scope_step_up_share_one_grant_handle(
         "get_auth_scope",
         lambda: AuthScope(
             organization_id=uuid4(),
-            workspace_id=uuid4(),
             project_id=project_id,
             user_id=user_id,
         ),
