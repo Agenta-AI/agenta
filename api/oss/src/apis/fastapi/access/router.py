@@ -5,7 +5,10 @@ from uuid import UUID
 from fastapi import APIRouter, Query, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from oss.src.core.gateways.run_claims import gateway_bindings
+from oss.src.core.gateways.run_claims import (
+    gateway_bindings,
+    gateway_session_id,
+)
 from oss.src.middlewares.auth import (
     SECRET_RESOLVE_GRANT,
     request_run_envelope,
@@ -289,5 +292,6 @@ class AccessRouter:
             envelope=envelope,
             # The run's signed bindings (M7) travel with it, never more.
             gateway_bindings=gateway_bindings(request),
+            gateway_session_id=gateway_session_id(request),
         )
         return Allow(f"Secret {secret_token}")

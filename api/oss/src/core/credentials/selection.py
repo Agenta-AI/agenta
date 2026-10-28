@@ -6,7 +6,8 @@ then read that person's own credential for the service. Each refusal names what 
 person can do. No refusal falls back to another account.
 """
 
-from typing import Awaitable, Callable, Optional, TypeVar
+from collections import OrderedDict
+from typing import Awaitable, Callable, Optional, Tuple, TypeVar
 from uuid import UUID
 
 from oss.src.core.access.dtos import PrincipalKind, RunAuthority
@@ -55,15 +56,68 @@ def account_missing_refusal(*, label: str) -> PersonalCredentialRefused:
     )
 
 
+def shared_session_refusal(*, label: str) -> PersonalCredentialRefused:
+    return PersonalCredentialRefused(
+        code="shared_session",
+        message=(
+            f"This conversation is shared. {label} is set to use each person's own "
+            "account, which shared conversations cannot use."
+        ),
+    )
+
+
+# The shared-session guard (M7, design D6): `(project_id, session_id) -> allowed`. It
+# locks the session row, refuses a shared session, and sets the sticky mark. The
+# composition root installs the DAO's; without one, every run with a session is refused.
+PersonalUseGuard = Callable[..., Awaitable[bool]]
+_guard: Optional[PersonalUseGuard] = None
+
+# Sessions this pod already marked. The mark never clears and a marked session can never
+# be shared, so a hit needs no lock and no round trip.
+_MARKED_LIMIT = 10_000
+_marked: "OrderedDict[Tuple[UUID, str], None]" = OrderedDict()
+
+
+def set_personal_use_guard(guard: Optional[PersonalUseGuard]) -> None:
+    global _guard
+    _guard = guard
+    _marked.clear()
+
+
+async def _check_session(
+    *, authority: RunAuthority, session_id: Optional[str], label: str
+) -> None:
+    # A run without a session has no other reader.
+    if session_id is None:
+        return
+    # A channel turn uses the linked person's own account (owner decision, 2026-10-28),
+    # although its session is the channel's. The guard would refuse every one of them.
+    if authority.principal.kind == PrincipalKind.INSTALLATION:
+        return
+    key = (authority.project_id, session_id)
+    if key in _marked:
+        return
+    if _guard is None or not await _guard(
+        project_id=authority.project_id, session_id=session_id
+    ):
+        raise shared_session_refusal(label=label)
+    _marked[key] = None
+    if len(_marked) > _MARKED_LIMIT:
+        _marked.popitem(last=False)
+
+
 async def select_personal_credential(
     *,
     authority: Optional[RunAuthority],
     label: str,
     read: Callable[[UUID], Awaitable[Optional[T]]],
+    session_id: Optional[str] = None,
 ) -> T:
     """The credential `read` finds for the person the run acts for.
 
-    `label` is the service's display name, for the refusal. Raises
+    `label` is the service's display name, for the refusal; `session_id` is the run's
+    signed session. Before the credential is returned, a session that is shared refuses
+    it, and a private one gets the sticky mark that keeps it private. Raises
     `PersonalCredentialRefused`; never returns another account."""
 
     caller = caller_user_id(authority)
@@ -73,4 +127,5 @@ async def select_personal_credential(
     found = await read(caller)
     if found is None:
         raise account_missing_refusal(label=label)
+    await _check_session(authority=authority, session_id=session_id, label=label)
     return found

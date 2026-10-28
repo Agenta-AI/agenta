@@ -87,6 +87,9 @@ class SessionStreamDBE(
     # non-null visibility, also for an ownerless row. The owner has no foreign key.
     visibility = Column(String, nullable=True)
     owner_user_id = Column(UUID(as_uuid=True), nullable=True)
+    # M7: set the first time a run of the session uses a person's own credential, under
+    # the session row lock. A marked session is never shared. Never cleared.
+    personal_credentials_used_at = Column(TIMESTAMP(timezone=True), nullable=True)
 
     __table_args__ = (
         ForeignKeyConstraint(

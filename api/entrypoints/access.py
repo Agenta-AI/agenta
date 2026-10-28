@@ -8,6 +8,7 @@ of every access decision). Every process that checks access calls it at startup:
 
 from oss.src.core.access.rbac import AlwaysEnforcedRbac
 from oss.src.core.access.service import AccessService, register_access_service
+from oss.src.core.credentials.selection import set_personal_use_guard
 from oss.src.core.memberships.dtos import MembershipPolicy
 from oss.src.core.memberships.service import (
     MembershipsService,
@@ -43,10 +44,14 @@ def bootstrap_access() -> AccessService:
 
     principals_dao = PrincipalsDAO(engine=get_transactions_engine())
 
+    sharing_dao = SharingDAO(engine=get_transactions_engine())
     sharing_service = SharingService(
-        sharing_dao=SharingDAO(engine=get_transactions_engine()),
+        sharing_dao=sharing_dao,
         memberships_service=memberships_service,
     )
+    # The shared-session guard of a person's own credential (M7) takes the same session
+    # row lock as sharing writes.
+    set_personal_use_guard(sharing_dao.guard_personal_use)
 
     access_service = AccessService(
         memberships=memberships_service,

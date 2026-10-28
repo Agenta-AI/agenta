@@ -102,6 +102,11 @@ class SharingDAOInterface(ABC):
         user_id: UUID,
     ) -> List[UserSessionGrant]: ...
 
+    async def guard_personal_use(self, *, project_id: UUID, session_id: str) -> bool:
+        """M7: lock the session row; True (and the sticky mark set) when the session is
+        private with no grant, False when it is shared or missing."""
+        raise NotImplementedError
+
     @abstractmethod
     async def set_session_sharing(
         self,

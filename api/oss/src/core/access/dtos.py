@@ -191,6 +191,8 @@ class RequestAccess(BaseModel):
     # `oss.src.core.credentials.bindings.BindingClaim`. Empty: every connection is the
     # project's shared account.
     bindings: Tuple[Any, ...] = ()
+    # run_credential with bindings only: the session the run belongs to, signed (M7).
+    session_id: Optional[str] = None
 
 
 class UserPrincipals(BaseModel):

@@ -26,6 +26,7 @@ from oss.src.core.gateways.policy.dtos import GatewayPlane
 from oss.src.core.gateways.types import LLMGatewayDisabledError
 from oss.src.core.gateways.run_claims import (
     gateway_bindings,
+    gateway_session_id,
     gateway_run_id,
     gateway_run_labels,
     gateway_tools,
@@ -165,6 +166,7 @@ class GatewayCredentialsRouter:
             envelope=envelope,
             # The run's signed bindings (M7), copied like `gateway_tools`.
             gateway_bindings=gateway_bindings(request),
+            gateway_session_id=gateway_session_id(request),
         )
 
         return GatewayCredentialsResponse(credentials=f"Secret {token}")

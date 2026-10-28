@@ -59,6 +59,20 @@ class SessionNotShareable(SharingError):
         super().__init__("This session cannot be shared.", details={"reason": reason})
 
 
+class SessionUsedPersonalAccounts(SessionNotShareable):
+    """A run of the session used a person's own credential (M7). The mark never clears,
+    so the session stays private; a new session can be shared."""
+
+    def __init__(self):
+        SharingError.__init__(
+            self,
+            "This conversation used your personal accounts. Start a new conversation "
+            "to share with others.",
+            details={"reason": "personal_credentials"},
+        )
+        self.reason = "personal_credentials"
+
+
 class OwnerStillActive(SharingError):
     """Take ownership while the owner is still an active member."""
 

@@ -47,6 +47,7 @@ from oss.src.core.gateways.mcps.providers.agenta.entitlement import (
 from oss.src.core.gateways.mcps.types import MCPEndpointNotFoundError
 from oss.src.core.gateways.run_claims import (
     gateway_bindings,
+    gateway_session_id,
     gateway_run_id,
     gateway_tools,
 )
@@ -322,6 +323,7 @@ class MCPGatewayRouter:
             audience=GATEWAY_TOKEN_AUDIENCE,
             envelope=envelope,
             gateway_bindings=gateway_bindings(request),
+            gateway_session_id=gateway_session_id(request),
         )
         return MCPAgentaCredentialResponse(credentials=f"Secret {token}")
 

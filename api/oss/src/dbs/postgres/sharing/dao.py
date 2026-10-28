@@ -34,7 +34,11 @@ from oss.src.core.sharing.dtos import (
     Visibility,
 )
 from oss.src.core.sharing.interfaces import SharingDAOInterface
-from oss.src.core.sharing.types import SharedItemNotFound, SharingConflict
+from oss.src.core.sharing.types import (
+    SessionUsedPersonalAccounts,
+    SharedItemNotFound,
+    SharingConflict,
+)
 from oss.src.core.workflows.dtos import AGENT_REFERENCE_KEYS
 from oss.src.dbs.postgres.sharing.mappings import (
     map_agent_access_dbe_to_dto,
@@ -137,11 +141,44 @@ LEFT JOIN session_trace_tombstones t
 """
 
 _LOCK_SESSION_STATE_SQL = f"""
-SELECT {_SESSION_STATE_COLUMNS}
+SELECT {_SESSION_STATE_COLUMNS},
+    s.personal_credentials_used_at
 FROM session_streams s
 WHERE s.project_id = :project_id AND s.session_id = :session_id
 FOR UPDATE OF s
 """
+
+# M7: the shared-session guard of a person's own credential. One transaction: lock the
+# row (the same lock as a sharing write), read whether the session is shared, and set the
+# sticky mark when it is not. A session with no row is refused.
+_LOCK_SESSION_FOR_PERSONAL_USE_SQL = """
+SELECT s.id, s.visibility, s.personal_credentials_used_at,
+    EXISTS (
+        SELECT 1 FROM session_grants g
+        WHERE g.project_id = s.project_id AND g.stream_id = s.id
+    ) AS has_grants
+FROM session_streams s
+WHERE s.project_id = :project_id AND s.session_id = :session_id
+FOR UPDATE OF s
+"""
+
+_MARK_PERSONAL_USE_SQL = """
+UPDATE session_streams SET personal_credentials_used_at = now()
+WHERE project_id = :project_id AND id = :stream_id
+  AND personal_credentials_used_at IS NULL
+"""
+
+
+def _shares(*, before: AccessPolicy, change: SessionSharingChange) -> bool:
+    """Whether the change makes the session visible to anyone but its owner."""
+    if (
+        change.visibility is not None
+        and change.visibility != before.visibility
+        and change.visibility != Visibility.PRIVATE
+    ):
+        return True
+    return bool(change.upsert_grants)
+
 
 # The live copy of `oss000000049`'s session batch statement (technical design 5.2), for
 # the one row of `session_id`. Keep the two in step: the owner rule, the first-turn
@@ -426,6 +463,30 @@ class SharingDAO(SharingDAOInterface):
             ).all()
         return [map_user_session_grant_to_dto(row) for row in rows]
 
+    async def guard_personal_use(self, *, project_id: UUID, session_id: str) -> bool:
+        """M7: True when a run of the session may use a person's own credential (the
+        session is private, with no grant), after setting the sticky mark. False when it
+        is shared or has no row. The mark is set under the row lock that sharing writes
+        take, so a share and the first personal use never interleave."""
+        params = {"project_id": project_id, "session_id": session_id}
+        async with self.engine.transaction() as connection:
+            row = (
+                await connection.execute(
+                    text(_LOCK_SESSION_FOR_PERSONAL_USE_SQL), params
+                )
+            ).first()
+            if row is None:
+                return False
+            if row.personal_credentials_used_at is not None:
+                return True
+            if row.visibility != Visibility.PRIVATE.value or row.has_grants:
+                return False
+            await connection.execute(
+                text(_MARK_PERSONAL_USE_SQL),
+                {"project_id": project_id, "stream_id": row.id},
+            )
+        return True
+
     async def set_session_sharing(
         self,
         *,
@@ -459,6 +520,12 @@ class SharingDAO(SharingDAOInterface):
             before = state.policy
             if before != expected:
                 raise SharingConflict(current=before)
+            if row.personal_credentials_used_at is not None and _shares(
+                before=before, change=change
+            ):
+                # Under the same row lock as the first personal use (M7), so a share and
+                # that use never interleave.
+                raise SessionUsedPersonalAccounts()
 
             stream = {"project_id": project_id, "stream_id": state.stream_id}
             old = {

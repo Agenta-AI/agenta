@@ -1338,6 +1338,7 @@ class LLMGatewayService:
             )
         selected = await select_personal_credential(
             authority=access.authority,
+            session_id=access.session_id,
             label=provider_display_name(provider_key),
             read=lambda user_id: self.resolver.personal_provider_key(
                 scope=scope, user_id=user_id, provider_key=provider_key

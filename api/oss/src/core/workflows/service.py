@@ -3684,6 +3684,7 @@ class WorkflowsService:
             grants=self._service_grants(service_url),
             envelope=envelope,
             gateway_bindings=claims_to_token(binding_claims),
+            gateway_session_id=request.session_id,
         )
 
         credentials = f"Secret {secret_token}"

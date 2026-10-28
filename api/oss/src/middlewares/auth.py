@@ -545,6 +545,7 @@ def _build_request_access_from_state(request: Request) -> Optional[RequestAccess
             acting_user_id=UUID(str(user_id)),
             envelope=getattr(state, "run_envelope", None),
             bindings=getattr(state, "gateway_bindings", None) or (),
+            session_id=getattr(state, "gateway_session_id", None),
         )
     except (TypeError, ValueError, ValidationError):
         log.warning("[auth] request access could not be built", exc_info=True)
@@ -1541,6 +1542,10 @@ async def verify_secret_token(
         request.state.gateway_bindings = claims_from_token(
             auth_context.get("gateway_bindings")
         )
+        session_claim = auth_context.get("gateway_session_id")
+        request.state.gateway_session_id = (
+            session_claim if isinstance(session_claim, str) and session_claim else None
+        )
         request.state.gateway_platform_run = (
             audience == GATEWAY_TOKEN_AUDIENCE
             and auth_context.get("gateway_platform_run") is True
@@ -1637,6 +1642,7 @@ async def sign_secret_token(
     *,
     envelope: RunEnvelope,
     gateway_bindings: Optional[List[Dict[str, Any]]] = None,
+    gateway_session_id: Optional[str] = None,
 ):
     """Mint a secret token. `expires_in` overrides the default lifetime, in seconds.
 
@@ -1716,6 +1722,11 @@ async def sign_secret_token(
         # Absent unless set: a lookup with no binding is the project's shared account.
         if gateway_bindings:
             auth_context["gateway_bindings"] = list(gateway_bindings)
+            # The session the run belongs to, signed beside the bindings: the shared-
+            # session guard of a person's own credential reads it (M7). Unlike the run
+            # labels, it authorizes, so it is never taken from a caller's body.
+            if gateway_session_id:
+                auth_context["gateway_session_id"] = str(gateway_session_id)
 
         auth_context.update(envelope_to_claims(envelope=envelope))
 

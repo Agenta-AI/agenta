@@ -82,3 +82,11 @@ def gateway_bindings(request: Optional[Request]) -> List[Dict[str, Any]]:
     from oss.src.core.credentials.bindings import claims_to_token  # noqa: PLC0415
 
     return claims_to_token(getattr(request.state, "gateway_bindings", None) or ())
+
+
+def gateway_session_id(request: Optional[Request]) -> Optional[str]:
+    """The presenting credential's signed session (M7), for a route that re-mints it."""
+    if request is None:
+        return None
+    value = getattr(request.state, "gateway_session_id", None)
+    return value if isinstance(value, str) and value else None
