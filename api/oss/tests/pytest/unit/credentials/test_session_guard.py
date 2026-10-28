@@ -108,7 +108,7 @@ async def test_a_run_with_no_private_conversation_is_refused_before_any_read(
     assert guard.calls == 0
 
 
-def test_the_protection_session_of_a_child_run_is_its_parents():
+def test_a_child_run_has_no_protection_session():
     from types import SimpleNamespace
 
     from oss.src.core.access.context import reset_request_access, set_request_access
@@ -122,8 +122,9 @@ def test_the_protection_session_of_a_child_run_is_its_parents():
     access = make_request_access(
         envelope=make_envelope(kind="human"), credential_kind="run_credential"
     )
+    # A child run has no private conversation of its own in this step: refused.
     for parent_session, expected in (
-        ("s-parent", "s-parent"),
+        ("s-parent", None),
         (None, None),
     ):
         token = set_request_access(

@@ -333,16 +333,16 @@ def _reject_unreadable_agent_instructions(data: Any) -> None:
 def _protection_session(request: Any) -> Optional[str]:
     """The session whose readers a personal credential must be protected from (M7).
 
-    A run started under another run (an agent calling a workflow tool) answers into its
-    parent's conversation, so it inherits the parent's session, whatever its own; a
-    parent credential that names none leaves the child with none, which refuses every
-    personal credential. Every other run is its own request's session."""
+    A run started under another run (an agent calling a workflow tool) gets none: its
+    turn and traces live in a session of its own that the parent's guard does not
+    cover, so it cannot use a person's own account in this step. Every other run is its
+    own request's session."""
     parent = get_request_access()
     if (
         parent is not None
         and parent.credential_kind == RequestCredentialKind.RUN_CREDENTIAL
     ):
-        return parent.session_id
+        return None
     return getattr(request, "session_id", None)
 
 
