@@ -163,7 +163,6 @@ async def wd_engine(monkeypatch):
         for name in (
             "users",
             "organizations",
-            "workspaces",
             "projects",
             "session_streams",
             "session_executions",
@@ -197,9 +196,9 @@ async def wd_engine(monkeypatch):
 
 
 async def _seed_tenant(s):
-    """One user, organization, workspace and project. Returns the project id."""
+    """One user, organization and project. Returns the project id."""
     project_id = uuid.uuid4()
-    uid, org, ws = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+    uid, org = uuid.uuid4(), uuid.uuid4()
     await s.execute(
         text("INSERT INTO users (id, uid, username, email) VALUES (:i,:u,:n,:e)"),
         {"i": uid, "u": str(uid), "n": "wd", "e": f"wd-{uid.hex[:8]}@e.com"},
@@ -209,15 +208,10 @@ async def _seed_tenant(s):
         {"i": org, "n": "wd", "o": uid},
     )
     await s.execute(
-        text("INSERT INTO workspaces (id, name, organization_id) VALUES (:i,:n,:o)"),
-        {"i": ws, "n": "wd", "o": org},
-    )
-    await s.execute(
         text(
-            "INSERT INTO projects (id, project_name, organization_id, workspace_id) "
-            "VALUES (:i,:n,:o,:w)"
+            "INSERT INTO projects (id, project_name, organization_id) VALUES (:i,:n,:o)"
         ),
-        {"i": project_id, "n": "wd", "o": org, "w": ws},
+        {"i": project_id, "n": "wd", "o": org},
     )
     return project_id
 
