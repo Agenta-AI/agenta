@@ -10,7 +10,7 @@ only: workspace removal step 3 dropped the workspace tables.
 
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Optional
 from uuid import UUID, uuid4
 
 from sqlalchemy import text
@@ -25,7 +25,6 @@ class SeededOrganization:
     project_ids: List[UUID]
     user_ids: Dict[str, UUID]  # key = member label
     # Other organizations a test needs; deleted with this one.
-    extra_organization_ids: List[UUID] = field(default_factory=list)
     extra_user_ids: List[UUID] = field(default_factory=list)
 
 
@@ -55,45 +54,15 @@ async def create_user(*, label: str = "user") -> UUID:
     return user_id
 
 
-# Temp copies of the membership tables, restricted to the given organizations. `pg_temp`
-# comes first in the search path, so unqualified table names in the statements under
-# test read and write the copies. `LIKE ... INCLUDING DEFAULTS` copies no index.
-_SHADOW_TABLES_SQL = (
-    """CREATE TEMP TABLE organizations
-       (LIKE public.organizations INCLUDING DEFAULTS) ON COMMIT DROP""",
-    """INSERT INTO pg_temp.organizations
-       SELECT * FROM public.organizations WHERE id = ANY(CAST(:orgs AS uuid[]))""",
-    """CREATE TEMP TABLE projects
-       (LIKE public.projects INCLUDING DEFAULTS) ON COMMIT DROP""",
-    """INSERT INTO pg_temp.projects
-       SELECT * FROM public.projects WHERE organization_id = ANY(CAST(:orgs AS uuid[]))""",
-    """CREATE TEMP TABLE organization_members
-       (LIKE public.organization_members INCLUDING DEFAULTS) ON COMMIT DROP""",
-    """INSERT INTO pg_temp.organization_members
-       SELECT * FROM public.organization_members
-       WHERE organization_id = ANY(CAST(:orgs AS uuid[]))""",
-    """CREATE TEMP TABLE project_members
-       (LIKE public.project_members INCLUDING DEFAULTS) ON COMMIT DROP""",
-    """INSERT INTO pg_temp.project_members
-       SELECT * FROM public.project_members
-       WHERE project_id IN (SELECT id FROM pg_temp.projects)""",
-)
-
-
 @asynccontextmanager
 async def rolled_back_connection(
     *,
     isolation_level: Optional[str] = None,
-    organizations: Optional[Sequence["SeededOrganization"]] = None,
 ):
     """A connection whose transaction is always rolled back.
 
-    For the global repair statements: the test sees their effect on its own rows, and
-    the shared database never keeps it. With `organizations`, the four membership tables
-    are first copied into temp tables that hold only those organizations (and their
-    extra organizations). The global statements then lock no row of the shared
-    database, so they cannot deadlock with tests that run in parallel, and they never
-    see an organization that another test deletes in the meantime.
+    The test sees the effect of its statements, and the shared database never keeps
+    it.
     """
 
     engine = get_transactions_engine()._engine  # the SQLAlchemy AsyncEngine
@@ -104,21 +73,6 @@ async def rolled_back_connection(
             )
         transaction = await connection.begin()
         try:
-            if organizations is not None:
-                organization_ids = sorted(
-                    {
-                        organization_id
-                        for seeded in organizations
-                        for organization_id in (
-                            seeded.organization_id,
-                            *seeded.extra_organization_ids,
-                        )
-                    }
-                )
-                for statement in _SHADOW_TABLES_SQL:
-                    await connection.execute(
-                        text(statement), {"orgs": organization_ids}
-                    )
             yield connection
         finally:
             await transaction.rollback()
@@ -294,7 +248,7 @@ async def seed_stress_organization(
 
 
 async def delete_seeded_organization(seeded: SeededOrganization) -> None:
-    organization_ids = [seeded.organization_id, *seeded.extra_organization_ids]
+    organization_ids = [seeded.organization_id]
     user_ids = [*seeded.user_ids.values(), *seeded.extra_user_ids]
 
     async with get_transactions_engine().transaction() as connection:
@@ -324,15 +278,6 @@ async def delete_seeded_organization(seeded: SeededOrganization) -> None:
             text("DELETE FROM users WHERE id = ANY(CAST(:users AS uuid[]))"),
             {"users": user_ids},
         )
-
-
-def load_revision_sql(revision_file: str, name: str) -> str:
-    """Read a module-level SQL constant from a revision file in `core_oss/versions/`.
-
-    Loads the file by path, so the test does not import the migration package.
-    """
-
-    return getattr(load_revision_module(revision_file), name)
 
 
 def load_revision_module(revision_file: str):

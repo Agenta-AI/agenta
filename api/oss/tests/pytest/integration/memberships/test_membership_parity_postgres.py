@@ -1,10 +1,8 @@
 """Bearer, the project list and the capability check agree, on real rows."""
 
-from uuid import UUID
 
 import pytest
 
-from oss.src.core.access.interfaces import RbacEnforcementInterface
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.service import AccessService
 from oss.src.core.memberships.dtos import MembershipPolicy
@@ -94,11 +92,3 @@ async def test_bearer_list_and_capability_agree(policy):
     finally:
         for seeded in organizations:
             await delete_seeded_organization(seeded)
-
-
-class _NoRbacFor(RbacEnforcementInterface):
-    def __init__(self, organization_ids):
-        self._no_rbac = set(organization_ids)
-
-    async def is_enforced(self, *, organization_id: UUID) -> bool:
-        return organization_id not in self._no_rbac

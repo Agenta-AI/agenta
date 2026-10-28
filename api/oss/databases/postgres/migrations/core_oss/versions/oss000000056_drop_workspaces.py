@@ -4,13 +4,13 @@ Step 3 of workspace removal (design.md D5, "contract"). Step 2b removed every re
 write of these objects from the code and their ORM mappings, so the pods of the previous
 release (step 2b) serve while this runs and after. One transaction, in this order:
 
-1. Refuse, before any change, when another table still has a foreign key to
-   `workspaces` or `workspace_members` (none in Agenta's schema; a hand-made one would
-   otherwise be dropped silently). The error names each constraint.
-2. Drop `workspace_members` (its foreign keys and indexes go with it).
-3. Drop `workspaces`.
-4. Drop `projects.workspace_id` (no foreign key since oss000000052; an index on it goes
-   with the column).
+1. Drop `workspace_members` (its foreign keys and indexes go with it).
+2. Drop `workspaces`.
+3. Drop `projects.workspace_id` (no foreign key since oss000000052).
+
+The drops do not cascade: when another object (a hand-made foreign key or view) still
+depends on a workspace table, Postgres refuses the drop, names the object, and the
+transaction changes nothing.
 
 Locks: each drop takes an ACCESS EXCLUSIVE lock on its table for a moment, and the
 dropped foreign keys take a short lock on `organizations` and `users`. `lock_timeout` is
@@ -31,7 +31,6 @@ Create Date: 2026-10-28 00:00:00.000000
 from typing import Sequence, Union
 
 from alembic import op
-import sqlalchemy as sa
 
 revision: str = "oss000000056"
 down_revision: Union[str, None] = "oss000000055"
@@ -39,43 +38,9 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-# Foreign keys from tables this revision does not drop.
-_OUTSIDE_REFERENCES_SQL = """
-SELECT c.conrelid::regclass::text AS table_name, c.conname
-FROM pg_constraint c
-WHERE c.contype = 'f'
-  AND c.confrelid IN (
-      SELECT oid FROM pg_class
-      WHERE relname IN ('workspaces', 'workspace_members')
-        AND relnamespace = 'public'::regnamespace
-  )
-  AND c.conrelid NOT IN (
-      SELECT oid FROM pg_class
-      WHERE relname IN ('workspaces', 'workspace_members')
-        AND relnamespace = 'public'::regnamespace
-  )
-ORDER BY 1, 2
-"""
-
-
-class OutsideReference(RuntimeError):
-    pass
-
-
-def refuse_outside_references(bind) -> None:
-    rows = bind.execute(sa.text(_OUTSIDE_REFERENCES_SQL)).fetchall()
-    if rows:
-        names = ", ".join(f"{row.table_name}.{row.conname}" for row in rows)
-        raise OutsideReference(
-            f"foreign keys still reference the workspace tables: {names}. Drop them, "
-            "then rerun. Nothing was changed."
-        )
-
-
 def upgrade() -> None:
     op.execute("SET LOCAL lock_timeout = '2s'")
     op.execute("SET LOCAL statement_timeout = '60s'")
-    refuse_outside_references(op.get_bind())
     op.execute("DROP TABLE IF EXISTS workspace_members")
     op.execute("DROP TABLE IF EXISTS workspaces")
     op.execute("ALTER TABLE projects DROP COLUMN IF EXISTS workspace_id")
