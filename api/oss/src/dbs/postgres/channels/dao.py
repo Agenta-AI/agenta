@@ -1,6 +1,6 @@
 import json
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
@@ -1077,7 +1077,7 @@ class ChannelsDAO(ChannelsDAOInterface):
         #
         grant: ChannelGrantCreate,
         #
-        guard_artifact_id: Optional[UUID] = None,
+        guard_artifact_ids: Sequence[UUID] = (),
         guard_user_id: Optional[UUID] = None,
     ) -> ChannelGrant:
         grant_dbe = map_grant_dto_to_dbe_create(
@@ -1088,12 +1088,12 @@ class ChannelsDAO(ChannelsDAOInterface):
         )
 
         async with self.engine.session() as session:
-            if guard_artifact_id is not None:
-                # the owner check holds its lock through this write
+            # the owner checks hold their locks through this write
+            for artifact_id in guard_artifact_ids:
                 await guard_agent_activation(
                     session,
                     project_id=project_id,
-                    artifact_id=guard_artifact_id,
+                    artifact_id=artifact_id,
                     user_id=guard_user_id,
                 )
 
@@ -1188,16 +1188,16 @@ class ChannelsDAO(ChannelsDAOInterface):
         #
         grant: ChannelGrantEdit,
         #
-        guard_artifact_id: Optional[UUID] = None,
+        guard_artifact_ids: Sequence[UUID] = (),
         guard_user_id: Optional[UUID] = None,
     ) -> Optional[ChannelGrant]:
         async with self.engine.session() as session:
-            if guard_artifact_id is not None:
-                # the owner check holds its lock through this write
+            # the owner checks hold their locks through this write
+            for artifact_id in guard_artifact_ids:
                 await guard_agent_activation(
                     session,
                     project_id=project_id,
-                    artifact_id=guard_artifact_id,
+                    artifact_id=artifact_id,
                     user_id=guard_user_id,
                 )
 
@@ -1234,16 +1234,16 @@ class ChannelsDAO(ChannelsDAOInterface):
         #
         grant_id: UUID,
         #
-        guard_artifact_id: Optional[UUID] = None,
+        guard_artifact_ids: Sequence[UUID] = (),
         guard_user_id: Optional[UUID] = None,
     ) -> bool:
         async with self.engine.session() as session:
-            if guard_artifact_id is not None:
-                # the owner check holds its lock through this write
+            # the owner checks hold their locks through this write
+            for artifact_id in guard_artifact_ids:
                 await guard_agent_activation(
                     session,
                     project_id=project_id,
-                    artifact_id=guard_artifact_id,
+                    artifact_id=artifact_id,
                     user_id=guard_user_id,
                 )
 

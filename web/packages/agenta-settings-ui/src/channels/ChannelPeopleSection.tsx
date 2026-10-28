@@ -110,36 +110,20 @@ export const ChannelPeopleSection = ({
 
     const restricted = restrictDraft || (people?.length ?? 0) > 0
 
-    // Slack people who left the workspace stay listed until removed; the workspace list says
-    // who they are. Read once the list is known.
-    const [leftIds, setLeftIds] = useState<string[]>([])
+    // Slack people who left the workspace stay listed until removed. Every search also asks
+    // for the people on the list, so the workspace list says who left.
     const listedKey = (people ?? []).map((person) => person.id).join(",")
-    useEffect(() => {
-        if (!isSlack || !listedKey) {
-            setLeftIds([])
-            return
-        }
-        let live = true
-        actions
-            .queryPeople(connectionId, "", listedKey.split(","))
-            .then((result) => {
-                if (live)
-                    setLeftIds(result.people.filter((person) => person.isDeleted).map((p) => p.id))
-            })
-            .catch(() => {
-                /* the names stay as stored */
-            })
-        return () => {
-            live = false
-        }
-    }, [isSlack, listedKey, actions, connectionId])
 
     const search = useCallback(
         async (text: string) => {
             const seq = ++searchSeq.current
             setSearchError(null)
             try {
-                const result = await actions.queryPeople(connectionId, text)
+                const result = await actions.queryPeople(
+                    connectionId,
+                    text,
+                    listedKey ? listedKey.split(",") : undefined,
+                )
                 if (seq !== searchSeq.current) return
                 setFound(result.people)
                 setDirectory(result.directory)
@@ -149,7 +133,7 @@ export const ChannelPeopleSection = ({
                 setSearchError(errorMessage(e, "Could not search people."))
             }
         },
-        [actions, connectionId],
+        [actions, connectionId, listedKey],
     )
 
     // Search as the owner types (Slack), and once on open for "wrote to the bot".
@@ -237,6 +221,9 @@ export const ChannelPeopleSection = ({
     }
 
     const chosen = new Set((people ?? []).map((person) => person.id))
+    const leftIds = (found ?? [])
+        .filter((person) => person.isDeleted && chosen.has(person.id))
+        .map((person) => person.id)
     const candidates = (found ?? []).filter((person) => !chosen.has(person.id))
     const wrote = candidates.filter((person) => person.source === "messaged")
     const inWorkspace = candidates.filter((person) => person.source === "directory")

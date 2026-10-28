@@ -305,7 +305,7 @@ it("offers Who can message it on Slack and picks a person by name", async () => 
     await act(async () => {
         await new Promise((resolve) => setTimeout(resolve, 300))
     })
-    expect(queryPeople).toHaveBeenCalledWith("connection", "ben")
+    expect(queryPeople).toHaveBeenCalledWith("connection", "ben", undefined)
     const result = container.querySelector(
         '[data-testid="channels-people-result"]',
     ) as HTMLButtonElement

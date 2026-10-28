@@ -1275,7 +1275,9 @@ class TestLifecycleRefusals:
         )
 
         assert result is None
-        dao.fetch_agent_by_slug.assert_not_awaited()
+        # stored for later context, never answered
+        dao.attach_event_to_space.assert_awaited_once()
+        dao.create_thread.assert_not_awaited()
 
     async def test_inactive_agent_refuses_like_an_absent_one(self):
         agent = _make_agent(slug="triage", flags=ChannelAgentFlags(is_active=False))

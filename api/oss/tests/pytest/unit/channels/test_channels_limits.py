@@ -373,7 +373,8 @@ def _sync_guarded(refuse, result):
     given an agent to guard and the caller is not its owner."""
 
     async def write(**kwargs):
-        if refuse and kwargs.get("guard_artifact_id") is not None:
+        guarded = kwargs.get("guard_artifact_id") or kwargs.get("guard_artifact_ids")
+        if refuse and guarded:
             raise SharedItemNotFound()
         return result(kwargs)
 
@@ -469,7 +470,7 @@ async def test_the_owner_adds_a_rule():
         ),
     )
     dao.create_grant.assert_awaited_once()
-    assert dao.create_grant.await_args.kwargs["guard_artifact_id"] is not None
+    assert dao.create_grant.await_args.kwargs["guard_artifact_ids"]
 
 
 # --- the note ------------------------------------------------------------------- #
@@ -741,7 +742,34 @@ async def test_someone_else_cannot_move_a_private_agents_default_grant():
             grant_id=grant.id,
         )
     # refused inside the write, with the agent to guard
-    assert dao.edit_grant.await_args.kwargs["guard_artifact_id"] is not None
+    assert dao.edit_grant.await_args.kwargs["guard_artifact_ids"]
+
+
+async def test_a_refused_default_move_leaves_the_old_default_in_place():
+    """The first write (clearing the old default) checks both agents' owners,
+    so a refusal for the new agent changes nothing."""
+
+    agent = _agent()
+    old_default = _grant(agent, effect=ChannelGrantEffect.ALLOW, space_id=uuid4())
+    old_default.flags.is_default = True
+    new_grant = _grant(
+        agent, effect=ChannelGrantEffect.ALLOW, space_id=old_default.space_id
+    )
+    dao = _dao(agent=agent)
+    dao.query_grants = AsyncMock(return_value=[old_default, new_grant])
+    dao.fetch_default_grant = AsyncMock(return_value=old_default)
+    service = _guarded_service(dao, refuse=True)
+
+    with pytest.raises(SharedItemNotFound):
+        await service.set_grant_default(
+            project_id=uuid4(),
+            user_id=uuid4(),
+            guard_user_id=uuid4(),
+            grant_id=new_grant.id,
+        )
+    (call,) = dao.edit_grant.await_args_list
+    assert call.kwargs["grant"].id == old_default.id
+    assert len(call.kwargs["guard_artifact_ids"]) == 2
 
 
 async def test_an_excluded_person_writing_while_the_binding_is_off_is_not_stored():
@@ -755,4 +783,26 @@ async def test_an_excluded_person_writing_while_the_binding_is_off_is_not_stored
 
     assert routing.resolution is None
     assert routing.refusal is None  # silent: the binding is off
+    dao.attach_event_to_space.assert_not_awaited()
+
+
+async def test_an_excluded_person_writing_in_a_switched_off_place_is_not_stored():
+    agent = _agent(senders=["ANA"])
+    dao = _dao(agent=agent)
+    dao.fetch_space_by_key = AsyncMock(
+        return_value=ChannelSpace(
+            id=uuid4(),
+            connection_id=uuid4(),
+            kind=ChannelSpaceKind.GROUP,
+            external_key=uuid4(),
+            data=ChannelSpaceData(external_locator=_LOCATOR),
+            flags={"is_active": False},
+        )
+    )
+
+    routing = await _service(dao).resolve_or_refuse(
+        project_id=uuid4(), connection_id=uuid4(), event=_event(sender="BEN")
+    )
+
+    assert routing.resolution is None and routing.refusal is None
     dao.attach_event_to_space.assert_not_awaited()

@@ -184,6 +184,7 @@ async def query_people(
             found[person.id] = person
 
     directory = ChannelPeopleDirectory(state="unavailable")
+    by_id: Dict[str, ChannelPerson] = {}
     if adapter.lists_people and env.agenta.api.caching.enabled:
         cached = await get_cache(
             namespace=DIRECTORY_NAMESPACE,
@@ -202,10 +203,6 @@ async def query_people(
                 known = by_id.get(person_id)
                 if known is not None:
                     found[person_id] = known.model_copy(update={"source": "messaged"})
-            for person_id in ids or []:
-                known = by_id.get(person_id)
-                if known is not None and person_id not in found:
-                    found[person_id] = known
             if needle:
                 for person in cached.people:
                     if person.is_bot or person.is_deleted or person.id in found:
@@ -243,7 +240,17 @@ async def query_people(
         if person is not None and not person.is_bot:
             found.setdefault(person.id, person)
 
-    return list(found.values())[:MAX_RESULTS], directory
+    matches = list(found.values())[:MAX_RESULTS]
+    # people already on the list, outside the result limit: the screen marks
+    # one who left the workspace
+    if ids and directory.state == "ready":
+        shown = {person.id for person in matches}
+        matches += [
+            by_id[person_id]
+            for person_id in ids
+            if person_id in by_id and person_id not in shown
+        ]
+    return matches, directory
 
 
 async def refresh_people(

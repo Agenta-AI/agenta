@@ -1841,7 +1841,7 @@ class ChannelsService:
             #
             grant=grant,
             #
-            guard_artifact_id=guard_artifact_id,
+            guard_artifact_ids=_present(guard_artifact_id),
             guard_user_id=guard_user_id,
         )
 
@@ -1874,7 +1874,7 @@ class ChannelsService:
             #
             grant=grant,
             #
-            guard_artifact_id=guard_artifact_id,
+            guard_artifact_ids=_present(guard_artifact_id),
             guard_user_id=guard_user_id,
         )
 
@@ -1894,7 +1894,7 @@ class ChannelsService:
             #
             grant_id=grant_id,
             #
-            guard_artifact_id=guard_artifact_id,
+            guard_artifact_ids=_present(guard_artifact_id),
             guard_user_id=guard_user_id,
         )
 
@@ -1932,8 +1932,8 @@ class ChannelsService:
             project_id=project_id,
             space_id=grant.space_id,
         )
-        # both rows change: each write checks its own agent's owner under a lock,
-        # and both agents resolve before either write
+        # both rows change: the first write checks both agents' owners under
+        # lock, so a refusal leaves the space's default as it was
         guard_artifact_id = await self._grant_limits_guard(
             project_id=project_id, grant_id=grant.id
         )
@@ -1959,7 +1959,10 @@ class ChannelsService:
                     data=current_default.data,
                     flags=current_default.flags,
                 ),
-                guard_artifact_id=current_guard_artifact_id,
+                # both agents' owners, checked before the first row changes
+                guard_artifact_ids=_present(
+                    current_guard_artifact_id, guard_artifact_id
+                ),
                 guard_user_id=guard_user_id,
             )
 
@@ -1977,7 +1980,7 @@ class ChannelsService:
                 data=grant.data,
                 flags=grant.flags,
             ),
-            guard_artifact_id=guard_artifact_id,
+            guard_artifact_ids=_present(guard_artifact_id),
             guard_user_id=guard_user_id,
         )
         return updated
@@ -2209,14 +2212,6 @@ class ChannelsService:
                 ),
             )
 
-        if space.deleted_at is not None or not space.flags.is_active:
-            await self.channels_dao.attach_event_to_space(
-                project_id=project_id,
-                event_id=event.id,
-                space_id=space.id,
-            )
-            return ChannelRouting()
-
         agent = await self._agent_awaiting_answer(
             project_id=project_id,
             space=space,
@@ -2250,7 +2245,11 @@ class ChannelsService:
         # so it never reaches the agent as context, also while the binding is
         # off (it would come back as context when the binding is turned on).
         if agent is not None and not agent.data.audience.admits(_sender_id(event)):
-            if not live_agent:
+            if (
+                not live_agent
+                or space.deleted_at is not None
+                or not space.flags.is_active
+            ):
                 return ChannelRouting()
             return self._refusal(
                 reason=ChannelRefusalReason.SENDER_NOT_ALLOWED,
@@ -2269,7 +2268,8 @@ class ChannelsService:
             space_id=space.id,
         )
 
-        if not live_agent:
+        # a switched-off place, or no live agent: stored, never answered
+        if space.deleted_at is not None or not space.flags.is_active or not live_agent:
             return ChannelRouting()
 
         matching_grants = await self.channels_dao.query_matching_grants(
@@ -3072,6 +3072,10 @@ def _context_part(context: Optional[Dict[str, Any]]) -> Optional[dict]:
         + json.dumps(context, ensure_ascii=False, sort_keys=True)
         + "\n\n",
     }
+
+
+def _present(*ids: Optional[UUID]) -> List[UUID]:
+    return [artifact_id for artifact_id in ids if artifact_id is not None]
 
 
 def _sender_id(event: ChannelInboxEvent) -> Optional[str]:
