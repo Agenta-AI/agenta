@@ -25,7 +25,12 @@ import {
     type MCPEndpoint,
     type McpServerPolicy,
 } from "@agenta/entities/mcpEndpoint"
-import {StatusIndicator} from "@agenta/ui/components/presentational"
+import {
+    invalidateAgentRequirements,
+    requirementAtPath,
+    requirementForItem,
+    type AgentRequirementItem,
+} from "@agenta/entities/workflow"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {
@@ -38,7 +43,9 @@ import type {PermissionPolicy} from "../permissionPolicy"
 
 import {ConfigItemList} from "./ConfigItemList"
 import {type ItemRowStatus} from "./ItemRow"
-import {buildMcpAgentItem, mcpItemNeedsRepair, mcpLoginExpired} from "./mcpRail"
+import {buildMcpAgentItem, mcpItemNeedsRepair} from "./mcpRail"
+import {needsSetupStatus} from "./needsSetup"
+import {useAgentRequirements} from "./useAgentRequirements"
 
 export interface McpServersSectionBodyProps {
     /** The agent's saved `mcps` array. */
@@ -114,9 +121,18 @@ export function McpServersSectionBody({
         },
         [endpoints],
     )
-    const itemExpired = useCallback(
-        (item: unknown) => mcpLoginExpired(endpointForItem(item)),
-        [endpointForItem],
+    // The server's needs-setup check: a missing or turned-off server, or an expired sign-in.
+    const requirements = useAgentRequirements()
+    const requirementFor = useCallback(
+        (item: unknown, index: number): AgentRequirementItem | undefined => {
+            if (!requirements) return undefined
+            const slug = readMcpConnectionSlug((item ?? {}) as Record<string, unknown>)
+            return (
+                requirementForItem(requirements, {kinds: ["mcp_server", "mcp_sign_in"], slug}) ??
+                requirementAtPath(requirements, `mcps[${index}]`)
+            )
+        },
+        [requirements],
     )
 
     const addedSlugs = useMemo(
@@ -165,35 +181,33 @@ export function McpServersSectionBody({
         (item: unknown, index: number): ItemRowStatus | undefined => {
             const base = statusFor(item, index)
             // A blocking problem outranks a draft marker and structural invalid stays first,
-            // the same order the tool rows use. No label: the row states the expiry in its own
-            // body, and a tag saying it again reads as two separate problems.
+            // the same order the tool rows use.
             if (base?.tone === "invalid") return base
-            if (itemExpired(item)) return {tone: "incomplete"}
-            return base
+            const req = requirementFor(item, index)
+            return req ? needsSetupStatus(req) : base
         },
-        [statusFor, itemExpired],
-    )
-    // Only an unhealthy connection surfaces a state. A row that reads "Connected" on every
-    // server teaches the reader to skip the column.
-    const extraForRow = useCallback(
-        (item: unknown) =>
-            itemExpired(item) ? (
-                <StatusIndicator tone="warning" label="Login expired" className="text-xs" />
-            ) : undefined,
-        [itemExpired],
+        [statusFor, requirementFor],
     )
     /** Where a row goes when it is clicked; see {@link mcpItemNeedsRepair}. */
     const openRow = useCallback(
         (_kind: "mcp" | "tool" | "skill", index: number, item: unknown) => {
             const record = (item ?? {}) as Record<string, unknown>
-            if (mcpItemNeedsRepair(record, endpointForItem(item))) {
+            const endpoint = endpointForItem(item)
+            const req = requirementFor(item, index)
+            // An expired sign-in goes straight to the sign-in journey; the agent does not change.
+            if (req?.kind === "mcp_sign_in" && endpoint) {
+                setConnectingEndpoint(endpoint)
+                return
+            }
+            // A missing or turned-off server opens the form, where another one is picked or connected.
+            if (req || mcpItemNeedsRepair(record, endpoint)) {
                 openForm(index, item)
                 return
             }
             setPermissionIndex(index)
             setPermissionFromAdd(false)
         },
-        [endpointForItem, openForm],
+        [endpointForItem, openForm, requirementFor],
     )
 
     // Read live from the list rather than captured when the drawer opened: an item removed
@@ -218,7 +232,6 @@ export function McpServersSectionBody({
                 closeEditor={closeEditor}
                 disabled={disabled}
                 statusFor={statusForRow}
-                extraFor={extraForRow}
             />
 
             <McpAddServerDrawer
@@ -304,7 +317,10 @@ export function McpServersSectionBody({
                     container={journeyContainer}
                     onClose={() => setConnectingEndpoint(null)}
                     reconnect={mcpReconnectTarget(connectingEndpoint)}
-                    onConnected={() => void refreshEndpoints()}
+                    onConnected={() => {
+                        void refreshEndpoints()
+                        void invalidateAgentRequirements()
+                    }}
                 />
             ) : null}
         </>

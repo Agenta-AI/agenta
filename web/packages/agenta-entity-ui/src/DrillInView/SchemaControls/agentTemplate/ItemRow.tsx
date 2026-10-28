@@ -25,6 +25,8 @@ export interface ItemRowStatus {
      */
     label?: string
     tooltip?: ReactNode
+    /** A second line under the name that says why (the needs-setup reason). Replaces the description. */
+    reason?: string
 }
 
 const STATUS_BORDER: Record<ItemRowStatusTone, string> = {
@@ -73,6 +75,27 @@ export function StatusTag({status}: {status: ItemRowStatus}) {
             </Tooltip>
         </TooltipProvider>
     )
+}
+
+/** The line under a row's name: the status reason when there is one, else the description. */
+function RowSubtitle({
+    status,
+    description,
+    className,
+}: {
+    status?: ItemRowStatus
+    description?: ReactNode
+    className: string
+}) {
+    if (status?.reason) {
+        return (
+            <span className={cn(className, "text-[var(--ag-colorWarningText)]")}>
+                {status.reason}
+            </span>
+        )
+    }
+    if (!description) return null
+    return <span className={className}>{description}</span>
 }
 
 /** Colored avatar square (icon or monogram) at the start of a config-item row. */
@@ -168,11 +191,11 @@ export function ItemRow({
                     >
                         {descriptor.name}
                     </div>
-                    {descriptor.description ? (
-                        <span className="block truncate text-xs leading-tight text-[var(--ag-colorTextTertiary)]">
-                            {descriptor.description}
-                        </span>
-                    ) : null}
+                    <RowSubtitle
+                        status={status}
+                        description={descriptor.description}
+                        className="block truncate text-xs leading-tight text-[var(--ag-colorTextTertiary)]"
+                    />
                 </div>
             </div>
             <div className="flex shrink-0 items-center gap-1.5">
@@ -256,11 +279,11 @@ export function ItemChildRow({
                 >
                     {descriptor.name}
                 </div>
-                {descriptor.description ? (
-                    <span className="block truncate text-xs leading-snug text-colorTextDescription">
-                        {descriptor.description}
-                    </span>
-                ) : null}
+                <RowSubtitle
+                    status={status}
+                    description={descriptor.description}
+                    className="block truncate text-xs leading-snug text-colorTextDescription"
+                />
             </div>
             <div
                 className="flex shrink-0 items-center gap-1.5"
