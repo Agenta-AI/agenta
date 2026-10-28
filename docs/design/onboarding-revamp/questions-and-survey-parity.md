@@ -25,8 +25,8 @@ never saw the onboarding and never replaces an onboarding answer. Its referral a
 list, so it stays on the `survey sent` event and is not written to `referral_source_v2`.
 
 `is_icp_v2` needs company size, role and agent experience, which now arrive from two surfaces.
-No form writes it any more, so a stored value can never disagree with the stored inputs;
-reporting derives it instead (see below).
+No form writes it any more. A value stored before this change can disagree with the current
+inputs, so reporting derives the current result instead (see below).
 
 ## Role: old label to new chip
 
@@ -93,7 +93,8 @@ and hosting as the only repeated real ones.
 ## is_icp_v2
 
 Definition: company size in 11-50, 51-200 or 201+, role not Student or Hobbyist, and agent
-experience not "Not yet — just exploring".
+experience set and not "Not yet — just exploring". A person with no agent experience answer
+is not counted as ICP.
 
 The role test matches any label starting with "Hobbyist", so a rename cannot flip the result.
 The stored property is frozen at what the survey wrote before this change, so derive the
