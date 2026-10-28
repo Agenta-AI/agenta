@@ -821,6 +821,14 @@ async def test_pointing_an_off_binding_at_someone_elses_private_agent_is_refused
     agent.flags.is_active = False
     dao = _dao(agent=agent)
     service = _guarded_service(dao, refuse=True)
+    source_artifact, destination_artifact = uuid4(), uuid4()
+    destination_revision = str(uuid4())
+
+    async def _resolve(*, project_id, references):
+        ids = {str(ref.id) for ref in references}
+        return destination_artifact if destination_revision in ids else source_artifact
+
+    service.workflows_service.resolve_agent_artifact_id = _resolve
 
     with pytest.raises(SharedItemNotFound):
         await service.edit_agent(
@@ -830,8 +838,10 @@ async def test_pointing_an_off_binding_at_someone_elses_private_agent_is_refused
             agent=ChannelAgentEdit(
                 id=agent.id,
                 data=ChannelAgentDataEdit(
-                    references={"workflow_revision": {"id": str(uuid4())}}
+                    references={"workflow_revision": {"id": destination_revision}}
                 ),
             ),
         )
-    assert dao.edit_agent.await_args.kwargs["limits_artifact_ids"]
+    assert list(dao.edit_agent.await_args.kwargs["limits_artifact_ids"]) == [
+        destination_artifact
+    ]
