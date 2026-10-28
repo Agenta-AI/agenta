@@ -14,6 +14,8 @@ from typing import Any, AsyncIterator, Dict, List, Optional
 
 import pytest
 
+from agenta.sdk.agents.requirements import AgentNeedsSetupError
+
 from agenta.sdk.agents import (
     AgentResult,
     HarnessKind,
@@ -311,7 +313,9 @@ async def test_default_composition_rejects_unsupported_provider_pre_resolve():
     )
     handler = make_agent_handler(comp)
 
-    with pytest.raises(UnsupportedProviderError):
+    # The model needs setup: the harness cannot run it. One `agent_needs_setup` error,
+    # which keeps the old failure as the requirement's `detail.code`.
+    with pytest.raises(AgentNeedsSetupError) as raised:
         await handler(
             request=_request(),
             messages=[{"role": "user", "content": "hi"}],
@@ -319,6 +323,12 @@ async def test_default_composition_rejects_unsupported_provider_pre_resolve():
                 "claude", model={"provider": "openai", "model": "gpt-5.5"}
             ),
         )
+    assert isinstance(raised.value.__cause__, UnsupportedProviderError)
+    [requirement] = raised.value.requirements
+    assert requirement["kind"] == "model"
+    assert requirement["reason"] == "not_available"
+    assert requirement["blocks_run"] is True
+    assert requirement["detail"] == {"code": "unsupported_provider"}
 
 
 async def test_default_composition_rejects_unconsumable_deployment_post_resolve():
@@ -430,7 +440,7 @@ async def test_pi_custom_with_non_openai_family_rejected_post_resolve():
     )
     handler = make_agent_handler(comp)
 
-    with pytest.raises(UnsupportedProviderError):
+    with pytest.raises(AgentNeedsSetupError) as raised:
         await handler(
             request=_request(),
             messages=[{"role": "user", "content": "hi"}],
@@ -443,6 +453,7 @@ async def test_pi_custom_with_non_openai_family_rejected_post_resolve():
                 },
             ),
         )
+    assert isinstance(raised.value.__cause__, UnsupportedProviderError)
 
 
 async def test_default_composition_fails_closed_on_connection_resolution_failure():

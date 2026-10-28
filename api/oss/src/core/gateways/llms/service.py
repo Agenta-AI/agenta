@@ -901,7 +901,8 @@ class LLMGatewayService:
         `_check_allowlist`), so it is never refused here."""
         if target.model_rules == GatewayEndpointNamespace.STANDARD:
             return
-        if not target.models.allows(model):
+        # The relay checks the name the harness sends, which is the upstream's own name.
+        if not target.models.allows(target.upstream_model(model)):
             raise LLMAgentModelNotAvailableError(
                 model=model, namespace=target.namespace, name=target.name
             )

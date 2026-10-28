@@ -105,7 +105,8 @@ async def test_one_entry_produces_two_specs_and_one_policy(fake_http, connection
                     "permissions": {"default": "inherit", "tools": {}},
                 },
             }
-        ]
+        ],
+        "omit_unavailable": True,
     }
 
     # The two derived specifications, exactly as contracts section 4 fixes them.
@@ -494,3 +495,26 @@ async def test_legacy_and_connection_entries_both_resolve(fake_http, connection)
     assert legacy.permission == "allow"
     policy_tools = resolved.gateway_policy.integrations["github"].tools
     assert policy_tools["GET_ISSUE"].permission == "deny"
+
+
+async def test_a_connection_the_api_left_out_is_dropped_from_the_run(
+    fake_http, connection
+):
+    """Needs setup: the API names a missing connection in `unavailable_connections` and
+    the run starts without it, instead of failing."""
+    fake_http(
+        gateway,
+        payload={
+            "gateway_connections": [_slice("github", _GITHUB_CATALOG)],
+            "unavailable_connections": [
+                {"provider": "composio", "integration": "slack", "connection": "gone"}
+            ],
+        },
+    )
+
+    resolution = await _resolver(connection).resolve_connections(
+        [_connection_config(), _connection_config("slack", slug="gone")],
+        mode="allow_reads",
+    )
+
+    assert list(resolution.gateway_policy.integrations) == ["github"]
