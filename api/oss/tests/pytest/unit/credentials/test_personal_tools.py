@@ -45,6 +45,8 @@ def _open_gate(monkeypatch):
         return True
 
     selection_module.set_personal_use_guard(private_session)
+    yield
+    selection_module.set_personal_use_guard(None)
 
 
 def _connection(*, owner=None, project_id=None, slug="gmail-support"):

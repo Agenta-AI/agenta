@@ -5,12 +5,14 @@ from time import perf_counter
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 from uuid import UUID
 
-from oss.src.core.credentials.policy import PersonalCredentialRefused
 from oss.src.core.secrets.dtos import SecretOwner
 from oss.src.core.gateway.connections.dtos import provider_entity
 from oss.src.core.access.context import get_request_access
-from oss.src.core.credentials.bindings import bound_to_caller, tool_key
-from oss.src.core.credentials.selection import select_personal_credential
+from oss.src.core.credentials.bindings import Binding, bound_to_caller, tool_key
+from oss.src.core.credentials.selection import (
+    binding_not_signed_refusal,
+    select_personal_credential,
+)
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
@@ -823,7 +825,7 @@ class ToolsService:
         # signed binding for it (a run started outside the API), is refused, never
         # answered with the project's connection of that slug.
         access = get_request_access()
-        if ref.connection.binding == "caller_account" and not (
+        if ref.connection.binding == Binding.CALLER_ACCOUNT.value and not (
             access is not None
             and bound_to_caller(
                 access.bindings,
@@ -834,13 +836,7 @@ class ToolsService:
                 ),
             )
         ):
-            raise PersonalCredentialRefused(
-                code="binding_not_signed",
-                message=(
-                    "This agent uses each person's own account. Start it from a "
-                    "conversation in Agenta."
-                ),
-            )
+            raise binding_not_signed_refusal()
 
         await self.resolve_connection_by_slug(
             project_id=project_id,
