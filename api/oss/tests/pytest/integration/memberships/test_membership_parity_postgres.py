@@ -1,6 +1,5 @@
 """Bearer, the project list and the capability check agree, on real rows."""
 
-
 import pytest
 
 from oss.src.core.access.permissions.types import Permission

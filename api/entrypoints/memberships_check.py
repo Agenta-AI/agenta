@@ -11,8 +11,6 @@ environment (`POSTGRES_URI_CORE`) and `AGENTA_LICENSE` set to the edition:
 
 --report    Read only. Writes `report.json` with counts and id lists for the checks
             P1, P2a, P5 and P7 to P12 per organization (ids only, never emails).
-            The checks that read workspace rows (P2b, P3, P4, P6) went with the
-            workspace tables (workspace removal step 3).
 --apply     Before the upgrade. Deletes the newer rows of each duplicate
             (project_id, user_id) group, counted over non-demo rows, and keeps the
             oldest by (created_at, id) (P5). Demo rows are left to `oss000000044`,

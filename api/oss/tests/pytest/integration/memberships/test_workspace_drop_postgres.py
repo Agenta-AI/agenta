@@ -66,6 +66,12 @@ async def test_downgrade_restores_an_empty_schema_and_upgrade_drops_it_again():
     await _require_the_step_3_schema()
     revision = load_revision_module(_DROP)
     async with rolled_back_connection() as connection:
+        # The downgrade and upgrade lock both tables through their foreign keys; take
+        # them in one statement first, so a fixture that writes users then
+        # organizations in parallel waits instead of deadlocking.
+        await connection.execute(
+            text("LOCK TABLE organizations, users IN SHARE ROW EXCLUSIVE MODE")
+        )
         await _run(connection, revision.downgrade)
         assert await _objects(connection) == {
             "workspaces": True,
