@@ -18,3 +18,16 @@ export const runIdFor = (
     }
     return undefined
 }
+
+/** When the server saved the user message that started the turn at `index`, if it is saved. */
+export const runStartedAtFor = (
+    turns: {isUser: boolean; message: {metadata?: unknown}}[],
+    index: number,
+): number | undefined => {
+    for (let i = Math.min(index, turns.length) - 1; i >= 0; i--) {
+        if (!turns[i].isUser) continue
+        const at = (turns[i].message.metadata as {createdAt?: unknown} | undefined)?.createdAt
+        return typeof at === "number" ? at : undefined
+    }
+    return undefined
+}

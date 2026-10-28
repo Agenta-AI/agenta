@@ -206,12 +206,9 @@ describe("ActivityTimeline", () => {
         expect(line.getAttribute("aria-expanded")).toBe("false")
     })
 
-    it("says Writing while a text is still open in the fold", () => {
-        mount({
-            steps: [{kind: "thought", key: "t", text: "I will", streaming: true, source: "text"}],
-            streaming: true,
-        })
-        expect(screen.getAllByRole("button")[0].textContent).toContain("Writing")
+    it("says Answering while the agent writes a message and no step runs", () => {
+        mount({steps: [], streaming: true, answerStarted: true})
+        expect(screen.getAllByRole("button")[0].textContent).toContain("Answering")
     })
 
     it("does not narrate an answered question once the run moves on", () => {
@@ -285,9 +282,7 @@ describe("ActivityTimeline", () => {
 
     it("reads Worked for a lone thought too, and draws no wire for one step", () => {
         const {container} = mount({
-            steps: [
-                {kind: "thought", key: "t", text: "hmm", streaming: false, source: "reasoning"},
-            ],
+            steps: [{kind: "thought", key: "t", text: "hmm", streaming: false}],
         })
         expect(screen.getAllByRole("button")[0].textContent).toContain("Worked")
         expect(container.querySelector("[aria-hidden].w-px")).toBeNull()

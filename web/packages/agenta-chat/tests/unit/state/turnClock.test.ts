@@ -165,3 +165,34 @@ describe("turn span", () => {
         expect(turnSpanElapsed({...span, pausedMs: 10_000}, Date.now())).toBe(0)
     })
 })
+
+describe("turn span gates and send anchors", () => {
+    afterEach(() => vi.useRealTimers())
+
+    it("marks a gate only when the clock stopped to wait on the reader", () => {
+        vi.useFakeTimers()
+        vi.setSystemTime(10_000)
+        const store = createStore()
+        store.set(startTurnSpanAtom, "run")
+        vi.setSystemTime(11_000)
+        store.set(settleTurnSpanAtom, "run")
+        vi.setSystemTime(11_100)
+        store.set(startTurnSpanAtom, "run")
+        expect(store.get(turnSpanAtomFamily("run"))?.gated).toBeUndefined()
+
+        vi.setSystemTime(12_000)
+        store.set(settleTurnSpanAtom, "run", true)
+        expect(store.get(turnSpanAtomFamily("run"))?.gated).toBe(true)
+    })
+
+    it("counts from the send without marking the start as an unsafe anchor", () => {
+        vi.useFakeTimers()
+        vi.setSystemTime(20_000)
+        const store = createStore()
+        store.set(startTurnSpanAtom, "run", 14_000, true)
+        const span = store.get(turnSpanAtomFamily("run"))
+        expect(span).toMatchObject({startedAt: 14_000, pausedMs: 0})
+        expect(span?.anchored).toBeUndefined()
+        expect(turnSpanElapsed(span!, 20_000)).toBe(6_000)
+    })
+})

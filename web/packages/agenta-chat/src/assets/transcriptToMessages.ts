@@ -105,6 +105,8 @@ interface DraftMessage {
     pausedExecutionId?: string
     /** The record's `turn_id`. Emitted on USER rows only, so a client can recognise its own send. */
     executionId?: string
+    /** When the server saved a user row: the run it opens started then, before any agent output. */
+    createdAt?: number
     /** The turn's persisted `error` event — replayed through the same `metadata.runError` channel
      *  the live stream stamps, so a failure renders as the error bubble, not as body text. */
     runError?: string
@@ -840,6 +842,10 @@ export function transcriptToMessages(
             current = newDraft(row.id, role)
             drafts.push(current)
         }
+        if (role === "user" && current.createdAt === undefined && row.created_at) {
+            const at = Date.parse(row.created_at)
+            if (Number.isFinite(at)) current.createdAt = at
+        }
         if (traceId && !current.traceId) current.traceId = traceId
         applyEvent(current, p, index, row.session_id, row.project_id)
         if (
@@ -899,6 +905,7 @@ export function transcriptToMessages(
             // User rows only: an assistant `turnId` is the live stream's Stop guard, and minting
             // one here from records would change what `latestTurnId` reports.
             if (d.role === "user" && d.executionId) metadata.turnId = d.executionId
+            if (d.role === "user" && d.createdAt !== undefined) metadata.createdAt = d.createdAt
             if (d.runError && !d.runStopped)
                 metadata.runError = {
                     message: d.runError,

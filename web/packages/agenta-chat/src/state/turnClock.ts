@@ -66,6 +66,9 @@ interface TurnSpan {
     endedAt?: number
     /** `startedAt` is the run's own start, not when this tab first clocked the turn. */
     anchored?: boolean
+    /** The clock once stopped because the run waited on the reader. Other stops (a stream
+     *  handoff, a step list that empties for a render) say nothing about a gate. */
+    gated?: boolean
 }
 
 const turnSpanMapAtom = atom<Record<string, TurnSpan>>({})
@@ -93,7 +96,7 @@ export const turnSpanElapsed = (span: TurnSpan, now: number): number =>
  */
 export const startTurnSpanAtom = atom(
     null,
-    (get, set, messageId: string, startedAtHint?: number) => {
+    (get, set, messageId: string, startedAtHint?: number, seenFromSend = false) => {
         const current = get(turnSpanMapAtom)
         const span = current[messageId]
         const now = Date.now()
@@ -105,7 +108,7 @@ export const startTurnSpanAtom = atom(
                 [messageId]:
                     hint === undefined
                         ? {startedAt: now, pausedMs: 0}
-                        : {startedAt: hint, pausedMs: 0, anchored: true},
+                        : {startedAt: hint, pausedMs: 0, ...(seenFromSend ? {} : {anchored: true})},
             })
             return
         }
@@ -121,7 +124,8 @@ export const startTurnSpanAtom = atom(
             [messageId]: {
                 startedAt: anchors ? hint : span.startedAt,
                 pausedMs,
-                ...(span.anchored || anchors ? {anchored: true} : {}),
+                ...(span.anchored || (anchors && !seenFromSend) ? {anchored: true} : {}),
+                ...(span.gated ? {gated: true} : {}),
             },
         })
     },
@@ -140,9 +144,19 @@ const usableStart = (hint: number | undefined, now: number): number | undefined 
         : undefined
 
 /** Freeze the clock on settle or while parked on the reader; one never started stays absent. */
-export const settleTurnSpanAtom = atom(null, (get, set, messageId: string) => {
-    const current = get(turnSpanMapAtom)
-    const span = current[messageId]
-    if (!span || span.endedAt) return
-    set(turnSpanMapAtom, {...current, [messageId]: {...span, endedAt: Date.now()}})
-})
+export const settleTurnSpanAtom = atom(
+    null,
+    (get, set, messageId: string, waitingOnReader = false) => {
+        const current = get(turnSpanMapAtom)
+        const span = current[messageId]
+        if (!span || span.endedAt) return
+        set(turnSpanMapAtom, {
+            ...current,
+            [messageId]: {
+                ...span,
+                endedAt: Date.now(),
+                ...(waitingOnReader || span.gated ? {gated: true} : {}),
+            },
+        })
+    },
+)
