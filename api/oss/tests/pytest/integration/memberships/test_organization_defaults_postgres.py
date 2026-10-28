@@ -1,45 +1,30 @@
-"""Workspace removal step 2 ("switch") against a migrated Postgres.
+"""One default project per organization, against a migrated Postgres.
 
-Revision `oss000000053` repairs projects whose workspace belongs to another organization
-and keeps one default project per organization. These cases pin both data changes, their
-order, their locks against the step-1 and step-2 default writers, and the rule every
-reader uses afterwards.
-
-Global statements run on temp copies of the membership tables
-(`rolled_back_connection(organizations=...)`) or are limited to the test's own
-organizations (`switch(bind, organization_ids)`), so they never lock rows of tests that run
-in parallel.
+Every reader picks the organization's default project by one rule (`is_default` first,
+then `created_at, id`), every default writer takes the organization lock, and the write
+paths that once wrote workspace rows (signup, membership writes, the admin graph) work on
+an organization-only schema. Also the organization details, the project list, the admin
+notice, the admin workspace aliases and the session link.
 """
 
 import asyncio
 from uuid import UUID, uuid4
 
 import pytest
-from alembic.migration import MigrationContext
-from alembic.operations import Operations
 from sqlalchemy import text
 
 from oss.src.dbs.postgres.memberships.dao import MembershipsDAO
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 from oss.tests.pytest.utils.membership_seed import (
-    ConnectionEngine,
     SeededOrganization,
     delete_seeded_organization,
     execute,
     fetch_all,
-    load_revision_module,
-    rolled_back_connection,
     seed_organization,
 )
 
 
 pytestmark = pytest.mark.integration
-
-_REVISION = "oss000000053_switch_projects_to_organization_defaults.py"
-
-
-def _revision():
-    return load_revision_module(_REVISION)
 
 
 def _dao() -> MembershipsDAO:
@@ -50,281 +35,43 @@ def _dao() -> MembershipsDAO:
 
 
 async def _multi_default_organization() -> SeededOrganization:
-    """Three workspaces, each with a default project. The `default`-type workspace is the
-    second one, so the oldest default (project 0) is not the D-11 default (project 1)."""
+    """Three projects, each a default (data written before the one-default rule)."""
 
-    seeded = await seed_organization(members={"m": "editor"}, workspaces=3)
+    seeded = await seed_organization(members={"m": "editor"}, projects=3)
     await execute(
-        "UPDATE workspaces SET type = NULL WHERE organization_id = :o",
+        "UPDATE projects SET is_default = true WHERE organization_id = :o",
         {"o": seeded.organization_id},
-    )
-    await execute(
-        "UPDATE workspaces SET type = 'default' WHERE id = :w",
-        {"w": seeded.workspace_ids[1]},
     )
     return seeded
 
 
-async def _cross_organization_project(*, foreign_default_type: bool = True):
-    """Project P of O1 whose workspace W belongs to O2 (a legacy shape)."""
+async def _one_default_organization() -> SeededOrganization:
+    """Three projects; the default is project 1, so it is not the oldest."""
 
-    cross = await seed_organization(members={"m": "editor"}, workspaces=2)
-    other = await seed_organization(members={"owner": "owner"})
-    # O1: workspace 0 is not `default`-type, so only P's foreign workspace could rank first.
+    seeded = await seed_organization(members={"m": "editor"}, projects=3)
     await execute(
-        "UPDATE workspaces SET type = NULL WHERE organization_id = :o",
-        {"o": cross.organization_id},
+        "UPDATE projects SET is_default = (id = :d) WHERE organization_id = :o",
+        {"d": seeded.project_ids[1], "o": seeded.organization_id},
     )
-    await execute(
-        "UPDATE workspaces SET type = :t WHERE id = :w",
-        {"w": other.workspace_ids[0], "t": "default" if foreign_default_type else None},
-    )
-    await execute(
-        "UPDATE projects SET workspace_id = :ws WHERE id = :p",
-        {"ws": other.workspace_ids[0], "p": cross.project_ids[1]},
-    )
-    cross.extra_organization_ids.append(other.organization_id)
-    cross.extra_user_ids.extend(other.user_ids.values())
-    return cross, other
+    return seeded
 
 
 async def _no_default_organization() -> SeededOrganization:
-    seeded = await seed_organization(members={"m": "editor"}, workspaces=2)
+    seeded = await seed_organization(members={"m": "editor"}, projects=2)
     await execute(
         "UPDATE projects SET is_default = false WHERE organization_id = :o",
         {"o": seeded.organization_id},
     )
-    # The seed writes both workspaces in one transaction (same `now()`): make the second
-    # one younger so the order does not depend on random ids.
-    await execute(
-        "UPDATE workspaces SET created_at = created_at + interval '1 second' WHERE id = :w",
-        {"w": seeded.workspace_ids[1]},
-    )
     return seeded
 
 
-async def _upgrade(connection):
-    def run(sync_connection):
-        context = MigrationContext.configure(sync_connection)
-        with Operations.context(context):
-            _revision().upgrade()
-
-    await connection.run_sync(run)
-
-
-async def _switch(connection, organization_ids):
-    return await connection.run_sync(
-        lambda sync_connection: _revision().switch(sync_connection, organization_ids)
-    )
-
-
-async def _rows(connection, sql, params=None):
-    return list((await connection.execute(text(sql), params or {})).mappings().all())
-
-
-async def _defaults(connection, organization_id):
-    return [
-        row["id"]
-        for row in await _rows(
-            connection,
-            "SELECT id FROM projects WHERE organization_id = :o AND is_default IS TRUE "
-            "ORDER BY id",
-            {"o": organization_id},
-        )
-    ]
-
-
-# --- 053: data changes -------------------------------------------------------- #
-
-
-async def test_053_repairs_cross_organization_projects():
-    cross, other = await _cross_organization_project()
-    try:
-        async with rolled_back_connection(organizations=[cross]) as connection:
-            before = {
-                row["id"]: row["workspace_id"]
-                for row in await _rows(
-                    connection, "SELECT id, workspace_id FROM projects"
-                )
-            }
-            await _upgrade(connection)
-            after = {
-                row["id"]: (row["workspace_id"], row["organization_id"])
-                for row in await _rows(
-                    connection, "SELECT id, workspace_id, organization_id FROM projects"
-                )
-            }
-        p = cross.project_ids[1]
-        assert after[p] == (None, cross.organization_id)
-        for project_id, workspace_id in before.items():
-            if project_id != p:
-                assert after[project_id][0] == workspace_id
-    finally:
-        await delete_seeded_organization(cross)
-
-
-async def test_053_keeps_one_default_per_organization(capsys):
-    seeded = await _multi_default_organization()
-    try:
-        async with rolled_back_connection(organizations=[seeded]) as connection:
-            await _upgrade(connection)
-            defaults = await _defaults(connection, seeded.organization_id)
-        assert defaults == [seeded.project_ids[1]]
-        printed = capsys.readouterr().out
-        for cleared in (seeded.project_ids[0], seeded.project_ids[2]):
-            assert f"cleared default project {cleared}" in printed
-        assert str(seeded.project_ids[1]) not in printed
-    finally:
-        await delete_seeded_organization(seeded)
-
-
-async def test_053_sets_no_default_where_none_exists():
-    seeded = await _no_default_organization()
-    try:
-        async with rolled_back_connection(organizations=[seeded]) as connection:
-            await _upgrade(connection)
-            defaults = await _defaults(connection, seeded.organization_id)
-        assert defaults == []
-    finally:
-        await delete_seeded_organization(seeded)
-
-
-async def test_053_repairs_before_it_consolidates():
-    # P's foreign workspace is `default`-type: if the ranking ran first, P would win O1.
-    cross, other = await _cross_organization_project(foreign_default_type=True)
-    try:
-        async with rolled_back_connection(organizations=[cross]) as connection:
-            await _upgrade(connection)
-            defaults = await _defaults(connection, cross.organization_id)
-            foreign = await _defaults(connection, other.organization_id)
-        assert defaults == [cross.project_ids[0]]
-        assert foreign == [other.project_ids[0]]
-    finally:
-        await delete_seeded_organization(cross)
-
-
-async def test_053_is_idempotent():
-    seeded = await _multi_default_organization()
-    cross, _ = await _cross_organization_project()
-    try:
-        async with rolled_back_connection(organizations=[seeded, cross]) as connection:
-            first = await _switch(connection, None)
-            second = await _switch(connection, None)
-        assert first["repaired"] == 1 and first["cleared"] >= 2
-        assert second == {
-            "repaired": 0,
-            "organizations_with_several_defaults": 0,
-            "cleared": 0,
-        }
-    finally:
-        await delete_seeded_organization(seeded)
-        await delete_seeded_organization(cross)
-
-
-async def test_053_keeps_project_access():
-    seeded = await _multi_default_organization()
-    cross, _ = await _cross_organization_project()
-    try:
-        async with rolled_back_connection(organizations=[seeded, cross]) as connection:
-            dao = MembershipsDAO(engine=ConnectionEngine(connection))
-            pairs = [
-                (user_id, project_id)
-                for org in (seeded, cross)
-                for user_id in org.user_ids.values()
-                for project_id in org.project_ids
-            ]
-
-            async def answers():
-                out = {}
-                for user_id, project_id in pairs:
-                    row = await dao.fetch_membership_row(
-                        user_id=user_id, project_id=project_id
-                    )
-                    out[(user_id, project_id)] = (
-                        None
-                        if row is None
-                        else (
-                            row.summary.organization_id,
-                            row.has_organization_row,
-                            row.organization_role,
-                            row.has_project_row,
-                            row.project_role,
-                        )
-                    )
-                return out
-
-            before = await answers()
-            await _upgrade(connection)
-            after = await answers()
-        assert before == after
-        assert all(value is not None for value in after.values())
-    finally:
-        await delete_seeded_organization(seeded)
-        await delete_seeded_organization(cross)
-
-
-async def test_053_downgrade_is_a_noop():
-    seeded = await _multi_default_organization()
-    try:
-        async with rolled_back_connection(organizations=[seeded]) as connection:
-            await _upgrade(connection)
-            before = await _rows(connection, "SELECT * FROM projects ORDER BY id")
-
-            def run(sync_connection):
-                context = MigrationContext.configure(sync_connection)
-                with Operations.context(context):
-                    _revision().downgrade()
-
-            await connection.run_sync(run)
-            after = await _rows(connection, "SELECT * FROM projects ORDER BY id")
-        assert before == after
-    finally:
-        await delete_seeded_organization(seeded)
-
-
-async def test_053_locks_only_organizations_with_several_defaults():
-    several = await _multi_default_organization()
-    single = await seed_organization(members={"m": "editor"}, workspaces=1)
-    none = await _no_default_organization()
-    try:
-        async with rolled_back_connection(
-            organizations=[several, single, none]
-        ) as connection:
-            await _upgrade(connection)
-            advisory = await _rows(
-                connection,
-                "SELECT objid FROM pg_locks WHERE locktype = 'advisory' "
-                "AND pid = pg_backend_pid()",
-            )
-        assert len(advisory) == 1
-    finally:
-        for seeded in (several, single, none):
-            await delete_seeded_organization(seeded)
-
-
-# --- 053 against concurrent default writers ----------------------------------- #
-#
-# Two connections on the real tables, in an explicit order. The revision's `switch` is
-# limited to the test's organization.
-
-_STEP1_CLEAR_ORGANIZATION_SQL = (
-    "UPDATE projects SET is_default = false "
-    "WHERE organization_id = :o AND is_default = true"
-)
-_STEP1_CLEAR_WORKSPACE_SQL = (
-    "UPDATE projects SET is_default = false "
-    "WHERE workspace_id = :w AND is_default = true"
-)
-_STEP1_SET_SQL = "UPDATE projects SET is_default = true WHERE id = :p"
-
-
-async def _add_project(*, organization_id, workspace_id, is_default) -> UUID:
+async def _add_project(*, organization_id, is_default) -> UUID:
     project_id = uuid4()
     await execute(
-        "INSERT INTO projects (id, project_name, is_default, organization_id, workspace_id, "
-        "created_at, updated_at) VALUES (:id, 'extra', :d, :o, :w, clock_timestamp(), "
+        "INSERT INTO projects (id, project_name, is_default, organization_id, "
+        "created_at, updated_at) VALUES (:id, 'extra', :d, :o, clock_timestamp(), "
         "clock_timestamp())",
-        {"id": project_id, "d": is_default, "o": organization_id, "w": workspace_id},
+        {"id": project_id, "d": is_default, "o": organization_id},
     )
     return project_id
 
@@ -345,121 +92,6 @@ async def _blocked(task, seconds=0.4) -> bool:
     return not task.done()
 
 
-async def _migration_task(organization_id):
-    engine = get_transactions_engine()._engine
-
-    async def run():
-        async with engine.begin() as connection:
-            await connection.execute(text("SET LOCAL lock_timeout = '2s'"))
-            return await _switch(connection, [organization_id])
-
-    return asyncio.create_task(run())
-
-
-async def test_053_waits_for_a_step1_null_workspace_promotion():
-    seeded = await _multi_default_organization()
-    try:
-        target = await _add_project(
-            organization_id=seeded.organization_id, workspace_id=None, is_default=False
-        )
-        engine = get_transactions_engine()._engine
-        async with engine.connect() as a:
-            transaction = await a.begin()
-            await a.execute(
-                text(_STEP1_CLEAR_ORGANIZATION_SQL), {"o": seeded.organization_id}
-            )
-            migration = await _migration_task(seeded.organization_id)
-            assert await _blocked(migration)
-            await a.execute(text(_STEP1_SET_SQL), {"p": target})
-            await transaction.commit()
-        counts = await migration
-        assert counts["cleared"] == 0
-        assert await _committed_defaults(seeded.organization_id) == [target]
-    finally:
-        await delete_seeded_organization(seeded)
-
-
-async def test_step1_promotion_after_053_waits_and_keeps_one_default():
-    seeded = await _multi_default_organization()
-    try:
-        target = await _add_project(
-            organization_id=seeded.organization_id, workspace_id=None, is_default=False
-        )
-        engine = get_transactions_engine()._engine
-        async with engine.connect() as b:
-            transaction = await b.begin()
-            await _switch(b, [seeded.organization_id])
-
-            async def step1():
-                async with engine.begin() as a:
-                    await a.execute(
-                        text(_STEP1_CLEAR_ORGANIZATION_SQL),
-                        {"o": seeded.organization_id},
-                    )
-                    await a.execute(text(_STEP1_SET_SQL), {"p": target})
-
-            promotion = asyncio.create_task(step1())
-            assert await _blocked(promotion)
-            await transaction.commit()
-        await promotion
-        assert await _committed_defaults(seeded.organization_id) == [target]
-    finally:
-        await delete_seeded_organization(seeded)
-
-
-async def test_step1_workspace_promotion_after_053_may_leave_two_defaults_never_zero():
-    seeded = await _multi_default_organization()
-    try:
-        secondary = seeded.workspace_ids[2]
-        target = await _add_project(
-            organization_id=seeded.organization_id,
-            workspace_id=secondary,
-            is_default=False,
-        )
-        engine = get_transactions_engine()._engine
-        async with engine.connect() as b:
-            transaction = await b.begin()
-            await _switch(b, [seeded.organization_id])
-
-            async def step1():
-                async with engine.begin() as a:
-                    await a.execute(text(_STEP1_CLEAR_WORKSPACE_SQL), {"w": secondary})
-                    await a.execute(text(_STEP1_SET_SQL), {"p": target})
-
-            promotion = asyncio.create_task(step1())
-            await asyncio.sleep(0.3)
-            await transaction.commit()
-        await promotion
-        defaults = await _committed_defaults(seeded.organization_id)
-        assert sorted(defaults) == sorted([seeded.project_ids[1], target])
-    finally:
-        await delete_seeded_organization(seeded)
-
-
-async def test_step1_stale_project_read_keeps_a_default():
-    # Step-1 `set_default_project` reads the target, sees `is_default` true and returns
-    # without writing ("already default"). When 053 cleared that project in between, the
-    # organization still keeps exactly one default: the D-11 winner.
-    seeded = await _multi_default_organization()
-    try:
-        stale = seeded.project_ids[0]
-        read = await fetch_all(
-            "SELECT is_default FROM projects WHERE id = :p", {"p": stale}
-        )
-        assert read[0]["is_default"] is True
-        engine = get_transactions_engine()._engine
-        async with engine.begin() as b:
-            await _switch(b, [seeded.organization_id])
-        # The step-1 writer returns here from its stale read; nothing else runs.
-        assert await _committed_defaults(seeded.organization_id) == [
-            seeded.project_ids[1]
-        ]
-    finally:
-        await delete_seeded_organization(seeded)
-
-
-# --- one default-project rule (R1, R2, R4) ------------------------------------ #
-
 import oss.src.core.access.permissions.service as permissions_service  # noqa: E402
 import oss.src.services.db_manager as db_manager  # noqa: E402
 from oss.src.core.access.dtos import RequestCredentialKind  # noqa: E402
@@ -467,18 +99,9 @@ from oss.src.core.access.permissions.types import Permission  # noqa: E402
 from oss.tests.pytest.utils.statements import count_statements  # noqa: E402
 
 
-async def _consolidated(seeded: SeededOrganization) -> SeededOrganization:
-    """Run 053's switch for this organization only, committed."""
-
-    engine = get_transactions_engine()._engine
-    async with engine.begin() as connection:
-        await _switch(connection, [seeded.organization_id])
-    return seeded
-
-
 async def _readers(ref) -> tuple:
-    """(member-route project, Bearer default project) for an id; step 2b: an id that is
-    not an organization id names nothing, (None, None)."""
+    """(member-route project, Bearer default project) for an id; an id that is not an
+    organization id names nothing, (None, None)."""
 
     try:
         by_workspace = (await db_manager.get_project_by_workspace(str(ref))).id
@@ -523,20 +146,18 @@ async def test_default_helpers_agree_for_every_seed_scope():
 
 
 async def test_member_routes_and_bearer_pick_the_same_project():
-    seeded = await _consolidated(await _multi_default_organization())
+    seeded = await _one_default_organization()
     try:
         assert await _readers(seeded.organization_id) == (seeded.project_ids[1],) * 2
-        # Step 2b: a legacy workspace id names nothing.
-        for ref in seeded.workspace_ids:
-            assert await _readers(ref) == (None, None)
+        assert await _readers(uuid4()) == (None, None)
     finally:
         await delete_seeded_organization(seeded)
 
 
 async def test_fallback_project_takes_the_default_then_the_oldest():
-    # After 053 the organization has one default (project 1). A user who may open only
-    # projects 0 and 2 lands on the oldest of them; with project 1, on the default.
-    seeded = await _consolidated(await _multi_default_organization())
+    # The organization has one default (project 1). A user who may open only projects
+    # 0 and 2 lands on the oldest of them; with project 1, on the default.
+    seeded = await _one_default_organization()
     try:
         # Seeded projects can share a timestamp: make project 0 the oldest.
         await execute(
@@ -561,10 +182,10 @@ async def test_fallback_project_takes_the_default_then_the_oldest():
 
 
 async def test_readers_pick_the_oldest_default_when_two_remain():
-    seeded = await _consolidated(await _multi_default_organization())
+    seeded = await _one_default_organization()
     try:
-        # A step-1-shaped write after 053 (the step 2b revision clears it again): a
-        # second default. Step 2b readers agree on the oldest default.
+        # A second default (data written before the one-default rule): the readers agree
+        # on the oldest default.
         await execute(
             "UPDATE projects SET is_default = true WHERE id = :p",
             {"p": seeded.project_ids[2]},
@@ -576,32 +197,6 @@ async def test_readers_pick_the_oldest_default_when_two_remain():
         assert await _readers(seeded.organization_id) == (oldest, oldest)
     finally:
         await delete_seeded_organization(seeded)
-
-
-async def test_default_lookups_stay_in_the_ref_organization():
-    cross, other = await _cross_organization_project()
-    try:
-        await _consolidated(cross)
-        # The cross-organization shape written again after 053 (a step-1 admin call).
-        await execute(
-            "UPDATE projects SET workspace_id = :w WHERE id = :p",
-            {"w": other.workspace_ids[0], "p": cross.project_ids[1]},
-        )
-        # Step 2b: the foreign workspace id names nothing; each organization answers
-        # its own projects only.
-        assert await _readers(other.workspace_ids[0]) == (None, None)
-        assert await _readers(other.organization_id) == (other.project_ids[0],) * 2
-        first = await db_manager.get_project_by_workspace(
-            str(other.organization_id), use_default=False
-        )
-        assert first.id == other.project_ids[0]
-        own_default = await _oldest(
-            "organization_id = :o AND is_default IS TRUE",
-            {"o": cross.organization_id},
-        )
-        assert await _readers(cross.organization_id) == (own_default,) * 2
-    finally:
-        await delete_seeded_organization(cross)
 
 
 async def test_get_project_by_workspace_falls_back_without_a_default():
@@ -618,14 +213,12 @@ async def test_get_project_by_workspace_falls_back_without_a_default():
             )
             is None
         )
-        for ref in seeded.workspace_ids:
-            assert await _readers(ref) == (None, None)
     finally:
         await delete_seeded_organization(seeded)
 
 
 async def test_default_lookups_are_one_statement():
-    seeded = await _consolidated(await _multi_default_organization())
+    seeded = await _one_default_organization()
     try:
         engine = get_transactions_engine()
         with count_statements(engine) as fetched:
@@ -636,18 +229,15 @@ async def test_default_lookups_are_one_statement():
             await db_manager.get_project_by_workspace(str(seeded.organization_id))
         assert len(fetched) == 1
         assert len(found) == 1
-        # A legacy workspace id: one statement, no answer.
+        # An unknown id: one statement, no answer.
         with count_statements(engine) as fetched:
-            await db_manager.fetch_default_project(
-                organization_id=str(seeded.workspace_ids[2])
-            )
+            await db_manager.fetch_default_project(organization_id=str(uuid4()))
         assert len(fetched) == 1
     finally:
         await delete_seeded_organization(seeded)
 
 
-# --- check_organization_write follows the organization default (owner question 1,
-# option (a): the D-11 default) ------------------------------------------------ #
+# --- check_organization_write follows the organization default ------------------- #
 
 
 class _KeyAccess:
@@ -677,8 +267,8 @@ async def _organization_write(monkeypatch, organization_id, key_project_id) -> b
 
 
 async def test_check_organization_write_uses_the_organization_default(monkeypatch):
-    # The oldest default (project 0) is not in the `default`-type workspace (project 1).
-    seeded = await _consolidated(await _multi_default_organization())
+    # The default (project 1) is not the oldest project (project 0).
+    seeded = await _one_default_organization()
     try:
         engine = get_transactions_engine()
         with count_statements(engine) as statements:
@@ -698,9 +288,8 @@ async def test_check_organization_write_uses_the_organization_default(monkeypatc
 
 
 async def test_kept_default_key_can_update_organization_settings(monkeypatch):
-    seeded = await _consolidated(await _multi_default_organization())
+    seeded = await _one_default_organization()
     try:
-        # Newly allowed: before step 2 the oldest default (project 0) decided.
         assert await _organization_write(
             monkeypatch, seeded.organization_id, seeded.project_ids[1]
         )
@@ -709,9 +298,9 @@ async def test_kept_default_key_can_update_organization_settings(monkeypatch):
 
 
 async def test_cleared_default_key_cannot_update_organization_settings(monkeypatch):
-    seeded = await _consolidated(await _multi_default_organization())
+    seeded = await _one_default_organization()
     try:
-        # Newly refused: the key of the oldest default, which 053 cleared.
+        # A key of a project that is not the default.
         assert not await _organization_write(
             monkeypatch, seeded.organization_id, seeded.project_ids[0]
         )
@@ -757,17 +346,16 @@ async def _hold_lock_and_promote(connection, organization_id, project_id):
     )
 
 
-def test_writers_and_053_use_one_lock_key():
-    revision = _revision()
-    assert "'agenta:project_default:' || o::text" in revision._ADVISORY_LOCKS_SQL
+def test_every_default_writer_uses_one_lock_key():
     assert "'agenta:project_default:'" in db_manager._PROJECT_DEFAULT_LOCK_SQL
+    assert "'agenta:project_default:'" in db_manager._LOCK_PROJECT_ORGANIZATION_SQL
     from oss.src.dbs.postgres.memberships import dao as memberships_dao
 
     assert "'agenta:project_default:'" in memberships_dao._LOCK_WITH_PROJECT_DEFAULT_SQL
 
 
 async def test_default_writers_serialize_on_the_organization_lock():
-    seeded = await _consolidated(await _multi_default_organization())
+    seeded = await _one_default_organization()
     try:
         p_a, p_b = seeded.project_ids[1], seeded.project_ids[2]
         engine = get_transactions_engine()._engine
@@ -786,7 +374,7 @@ async def test_default_writers_serialize_on_the_organization_lock():
 
 
 async def test_create_and_admin_create_serialize_with_set_default():
-    seeded = await _consolidated(await _multi_default_organization())
+    seeded = await _one_default_organization()
     try:
         engine = get_transactions_engine()._engine
         for writer in ("create", "admin"):
@@ -820,49 +408,8 @@ async def test_create_and_admin_create_serialize_with_set_default():
         await delete_seeded_organization(seeded)
 
 
-async def test_053_waits_for_a_step2_promotion():
-    seeded = await _multi_default_organization()
-    try:
-        p_b = seeded.project_ids[2]
-        engine = get_transactions_engine()._engine
-        async with engine.connect() as a:
-            transaction = await a.begin()
-            await _hold_lock_and_promote(a, seeded.organization_id, p_b)
-            migration = await _migration_task(seeded.organization_id)
-            assert await _blocked(migration)
-            await transaction.commit()
-        counts = await migration
-        assert counts["cleared"] == 0
-        assert await _committed_defaults(seeded.organization_id) == [p_b]
-    finally:
-        await delete_seeded_organization(seeded)
-
-
-async def test_053_waits_for_a_step2_create_with_make_default():
-    seeded = await _multi_default_organization()
-    try:
-        engine = get_transactions_engine()._engine
-        async with engine.connect() as a:
-            transaction = await a.begin()
-            await a.execute(text(_LOCK_SQL), {"o": str(seeded.organization_id)})
-            migration = await _migration_task(seeded.organization_id)
-            assert await _blocked(migration)
-            await transaction.commit()
-        await migration
-        created = await _dao().create_project(
-            organization_id=seeded.organization_id,
-            name="after",
-            is_default=True,
-        )
-        assert await _committed_defaults(seeded.organization_id) == [
-            created.scope.project_id
-        ]
-    finally:
-        await delete_seeded_organization(seeded)
-
-
 async def test_default_writer_statement_counts():
-    seeded = await _consolidated(await _multi_default_organization())
+    seeded = await _one_default_organization()
     try:
         engine = get_transactions_engine()
         with count_statements(engine) as promoted:
@@ -877,17 +424,15 @@ async def test_default_writer_statement_counts():
             await db_manager.admin_create_project(
                 name="a", org_id=seeded.organization_id, is_default=False
             )
-        assert len(promoted) == 2  # step 1: read, clear, set, refresh
-        assert (
-            len(created) <= 5
-        )  # step 1: 6 (lock, resolve, has-default, unset, insert, seed, owner)
-        assert len(admin_created) == 2  # step 1: 1 insert (+1 lock, admin-only)
+        assert len(promoted) == 2  # lock, then clear-and-set
+        assert len(created) <= 5
+        assert len(admin_created) == 2  # lock, insert
     finally:
         await delete_seeded_organization(seeded)
 
 
 async def test_admin_routes_cannot_create_a_second_default():
-    seeded = await _consolidated(await _multi_default_organization())
+    seeded = await _one_default_organization()
     try:
         first = await db_manager.admin_create_project(
             name="one", org_id=seeded.organization_id, is_default=True
@@ -901,12 +446,7 @@ async def test_admin_routes_cannot_create_a_second_default():
         await delete_seeded_organization(seeded)
 
 
-# --- no code path writes workspace rows (R7, S-10, S-11, S-21) ---------------- #
-
-import re  # noqa: E402
-from contextlib import contextmanager  # noqa: E402
-
-from sqlalchemy import event  # noqa: E402
+# --- write paths on an organization-only schema --------------------------------- #
 
 from oss.src.core.accounts.dtos import (  # noqa: E402
     AdminAccountsCreate,
@@ -922,90 +462,6 @@ from oss.src.core.accounts.dtos import (  # noqa: E402
 from oss.src.core.accounts.service import PlatformAdminAccountsService  # noqa: E402
 from oss.tests.pytest.utils.membership_seed import create_user  # noqa: E402
 
-_WORKSPACE_WRITE = re.compile(
-    r"^\s*(INSERT\s+INTO|UPDATE|WITH\b.*?\b(INSERT\s+INTO|UPDATE))\s+workspace(s|_members)\b",
-    re.I | re.S,
-)
-
-
-# Step 2b: no statement names the workspace tables or the legacy columns at all.
-_WORKSPACE_READ = re.compile(
-    r"\b(workspaces|workspace_members)\b|\b(projects|meters|p)\.workspace_id\b", re.I
-)
-
-
-@contextmanager
-def _workspace_reads():
-    """Every statement that names `workspaces`, `workspace_members`,
-    `projects.workspace_id` or `meters.workspace_id`."""
-
-    found = []
-    sync_engine = get_transactions_engine()._engine.sync_engine
-
-    def _record(conn, cursor, statement, parameters, context, executemany):
-        text_ = " ".join(statement.split())
-        if _WORKSPACE_READ.search(text_):
-            found.append(text_)
-
-    event.listen(sync_engine, "before_cursor_execute", _record)
-    try:
-        yield found
-    finally:
-        event.remove(sync_engine, "before_cursor_execute", _record)
-
-
-@contextmanager
-def _workspace_writes():
-    """Every statement that writes `workspaces` or `workspace_members`, or writes
-    `projects.workspace_id` with a non-NULL value."""
-
-    found = []
-    sync_engine = get_transactions_engine()._engine.sync_engine
-
-    def _record(conn, cursor, statement, parameters, context, executemany):
-        text_ = " ".join(statement.split())
-        if _WORKSPACE_WRITE.search(text_) or re.search(
-            r"\b(INSERT INTO|UPDATE) workspace", text_, re.I
-        ):
-            found.append(text_)
-            return
-        if re.search(r"\b(INSERT INTO|UPDATE) projects\b", text_, re.I) and (
-            "workspace_id" in text_
-        ):
-            rows = parameters if executemany else [parameters]
-            for row in rows:
-                values = row.values() if isinstance(row, dict) else row
-                if isinstance(row, dict):
-                    if row.get("workspace_id") is not None:
-                        found.append(text_)
-                elif "workspace_id" in text_ and _positional_workspace(text_, values):
-                    found.append(text_)
-
-    event.listen(sync_engine, "before_cursor_execute", _record)
-    try:
-        yield found
-    finally:
-        event.remove(sync_engine, "before_cursor_execute", _record)
-
-
-def _positional_workspace(statement, values) -> bool:
-    """For a positional INSERT INTO projects (...) VALUES ($1, ...): the value bound to
-    the `workspace_id` column, when it is a parameter."""
-
-    match = re.search(r"INSERT INTO projects \(([^)]*)\) VALUES \(([^)]*)\)", statement)
-    if not match:
-        return False
-    columns = [c.strip() for c in match.group(1).split(",")]
-    slots = [v.strip() for v in match.group(2).split(",")]
-    if "workspace_id" not in columns:
-        return False
-    slot = slots[columns.index("workspace_id")]
-    if slot.upper() == "NULL":
-        return False
-    index = re.match(r"\$(\d+)", slot)
-    values = list(values)
-    return bool(index) and values[int(index.group(1)) - 1] is not None
-
 
 async def _signup_organization():
     from oss.src.services import commoners
@@ -1016,185 +472,147 @@ async def _signup_organization():
     seeded = SeededOrganization(
         organization_id=organization.id,
         owner_id=user_id,
-        workspace_ids=[],
         project_ids=[],
         user_ids={"owner": user_id},
     )
     return seeded
 
 
-async def test_no_code_path_writes_workspace_rows():
-    legacy = await seed_organization(members={"m": "editor"}, workspaces=2)
+async def test_write_paths_need_no_workspace_storage():
+    """Signup, project creation, membership writes, the ownership transfer, the default
+    writers and the admin graph (with its workspace entries) all run on a schema
+    without workspace tables."""
+
+    legacy = await seed_organization(members={"m": "editor"}, projects=2)
     joiner = await create_user(label="joiner")
     legacy.extra_user_ids.append(joiner)
     admin = PlatformAdminAccountsService()
     created = []
     try:
-        with _workspace_writes() as writes, _workspace_reads() as reads:
-            signup = await _signup_organization()
-            created.append(signup)
-            dao = _dao()
-            await dao.create_project(
-                organization_id=legacy.organization_id, name="a", is_default=True
-            )
-            await dao.create_project(
-                organization_id=legacy.organization_id, name="b", is_default=False
-            )
-            await dao.set_member_role(
-                organization_id=legacy.organization_id,
-                user_id=legacy.user_ids["m"],
-                role="viewer",
-                must_exist=True,
-            )
-            await dao.set_member_role(
-                organization_id=legacy.organization_id,
-                user_id=joiner,
-                role="editor",
-                join_all_projects=True,
-            )
-            await dao.set_member_role(
-                organization_id=legacy.organization_id,
-                user_id=joiner,
-                role="admin",
-                join_project_ids=[legacy.project_ids[1]],
-            )
-            await dao.set_member_role(
-                organization_id=legacy.organization_id,
-                user_id=joiner,
-                role="viewer",
-                join_all_projects=True,
-                must_be_absent=True,
-            )
-            await dao.transfer_ownership(
-                organization_id=legacy.organization_id,
-                new_owner_id=legacy.user_ids["m"],
-                current_owner_id=legacy.owner_id,
-            )
-            await db_manager.set_default_project(str(legacy.project_ids[1]))
-            await db_manager.admin_create_project(
-                name="admin", org_id=legacy.organization_id, is_default=False
-            )
-            await admin.create_workspace(
-                dto=AdminSimpleAccountsWorkspacesCreate(
-                    workspace=AdminWorkspaceCreate(
-                        name="w",
-                        organization_ref=EntityRef(id=str(legacy.organization_id)),
-                    )
+        signup = await _signup_organization()
+        created.append(signup)
+        dao = _dao()
+        await dao.create_project(
+            organization_id=legacy.organization_id, name="a", is_default=True
+        )
+        await dao.create_project(
+            organization_id=legacy.organization_id, name="b", is_default=False
+        )
+        await dao.set_member_role(
+            organization_id=legacy.organization_id,
+            user_id=legacy.user_ids["m"],
+            role="viewer",
+            must_exist=True,
+        )
+        await dao.set_member_role(
+            organization_id=legacy.organization_id,
+            user_id=joiner,
+            role="editor",
+            join_all_projects=True,
+        )
+        await dao.set_member_role(
+            organization_id=legacy.organization_id,
+            user_id=joiner,
+            role="admin",
+            join_project_ids=[legacy.project_ids[1]],
+        )
+        await dao.set_member_role(
+            organization_id=legacy.organization_id,
+            user_id=joiner,
+            role="viewer",
+            join_all_projects=True,
+            must_be_absent=True,
+        )
+        await dao.transfer_ownership(
+            organization_id=legacy.organization_id,
+            new_owner_id=legacy.user_ids["m"],
+            current_owner_id=legacy.owner_id,
+        )
+        await db_manager.set_default_project(str(legacy.project_ids[1]))
+        await db_manager.admin_create_project(
+            name="admin", org_id=legacy.organization_id, is_default=False
+        )
+        await admin.create_workspace(
+            dto=AdminSimpleAccountsWorkspacesCreate(
+                workspace=AdminWorkspaceCreate(
+                    name="w",
+                    organization_ref=EntityRef(id=str(legacy.organization_id)),
                 )
             )
-            await admin.create_workspace_membership(
-                dto=AdminSimpleAccountsWorkspacesMembershipsCreate(
-                    membership=AdminWorkspaceMembershipCreate(
-                        workspace_ref=EntityRef(id=str(legacy.organization_id)),
+        )
+        await admin.create_workspace_membership(
+            dto=AdminSimpleAccountsWorkspacesMembershipsCreate(
+                membership=AdminWorkspaceMembershipCreate(
+                    workspace_ref=EntityRef(id=str(legacy.organization_id)),
+                    user_ref=EntityRef(id=str(joiner)),
+                    role="editor",
+                )
+            )
+        )
+        graph = await admin.create_accounts(
+            dto=AdminAccountsCreate(
+                organizations={
+                    "org": AdminOrganizationCreate(
+                        name="graph-org", owner_user_ref=EntityRef(id=str(joiner))
+                    )
+                },
+                workspaces={
+                    "wrk": AdminWorkspaceCreate(
+                        name="graph-ws", organization_ref=EntityRef(ref="org")
+                    )
+                },
+                projects={
+                    "prj": AdminProjectCreate(
+                        name="graph-prj",
+                        organization_ref=EntityRef(ref="org"),
+                        workspace_ref=EntityRef(ref="wrk"),
+                        is_default=True,
+                    )
+                },
+                organization_memberships={
+                    "om": AdminOrganizationMembershipCreate(
+                        organization_ref=EntityRef(ref="org"),
                         user_ref=EntityRef(id=str(joiner)),
-                        role="editor",
+                        role="owner",
                     )
-                )
+                },
+                workspace_memberships={
+                    "wm": AdminWorkspaceMembershipCreate(
+                        workspace_ref=EntityRef(ref="wrk"),
+                        user_ref=EntityRef(id=str(joiner)),
+                        role="owner",
+                    )
+                },
             )
-            graph = await admin.create_accounts(
-                dto=AdminAccountsCreate(
-                    organizations={
-                        "org": AdminOrganizationCreate(
-                            name="graph-org", owner_user_ref=EntityRef(id=str(joiner))
-                        )
-                    },
-                    workspaces={
-                        "wrk": AdminWorkspaceCreate(
-                            name="graph-ws", organization_ref=EntityRef(ref="org")
-                        )
-                    },
-                    projects={
-                        "prj": AdminProjectCreate(
-                            name="graph-prj",
-                            organization_ref=EntityRef(ref="org"),
-                            workspace_ref=EntityRef(ref="wrk"),
-                            is_default=True,
-                        )
-                    },
-                    organization_memberships={
-                        "om": AdminOrganizationMembershipCreate(
-                            organization_ref=EntityRef(ref="org"),
-                            user_ref=EntityRef(id=str(joiner)),
-                            role="owner",
-                        )
-                    },
-                    workspace_memberships={
-                        "wm": AdminWorkspaceMembershipCreate(
-                            workspace_ref=EntityRef(ref="wrk"),
-                            user_ref=EntityRef(id=str(joiner)),
-                            role="owner",
-                        )
-                    },
-                )
+        )
+        graph_org = UUID(graph.accounts[0].organizations["org"].id)
+        created.append(
+            SeededOrganization(
+                organization_id=graph_org,
+                owner_id=joiner,
+                project_ids=[],
+                user_ids={},
             )
-            graph_org = UUID(graph.accounts[0].organizations["org"].id)
-            created.append(
-                SeededOrganization(
-                    organization_id=graph_org,
-                    owner_id=joiner,
-                    workspace_ids=[],
-                    project_ids=[],
-                    user_ids={},
-                )
-            )
-        assert writes == []
-        assert reads == []
+        )
+        projects = await fetch_all(
+            "SELECT is_default FROM projects WHERE organization_id = :o",
+            {"o": graph_org},
+        )
+        assert [p["is_default"] for p in projects] == [True]
     finally:
         for seeded in created:
             await delete_seeded_organization(seeded)
         await delete_seeded_organization(legacy)
 
 
-async def test_remove_member_leaves_legacy_workspace_rows_alone():
-    legacy = await seed_organization(members={"m": "editor"}, workspaces=2)
-    try:
-        email = (
-            await fetch_all(
-                "SELECT email FROM users WHERE id = :u", {"u": legacy.user_ids["m"]}
-            )
-        )[0]["email"]
-        with _workspace_reads() as reads:
-            await _dao().remove_member(
-                organization_id=legacy.organization_id, email=email
-            )
-        assert reads == []
-        # Step 2b: the stale legacy row stays; nothing reads it, and step 3 drops it.
-        left = await fetch_all(
-            "SELECT 1 FROM workspace_members WHERE user_id = :u",
-            {"u": legacy.user_ids["m"]},
-        )
-        assert left != []
-        assert (
-            await fetch_all(
-                "SELECT 1 FROM organization_members WHERE user_id = :u "
-                "AND organization_id = :o",
-                {"u": legacy.user_ids["m"], "o": legacy.organization_id},
-            )
-            == []
-        )
-    finally:
-        await delete_seeded_organization(legacy)
-
-
-async def test_signup_creates_no_workspace_and_a_null_workspace_project():
+async def test_signup_creates_one_default_project():
     seeded = await _signup_organization()
     try:
-        workspaces = await fetch_all(
-            "SELECT 1 FROM workspaces WHERE organization_id = :o",
-            {"o": seeded.organization_id},
-        )
         projects = await fetch_all(
-            "SELECT workspace_id, is_default FROM projects WHERE organization_id = :o",
+            "SELECT is_default FROM projects WHERE organization_id = :o",
             {"o": seeded.organization_id},
         )
-        members = await fetch_all(
-            "SELECT 1 FROM workspace_members WHERE user_id = :u",
-            {"u": seeded.owner_id},
-        )
-        assert workspaces == [] and members == []
-        assert [(p["workspace_id"], p["is_default"]) for p in projects] == [
-            (None, True)
-        ]
+        assert [p["is_default"] for p in projects] == [True]
     finally:
         await delete_seeded_organization(seeded)
 
@@ -1213,11 +631,6 @@ async def test_create_project_defaults_are_organization_wide():
             organization_id=seeded.organization_id, name="other", is_default=False
         )
         assert other.scope.is_default is False
-        rows = await fetch_all(
-            "SELECT workspace_id FROM projects WHERE id = ANY(CAST(:p AS uuid[]))",
-            {"p": [created.scope.project_id, other.scope.project_id]},
-        )
-        assert [r["workspace_id"] for r in rows] == [None, None]
     finally:
         await delete_seeded_organization(seeded)
 
@@ -1236,10 +649,6 @@ async def test_create_project_is_the_default_of_an_organization_without_one():
 async def test_admin_graph_answers_the_organization_for_workspaces():
     legacy = await seed_organization(members={"owner": "owner"})
     try:
-        before = await fetch_all(
-            "SELECT id FROM workspaces WHERE organization_id = :o",
-            {"o": legacy.organization_id},
-        )
         response = await PlatformAdminAccountsService().create_workspace(
             dto=AdminSimpleAccountsWorkspacesCreate(
                 workspace=AdminWorkspaceCreate(
@@ -1250,11 +659,6 @@ async def test_admin_graph_answers_the_organization_for_workspaces():
         )
         workspace = response.accounts[0].workspaces["wrk"]
         assert workspace.id == workspace.organization_id == str(legacy.organization_id)
-        after = await fetch_all(
-            "SELECT id FROM workspaces WHERE organization_id = :o",
-            {"o": legacy.organization_id},
-        )
-        assert after == before
         projects = await fetch_all(
             "SELECT id FROM projects WHERE organization_id = :o",
             {"o": legacy.organization_id},
@@ -1278,12 +682,12 @@ async def test_admin_graph_workspace_membership_answers_the_organization_members
         )[0]
         from oss.src.core.accounts.errors import AdminWorkspaceNotFoundError
 
-        # Step 2b: a legacy workspace id is unknown.
+        # An id that is not an organization id is unknown.
         with pytest.raises(AdminWorkspaceNotFoundError):
             await service.create_workspace_membership(
                 dto=AdminSimpleAccountsWorkspacesMembershipsCreate(
                     membership=AdminWorkspaceMembershipCreate(
-                        workspace_ref=EntityRef(id=str(legacy.workspace_ids[0])),
+                        workspace_ref=EntityRef(id=str(uuid4())),
                         user_ref=EntityRef(id=str(legacy.user_ids["m"])),
                         role="viewer",
                     )
@@ -1320,7 +724,7 @@ async def test_admin_graph_workspace_membership_answers_the_organization_members
 
 
 async def test_write_statement_counts_drop():
-    legacy = await seed_organization(members={"m": "editor"}, workspaces=2)
+    legacy = await seed_organization(members={"m": "editor"}, projects=2)
     joiner = await create_user(label="joiner")
     legacy.extra_user_ids.append(joiner)
     created = []
@@ -1346,19 +750,12 @@ async def test_write_statement_counts_drop():
                 organization_id=legacy.organization_id, name="c", is_default=False
             )
 
-        # Step 1 sent, per path: signup 2 more writes (workspace, workspace member);
-        # set_member_role(join_all) 8 (lock, owner, row, upsert, update projects,
-        # insert projects, update and insert workspace rows) -> 6; transfer 2 more for
-        # the two workspace promotions and one read + 2 updates per shared workspace;
-        # create_project 6 (lock, resolve workspace, has-default, unset, insert,
-        # seed, owner = 7 with make_default) -> 4.
-        assert not any(
-            re.search(r"\b(INSERT INTO|UPDATE) workspace", s, re.I) for s in signup
-        ), signup
+        # Step 1 sent, per path: set_member_role(join_all) 8 (lock, owner, row, upsert,
+        # update projects, insert projects, update and insert workspace rows) -> 6;
+        # create_project 6 (lock, resolve workspace, has-default, unset, insert, seed,
+        # owner = 7 with make_default) -> 4.
+        assert signup and transferred
         assert len(joined) == 6
-        assert not any(
-            re.search(r"\b(INSERT INTO|UPDATE) workspace", s, re.I) for s in transferred
-        ), transferred
         assert len(made) == 4
     finally:
         for seeded in created:
@@ -1366,61 +763,16 @@ async def test_write_statement_counts_drop():
         await delete_seeded_organization(legacy)
 
 
-# --- responses per D6, links, the admin notice, admin aliases (Task 5) --------- #
+# --- responses per D6, links, the admin notice, admin aliases -------------------- #
 
-import json  # noqa: E402
-import os  # noqa: E402
-import subprocess  # noqa: E402
-import sys  # noqa: E402
-from pathlib import Path  # noqa: E402
 from types import SimpleNamespace  # noqa: E402
 
-# Optional: the API directory of the step-1 code (feat/m4b-workspace-accept) checked out
-# elsewhere; the comparisons with the step-1 helpers skip without it.
-_STEP1_API = (
-    Path(os.environ["AGENTA_TESTS_STEP1_API"])
-    if os.environ.get("AGENTA_TESTS_STEP1_API")
-    else None
-)
 
+async def _two_project_organization():
+    """Two projects with different members: the default (project 0) has a and b, the
+    other only a."""
 
-def _step1(code: str):
-    """Run `code` against the same database with the step-1 code (captured from
-    feat/m4b-workspace-accept); it prints one JSON value."""
-
-    if _STEP1_API is None or not _STEP1_API.exists():
-        pytest.skip("AGENTA_TESTS_STEP1_API (the step-1 code) is not set")
-    from oss.src.utils.env import env
-
-    environment = {
-        **os.environ,
-        "PYTHONPATH": str(_STEP1_API),
-        "POSTGRES_URI_CORE": env.postgres.uri_core,
-    }
-    result = subprocess.run(
-        [sys.executable, "-c", code],
-        cwd=_STEP1_API,
-        env=environment,
-        capture_output=True,
-        text=True,
-        timeout=180,
-    )
-    assert result.returncode == 0, result.stderr[-3000:]
-    return json.loads(result.stdout.strip().splitlines()[-1])
-
-
-async def _null_type_and_default_type_organization():
-    """Two workspaces with different project members: the `default`-type one created
-    second, a NULL-type one created first. A NULL type must not sort first."""
-
-    seeded = await seed_organization(
-        members={"a": "editor", "b": "viewer"}, workspaces=2
-    )
-    await execute(
-        "UPDATE workspaces SET type = NULL, created_at = now() - interval '1 day' "
-        "WHERE id = :w",
-        {"w": seeded.workspace_ids[0]},
-    )
+    seeded = await seed_organization(members={"a": "editor", "b": "viewer"}, projects=2)
     await execute(
         "DELETE FROM project_members WHERE project_id = :p AND user_id = :u",
         {"p": seeded.project_ids[1], "u": seeded.user_ids["b"]},
@@ -1428,25 +780,25 @@ async def _null_type_and_default_type_organization():
     return seeded
 
 
-async def _null_defaults_in_the_default_workspace():
-    seeded = await seed_organization(members={"a": "editor"}, workspaces=1)
+async def _null_default_organization():
+    """A default project and a project whose default flag is NULL."""
+
+    seeded = await seed_organization(members={"a": "editor"})
     null_default = await _add_project(
-        organization_id=seeded.organization_id,
-        workspace_id=seeded.workspace_ids[0],
-        is_default=None,
+        organization_id=seeded.organization_id, is_default=None
     )
     await execute(
         "INSERT INTO project_members (id, user_id, project_id, role, created_at, "
         "updated_at) VALUES (gen_random_uuid(), :u, :p, 'viewer', now(), now())",
         {"u": seeded.owner_id, "p": null_default},
     )
-    return seeded, null_default
+    return seeded
 
 
 async def test_org_details_list_the_members_of_the_organization_default():
     fixtures = [
-        await _null_type_and_default_type_organization(),
-        (await _null_defaults_in_the_default_workspace())[0],
+        await _two_project_organization(),
+        await _null_default_organization(),
         await _no_default_organization(),
     ]
     try:
@@ -1456,8 +808,8 @@ async def test_org_details_list_the_members_of_the_organization_default():
             with count_statements(engine) as statements:
                 project = await db_manager.fetch_org_details_project(organization_id)
             assert len(statements) == 1
-            # Step 2b: the project the member routes use (the organization default,
-            # else its oldest project); no workspace row decides.
+            # The project the member routes use (the organization default, else its
+            # oldest project).
             expected = await fetch_all(
                 "SELECT id FROM projects WHERE organization_id = :o "
                 "ORDER BY is_default IS TRUE DESC, created_at ASC NULLS LAST, id ASC "
@@ -1484,7 +836,7 @@ async def test_org_details_list_the_members_of_the_organization_default():
 
 
 async def test_org_details_answer_the_organization():
-    seeded = await seed_organization(members={"m": "editor"}, workspaces=2)
+    seeded = await seed_organization(members={"m": "editor"}, projects=2)
     try:
         organization = await db_manager.get_organization(str(seeded.organization_id))
         engine = get_transactions_engine()
@@ -1503,11 +855,9 @@ async def test_org_details_answer_the_organization():
             str(seeded.user_ids["m"]): "editor",
         }
         # Step 1: 5 statements for a legacy organization (workspace, workspace project,
-        # members, invitations, workspace list); step 2: project, invitations, members.
+        # members, invitations, workspace list); now: project, invitations, members.
         assert len(statements) == 3
-        empty = await seed_organization(
-            members={"owner": "owner"}, workspaces=0, projects_per_workspace=0
-        )
+        empty = await seed_organization(members={"owner": "owner"}, projects=0)
         try:
             details = await db_manager.get_org_details(
                 await db_manager.get_organization(str(empty.organization_id))
@@ -1523,12 +873,12 @@ async def test_org_details_answer_the_organization():
 
 
 async def test_org_details_list_an_invitation_of_another_project():
-    # The organization's default moved to a new project without a workspace; an
-    # invitation stored there is listed although the details list workspace 0's members.
-    seeded = await seed_organization(members={"m": "editor"}, workspaces=2)
+    # An invitation stored in another project of the organization is listed although
+    # the details list the default project's members.
+    seeded = await seed_organization(members={"m": "editor"}, projects=2)
     try:
         moved = await _add_project(
-            organization_id=seeded.organization_id, workspace_id=None, is_default=False
+            organization_id=seeded.organization_id, is_default=False
         )
         email = f"pending-{uuid4().hex[:10]}@test.agenta.ai"
         for project_id, used in ((moved, False), (seeded.project_ids[1], True)):
@@ -1551,7 +901,7 @@ async def test_org_details_list_an_invitation_of_another_project():
 
 
 async def test_project_list_answers_the_organization():
-    seeded = await seed_organization(members={"m": "editor"}, workspaces=2)
+    seeded = await seed_organization(members={"m": "editor"}, projects=2)
     try:
         name = (
             await fetch_all(
@@ -1572,7 +922,7 @@ async def test_project_list_answers_the_organization():
         )
         assert row.summary.workspace_id == seeded.organization_id
         listed = await _dao().list_projects(organization_ids=[seeded.organization_id])
-        assert {p.workspace_id for p in listed} == {seeded.organization_id}
+        assert {project.workspace_id for project in listed} == {seeded.organization_id}
     finally:
         await delete_seeded_organization(seeded)
 
@@ -1590,7 +940,7 @@ async def test_accept_sends_the_admin_notice_to_organization_admins(monkeypatch)
     from oss.src.services import organization_service
 
     seeded = await seed_organization(
-        members={"a1": "admin", "a2": "admin", "e": "editor"}, workspaces=0
+        members={"a1": "admin", "a2": "admin", "e": "editor"}
     )
     newcomer = await create_user(label="newcomer")
     seeded.extra_user_ids.append(newcomer)
@@ -1632,7 +982,7 @@ async def test_admin_delete_of_a_workspace_alias_deletes_nothing():
     )
     from oss.src.core.accounts.errors import AdminWorkspaceIsOrganizationError
 
-    seeded = await seed_organization(members={"m": "editor"}, workspaces=0)
+    seeded = await seed_organization(members={"m": "editor"})
     service = PlatformAdminAccountsService()
     try:
         with pytest.raises(AdminWorkspaceIsOrganizationError):
@@ -1674,7 +1024,7 @@ async def test_admin_delete_of_a_membership_alias_removes_the_member(monkeypatch
             memberships_dao=_dao(), policy=MembershipPolicy.PROJECT_ROWS
         ),
     )
-    seeded = await seed_organization(members={"m": "editor"}, workspaces=0)
+    seeded = await seed_organization(members={"m": "editor"})
     service = PlatformAdminAccountsService()
     try:
         rows = {
@@ -1701,71 +1051,6 @@ async def test_admin_delete_of_a_membership_alias_removes_the_member(monkeypatch
             {"u": seeded.user_ids["m"]},
         )
         assert left == []
-    finally:
-        await delete_seeded_organization(seeded)
-
-
-async def test_admin_alias_deletes_on_step1_code_change_nothing():
-    seeded = await seed_organization(members={"m": "editor"}, workspaces=0)
-    try:
-        membership = (
-            await fetch_all(
-                "SELECT id FROM organization_members WHERE user_id = :u",
-                {"u": seeded.user_ids["m"]},
-            )
-        )[0]["id"]
-        code = f"""
-import asyncio, json
-from oss.src.core.accounts.service import PlatformAdminAccountsService
-from oss.src.core.accounts import service as accounts_module
-accounts_module.is_ee = lambda: True
-
-async def main():
-    service = PlatformAdminAccountsService()
-    out = []
-    for call in (
-        lambda: service.delete_workspace(workspace_id="{seeded.organization_id}"),
-        lambda: service.delete_workspace_membership(
-            workspace_id="{seeded.organization_id}", membership_id="{membership}"
-        ),
-    ):
-        try:
-            await call()
-            out.append("deleted")
-        except Exception as exc:
-            out.append(type(exc).__name__)
-    print(json.dumps(out))
-
-asyncio.run(main())
-"""
-        assert _step1(code) == [
-            "AdminWorkspaceNotFoundError",
-            "AdminMembershipNotFoundError",
-        ]
-        assert await fetch_all(
-            "SELECT 1 FROM organization_members WHERE id = :m", {"m": membership}
-        )
-    finally:
-        await delete_seeded_organization(seeded)
-
-
-async def test_admin_delete_of_a_legacy_workspace_deletes_nothing():
-    from oss.src.core.accounts.errors import AdminWorkspaceNotFoundError
-
-    seeded = await seed_organization(members={"m": "editor"}, workspaces=2)
-    try:
-        # Step 2b: a legacy workspace id is unknown; its row and projects stay.
-        with pytest.raises(AdminWorkspaceNotFoundError):
-            await PlatformAdminAccountsService().delete_workspace(
-                workspace_id=str(seeded.workspace_ids[1])
-            )
-        assert await fetch_all(
-            "SELECT 1 FROM workspaces WHERE id = :w", {"w": seeded.workspace_ids[1]}
-        )
-        for project_id in seeded.project_ids:
-            assert await fetch_all(
-                "SELECT 1 FROM projects WHERE id = :p", {"p": project_id}
-            )
     finally:
         await delete_seeded_organization(seeded)
 

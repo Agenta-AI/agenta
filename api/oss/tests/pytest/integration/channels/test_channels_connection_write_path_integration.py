@@ -214,8 +214,8 @@ async def test_two_projects_one_installation_get_a_domain_error_not_a_500(
         await session.execute(
             text(
                 "INSERT INTO projects "
-                "(id, project_name, workspace_id, organization_id) "
-                "SELECT :id, 'write-path-second-project', workspace_id, organization_id "
+                "(id, project_name, organization_id) "
+                "SELECT :id, 'write-path-second-project', organization_id "
                 "FROM projects WHERE id = :existing"
             ),
             {"id": other_project_id, "existing": project_id},

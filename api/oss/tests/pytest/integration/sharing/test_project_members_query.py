@@ -56,25 +56,10 @@ async def _project_row(project_id: UUID, user_id: UUID, role: str) -> None:
     )
 
 
-async def _workspace_only_user(org) -> UUID:
-    """A user with a workspace row in the organization and nothing else."""
-
-    user_id = await create_user(label="workspace-only")
-    org.extra_user_ids.append(user_id)
-    await execute(
-        "INSERT INTO workspace_members (id, user_id, workspace_id, role, created_at, "
-        "updated_at) VALUES (gen_random_uuid(), :u, :w, 'editor', now(), now())",
-        {"u": user_id, "w": org.workspace_ids[0]},
-    )
-    return user_id
-
-
 async def test_oss_lists_organization_members():
     async with seeded(
         {"owner": "owner", "alice": "editor", "bob": "viewer"}, project_rows=False
     ) as org:
-        await _workspace_only_user(org)
-
         profiles = await _dao().query_project_member_profiles(
             project_id=org.project_ids[0],
             policy=MembershipPolicy.ORGANIZATION_WIDE,
@@ -99,7 +84,6 @@ async def test_ee_lists_project_rows():
         outsider = await create_user(label="outsider")
         org.extra_user_ids.append(outsider)
         await _project_row(project_id, outsider, "editor")
-        await _workspace_only_user(org)
 
         profiles = await _dao().query_project_member_profiles(
             project_id=project_id,

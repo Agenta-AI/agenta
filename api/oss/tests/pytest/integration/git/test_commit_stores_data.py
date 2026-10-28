@@ -61,7 +61,7 @@ async def variant(engine):
     database allowed another worker's fixture teardown to delete the FK parent
     midway through this fixture. Own the complete hierarchy instead.
     """
-    user_id, organization_id, workspace_id, project_id = (uuid4() for _ in range(4))
+    user_id, organization_id, project_id = (uuid4() for _ in range(3))
     artifact_id, variant_id = uuid4(), uuid4()
     await _exec(
         engine,
@@ -85,22 +85,11 @@ async def variant(engine):
     )
     await _exec(
         engine,
-        "INSERT INTO workspaces (id, name, organization_id) "
-        "VALUES (:id, :name, :organization_id)",
-        {
-            "id": workspace_id,
-            "name": f"git-store-{workspace_id.hex}",
-            "organization_id": organization_id,
-        },
-    )
-    await _exec(
-        engine,
-        "INSERT INTO projects (id, project_name, workspace_id, organization_id) "
-        "VALUES (:id, :project_name, :workspace_id, :organization_id)",
+        "INSERT INTO projects (id, project_name, organization_id) "
+        "VALUES (:id, :project_name, :organization_id)",
         {
             "id": project_id,
             "project_name": f"git-store-{project_id.hex}",
-            "workspace_id": workspace_id,
             "organization_id": organization_id,
         },
     )
@@ -131,7 +120,6 @@ async def variant(engine):
             engine, f"DELETE FROM {table} WHERE {column} = :target", {"target": target}
         )
     await _exec(engine, "DELETE FROM projects WHERE id = :id", {"id": project_id})
-    await _exec(engine, "DELETE FROM workspaces WHERE id = :id", {"id": workspace_id})
     await _exec(
         engine, "DELETE FROM organizations WHERE id = :id", {"id": organization_id}
     )

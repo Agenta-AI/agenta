@@ -363,9 +363,7 @@ def _custom(name: str, slug=None) -> CreateSecretDTO:
 
 @pytest.fixture
 async def world(redis_reachable):
-    seeded = await seed_organization(
-        members={"owner": "owner"}, projects_per_workspace=2
-    )
+    seeded = await seed_organization(members={"owner": "owner"}, projects=2)
     vault, llm_resolver, mcp_resolver, llm = _build()
     p1, p2 = seeded.project_ids
     org = seeded.organization_id

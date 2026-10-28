@@ -50,7 +50,6 @@ async def attachment_scope():
     engine = get_transactions_engine()
     user_id = uuid.uuid4()
     organization_id = uuid.uuid4()
-    workspace_id = uuid.uuid4()
     project_id = uuid.uuid4()
 
     async with engine.session() as session:
@@ -79,25 +78,13 @@ async def attachment_scope():
         )
         await session.execute(
             text(
-                "INSERT INTO workspaces (id, name, organization_id) "
-                "VALUES (:id, :name, :organization_id)"
-            ),
-            {
-                "id": workspace_id,
-                "name": "attachment-dao-test-workspace",
-                "organization_id": organization_id,
-            },
-        )
-        await session.execute(
-            text(
                 "INSERT INTO projects "
-                "(id, project_name, workspace_id, organization_id) "
-                "VALUES (:id, :project_name, :workspace_id, :organization_id)"
+                "(id, project_name, organization_id) "
+                "VALUES (:id, :project_name, :organization_id)"
             ),
             {
                 "id": project_id,
                 "project_name": "attachment-dao-test-project",
-                "workspace_id": workspace_id,
                 "organization_id": organization_id,
             },
         )
@@ -127,9 +114,6 @@ async def attachment_scope():
         )
         await session.execute(
             text("DELETE FROM projects WHERE id = :id"), {"id": project_id}
-        )
-        await session.execute(
-            text("DELETE FROM workspaces WHERE id = :id"), {"id": workspace_id}
         )
         await session.execute(
             text("DELETE FROM organizations WHERE id = :id"),

@@ -1,18 +1,13 @@
-"""Workspace removal step 2: statement, Redis and email counts on every request path it
-touches, pinned against the step-1 numbers.
+"""Statement, Redis and email counts on every request path that workspace removal
+touched, pinned against the numbers measured on the step-1 code (the release before the
+removal).
 
-Bearer and API-key counts reuse the step-1 harness (`test_workspace_accept_postgres.py`:
-a throwaway Redis through `REDIS_URI_VOLATILE`, `caching.random` pinned, four cache
-states) and its pinned step-1 constants. Every count here is `<=` step 1 and `==` the
-measured step-2 value. Request paths are measured through their router handlers with the same harness on both
-versions; the step-1 numbers are pinned here (measured on the step-1 code against the same
-database, see `AGENTA_TESTS_STEP1_API`).
+Bearer and API-key counts reuse the harness of `test_organization_projects_postgres.py`
+(a throwaway Redis through `REDIS_URI_VOLATILE`, `caching.random` pinned, four cache
+states). Every count here is `<=` the step-1 number and `==` the measured value. Request
+paths are measured through their router handlers.
 """
 
-import json
-import os
-import subprocess
-import sys
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -25,7 +20,7 @@ from oss.src.core.access.permissions.types import Permission
 from oss.src.dbs.postgres.memberships.dao import MembershipsDAO
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 from oss.tests.pytest.integration.memberships import (
-    test_workspace_accept_postgres as step1,
+    test_organization_projects_postgres as step1,
 )
 from oss.tests.pytest.utils.membership_seed import (
     create_user,
@@ -40,14 +35,9 @@ from oss.tests.pytest.utils.statements import count_statements
 
 pytestmark = pytest.mark.integration
 
-# The step-1 harness and its fixture.
+# The Bearer harness and its fixture.
 bearer_world = step1.bearer_world
 POLICIES = step1.POLICIES
-
-# Optional: the API directory of the step-1 code (feat/m4b-workspace-accept) checked out
-# elsewhere. When set, each request measurement also runs on that code against the same
-# database and asserts the pinned step-1 constants below.
-_STEP1_API = os.environ.get("AGENTA_TESTS_STEP1_API")
 
 
 def _dao() -> MembershipsDAO:
@@ -123,11 +113,10 @@ async def test_apikey_counts(bearer_world):
     assert state_.workspace_id == state_.organization_id == str(seeded.organization_id)
 
 
-# --- request paths: one harness for both versions ----------------------------- #
+# --- request paths ---------------------------------------------------------------- #
 #
-# The same code runs in-process (step 2) and, with AGENTA_TESTS_STEP1_API, in a subprocess
-# on the step-1 code. `measure(case)` returns {"cold": [sql, redis], "warm": [sql, redis]}
-# (and the emails sent, for the invite accept).
+# `measure(case)` returns {"cold": [sql, redis], "warm": [sql, redis]} (and the emails
+# sent, for the invite accept).
 
 _HARNESS = r"""
 import json
@@ -269,51 +258,14 @@ _harness_namespace: dict = {}
 exec(compile(_HARNESS, "workspace_switch_counts_harness", "exec"), _harness_namespace)
 
 
-def _step1_measure(case):
-    """The same measurement on the step-1 code (subprocess), or None when not configured."""
-
-    if not _STEP1_API:
-        return None
-    from oss.src.utils.env import env
-
-    code = _HARNESS + (
-        "\nimport asyncio\n"
-        f"print(json.dumps(asyncio.run(measure(json.loads({json.dumps(json.dumps(case))})))))\n"
-    )
-    result = subprocess.run(
-        [sys.executable, "-c", code],
-        cwd=_STEP1_API,
-        env={
-            **os.environ,
-            "PYTHONPATH": _STEP1_API,
-            "POSTGRES_URI_CORE": env.postgres.uri_core,
-        },
-        capture_output=True,
-        text=True,
-        timeout=300,
-    )
-    assert result.returncode == 0, result.stderr[-3000:]
-    return json.loads(result.stdout.strip().splitlines()[-1])
-
-
 async def _measure(case):
     return await _harness_namespace["measure"](case)
 
 
-def _check(name, measured, step1_pinned, step1_live, step2_pinned):
-    """Each count: == the pinned step-2 value and <= the pinned step-1 value; with the
-    step-1 code configured, the pinned step-1 values equal the live ones."""
+def _check(name, measured, step1_pinned, step2_pinned):
+    """Each count: == the pinned value and <= the pinned step-1 value."""
 
-    print(
-        f"[counts] {name}: step 2 {measured}, step 1 pinned {step1_pinned}, live {step1_live}"
-    )
-    if step1_live is not None:
-        assert {
-            k: v for k, v in step1_live.items() if k in step1_pinned
-        } == step1_pinned, (
-            name,
-            step1_live,
-        )
+    print(f"[counts] {name}: {measured}, step 1 pinned {step1_pinned}")
     for state, value in measured.items():
         assert value == step2_pinned[state], (name, state, measured)
         if state == "emails":
@@ -346,7 +298,7 @@ _STEP2 = dict(_STEP1)
 @pytest.mark.parametrize("policy", ["ORGANIZATION_WIDE", "PROJECT_ROWS"])
 async def test_project_route_counts(redis_required, kind, policy):
     await redis_required()
-    seeded = await seed_organization(members={"m": "editor"}, workspaces=2)
+    seeded = await seed_organization(members={"m": "editor"}, projects=2)
     try:
         case = {
             "kind": kind,
@@ -358,7 +310,6 @@ async def test_project_route_counts(redis_required, kind, policy):
             f"{kind} {policy}",
             await _measure(case),
             _STEP1[kind],
-            _step1_measure(case),
             _STEP2[kind],
         )
     finally:
@@ -366,7 +317,7 @@ async def test_project_route_counts(redis_required, kind, policy):
 
 
 async def test_check_organization_write_counts(monkeypatch):
-    seeded = await seed_organization(members={"m": "editor"}, workspaces=2)
+    seeded = await seed_organization(members={"m": "editor"}, projects=2)
 
     async def _allow(**kwargs):
         return True
@@ -390,7 +341,7 @@ async def test_check_organization_write_counts(monkeypatch):
 
 
 async def test_org_details_counts():
-    seeded = await seed_organization(members={"m": "editor"}, workspaces=2)
+    seeded = await seed_organization(members={"m": "editor"}, projects=2)
     try:
         organization = await db_manager.get_organization(str(seeded.organization_id))
         with count_statements(get_transactions_engine()) as statements:
@@ -401,7 +352,7 @@ async def test_org_details_counts():
 
 
 async def test_organizations_and_workspaces_list_counts():
-    seeded = await seed_organization(members={"m": "editor"}, workspaces=2)
+    seeded = await seed_organization(members={"m": "editor"}, projects=2)
     try:
         with count_statements(get_transactions_engine()) as statements:
             await db_manager.get_user_organizations(str(seeded.user_ids["m"]))
@@ -415,18 +366,16 @@ async def test_organizations_and_workspaces_list_counts():
 # --- the whole invite accept, through the router -------------------------------- #
 
 
-async def _invitation(*, admins: int, with_workspace: bool):
+async def _invitation(*, admins: int):
     members = {f"a{i}": "admin" for i in range(admins - 1)}  # + the owner
-    seeded = await seed_organization(
-        members=members or {"owner": "owner"}, workspaces=1 if with_workspace else 0
-    )
+    seeded = await seed_organization(members=members or {"owner": "owner"})
     invitee = await create_user(label="invitee")
     seeded.extra_user_ids.append(invitee)
     email = (await fetch_all("SELECT email FROM users WHERE id = :u", {"u": invitee}))[
         0
     ]["email"]
     tokens = []
-    for _ in range(2):  # one for each version
+    for _ in range(1):
         token = uuid4().hex
         tokens.append(token)
         await execute(
@@ -438,33 +387,19 @@ async def _invitation(*, admins: int, with_workspace: bool):
     return seeded, invitee, email, tokens
 
 
-async def _forget_member(invitee):
-    for table in ("organization_members", "project_members", "workspace_members"):
-        await execute(f"DELETE FROM {table} WHERE user_id = :u", {"u": invitee})
+# Step 1: [statements, Redis] of the whole accept route for an organization with its
+# workspace (emails = workspace admins). Now: the organization's owners and admins.
+_STEP1_ACCEPT = {1: {"cold": [21, 1]}, 3: {"cold": [23, 1]}}
+_ACCEPT_SQL = 15
 
 
-# Step 1: [statements, Redis] of the whole accept route; emails = workspace admins (none
-# for a project without a workspace). Step 2: the organization's owners and admins.
-_STEP1_ACCEPT = {
-    (1, True): {"cold": [21, 1], "emails": 1},
-    (1, False): {"cold": [16, 1], "emails": 0},
-    (3, True): {"cold": [23, 1], "emails": 3},
-    (3, False): {"cold": [16, 1], "emails": 0},
-}
-_STEP2_ACCEPT_SQL = 15
-
-
-@pytest.mark.parametrize("with_workspace", [True, False])
 @pytest.mark.parametrize("admins", [1, 3])
 @pytest.mark.parametrize("policy", ["ORGANIZATION_WIDE", "PROJECT_ROWS"])
-async def test_invite_accept_counts(redis_required, policy, admins, with_workspace):
+async def test_invite_accept_counts(redis_required, policy, admins):
     await redis_required()
-    seeded, invitee, email, tokens = await _invitation(
-        admins=admins, with_workspace=with_workspace
-    )
+    seeded, invitee, email, tokens = await _invitation(admins=admins)
     try:
-        # The link's workspace segment: the organization id (links since step 2; step 2b
-        # refuses a legacy workspace id). `with_workspace` keeps the legacy rows seeded.
+        # The link's workspace segment carries the organization id.
         segment = seeded.organization_id
         base = {
             "kind": "invite_accept",
@@ -474,20 +409,13 @@ async def test_invite_accept_counts(redis_required, policy, admins, with_workspa
             "project_id": str(seeded.project_ids[0]),
             "email": email,
         }
-        live = _step1_measure({**base, "token": tokens[0]})
-        if live is not None:
-            await _forget_member(invitee)
-        measured = await _measure({**base, "token": tokens[1]})
-        pinned = _STEP1_ACCEPT[(admins, with_workspace)]
+        measured = await _measure({**base, "token": tokens[0]})
         _check(
-            f"invite accept {policy} admins={admins} workspace={with_workspace}",
+            f"invite accept {policy} admins={admins}",
             measured,
-            {"cold": pinned["cold"]},
-            None if live is None else {"cold": live["cold"]},
-            {"cold": [_STEP2_ACCEPT_SQL, 1], "emails": admins},
+            {"cold": _STEP1_ACCEPT[admins]["cold"]},
+            {"cold": [_ACCEPT_SQL, 1], "emails": admins},
         )
-        if live is not None:
-            assert live["emails"] == pinned["emails"]
     finally:
         await delete_seeded_organization(seeded)
 
@@ -509,7 +437,7 @@ async def test_entitlements_check_counts_ee(redis_required):
     if not is_ee():
         pytest.skip("EE only")
     await redis_required()
-    seeded = await seed_organization(members={"m": "editor"}, workspaces=1)
+    seeded = await seed_organization(members={"m": "editor"})
     try:
         await execute(
             "INSERT INTO subscriptions (organization_id, plan, active) "
@@ -527,7 +455,6 @@ async def test_entitlements_check_counts_ee(redis_required):
             "entitlements TRACES_RETRIEVED",
             await _measure(case),
             _STEP1_ENTITLEMENTS,
-            _step1_measure(case),
             _STEP2_ENTITLEMENTS,
         )
     finally:

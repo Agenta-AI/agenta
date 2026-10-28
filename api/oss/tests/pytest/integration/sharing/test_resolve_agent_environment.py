@@ -44,7 +44,7 @@ pytestmark = pytest.mark.integration
 
 @asynccontextmanager
 async def seeded():
-    org = await seed_organization(members={"alice": "editor"}, projects_per_workspace=2)
+    org = await seed_organization(members={"alice": "editor"}, projects=2)
     try:
         yield org
     finally:

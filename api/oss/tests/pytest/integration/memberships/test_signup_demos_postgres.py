@@ -46,18 +46,15 @@ async def test_signup_ignores_agenta_demos(monkeypatch):
             "SELECT "
             "(SELECT count(*) FROM organization_members "
             " WHERE user_id = :u AND organization_id = :o) AS o, "
-            "(SELECT count(*) FROM workspace_members "
-            " WHERE user_id = :u AND workspace_id = ANY(CAST(:w AS uuid[]))) AS w, "
             "(SELECT count(*) FROM project_members "
             " WHERE user_id = :u AND project_id = ANY(CAST(:p AS uuid[]))) AS p",
             {
                 "u": user.id,
                 "o": seeded.organization_id,
-                "w": seeded.workspace_ids,
                 "p": seeded.project_ids,
             },
         )
-        assert dict(rows[0]) == {"o": 0, "w": 0, "p": 0}
+        assert dict(rows[0]) == {"o": 0, "p": 0}
     finally:
         if user is not None:
             seeded.extra_user_ids.append(user.id)
