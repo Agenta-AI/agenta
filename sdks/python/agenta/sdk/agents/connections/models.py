@@ -151,8 +151,8 @@ class Connection(BaseModel):
     # needs a slug and namespace ``organization`` (filled in when omitted).
     scope: Optional[ConnectionScope] = None
     # Whose account the run uses (M7). ``caller_account`` takes the person's own provider key
-    # (mode ``agenta``) or their own subscription login (mode ``self_managed`` with the
-    # provider's slug); it never names an organization connection.
+    # (mode ``agenta``); it never names an organization connection, and a personal
+    # subscription login (mode ``self_managed``) is not available yet.
     binding: Optional[ConnectionBinding] = None
 
     @model_validator(mode="after")

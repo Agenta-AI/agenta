@@ -7,7 +7,6 @@ from uuid import uuid4
 
 import pytest
 
-import oss.src.core.credentials.bindings as bindings_module
 from oss.src.core.access.dtos import PrincipalKind, PrincipalRef, RunAuthority
 from oss.src.core.credentials.bindings import (
     Binding,
@@ -67,7 +66,7 @@ def test_each_persons_own_model_key_is_signed():
     assert claim.binding == Binding.CALLER_ACCOUNT
 
 
-def test_personal_composio_and_mcp_wait_for_their_stores(monkeypatch):
+def test_personal_composio_and_mcp_wait_for_their_stores():
     tool = {
         "type": "gateway_connection",
         "connection": {
@@ -83,22 +82,13 @@ def test_personal_composio_and_mcp_wait_for_their_stores(monkeypatch):
             "namespace": "custom",
             "slug": "notes",
             "scope": "user",
-            "binding": "caller_account",
         },
     }
-    # Refused, never read as the project's account, until the run path resolves them.
+    # Refused, never read as the project's account, until the run path serves them.
     with pytest.raises(InvalidBinding):
         binding_claims_for_revision(_revision(tools=[tool]))
     with pytest.raises(InvalidBinding):
         binding_claims_for_revision(_revision(mcps=[mcp]))
-
-    monkeypatch.setattr(bindings_module, "PERSONAL_TOOLS_AVAILABLE", True)
-    monkeypatch.setattr(bindings_module, "PERSONAL_MCP_AVAILABLE", True)
-    claims = binding_claims_for_revision(_revision(tools=[tool], mcps=[mcp]))
-    assert [claim.key for claim in claims] == [
-        ConnectionKey(kind="tool", service="composio:gmail"),
-        ConnectionKey(kind="mcp", service="notes", scope="user"),
-    ]
 
 
 def test_a_personal_subscription_login_is_not_available_yet():

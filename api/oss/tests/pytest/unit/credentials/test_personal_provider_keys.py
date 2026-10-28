@@ -16,10 +16,8 @@ from oss.src.core.credentials.bindings import Binding, BindingClaim, ConnectionK
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.llms.registry import LLMUpstreamRegistry
 from oss.src.core.gateways.llms.service import LLMGatewayService
-from oss.src.core.gateways.llms.types import (
-    LLMEndpointNotFoundError,
-    LLMPersonalCredentialError,
-)
+from oss.src.core.credentials.policy import PersonalCredentialRefused
+from oss.src.core.gateways.llms.types import LLMEndpointNotFoundError
 from oss.src.core.gateways.policy.dtos import GatewayPlane
 from oss.src.core.gateways.policy.resolution import SecretsResolver
 from oss.src.core.secrets.dtos import CreateSecretDTO
@@ -197,7 +195,7 @@ async def test_sandbox_cannot_ask_for_a_personal_key_without_the_binding(world):
 
 async def test_a_person_without_a_key_is_refused_never_the_project_key(world):
     with _run(world, principal_id=uuid4(), bindings=[CALLER_OPENAI]):
-        with pytest.raises(LLMPersonalCredentialError) as refused:
+        with pytest.raises(PersonalCredentialRefused) as refused:
             await world["service"]._resolve_target(
                 scope=world["scope"],
                 namespace=GatewayEndpointNamespace.USER,
@@ -210,7 +208,7 @@ async def test_a_person_without_a_key_is_refused_never_the_project_key(world):
 async def test_an_api_key_run_has_no_person(world):
     await _personal_key(world, uuid4())
     with _run(world, kind="api_key", bindings=[CALLER_OPENAI]):
-        with pytest.raises(LLMPersonalCredentialError) as refused:
+        with pytest.raises(PersonalCredentialRefused) as refused:
             await world["service"]._resolve_target(
                 scope=world["scope"],
                 namespace=GatewayEndpointNamespace.USER,
@@ -231,7 +229,7 @@ async def test_a_channel_turn_uses_the_linked_persons_key(world):
     assert target.resolved_secret.secret.id == secret.id
 
     with _run(world, kind="installation", bindings=[CALLER_OPENAI]):
-        with pytest.raises(LLMPersonalCredentialError) as refused:
+        with pytest.raises(PersonalCredentialRefused) as refused:
             await world["service"]._resolve_target(
                 scope=world["scope"],
                 namespace=GatewayEndpointNamespace.USER,
@@ -245,7 +243,7 @@ async def test_another_organization_never_sees_the_key(world):
     await _personal_key(world, alice)
     other = make_auth_scope(organization_id=uuid4(), project_id=world["project_id"])
     with _run(world, principal_id=alice, bindings=[CALLER_OPENAI]):
-        with pytest.raises(LLMPersonalCredentialError) as refused:
+        with pytest.raises(PersonalCredentialRefused) as refused:
             await world["service"]._resolve_target(
                 scope=other, namespace=GatewayEndpointNamespace.USER, name="openai"
             )
@@ -259,7 +257,7 @@ async def test_the_gate_and_the_policy_refuse(world, monkeypatch):
         policy_module.env.agenta.access, "personal_credentials_enabled", False
     )
     with _run(world, principal_id=alice, bindings=[CALLER_OPENAI]):
-        with pytest.raises(LLMPersonalCredentialError) as refused:
+        with pytest.raises(PersonalCredentialRefused) as refused:
             await world["service"]._resolve_target(
                 scope=world["scope"],
                 namespace=GatewayEndpointNamespace.USER,
@@ -277,7 +275,7 @@ async def test_the_gate_and_the_policy_refuse(world, monkeypatch):
 
     monkeypatch.setattr(policy_module, "_organization_allows", forbidden)
     with _run(world, principal_id=alice, bindings=[CALLER_OPENAI]):
-        with pytest.raises(LLMPersonalCredentialError) as refused:
+        with pytest.raises(PersonalCredentialRefused) as refused:
             await world["service"]._resolve_target(
                 scope=world["scope"],
                 namespace=GatewayEndpointNamespace.USER,
@@ -294,7 +292,7 @@ async def test_an_unsigned_personal_connection_is_refused_not_shared(world):
     bindings. When the agent asks for each person's own account, the gateway refuses
     instead of answering the project's key."""
     with _run(world, principal_id=uuid4(), bindings=()):
-        with pytest.raises(LLMPersonalCredentialError) as refused:
+        with pytest.raises(PersonalCredentialRefused) as refused:
             await world["service"].resolve_agent_connection(
                 scope=world["scope"],
                 model="gpt-4o-mini",

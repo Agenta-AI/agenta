@@ -8,6 +8,7 @@ import httpx
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
+from oss.src.core.credentials.policy import PersonalCredentialRefused
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 from oss.src.apis.fastapi.gateways.exceptions import log_plane_disabled
@@ -42,7 +43,6 @@ from oss.src.core.gateways.llms.types import (
     LLMEndpointNotFoundError,
     LLMModelIdentifierInvalidError,
     LLMModelNotAllowedError,
-    LLMPersonalCredentialError,
     LLMNamedConnectionNotFoundError,
     LLMRoutingFieldNotAllowedError,
     LLMCapabilityNotAllowedError,
@@ -89,7 +89,7 @@ _DOMAIN_EXCEPTIONS = (
     SecretInvalidError,
     LLMEndpointNotFoundError,
     LLMNamedConnectionNotFoundError,
-    LLMPersonalCredentialError,
+    PersonalCredentialRefused,
     LLMUpstreamError,
 )
 
@@ -321,7 +321,7 @@ def _map_domain_exception(exc: Exception) -> JSONResponse:
             error_type="invalid_request_error",
             code="endpoint_not_found",
         )
-    if isinstance(exc, LLMPersonalCredentialError):
+    if isinstance(exc, PersonalCredentialRefused):
         # The person's own account cannot be used (M7). The message is for the person.
         return _openai_error(
             status_code=403,
@@ -710,6 +710,17 @@ class LLMGatewayProxy:
 
     # --- gemini (native) ---------------------------------------------------------- #
 
+    async def messages_user(self, request: Request, provider: str) -> Response:
+        # The person's own key for `provider` (M7): only for a run whose signed bindings
+        # name this model connection as each person's own account.
+        return await self._relay(
+            request,
+            namespace=GatewayEndpointNamespace.USER,
+            name=provider,
+            parser=parse_messages_call_context,
+            protocol=LLMProtocol.MESSAGES,
+        )
+
     async def gemini_stream_builtin(
         self, request: Request, provider: str, model: str
     ) -> Response:
@@ -742,17 +753,6 @@ class LLMGatewayProxy:
         )
 
     # Shared relay
-
-    async def messages_user(self, request: Request, provider: str) -> Response:
-        # The person's own key for `provider` (M7): only for a run whose signed bindings
-        # name this model connection as each person's own account.
-        return await self._relay(
-            request,
-            namespace=GatewayEndpointNamespace.USER,
-            name=provider,
-            parser=parse_messages_call_context,
-            protocol=LLMProtocol.MESSAGES,
-        )
 
     async def _relay(
         self,

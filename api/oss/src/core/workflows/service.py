@@ -175,6 +175,7 @@ from oss.src.core.sharing.service import invalidate_sharing_caches
 from oss.src.core.workflows.static_catalog import normalize_static_version
 from oss.src.core.workflows.dtos import WorkflowServiceDetachedResponse
 from oss.src.core.credentials.bindings import (
+    BindingClaim,
     InvalidBinding,
     binding_claims_for_revision,
     claims_to_token,
@@ -328,12 +329,13 @@ def _reject_unreadable_agent_instructions(data: Any) -> None:
         ) from e
 
 
-def _reject_unsupported_bindings(data: Any) -> None:
-    """Refuse a binding the first step of M7 does not support: `specific`, a personal
-    account on an organization connection, a personal MCP server that is not each
-    person's own. A format check only: it never checks that an account exists."""
+def _reject_unsupported_bindings(data: Any) -> List[BindingClaim]:
+    """The revision's `caller_account` bindings, or a refusal of a binding the first
+    step of M7 does not support: `specific`, a personal account on an organization
+    connection, a personal account the run path does not serve yet. A format check
+    only: it never checks that an account exists."""
     try:
-        binding_claims_for_revision(data)
+        return binding_claims_for_revision(data)
     except InvalidBinding as e:
         raise InvalidAgentConnectionError(
             reason="binding_not_supported",
@@ -3672,11 +3674,7 @@ class WorkflowsService:
 
         # The `caller_account` connections of the resolved revision (M7). A revision
         # saved before the commit check refuses an unsupported binding here.
-        try:
-            binding_claims = binding_claims_for_revision(revision_data)
-        except InvalidBinding:
-            _reject_unsupported_bindings(revision_data)
-            raise
+        binding_claims = _reject_unsupported_bindings(revision_data)
 
         secret_token = await sign_secret_token(
             user_id=str(acting_user_id),

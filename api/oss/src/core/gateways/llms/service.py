@@ -54,7 +54,6 @@ from oss.src.core.secrets.enums import (
     StandardProviderKind,
 )
 from oss.src.core.gateways.llms.types import (
-    LLMPersonalCredentialError,
     LLM_GATEWAY_SERVED_DEPLOYMENT_KINDS,
     LLMCapabilityNotAllowedError,
     LLMConnectionProviderRequiredError,
@@ -785,7 +784,7 @@ class LLMGatewayService:
             # The agent asks for each person's own account, and this run carries no
             # signed binding for it (a run started outside an Agenta conversation,
             # trigger, channel or evaluation). Refused, never the shared account.
-            raise LLMPersonalCredentialError(
+            raise PersonalCredentialRefused(
                 code="binding_not_signed",
                 message=(
                     "This agent uses each person's own account. Start it from a "
@@ -1341,16 +1340,13 @@ class LLMGatewayService:
             raise LLMEndpointNotFoundError(
                 namespace=GatewayEndpointNamespace.USER, name=provider_key
             )
-        try:
-            selected = await select_personal_credential(
-                authority=access.authority,
-                label=provider_display_name(provider_key),
-                read=lambda user_id: self.resolver.personal_provider_key(
-                    scope=scope, user_id=user_id, provider_key=provider_key
-                ),
-            )
-        except PersonalCredentialRefused as e:
-            raise LLMPersonalCredentialError(code=e.code, message=e.message) from e
+        selected = await select_personal_credential(
+            authority=access.authority,
+            label=provider_display_name(provider_key),
+            read=lambda user_id: self.resolver.personal_provider_key(
+                scope=scope, user_id=user_id, provider_key=provider_key
+            ),
+        )
         return _ResolvedLlmTarget(
             namespace=GatewayEndpointNamespace.USER,
             name=provider_key,

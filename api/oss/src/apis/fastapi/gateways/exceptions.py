@@ -5,6 +5,7 @@ from typing import Any, Dict, Optional
 
 from fastapi import HTTPException, status
 
+from oss.src.core.credentials.policy import PersonalCredentialRefused
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.gateways.types import (
@@ -18,7 +19,6 @@ from oss.src.core.gateways.llms.types import (
     LLMModelIdentifierInvalidError,
     LLMModelNotAllowedError,
     LLMNamedConnectionNotFoundError,
-    LLMPersonalCredentialError,
     LLMOrganizationConnectionSlugRequiredError,
     LLMRoutingFieldNotAllowedError,
     LLMUpstreamError,
@@ -163,7 +163,7 @@ def handle_gateway_exceptions():
                         details={"target": _target_of(e)},
                     ),
                 ) from e
-            except LLMPersonalCredentialError as e:
+            except PersonalCredentialRefused as e:
                 # Each person's own account cannot be used (M7); nothing else is tried.
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,

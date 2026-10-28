@@ -198,13 +198,3 @@ class LLMOrganizationConnectionSlugRequiredError(GatewaysError):
             "An organization connection needs scope 'organization' and the connection's "
             "slug."
         )
-
-
-class LLMPersonalCredentialError(GatewaysError):
-    """A model connection that uses each person's own account cannot use one (M7): the
-    run has no person, the person has no key for the provider, or personal accounts are
-    off. `message` is for the person; nothing else is tried."""
-
-    def __init__(self, *, code: str, message: str):
-        self.code = code
-        super().__init__(message)
