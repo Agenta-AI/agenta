@@ -127,6 +127,8 @@ from oss.src.core.sharing.dtos import SharedItemKind
 from oss.src.core.agent_requirements.dtos import AgentRequirements
 from oss.src.core.agent_requirements.service import AgentRequirementsService
 from oss.src.utils.context import get_auth_scope
+from oss.src.core.access.context import get_request_access
+from oss.src.core.access.organizations import OrganizationAction, decide_organization
 
 
 log = get_module_logger(__name__)
@@ -1568,8 +1570,7 @@ class WorkflowsRouter:
             permission=Permission.VIEW_WORKFLOWS,  # type: ignore
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
-        if self.requirements_service is None:
-            raise HTTPException(status_code=503, detail="Requirements are unavailable.")
+        assert self.requirements_service is not None, "wired in entrypoints/routers.py"
 
         parameters = body.parameters
         artifact_id: Optional[UUID] = None
@@ -1610,11 +1611,23 @@ class WorkflowsRouter:
                 )
             )
 
+        async def _manages_organization() -> bool:
+            organization_id = getattr(request.state, "organization_id", None)
+            if not organization_id:
+                return False
+            decision = await decide_organization(
+                access=get_request_access(),
+                organization_id=UUID(str(organization_id)),
+                action=OrganizationAction.MANAGE_ORGANIZATION_SECRETS,
+            )
+            return bool(decision.allowed)
+
         return await self.requirements_service.check(
             scope=get_auth_scope(),
             parameters=parameters if isinstance(parameters, dict) else None,
             can_edit_agent=_can_edit_agent,
             allowed=_allowed,
+            manages_organization=_manages_organization,
         )
 
     @intercept_exceptions()

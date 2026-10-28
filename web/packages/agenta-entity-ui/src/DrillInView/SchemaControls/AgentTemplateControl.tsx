@@ -873,12 +873,11 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             // A missing, turned-off or signed-out connection is the server's needs-setup check.
             if (!requirements) return undefined
             const ref = entry.kind === "connection" ? entry.connection : entry.action
-            const req =
-                requirementForItem(requirements, {
-                    kinds: ["app_connection"],
-                    slug: ref.connection,
-                    integration: ref.integration,
-                }) ?? requirementAtPath(requirements, `tools[${index}]`)
+            const req = requirementForItem(requirements, {
+                kinds: ["app_connection"],
+                slug: ref.connection,
+                integration: ref.integration,
+            })
             return req ? needsSetupStatus(req) : undefined
         },
         [gatewayToolViews, actionAvailability, requirements],

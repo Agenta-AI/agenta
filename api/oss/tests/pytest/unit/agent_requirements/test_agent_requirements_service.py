@@ -54,13 +54,14 @@ class _Vault:
 
 
 class _Llm:
-    def __init__(self, outcome=None):
+    def __init__(self, outcome=None, resolution=None):
         self.outcome = outcome
+        self.resolution = resolution
         self.calls: List[dict] = []
 
     async def agent_connection_requirement(self, **kwargs):
         self.calls.append(kwargs)
-        return self.outcome
+        return self.outcome, self.resolution
 
 
 class _Mcp:
@@ -146,7 +147,11 @@ async def test_a_ready_agent_returns_an_empty_list_and_reads_no_permission():
         return True
 
     result = await _service().check(
-        scope=_scope(), parameters=_agent(), can_edit_agent=_can_edit, allowed=allowed
+        scope=_scope(),
+        parameters=_agent(),
+        can_edit_agent=_can_edit,
+        allowed=allowed,
+        manages_organization=_no,
     )
 
     assert result.status.value == "ready"
@@ -158,7 +163,11 @@ async def test_a_ready_agent_returns_an_empty_list_and_reads_no_permission():
 async def test_the_agent_reads_only_the_stores_its_items_live_in():
     mcp, connections = _Mcp(), _Connections()
     await _service(mcp=mcp, connections=connections).check(
-        scope=_scope(), parameters=_agent(), can_edit_agent=_yes, allowed=_Allowed()
+        scope=_scope(),
+        parameters=_agent(),
+        can_edit_agent=_yes,
+        allowed=_Allowed(),
+        manages_organization=_no,
     )
     assert mcp.calls == 0 and connections.calls == 0
 
@@ -180,6 +189,7 @@ async def test_two_tools_naming_one_deleted_connection_give_one_requirement():
         parameters=_agent(tools=[tool, other]),
         can_edit_agent=_yes,
         allowed=_Allowed(),
+        manages_organization=_no,
     )
     [requirement] = result.requirements
     assert requirement.key == "app_connection:github/github-x1"
@@ -215,6 +225,7 @@ async def test_app_connection_reasons(connection, reason):
         parameters=_agent(tools=[tool]),
         can_edit_agent=_yes,
         allowed=_Allowed(),
+        manages_organization=_no,
     )
     [requirement] = result.requirements
     assert requirement.reason.value == reason
@@ -246,6 +257,7 @@ async def test_mcp_server_reasons(endpoints, kind, reason):
         parameters=_agent(mcps=mcps),
         can_edit_agent=_yes,
         allowed=_Allowed(),
+        manages_organization=_no,
     )
     [requirement] = result.requirements
     assert requirement.kind.value == kind
@@ -268,6 +280,7 @@ async def test_a_signed_in_mcp_server_is_ready():
         parameters=_agent(mcps=mcps),
         can_edit_agent=_yes,
         allowed=_Allowed(),
+        manages_organization=_no,
     )
     assert result.requirements == []
 
@@ -294,7 +307,11 @@ async def test_a_missing_custom_secret_is_one_requirement_for_every_path():
         ],
     )
     result = await _service(vault=_Vault(project=[_text_secret("kept")])).check(
-        scope=_scope(), parameters=parameters, can_edit_agent=_yes, allowed=_Allowed()
+        scope=_scope(),
+        parameters=parameters,
+        can_edit_agent=_yes,
+        allowed=_Allowed(),
+        manages_organization=_no,
     )
     [requirement] = result.requirements
     assert requirement.key == "secret:gone"
@@ -320,6 +337,7 @@ async def test_a_model_key_requirement_blocks_the_run_and_has_no_remove():
         },
         can_edit_agent=_yes,
         allowed=_Allowed(),
+        manages_organization=_no,
     )
     [requirement] = result.requirements
     assert requirement.key == "model_key:project/gone-key"
@@ -349,10 +367,41 @@ async def test_an_organization_key_this_project_may_not_use_is_not_shared():
         },
         can_edit_agent=_yes,
         allowed=_Allowed(),
+        manages_organization=_yes,
     )
     [requirement] = result.requirements
     assert requirement.reason.value == "not_shared"
     assert requirement.fix.ask.role == "organization_admin"
+
+
+@pytest.mark.asyncio
+async def test_a_member_who_does_not_manage_the_organization_reads_not_found():
+    vault = _Vault(
+        organization_all=[_secret("org-key", SecretKind.PROVIDER_KEY, kind="openai")]
+    )
+    result = await _service(vault=vault, llm=_Llm(("model_key", "not_found"))).check(
+        scope=_scope(),
+        parameters={
+            "agent": {
+                "llm": {
+                    "model": "gpt-5.5",
+                    "provider": "openai",
+                    "connection": {
+                        "mode": "agenta",
+                        "slug": "org-key",
+                        "scope": "organization",
+                    },
+                }
+            }
+        },
+        can_edit_agent=_yes,
+        allowed=_Allowed(),
+        manages_organization=_no,
+    )
+    [requirement] = result.requirements
+    # No probing for organization connection names through a draft.
+    assert requirement.reason.value == "not_found"
+    assert "organization" not in vault.calls
 
 
 @pytest.mark.asyncio
@@ -387,6 +436,7 @@ async def test_subscription_reasons(rows, reason):
         },
         can_edit_agent=_yes,
         allowed=_Allowed(),
+        manages_organization=_no,
     )
     [requirement] = result.requirements
     assert requirement.kind.value == "subscription"
@@ -410,6 +460,7 @@ async def test_an_unnamed_self_managed_login_is_never_a_requirement():
         },
         can_edit_agent=_yes,
         allowed=_Allowed(),
+        manages_organization=_no,
     )
     assert result.requirements == [] and llm.calls == []
 
@@ -426,6 +477,7 @@ async def test_a_harness_that_cannot_reach_the_provider_makes_the_model_not_avai
         },
         can_edit_agent=_yes,
         allowed=_Allowed(),
+        manages_organization=_no,
     )
     [requirement] = result.requirements
     assert requirement.kind.value == "model"
@@ -445,6 +497,7 @@ async def test_a_viewer_sees_the_requirement_and_who_can_fix_it():
         parameters=_agent(mcps=mcps),
         can_edit_agent=_no,
         allowed=_Allowed(allowed=False),
+        manages_organization=_no,
     )
     [requirement] = result.requirements
     assert requirement.kind.value == "mcp_server"
@@ -461,6 +514,7 @@ async def test_unset_template_slots_produce_no_requirement():
         parameters=_agent(tools=[], mcps=[]),
         can_edit_agent=_yes,
         allowed=_Allowed(),
+        manages_organization=_no,
     )
     assert result.requirements == []
 
@@ -488,3 +542,27 @@ async def test_model_requirements_read_only_the_model():
     )
     assert [requirement.kind.value for requirement in requirements] == ["model_key"]
     assert mcp.calls == 0 and connections.calls == 0
+
+
+@pytest.mark.asyncio
+async def test_a_named_connection_the_harness_cannot_consume_makes_the_model_not_available():
+    """The run's post-resolve pair check: Claude cannot drive an OpenAI connection."""
+    resolution = SimpleNamespace(provider_key="openai", deployment_kind="direct")
+    result = await _service(llm=_Llm(None, resolution)).check(
+        scope=_scope(),
+        parameters={
+            "agent": {
+                "harness": {"kind": "claude"},
+                "llm": {
+                    "model": "gpt-5.5",
+                    "connection": {"mode": "agenta", "slug": "my-openai"},
+                },
+            }
+        },
+        can_edit_agent=_yes,
+        allowed=_Allowed(),
+        manages_organization=_no,
+    )
+    [requirement] = result.requirements
+    assert requirement.kind.value == "model"
+    assert requirement.reason.value == "not_available"

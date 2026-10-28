@@ -46,6 +46,10 @@ from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.workflows.types import WorkflowDetachedStartRejected
 from oss.src.utils.logging import get_module_logger
 
+from agenta.sdk.agents.requirements import (
+    AGENT_NEEDS_SETUP,
+    AGENT_NEEDS_SETUP_MESSAGE,
+)
 from agenta.sdk.decorators.running import WorkflowServiceRequest
 from agenta.sdk.models.workflows import WorkflowRequestData
 from agenta.sdk.utils.resolvers import resolve_target_fields
@@ -53,7 +57,6 @@ from agenta.sdk.utils.resolvers import resolve_target_fields
 log = get_module_logger(__name__)
 
 
-AGENT_NEEDS_SETUP = "agent_needs_setup"
 # A fire skipped because the agent's model needs setup: recorded once, never retried, and
 # the trigger stays on. Not the retryable "500", so the claim and the dedup treat it as seen.
 SKIPPED_STATUS_CODE = "422"
@@ -66,7 +69,7 @@ def _needs_setup_details(failure_code: Any, details: Any) -> Optional[AgentError
         return None
     return AgentError(
         code=AGENT_NEEDS_SETUP,
-        message="The model needs setup before this agent can run.",
+        message=AGENT_NEEDS_SETUP_MESSAGE,
         retryable=False,
         next_step="Set up the agent's model. The next run starts as usual.",
         details=details if isinstance(details, dict) else None,
@@ -473,31 +476,26 @@ class TriggersDispatcher:
                     request=request,
                     envelope=envelope,
                 )
-            except WorkflowDetachedStartRejected as e:
-                skipped = _needs_setup_details(e.failure_code, e.failure_details)
-                if skipped is None:
-                    await self._fail_detached(
+            except Exception as e:
+                skipped = (
+                    _needs_setup_details(e.failure_code, e.failure_details)
+                    if isinstance(e, WorkflowDetachedStartRejected)
+                    else None
+                )
+                if skipped is not None:
+                    await self._skip_delivery(
                         project_id=project_id,
                         delivery_id=delivery_id,
                         session_id=session_id,
                         delivery_data=delivery_data,
-                        error=e,
+                        error=skipped,
                     )
-                    raise
-                await self._skip_delivery(
-                    project_id=project_id,
-                    delivery_id=delivery_id,
-                    session_id=session_id,
-                    delivery_data=delivery_data,
-                    error=skipped,
-                )
-                log.info(
-                    "[TRIGGERS DISPATCHER] skipped entity=%s event=%s: agent needs setup",
-                    entity.id,
-                    event_id,
-                )
-                return
-            except Exception as e:
+                    log.info(
+                        "[TRIGGERS DISPATCHER] skipped entity=%s event=%s: agent needs setup",
+                        entity.id,
+                        event_id,
+                    )
+                    return
                 log.error("[TRIGGERS DISPATCHER] detached invoke failed: %s", e)
                 await self._complete_delivery(
                     project_id=project_id,
@@ -596,26 +594,6 @@ class TriggersDispatcher:
             "[TRIGGERS DISPATCHER] dispatch complete entity=%s event=%s status=200",
             entity.id,
             event_id,
-        )
-
-    async def _fail_detached(
-        self,
-        *,
-        project_id: UUID,
-        delivery_id: Any,
-        session_id: Any,
-        delivery_data: Any,
-        error: Exception,
-    ) -> None:
-        log.error("[TRIGGERS DISPATCHER] detached invoke failed: %s", error)
-        await self._complete_delivery(
-            project_id=project_id,
-            delivery_id=delivery_id,
-            status=Status(code="500", message="failed"),
-            data=delivery_data.model_copy(update={"error": str(error)}),
-        )
-        await self._abandon_claimed_session(
-            project_id=project_id, session_id=session_id
         )
 
     async def _skip_delivery(

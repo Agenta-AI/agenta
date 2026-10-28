@@ -14,8 +14,9 @@ export const needsSetupStatus = (req: AgentRequirementItem): ItemRowStatus => ({
     tone: "incomplete",
     label: NEEDS_SETUP_LABEL,
     reason: needsSetupReasonLabel(req.reason) ?? undefined,
+    needsSetup: true,
 })
 
 /** Whether a row status is the needs-setup tag (so a click opens the fix, not the plain editor). */
 export const isNeedsSetupStatus = (status: ItemRowStatus | undefined): boolean =>
-    status?.label === NEEDS_SETUP_LABEL
+    status?.needsSetup === true

@@ -13,6 +13,10 @@ so the result does not depend on which principal the automation runs as.
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
+from agenta.sdk.agents.requirements import (
+    AGENT_NEEDS_SETUP,
+    AGENT_NEEDS_SETUP_MESSAGE,
+)
 from agenta.sdk.decorators.running import WorkflowServiceRequest
 
 from oss.src.core.agent_requirements.dtos import AgentRequirement
@@ -27,7 +31,7 @@ log = get_module_logger(__name__)
 class AgentNeedsSetupRefused(Exception):
     """An automation was not turned on: the agent's model needs setup."""
 
-    message = "The model needs setup before this agent can run."
+    message = AGENT_NEEDS_SETUP_MESSAGE
 
     def __init__(self, requirements: List[AgentRequirement]):
         super().__init__(self.message)
@@ -35,7 +39,7 @@ class AgentNeedsSetupRefused(Exception):
 
     def envelope(self) -> Dict[str, Any]:
         return {
-            "code": "agent_needs_setup",
+            "code": AGENT_NEEDS_SETUP,
             "message": self.message,
             "retryable": False,
             "next_step": "Set up the agent's model, then turn this on again.",

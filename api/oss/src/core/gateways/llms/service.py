@@ -80,6 +80,7 @@ from oss.src.core.gateways.policy.types import (
 )
 from oss.src.core.gateways.types import (
     GatewayEndpointInactiveError,
+    GatewaysError,
     LLMGatewayConnectionNotServedError,
 )
 from oss.src.core.shared.dtos import Windowing
@@ -916,15 +917,16 @@ class LLMGatewayService:
         connection_slug: Optional[str],
         connection_namespace: Optional[GatewayEndpointNamespace] = None,
         connection_scope: SecretOwnerKind = SecretOwnerKind.PROJECT,
-    ) -> Optional[Tuple[str, str]]:
-        """What an agent's model connection needs, as `(kind, reason)`, or None when ready.
+    ) -> Tuple[Optional[Tuple[str, str]], Optional[LLMGatewayConnectionResolution]]:
+        """What an agent's model connection needs, as `(kind, reason)`, and the
+        resolution when it needs nothing.
 
-        The run's own resolve, read without resolving: the same target, the same active
-        flag, the same model allowlist. One more rule the resolve does not apply: a
-        connection with no slug needs a project key for its provider, unless the provider
-        is a built-in one."""
+        The run's own resolve, so the check reads the connection exactly as the run does:
+        the same target, the same active flag, the same model allowlist. One more rule the
+        resolve does not apply: a connection with no slug needs a project key for its
+        provider (a built-in provider needs none)."""
         try:
-            target, model = await self._agent_connection_target(
+            resolution = await self.resolve_agent_connection(
                 scope=scope,
                 model=model,
                 provider_key=provider_key,
@@ -933,23 +935,24 @@ class LLMGatewayService:
                 connection_scope=connection_scope,
             )
         except (LLMEndpointNotFoundError, LLMNamedConnectionNotFoundError):
-            return ("model_key", "not_found")
-        except LLMConnectionProviderRequiredError:
-            return None
-        if not target.is_active:
-            return ("model_key", "turned_off")
+            return ("model_key", "not_found"), None
+        except GatewayEndpointInactiveError:
+            return ("model_key", "turned_off"), None
+        except LLMAgentModelNotAvailableError:
+            return ("model", "not_available"), None
+        except GatewaysError:
+            # A refusal that is not a missing item (a malformed or unserved connection):
+            # the run reports it on its own.
+            return None, None
         if (
             not connection_slug
-            and target.namespace == GatewayEndpointNamespace.STANDARD
-            and target.provider_key
+            and provider_key
+            and resolution.namespace == GatewayEndpointNamespace.STANDARD
+            and provider_key
             not in await self.resolver.available_provider_keys(scope=scope)
         ):
-            return ("model_key", "not_chosen")
-        try:
-            self._check_agent_model(target=target, model=model)
-        except LLMAgentModelNotAvailableError:
-            return ("model", "not_available")
-        return None
+            return ("model_key", "not_chosen"), None
+        return None, resolution
 
     # Data plane
 

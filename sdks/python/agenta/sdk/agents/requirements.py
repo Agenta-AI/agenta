@@ -18,6 +18,12 @@ from typing import Any, Dict, List, Optional
 from agenta.sdk.engines.running.errors import ERRORS_BASE_URL, ErrorStatus
 
 from .connections import ModelRef
+from .connections.errors import (
+    ConnectionNotFoundError,
+    MissingCredentialError,
+    MissingProviderError,
+    UnsupportedProviderError,
+)
 from .mcp import MCPGatewayConnection, MCPServerConfig
 from .tools import (
     CodeToolConfig,
@@ -382,12 +388,12 @@ _CONNECTION_REASONS = {
     "subscription_connection_missing": REASON_NOT_FOUND,
     "subscription_login_required": REASON_NEEDS_SIGN_IN,
 }
-_CLASS_CODES = {
-    # The vault fallback path names no code; these are the class names logs already show.
-    "ConnectionNotFoundError": ("connection_not_found", REASON_NOT_FOUND),
-    "MissingProviderError": ("missing_provider", REASON_NOT_CHOSEN),
-    "MissingCredentialError": ("missing_credential", REASON_NOT_CHOSEN),
-}
+# The vault fallback path names no code; these keep the class name logs already show.
+_CLASS_CODES = (
+    (ConnectionNotFoundError, "connection_not_found", REASON_NOT_FOUND),
+    (MissingProviderError, "missing_provider", REASON_NOT_CHOSEN),
+    (MissingCredentialError, "missing_credential", REASON_NOT_CHOSEN),
+)
 
 
 def model_requirement_from_error(
@@ -396,8 +402,7 @@ def model_requirement_from_error(
     """The model-item requirement a run-start resolve failure means, or None when the
     failure is not a missing item (an outage, a malformed configuration, a refusal)."""
     code = getattr(error, "failure_code", None)
-    name = type(error).__name__
-    if code == "model_not_available" or name == "UnsupportedProviderError":
+    if code == "model_not_available" or isinstance(error, UnsupportedProviderError):
         return requirement(
             llm.model_item(),
             reason=REASON_NOT_AVAILABLE,
@@ -408,7 +413,7 @@ def model_requirement_from_error(
         return None
     if isinstance(code, str) and code in _CONNECTION_REASONS:
         return requirement(item, reason=_CONNECTION_REASONS[code], code=code)
-    if name in _CLASS_CODES:
-        class_code, reason = _CLASS_CODES[name]
-        return requirement(item, reason=reason, code=class_code)
+    for error_class, class_code, reason in _CLASS_CODES:
+        if isinstance(error, error_class):
+            return requirement(item, reason=reason, code=class_code)
     return None

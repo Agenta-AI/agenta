@@ -1801,7 +1801,7 @@ async def test_an_endpoint_with_no_ceiling_relays_the_body_byte_for_byte():
 
 @pytest.mark.asyncio
 async def test_requirement_of_a_named_key_that_is_gone_is_not_found():
-    outcome = await _service().agent_connection_requirement(
+    outcome, _ = await _service().agent_connection_requirement(
         scope=_scope(),
         model="gpt-4o",
         provider_key="openai",
@@ -1816,7 +1816,7 @@ async def test_requirement_of_a_turned_off_endpoint_is_turned_off():
     row = _custom_row(slug="acme")
     row.flags.is_active = False
     dao.rows_by_slug["acme"] = row
-    outcome = await _service(dao=dao).agent_connection_requirement(
+    outcome, _ = await _service(dao=dao).agent_connection_requirement(
         scope=_scope(), model="gpt-4o", provider_key=None, connection_slug="acme"
     )
     assert outcome == ("model_key", "turned_off")
@@ -1824,7 +1824,7 @@ async def test_requirement_of_a_turned_off_endpoint_is_turned_off():
 
 @pytest.mark.asyncio
 async def test_requirement_of_an_unnamed_key_without_a_project_key_is_not_chosen():
-    outcome = await _service(
+    outcome, _ = await _service(
         resolver=_MockResolver(provider_keys=set())
     ).agent_connection_requirement(
         scope=_scope(), model="gpt-4o", provider_key="openai", connection_slug=None
@@ -1834,7 +1834,7 @@ async def test_requirement_of_an_unnamed_key_without_a_project_key_is_not_chosen
 
 @pytest.mark.asyncio
 async def test_an_unnamed_key_keeps_the_project_default():
-    outcome = await _service(
+    outcome, _ = await _service(
         resolver=_MockResolver(provider_keys={"openai"})
     ).agent_connection_requirement(
         scope=_scope(), model="gpt-4o", provider_key="openai", connection_slug=None
@@ -1844,7 +1844,7 @@ async def test_an_unnamed_key_keeps_the_project_default():
 
 @pytest.mark.asyncio
 async def test_requirement_of_a_model_the_endpoint_does_not_offer_is_not_available():
-    outcome = await _service(
+    outcome, _ = await _service(
         dao=_fireworks_dao(["kimi-k3-fast"])
     ).agent_connection_requirement(
         scope=_scope(),
@@ -1857,7 +1857,7 @@ async def test_requirement_of_a_model_the_endpoint_does_not_offer_is_not_availab
 
 @pytest.mark.asyncio
 async def test_a_ready_named_endpoint_has_no_requirement():
-    outcome = await _service(
+    outcome, _ = await _service(
         dao=_fireworks_dao(["kimi-k3-fast"])
     ).agent_connection_requirement(
         scope=_scope(),

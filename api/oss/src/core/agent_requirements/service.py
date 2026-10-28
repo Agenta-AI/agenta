@@ -14,6 +14,7 @@ from typing import Awaitable, Callable, Dict, List, Optional, Sequence, Tuple
 
 from agenta.sdk.agents.capabilities import (
     HARNESS_CONNECTION_CAPABILITIES,
+    harness_allows_pair,
     harness_allows_provider,
 )
 from agenta.sdk.agents.dtos import AgentTemplate
@@ -22,6 +23,7 @@ from agenta.sdk.agents.requirements import (
     ItemReference,
     LlmReference,
     read_agent_references,
+    requirement,
 )
 
 from oss.src.core.access.permissions.types import Permission
@@ -108,11 +110,6 @@ class _Found:
         self.reason = reason
         self.candidates = candidates
 
-    def key(self) -> str:
-        if self.kind.value == self.item.kind:
-            return self.item.key
-        return f"{self.kind.value}:{self.item.key.split(':', 1)[1]}"
-
 
 class AgentRequirementsService:
     def __init__(
@@ -136,11 +133,16 @@ class AgentRequirementsService:
         #
         can_edit_agent: Callable[[], Awaitable[bool]],
         allowed: Allowed,
+        manages_organization: Callable[[], Awaitable[bool]],
     ) -> AgentRequirements:
         """The requirements of one agent configuration, with what the caller can do.
         The caller's permissions are read only when something needs setup."""
         references = read_agent_references(parameters)
-        found = await self._find(scope=scope, references=references)
+        found = await self._find(
+            scope=scope,
+            references=references,
+            manages_organization=manages_organization,
+        )
         if not found:
             return AgentRequirements.of([])
 
@@ -167,6 +169,7 @@ class AgentRequirementsService:
         found = await self._find(
             scope=scope,
             references=AgentReferences(llm=references.llm),
+            manages_organization=_never,
         )
         return [
             self._requirement(entry, can_edit_agent=False, permissions={})
@@ -176,7 +179,11 @@ class AgentRequirementsService:
     # -- finding -----------------------------------------------------------------------
 
     async def _find(
-        self, *, scope: AuthScope, references: AgentReferences
+        self,
+        *,
+        scope: AuthScope,
+        references: AgentReferences,
+        manages_organization: Callable[[], Awaitable[bool]],
     ) -> List[_Found]:
         found: List[_Found] = []
         project_rows: List[SecretResponseDTO] = []
@@ -196,6 +203,7 @@ class AgentRequirementsService:
                     llm=references.llm,
                     project_rows=project_rows,
                     organization_rows=organization_rows,
+                    manages_organization=manages_organization,
                 )
             )
         if references.mcp_servers:
@@ -212,8 +220,18 @@ class AgentRequirementsService:
             )
         return found
 
-    async def _not_shared(self, *, scope: AuthScope, slug: str) -> bool:
-        """Whether the organization holds this slug, which this project may not use."""
+    async def _not_shared(
+        self,
+        *,
+        scope: AuthScope,
+        slug: str,
+        manages_organization: Callable[[], Awaitable[bool]],
+    ) -> bool:
+        """Whether the organization holds this slug, which this project may not use.
+        Told only to a caller who manages the organization's connections: anyone else
+        reads `not_found`, so a draft cannot probe for connection names."""
+        if not await manages_organization():
+            return False
         rows = await self.vault_service.list_organization_secrets(
             organization_id=scope.organization_id
         )
@@ -226,6 +244,7 @@ class AgentRequirementsService:
         llm: LlmReference,
         project_rows: Sequence[SecretResponseDTO],
         organization_rows: Sequence[SecretResponseDTO],
+        manages_organization: Callable[[], Awaitable[bool]],
     ) -> List[_Found]:
         connection = llm.connection_item()
         if connection is None:
@@ -235,6 +254,7 @@ class AgentRequirementsService:
         if connection.kind == _KIND.SUBSCRIPTION.value:
             return await self._subscription(
                 scope=scope,
+                manages_organization=manages_organization,
                 llm=llm,
                 item=connection,
                 rows=organization_rows if llm.is_organization else project_rows,
@@ -261,7 +281,10 @@ class AgentRequirementsService:
         ):
             return [_Found(llm.model_item(), reason=_REASON.NOT_AVAILABLE)]
 
-        outcome = await self.llm_gateway_service.agent_connection_requirement(
+        (
+            outcome,
+            resolution,
+        ) = await self.llm_gateway_service.agent_connection_requirement(
             scope=scope,
             model=llm.model,
             provider_key=llm.provider,
@@ -276,6 +299,16 @@ class AgentRequirementsService:
             ),
         )
         if outcome is None:
+            # The run's post-resolve check: the harness must consume the pair the
+            # connection resolved to (a named connection's provider is known only here).
+            if resolution is not None and not _harness_allows_pair(
+                llm.harness,
+                resolution.provider_key,
+                getattr(
+                    resolution.deployment_kind, "value", resolution.deployment_kind
+                ),
+            ):
+                return [_Found(llm.model_item(), reason=_REASON.NOT_AVAILABLE)]
             return []
         kind, reason = outcome
         if kind == _KIND.MODEL.value:
@@ -285,7 +318,9 @@ class AgentRequirementsService:
             reason_value == _REASON.NOT_FOUND
             and llm.is_organization
             and llm.slug
-            and await self._not_shared(scope=scope, slug=llm.slug)
+            and await self._not_shared(
+                scope=scope, slug=llm.slug, manages_organization=manages_organization
+            )
         ):
             reason_value = _REASON.NOT_SHARED
         return [
@@ -296,6 +331,7 @@ class AgentRequirementsService:
         self,
         *,
         scope: AuthScope,
+        manages_organization: Callable[[], Awaitable[bool]],
         llm: LlmReference,
         item: ItemReference,
         rows: Sequence[SecretResponseDTO],
@@ -314,7 +350,11 @@ class AgentRequirementsService:
             if (
                 llm.is_organization
                 and llm.slug
-                and await self._not_shared(scope=scope, slug=llm.slug)
+                and await self._not_shared(
+                    scope=scope,
+                    slug=llm.slug,
+                    manages_organization=manages_organization,
+                )
             ):
                 reason = _REASON.NOT_SHARED
             return [_Found(item, reason=reason, candidates=candidates)]
@@ -434,14 +474,11 @@ class AgentRequirementsService:
             ask = AgentRequirementAsk(role="project_admin")
         elif not sign_in and not can_edit_agent:
             ask = AgentRequirementAsk(role="agent_editor")
+        shape = requirement(
+            entry.item, reason=entry.reason.value, kind=entry.kind.value
+        )
         return AgentRequirement(
-            key=entry.key(),
-            kind=entry.kind,
-            label=entry.item.label,
-            reference=dict(entry.item.reference),
-            paths=list(entry.item.paths),
-            reason=entry.reason,
-            blocks_run=entry.kind in (_KIND.MODEL_KEY, _KIND.SUBSCRIPTION, _KIND.MODEL),
+            **shape,
             fix=AgentRequirementFix(
                 can_edit_agent=can_edit_agent,
                 can_connect=can_connect,
@@ -452,6 +489,10 @@ class AgentRequirementsService:
         )
 
 
+async def _never() -> bool:
+    return False
+
+
 def _harness_allows(harness: Optional[str], provider: str) -> bool:
     """The run's pre-resolve provider check, for a connection with no slug. An agent
     with no harness runs the default one; an unknown harness is refused by the run
@@ -460,6 +501,15 @@ def _harness_allows(harness: Optional[str], provider: str) -> bool:
     if kind not in HARNESS_CONNECTION_CAPABILITIES:
         return True
     return harness_allows_provider(kind, provider)
+
+
+def _harness_allows_pair(
+    harness: Optional[str], provider: Optional[str], deployment: Optional[str]
+) -> bool:
+    kind = harness or str(getattr(_DEFAULT_HARNESS, "value", _DEFAULT_HARNESS))
+    if kind not in HARNESS_CONNECTION_CAPABILITIES or not provider or not deployment:
+        return True
+    return harness_allows_pair(kind, provider, deployment)
 
 
 _DEFAULT_HARNESS = AgentTemplate.model_fields["harness"].default

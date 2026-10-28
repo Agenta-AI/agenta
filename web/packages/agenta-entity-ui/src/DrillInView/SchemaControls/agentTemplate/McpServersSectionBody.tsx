@@ -27,7 +27,6 @@ import {
 } from "@agenta/entities/mcpEndpoint"
 import {
     invalidateAgentRequirements,
-    requirementAtPath,
     requirementForItem,
     type AgentRequirementItem,
 } from "@agenta/entities/workflow"
@@ -127,10 +126,7 @@ export function McpServersSectionBody({
         (item: unknown, index: number): AgentRequirementItem | undefined => {
             if (!requirements) return undefined
             const slug = readMcpConnectionSlug((item ?? {}) as Record<string, unknown>)
-            return (
-                requirementForItem(requirements, {kinds: ["mcp_server", "mcp_sign_in"], slug}) ??
-                requirementAtPath(requirements, `mcps[${index}]`)
-            )
+            return requirementForItem(requirements, {kinds: ["mcp_server", "mcp_sign_in"], slug})
         },
         [requirements],
     )

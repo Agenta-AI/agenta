@@ -5,7 +5,6 @@ import {
     agentRequirementsAtomFamily,
     commitAgentCredentialsAtom,
     needsSetupReasonLabel,
-    requirementAtPath,
     requirementForItem,
     workflowMolecule,
 } from "@agenta/entities/workflow"
@@ -168,11 +167,10 @@ export function AgentSecretsSection({
                     {bindings.map((binding, index) => {
                         const secretName = namesBySlug.get(binding.secret.slug)
                         const requirement = requirements
-                            ? (requirementForItem(requirements, {
+                            ? requirementForItem(requirements, {
                                   kinds: ["secret"],
                                   slug: binding.secret.slug,
-                              }) ??
-                              requirementAtPath(requirements, `sandbox.credentials[${index}]`))
+                              })
                             : undefined
                         return (
                             <div

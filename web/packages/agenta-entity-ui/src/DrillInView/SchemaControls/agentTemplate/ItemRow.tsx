@@ -27,6 +27,8 @@ export interface ItemRowStatus {
     tooltip?: ReactNode
     /** A second line under the name that says why (the needs-setup reason). Replaces the description. */
     reason?: string
+    /** The row is tagged by the server's needs-setup check (its tap opens the fix). */
+    needsSetup?: boolean
 }
 
 const STATUS_BORDER: Record<ItemRowStatusTone, string> = {
