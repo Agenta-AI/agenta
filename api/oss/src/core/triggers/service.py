@@ -1100,6 +1100,37 @@ class TriggersService:
             enabled=is_active and is_valid,
         )
 
+    async def _sync_provider_config(
+        self,
+        *,
+        project_id: UUID,
+        subscription: TriggerSubscription,
+        trigger_config: Dict[str, Any],
+    ) -> None:
+        """Rewrite the live ``ti_*`` filters through the same upsert create uses.
+
+        The upsert is keyed on (connected account, event), so it updates the
+        existing instance in place and the stored ``trigger_id`` stays valid.
+        """
+        connection = await self._require_connection(
+            project_id=project_id,
+            connection_id=subscription.connection_id,
+        )
+        adapter = self.adapter_registry.get(connection.provider_key.value)
+        trigger_id = await adapter.create_subscription(
+            project_id=project_id,
+            event_key=subscription.data.event_key,
+            connected_account_id=connection.provider_connection_id,
+            trigger_config=trigger_config,
+        )
+        if trigger_id != subscription.trigger_id:
+            log.warning(
+                "Provider upsert for subscription %s returned trigger %s, expected %s",
+                subscription.id,
+                trigger_id,
+                subscription.trigger_id,
+            )
+
     async def edit_subscription(
         self,
         *,
@@ -1108,7 +1139,7 @@ class TriggersService:
         #
         subscription: TriggerSubscriptionEdit,
     ) -> Optional[TriggerSubscription]:
-        """Full-PUT edit. Reflects the combined is_active/is_valid onto ``ti_*``."""
+        """Full-PUT edit. Reflects trigger_config and is_active/is_valid onto ``ti_*``."""
         existing = await self.dao.fetch_subscription(
             project_id=project_id,
             subscription_id=subscription.id,
@@ -1128,7 +1159,18 @@ class TriggersService:
                 references=subscription.data.references,
             )
 
-        if subscription.flags.is_active != existing.flags.is_active:
+        config_changed = (subscription.data.trigger_config or {}) != (
+            existing.data.trigger_config or {}
+        )
+        if config_changed and existing.trigger_id is not None:
+            await self._sync_provider_config(
+                project_id=project_id,
+                subscription=existing,
+                trigger_config=subscription.data.trigger_config or {},
+            )
+
+        # The upsert may leave the instance enabled, so re-apply the desired state.
+        if config_changed or subscription.flags.is_active != existing.flags.is_active:
             await self._sync_provider_enabled(
                 project_id=project_id,
                 subscription=existing,
