@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from typing import Any, List
 
 import pytest
@@ -271,3 +272,60 @@ async def test_a_service_tool_resolver_is_told_to_leave_missing_secrets_out():
         parameters=_params(model="openai/gpt-5.5"),
     )
     assert seen == [MissingSecretPolicy.OMIT]
+
+
+# --- round trips: the run start adds a request only for a named MCP server ---------- #
+
+
+async def test_the_mcp_readiness_check_sends_nothing_without_a_named_mcp_server(
+    monkeypatch,
+):
+    from agenta.sdk.agents.mcp import parse_mcp_server_configs
+    from agenta.sdk.agents.platform import requirements as platform_requirements
+
+    sent: List[Any] = []
+
+    class _Client:
+        def __init__(self, *args, **kwargs):
+            sent.append(kwargs)
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+        async def post(self, url, **kwargs):
+            sent.append(url)
+            return SimpleNamespace(status_code=200, json=lambda: {"requirements": []})
+
+    monkeypatch.setattr(platform_requirements.httpx, "AsyncClient", _Client)
+    connection = SimpleNamespace(
+        base_url=lambda: "https://api.x/api", headers=lambda: {}, timeout=5
+    )
+
+    assert (
+        await platform_requirements.unready_mcp_servers([], connection=connection)
+        == set()
+    )
+    direct = parse_mcp_server_configs(
+        [{"name": "d", "connection": {"type": "http", "url": "https://mcp.x"}}]
+    )
+    assert (
+        await platform_requirements.unready_mcp_servers(direct, connection=connection)
+        == set()
+    )
+    assert sent == []
+
+    named = parse_mcp_server_configs(
+        [
+            {
+                "name": "gh",
+                "connection": {"type": "gateway", "namespace": "custom", "slug": "gh"},
+            }
+        ]
+    )
+    await platform_requirements.unready_mcp_servers(named, connection=connection)
+    assert [item for item in sent if isinstance(item, str)] == [
+        "https://api.x/api/workflows/revisions/requirements/query"
+    ]

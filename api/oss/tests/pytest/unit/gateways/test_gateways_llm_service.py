@@ -1866,3 +1866,19 @@ async def test_a_ready_named_endpoint_has_no_requirement():
         connection_slug=_FIREWORKS_SLUG,
     )
     assert outcome is None
+
+
+@pytest.mark.asyncio
+async def test_the_resolve_reads_the_same_rows_as_before_the_model_check():
+    """Round trips: the model allowlist check reads the target already loaded, so a named
+    custom endpoint still costs one row read and no vault read."""
+    dao = _fireworks_dao(["kimi-k3-fast"])
+    resolver = _MockResolver()
+    await _service(dao=dao, resolver=resolver).resolve_agent_connection(
+        scope=_scope(),
+        model="kimi-k3-fast",
+        provider_key=None,
+        connection_slug=_FIREWORKS_SLUG,
+    )
+    assert [call[0] for call in dao.calls] == ["fetch_endpoint_by_slug"]
+    assert resolver.resolve_calls == []
