@@ -10,13 +10,12 @@ import {
     type Release,
 } from "@agenta/navigation"
 import {Button, Checkbox, Dialog, DialogClose, DialogContent, DialogTitle} from "@agenta/ui/ui"
-import {ArrowUpRight, X} from "@phosphor-icons/react"
+import {ArrowUpRight, Sparkle, Wrench, X} from "@phosphor-icons/react"
 import {useAtom} from "jotai"
 
 import {cn} from "@/lib/utils"
 
 import {markdownIcons, proseClassName} from "../chat/AssistantMarkdown"
-import {useMobileVersion} from "../nav/useMobileNavItems"
 
 import {ReleaseFeatureVideo} from "./ReleaseFeatureVideo"
 import {ReleaseItemsSection} from "./ReleaseItemsSection"
@@ -40,7 +39,6 @@ const RAIL_RELEASES = RELEASES.slice(0, RAIL_COUNT)
 /** Release timeline rail beside the picked release; closing it in any way marks everything seen. */
 export const WhatsNewDialog = () => {
     const [state, setState] = useAtom(whatsNewAtom)
-    const version = useMobileVersion()
     const [selectedId, setSelectedId] = useState<string | null>(null)
     const [playingId, setPlayingId] = useState<string | null>(null)
     // Null until touched, so each opening starts from the stored choice.
@@ -84,107 +82,92 @@ export const WhatsNewDialog = () => {
                     </div>
 
                     <div className="flex flex-col">
-                        {RAIL_RELEASES.map((release, index) => {
-                            const active = release.id === selected.id
-                            return (
-                                <button
-                                    key={release.id}
-                                    type="button"
-                                    onClick={() => select(release.id)}
-                                    className="group grid cursor-pointer grid-cols-[20px_1fr] gap-2 border-0 bg-transparent p-0 text-left"
-                                >
-                                    <span className="relative">
-                                        <span
-                                            className={cn(
-                                                "absolute bottom-0 left-1/2 w-px -translate-x-1/2 bg-border",
-                                                index === 0 ? "top-[19px]" : "top-0",
-                                            )}
-                                        />
-                                        <span
-                                            className={cn(
-                                                "absolute left-1/2 top-[15px] box-border size-[9px] -translate-x-1/2 rounded-full border-[1.5px] border-solid",
-                                                active
-                                                    ? "border-foreground bg-foreground shadow-[0_0_0_3px_var(--hero-action-bg)]"
-                                                    : "border-colorTextQuaternary bg-muted shadow-[0_0_0_3px_var(--muted)]",
-                                            )}
-                                        />
-                                    </span>
-                                    <span
-                                        className={cn(
-                                            "my-1 flex min-w-0 flex-col gap-0.5 rounded-lg px-2.5 py-1.5 transition-colors",
-                                            active
-                                                ? "bg-background"
-                                                : "group-hover:bg-background/60",
-                                        )}
+                        <div className="flex flex-col gap-2">
+                            {RAIL_RELEASES.map((release, index) => {
+                                const active = release.id === selected.id
+                                return (
+                                    <button
+                                        key={release.id}
+                                        type="button"
+                                        onClick={() => select(release.id)}
+                                        className="group relative grid cursor-pointer grid-cols-[15px_1fr] items-start gap-1.5 border-0 bg-transparent p-0 text-left"
                                     >
-                                        <span className="flex items-baseline gap-2 text-[11px] text-colorTextTertiary">
-                                            <span className="font-medium uppercase tracking-[0.06em]">
-                                                {formatReleaseDate(release)}
-                                            </span>
-                                            <span className="font-mono">{release.id}</span>
+                                        <span aria-hidden className="relative self-stretch">
+                                            {/* One segment per row, so the thread fits any row height. */}
+                                            <span
+                                                className={cn(
+                                                    "absolute left-1/2 w-px -translate-x-1/2 bg-border",
+                                                    index === 0 ? "top-[17px]" : "top-0",
+                                                    index === RAIL_RELEASES.length - 1
+                                                        ? "h-[17px]"
+                                                        : "-bottom-2",
+                                                )}
+                                            />
+                                            <span
+                                                className={cn(
+                                                    "absolute left-1/2 top-[14px] size-[7px] -translate-x-1/2 rounded-full ring-[3px] ring-muted transition-colors",
+                                                    active
+                                                        ? "bg-foreground"
+                                                        : "bg-colorTextQuaternary group-hover:bg-colorTextTertiary",
+                                                )}
+                                            />
                                         </span>
                                         <span
                                             className={cn(
-                                                "line-clamp-2 text-[13.5px] leading-[1.35] text-foreground",
-                                                active ? "font-medium" : "font-normal",
+                                                "flex min-w-0 flex-col gap-0.5 rounded-lg px-2.5 py-2 transition-colors",
+                                                active
+                                                    ? "bg-background"
+                                                    : "group-hover:bg-background/60",
                                             )}
                                         >
-                                            {release.features[0]?.title}
+                                            <span className="flex items-center justify-between gap-2 text-[11.5px] text-colorTextTertiary">
+                                                <span className="flex items-center gap-1.5">
+                                                    {release.id}
+                                                    {index === 0 ? (
+                                                        <span className="rounded bg-colorSuccessBg px-1.5 text-[10.5px] font-medium leading-4 text-colorSuccessText">
+                                                            Latest
+                                                        </span>
+                                                    ) : null}
+                                                </span>
+                                                <span>{formatReleaseDate(release)}</span>
+                                            </span>
+                                            <span className="truncate text-[13.5px] leading-5 text-foreground">
+                                                {release.features[0]?.title}
+                                            </span>
                                         </span>
-                                    </span>
-                                </button>
-                            )
-                        })}
-                        <a
-                            href={ALL_RELEASES_LINK}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="grid grid-cols-[20px_1fr] gap-2 text-muted-foreground no-underline hover:text-foreground"
-                        >
-                            <span className="relative h-10">
-                                <span className="absolute left-1/2 top-0 h-[11px] w-px -translate-x-1/2 bg-border" />
-                                <Package
-                                    size={14}
-                                    aria-hidden
-                                    className="absolute left-1/2 top-[13px] -translate-x-1/2"
-                                />
-                            </span>
-                            <span className="flex items-center gap-1 px-3 text-[13px]">
-                                View all releases
-                                <ArrowUpRight size={11} aria-hidden />
-                            </span>
-                        </a>
+                                    </button>
+                                )
+                            })}
+                        </div>
                     </div>
 
-                    {version ? (
-                        <span className="mt-auto px-2 pt-4 text-[11px] text-colorTextTertiary">
-                            Running v{version}
-                        </span>
-                    ) : null}
+                    <a
+                        href={ALL_RELEASES_LINK}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-auto flex items-center gap-1 px-2 pt-4 text-[13px] text-muted-foreground no-underline hover:text-foreground"
+                    >
+                        View all releases
+                        <ArrowUpRight size={11} aria-hidden />
+                    </a>
                 </div>
 
-                <div className="order-first flex min-w-0 flex-col md:order-none md:min-h-0">
-                    <div className="flex items-center justify-between gap-3 py-2 pl-4 pr-2 md:pl-6 md:pr-3">
-                        <span className="text-[12px] text-muted-foreground">
-                            {formatReleaseDate(selected)} ·{" "}
-                            <span className="font-mono">{selected.id}</span>
-                        </span>
-                        <DialogClose asChild>
-                            <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                aria-label="Close"
-                                className="text-muted-foreground"
-                            >
-                                <X />
-                            </Button>
-                        </DialogClose>
-                    </div>
+                <div className="relative order-first flex min-w-0 flex-col md:order-none md:min-h-0">
+                    <DialogClose asChild>
+                        <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label="Close"
+                            className="absolute right-2 top-2 z-10 bg-background/80 text-muted-foreground backdrop-blur-sm hover:bg-background md:right-3 md:top-3"
+                        >
+                            <X />
+                        </Button>
+                    </DialogClose>
 
                     <div
                         // Keyed so a newly picked release opens scrolled to the top.
                         key={selected.id}
-                        className="flex flex-col gap-8 px-4 pb-6 pt-2 md:min-h-0 md:flex-1 md:overflow-y-auto md:px-6"
+                        className="flex flex-col gap-8 px-4 pb-6 pt-12 md:min-h-0 md:flex-1 md:overflow-y-auto md:px-6 md:pt-6"
                     >
                         {selected.features.map((feature) => (
                             <section key={feature.id} className="flex flex-col gap-3">
@@ -196,7 +179,7 @@ export const WhatsNewDialog = () => {
                                         onPlay={() => setPlayingId(feature.id)}
                                     />
                                 ) : null}
-                                <h2 className="m-0 text-[17px] font-semibold tracking-[-0.015em] text-foreground md:text-[20px]">
+                                <h2 className="m-0 pr-10 text-[17px] font-semibold tracking-[-0.015em] text-foreground md:text-[20px]">
                                     {feature.title}
                                 </h2>
                                 <ChatMarkdown
@@ -208,12 +191,17 @@ export const WhatsNewDialog = () => {
                         ))}
 
                         {selected.improvements.length > 0 || selected.fixes.length > 0 ? (
-                            <div className="flex flex-col border-0 border-b border-solid border-colorBorderSecondary">
+                            <div className="flex flex-col gap-2">
                                 <ReleaseItemsSection
                                     title="Improvements"
+                                    icon={Sparkle}
                                     items={selected.improvements}
                                 />
-                                <ReleaseItemsSection title="Fixes" items={selected.fixes} />
+                                <ReleaseItemsSection
+                                    title="Fixes"
+                                    icon={Wrench}
+                                    items={selected.fixes}
+                                />
                             </div>
                         ) : null}
                     </div>
