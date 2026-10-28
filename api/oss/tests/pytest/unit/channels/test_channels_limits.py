@@ -436,7 +436,7 @@ async def test_an_edit_that_leaves_the_people_list_alone_is_not_guarded():
         agent=ChannelAgentEdit(id=agent.id, name="renamed"),
     )
     assert dao.edit_agent.await_args.kwargs["guard_artifact_id"] is None
-    assert not dao.edit_agent.await_args.kwargs["limits_artifact_ids"]
+    assert not dao.edit_agent.await_args.kwargs.get("limits_artifact_ids")
 
 
 async def test_someone_else_cannot_add_a_rule_to_a_private_agent():

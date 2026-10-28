@@ -1398,7 +1398,11 @@ class ChannelsService:
             #
             guard_artifact_id=guard_artifact_id,
             guard_user_id=guard_user_id,
-            limits_artifact_ids=limits_artifact_ids,
+            **(
+                {"limits_artifact_ids": list(limits_artifact_ids)}
+                if limits_artifact_ids
+                else {}
+            ),
         )
 
     async def create_agent(
