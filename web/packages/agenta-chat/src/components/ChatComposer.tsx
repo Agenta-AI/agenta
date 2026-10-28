@@ -55,6 +55,8 @@ export interface ChatComposerProps {
     /** How far the editor may grow before it scrolls itself; see RichChatInput. */
     maxHeightClassName?: string
     disabled?: boolean
+    /** Send and Enter are off while typing stays on (an agent whose model needs setup). */
+    sendDisabled?: boolean
     hideSendButton?: boolean
     /**
      * Force the Send/Newline hints on or off. Left unset they follow the device: shown wherever
@@ -116,6 +118,7 @@ export const ChatComposer = ({
     className,
     maxHeightClassName,
     disabled,
+    sendDisabled,
     hideSendButton,
     hideShortcutHints,
     placeholder,
@@ -174,7 +177,7 @@ export const ChatComposer = ({
     const submitNowRef = useRef<() => boolean>(() => false)
     submitNowRef.current = () => {
         const editor = editorRef.current
-        if (!editor || disabled || composerDisabled) return false
+        if (!editor || disabled || composerDisabled || sendDisabled) return false
         if (files.length > 0 && !attachmentsSettled) return false
         const text = editor.getMarkdown()
         if (withQuotes(onSubmit)(text) === false) return false
@@ -271,7 +274,7 @@ export const ChatComposer = ({
                 }}
                 // A quote carries a reply on its own, so Send and Enter both send it with no text.
                 sendForceEnabled={files.length > 0 || quotes.length > 0}
-                sendDisabled={files.length > 0 && !attachmentsSettled}
+                sendDisabled={sendDisabled || (files.length > 0 && !attachmentsSettled)}
                 sendDisabledReason={uploadBlockReason}
                 sending={sending}
                 streaming={streaming}
