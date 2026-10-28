@@ -101,6 +101,31 @@ def _trace_span_ids(caller, trace_id):
     return ids
 
 
+def _analytics(caller, trace_ids):
+    """(trace count, restricted) of the legacy analytics totals over these traces."""
+
+    response = caller(
+        "POST",
+        "/tracing/spans/analytics",
+        json={
+            "focus": "trace",
+            "oldest": "2025-01-01T00:00:00Z",
+            "filter": {
+                "conditions": [
+                    {"field": "trace_id", "operator": "in", "value": trace_ids}
+                ]
+            },
+        },
+    )
+    assert response.status_code == 200, response.text
+    body = response.json()
+    count = sum(
+        int((bucket.get("total") or {}).get("count") or 0)
+        for bucket in body.get("buckets") or []
+    )
+    return count, body["access"]["restricted"]
+
+
 def _analytics_restricted(caller) -> bool:
     response = caller(
         "POST",
@@ -151,10 +176,13 @@ def test_trace_rule_share_unshare_delete(sharing_team):
     assert _trace_span_ids(alice, private_trace) == private_spans
     assert _analytics_restricted(bob) is True
     assert _analytics_restricted(alice) is False
+    assert _analytics(alice, traces) == (3, False)
+    assert _analytics(bob, traces) == (2, True)
 
     # Shared with Bob: readable. Share removed: hidden again.
     grant(alice, private_id, user_id=bob.user_id, role="viewer")
     assert _span_ids(bob, traces) == everything
+    assert _analytics(bob, traces) == (3, False)
     revoke(alice, private_id, user_id=bob.user_id)
     assert _span_ids(bob, traces) == visible_spans | {free_span}
 

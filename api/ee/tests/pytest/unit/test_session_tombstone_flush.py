@@ -78,6 +78,10 @@ async def test_a_tombstone_whose_session_still_has_spans_is_kept():
         cutoff=CUTOFF, project_ids=[project_id]
     )
 
+    # Every span counts, a child whose root never arrived included.
+    lookup = str(tracing.statements[0].compile())
+    assert "session_id" in lookup and "parent_id" not in lookup
+
     delete_stmt = core.statements[-1]
     params = delete_stmt.compile().params
     assert "s-gone" in str(params) and "s-left" not in str(params)

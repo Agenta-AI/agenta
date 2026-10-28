@@ -41,8 +41,9 @@ class SessionTurnsDAOInterface(ABC):
         trace_id: UUID,
         usage: SessionTurnUsage,
     ) -> int:
-        """Write a trace's priced usage to the turns with that trace id, over any
-        runner value. Returns the number of turns written."""
+        """Write a trace's priced usage to the one turn with that trace id, over any
+        runner value. A trace that several turns share writes nothing. Returns the
+        number of turns written."""
         ...
 
     @abstractmethod

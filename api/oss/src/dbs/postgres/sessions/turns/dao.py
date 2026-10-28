@@ -205,12 +205,24 @@ class SessionTurnsDAO(SessionTurnsDAOInterface):
         values = map_turn_usage_to_columns(
             usage=usage, source=SessionTurnUsageSource.TRACE
         )
+        # A trace shared by several turns (a caller's traceparent reused) holds their
+        # combined usage, which is no turn's own: those turns keep their runner value.
+        turns_of_trace = (
+            select(func.count())
+            .select_from(SessionTurnDBE)
+            .where(
+                SessionTurnDBE.project_id == project_id,
+                SessionTurnDBE.trace_id == trace_id,
+            )
+            .scalar_subquery()
+        )
         async with self.engine.session() as session:
             result = await session.execute(
                 sa_update(SessionTurnDBE)
                 .where(
                     SessionTurnDBE.project_id == project_id,
                     SessionTurnDBE.trace_id == trace_id,
+                    turns_of_trace == 1,
                 )
                 .values(**values)
             )
