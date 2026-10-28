@@ -120,14 +120,12 @@ class TracingRetentionService:
             )
 
             # A deleted private session keeps its tombstone until its traces have
-            # expired: one day past the trace cutoff, and only when this batch deleted
-            # every expired trace. A batch cut at `max_traces` may leave expired traces
-            # of a deleted session; its tombstones wait for a run that drains them.
-            if traces < max_traces_per_batch:
-                await self.tracing_dao.delete_session_tombstones_before_cutoff(
-                    cutoff=cutoff - TOMBSTONE_GRACE,
-                    project_ids=project_ids,
-                )
+            # expired (one day past the trace cutoff) and no stored span carries its
+            # id any more.
+            await self.tracing_dao.delete_session_tombstones_before_cutoff(
+                cutoff=cutoff - TOMBSTONE_GRACE,
+                project_ids=project_ids,
+            )
 
             total_traces += traces
             total_spans += spans
