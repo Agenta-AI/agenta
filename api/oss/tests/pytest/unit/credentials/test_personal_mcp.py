@@ -151,3 +151,13 @@ async def test_a_personal_server_is_stored_with_its_owner():
     )
     assert created["project_id"] is None
     assert created["owner"] == _owner(organization_id, alice)
+
+
+def test_a_personal_server_uses_the_http_adapter_like_a_custom_one():
+    from oss.src.core.gateways.mcps.service import _adapter_key  # noqa: PLC0415
+
+    assert (
+        _adapter_key(namespace=GatewayEndpointNamespace.USER, provider=None)
+        == _adapter_key(namespace=GatewayEndpointNamespace.CUSTOM, provider=None)
+        == "http"
+    )

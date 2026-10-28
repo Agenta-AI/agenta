@@ -215,7 +215,7 @@ export function piGatewayMcpServersFromWire(
       );
     }
     if (
-      !/^\/(?:api\/)?gateways\/mcps\/(?:builtin|standard|custom)\//.test(
+      !/^\/(?:api\/)?gateways\/mcps\/(?:builtin|standard|custom|user)\//.test(
         parsed.pathname,
       )
     ) {

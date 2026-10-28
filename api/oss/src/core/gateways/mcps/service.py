@@ -118,7 +118,8 @@ def _adapter_key(
         if key is None:
             raise MCPEndpointNotFoundError(namespace=namespace, name=provider or "")
         return key
-    if namespace == GatewayEndpointNamespace.CUSTOM:
+    # A person's own server (M7) is a custom server with a different owner.
+    if namespace in (GatewayEndpointNamespace.CUSTOM, GatewayEndpointNamespace.USER):
         return "http"
     if namespace == GatewayEndpointNamespace.STANDARD:
         if provider == MOCK_PROVIDER:
