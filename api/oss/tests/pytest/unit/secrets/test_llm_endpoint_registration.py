@@ -122,10 +122,11 @@ class _FakeSecretsDAO:
         del project_id, organization_id
         stored = next((r for r in self.records if r.id == secret_id), None)
         if stored is None:
-            return
+            return None
         if authorize_delete is not None:
             authorize_delete(stored)
         self.records.remove(stored)
+        return stored
 
 
 class _FakeRegistrar:

@@ -409,7 +409,9 @@ def test_projects_route_oss_403_ee_without_rbac_403_foreign_422(world):
         "availability": "selected_projects",
         "project_ids": [str(world["sales"])],
     }
-    assert client.put(path, json=limited).status_code == 403
+    refused = client.put(path, json=limited)
+    assert refused.status_code == 403
+    assert refused.json()["detail"]["code"] == "project_limit_not_allowed"
     client_ee, _ = world["client"](_AllowLimits())
     response = client_ee.put(path, json=limited)
     assert response.status_code == 200

@@ -50,12 +50,13 @@ def test_the_run_credential_never_receives_an_organization_row(org, gateway_off)
     assert (
         company.json()["id"] not in plain.text
     )  # the plaintext read: project rows only
-    # With the parameter, a caller without the resolve grant may see the organization row's
-    # name and status, never its value; a caller with the grant sees no organization row.
+    # With the parameter, the run credential lists the organization row the project may
+    # use (name and status), never its value.
     listed = org.call(
         "GET", "/secrets/", credentials=run, params={"include_organization": "true"}
     )
     assert listed.status_code == 200, listed.text
+    assert company.json()["id"] in listed.text
     for text_ in (plain.text, listed.text):
         assert KEY not in text_
     assert (
@@ -80,7 +81,11 @@ def test_a_named_organization_slug_is_not_served(org, gateway_off):
         "POST",
         "/gateways/llms/resolve",
         credentials=org.api_key("editor"),
-        json={"model": "gpt-4o-mini", "connection_slug": slug},
+        json={
+            "model": "gpt-4o-mini",
+            "connection_slug": slug,
+            "connection_scope": "organization",
+        },
     )
     assert response.status_code == 403
     assert "llm_gateway_disabled" in response.text

@@ -127,8 +127,11 @@ def handle_secrets_exceptions():
                     detail={"code": e.code, "message": e.message},
                 ) from None
             except ProjectLimitNotAllowed as e:
+                # Coded like the foreign-project refusal: a client tells the plan apart
+                # from a lost role without reading the sentence.
                 raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN, detail=e.message
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail={"code": e.code, "message": e.message},
                 ) from None
             # A taken slug is the caller's to change. Unmapped, it answered 500, which the
             # connect sheet's create-secret drawer showed as a server failure (#6928).

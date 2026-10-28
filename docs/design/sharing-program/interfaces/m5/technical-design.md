@@ -161,7 +161,7 @@ Every existing request is equal or lower in every cache mode. M5 adds no HTTP ca
 
 - Gateway audit (`gateways.called`): NEW attribute `secret_owner_kind` (`project` or `organization`) when a secret was resolved.
 - Organization credential writes publish NEW `EventType.ORGANIZATION_SECRETS_CHANGED` (`organization_secrets.changed`) with `organization_id`, `secret_id`, `kind`, `action`, `availability`, project count, and the acting user id. No value, no name.
-- Logs: `[access] organization decision denied` (info); `[secrets] organization mismatch` (warning); `[secrets] cache invalidation failed` (warning);. Ids and kinds only.
+- Logs: `[access] organization decision denied` (info); `[secrets] organization mismatch` (warning); `[secrets] cache invalidation failed` (warning). Ids and kinds only.
 
 ## 8. Test plan
 

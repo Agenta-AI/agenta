@@ -195,6 +195,8 @@ class OrganizationSecretValueNotScannable(SecretsError):
 class ProjectLimitNotAllowed(SecretsError):
     """`selected_projects` in OSS, or in EE without the RBAC entitlement."""
 
+    code = "project_limit_not_allowed"
+
     def __init__(self):
         super().__init__(
             "Limiting a credential to selected projects is not available for this "

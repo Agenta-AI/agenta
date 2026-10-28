@@ -1,5 +1,8 @@
 """Organization credential management in `VaultService` (M5, Task 5)."""
 
+from base64 import urlsafe_b64encode
+from datetime import datetime, timedelta, timezone
+from json import dumps as json_dumps
 from uuid import uuid4
 
 import pytest
@@ -9,6 +12,8 @@ from oss.src.core.secrets.dtos import CreateSecretDTO, UpdateSecretDTO
 from oss.src.core.secrets.enums import SecretAvailability, SecretOwnerKind
 from oss.src.core.secrets.limits import NoProjectLimits
 from oss.src.core.secrets.services import VaultService
+from oss.src.core.secrets.subscription_login import RunnerLoginAttempt
+from oss.src.core.secrets.subscription_service import SubscriptionLoginService
 from oss.src.core.secrets.types import (
     OrganizationSecretKindNotShareable,
     OrganizationSecretNotServed,
@@ -608,7 +613,35 @@ async def test_a_failed_project_list_logs_and_does_not_raise(
     assert "event not published" in messages
 
 
-async def test_a_login_write_is_audited_when_a_person_makes_it(world):
+def _codex_access_token(account_id: str) -> str:
+    """Three segments with the account in the claim, as a Codex access token has."""
+
+    def segment(payload: dict) -> str:
+        return urlsafe_b64encode(json_dumps(payload).encode()).decode().rstrip("=")
+
+    claim = {"https://api.openai.com/auth": {"chatgpt_account_id": account_id}}
+    return f"{segment({'alg': 'RS256'})}.{segment(claim)}.c2lnbmF0dXJl"
+
+
+class _Runner:
+    """A runner that starts one device login."""
+
+    async def start_attempt(self, **_kwargs):
+        return RunnerLoginAttempt(
+            attempt_id="att-1",
+            state="pending",
+            user_code="ABCD-1234",
+            verification_uri="https://auth.example.test/device",
+            expires_at=(datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat(),
+        )
+
+
+class _AcceptingTokenClient:
+    async def check(self, token):
+        return None
+
+
+async def _organization_login(world, provider: str):
     vault = world["vault"](_AllowLimits())
     created = await vault.create_organization_secret(
         organization_id=world["organization_id"],
@@ -617,7 +650,7 @@ async def test_a_login_write_is_audited_when_a_person_makes_it(world):
                 "header": {},
                 "secret": {
                     "kind": "subscription_provider",
-                    "data": {"provider": "claude"},
+                    "data": {"provider": provider},
                 },
                 "scope": "organization",
             }
@@ -627,26 +660,65 @@ async def test_a_login_write_is_audited_when_a_person_makes_it(world):
         project_ids=[world["sales"]],
     )
     world["events"].clear()
-
-    def rename(stored):
-        return UpdateSecretDTO.model_validate({"header": {"name": "Claude"}})
-
-    person = uuid4()
-    await vault.update_secret_atomically(
-        secret_id=created.id,
-        organization_id=world["organization_id"],
-        user_id=person,
-        resolve_update=rename,
+    service = SubscriptionLoginService(
+        vault_service=vault,
+        runner_client=_Runner(),
+        claude_token_client=_AcceptingTokenClient(),
     )
-    # A refresh a run pushes is no person's change: cache only, no event.
-    await vault.update_secret_atomically(
-        secret_id=created.id,
-        organization_id=world["organization_id"],
-        resolve_update=rename,
+    return service, created
+
+
+async def test_a_finished_organization_device_login_is_audited_once(world):
+    service, created = await _organization_login(world, "chatgpt")
+    scope = dict(organization_id=world["organization_id"], secret_id=created.id)
+
+    await service.start_attempt(**scope, user_id=uuid4())
+    assert world["events"] == []  # starting a sign-in stores nothing
+
+    await service.report_attempt_outcome(
+        **scope,
+        attempt_id="att-1",
+        state="succeeded",
+        login={
+            "type": "oauth",
+            "access": _codex_access_token("acct-1"),
+            "refresh": "refresh-1",
+            "expires": 4_102_444_800_000,
+            "accountId": "acct-1",
+        },
     )
+    # The poll that reads the outcome clears the attempt: no second event.
+    await service.read_attempt(**scope, attempt_id="att-1", user_id=uuid4())
 
     assert len(world["events"]) == 1
     attributes = world["events"][0]["event"].attributes
     assert attributes["action"] == "updated"
-    assert attributes["user_id"] == str(person)
     assert attributes["project_count"] == 1
+
+
+async def test_a_failed_or_cancelled_organization_device_login_is_not_audited(world):
+    service, created = await _organization_login(world, "chatgpt")
+    scope = dict(organization_id=world["organization_id"], secret_id=created.id)
+
+    await service.start_attempt(**scope)
+    await service.report_attempt_outcome(
+        **scope, attempt_id="att-1", state="failed", error="denied"
+    )
+    await service.read_attempt(**scope, attempt_id="att-1")
+
+    assert world["events"] == []
+
+
+async def test_a_stored_organization_token_is_audited_with_its_person(world):
+    service, created = await _organization_login(world, "claude")
+    person = uuid4()
+
+    await service.set_subscription_token(
+        organization_id=world["organization_id"],
+        secret_id=created.id,
+        token="sk-ant-oat01-" + "a" * 40,
+        user_id=person,
+    )
+
+    assert len(world["events"]) == 1
+    assert world["events"][0]["event"].attributes["user_id"] == str(person)

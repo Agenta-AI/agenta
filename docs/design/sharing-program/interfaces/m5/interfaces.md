@@ -424,7 +424,7 @@ Bodies keep the vault router's existing shape (`{"detail": <message>}` through `
 | Named organization connection missing or not available (resolve, relay) | 404 | `connection_not_found` envelope with `details: {scope, slug}` |
 | Organization scope without a slug, or with another namespace (resolve) | 422 | `organization_connection_slug_required` envelope |
 | Agent saved with an incomplete organization connection | 422 | `invalid_agent_connection` envelope with `details.reason` |
-| Limit not allowed (OSS, or EE without RBAC) | 403 | "Limiting a credential to selected projects is not available for this organization." |
+| Limit not allowed (OSS, or EE without RBAC) | 403 | `{"code": "project_limit_not_allowed", "message": "Limiting a credential to selected projects is not available for this organization."}` |
 | Foreign or unknown project in a limit | 422 | `{"code": "project_not_in_organization", "message": "Every project must belong to this organization."}` |
 | Unknown organization credential id | 404 | "Secret not found" (today's text) |
 

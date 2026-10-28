@@ -324,6 +324,7 @@ class SubscriptionLoginService:
         secret_id: UUID,
         user_id: Optional[UUID],
         build_changes,
+        stores_login: bool = False,
     ):
         """Run `build_changes(stored_data)` under the row lock and persist what it returns.
 
@@ -350,6 +351,7 @@ class SubscriptionLoginService:
             organization_id=organization_id,
             user_id=user_id,
             resolve_update=resolve,
+            stores_login=stores_login,
         )
 
         if secret is None:
@@ -615,6 +617,7 @@ class SubscriptionLoginService:
             secret_id=secret_id,
             user_id=user_id,
             build_changes=build_changes,
+            stores_login=True,
         )
         log.info("subscription.token", connection=str(secret_id), outcome="stored")
         return secret
@@ -870,6 +873,8 @@ class SubscriptionLoginService:
             secret_id=secret_id,
             user_id=None,
             build_changes=build_changes,
+            # A report of a finished sign-in that installs the login, not one that ends it.
+            stores_login=login is not None,
         )
 
         return bound

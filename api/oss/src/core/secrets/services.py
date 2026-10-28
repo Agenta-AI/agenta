@@ -1009,6 +1009,7 @@ class VaultService:
         organization_id: UUID | None = None,
         user_id: UUID | None = None,
         resolve_update: Callable[[SecretResponseDTO], Optional[UpdateSecretDTO]],
+        stores_login: bool = False,
     ):
         """Apply an update computed from the stored row under the DAO's write lock.
 
@@ -1019,6 +1020,10 @@ class VaultService:
         A resolver that returns None means the row already holds what the caller wanted.
         Nothing is written and the project cache keeps its entry, so a device login poll
         every two seconds does not evict every reader's view of the vault.
+
+        `stores_login` marks a write that stores or replaces an organization login (a
+        pasted token, a finished device login): it is audited like every other organization
+        write. Starting, polling or cancelling a sign-in and a run's refresh are not.
         """
         changed = False
 
@@ -1045,9 +1050,7 @@ class VaultService:
 
         if changed and project_id is not None:
             await self._invalidate_project(project_id)
-        elif changed and organization_id is not None and user_id is not None:
-            # A person signed the organization login in (a pasted token, a device login):
-            # the change is audited like every other organization write.
+        elif changed and organization_id is not None and stores_login:
             await self._organization_written(
                 organization_id=organization_id,
                 secret_id=secret_id,
@@ -1058,8 +1061,7 @@ class VaultService:
                 user_id=user_id,
             )
         elif changed and organization_id is not None:
-            # A refresh pushed by a run: every project entry of the organization holds the
-            # row.
+            # Every project entry of the organization holds the row.
             await self._invalidate_organization(organization_id=organization_id)
         return secret_dto
 
@@ -1112,18 +1114,16 @@ class VaultService:
         """Delete a managed row on behalf of the manager that owns it, for a manager that
         retires what it seeded. Refuses any row another manager owns, and any unmanaged
         row."""
-        deleted: list[SecretResponseDTO] = []
 
         def authorize_delete(stored_secret_dto: SecretResponseDTO) -> None:
             management = stored_secret_dto.management
             if management is None or management.manager != manager:
                 raise ManagedSecretReadOnlyError()
-            deleted.append(stored_secret_dto)
 
         with set_data_encryption_key(
             data_encryption_key=self._data_encryption_key,
         ):
-            await self.secrets_dao.delete(
+            deleted = await self.secrets_dao.delete(
                 secret_id=secret_id,
                 owner=_owner_from_ids(
                     project_id=project_id, organization_id=organization_id
@@ -1134,10 +1134,9 @@ class VaultService:
         if project_id is not None:
             await self._invalidate_project(project_id)
 
-        for stored_secret_dto in deleted:
+        if deleted is not None:
             await self._deregister_llm_endpoint(
-                project_id=project_id,
-                secret_dto=stored_secret_dto,
+                project_id=project_id, secret_dto=deleted
             )
 
     async def invalidate_secrets_cache(self, project_id: UUID) -> None:
@@ -1155,32 +1154,24 @@ class VaultService:
         project_id: UUID | None = None,
         organization_id: UUID | None = None,
     ) -> None:
-        # The DAO hands the row to `authorize_delete` under its write lock; capturing it
-        # there is what tells us which endpoint slug to drop, without a second read.
-        deleted: list[SecretResponseDTO] = []
-
-        def authorize_delete(stored_secret_dto: SecretResponseDTO) -> None:
-            _authorize_delete(stored_secret_dto)
-            deleted.append(stored_secret_dto)
-
+        # The DAO returns the row it deleted, which names the endpoint slug to drop.
         with set_data_encryption_key(
             data_encryption_key=self._data_encryption_key,
         ):
-            await self.secrets_dao.delete(
+            deleted = await self.secrets_dao.delete(
                 secret_id=secret_id,
                 owner=_owner_from_ids(
                     project_id=project_id, organization_id=organization_id
                 ),
-                authorize_delete=authorize_delete,
+                authorize_delete=_authorize_delete,
             )
 
         if project_id is not None:
             await self._invalidate_project(project_id)
 
-        for stored_secret_dto in deleted:
+        if deleted is not None:
             await self._deregister_llm_endpoint(
-                project_id=project_id,
-                secret_dto=stored_secret_dto,
+                project_id=project_id, secret_dto=deleted
             )
 
     # -- organization credentials (M5) --------------------------------------------
