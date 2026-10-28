@@ -19,7 +19,6 @@ pytestmark = [
     pytest.mark.xdist_group("memberships_global_sql"),
 ]
 
-_DROP = "oss000000056_drop_workspaces.py"
 
 _OBJECTS_SQL = """
 SELECT to_regclass('public.workspaces') IS NOT NULL AS workspaces,
