@@ -123,9 +123,13 @@ class TestTriggerIngressSignature:
             "POST",
             "/triggers/composio/events/",
             json={
-                "type": "github_star_added_event",
-                "metadata": {"trigger_id": f"ti_{uuid4().hex}", "id": uuid4().hex},
-                "payload": {"repository": "acme/widgets"},
+                "id": uuid4().hex,
+                "type": "composio.trigger.message",
+                "metadata": {
+                    "trigger_id": f"ti_{uuid4().hex}",
+                    "trigger_slug": "GITHUB_STAR_ADDED_EVENT",
+                },
+                "data": {"repository": "acme/widgets"},
             },
         )
         assert response.status_code == 401, response.text
@@ -140,7 +144,9 @@ class TestTriggerIngressSignature:
                 "webhook-signature": "v1,deadbeef",
             },
             json={
-                "metadata": {"trigger_id": f"ti_{uuid4().hex}", "id": uuid4().hex},
+                "id": uuid4().hex,
+                "type": "composio.trigger.message",
+                "metadata": {"trigger_id": f"ti_{uuid4().hex}"},
             },
         )
         assert response.status_code == 401, response.text
@@ -166,9 +172,13 @@ class TestTriggerIngressReplayAndFreshness:
         webhook_id = f"msg_{uuid4().hex}"
         stale_timestamp = str(int(time.time()) - 3600)
         envelope = {
-            "type": "github_star_added_event",
-            "metadata": {"trigger_id": f"ti_{uuid4().hex}", "id": uuid4().hex},
-            "payload": {"repository": "acme/widgets"},
+            "id": uuid4().hex,
+            "type": "composio.trigger.message",
+            "metadata": {
+                "trigger_id": f"ti_{uuid4().hex}",
+                "trigger_slug": "GITHUB_STAR_ADDED_EVENT",
+            },
+            "data": {"repository": "acme/widgets"},
         }
         body = json.dumps(envelope).encode()
         headers = {
@@ -191,9 +201,13 @@ class TestTriggerIngressReplayAndFreshness:
         webhook_id = f"msg_{uuid4().hex}"
         timestamp = str(int(time.time()))
         envelope = {
-            "type": "github_star_added_event",
-            "metadata": {"trigger_id": f"ti_{uuid4().hex}", "id": uuid4().hex},
-            "payload": {"repository": "acme/widgets"},
+            "id": uuid4().hex,
+            "type": "composio.trigger.message",
+            "metadata": {
+                "trigger_id": f"ti_{uuid4().hex}",
+                "trigger_slug": "GITHUB_STAR_ADDED_EVENT",
+            },
+            "data": {"repository": "acme/widgets"},
         }
         body = json.dumps(envelope).encode()
         headers = {
@@ -215,11 +229,11 @@ class TestTriggerIngressReplayAndFreshness:
 
 
 # ---------------------------------------------------------------------------
-# Dedup (needs Composio) — a duplicate metadata.id does not double-write a
+# Dedup (needs Composio) — a duplicate event id does not double-write a
 # delivery. Exercised end-to-end via a real subscription bound to a workflow.
 # Each delivery attempt uses its own webhook-id/timestamp (a distinct
 # provider-level delivery), since a repeated webhook-id is now rejected
-# upstream by the replay guard — this dedup is the metadata.id ->
+# upstream by the replay guard — this dedup is the event id ->
 # delivery-row layer beneath it.
 # ---------------------------------------------------------------------------
 
@@ -275,15 +289,19 @@ class TestTriggerIngressDedup:
 
             event_id = uuid4().hex
             envelope = {
-                "type": "github_star_added_event",
-                "metadata": {"trigger_id": trigger_id, "id": event_id},
-                "payload": {"repository": "acme/widgets"},
+                "id": event_id,
+                "type": "composio.trigger.message",
+                "metadata": {
+                    "trigger_id": trigger_id,
+                    "trigger_slug": "GITHUB_STAR_ADDED_EVENT",
+                },
+                "data": {"repository": "acme/widgets"},
             }
             body = json.dumps(envelope).encode()
 
             # Post the same logical event twice (provider redelivery) as two DISTINCT
             # provider-level deliveries (own webhook-id/timestamp each) — the
-            # replay guard dedups webhook-id, not metadata.id, so this exercises the
+            # replay guard dedups webhook-id, not the event id, so this exercises the
             # delivery-row dedup layer beneath it.
             for _ in range(2):
                 webhook_id = f"msg_{uuid4().hex}"
