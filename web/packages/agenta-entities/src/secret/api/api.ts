@@ -9,8 +9,8 @@
 
 import type {LlmProvider} from "@agenta/shared/types"
 
-import type {AgentConnectionScope} from "../core/agentModelCandidates"
 import {transformSecret} from "../core/transforms"
+import type {SecretOwnerScope} from "../core/types"
 
 import {getSecretsClient, projectScopedRequest} from "./client"
 
@@ -28,8 +28,7 @@ type DeleteSecretResponse = Awaited<ReturnType<SecretsClient["deleteSecret"]>>
 type UpdateSecretPayload = Omit<UpdateSecretRequest, "secret_id" | "scope">
 
 /** The owner a by-id route acts for; omitted, the project's row as before. */
-const ownerScope = (scope?: AgentConnectionScope | null) =>
-    scope === "organization" ? {scope} : {}
+const ownerScope = (scope?: SecretOwnerScope | null) => (scope === "organization" ? {scope} : {})
 
 export const fetchVaultSecret = async ({
     projectId,
@@ -64,7 +63,7 @@ export const updateVaultSecret = async ({
     projectId: string
     secret_id: string
     payload: UpdateSecretPayload
-    scope?: AgentConnectionScope | null
+    scope?: SecretOwnerScope | null
 }): Promise<UpdateSecretResponse> => {
     return getSecretsClient().updateSecret(
         {secret_id, ...payload, ...ownerScope(scope)},
@@ -79,7 +78,7 @@ export const deleteVaultSecret = async ({
 }: {
     projectId: string
     secret_id: string
-    scope?: AgentConnectionScope | null
+    scope?: SecretOwnerScope | null
 }): Promise<DeleteSecretResponse> => {
     const request: DeleteSecretRequest = {secret_id, ...ownerScope(scope)}
     return getSecretsClient().deleteSecret(request, projectScopedRequest(projectId))
@@ -95,7 +94,7 @@ export const setSubscriptionToken = async ({
     projectId: string
     secretId: string
     token: string
-    scope?: AgentConnectionScope | null
+    scope?: SecretOwnerScope | null
 }) =>
     getSecretsClient().setSubscriptionToken(
         {secret_id: secretId, token, ...ownerScope(scope)},

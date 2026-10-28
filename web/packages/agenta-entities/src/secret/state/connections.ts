@@ -27,6 +27,7 @@ import {
     type ConnectionDraft,
     type ProviderConnection,
 } from "../core/connections"
+import type {SecretOwnerScope} from "../core/types"
 
 import {
     createVaultSecretMutationAtom,
@@ -53,7 +54,7 @@ export const probeProviderMutationAtom = atomWithMutation<
         kind?: string
         provider: ProbeProviderCredentials
         secretId?: string
-        secretScope?: "organization"
+        secretScope?: SecretOwnerScope
     }
 >(() => ({
     mutationFn: ({projectId, kind, provider, secretId, secretScope}) =>

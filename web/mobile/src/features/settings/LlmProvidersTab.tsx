@@ -44,7 +44,7 @@ const useOrganizationTabs = (
         const current = group?.projects.find((project) => project.project_id === projectId)
         if (!group?.organizationId || !current) return null
         return {
-            projectName: current.project_name ?? "Project",
+            projectName: current.project_name,
             name: group.organizationName,
             projectChoice: !enterprise
                 ? "all"

@@ -5,6 +5,7 @@ import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 import {z} from "zod"
 
 import {safeParseWithLogging} from "../../shared"
+import type {SecretOwnerScope} from "../core/types"
 
 /** The states an attempt can report. Only `pending` keeps the poll running. */
 export const LOGIN_ATTEMPT_STATES = [
@@ -40,10 +41,7 @@ export type LoginAttemptResponse = z.infer<typeof loginAttemptSchema>
 const attemptsUrl = (secretId: string): string =>
     `${getAgentaApiUrl()}/secrets/${encodeURIComponent(secretId)}/login-attempts`
 
-/** Whose connection the login belongs to; an organization login is addressed with its scope. */
-export type LoginAttemptScope = "project" | "organization"
-
-const attemptParams = (projectId: string, scope?: LoginAttemptScope) => ({
+const attemptParams = (projectId: string, scope?: SecretOwnerScope) => ({
     project_id: projectId,
     ...(scope === "organization" ? {scope} : {}),
 })
@@ -56,7 +54,7 @@ export async function startLoginAttempt({
 }: {
     projectId: string
     secretId: string
-    scope?: LoginAttemptScope
+    scope?: SecretOwnerScope
 }): Promise<LoginAttemptResponse | null> {
     const response = await axios.post(
         attemptsUrl(secretId),
@@ -76,7 +74,7 @@ export async function fetchLoginAttempt({
     projectId: string
     secretId: string
     attemptId: string
-    scope?: LoginAttemptScope
+    scope?: SecretOwnerScope
 }): Promise<LoginAttemptResponse | null> {
     const response = await axios.get(`${attemptsUrl(secretId)}/${encodeURIComponent(attemptId)}`, {
         params: attemptParams(projectId, scope),
@@ -94,7 +92,7 @@ export async function cancelLoginAttempt({
     projectId: string
     secretId: string
     attemptId: string
-    scope?: LoginAttemptScope
+    scope?: SecretOwnerScope
 }): Promise<LoginAttemptResponse | null> {
     const response = await axios.post(
         `${attemptsUrl(secretId)}/${encodeURIComponent(attemptId)}/cancel`,

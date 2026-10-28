@@ -16,6 +16,7 @@ import {AgentaApi} from "@agentaai/api-client"
 import {z} from "zod"
 
 import {safeParseWithLogging} from "../../shared"
+import type {SecretOwnerScope} from "../core/types"
 
 import {getSecretsClient, projectScopedRequest} from "./client"
 
@@ -77,7 +78,7 @@ export const probeProvider = async ({
     provider: ProbeProviderCredentials
     secretId?: string
     /** `organization` tests a stored organization connection this project may use. */
-    secretScope?: "organization"
+    secretScope?: SecretOwnerScope
 }): Promise<ProbeProviderResponse | null> => {
     const response = await getSecretsClient().probeProvider(
         {

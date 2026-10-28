@@ -3,7 +3,7 @@
  *
  * Only an organization owner or admin may list, create or limit them; anyone else gets a 403,
  * which is also how the AI providers page tells an admin from a member without asking for a
- * role. Editing, deleting and signing in use the project routes, which find the row by id.
+ * role. Editing, deleting and signing in use the same by-id routes with `scope: organization`.
  * Every call is scoped by the current project, the way the API resolves the organization.
  */
 import {getProjectsClient} from "@agenta/sdk/resources"

@@ -26,7 +26,7 @@ import {
     connectionScopeFrom,
     explicitAgentConnection,
     type AgentConnectionNamespace,
-    type AgentConnectionScope,
+    type SecretOwnerScope,
 } from "@agenta/entities/secret"
 import type {
     HarnessCapabilities,
@@ -58,7 +58,7 @@ export interface ConnectionFields {
     /** The gateway namespace an `agenta` slug was picked from; null lets the gateway infer it. */
     namespace: AgentConnectionNamespace | null
     /** Whose connection the slug names; null reads as the project's. */
-    scope: AgentConnectionScope | null
+    scope: SecretOwnerScope | null
 }
 
 /** The structured `agent.llm` object shape (a subset; extra keys round-trip untouched). */
@@ -123,7 +123,7 @@ export interface ComposeModelValueArgs {
     /** Written only beside an `agenta` slug; omitted, the gateway infers it from the slug. */
     namespace?: AgentConnectionNamespace | null
     /** Whose connection the slug names; written only for an organization connection. */
-    scope?: AgentConnectionScope | null
+    scope?: SecretOwnerScope | null
     /**
      * The prior `agent.llm` value. When it is a structured object, its extra keys (notably
      * `extras`, set via the raw-JSON hatch) are carried through so a form edit never silently

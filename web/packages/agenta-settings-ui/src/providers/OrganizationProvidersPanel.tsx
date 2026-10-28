@@ -22,7 +22,7 @@ import {
     type ProviderConnection,
 } from "@agenta/entities/secret"
 import {
-    organizationSaveError,
+    organizationRefusal,
     type OrganizationConnectionScope,
 } from "@agenta/entity-ui/secretProvider"
 import {message} from "@agenta/ui/app-message"
@@ -44,7 +44,10 @@ export interface OrganizationProvidersPanelProps {
     subscriptionDocsUrl: string
 }
 
-/** Who may use a connection, in the row's words. */
+/**
+ * Who may use a connection, in the row's words. Selected projects are named; until every name is
+ * known (the project list still loading, or not readable) the row says nothing about them.
+ */
 const projectsSummary = (
     connection: ProviderConnection,
     names: Map<string, string>,
@@ -57,9 +60,7 @@ const projectsSummary = (
         const name = names.get(id)
         return name ? [name] : []
     })
-    return picked.length === ids.length
-        ? picked.join(", ")
-        : `${ids.length} ${ids.length === 1 ? "project" : "projects"}`
+    return picked.length === ids.length ? picked.join(", ") : null
 }
 
 const rowDescription = (connection: ProviderConnection, projects: string | null): string =>
@@ -109,8 +110,8 @@ export const OrganizationProvidersPanel = ({
 
     const manage = access === "manage"
     // Choosing projects needs every project of the organization: until the list is in, the
-    // choice waits as it does for the plan.
-    const choosing = manage && scope.projectChoice !== "all"
+    // choice waits as it does for the plan. Other tiers read the list only to name rows.
+    const choosing = manage && scope.projectChoice === "choose"
     const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data])
     const drawerScope = useMemo<OrganizationConnectionScope>(
         () => ({
@@ -150,7 +151,7 @@ export const OrganizationProvidersPanel = ({
                 await refresh()
             },
             removeFailed: (failure: unknown, connection: ProviderConnection) =>
-                organizationSaveError(failure, scope.name, connection.name) ??
+                organizationRefusal(failure, scope.name) ??
                 `Agenta could not remove ${connection.name}. Try again.`,
             catalog: manage ? {notShareable: NOT_SHAREABLE} : undefined,
             subscriptions: manage ? managed : undefined,

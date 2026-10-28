@@ -105,6 +105,12 @@ const DeviceSignInDialog = ({
     }
 
     const succeeded = isReady && !pending && !starting
+    // The projects of an existing connection save without a sign-in; Done also ends one.
+    const saveProjects = draft.changed ? (
+        <Button variant="outline" disabled={draft.saving} onClick={() => void draft.apply(close)}>
+            Done
+        </Button>
+    ) : null
     // A finished sign-in waits on the vault refresh before the connection reads ready.
     const settling = startedRef.current && !pending && !starting && !isReady && !error && !lostPoll
 
@@ -227,6 +233,7 @@ const DeviceSignInDialog = ({
                             <Button variant="outline" onClick={close}>
                                 Cancel
                             </Button>
+                            {saveProjects}
                             <Button asChild>
                                 <a href={pending.verificationUri} target="_blank" rel="noreferrer">
                                     Open {name}
@@ -251,6 +258,7 @@ const DeviceSignInDialog = ({
                             <Button variant="outline" onClick={close}>
                                 Cancel
                             </Button>
+                            {saveProjects}
                             <Button disabled={starting || settling} onClick={() => void connect()}>
                                 {starting ? "Starting…" : settling ? "Finishing…" : "Try again"}
                             </Button>

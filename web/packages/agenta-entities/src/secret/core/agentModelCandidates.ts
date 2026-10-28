@@ -16,7 +16,12 @@ import {
     subscriptionRunProvider,
 } from "./subscriptionConnections"
 import {subscriptionPairModels, type SubscriptionPair} from "./subscriptionPairs"
-import {LlmEndpointProtocol, SecretKind, SecretManagementPolicy} from "./types"
+import {
+    LlmEndpointProtocol,
+    SecretKind,
+    SecretManagementPolicy,
+    type SecretOwnerScope,
+} from "./types"
 
 export type AgentConnectionMode = "agenta" | "self_managed"
 
@@ -44,13 +49,7 @@ export const savedConnectionNamespace = (
     return mode === "agenta" || namespace === "organization" ? namespace : null
 }
 
-/**
- * Whose connection an `agenta` slug names: the project's, or the organization's. An agent uses an
- * organization connection only when it names it (with namespace `organization`).
- */
-export type AgentConnectionScope = "project" | "organization"
-
-export const connectionScopeFrom = (value: unknown): AgentConnectionScope | null =>
+export const connectionScopeFrom = (value: unknown): SecretOwnerScope | null =>
     value === "project" || value === "organization" ? value : null
 
 /**
@@ -67,7 +66,7 @@ export const explicitAgentConnection = ({
     mode: AgentConnectionMode
     slug?: string | null
     namespace?: AgentConnectionNamespace | null
-    scope?: AgentConnectionScope | null
+    scope?: SecretOwnerScope | null
 }): Record<string, unknown> => {
     const connection: Record<string, unknown> = {mode}
     if (slug) connection.slug = slug
@@ -88,7 +87,7 @@ export interface AgentModelSelection {
     mode: AgentConnectionMode
     slug: string | null
     namespace?: AgentConnectionNamespace | null
-    scope?: AgentConnectionScope | null
+    scope?: SecretOwnerScope | null
     harness: string
 }
 
@@ -316,7 +315,7 @@ export const agentVaultProviderFamily = (
  */
 const organizationCandidateFacts = (
     connection: ProviderConnection,
-): {scope?: AgentConnectionScope; namespace?: AgentConnectionNamespace} =>
+): {scope?: SecretOwnerScope; namespace?: AgentConnectionNamespace} =>
     connection.scope === "organization" ? {scope: "organization", namespace: "organization"} : {}
 
 /**

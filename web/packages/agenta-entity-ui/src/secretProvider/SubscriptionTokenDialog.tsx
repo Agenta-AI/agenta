@@ -126,6 +126,16 @@ export const SubscriptionTokenDialog = ({
                             <Button variant="outline" disabled={token.checking} onClick={close}>
                                 Cancel
                             </Button>
+                            {/* The projects of an existing connection save without a new token. */}
+                            {draft.changed ? (
+                                <Button
+                                    variant="outline"
+                                    disabled={draft.saving || token.checking}
+                                    onClick={() => void draft.apply(close)}
+                                >
+                                    Done
+                                </Button>
+                            ) : null}
                             <Button disabled={!token.canSubmit} onClick={() => void token.submit()}>
                                 {token.checking ? (
                                     <>

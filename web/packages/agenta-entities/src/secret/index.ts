@@ -32,7 +32,7 @@
 export type {
     AgentConnectionMode,
     AgentConnectionNamespace,
-    AgentConnectionScope,
+    SecretOwnerScope,
     AgentSecretBinding,
     AgentModelCandidate,
     AgentModelSelection,
@@ -197,7 +197,6 @@ export {
     isTerminalLoginAttemptState,
     startLoginAttempt,
     type LoginAttemptResponse,
-    type LoginAttemptScope,
     type LoginAttemptState,
 } from "./api"
 export {

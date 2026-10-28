@@ -1,7 +1,6 @@
 export type {
     AgentConnectionMode,
     AgentConnectionNamespace,
-    AgentConnectionScope,
     AgentModelCandidate,
     AgentModelSelection,
     BuildAgentModelCandidatesArgs,
@@ -41,6 +40,7 @@ export type {
     NamedSecretRow,
     ProviderVaultRow,
     SecretDto,
+    SecretOwnerScope,
     SecretResponseDto,
     StandardProviderDto,
     StandardProviderSettingsDto,

@@ -38,6 +38,7 @@ import {
     type CreateSecretDto,
     type ProviderVaultRow,
     type SecretManagementPolicy,
+    type SecretOwnerScope,
 } from "./types"
 
 // ---------------------------------------------------------------------------
@@ -85,7 +86,7 @@ export interface ProviderConnection {
      * by scope and slug, and only an organization owner or admin may change it. Absent is the
      * project's own connection.
      */
-    scope?: "organization"
+    scope?: SecretOwnerScope
     /** An organization connection read by its admin: who may use it. */
     availability?: "all_projects" | "selected_projects"
     /** An organization connection limited to selected projects: their ids. */

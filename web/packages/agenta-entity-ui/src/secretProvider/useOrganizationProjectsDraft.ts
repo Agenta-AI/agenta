@@ -24,10 +24,12 @@ const refusalCode = (error: unknown): string | null => {
     return typeof code === "string" ? code : null
 }
 
-/** What a refused organization save says, in the design's words; null for any other failure. */
-export const organizationSaveError = (error: unknown, org: string, name: string): string | null => {
+/**
+ * What a refused organization write says when the refusal is the caller's role or a project that
+ * left the organization; null for any other failure, whose own message the caller shows.
+ */
+export const organizationRefusal = (error: unknown, org: string): string | null => {
     const status = httpStatusOf(error)
-    if (status === 409) return `${org} already has a connection named ${name}. Pick another name.`
     if (status === 403) {
         return `You are no longer an owner or admin of ${org}, so you can't change organization connections.`
     }
@@ -36,6 +38,15 @@ export const organizationSaveError = (error: unknown, org: string, name: string)
     }
     return null
 }
+
+/**
+ * What a refused save of a named organization connection says. A 409 there is its name taken;
+ * the subscription paths send no name, so they read only `organizationRefusal`.
+ */
+export const organizationSaveError = (error: unknown, org: string, name: string): string | null =>
+    httpStatusOf(error) === 409
+        ? `${org} already has a connection named ${name}. Pick another name.`
+        : organizationRefusal(error, org)
 
 export const sameProjects = (
     a: OrganizationSecretProjects,
@@ -104,7 +115,7 @@ export const useOrganizationProjectsDraft = ({
                 close()
             } catch (failure) {
                 setError(
-                    organizationSaveError(failure, organizationName, connection.name) ||
+                    organizationRefusal(failure, organizationName) ||
                         `Agenta could not save this ${connection.name} connection. Try again.`,
                 )
             } finally {
@@ -114,5 +125,8 @@ export const useOrganizationProjectsDraft = ({
         [connection, enabled, organizationName, projects, saved, setProjects],
     )
 
-    return {projects, setProjects: setDraft, saved, saving, error, apply}
+    /** An existing connection whose projects the admin changed: Done can save them alone. */
+    const changed = enabled && !!connection && !sameProjects(saved, projects)
+
+    return {projects, setProjects: setDraft, saved, saving, error, changed, apply}
 }

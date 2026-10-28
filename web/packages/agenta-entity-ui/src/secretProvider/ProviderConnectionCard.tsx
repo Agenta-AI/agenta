@@ -352,32 +352,34 @@ const ProviderConnectionCard = ({
           )
         : defaultNamePreview(kind, otherConnections)
 
-    // A stored organization connection is tested through the current project, so only where
-    // the project may use it.
+    // A member tests the organization connection exactly as saved: any field sent would be an
+    // edit, which only an owner or admin may make.
+    const probeRequest = useMemo(
+        () =>
+            readOnly && connection
+                ? {kind: undefined, provider: {}, secret_id: connection.id}
+                : probeRequestFor(kind, credential, connection),
+        [readOnly, connection, kind, credential],
+    )
+    // A probe that reads the stored organization row runs through the current project, so only
+    // where the project may use it. A typed key is tested on its own, from any project.
+    const readsOrganizationSecret = !!organization && !!probeRequest.secret_id
     const testableHere =
-        !organization ||
-        !connection ||
-        connection.availability !== "selected_projects" ||
+        !readsOrganizationSecret ||
+        connection?.availability !== "selected_projects" ||
         (!!projectId && (connection.selectedProjectIds ?? []).includes(projectId))
 
     const runProbe = useCallback(async () => {
         if (!projectId) return
         setProbeFailure(null)
         setSaveError(null)
-        // A member tests the organization connection exactly as saved: any field sent would be
-        // an edit, which only an owner or admin may make.
-        const request =
-            readOnly && connection
-                ? {kind: undefined, provider: {}, secret_id: connection.id}
-                : probeRequestFor(kind, credential, connection)
         try {
             const result = await probeMutation.mutateAsync({
                 projectId,
-                kind: request.kind,
-                provider: request.provider,
-                secretId: request.secret_id,
-                // A stored organization connection is tested where it lives.
-                ...(organization ? {secretScope: "organization" as const} : {}),
+                kind: probeRequest.kind,
+                provider: probeRequest.provider,
+                secretId: probeRequest.secret_id,
+                ...(readsOrganizationSecret ? {secretScope: "organization" as const} : {}),
             })
             setProbe(result)
             if (!result) setProbeFailure(`Agenta could not read ${title}'s answer.`)
@@ -385,7 +387,7 @@ const ProviderConnectionCard = ({
             setProbe(null)
             setProbeFailure(probeFailureMessage(error, title))
         }
-    }, [projectId, probeMutation, kind, credential, connection, title, organization, readOnly])
+    }, [projectId, probeMutation, probeRequest, readsOrganizationSecret, title])
 
     const setField = (key: string, value: string) => {
         setCredential((previous) => ({...previous, [key]: value}))

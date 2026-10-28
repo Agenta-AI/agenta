@@ -19,7 +19,7 @@ import {
     SUBSCRIPTION_SIGN_IN_HINT,
     subscriptionAvailability,
     subscriptionPlanName,
-    connectionNamespaceFrom,
+    savedConnectionNamespace,
     type AgentConnectionNamespace,
     type AgentModelCandidate,
     type AgentModelSelection,
@@ -302,9 +302,8 @@ export const displayedModelRow = (
     vaultSlugs: readonly (string | undefined)[],
 ): {key: string | undefined; modelId: string | null} => {
     const key = selectedModelRowKey(rows, current)
-    // A named organization connection that is gone selects nothing: the menu must not light up
-    // another connection's row for the same model id.
-    // Nor does a project connection that is gone stand in for an organization row by model id.
+    // A connection that is gone selects nothing when an organization row is involved: neither a
+    // named organization connection nor a project one may light up another row by model id.
     if (
         !key &&
         (current.namespace === "organization" ||
@@ -465,12 +464,7 @@ export const pickerSelectionFrom = (
         // A slug survives in either mode. Under `self_managed` it names a hosted subscription's
         // stored sign-in; dropping it there sent the run to whatever login the deployment mounted.
         slug: read("connectionSlug"),
-        // An organization connection keeps its namespace in either mode: it is what names the
-        // organization's connection rather than the project's.
-        namespace:
-            mode === "agenta" || read("connectionNamespace") === "organization"
-                ? connectionNamespaceFrom(read("connectionNamespace"))
-                : null,
+        namespace: savedConnectionNamespace(mode, read("connectionNamespace")),
         harness: read("harness"),
     }
 }

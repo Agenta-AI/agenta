@@ -1,6 +1,7 @@
 /**
  * The connection card on an organization connection: a member reads it locked and may still
- * Test it as saved; Test is off where the current project may not use the connection.
+ * Test it as saved; a stored row is tested only where the current project may use it, a typed
+ * key from any project.
  */
 import {act, createElement} from "react"
 
@@ -59,13 +60,13 @@ const companyKey = (overrides: Partial<ProviderConnection> = {}): ProviderConnec
         ...overrides,
     }) as unknown as ProviderConnection
 
-const render = async (connection: ProviderConnection, readOnly: boolean) => {
+const render = async (connection: ProviderConnection | null, readOnly: boolean) => {
     await act(async () => {
         root.render(
             createElement(ProviderConnectionCard, {
                 kind: "openai",
                 connection,
-                connections: [connection],
+                connections: connection ? [connection] : [],
                 onSaved: vi.fn(),
                 organization: {
                     name: "Acme",
@@ -75,6 +76,17 @@ const render = async (connection: ProviderConnection, readOnly: boolean) => {
                 },
             }),
         )
+    })
+}
+
+/** Type into the first editable field, the key, as a person would. */
+const typeKey = async (value: string) => {
+    const input = [...host.querySelectorAll("input")].find((field) => !field.disabled)
+    if (!input) throw new Error("no editable field")
+    const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set
+    await act(async () => {
+        setValue?.call(input, value)
+        input.dispatchEvent(new Event("input", {bubbles: true}))
     })
 }
 
@@ -124,5 +136,35 @@ describe("an organization connection in the card", () => {
             false,
         )
         expect(testButton()?.disabled).toBe(true)
+    })
+
+    it("tests a new key on its own, without the organization scope", async () => {
+        await render(null, false)
+        await typeKey("sk-new")
+        const test = testButton()
+        expect(test?.disabled).toBe(false)
+        await act(async () => test?.click())
+        const request = probeMutation.mutateAsync.mock.calls[0]?.[0]
+        expect(request).toMatchObject({kind: "openai", provider: {key: "sk-new"}})
+        expect(request?.secretId).toBeUndefined()
+        expect(request).not.toHaveProperty("secretScope")
+    })
+
+    it("tests a replacement key even where the current project may not use the connection", async () => {
+        await render(
+            companyKey({
+                availability: "selected_projects",
+                selectedProjectIds: ["project-2"],
+            } as Partial<ProviderConnection>),
+            false,
+        )
+        await typeKey("sk-replacement")
+        const test = testButton()
+        expect(test?.disabled).toBe(false)
+        await act(async () => test?.click())
+        const request = probeMutation.mutateAsync.mock.calls[0]?.[0]
+        expect(request).toMatchObject({provider: {key: "sk-replacement"}})
+        expect(request?.secretId).toBeUndefined()
+        expect(request).not.toHaveProperty("secretScope")
     })
 })
