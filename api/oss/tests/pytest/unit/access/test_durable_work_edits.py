@@ -130,8 +130,20 @@ def _triggers(*, schedule=None, subscription=None):
     dao = MagicMock()
     dao.fetch_schedule = AsyncMock(return_value=schedule)
     dao.fetch_subscription = AsyncMock(return_value=subscription)
-    dao.edit_schedule = AsyncMock(side_effect=lambda **kw: kw["schedule"])
-    dao.edit_subscription = AsyncMock(side_effect=lambda **kw: kw["subscription"])
+
+    # The DAO runs the rule on the row it locks: here, the row it was given.
+    async def edit_schedule(**kw):
+        if kw.get("check"):
+            kw["check"](schedule)
+        return kw["schedule"]
+
+    async def edit_subscription(**kw):
+        if kw.get("check"):
+            kw["check"](subscription)
+        return kw["subscription"]
+
+    dao.edit_schedule = AsyncMock(side_effect=edit_schedule)
+    dao.edit_subscription = AsyncMock(side_effect=edit_subscription)
     service = TriggersService(
         adapter_registry=MagicMock(),
         catalog_service=MagicMock(),
@@ -181,7 +193,6 @@ async def test_bob_cannot_change_the_target_of_alices_schedule():
         )
 
     assert refused.value.executing == ALICE
-    dao.edit_schedule.assert_not_awaited()
 
 
 async def test_bob_cannot_change_the_input_of_alices_schedule():
@@ -195,7 +206,6 @@ async def test_bob_cannot_change_the_input_of_alices_schedule():
             schedule=_schedule_edit(existing, inputs_fields={"to": "bob@example.com"}),
             editor=BOB,
         )
-    dao.edit_schedule.assert_not_awaited()
 
 
 async def test_alice_changes_her_own_schedule_and_keeps_her_principal():
@@ -239,6 +249,7 @@ async def test_api_key_schedule_changes_only_with_the_same_key():
             schedule=_schedule_edit(existing, references=AGENT_B),
             editor=OTHER_KEY,
         )
+    dao.edit_schedule.reset_mock()
     await service.edit_schedule(
         project_id=uuid4(),
         user_id=uuid4(),
@@ -328,7 +339,13 @@ def _evaluations(run):
     dao = MagicMock()
     dao.fetch_run = AsyncMock(return_value=run)
     dao.fetch_runs = AsyncMock(return_value=[run])
-    dao.edit_run = AsyncMock(return_value=None)
+
+    async def edit_run(**kw):
+        if kw.get("check"):
+            kw["check"](run)
+        return None
+
+    dao.edit_run = AsyncMock(side_effect=edit_run)
     dao.edit_runs = AsyncMock(return_value=[])
     service = EvaluationsService.__new__(EvaluationsService)
     service.evaluations_dao = dao
@@ -343,7 +360,6 @@ async def test_bob_cannot_change_the_testset_of_alices_evaluation_run():
     with pytest.raises(DurableWorkOwnerOnly) as refused:
         await service.edit_run(project_id=uuid4(), user_id=BOB.id, run=edit, editor=BOB)
     assert refused.value.kind == DurableWorkKind.EVALUATION_RUN
-    dao.edit_run.assert_not_awaited()
 
     with pytest.raises(DurableWorkOwnerOnly):
         await service.edit_runs(
@@ -459,3 +475,46 @@ async def test_the_evaluation_rule_is_checked_on_the_locked_row():
             run=EvaluationRunEdit(id=run.id, name="renamed", data=run.data),
             editor=BOB,
         )
+
+
+async def test_a_simple_evaluation_rename_cannot_undo_a_concurrent_change():
+    """Bob renames Alice's simple evaluation with its targets unchanged. If Alice changed
+    the run between Bob's read and his write, writing Bob's rebuilt configuration would
+    undo her change, so the check on the locked row refuses it."""
+    run = _run()
+    changed_by_alice = run.model_copy(update={"data": _run().data})
+    testset = uuid4()
+    captured = {}
+
+    async def edit_run(**kwargs):
+        captured.update(kwargs)
+        kwargs["locked_check"](changed_by_alice)
+
+    evaluations = SimpleNamespace(
+        fetch_run=AsyncMock(return_value=run), edit_run=AsyncMock(side_effect=edit_run)
+    )
+    service = SimpleEvaluationsService.__new__(SimpleEvaluationsService)
+    service.evaluations_service = evaluations
+    service.fetch = AsyncMock(
+        return_value=SimpleNamespace(
+            id=run.id,
+            flags=SimpleEvaluationFlags(is_active=False),
+            data=SimpleEvaluationData(testset_steps=[testset]),
+        )
+    )
+    service._make_evaluation_run_flags = AsyncMock(return_value=None)
+    service._make_evaluation_run_data = AsyncMock(return_value=run.data)
+    with patch("oss.src.core.evaluations.service.sleep", AsyncMock()):
+        with pytest.raises(DurableWorkOwnerOnly):
+            await service.edit(
+                project_id=uuid4(),
+                user_id=BOB.id,
+                evaluation=SimpleEvaluationEdit(
+                    id=run.id,
+                    name="renamed",
+                    flags=SimpleEvaluationFlags(),
+                    data=SimpleEvaluationData(testset_steps=[testset]),
+                ),
+                editor=BOB,
+            )
+    assert "locked_check" in captured

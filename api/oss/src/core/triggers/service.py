@@ -1881,9 +1881,8 @@ class TriggersService:
                 change=_schedule_change(existing=locked, edit=schedule),
             )
 
-        check(existing)
         # The principal stays; the target agent follows the edited references. The rule
-        # is checked again on the locked row, so a concurrent edit cannot slip past it.
+        # is checked on the locked row, so a concurrent edit cannot slip past it.
         return await self.dao.edit_schedule(
             project_id=project_id,
             user_id=user_id,

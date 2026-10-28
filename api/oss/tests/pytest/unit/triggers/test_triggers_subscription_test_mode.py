@@ -181,7 +181,7 @@ async def test_edit_test_off_rejects_when_references_do_not_resolve():
             project_id=uuid4(),
             user_id=uuid4(),
             editor=_OWNER,
-        subscription=_edit(existing, is_test=False, references=None),
+            subscription=_edit(existing, is_test=False, references=None),
         )
 
 
