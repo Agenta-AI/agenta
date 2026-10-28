@@ -217,3 +217,40 @@ def test_cached_directory_round_trips():
     assert (
         people.CachedDirectory.model_validate(cached.model_dump()).people[0].id == "U1"
     )
+
+
+async def test_a_refused_load_reports_failed_and_waits_for_refresh(cache):
+    class _Refusing(_Adapter):
+        async def list_people(self, *, connection):
+            self.list_calls += 1
+            raise RuntimeError("missing_scope")
+
+    adapter = _Refusing([])
+    project_id = uuid4()
+    _, first = await people.query_people(
+        adapter=adapter,
+        connection=CONNECTION,
+        project_id=project_id,
+        senders=[],
+        text="",
+    )
+    await _settle()
+    _, second = await people.query_people(
+        adapter=adapter,
+        connection=CONNECTION,
+        project_id=project_id,
+        senders=[],
+        text="",
+    )
+    await _settle()
+
+    assert first.state == "loading"
+    assert second.state == "failed"
+    assert adapter.list_calls == 1  # not started again by itself
+
+    refreshed = await people.refresh_people(
+        adapter=adapter, connection=CONNECTION, project_id=project_id
+    )
+    await _settle()
+    assert refreshed.state == "loading"
+    assert adapter.list_calls == 2

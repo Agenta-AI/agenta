@@ -682,3 +682,48 @@ async def test_dispatch_sends_the_note_and_opens_no_turn():
 def test_note_rows_carry_no_thread():
     data = ChannelOutboxEventData(processed={"attempt": "x"})
     assert data.processed == {"attempt": "x"}
+
+
+async def test_limits_of_an_agent_that_resolves_to_nothing_are_refused():
+    """An archived agent cannot be told private or not: fail closed."""
+
+    from oss.src.core.workflows.types import AgentReferenceUnresolved
+
+    agent = _agent()
+    dao = _dao(agent=agent)
+    service = _guarded_service(dao, refuse=False)
+    service.workflows_service.resolve_agent_artifact_id = AsyncMock(
+        side_effect=AgentReferenceUnresolved()
+    )
+
+    with pytest.raises(SharedItemNotFound):
+        await service.create_grant(
+            project_id=uuid4(),
+            user_id=uuid4(),
+            guard_user_id=uuid4(),
+            grant=ChannelGrantCreate(
+                agent_id=agent.id,
+                effect=ChannelGrantEffect.ALLOW,
+                kind=ChannelSpaceKind.PRIVATE,
+                data=ChannelGrantData(),
+            ),
+        )
+
+
+async def test_someone_else_cannot_move_a_private_agents_default_grant():
+    agent = _agent()
+    grant = _grant(agent, effect=ChannelGrantEffect.ALLOW, space_id=uuid4())
+    dao = _dao(agent=agent)
+    dao.query_grants = AsyncMock(return_value=[grant])
+    dao.fetch_default_grant = AsyncMock(return_value=None)
+    dao.edit_grant = AsyncMock()
+    service = _guarded_service(dao, refuse=True)
+
+    with pytest.raises(SharedItemNotFound):
+        await service.set_grant_default(
+            project_id=uuid4(),
+            user_id=uuid4(),
+            guard_user_id=uuid4(),
+            grant_id=grant.id,
+        )
+    dao.edit_grant.assert_not_awaited()

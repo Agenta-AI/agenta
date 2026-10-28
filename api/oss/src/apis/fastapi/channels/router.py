@@ -1550,11 +1550,14 @@ class ChannelsRouter:
             grant = await self.channels_service.set_grant_default(
                 project_id=UUID(request.state.project_id),
                 user_id=UUID(str(request.state.user_id)),
+                guard_user_id=_human_user_id(request),
                 #
                 grant_id=grant_id,
             )
         except ChannelAgentNotFound as e:
             raise HTTPException(status_code=404, detail=e.message) from e
+        except SharedItemNotFound as e:
+            raise not_found_exception() from e
 
         return ChannelGrantResponse(count=1, grant=grant)
 

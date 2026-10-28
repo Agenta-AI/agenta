@@ -1718,20 +1718,22 @@ class ChannelsService:
     ) -> None:
         """Only its owner changes a private agent's limits (its rules and its
         people list), active binding or not. Raises SharedItemNotFound, what an
-        unknown agent answers. A binding whose references resolve to no agent
-        has no private agent to protect. Settings time only."""
+        unknown agent answers. Settings time only."""
 
         if self.workflows_service is None:
             return
+        # A reference that resolves to nothing (an archived agent) fails closed:
+        # whether that agent is private cannot be told, and a change saved now
+        # would come back with it.
         try:
             artifact_id = await self.workflows_service.resolve_agent_artifact_id(
                 project_id=project_id,
                 references=channel_agent_references(agent.data.references),
             )
-        except (AgentReferenceUnresolved, SharedItemNotFound):
-            return
+        except AgentReferenceUnresolved as e:
+            raise SharedItemNotFound() from e
         if artifact_id is None:
-            return
+            raise SharedItemNotFound()
         await self.channels_dao.guard_agent_owner(
             project_id=project_id,
             artifact_id=artifact_id,
@@ -1915,6 +1917,7 @@ class ChannelsService:
         *,
         project_id: UUID,
         user_id: UUID,
+        guard_user_id: Optional[UUID] = None,
         #
         grant_id: UUID,
     ) -> ChannelGrant:
@@ -1927,6 +1930,15 @@ class ChannelsService:
             project_id=project_id,
             space_id=grant.space_id,
         )
+        # both rows change: each agent's owner rule applies before either write
+        for changed in {grant.id} | (
+            {current_default.id}
+            if current_default is not None and current_default.id != grant_id
+            else set()
+        ):
+            await self._guard_grant_limits(
+                project_id=project_id, grant_id=changed, guard_user_id=guard_user_id
+            )
         if current_default is not None and current_default.id != grant_id:
             current_default.flags.is_default = False
             await self.channels_dao.edit_grant(

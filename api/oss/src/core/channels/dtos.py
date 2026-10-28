@@ -835,9 +835,10 @@ class ChannelPerson(BaseModel):
 
 class ChannelPeopleDirectory(BaseModel):
     """The cached workspace people list behind the picker. `unavailable` when
-    the platform cannot list people (Telegram) or refused (a missing scope)."""
+    the platform cannot list people (Telegram); `failed` when the platform
+    refused the last load (an app without the scope), until Refresh."""
 
-    state: Literal["ready", "loading", "unavailable"]
+    state: Literal["ready", "loading", "failed", "unavailable"]
     updated_at: Optional[datetime] = None
 
 

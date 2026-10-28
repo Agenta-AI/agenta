@@ -32,7 +32,7 @@ describe("Where the agent answers", () => {
             behaviorFromGrants("slack", [allow("private"), allowSpace("s1"), allowSpace("s2")]),
         ).toEqual({dm: true, group: true, channels: ["s1", "s2"]})
         // DMs off: only the channels
-        expect(behaviorFromGrants("slack", [allowSpace("s1")])).toEqual({
+        expect(behaviorFromGrants("slack", [deny("private"), allowSpace("s1")])).toEqual({
             dm: false,
             group: true,
             channels: ["s1"],
@@ -45,10 +45,18 @@ describe("Where the agent answers", () => {
         })
     })
 
-    it("ignores a space's default-agent rule, which routes and does not limit", () => {
+    it("reads a space's default-agent rule as a chosen channel, as the backend counts it", () => {
         expect(
-            behaviorFromGrants("slack", [{...allowSpace("s1"), flags: {is_default: true}}]),
-        ).toEqual({dm: true, group: true, channels: null})
+            behaviorFromGrants("slack", [
+                allow("private"),
+                {...allowSpace("s1"), flags: {is_default: true}},
+            ]),
+        ).toEqual({dm: true, group: true, channels: ["s1"]})
+    })
+
+    it("keeps DMs off with nothing checked from reading as everywhere", () => {
+        const rules = rulesForBehavior("slack", {dm: false, group: true, channels: []})
+        expect(rules).toEqual([{effect: "deny", kind: "private"}])
     })
 
     it("writes only these channels as allow rules with no deny", () => {
@@ -82,6 +90,7 @@ describe("Where the agent answers", () => {
             {dm: true, group: true, channels: ["s1", "s2"]},
             {dm: false, group: true, channels: ["s1"]},
             {dm: true, group: true, channels: []},
+            {dm: false, group: true, channels: []},
             {dm: true, group: false, channels: ["s1"]},
         ]
         for (const state of states) {
@@ -96,12 +105,13 @@ describe("Where the agent answers", () => {
         }
     })
 
-    it("saves by deleting only what changed and keeping the default-agent rule", async () => {
+    it("saves by deleting only what changed, a space deny and an unchecked default included", async () => {
         const grants = [
             {id: "g1", effect: "allow", kind: "private"},
             {id: "g2", effect: "deny", kind: "group"},
             {id: "g3", effect: "deny", kind: "topic"},
             {id: "g4", effect: "allow", space_id: "s9", flags: {is_default: true}},
+            {id: "g5", effect: "deny", space_id: "s1"},
         ]
         const client = {
             queryChannelAgents: vi.fn().mockResolvedValue({
@@ -126,7 +136,7 @@ describe("Where the agent answers", () => {
         const deleted = vi
             .mocked(client.deleteChannelGrant)
             .mock.calls.map(([body]) => (body as {grant_id: string}).grant_id)
-        expect(deleted.sort()).toEqual(["g2", "g3"])
+        expect(deleted.sort()).toEqual(["g2", "g3", "g4", "g5"])
         const created = vi
             .mocked(client.createChannelGrant)
             .mock.calls.map(([body]) => (body as {grant: Record<string, unknown>}).grant)

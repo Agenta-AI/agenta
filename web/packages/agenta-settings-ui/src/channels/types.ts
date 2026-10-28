@@ -120,7 +120,8 @@ export interface ChannelPerson extends ChannelAudiencePerson {
 
 /** The cached workspace people list behind the picker (Slack only). */
 export interface ChannelPeopleDirectory {
-    state: "ready" | "loading" | "unavailable"
+    /** "failed": the platform refused the last load (an app installed without the scope). */
+    state: "ready" | "loading" | "failed" | "unavailable"
     /** When the cached list was loaded, ISO 8601. */
     updatedAt: string | null
 }

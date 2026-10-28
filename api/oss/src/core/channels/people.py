@@ -32,9 +32,13 @@ log = get_module_logger(__name__)
 
 DIRECTORY_NAMESPACE = "channels:people:directory"
 LOADING_NAMESPACE = "channels:people:loading"
+FAILED_NAMESPACE = "channels:people:failed"
 DIRECTORY_TTL_SECONDS = 24 * 60 * 60
 # a load that died without clearing its marker is tried again after this
 LOADING_TTL_SECONDS = 10 * 60
+# a load Slack refused (a missing scope) is not tried again by itself for this
+# long; Refresh tries at once
+FAILED_TTL_SECONDS = 60 * 60
 # stored messages read for "wrote to the bot"
 RECENT_EVENTS = 500
 MAX_RESULTS = 50
@@ -104,6 +108,14 @@ async def _load_directory(
             "[channels] people directory not loaded connection=%s: %s",
             connection.id,
             str(e)[:200],
+        )
+        await set_cache(
+            namespace=FAILED_NAMESPACE,
+            project_id=str(project_id),
+            key=_key(connection.id),
+            value=True,
+            ttl=FAILED_TTL_SECONDS,
+            release_lock=False,
         )
     finally:
         await invalidate_cache(
@@ -194,6 +206,13 @@ async def query_people(
                         continue
                     if _matches(person, needle):
                         found[person.id] = person
+        elif await get_cache(
+            namespace=FAILED_NAMESPACE,
+            project_id=str(project_id),
+            key=_key(connection.id),
+            retry=False,
+        ):
+            directory = ChannelPeopleDirectory(state="failed")
         elif await _start_directory_load(
             adapter=adapter, connection=connection, project_id=project_id
         ):
@@ -229,6 +248,11 @@ async def refresh_people(
     if not (adapter.lists_people and env.agenta.api.caching.enabled):
         return ChannelPeopleDirectory(state="unavailable")
     await forget_directory(project_id=project_id, connection_id=connection.id)
+    await invalidate_cache(
+        namespace=FAILED_NAMESPACE,
+        project_id=str(project_id),
+        key=_key(connection.id),
+    )
     started = await _start_directory_load(
         adapter=adapter, connection=connection, project_id=project_id
     )

@@ -358,13 +358,14 @@ export type BehaviorRule =
  * Where the agent answers, read from its grants. With no grant it answers everywhere. Once a
  * grant exists, a place no rule names is refused and any deny wins. "Only these channels" is
  * allow rules for single places with no rule for the channel kinds, so it reads back as chosen.
- * A space's default-agent rule routes messages, not limits them, and is not read here.
+ * A space's default-agent rule is an allow rule for that place like any other: the backend
+ * counts it, so it reads as a chosen channel.
  */
 export const behaviorFromGrants = (
     platform: ChannelPlatform,
     grants: Row[],
 ): ChannelBehaviorState => {
-    const rules = grants.filter((grant) => asRecord(grant.flags).is_default !== true)
+    const rules = grants
     if (rules.length === 0) return {dm: true, group: true, channels: null}
     const kindRule = (kind: ChannelSpaceKind, effect: "allow" | "deny") =>
         rules.some(
@@ -399,8 +400,10 @@ export const rulesForBehavior = (
         spaceId,
     }))
     if (next.group && next.channels !== null) {
+        // Always one rule for DMs here: with DMs off and nothing checked, no rule at all
+        // would read as "answers everywhere".
         return [
-            ...(next.dm ? [{effect: "allow" as const, kind: "private" as const}] : []),
+            {effect: next.dm ? ("allow" as const) : ("deny" as const), kind: "private" as const},
             ...chosen,
         ]
     }
@@ -462,7 +465,8 @@ export const mapDirectory = (value: unknown): ChannelPeopleDirectory => {
     const row = asRecord(value)
     const state = row.state
     return {
-        state: state === "ready" || state === "loading" ? state : "unavailable",
+        state:
+            state === "ready" || state === "loading" || state === "failed" ? state : "unavailable",
         updatedAt: asString(row.updated_at),
     }
 }
@@ -572,21 +576,27 @@ export const buildAgentChannelsActions = ({
         const ruleOf = (grant: Row): BehaviorRule | null => {
             const effect = grant.effect === "deny" ? "deny" : "allow"
             const spaceId = asString(grant.space_id)
-            if (spaceId) return effect === "allow" ? {effect, spaceId} : null
+            // A deny for one place (only the API writes one) is never wanted: it would
+            // block a checked channel, so the save removes it.
+            if (spaceId) return effect === "allow" ? {effect, spaceId} : {effect, kind: "group"}
             const kind = asString(grant.kind)
             return kind ? {effect, kind: asSpaceKind(kind)} : null
         }
         const keyOf = (rule: BehaviorRule) =>
             `${rule.effect}:${"spaceId" in rule ? `space:${rule.spaceId}` : `kind:${rule.kind}`}`
+        const grantKey = (grant: Row, rule: BehaviorRule) =>
+            asString(grant.space_id) && grant.effect === "deny"
+                ? `deny:space:${asString(grant.space_id)}`
+                : keyOf(rule)
         const wantedKeys = new Set(wanted.map(keyOf))
         const kept = new Set<string>()
 
-        // Drop what the new state does not hold. A space's default-agent rule routes messages
-        // and is not a limit, so it stays.
+        // Drop what the new state does not hold, a space's default-agent rule included: the
+        // backend counts it as an allow rule for that place.
         for (const grant of grants) {
             const rule = ruleOf(grant)
-            if (!rule || asRecord(grant.flags).is_default === true) continue
-            const key = keyOf(rule)
+            if (!rule) continue
+            const key = grantKey(grant, rule)
             if (wantedKeys.has(key) && !kept.has(key)) {
                 kept.add(key)
                 continue

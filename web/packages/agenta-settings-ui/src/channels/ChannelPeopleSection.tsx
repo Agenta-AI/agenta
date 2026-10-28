@@ -280,10 +280,13 @@ export const ChannelPeopleSection = ({
                 <>
                     <div className={GROUP}>
                         <span>In {workspace}</span>
-                        {directory.state === "ready" ? (
+                        {directory.state === "ready" || directory.state === "failed" ? (
                             <span>
-                                {refreshing ? "Refreshing…" : `Updated ${ago(directory.updatedAt)}`}{" "}
-                                ·{" "}
+                                {refreshing
+                                    ? "Refreshing… · "
+                                    : directory.state === "ready"
+                                      ? `Updated ${ago(directory.updatedAt)} · `
+                                      : ""}
                                 <button
                                     type="button"
                                     className="cursor-pointer border-0 bg-transparent p-0 text-xs text-primary"
@@ -296,7 +299,15 @@ export const ChannelPeopleSection = ({
                             </span>
                         ) : null}
                     </div>
-                    {directory.state === "loading" ? (
+                    {directory.state === "failed" ? (
+                        <span
+                            className="px-1.5 py-1 text-xs text-muted-foreground"
+                            data-testid="channels-people-failed"
+                        >
+                            Could not load people from {workspace}. Reinstall the Slack app, or type
+                            a full email.
+                        </span>
+                    ) : directory.state === "loading" ? (
                         <span className="flex items-center gap-2 px-1.5 py-1 text-xs text-muted-foreground">
                             <Spinner size="small" /> Loading people from Slack…
                         </span>
