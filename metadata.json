@@ -1,0 +1,45 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "01M61NB9DKJZNY42E24NKD3Z9Z",
+  "strategy": "manual-commit",
+  "branch": "fix/runner-tool-credential-refresh",
+  "checkpoints_count": 3,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 24,
+    "cache_creation_tokens": 17359,
+    "cache_read_tokens": 2162658,
+    "output_tokens": 7519,
+    "api_call_count": 12,
+    "subagent_tokens": {
+      "input_tokens": 266,
+      "cache_creation_tokens": 352843,
+      "cache_read_tokens": 20793961,
+      "output_tokens": 71578,
+      "api_call_count": 131
+    }
+  },
+  "redaction": {
+    "replacements": 38,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 2,
+      "credentialed_uri": 0,
+      "entropy": 36,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
