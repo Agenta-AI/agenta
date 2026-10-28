@@ -526,6 +526,12 @@ async def test_fallback_project_prefers_the_referenced_workspace():
     # first by the organization order (the oldest workspace, project 0).
     seeded = await _consolidated(await _multi_default_organization())
     try:
+        # Seeded workspaces can share a timestamp: make workspace 0 the oldest.
+        await execute(
+            "UPDATE workspaces SET created_at = created_at - interval '1 day' "
+            "WHERE id = :w",
+            {"w": seeded.workspace_ids[0]},
+        )
         candidates = [seeded.project_ids[2], seeded.project_ids[0]]
         for workspace_index, expected in ((2, 2), (0, 0)):
             picked = await db_manager.pick_fallback_project(
