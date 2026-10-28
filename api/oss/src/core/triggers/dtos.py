@@ -424,3 +424,10 @@ class TriggerDeliveryQuery(BaseModel):
     subscription_id: Optional[UUID] = None
     schedule_id: Optional[UUID] = None
     event_id: Optional[str] = None
+
+
+class TriggerWebhookRegistration(BaseModel):
+    """The provider project's delivery webhook: its signing secret and the URL it posts to."""
+
+    secret: str
+    webhook_url: Optional[str] = None

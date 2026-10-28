@@ -46,3 +46,24 @@ async def test_delete_subscription_propagates_transient_provider_failure(error):
         await adapter.delete_subscription(trigger_id="ti_live")
 
     assert exc_info.value.operation == "delete_subscription"
+
+
+def _adapter_with_webhooks(items):
+    adapter = object.__new__(ComposioTriggersAdapter)
+    adapter._get = AsyncMock(return_value={"items": items})
+    adapter._client = AsyncMock()
+    return adapter
+
+
+async def test_ensure_webhook_subscription_returns_existing_secret_and_url():
+    adapter = _adapter_with_webhooks(
+        [{"secret": "whsec_1", "webhook_url": "https://a.example.org/hook"}]
+    )
+
+    registration = await adapter.ensure_webhook_subscription(
+        webhook_url="https://b.example.org/hook"
+    )
+
+    assert registration.secret == "whsec_1"
+    assert registration.webhook_url == "https://a.example.org/hook"
+    adapter._client.post.assert_not_awaited()
