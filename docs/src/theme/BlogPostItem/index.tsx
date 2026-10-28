@@ -62,18 +62,51 @@ function ReleaseItemsSection({
   );
 }
 
+const RELEASE_ITEMS_ID = "improvements-and-fixes";
+
+function useReleaseItems() {
+  const data = useBlogPost().frontMatter as Record<string, unknown>;
+  return {improvements: asItems(data.improvements), fixes: asItems(data.fixes)};
+}
+
+const plural = (count: number, one: string, many: string) =>
+  `${count} ${count === 1 ? one : many}`;
+
 /** The entry's `improvements` and `fixes` frontmatter, after its content. */
 function ReleaseItems(): ReactNode {
-  const {frontMatter} = useBlogPost();
-  const data = frontMatter as Record<string, unknown>;
-  const improvements = asItems(data.improvements);
-  const fixes = asItems(data.fixes);
+  const {improvements, fixes} = useReleaseItems();
   if (improvements.length === 0 && fixes.length === 0) return null;
   return (
-    <div className={styles.releaseItems}>
+    <div id={RELEASE_ITEMS_ID} className={styles.releaseItems}>
       <ReleaseItemsSection title="Improvements" items={improvements} />
       <ReleaseItemsSection title="Fixes" items={fixes} />
     </div>
+  );
+}
+
+/** One line on the list page saying the entry also carries smaller changes. */
+function ReleaseItemsHint({permalink}: {permalink: string}): ReactNode {
+  const {improvements, fixes} = useReleaseItems();
+  if (improvements.length === 0 && fixes.length === 0) return null;
+  const counts = [
+    improvements.length > 0 &&
+      plural(improvements.length, "improvement", "improvements"),
+    fixes.length > 0 && plural(fixes.length, "fix", "fixes"),
+  ].filter(Boolean);
+  return (
+    <Link to={`${permalink}#${RELEASE_ITEMS_ID}`} className={styles.releaseHint}>
+      <svg
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        aria-hidden="true">
+        <line x1="12" y1="5" x2="12" y2="19" />
+        <line x1="5" y1="12" x2="19" y2="12" />
+      </svg>
+      <span>{counts.join(" and ")} in this release</span>
+    </Link>
   );
 }
 
@@ -101,7 +134,7 @@ function ChangelogItem({children}: {children: ReactNode}): ReactNode {
         <div className="markdown">
           <MDXContent>{children}</MDXContent>
         </div>
-        <ReleaseItems />
+        <ReleaseItemsHint permalink={permalink} />
         {hasTruncateMarker && (
           <Link
             to={permalink}

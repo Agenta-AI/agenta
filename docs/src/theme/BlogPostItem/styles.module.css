@@ -182,3 +182,26 @@
     gap: 10px;
   }
 }
+
+.releaseHint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  margin-top: 12px;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--contentsecondary);
+  text-decoration: none !important;
+  transition: color var(--ifm-transition-fast) ease;
+}
+
+.releaseHint:hover {
+  color: var(--contentprimary);
+}
+
+.releaseHint svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
