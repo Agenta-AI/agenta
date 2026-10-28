@@ -140,3 +140,33 @@ async def test_dev_placeholder_url_does_not_warn(log, cache, monkeypatch):
 
     log.info.assert_called_once()
     log.warning.assert_not_called()
+
+
+async def test_refresh_without_url_clears_the_older_url(log, cache):
+    first, _ = _resolver(_OTHER)
+    await first.resolve()
+
+    refreshed, _ = _resolver(None)
+    await refreshed.resolve(force_refresh=True)
+    await refreshed.report_webhook_url()
+
+    restarted, _ = _resolver(None)
+    await restarted.resolve()
+    await restarted.report_webhook_url()
+
+    log.info.assert_not_called()
+    log.warning.assert_not_called()
+
+
+async def test_logged_urls_drop_user_info_query_and_fragment(log, cache):
+    resolver, _ = _resolver(
+        "https://user:pw@demo.example.org:8443/hook/?token=abc#frag"
+    )
+
+    await resolver.resolve()
+    await resolver.report_webhook_url()
+
+    text = _logged_text(log)
+    assert "https://demo.example.org:8443/hook/" in text
+    for leaked in ("user", "pw@", "token=abc", "frag"):
+        assert leaked not in text

@@ -5,6 +5,7 @@ Composio is the source of truth and the value is cached encrypted in Redis.
 """
 
 from typing import Optional
+from urllib.parse import urlsplit, urlunsplit
 
 from oss.src.core.triggers.registry import TriggersGatewayRegistry
 from oss.src.utils.caching import get_cache, set_cache
@@ -66,14 +67,14 @@ class WebhookSecretResolver:
             value=encrypt(registration.secret),
             ttl=_CACHE_TTL,
         )
-        if registration.webhook_url:
-            self._registered_url = registration.webhook_url
-            await set_cache(
-                namespace=_CACHE_NAMESPACE,
-                key=_CACHE_URL_KEY,
-                value=registration.webhook_url,
-                ttl=_CACHE_TTL,
-            )
+        # Written even when unknown, so a refresh never leaves an older URL behind.
+        self._registered_url = registration.webhook_url or ""
+        await set_cache(
+            namespace=_CACHE_NAMESPACE,
+            key=_CACHE_URL_KEY,
+            value=self._registered_url,
+            ttl=_CACHE_TTL,
+        )
 
         return registration.secret
 
@@ -83,15 +84,19 @@ class WebhookSecretResolver:
         The webhook is never updated here: the Composio project may serve another
         deployment, so only an operator can decide which one it belongs to.
         """
-        registered = self._registered_url or await get_cache(
-            namespace=_CACHE_NAMESPACE,
-            key=_CACHE_URL_KEY,
-            retry=False,
-        )
+        registered = self._registered_url
+        if registered is None:
+            registered = await get_cache(
+                namespace=_CACHE_NAMESPACE,
+                key=_CACHE_URL_KEY,
+                retry=False,
+            )
         if not registered:
             return
 
-        log.info("Composio trigger webhook is registered at %s", registered)
+        log.info(
+            "Composio trigger webhook is registered at %s", _loggable_url(registered)
+        )
 
         expected = self._webhook_url()
         # The dev tunnel delivers over WebSocket, so the registered URL is unused.
@@ -103,6 +108,13 @@ class WebhookSecretResolver:
                 "expects %s. Composio sends this deployment's events to the other "
                 "address. Change the webhook of the Composio project, or use a "
                 "separate Composio project for this deployment.",
-                registered,
-                expected,
+                _loggable_url(registered),
+                _loggable_url(expected),
             )
+
+
+def _loggable_url(url: str) -> str:
+    """Drop user info, query and fragment, where a URL can carry a credential."""
+    parts = urlsplit(url)
+    host = parts.netloc.rpartition("@")[2]
+    return urlunsplit((parts.scheme, host, parts.path, "", ""))
