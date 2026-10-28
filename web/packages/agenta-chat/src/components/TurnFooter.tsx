@@ -18,7 +18,7 @@ import {TurnTimestamp} from "./TurnTimestamp"
  * appeared — so the footer lives here and each app only supplies the parts it derives differently.
  *
  * Each segment owns the separator BEFORE it, and only draws it when it renders something itself —
- * so a turn whose trace never resolved metrics, or one with no actions, leaves no dangling `·`.
+ * so a turn with no known figures, or one with no actions, leaves no dangling `·`.
  *
  * The trace button hides behind the Playground inspector preference — it is a debugging affordance,
  * not something every reader needs beside every answer. `onViewTrace` stays a prop because opening
@@ -27,11 +27,12 @@ import {TurnTimestamp} from "./TurnTimestamp"
 export const TurnFooter = ({
     messageId,
     traceId,
-    turnTraceId,
     isUser,
     isStreaming = false,
     usage,
     turnRow,
+    turnStartedAt,
+    turnRowsPending = false,
     copyText,
     onRewind,
     onViewTrace,
@@ -39,16 +40,18 @@ export const TurnFooter = ({
     onRetry,
 }: {
     messageId: string
-    /** The turn's own trace. Assistant turns have one; user turns do not. */
+    /** The turn's own trace, for the trace button only: the footer reads no trace. */
     traceId?: string | null
-    /** The trace of the turn this message belongs to — the user turn's only source of time. */
-    turnTraceId?: string | null
     isUser: boolean
     /** The answer is still arriving. Hides copy, which would take a half-written reply. */
     isStreaming?: boolean
     usage?: MessageUsageMetrics
-    /** The figures stored on the turn row. When present, the metrics read no trace. */
+    /** The figures stored on the turn row; a settled turn shows only these. */
     turnRow?: TurnRowMetrics
+    /** The start of the turn row (a user turn: the row of the turn it started). */
+    turnStartedAt?: string | null
+    /** The turn rows are still loading. */
+    turnRowsPending?: boolean
     /** What the copy button puts on the clipboard. Omitted (or empty) hides the button. */
     copyText?: string
     /** Re-run from this turn. Omitted hides the button. */
@@ -90,12 +93,16 @@ export const TurnFooter = ({
 
     return (
         <>
-            <TurnTimestamp messageId={messageId} traceId={traceId} turnTraceId={turnTraceId} />
+            <TurnTimestamp
+                messageId={messageId}
+                startedAt={turnStartedAt}
+                pending={turnRowsPending}
+            />
             {isUser ? null : (
                 <TurnMetrics
-                    traceId={traceId}
                     usage={usage}
                     turnRow={turnRow}
+                    isStreaming={isStreaming}
                     separator
                     show={metrics}
                 />

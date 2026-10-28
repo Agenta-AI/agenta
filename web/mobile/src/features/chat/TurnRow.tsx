@@ -37,8 +37,6 @@ import {
 import type {ToolUIPart} from "ai"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {cn} from "@/lib/utils"
-
 import {AnswerReveal} from "./AnswerReveal"
 import {AssistantMarkdown, UserMarkdown} from "./AssistantMarkdown"
 import {isLiveTextItem} from "./markdownStream"
@@ -52,7 +50,9 @@ import {TurnFiles} from "./TurnFiles"
 import {mobileTurnRowClass} from "./turnRowClass"
 import {UserQuoteBlock} from "./UserQuoteBlock"
 import {ARRIVED_ANSWER_ATTR, LAST_TURN_ATTR} from "./useTranscriptAutoScroll"
-import {useTurnRowMetrics} from "./useTurnRowMetrics"
+import {useTurnRowFooter} from "./useTurnRowFooter"
+
+import {cn} from "@/lib/utils"
 
 /** The byte size the transcript replay records on an attachment part, when it has one. */
 const attachmentSize = (metadata: unknown): number | undefined => {
@@ -104,10 +104,10 @@ const TurnRowInner = ({
         turn.message.parts as {state?: string; errorText?: string}[],
     )
     const usage = getMessageUsage(turn.message)
-    const turnRow = useTurnRowMetrics({
+    // A user turn has no trace of its own: it takes its time from the turn it started.
+    const turnRowFooter = useTurnRowFooter({
         sessionId,
-        traceId: turn.isUser ? null : traceId,
-        settled: !turn.isStreamingTurn,
+        traceId: turn.isUser ? turn.turnTraceId : traceId,
     })
     const openProviders = useProviderRecovery()
     const openBilling = useBillingRoute()
@@ -146,10 +146,11 @@ const TurnRowInner = ({
     const footer = {
         messageId: turn.message.id,
         traceId,
-        turnTraceId: turn.turnTraceId,
         isStreaming: turn.isStreamingTurn,
         usage,
-        turnRow,
+        turnRow: turnRowFooter.figures,
+        turnStartedAt: turnRowFooter.startedAt,
+        turnRowsPending: turnRowFooter.pending,
         copyText,
         // Rewinding the last turn re-runs the current one; hidden, as on desktop.
         onRewind: onRewind && !turn.isLast ? () => onRewind(turn) : undefined,

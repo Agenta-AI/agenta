@@ -98,34 +98,7 @@ export const getMessageUsage = (message: UIMessage): MessageUsageMetrics | undef
     return Object.keys(out).length > 0 ? out : undefined
 }
 
-/**
- * A turn's figures: the trace root's cumulative metrics, and the streamed usage for any figure
- * the trace lacks (not ingested yet, or no totals). The trace is the priced record: the runner
- * cannot report a cost for every turn (a Claude session reloaded into a new sandbox), and the API
- * then prices the spans from tokens.
- */
-export const mergeTurnMetrics = <T extends MessageUsageMetrics>(
-    traceMetrics: T,
-    usage?: MessageUsageMetrics,
-): T => ({
-    ...traceMetrics,
-    promptTokens: traceMetrics.promptTokens ?? usage?.promptTokens,
-    completionTokens: traceMetrics.completionTokens ?? usage?.completionTokens,
-    totalTokens: traceMetrics.totalTokens ?? usage?.totalTokens,
-    totalCost: traceMetrics.totalCost ?? usage?.totalCost,
-})
-
 /** A turn's figures stored on its turn row (M9): tokens, cost and latency. */
 export interface TurnRowMetrics extends MessageUsageMetrics {
     durationMs?: number
 }
-
-/**
- * The trace a turn's metrics read, or `""` for none. A turn whose row carries usage reads no
- * trace: the row is the record, and it is readable without trace access. Only a turn with no
- * stored usage falls back to the trace root (when the reader may read it).
- */
-export const turnMetricsTraceKey = (
-    traceId: string | null | undefined,
-    turnRow: TurnRowMetrics | undefined,
-): string => (turnRow ? "" : (traceId ?? ""))

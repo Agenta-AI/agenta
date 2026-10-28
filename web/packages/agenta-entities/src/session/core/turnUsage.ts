@@ -51,16 +51,20 @@ export const turnsByTraceId = (turns: SessionTurn[]): Map<string, SessionTurn> =
     return byTrace
 }
 
-const RECENT_END_MS = 120_000
+// Polling bounds. A running turn is watched for 30 minutes from its start, so a turn that never
+// ends (stopped, crashed, an older runner) stops the polling. An ended turn is watched for 2
+// minutes for its priced usage (ingest writes it from the trace).
+const RUNNING_WATCH_MS = 30 * 60_000
+const ENDED_WATCH_MS = 2 * 60_000
 
-/**
- * Whether the turns may still change: a turn is running, or one ended recently without a
- * priced usage (the trace write-back fills it after ingest).
- */
+/** Whether the turns may still change within the polling bounds above. */
 export const turnsMayChange = (turns: SessionTurn[], now: number = Date.now()): boolean =>
     turns.some((turn) => {
-        if (!turn.end_time) return true
+        if (!turn.end_time) {
+            const started = turn.start_time ? Date.parse(turn.start_time) : NaN
+            return Number.isFinite(started) && now - started < RUNNING_WATCH_MS
+        }
         const ended = Date.parse(turn.end_time)
-        const recent = Number.isFinite(ended) && now - ended < RECENT_END_MS
+        const recent = Number.isFinite(ended) && now - ended < ENDED_WATCH_MS
         return recent && num(turn.usage?.cost) === undefined
     })

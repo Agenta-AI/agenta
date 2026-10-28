@@ -16,6 +16,8 @@ import {querySessionRecords} from "../api/api"
 import {fileRecencyFromRecords} from "../core/fileActivity"
 import type {SessionRecord} from "../core/schema"
 
+import {sessionTurnsQueryKey} from "./turns"
+
 export const sessionRecordsQueryKey = (projectId: string, sessionId: string) =>
     ["session", "records", projectId, sessionId] as const
 
@@ -160,8 +162,14 @@ export const revalidateSessionRecordsAtom = atom(null, (get, _set, sessionId: st
     // `cancelRefetch: false` — mirrors `revalidateSessionMountsAtom`. A turn finishing (incl. the
     // SDK auto-resuming the restored last turn on reload) fires this while the FIRST records fetch
     // is still in flight; the default cancels that request and starts an identical one.
-    void get(queryClientAtom).invalidateQueries(
+    const client = get(queryClientAtom)
+    void client.invalidateQueries(
         {queryKey: sessionRecordsQueryKey(projectId, sessionId)},
+        {cancelRefetch: false},
+    )
+    // A finished turn has a new turn row: the footer reads its time and usage from it.
+    void client.invalidateQueries(
+        {queryKey: sessionTurnsQueryKey(projectId, sessionId)},
         {cancelRefetch: false},
     )
 })

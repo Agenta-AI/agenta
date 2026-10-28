@@ -15,7 +15,6 @@ import {AnalyticsRangePicker} from "./AnalyticsRangePicker"
 /** No data reads as an em dash. A falsy check would print it for a genuine zero. */
 const EMPTY = "—"
 
-// copy: needs owner approval
 const PARTIAL_NOTE = "Partial: these totals leave out private chats you cannot open."
 
 /** Five-digit milliseconds are unreadable; past a second the useful unit is seconds. */

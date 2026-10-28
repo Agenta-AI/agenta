@@ -53,8 +53,14 @@ describe("turnsByTraceId", () => {
 describe("turnsMayChange", () => {
     const now = Date.parse("2026-10-28T10:05:00Z")
 
-    it("is true while a turn runs", () => {
-        expect(turnsMayChange([{end_time: null}], now)).toBe(true)
+    it("is true while a turn runs, for 30 minutes from its start", () => {
+        expect(turnsMayChange([{start_time: "2026-10-28T10:00:00Z", end_time: null}], now)).toBe(
+            true,
+        )
+        expect(turnsMayChange([{start_time: "2026-10-28T09:00:00Z", end_time: null}], now)).toBe(
+            false,
+        )
+        expect(turnsMayChange([{end_time: null}], now)).toBe(false)
     })
 
     it("is true for a recent turn waiting for its priced usage", () => {
@@ -64,9 +70,9 @@ describe("turnsMayChange", () => {
     })
 
     it("is false once usage is priced or the turn is old", () => {
-        expect(
-            turnsMayChange([{end_time: "2026-10-28T10:04:30Z", usage: {cost: 0.01}}], now),
-        ).toBe(false)
+        expect(turnsMayChange([{end_time: "2026-10-28T10:04:30Z", usage: {cost: 0.01}}], now)).toBe(
+            false,
+        )
         expect(turnsMayChange([{end_time: "2026-10-28T09:00:00Z"}], now)).toBe(false)
     })
 })
