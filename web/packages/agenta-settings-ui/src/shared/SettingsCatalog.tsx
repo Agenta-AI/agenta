@@ -21,6 +21,8 @@ export interface SettingsCatalogItem {
     /** A row kebab for the verbs that are not the row click. */
     menu?: ReactNode
     testId?: string
+    /** Listed but not connectable here: no "+", no click, greyed; `description` says why. */
+    disabled?: boolean
 }
 
 export interface SettingsCatalogGroup {
@@ -59,7 +61,7 @@ const ConnectMark = ({label}: {label: string}) => (
 )
 
 const CatalogRow = ({item}: {item: SettingsCatalogItem}) => {
-    const open = item.onOpen
+    const open = item.disabled ? undefined : item.onOpen
     const attention = item.status === "attention"
     return (
         // Not a <button>: the row can hold its own kebab button.
@@ -79,8 +81,10 @@ const CatalogRow = ({item}: {item: SettingsCatalogItem}) => {
                       }
                     : undefined
             }
+            aria-disabled={item.disabled || undefined}
             className={cn(
                 "-mx-3 flex min-w-0 items-center gap-3.5 rounded-[10px] px-3 py-2.5",
+                item.disabled && "cursor-not-allowed opacity-60",
                 open && "cursor-pointer hover:bg-accent/60",
                 open && FOCUS_RING,
             )}
@@ -107,7 +111,9 @@ const CatalogRow = ({item}: {item: SettingsCatalogItem}) => {
                     </span>
                 ) : null}
             </span>
-            {item.status === "available" ? <ConnectMark label={item.statusLabel} /> : null}
+            {item.status === "available" && !item.disabled ? (
+                <ConnectMark label={item.statusLabel} />
+            ) : null}
             {item.menu}
         </div>
     )

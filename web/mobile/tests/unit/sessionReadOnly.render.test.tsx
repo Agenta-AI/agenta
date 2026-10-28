@@ -59,17 +59,30 @@ describe("the composer notice per state", () => {
         )
     })
 
-    it("Slack chat: reply in the Slack thread", () => {
+    it("channel chat (Slack, Telegram): a member writes to it", () => {
         expect(
             noticeFor(
                 state({
                     policy: {visibility: "project", owner_user_id: null},
-                    my_role: "viewer",
+                    my_role: "participant",
+                    can_send: true,
                     shareable: false,
                     not_shareable_reason: "channel",
                 }),
             ),
-        ).toBe("This chat comes from Slack. Reply in the Slack thread to continue it.")
+        ).toBeNull()
+        // A project Viewer cannot send: their role holds them back, not an API key.
+        expect(
+            noticeFor(
+                state({
+                    policy: {visibility: "project", owner_user_id: null},
+                    my_role: "participant",
+                    can_send: false,
+                    shareable: false,
+                    not_shareable_reason: "channel",
+                }),
+            ),
+        ).toBe("You can view this chat, but you cannot send to it.")
     })
 
     it("owner left", () => {

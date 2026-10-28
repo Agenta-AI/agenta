@@ -50,7 +50,7 @@ class AccessPolicy(BaseModel):
 
 
 # The policy of every ownerless item: API keys, installations, subscriptions, child and
-# evaluation runs, and every channel session.
+# evaluation runs, and the channel sessions of a project-visible agent.
 OWNERLESS_PROJECT_POLICY = AccessPolicy(
     visibility=Visibility.PROJECT, owner_user_id=None
 )
@@ -80,8 +80,15 @@ class SessionPolicyState(BaseModel):
     stream_id: UUID
     session_id: str
     policy: AccessPolicy
-    is_channel: bool  # a channel_threads row names this session
+    # The channel binding (installation) of the session's newest thread; None when no
+    # thread names it. Every thread of a session has the same binding.
+    channel_binding_id: Optional[UUID] = None
     references_agent: bool  # session_streams.references names an agent
+
+    @property
+    def is_channel(self) -> bool:
+        """A channel_threads row names this session."""
+        return self.channel_binding_id is not None
 
 
 class SessionTombstone(BaseModel):
@@ -124,8 +131,6 @@ class AgentPolicyWriteResult(BaseModel):
     """The result of `set_agent_policy`."""
 
     policy: AccessPolicy
-    # Channel agents that a make-private set inactive, in the same transaction.
-    deactivated_channel_agent_ids: List[UUID]
 
 
 # -- read scopes ------------------------------------------------------------------------
@@ -204,19 +209,17 @@ class CachedAgentAccess(BaseModel):
 
 
 class CachedSessionAccess(BaseModel):
-    """Namespace `sharing_session_access`, key (project_id, session_id).
-
-    `missing` is the cached answer "no row" (`stream_id` and `policy` are then unset). It
-    is written with `SET NX`; the insert that creates the row overwrites it with the row's
-    entry after its commit, so a reader racing the insert never leaves it behind."""
+    """Namespace `sharing_session_access`, key (project_id, session_id). Only a row is
+    cached, never "no row"."""
 
     stream_id: Optional[UUID] = None
     # Never NULL for a row: a legacy row is assigned before it is cached.
     policy: Optional[AccessPolicy] = None
     grants: List[SessionGrant] = []  # every grant of the session; [] when none
-    missing: bool = False
     # A channel_threads row names the session (None: an entry written before this field).
     is_channel: Optional[bool] = None
+    # That thread's channel binding (installation id); None when not known.
+    channel_binding_id: Optional[UUID] = None
 
 
 class CachedUserGrants(BaseModel):

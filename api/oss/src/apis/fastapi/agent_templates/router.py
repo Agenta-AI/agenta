@@ -10,6 +10,7 @@ from oss.src.apis.fastapi.sharing.utils import (
     policy_for_request,
     session_resource,
 )
+from oss.src.core.sessions.streams.types import SessionIdTombstoned
 from oss.src.core.sharing.dtos import SharedItemKind
 from oss.src.core.sharing.types import AdmissionDenied, AgentCreationFailed
 from oss.src.core.access.principals import access_denied_error
@@ -387,6 +388,10 @@ class AgentTemplatesRouter:
             )
         except AgentCreationFailed as exc:
             raise agent_creation_failed_exception(exc) from exc
+        except SessionIdTombstoned as exc:
+            # A reserved session id (a deleted private session's, or a channel thread's):
+            # answered as a hidden session, as the session routes do.
+            raise not_found_exception() from exc
         except AdmissionDenied as exc:
             if not exc.readable:
                 # A hidden session or agent answers like an unknown one.

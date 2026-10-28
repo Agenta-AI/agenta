@@ -19,7 +19,6 @@ from oss.src.core.sharing.dtos import (
     SessionRole,
     SessionSharingWriteResult,
     UserSessionGrant,
-    Visibility,
 )
 from oss.src.core.memberships.dtos import MembershipPolicy
 from oss.src.core.memberships.service import MembershipsService
@@ -27,7 +26,6 @@ from oss.src.core.sharing.interfaces import SharingDAOInterface
 from oss.src.core.sharing.service import SharingService
 from oss.src.core.sharing.types import SharedItemNotFound, SharingConflict
 from oss.tests.pytest.utils.memberships import InMemoryMembershipsDAO, make_summary
-from oss.tests.pytest.utils.principals import InMemoryPrincipalsDAO
 
 
 class AllowAllResourcePolicy(ResourcePolicyInterface):
@@ -108,6 +106,7 @@ class InMemorySharingDAO(SharingDAOInterface):
         session_id: Optional[str] = None,
         stream_id: Optional[UUID] = None,
         is_channel: bool = False,
+        channel_binding_id: Optional[UUID] = None,
         references_agent: bool = True,
         legacy: bool = False,
     ) -> SessionPolicyState:
@@ -115,7 +114,7 @@ class InMemorySharingDAO(SharingDAOInterface):
             stream_id=stream_id or uuid4(),
             session_id=session_id or f"s-{uuid4().hex}",
             policy=policy,
-            is_channel=is_channel,
+            channel_binding_id=channel_binding_id or (uuid4() if is_channel else None),
             references_agent=references_agent,
         )
         target = self.legacy_sessions if legacy else self.sessions
@@ -151,13 +150,7 @@ class InMemorySharingDAO(SharingDAOInterface):
         if current != expected:
             raise SharingConflict(current=current)
         self.agents[key] = policy
-        deactivated: List[UUID] = []
-        if policy.visibility == Visibility.PRIVATE:
-            deactivated = list(self.channel_agents.get(key, []))
-            self.channel_agents[key] = []
-        return AgentPolicyWriteResult(
-            policy=policy, deactivated_channel_agent_ids=deactivated
-        )
+        return AgentPolicyWriteResult(policy=policy)
 
     # -- sessions -----------------------------------------------------------------------
 
@@ -327,7 +320,6 @@ class SharingWorld:
                 memberships_dao=self.memberships_dao,
                 policy=MembershipPolicy.PROJECT_ROWS,
             ),
-            principals_dao=InMemoryPrincipalsDAO(),
         )
 
     def add_member(self, user_id: UUID, role: str = "editor") -> UUID:

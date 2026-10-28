@@ -4,6 +4,8 @@
 stays a unit test (no real Google call, no real LLM call, per the wave's hard rule).
 """
 
+from uuid import uuid4
+
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -52,7 +54,7 @@ def _standard_secret(key: str = "sk-standard") -> ResolvedSecret:
             ),
             header=Header(name="openai"),
         ),
-        owner=SecretOwner(kind=SecretOwnerKind.PROJECT),
+        owner=SecretOwner(kind=SecretOwnerKind.PROJECT, id=uuid4()),
         origin=SecretOrigin.VAULT,
     )
 
@@ -67,7 +69,7 @@ def _custom_secret(key: str = "sk-custom", extras: dict = None) -> ResolvedSecre
         secret=SecretResponseDTO(
             kind=SecretKind.CUSTOM_PROVIDER, data=data, header=Header(name="c")
         ),
-        owner=SecretOwner(kind=SecretOwnerKind.PROJECT),
+        owner=SecretOwner(kind=SecretOwnerKind.PROJECT, id=uuid4()),
         origin=SecretOrigin.VAULT,
     )
 

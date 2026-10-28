@@ -549,6 +549,9 @@ export class SessionsClient {
      *
      * `visibility` is the visibility a header call that creates the session asks for. It
      * is ignored on an existing session, and a `private` without an owner is dropped.
+     * A call with a `visibility` may carry no header field: it only creates the session
+     * (the /w pre-create of a new chat) and changes nothing on an existing one. Without
+     * a `visibility`, a body with no header field (an empty or wrapped body) is refused.
      *
      * @param {AgentaApi.SetSessionStreamHeaderRequest} request
      * @param {SessionsClient.RequestOptions} requestOptions - Request-specific configuration.

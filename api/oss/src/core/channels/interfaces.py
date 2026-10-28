@@ -8,6 +8,7 @@ from oss.src.core.channels.dtos import (
     ChannelAgentCreate,
     ChannelAgentEdit,
     ChannelAgentQuery,
+    ChannelBindingRestore,
     ChannelConnection,
     ChannelConnectionCreate,
     ChannelConnectionEdit,
@@ -98,10 +99,16 @@ class ChannelsDAOInterface(ABC):
         user_id: UUID,
         #
         connection_id: UUID,
+        #
+        guard_bindings: Dict[UUID, ChannelBindingRestore],
+        guard_user_id: Optional[UUID],
     ) -> Optional[ChannelConnection]:
-        """Clear `deleted_at`/`deleted_by_id` on this row. Does not restore
-        the agents archived alongside it -- that is a separate, explicit
-        choice, the same way re-enabling one is."""
+        """Clear `deleted_at`/`deleted_by_id` on this row and restore the bindings
+        archived with it, in one transaction: the connection row is locked, then each
+        agent of `guard_bindings` in id order (as in `create_agent`), then the bindings.
+        A restored active binding comes back off when its agent is private and not
+        `guard_user_id`'s, or when it is not in `guard_bindings` with the same
+        references (it changed after the read)."""
         ...
 
     @abstractmethod
@@ -136,10 +143,12 @@ class ChannelsDAOInterface(ABC):
         agent: ChannelAgentCreate,
         #
         guard_artifact_id: Optional[UUID] = None,
+        guard_user_id: Optional[UUID] = None,
     ) -> ChannelAgent:
         """With `guard_artifact_id`, the write transaction first locks that agent's
         artifact, reads its policy uncached and raises `SharedItemNotFound` for a
-        private agent, before it writes the binding (the lock order of
+        private agent whose owner is not `guard_user_id` (the human whose request writes;
+        None for any other principal), before it writes the binding (the lock order of
         `set_agent_policy`)."""
 
     @abstractmethod
@@ -187,8 +196,21 @@ class ChannelsDAOInterface(ABC):
         agent: ChannelAgentEdit,
         #
         guard_artifact_id: Optional[UUID] = None,
+        guard_user_id: Optional[UUID] = None,
     ) -> Optional[ChannelAgent]:
-        """`guard_artifact_id` as in `create_agent`."""
+        """`guard_artifact_id` and `guard_user_id` as in `create_agent`."""
+
+    @abstractmethod
+    async def clear_agent_default(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        agent_id: UUID,
+    ) -> None:
+        """Set only `flags.is_default` to false, in one statement: the binding keeps
+        its references and every other flag as they are stored now."""
 
     @abstractmethod
     async def delete_agent(

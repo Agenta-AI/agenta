@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 /**
  * Project visibility gives every member "Can send" (R3 option 2): the chip of an ownerless
- * project chat, and of a chat whose owner left, says the reader can send; a Slack chat stays
- * view only.
+ * project chat, of a channel (Slack, Telegram) chat, and of a chat whose owner left, says the
+ * reader can send.
  */
 import {act, createElement} from "react"
 
@@ -69,13 +69,24 @@ describe("the chat access chip with project visibility", () => {
         expect(page).toContain(copy.panelYouViewOnly)
     })
 
-    it("keeps a Slack chat view only", () => {
+    it("lets a member send in a channel chat, naming no platform", () => {
+        const {chipText, page} = openChip({
+            sharing: state({can_send: true, my_role: "participant"}),
+            fromChannel: true,
+        })
+        expect(chipText).toContain(copy.chipCanSend)
+        expect(page).toContain(copy.panelChannel)
+        expect(page).not.toContain("Slack")
+        expect(page).not.toContain(copy.panelYouViewOnly)
+    })
+
+    it("says the reader's own role holds them back in a channel chat", () => {
         const {chipText, page} = openChip({
             sharing: state({can_send: false, my_role: "viewer"}),
             fromChannel: true,
         })
         expect(chipText).toContain(copy.chipViewOnly)
         expect(page).toContain(copy.panelChannel)
-        expect(page).not.toContain(copy.panelYouViewOnly)
+        expect(page).toContain(copy.panelYouViewOnly)
     })
 })

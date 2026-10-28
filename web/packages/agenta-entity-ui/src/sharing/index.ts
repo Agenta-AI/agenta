@@ -11,11 +11,7 @@ export {
     type AgentSharingWrites,
 } from "./AgentPrivacyDialog"
 export {AgentTransferDialog, type AgentTransferDialogProps} from "./AgentTransferDialog"
-export {
-    useAgentSharingWrites,
-    type AgentChannelConnection,
-    type AgentSharingNotice,
-} from "./useAgentSharingWrites"
+export {useAgentSharingWrites, type AgentSharingNotice} from "./useAgentSharingWrites"
 export {agentSharingCopy, joinNames, memberPickerCopy, shareDisclosureCopy} from "./copy"
 export {
     MemberPicker,

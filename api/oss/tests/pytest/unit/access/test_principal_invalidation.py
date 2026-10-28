@@ -174,6 +174,8 @@ async def test_connection_changes_invalidate_every_binding(method, recorded):
     kwargs = dict(project_id=uuid4(), connection_id=connection.id)
     if method != "deactivate_connection":
         kwargs["user_id"] = uuid4()
+    if method == "unarchive_connection":
+        kwargs["guard_user_id"] = None
 
     await getattr(service, method)(**kwargs)
 
@@ -247,7 +249,10 @@ async def test_reinstall_invalidates_bindings(recorded):
     )
 
     await service.install_connection(
-        project_id=project_id, user_id=uuid4(), connection=_install_create()
+        project_id=project_id,
+        user_id=uuid4(),
+        guard_user_id=None,
+        connection=_install_create(),
     )
 
     assert recorded.principals == [_binding(binding_id)]
@@ -280,6 +285,7 @@ async def test_binding_changes_invalidate_the_binding(method, recorded):
         await service.edit_agent(
             project_id=uuid4(),
             user_id=uuid4(),
+            guard_user_id=None,
             agent=ChannelAgentEdit(id=agent_id),
         )
 

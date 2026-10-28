@@ -26,12 +26,10 @@ from oss.src.core.access.dtos import (
     ResourceKind,
     ResourceRef,
     RunContext,
+    RunEnvelope,
     RunOrigin,
 )
-from oss.src.core.access.interfaces import (
-    PrincipalsDAOInterface,
-    ResourcePolicyInterface,
-)
+from oss.src.core.access.interfaces import ResourcePolicyInterface
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.types import AccessDenied
 from oss.src.core.memberships.service import MembershipsService
@@ -119,9 +117,6 @@ def session_was_missing(*, project_id: UUID, session_id: str) -> bool:
 
 # The origins where a turn's sender owns what the turn creates.
 _SENDER_OWNS_ORIGINS = (RunOrigin.WEB, RunOrigin.API)
-# A person's runs that the server starts, never the person sending: they create their
-# session without an owner (CONTRACT section 7) and still run in it (rule S2).
-_SERVER_RUN_ORIGINS = (RunOrigin.SUBSCRIPTION, RunOrigin.CHILD, RunOrigin.EVALUATION)
 # The origins where a human principal owns what it creates without a sender.
 _HUMAN_OWNS_ORIGINS = (RunOrigin.WEB, RunOrigin.SCHEDULE)
 
@@ -137,13 +132,9 @@ class SharingService(ResourcePolicyInterface):
         *,
         sharing_dao: SharingDAOInterface,
         memberships_service: MembershipsService,
-        principals_dao: PrincipalsDAOInterface,
     ):
         self._dao = sharing_dao
         self._memberships = memberships_service
-        # For the principal-cache invalidation after a make-private deactivates
-        # channel agents.
-        self._principals_dao = principals_dao
 
     # -- resource rules (ResourcePolicyInterface, step 4 of decide) -----------------------
 
@@ -163,7 +154,11 @@ class SharingService(ResourcePolicyInterface):
 
         if resource.kind == ResourceKind.AGENT:
             return await self._evaluate_agent(
-                principal=principal, project_id=project_id, resource_id=resource.id
+                principal=principal,
+                action=action,
+                project_id=project_id,
+                resource_id=resource.id,
+                context=context,
             )
         if resource.kind == ResourceKind.SESSION:
             return await self._evaluate_session(
@@ -181,6 +176,8 @@ class SharingService(ResourcePolicyInterface):
         principal: PrincipalRef,
         project_id: UUID,
         resource_id: str,
+        action: Optional[Action] = None,
+        context: Optional[RunContext] = None,
     ) -> Optional[DecisionReason]:
         try:
             artifact_id = UUID(resource_id)
@@ -196,8 +193,15 @@ class SharingService(ResourcePolicyInterface):
         # A1: no row, or project-visible.
         if policy is None or policy.visibility == Visibility.PROJECT:
             return None
-        # A2: private, only the human owner.
-        if _is_human(principal, policy.owner_user_id):
+        # A2: private, only the human owner, and the owner's channel bindings running it
+        # on their own channel turns: a private agent may answer a channel. Only the run
+        # itself: the binding does not read, list or edit the private agent. A child run
+        # of a channel turn is no channel turn.
+        if _is_human(principal, policy.owner_user_id) or (
+            action == Permission.RUN_WORKFLOWS
+            and _is_channel_turn(principal, context)
+            and _binding_creator(principal) == policy.owner_user_id
+        ):
             return None
         return DecisionReason.RESOURCE_DENIED
 
@@ -235,6 +239,17 @@ class SharingService(ResourcePolicyInterface):
 
         policy = access.policy
         owner = policy.owner_user_id
+        if (
+            policy.visibility == Visibility.PRIVATE
+            and principal.kind == PrincipalKind.INSTALLATION
+            and access.channel_binding_id == principal.id
+            and _binding_creator(principal) == owner
+        ):
+            # S3: the channel session of a private agent belongs to the agent's owner;
+            # the session's own channel binding, created by that owner, reads, runs and
+            # edits it. (A project-visible channel session is ownerless: S1, S2 and S4
+            # let any binding act there.)
+            return None
         is_owner = _is_human(principal, owner)
         grant_role = next(
             (
@@ -256,22 +271,14 @@ class SharingService(ResourcePolicyInterface):
             )
 
         elif action == Permission.RUN_SESSIONS:
-            if _project_members_send(policy=policy, is_channel=access.is_channel):
-                # S2 for a project-visible session that is not a channel session:
-                # every member with the project capability sends and answers approvals
-                # (step 3 checked the capability; a send also checks the agent).
+            if _project_members_send(policy=policy):
+                # S2 for a project-visible session, a channel session included: every
+                # member with the project capability sends and answers approvals (step 3
+                # checked the capability; a send also checks the agent).
                 allowed = True
-            elif owner is None:
-                # S2 for non-humans, S3 for humans: a person only reads an ownerless
-                # session. A person's server run (an event subscription, a child run,
-                # an evaluation run) is no person sending: it creates ownerless sessions
-                # (CONTRACT section 7) and runs in an ownerless session with its signed
-                # run context, like any other non-human principal.
-                allowed = principal.kind != PrincipalKind.HUMAN or (
-                    context is not None and context.origin in _SERVER_RUN_ORIGINS
-                )
             else:
-                # S2: the active owner or a participant.
+                # S2 for a private session (it always has an owner): the active owner or
+                # a participant.
                 allowed = (
                     is_owner or grant_role == SessionRole.PARTICIPANT
                 ) and await self._is_active(user_id=owner, project_id=project_id)
@@ -359,7 +366,7 @@ class SharingService(ResourcePolicyInterface):
     async def agent_read_scope(self, *, principal: PrincipalRef) -> AgentReadScope:
         """Private agents a list shows: the principal's own, for a human. No I/O."""
 
-        return AgentReadScope(owner_user_id=_human_id(principal))
+        return AgentReadScope(owner_user_id=human_id(principal))
 
     async def session_read_scope(
         self,
@@ -370,7 +377,7 @@ class SharingService(ResourcePolicyInterface):
         """Sessions a list shows besides project-visible ones: the human's own private
         sessions and the sessions granted to them whose owner is an active member."""
 
-        user_id = _human_id(principal)
+        user_id = human_id(principal)
         if user_id is None:
             return SessionReadScope(
                 owner_user_id=None, include_project=True, granted_stream_ids=[]
@@ -424,21 +431,19 @@ class SharingService(ResourcePolicyInterface):
             key=key,
             model=CachedAgentAccess,
         )
-        if cached is not None:
-            return cached
-
-        entry = CachedAgentAccess(
-            policy=await self._dao.fetch_agent_policy(
-                project_id=project_id, artifact_id=artifact_id
+        if cached is None:
+            cached = CachedAgentAccess(
+                policy=await self._dao.fetch_agent_policy(
+                    project_id=project_id, artifact_id=artifact_id
+                )
             )
-        )
-        await _set(
-            namespace=AGENT_ACCESS_NAMESPACE,
-            project_id=project_id,
-            key=key,
-            value=entry,
-        )
-        return entry
+            await _set(
+                namespace=AGENT_ACCESS_NAMESPACE,
+                project_id=project_id,
+                key=key,
+                value=cached,
+            )
+        return cached
 
     async def _session_access(
         self,
@@ -471,7 +476,7 @@ class SharingService(ResourcePolicyInterface):
             key=key,
             model=CachedSessionAccess,
         )
-        if cached is not None and not cached.missing:
+        if cached is not None and not _is_old_entry(cached):
             return cached, None
 
         # "No row" is never cached: a cached absence would authorize a row an insert
@@ -488,6 +493,7 @@ class SharingService(ResourcePolicyInterface):
             stream_id=state.stream_id,
             policy=state.policy,
             is_channel=state.is_channel,
+            channel_binding_id=state.channel_binding_id,
             grants=await self._dao.list_session_grants(
                 project_id=project_id, stream_id=state.stream_id
             ),
@@ -697,26 +703,11 @@ class SharingService(ResourcePolicyInterface):
         )
         if access is None:
             return None
-        is_channel = access.is_channel
-        if is_channel is None:  # an ownerless session's first read of this field
-            state = await self._dao.fetch_session_policy(
-                project_id=project_id, session_id=session_id
-            )
-            if state is None:
-                return None
-            is_channel = state.is_channel
-            # Kept in the entry, so the next read of the session makes no SQL read.
-            await _set(
-                namespace=SESSION_ACCESS_NAMESPACE,
-                project_id=project_id,
-                key={"s": session_id},
-                value=access.model_copy(update={"is_channel": is_channel}),
-            )
         state = SessionPolicyState(
             stream_id=access.stream_id,
             session_id=session_id,
             policy=access.policy,
-            is_channel=is_channel,
+            channel_binding_id=access.channel_binding_id,
             references_agent=references_agent,
         )
         try:
@@ -741,8 +732,8 @@ class SharingService(ResourcePolicyInterface):
         session_id: str,
         change: SessionSharingChange,
     ) -> SessionSharingState:
-        """Only the active human owner shares, and only a shareable session (not a
-        channel session, has an owner, runs an agent). Grantees are active human
+        """Only the active human owner shares, and only a shareable session (has an
+        owner, so not the ownerless channel session of a project agent, runs an agent). Grantees are active human
         members, not the owner, each named once in the change."""
 
         principal = access.principal
@@ -862,7 +853,6 @@ class SharingService(ResourcePolicyInterface):
         await invalidate_sharing_caches(
             project_id=project_id, artifact_ids=[artifact_id]
         )
-        await self._invalidate_installations(result.deactivated_channel_agent_ids)
         await publish_sharing_event(
             organization_id=organization_id,
             project_id=project_id,
@@ -874,26 +864,6 @@ class SharingService(ResourcePolicyInterface):
         return await self._agent_state(
             project_id=project_id, principal=principal, policy=result.policy
         )
-
-    async def _invalidate_installations(self, binding_ids: Sequence[UUID]) -> None:
-        """A make-private set these channel agents inactive: clear their cached
-        installation principals, so a warm decision cannot keep one active. A failure
-        is logged and never fails the write."""
-
-        for binding_id in binding_ids:
-            principal = PrincipalRef(kind=PrincipalKind.INSTALLATION, id=binding_id)
-            try:
-                cleared = await self._principals_dao.invalidate_principal(
-                    principal=principal
-                )
-            except Exception:  # pylint: disable=broad-exception-caught
-                cleared = None
-            if cleared is None and env.agenta.api.caching.enabled:
-                log.warning(
-                    "[sharing] principal invalidation failed",
-                    principal_kind=principal.kind.value,
-                    principal_id=str(principal.id),
-                )
 
     async def _require_active_owner(
         self,
@@ -1019,7 +989,7 @@ class SharingService(ResourcePolicyInterface):
             None,
         )
 
-        members_send = _project_members_send(policy=policy, is_channel=state.is_channel)
+        members_send = _project_members_send(policy=policy)
         if is_owner:
             my_role = EffectiveRole.OWNER
         elif members_send:
@@ -1034,11 +1004,9 @@ class SharingService(ResourcePolicyInterface):
         else:
             my_role = EffectiveRole.NONE
 
-        # Rule S2 (with S3): the router ANDs it with the full decision.
+        # Rule S2: the router ANDs it with the full decision.
         if members_send:
             can_send = True
-        elif owner is None:
-            can_send = principal.kind != PrincipalKind.HUMAN
         else:
             can_send = owner_is_active and (
                 is_owner or grant_role == SessionRole.PARTICIPANT
@@ -1073,8 +1041,10 @@ class SharingService(ResourcePolicyInterface):
         In this order: (1) a turn with a sender and origin `web` or `api`: the sender
         owns; (2) a human principal on `web` or `schedule`: that human owns; (3)
         anything else (API keys, installations even with a linked sender,
-        subscriptions, child and evaluation runs) and every channel session: no owner,
-        project-visible. An omitted visibility is PRIVATE when there is an owner. A
+        subscriptions, child and evaluation runs) and channel sessions: no owner,
+        project-visible. The run that creates a channel session replaces this policy
+        with `channel_session_policy` (the agent's owner owns the channel sessions of a
+        private agent). An omitted visibility is PRIVATE when there is an owner. A
         requested PRIVATE without an owner is dropped."""
 
         owner = _owner(
@@ -1112,17 +1082,42 @@ def _require_visible_agent(
         raise SharedItemNotFound()
 
 
-def _project_members_send(*, policy: AccessPolicy, is_channel: Optional[bool]) -> bool:
+def _project_members_send(*, policy: AccessPolicy) -> bool:
     """Project visibility gives every member Participant (read, send, answer
-    approvals), owned or ownerless, whether or not the owner is still a member. A channel
-    (Slack) session keeps its own rule, and an entry that does not say whether the
-    session is a channel session is treated as one (fail closed)."""
+    approvals), owned or ownerless, whether or not the owner is still a member, and
+    whether or not the session came from a channel."""
 
-    return policy.visibility == Visibility.PROJECT and is_channel is False
+    return policy.visibility == Visibility.PROJECT
+
+
+def _binding_creator(principal: PrincipalRef) -> Optional[UUID]:
+    """The user who created this channel binding: the acting user of the principal record
+    that this decision read (the request memo; no I/O). None when the record is not in
+    the memo (the caller then refuses)."""
+
+    if principal.kind != PrincipalKind.INSTALLATION:
+        return None
+    memo = get_request_memo()
+    record = memo.get(("principal", principal)) if memo is not None else None
+    return getattr(record, "acting_user_id", None)
+
+
+def _is_channel_turn(principal: PrincipalRef, context: Optional[RunContext]) -> bool:
+    """The principal is a channel binding running its own channel turn (a resumed or
+    queued one included; they keep the turn's origin)."""
+
+    return (
+        principal.kind == PrincipalKind.INSTALLATION
+        and context is not None
+        and context.origin == RunOrigin.INSTALLATION
+    )
 
 
 def _not_shareable_reason(state: SessionPolicyState) -> Optional[NotShareableReason]:
-    if state.is_channel:
+    # A channel session of a project agent has no owner and is the whole project's. The
+    # channel session of a private agent belongs to the agent's owner, who may share it
+    # like any other chat.
+    if state.is_channel and state.policy.owner_user_id is None:
         return NotShareableReason.CHANNEL
     if state.policy.owner_user_id is None:
         return NotShareableReason.OWNERLESS
@@ -1190,26 +1185,49 @@ def prefetch_session_read_scope(*, project_id: UUID, principal: PrincipalRef) ->
     """Register the grants entry a human's session list reads, before the route's
     decision, so the decision's one cache read reads it too. No I/O."""
 
-    user_id = _human_id(principal)
+    user_id = human_id(principal)
     if user_id is not None:
         prefetch.register(user_grants_entry(project_id, user_id))
 
 
+def channel_binding_of(envelope: RunEnvelope) -> Optional[UUID]:
+    """The channel binding whose own channel turn this run is; None for any other run."""
+    principal = envelope.authority.principal
+    return principal.id if _is_channel_turn(principal, envelope.context) else None
+
+
+async def channel_session_policy(
+    *, project_id: UUID, agent_artifact_id: Optional[UUID]
+) -> AccessPolicy:
+    """The policy of a session that a channel turn creates: private to the agent's owner
+    when the agent is private, else project-visible and ownerless. Reads the agent's
+    cached policy, which the turn's admission read in this request (no round trip)."""
+
+    if agent_artifact_id is None:
+        return OWNERLESS_PROJECT_POLICY
+    policy = (
+        await get_sharing_service().fetch_agent_policy_cached(
+            project_id=project_id, artifact_id=agent_artifact_id
+        )
+    ).policy
+    if policy is not None and policy.visibility == Visibility.PRIVATE:
+        return policy
+    return OWNERLESS_PROJECT_POLICY
+
+
 def created_session_access(
-    created: Any, *, requested: AccessPolicy, by_installation: bool
-) -> Tuple[AccessPolicy, Optional[bool]]:
-    """The policy and the channel flag of a row the insert just created. A channel thread
-    that names the session id makes it a channel session: the insert then wrote the
-    channel policy (project-visible, ownerless), not the requested one. A session created
-    by a channel installation's run is a channel session too. The flag is None when the
-    insert did not say (the entry then reads the row once)."""
+    created: Any, *, requested: AccessPolicy, channel_binding_id: Optional[UUID]
+) -> Tuple[AccessPolicy, Optional[bool], Optional[UUID]]:
+    """The policy, the channel flag and the channel binding of a row the insert just
+    created, with the requested policy. Only the channel's own run (`channel_binding_id`)
+    inserts a row a channel thread names, and only a thread of its own binding; any other
+    creator's row is no channel session. The flag is None when the insert did not say
+    (the entry then reads the row once)."""
 
     has_thread = getattr(created, "has_channel_thread", None)
-    if has_thread is True:
-        return AccessPolicy(visibility=Visibility.PROJECT, owner_user_id=None), True
-    if by_installation:
-        return requested, True
-    return requested, has_thread if isinstance(has_thread, bool) else None
+    if not isinstance(has_thread, bool):
+        return requested, None, None
+    return requested, has_thread, channel_binding_id if has_thread else None
 
 
 async def cache_created_session_access(
@@ -1219,6 +1237,7 @@ async def cache_created_session_access(
     stream_id: Optional[UUID],
     policy: AccessPolicy,
     is_channel: Optional[bool] = None,
+    channel_binding_id: Optional[UUID] = None,
 ) -> None:
     """After the commit of the insert that created a session row: write its entry with a
     plain SET, over a cached "no row" (a new row has no grants). A failure is logged and
@@ -1232,12 +1251,14 @@ async def cache_created_session_access(
             policy=policy,
             grants=[],
             # The insert path knows it (a channel session is created by its installation's
-            # run); an owned session is never one. None: read once from the row.
+            # run, see `created_session_access`); an owned session that no channel run
+            # created is never one. None: read once from the row.
             is_channel=(
                 is_channel
                 if is_channel is not None
                 else (False if policy.owner_user_id is not None else None)
             ),
+            channel_binding_id=channel_binding_id,
         )
     except Exception:  # pylint: disable=broad-exception-caught
         log.warning("[sharing] created session entry not built", session_id=session_id)
@@ -1262,8 +1283,21 @@ async def cache_created_session_access(
         )
 
 
-def _human_id(principal: PrincipalRef) -> Optional[UUID]:
-    return principal.id if principal.kind == PrincipalKind.HUMAN else None
+def _is_old_entry(entry: CachedSessionAccess) -> bool:
+    """An entry this code does not trust: read the row again. No policy (a cached "no
+    row" of an older version), no channel flag, or a channel entry without its binding."""
+    return (
+        entry.policy is None
+        or entry.is_channel is None
+        or (entry.is_channel and entry.channel_binding_id is None)
+    )
+
+
+def human_id(principal: Optional[PrincipalRef]) -> Optional[UUID]:
+    """The person a principal is; None for an API key, an installation or no principal."""
+    if principal is None or principal.kind != PrincipalKind.HUMAN:
+        return None
+    return principal.id
 
 
 def _owner(
@@ -1332,11 +1366,10 @@ async def _set(
     key: Union[str, dict],
     value: BaseModel,
     user_id: Optional[UUID] = None,
-    nx: bool = False,
 ) -> bool:
-    """True when the entry was written or caching is off; False on a Redis error (and
-    on an `nx` write that found a value)."""
-    written: Optional[bool] = False
+    """True when the entry was written or caching is off; False on a Redis error. The
+    request keeps the value either way."""
+    written: Optional[bool] = None
     try:
         written = await set_cache(
             namespace=namespace,
@@ -1345,24 +1378,10 @@ async def _set(
             key=key,
             value=value,
             ttl=AGENTA_CACHE_TTL,
-            nx=nx,
             release_lock=False,
         )
     except Exception:  # pylint: disable=broad-exception-caught
-        written = False
-    if written is False or (written is None and _caching_enabled()):
-        # Not stored (a Redis error, or an `nx` write that found a value): this request
-        # must not treat its value as what the cache holds.
-        prefetch.forget(
-            _entry(
-                namespace=namespace,
-                project_id=project_id,
-                key=key,
-                model=type(value),
-                user_id=user_id,
-            )
-        )
-        return False
+        written = None
     prefetch.remember(
         _entry(
             namespace=namespace,
@@ -1374,7 +1393,7 @@ async def _set(
         value,
     )
     # set_cache answers None when caching is off, and None on its own Redis error.
-    return written is not False and (written is not None or not _caching_enabled())
+    return written is True or (written is None and not _caching_enabled())
 
 
 def _caching_enabled() -> bool:

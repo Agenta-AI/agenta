@@ -16,7 +16,7 @@ export const agentSharingCopy = {
     triggerAriaPrivate: "Private agent. Change who can see this agent",
 
     panelTitle: "Who can see this agent",
-    linePrivate: "Only you can see and use it.",
+    linePrivate: "Only you can see and use it in Agenta.",
     lineProject: (project: string) => `Everyone in ${project} can see and use it.`,
     panelOwnerYou: (name: string) => `${name} (you), owner`,
     change: "Change",
@@ -33,12 +33,7 @@ export const agentSharingCopy = {
 
     makePrivateTitle: (agent: string) => `Make ${agent} private?`,
     makePrivateBody:
-        "Other members will no longer see or run this agent. They can still read the chats they already had with it, but they cannot send to them.",
-    channelOne: (platform: string, workspace?: string | null) =>
-        `This agent is connected to ${platform}${workspace ? ` (${workspace})` : ""}. Making it private turns this connection off, and messages in ${platform} get no answer.`,
-    channelMany: (platforms: readonly string[]) =>
-        `This agent is connected to ${joinNames(platforms)}. Making it private turns these connections off, and messages there get no answer.`,
-    channelRestore: "If you share the agent again, turn the connection back on in Channels.",
+        "Other members will no longer see or run this agent in Agenta. They can still read the chats they already had with it, but they cannot send to them. If you connected it to a channel, it keeps answering everyone there.",
     makePrivate: "Make private",
 
     transferTitle: "Transfer ownership",
@@ -75,7 +70,6 @@ export const agentSharingCopy = {
     openChannels: "Open Channels",
 
     toastPrivate: (agent: string) => `${agent} is now private.`,
-    toastConnectionOff: (platform: string) => `Its ${platform} connection is off.`,
     toastShared: (agent: string) => `${agent} is now shared with the project.`,
     toastTransferred: (name: string, agent: string) => `${name} now owns ${agent}.`,
     toastTookOwnership: (agent: string) => `You now own ${agent}.`,

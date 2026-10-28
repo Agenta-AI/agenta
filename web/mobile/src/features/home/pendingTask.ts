@@ -1,5 +1,6 @@
 import {refusedSendReason} from "@agenta/chat/model"
 import {markSessionFresh} from "@agenta/chat/state"
+import {registerLocalSessionAtom} from "@agenta/entities/session"
 import type {FileUIPart} from "ai"
 import {atom} from "jotai"
 
@@ -58,6 +59,45 @@ export const failPendingTaskAtom = atom(null, (get, set, sessionId: string) => {
         set(pendingTasksAtom, {...tasks, [sessionId]: {...task, delivery: "failed"}})
     }
 })
+
+/**
+ * Keep a send that failed after its chat screen closed. No composer is left to take the text back,
+ * so it waits here as a failed task, and the chat screen offers it again with a retry when the user
+ * comes back. A slot already in use is a Home task, whose own send marks it failed.
+ */
+export const keepFailedSendAtom = atom(
+    null,
+    (get, set, {sessionId, task}: {sessionId: string; task: PendingTask}) => {
+        const tasks = get(pendingTasksAtom)
+        if (tasks[sessionId]) return
+        set(pendingTasksAtom, {...tasks, [sessionId]: {...task, delivery: "failed"}})
+    },
+)
+
+/**
+ * The chat screen of a session closed while its task was not on its way. A held task (the
+ * transcript, the vault or the setup step had not answered) has nothing left to send it, so it
+ * waits as failed, which the chat screen offers again with a retry. A held or failed task keeps
+ * the session listed in the rail, the user's only way back to a session the server does not know.
+ * A task already sending is left to its own send.
+ */
+export const leaveHeldTaskAtom = atom(
+    null,
+    (get, set, {sessionId, projectId}: {sessionId: string; projectId: string}) => {
+        const tasks = get(pendingTasksAtom)
+        const task = tasks[sessionId]
+        if (!task || task.delivery === "sending") return
+        if (!task.delivery) {
+            set(pendingTasksAtom, {...tasks, [sessionId]: {...task, delivery: "failed"}})
+        }
+        set(registerLocalSessionAtom, {
+            sessionId,
+            projectId,
+            agentId: task.agentId,
+            name: task.text,
+        })
+    },
+)
 
 export const sendPendingTaskAtom = atom(
     null,

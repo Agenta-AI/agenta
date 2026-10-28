@@ -1,5 +1,6 @@
 """The resource rules A1, A2, S1 to S4 (`SharingService.evaluate`, interfaces 3.1)."""
 
+from contextlib import contextmanager
 from uuid import uuid4
 
 import pytest
@@ -7,6 +8,7 @@ import pytest
 from oss.src.core.access.dtos import (
     DecisionReason,
     PrincipalKind,
+    PrincipalRecord,
     PrincipalRef,
     ResourceKind,
     ResourceRef,
@@ -14,7 +16,9 @@ from oss.src.core.access.dtos import (
     RunContext,
     RunOrigin,
 )
+from oss.src.core.access.context import get_request_memo
 from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.prefetch import request_memo_scope
 from oss.src.core.sharing.dtos import (
     OWNERLESS_PROJECT_POLICY,
     AccessPolicy,
@@ -43,6 +47,17 @@ def _installation() -> PrincipalRef:
     return PrincipalRef(kind=PrincipalKind.INSTALLATION, id=uuid4())
 
 
+@contextmanager
+def _bound_by(principal: PrincipalRef, creator):
+    """The request memo holds the binding's principal record, as `decide` leaves it
+    before the resource rules run: its acting user is the binding's creator."""
+    with request_memo_scope():
+        get_request_memo()[("principal", principal)] = PrincipalRecord(
+            principal=principal, acting_user_id=creator, is_active=True
+        )
+        yield
+
+
 def _private(owner) -> AccessPolicy:
     return AccessPolicy(visibility=Visibility.PRIVATE, owner_user_id=owner)
 
@@ -59,12 +74,15 @@ class _People:
         self.carol = self.world.add_member(uuid4())
         self.dana = self.world.add_member(uuid4())
 
-    async def agent(self, principal, artifact_id, action=Permission.VIEW_WORKFLOWS):
+    async def agent(
+        self, principal, artifact_id, action=Permission.VIEW_WORKFLOWS, context=None
+    ):
         return await self.world.service.evaluate(
             principal=principal,
             action=action,
             project_id=self.world.project_id,
             resource=ResourceRef(kind=ResourceKind.AGENT, id=str(artifact_id)),
+            context=context,
         )
 
     async def session(self, principal, state, action, context=None):
@@ -122,6 +140,62 @@ async def test_a2_private_agent_only_human_owner(people):
     assert await people.agent(_installation(), artifact_id) == DENIED
 
 
+@pytest.mark.parametrize(
+    "origin, allowed",
+    [
+        (RunOrigin.INSTALLATION, True),
+        (RunOrigin.CHILD, False),
+        (RunOrigin.WEB, False),
+        (None, False),
+    ],
+)
+async def test_a2_a_private_agent_answers_its_channel(people, origin, allowed):
+    """A channel binding that the agent's owner created runs the private agent on its
+    own channel turn (a resumed or queued turn keeps that origin). A child run of the
+    turn, the binding without the turn's run context, a binding someone else created,
+    and a binding whose record this decision did not read, do not."""
+    world = people.world
+    artifact_id = world.dao.add_agent(
+        project_id=world.project_id, policy=_private(people.alice)
+    )
+    context = None if origin is None else RunContext(origin=origin)
+    binding = _installation()
+    with _bound_by(binding, people.alice):
+        answer = await people.agent(
+            binding, artifact_id, Permission.RUN_WORKFLOWS, context
+        )
+    assert (answer is None) is allowed
+
+    channel_turn = RunContext(origin=RunOrigin.INSTALLATION)
+    # Only the run: the owner's binding does not read or edit the private agent.
+    with _bound_by(binding, people.alice):
+        for action in (Permission.VIEW_WORKFLOWS, Permission.EDIT_WORKFLOWS):
+            assert (
+                await people.agent(binding, artifact_id, action, channel_turn) == DENIED
+            )
+    with _bound_by(binding, people.bob):
+        assert (
+            await people.agent(
+                binding, artifact_id, Permission.RUN_WORKFLOWS, channel_turn
+            )
+            == DENIED
+        )
+    assert (
+        await people.agent(binding, artifact_id, Permission.RUN_WORKFLOWS, channel_turn)
+        == DENIED
+    )
+    # A person never borrows the origin.
+    assert (
+        await people.agent(
+            _human(people.bob),
+            artifact_id,
+            Permission.RUN_WORKFLOWS,
+            channel_turn,
+        )
+        == DENIED
+    )
+
+
 # -- sessions -------------------------------------------------------------------------
 
 
@@ -168,14 +242,16 @@ async def test_s2_run_sessions(people):
     assert await people.session(_installation(), ownerless, run) is None
 
 
-async def test_s3_human_cannot_send_to_a_channel_session(people):
+async def test_s2_members_send_in_a_channel_session(people):
+    """A project-visible channel session (Slack, Telegram) is like any project session:
+    every member sends and reads (the owner's 2026-10-26 ruling)."""
     ownerless = people.world.add_session(
         policy=OWNERLESS_PROJECT_POLICY, is_channel=True
     )
     for user in (people.alice, people.bob, people.carol):
         assert (
             await people.session(_human(user), ownerless, Permission.RUN_SESSIONS)
-            == DENIED
+            is None
         )
         assert (
             await people.session(_human(user), ownerless, Permission.VIEW_SESSIONS)
@@ -184,33 +260,27 @@ async def test_s3_human_cannot_send_to_a_channel_session(people):
 
 
 @pytest.mark.parametrize(
-    "origin, allowed",
-    [
-        (None, False),
-        (RunOrigin.WEB, False),
-        (RunOrigin.API, False),
-        (RunOrigin.SCHEDULE, False),
-        (RunOrigin.INSTALLATION, False),
-        (RunOrigin.SUBSCRIPTION, True),
-        (RunOrigin.CHILD, True),
-        (RunOrigin.EVALUATION, True),
-    ],
+    "action",
+    [Permission.VIEW_SESSIONS, Permission.RUN_SESSIONS, Permission.EDIT_SESSIONS],
 )
-async def test_s2_a_person_s_server_run_runs_in_an_ownerless_session(
-    people, origin, allowed
-):
-    """In a channel session, where people only read: a person's server run
-    (subscription, child, evaluation: the signed run context) still runs; the person
-    sending (web) only reads it."""
-    # A channel session: project visibility gives members no send there (S3 holds).
-    ownerless = people.world.add_session(
-        policy=OWNERLESS_PROJECT_POLICY, is_channel=True
+async def test_a_binding_acts_in_a_private_channel_session(people, action):
+    """The channel session of a private agent is private to the agent's owner. Its own
+    channel binding, created by that owner, reads, runs and edits it. Another binding
+    does not, also one the same owner created, nor a binding someone else created, nor
+    another member. The owner does."""
+    binding = _installation()
+    state = people.world.add_session(
+        policy=_private(people.alice), channel_binding_id=binding.id
     )
-    context = None if origin is None else RunContext(origin=origin)
-    answer = await people.session(
-        _human(people.dana), ownerless, Permission.RUN_SESSIONS, context
-    )
-    assert (answer is None) is allowed
+    with _bound_by(binding, people.alice):
+        assert await people.session(binding, state, action) is None
+    other = _installation()
+    with _bound_by(other, people.alice):
+        assert await people.session(other, state, action) == DENIED
+    with _bound_by(binding, people.bob):
+        assert await people.session(binding, state, action) == DENIED
+    assert await people.session(_human(people.bob), state, action) == DENIED
+    assert await people.session(_human(people.alice), state, action) is None
 
 
 @pytest.mark.parametrize(
