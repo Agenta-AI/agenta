@@ -1475,3 +1475,55 @@ describe("a stored organization connection that is gone", () => {
         ).toEqual({key: undefined, modelId: null})
     })
 })
+
+describe("a saved model id without its provider prefix", () => {
+    const projectKey = standard("project-openai", "openai", {slug: "openai-project"})
+    const organizationKey = standard("org-openai", "openai", {
+        slug: "openai-org",
+        scope: "organization",
+    })
+    const rows = buildConnectionPickerRows({
+        connections: [projectKey, organizationKey],
+        capabilities: CAPABILITIES,
+        harnessIds: HARNESS_IDS,
+    })
+    const rowModel = (key: string) => {
+        const row = rows.find((r) => r.key === key)!
+        const model = row.models.find(
+            (m) => m.harness === "pi_core" && m.modelId === "openai/gpt-5.5",
+        )!
+        return modelRowKey(row.key, model)
+    }
+
+    it("marks the organization connection it names", () => {
+        expect(
+            displayedModelRow(
+                rows,
+                {
+                    modelId: "gpt-5.5",
+                    slug: "openai-org",
+                    namespace: "organization",
+                    mode: "agenta",
+                    harness: "pi_core",
+                },
+                ["openai-project"],
+            ).key,
+        ).toBe(rowModel("org-openai"))
+    })
+
+    it("marks the project connection it names", () => {
+        expect(
+            displayedModelRow(
+                rows,
+                {
+                    modelId: "gpt-5.5",
+                    slug: "openai-project",
+                    namespace: null,
+                    mode: "agenta",
+                    harness: "pi_core",
+                },
+                ["openai-project"],
+            ).key,
+        ).toBe(rowModel("project-openai"))
+    })
+})

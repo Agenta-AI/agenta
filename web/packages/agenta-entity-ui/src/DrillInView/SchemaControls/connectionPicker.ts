@@ -238,6 +238,11 @@ export interface PickerOptionMetadata extends Record<string, unknown> {
     provider?: string
 }
 
+/** A saved id names a row by its own spelling or by the bare id the API also resolves. */
+const namesModel = (model: PickerModelRow, modelId: string | null): boolean =>
+    !!modelId &&
+    (model.modelId === modelId || bareModelId(model.modelId, model.provider ?? "") === modelId)
+
 export const modelRowKey = (connectionKey: string, model: PickerModelRow): string =>
     `${connectionKey}:${model.harness}:${model.modelId}`
 
@@ -257,7 +262,7 @@ export const selectedModelRowKey = (
 ): string | undefined => {
     if (!current.modelId) return undefined
     const all = rows.flatMap((row) => row.models.map((model) => ({key: row.key, model})))
-    const sameModel = all.filter((entry) => entry.model.modelId === current.modelId)
+    const sameModel = all.filter((entry) => namesModel(entry.model, current.modelId))
     const sameHarness = current.harness
         ? sameModel.filter((entry) => entry.model.harness === current.harness)
         : sameModel
@@ -309,7 +314,7 @@ export const displayedModelRow = (
         (current.namespace === "organization" ||
             rows.some((row) =>
                 row.models.some(
-                    (m) => m.namespace === "organization" && m.modelId === current.modelId,
+                    (m) => m.namespace === "organization" && namesModel(m, current.modelId),
                 ),
             ))
     ) {
