@@ -66,6 +66,14 @@ const parseItems = (value, key, file) => {
 
 const absolutizeLinks = (markdown) => markdown.replace(/\]\(\/(?!\/)/g, `](${DOCS_ORIGIN}/`)
 
+// The app renders plain markdown, so MDX components, embeds and comments would show as raw text.
+const stripMdx = (markdown) =>
+    markdown
+        .replace(/\{\/\*[\s\S]*?\*\/\}/g, "")
+        .replace(/<(iframe|video|div)\b[\s\S]*?<\/\1>/g, "")
+        .replace(/<[A-Za-z][^>]*\/>/g, "")
+        .trim()
+
 const semverParts = (id) => id.slice(1).split(".").map(Number)
 const compareSemverDesc = (a, b) => {
     const [x, y] = [semverParts(a), semverParts(b)]
@@ -97,7 +105,7 @@ const entries = readdirSync(ENTRIES_DIR)
             feature: {
                 id: data.slug,
                 title: data.title,
-                body: absolutizeLinks(summary ? summary[1].trim() : ""),
+                body: absolutizeLinks(summary ? stripMdx(summary[1]) : ""),
                 link: `${DOCS_ORIGIN}/changelog/${data.slug}`,
                 ...(stream ? {streamVideoId: stream[1]} : {}),
             },

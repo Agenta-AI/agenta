@@ -106,7 +106,7 @@
             {
                 "id": "chat-redesign-and-office-previews",
                 "title": "Office file previews, preview comments and a redesigned chat",
-                "body": "{/* TODO: add a screenshot or video of the Excel, Word and PowerPoint previews (Files pane) */}\n\nThe Files pane now previews Excel, Word and PowerPoint files, so you can open what your agent produces without leaving Agenta. You can also comment on a spot in an HTML app, document, slide or spreadsheet, and the agent receives the comment with its location.\n\nEvery file and folder in a session now has a link you can share. The chat transcript, file cards, attachments and composer have a new design. Agents open straight into the playground.",
+                "body": "The Files pane now previews Excel, Word and PowerPoint files, so you can open what your agent produces without leaving Agenta. You can also comment on a spot in an HTML app, document, slide or spreadsheet, and the agent receives the comment with its location.\n\nEvery file and folder in a session now has a link you can share. The chat transcript, file cards, attachments and composer have a new design. Agents open straight into the playground.",
                 "link": "https://agenta.ai/docs/changelog/chat-redesign-and-office-previews"
             }
         ],
@@ -193,7 +193,8 @@
                 "id": "agent-analytics",
                 "title": "See what your agents cost and how often they fail",
                 "body": "Settings now has an **Analytics** tab. It shows what your agents cost, how often they run, how often they succeed and how many tokens they use, over the last day, week, month or 90 days.\n\nGroup the charts by agent or by model to see where the money goes and which agents fail most. Click **Explore** to see the runs behind a number and open their traces.",
-                "link": "https://agenta.ai/docs/changelog/agent-analytics"
+                "link": "https://agenta.ai/docs/changelog/agent-analytics",
+                "streamVideoId": "bc658a58ff2f83f196a336a28eefbf25"
             },
             {
                 "id": "cleaner-settings-and-whats-new",
@@ -239,7 +240,8 @@
                 "id": "reply-to-a-selection",
                 "title": "Reply to one part of an agent's answer",
                 "body": "Select any part of an agent's reply, or a few lines in a file, and reply to just that part. The agent sees the exact text you mean, so you don't have to describe \"the second bullet about pricing\".\n\nYou can also collect quotes from several replies and files and send them in one message.",
-                "link": "https://agenta.ai/docs/changelog/reply-to-a-selection"
+                "link": "https://agenta.ai/docs/changelog/reply-to-a-selection",
+                "streamVideoId": "39d52fca3ab7a1b3b173efc705779fcf"
             }
         ],
         "improvements": [],
