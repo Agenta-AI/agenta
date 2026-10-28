@@ -3,6 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
 
+from oss.src.core.tracing.access import SpanReadScope
 from oss.src.core.evaluations.utils import (
     TraceFetcher,
     make_hash,
@@ -43,6 +44,7 @@ class RunnableCacheResolver:
         links: Optional[Dict[str, Any]] = None,
         #
         required_count: int = 1,
+        scope: Optional[SpanReadScope] = None,
     ) -> CacheResolution:
         hash_id = make_hash(
             references=references,
@@ -56,8 +58,10 @@ class RunnableCacheResolver:
                 missing_count=max(0, required_count),
             )
 
+        # Fails closed without a scope (`require_scope` in the DAO).
         cached_traces = await self._traces.fetch_traces_by_hash(
             project_id=project_id,
+            scope=scope,
             hash_id=hash_id,
             limit=required_count,
         )

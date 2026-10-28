@@ -23,7 +23,11 @@ from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.service import get_access_service
 from oss.src.core.access.types import AccessDenied, MissingPrincipal
-from oss.src.core.evaluations.run_access import evaluation_run_envelope
+from oss.src.core.evaluations.run_access import (
+    evaluation_run_envelope,
+    evaluation_run_trace_scope,
+)
+from oss.src.core.tracing.access import SpanReadScope
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.core.testcases.service import TestcasesService
@@ -473,6 +477,7 @@ class APISliceProcessor:
         #
         scenario_cells: List[EvaluationResult],
         invocation_step_keys: set[str],
+        scope: SpanReadScope,
     ) -> Dict[int, Dict[str, Any]]:
         trace_ids_by_repeat = {
             int(cell.repeat_idx or 0): cell.trace_id
@@ -486,6 +491,7 @@ class APISliceProcessor:
             project_id=project_id,
             #
             trace_ids=list(dict.fromkeys(trace_ids_by_repeat.values())),
+            scope=scope,
         )
         trace_items = {item.trace_id: item for item in hydrated if item.trace_id}
         context_by_repeat: Dict[int, Dict[str, Any]] = {}
@@ -514,6 +520,7 @@ class APISliceProcessor:
         #
         run: EvaluationRun,
         envelope: RunEnvelope,
+        scope: SpanReadScope,
         #
         invocation_steps: List[Any],
         annotation_steps: List[Any],
@@ -558,6 +565,7 @@ class APISliceProcessor:
                     enabled=bool(run.flags and run.flags.is_cached),
                     #
                     tracing_service=self.tracing_service,
+                    scope=scope,
                 ),
                 project_id=project_id,
                 user_id=user_id,
@@ -592,6 +600,7 @@ class APISliceProcessor:
                     enabled=bool(run.flags and run.flags.is_cached),
                     #
                     tracing_service=self.tracing_service,
+                    scope=scope,
                 ),
                 project_id=project_id,
                 user_id=user_id,
@@ -608,6 +617,7 @@ class APISliceProcessor:
         #
         cells_by_step: Dict[str, List[EvaluationResult]],
         input_steps: List[Any],
+        scope: SpanReadScope,
     ) -> Optional[ResolvedSourceItem]:
         """The input-cache ladder: recover a scenario's source from its stored cell.
 
@@ -630,6 +640,7 @@ class APISliceProcessor:
             #
             trace_ids=[source_item.trace_id] if source_item.trace_id else None,
             testcase_ids=[source_item.testcase_id] if source_item.testcase_id else None,
+            scope=scope,
         )
         resolved = hydrated[0] if hydrated else source_item
         resolved.step_key = source_item.step_key
@@ -642,6 +653,7 @@ class APISliceProcessor:
         user_id: UUID,
         #
         run: EvaluationRun,
+        scope: SpanReadScope,
         #
         steps: List[EvaluationStep],
         #
@@ -703,7 +715,7 @@ class APISliceProcessor:
             ),
             refresh_metrics=refresh_metrics,
             fetch_trace=(
-                partial(self._trace_fetcher, project_id=project_id)
+                partial(self._trace_fetcher, project_id=project_id, scope=scope)
                 if self._trace_fetcher is not None
                 else None
             ),
@@ -802,6 +814,10 @@ class APISliceProcessor:
         if not run.data or not run.data.steps:
             return ProcessSummary()
 
+        # Every trace this slice reads (sources, upstream context, cache reuse, the
+        # engine's trace loads) is read as the run's principal. Built once per slice.
+        scope = await evaluation_run_trace_scope(project_id=project_id, run=run)
+
         steps = run.data.steps
         input_steps = [step for step in steps if step.type == "input"]
         invocation_steps = [step for step in steps if step.type == "invocation"]
@@ -860,6 +876,7 @@ class APISliceProcessor:
             #
             run=run,
             envelope=envelope,
+            scope=scope,
             #
             invocation_steps=invocation_steps,
             annotation_steps=annotation_steps,
@@ -932,6 +949,7 @@ class APISliceProcessor:
                     #
                     input_steps=input_steps,
                     cells_by_step=cells_by_step,
+                    scope=scope,
                 )
                 if source_item is None:
                     # No populated input for this scenario (no trace_id/testcase_id
@@ -944,6 +962,7 @@ class APISliceProcessor:
                     #
                     scenario_cells=input_cells,
                     invocation_step_keys={step.key for step in invocation_steps},
+                    scope=scope,
                 )
             preview_plan = EvaluationPlanner().plan(
                 run_id=run_id,
@@ -1009,6 +1028,7 @@ class APISliceProcessor:
                 user_id=user_id,
                 #
                 run=run,
+                scope=scope,
                 #
                 steps=steps_all,
                 #

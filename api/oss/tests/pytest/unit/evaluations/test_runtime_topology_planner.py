@@ -4,6 +4,8 @@ from uuid import uuid4
 
 import pytest
 
+from oss.src.core.access.dtos import PrincipalKind, PrincipalRef
+from oss.src.core.tracing.access import SpanReadScope
 from oss.src.core.evaluations.runtime.adapters import (
     APICachedRunner,
     APIWorkflowRunner,
@@ -58,6 +60,14 @@ from oss.src.core.evaluations.service import SimpleEvaluationsService
 from oss.src.core.evaluations.tasks import processor as source_slice_tasks
 from oss.src.core.evaluations.tasks import run as run_tasks
 from oss.tests.pytest.utils.principals import any_principal, make_envelope
+
+
+def _scope(project_id):
+    """A caller's trace read scope; the fakes here never reach the tracing DAO."""
+    return SpanReadScope(
+        project_id=project_id,
+        principal=PrincipalRef(kind=PrincipalKind.HUMAN, id=uuid4()),
+    )
 
 
 def _run(*, steps, flags=None, repeats=1):
@@ -438,7 +448,8 @@ async def test_cache_resolver_skips_lookup_when_disabled_and_fetches_when_enable
     project_id = uuid4()
 
     class DummyTracingService:
-        async def query_traces(self, *, project_id, query):
+        async def query_traces(self, *, project_id, query, scope):
+            assert scope.project_id == project_id
             return [SimpleNamespace(trace_id="trace-1"), SimpleNamespace(trace_id=None)]
 
     disabled = await RunnableCacheResolver(
@@ -453,6 +464,7 @@ async def test_cache_resolver_skips_lookup_when_disabled_and_fetches_when_enable
         tracing_service=DummyTracingService()
     ).resolve(
         project_id=project_id,
+        scope=_scope(project_id),
         enabled=True,
         references={"evaluator_revision": Reference(id=uuid4())},
         required_count=2,
@@ -522,6 +534,7 @@ async def test_queue_source_resolver_resolves_query_and_testset_batches():
         testsets_service=testsets_service,
     ).resolve_queue_source_batches(
         project_id=project_id,
+        scope=_scope(project_id),
         run=run,
     )
 
@@ -563,7 +576,8 @@ async def test_queue_source_resolver_skips_empty_sources():
             )
         ),
     ).resolve_queue_source_batches(
-        project_id=uuid4(),
+        project_id=(_pid := uuid4()),
+        scope=_scope(_pid),
         run=run,
     )
 
@@ -596,7 +610,8 @@ async def test_queue_source_resolver_empty_query_does_not_fall_through_to_testse
         ),
         testsets_service=SimpleNamespace(fetch_testset_revision=fetch_testset_revision),
     ).resolve_queue_source_batches(
-        project_id=uuid4(),
+        project_id=(_pid := uuid4()),
+        scope=_scope(_pid),
         run=run,
     )
 
@@ -625,7 +640,8 @@ async def test_queue_source_resolver_rejects_step_with_multiple_source_refs():
             queries_service=SimpleNamespace(fetch_query_revision=AsyncMock()),
             testsets_service=SimpleNamespace(fetch_testset_revision=AsyncMock()),
         ).resolve_queue_source_batches(
-            project_id=uuid4(),
+            project_id=(_pid := uuid4()),
+            scope=_scope(_pid),
             run=run,
         )
 
@@ -769,7 +785,7 @@ async def test_live_query_trace_resolver_applies_default_windowing():
         def __init__(self):
             self.query = None
 
-        async def query_traces(self, *, project_id, query):
+        async def query_traces(self, *, project_id, query, scope):
             self.query = query
             return traces
 
@@ -779,6 +795,7 @@ async def test_live_query_trace_resolver_applies_default_windowing():
         tracing_service=tracing_service,
     ).resolve_live_query_traces(
         project_id=project_id,
+        scope=_scope(project_id),
         query_revisions={
             "query-main": SimpleNamespace(data=SimpleNamespace()),
         },
@@ -795,7 +812,7 @@ async def test_live_query_trace_resolver_uses_revision_windowing_when_requested(
         def __init__(self):
             self.query = None
 
-        async def query_traces(self, *, project_id, query):
+        async def query_traces(self, *, project_id, query, scope):
             self.query = query
             return []
 
@@ -811,7 +828,8 @@ async def test_live_query_trace_resolver_uses_revision_windowing_when_requested(
     await SourceResolution(
         tracing_service=tracing_service,
     ).resolve_live_query_traces(
-        project_id=uuid4(),
+        project_id=(_pid := uuid4()),
+        scope=_scope(_pid),
         query_revisions={
             "query-main": SimpleNamespace(
                 data=SimpleNamespace(filtering=None, windowing=revision_windowing)
