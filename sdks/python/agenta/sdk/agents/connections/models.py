@@ -164,6 +164,11 @@ class Connection(BaseModel):
                 "an organization connection is a shared account; it cannot use "
                 "binding 'caller_account'"
             )
+        if self.binding == "caller_account" and self.mode == "self_managed":
+            raise ValueError(
+                "each person's own subscription login is not available yet; "
+                "binding 'caller_account' needs mode 'agenta'"
+            )
         if self.scope == "organization" or self.namespace == "organization":
             # An organization key or custom provider (mode `agenta`), or an organization
             # subscription login (mode `self_managed`); both are named by slug.

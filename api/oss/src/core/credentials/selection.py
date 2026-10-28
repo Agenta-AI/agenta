@@ -36,6 +36,18 @@ def no_caller_refusal(
     )
 
 
+def binding_not_signed_refusal() -> PersonalCredentialRefused:
+    """A connection asks for each person's own account, and its run carries no signed
+    binding for it (a run started outside the API). Never the shared account."""
+    return PersonalCredentialRefused(
+        code="binding_not_signed",
+        message=(
+            "This agent uses each person's own account. Start it from a conversation "
+            "in Agenta."
+        ),
+    )
+
+
 def account_missing_refusal(*, label: str) -> PersonalCredentialRefused:
     return PersonalCredentialRefused(
         code="personal_account_missing",

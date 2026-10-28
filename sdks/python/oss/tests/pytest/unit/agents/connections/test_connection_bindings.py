@@ -31,6 +31,10 @@ def test_each_persons_own_account_parses_on_every_reference():
         lambda: Connection(
             scope="organization", slug="company", binding="caller_account"
         ),
+        # A personal subscription login is not available yet: never the shared one.
+        lambda: Connection(
+            mode="self_managed", slug="claude", binding="caller_account"
+        ),
     ],
 )
 def test_unsupported_bindings_are_refused(build):

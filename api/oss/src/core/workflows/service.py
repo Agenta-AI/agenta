@@ -329,8 +329,9 @@ def _reject_unreadable_agent_instructions(data: Any) -> None:
         ) from e
 
 
-def _reject_unsupported_bindings(data: Any) -> List[BindingClaim]:
-    """The revision's `caller_account` bindings, or a refusal of a binding the first
+def _binding_claims(data: Any) -> List[BindingClaim]:
+    """The revision's `caller_account` bindings, signed into its run credential, or a
+    refusal of a binding the first
     step of M7 does not support: `specific`, a personal account on an organization
     connection, a personal account the run path does not serve yet. A format check
     only: it never checks that an account exists."""
@@ -362,7 +363,7 @@ def _reject_unrunnable_agent_connection(data: Any) -> None:
     agent = (data.get("parameters") or {}).get("agent")
     if not isinstance(agent, dict):
         return
-    _reject_unsupported_bindings(data)
+    _binding_claims(data)
     llm = agent.get("llm")
     connection = llm.get("connection") if isinstance(llm, dict) else None
     if not isinstance(connection, dict):
@@ -3674,7 +3675,7 @@ class WorkflowsService:
 
         # The `caller_account` connections of the resolved revision (M7). A revision
         # saved before the commit check refuses an unsupported binding here.
-        binding_claims = _reject_unsupported_bindings(revision_data)
+        binding_claims = _binding_claims(revision_data)
 
         secret_token = await sign_secret_token(
             user_id=str(acting_user_id),

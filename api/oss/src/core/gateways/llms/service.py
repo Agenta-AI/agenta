@@ -11,9 +11,11 @@ from uuid import UUID
 
 from oss.src.core.access.context import get_request_access
 from oss.src.core.access.permissions.types import Permission
-from oss.src.core.credentials.bindings import ConnectionKey, bound_to_caller
-from oss.src.core.credentials.policy import PersonalCredentialRefused
-from oss.src.core.credentials.selection import select_personal_credential
+from oss.src.core.credentials.bindings import Binding, ConnectionKey, bound_to_caller
+from oss.src.core.credentials.selection import (
+    binding_not_signed_refusal,
+    select_personal_credential,
+)
 from oss.src.core.gateways.cleanup import run_shielded
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.llms.catalog import (
@@ -780,17 +782,11 @@ class LLMGatewayService:
         bound = bool(provider_key) and bound_to_caller(
             _request_bindings(), ConnectionKey(kind="model", service=provider_key)
         )
-        if connection_binding == "caller_account" and not bound:
+        if connection_binding == Binding.CALLER_ACCOUNT.value and not bound:
             # The agent asks for each person's own account, and this run carries no
             # signed binding for it (a run started outside an Agenta conversation,
             # trigger, channel or evaluation). Refused, never the shared account.
-            raise PersonalCredentialRefused(
-                code="binding_not_signed",
-                message=(
-                    "This agent uses each person's own account. Start it from a "
-                    "conversation in Agenta."
-                ),
-            )
+            raise binding_not_signed_refusal()
         if bound:
             # The run's signed bindings make this model connection each person's own
             # account (M7): the person's own key for the provider, never a named row.
