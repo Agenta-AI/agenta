@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, Request, Response, status, HTTPException
 from fastapi.exceptions import RequestValidationError
 from fastapi.routing import APIRoute
 
+from oss.src.utils.env import env
 from oss.src.utils.exceptions import intercept_exceptions
 
 from oss.src.core.secrets.services import VaultService
@@ -478,6 +479,14 @@ class VaultRouter:
             organization_id=UUID(str(organization_id)),
             project_id=project_id,
         )
+        if not env.llm_gateway.enabled:
+            # An organization key or custom provider runs only through the LLM gateway, so
+            # with the gateway off it is not offered. Subscription logins run without it.
+            organization = [
+                secret
+                for secret in organization
+                if secret.kind == SecretKind.SUBSCRIPTION_PROVIDER
+            ]
         return [
             self._for_caller(request, secret_dto) for secret_dto in secrets_dtos
         ] + [organization_connection_response(secret) for secret in organization]

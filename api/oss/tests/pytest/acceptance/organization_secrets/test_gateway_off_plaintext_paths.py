@@ -50,13 +50,13 @@ def test_the_run_credential_never_receives_an_organization_row(org, gateway_off)
     assert (
         company.json()["id"] not in plain.text
     )  # the plaintext read: project rows only
-    # With the parameter, the run credential lists the organization row the project may
-    # use (name and status), never its value.
+    # With the gateway off, an organization key is not offered even with the parameter:
+    # it could not run.
     listed = org.call(
         "GET", "/secrets/", credentials=run, params={"include_organization": "true"}
     )
     assert listed.status_code == 200, listed.text
-    assert company.json()["id"] in listed.text
+    assert company.json()["id"] not in listed.text
     for text_ in (plain.text, listed.text):
         assert KEY not in text_
     assert (

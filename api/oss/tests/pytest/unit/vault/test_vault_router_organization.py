@@ -17,6 +17,7 @@ from oss.src.core.secrets.services import VaultService
 from oss.src.core.secrets.subscription_login import SubscriptionLoginRunnerClient
 from oss.src.core.secrets.subscription_service import SubscriptionLoginService
 from oss.src.middlewares.auth import SECRET_RESOLVE_GRANT
+from oss.src.utils.env import env
 from oss.tests.pytest.utils.organization_secrets import (
     SENTINEL_KEY,
     InMemorySecretsDAO,
@@ -36,6 +37,7 @@ def world(monkeypatch):
         return None
 
     monkeypatch.setattr(router_module, "check_action_access", allow)
+    monkeypatch.setattr(env.llm_gateway, "enabled", True)
     monkeypatch.setattr(services_module, "_safe_publish", no_publish)
     organization_id = uuid4()
     sales, marketing = uuid4(), uuid4()
@@ -117,6 +119,43 @@ async def test_include_organization_adds_organization_rows_without_values(world)
     assert "availability" not in org_row and "selected_project_ids" not in org_row
     assert "key" not in org_row["data"]["provider"]
     assert SENTINEL_KEY not in response.text
+
+
+async def _subscription_login(world):
+    return await world["vault"].create_organization_secret(
+        organization_id=world["organization_id"],
+        create_secret_dto=CreateSecretDTO.model_validate(
+            {
+                "header": {},
+                "secret": {
+                    "kind": "subscription_provider",
+                    "data": {"provider": "chatgpt"},
+                },
+                "scope": "organization",
+            }
+        ),
+        user_id=uuid4(),
+    )
+
+
+async def test_gateway_on_lists_every_organization_connection(world):
+    await _org(world, slug="openai-company")
+    await _subscription_login(world)
+    rows = world["client"].get("/secrets/?include_organization=true").json()
+    assert sorted(row["kind"] for row in rows) == [
+        "provider_key",
+        "subscription_provider",
+    ]
+
+
+async def test_gateway_off_lists_only_organization_subscription_logins(
+    world, monkeypatch
+):
+    await _org(world, slug="openai-company")
+    await _subscription_login(world)
+    monkeypatch.setattr(env.llm_gateway, "enabled", False)
+    rows = world["client"].get("/secrets/?include_organization=true").json()
+    assert [row["kind"] for row in rows] == ["subscription_provider"]
 
 
 async def test_member_projection_drops_other_project_ids(world):
