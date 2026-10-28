@@ -394,7 +394,9 @@ class MCPGatewayRouter:
     ) -> MCPEndpointsResponse:
         if scope_kind == "user":
             # Only the caller's own servers (M7).
-            organization_id, user_id = await require_person(request)
+            organization_id, user_id = await require_person(
+                request, enforce_policy=False
+            )
             endpoints = await self.service.list_personal_endpoints(
                 organization_id=organization_id, user_id=user_id
             )
@@ -509,7 +511,9 @@ class MCPGatewayRouter:
         by itself keep the row.
         """
         if scope_kind == "user":
-            organization_id, user_id = await require_person(request)
+            organization_id, user_id = await require_person(
+                request, enforce_policy=False
+            )
             if not await self.service.delete_personal_endpoints(
                 organization_id=organization_id,
                 user_id=user_id,
