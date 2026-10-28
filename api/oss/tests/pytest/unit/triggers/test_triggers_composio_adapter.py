@@ -51,6 +51,27 @@ async def test_delete_subscription_propagates_transient_provider_failure(error):
     assert exc_info.value.operation == "delete_subscription"
 
 
+def _adapter_with_patch_error(error):
+    adapter = object.__new__(ComposioTriggersAdapter)
+    adapter._patch = AsyncMock(side_effect=error)
+    return adapter
+
+
+async def test_set_subscription_status_accepts_provider_409_as_already_in_state():
+    adapter = _adapter_with_patch_error(_status_error(409))
+
+    await adapter.set_subscription_status(trigger_id="ti_live", enabled=True)
+
+
+async def test_set_subscription_status_propagates_other_provider_failures():
+    adapter = _adapter_with_patch_error(_status_error(500))
+
+    with pytest.raises(AdapterError) as exc_info:
+        await adapter.set_subscription_status(trigger_id="ti_live", enabled=False)
+
+    assert exc_info.value.operation == "set_subscription_status"
+
+
 _V3_ENVELOPE = {
     "id": "msg_1",
     "timestamp": "2026-10-28T10:43:20Z",

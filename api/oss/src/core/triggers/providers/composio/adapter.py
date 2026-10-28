@@ -244,6 +244,15 @@ class ComposioTriggersAdapter(ComposioTriggersCatalogClient, TriggersGatewayInte
                 f"/trigger_instances/manage/{trigger_id}",
                 json={"status": status},
             )
+        except httpx.HTTPStatusError as e:
+            # 409 means the instance is already in the requested state.
+            if e.response.status_code == 409:
+                return
+            raise AdapterError(
+                provider_key="composio",
+                operation="set_subscription_status",
+                detail=composio_error_detail(e),
+            ) from e
         except httpx.HTTPError as e:
             raise AdapterError(
                 provider_key="composio",

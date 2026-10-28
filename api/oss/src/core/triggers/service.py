@@ -1100,6 +1100,48 @@ class TriggersService:
             enabled=is_active and is_valid,
         )
 
+    async def _upsert_provider_trigger(
+        self,
+        *,
+        project_id: UUID,
+        subscription: TriggerSubscriptionEdit,
+    ) -> str:
+        """Upsert the edited connection, event and filters; return the ``ti_*`` id.
+
+        Composio's upsert may update the stored instance or mint a new one.
+        """
+        connection = await self._require_connection(
+            project_id=project_id,
+            connection_id=subscription.connection_id,
+        )
+        adapter = self.adapter_registry.get(connection.provider_key.value)
+        trigger_id = await adapter.create_subscription(
+            project_id=project_id,
+            event_key=subscription.data.event_key,
+            connected_account_id=connection.provider_connection_id,
+            trigger_config=subscription.data.trigger_config or {},
+        )
+        return trigger_id
+
+    async def _discard_provider_trigger(
+        self,
+        *,
+        project_id: UUID,
+        subscription: TriggerSubscription,
+    ) -> None:
+        try:
+            await self._delete_provider_subscription(
+                project_id=project_id,
+                subscription=subscription,
+            )
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            log.warning(
+                "Failed to delete provider trigger %s for subscription %s: %s",
+                subscription.trigger_id,
+                subscription.id,
+                e,
+            )
+
     async def edit_subscription(
         self,
         *,
@@ -1108,7 +1150,8 @@ class TriggersService:
         #
         subscription: TriggerSubscriptionEdit,
     ) -> Optional[TriggerSubscription]:
-        """Full-PUT edit. Reflects the combined is_active/is_valid onto ``ti_*``."""
+        """Full-PUT edit. Reflects the connection, event, trigger_config and the
+        combined is_active/is_valid onto the provider ``ti_*``."""
         existing = await self.dao.fetch_subscription(
             project_id=project_id,
             subscription_id=subscription.id,
@@ -1128,21 +1171,94 @@ class TriggersService:
                 references=subscription.data.references,
             )
 
-        if subscription.flags.is_active != existing.flags.is_active:
+        target_changed = (
+            subscription.connection_id != existing.connection_id
+            or subscription.data.event_key != existing.data.event_key
+        )
+        config_changed = (subscription.data.trigger_config or {}) != (
+            existing.data.trigger_config or {}
+        )
+
+        if existing.trigger_id is None or not (target_changed or config_changed):
+            if subscription.flags.is_active != existing.flags.is_active:
+                await self._sync_provider_enabled(
+                    project_id=project_id,
+                    subscription=existing,
+                    is_active=subscription.flags.is_active,
+                    is_valid=existing.flags.is_valid,
+                )
+
+            # The principal stays; the target agent follows the edited references.
+            return await self.dao.edit_subscription(
+                project_id=project_id,
+                user_id=user_id,
+                subscription=subscription,
+                artifact_id=artifact_id,
+            )
+
+        if target_changed:
+            # The upsert would return another subscription's ti_* for its
+            # (connection, event); conflict locally before touching the provider.
+            others = await self.dao.query_subscriptions(
+                project_id=project_id,
+                subscription=TriggerSubscriptionQuery(
+                    connection_id=subscription.connection_id,
+                    event_key=subscription.data.event_key,
+                ),
+                windowing=Windowing(limit=1),
+            )
+            if others and others[0].id != existing.id:
+                raise EntityCreationConflict(
+                    entity="Trigger subscription",
+                    message="A subscription for this connection and event already exists.",
+                    conflict={
+                        "subscription_id": str(others[0].id),
+                        "trigger_id": others[0].trigger_id,
+                    },
+                )
+
+        trigger_id = await self._upsert_provider_trigger(
+            project_id=project_id,
+            subscription=subscription,
+        )
+        target = existing.model_copy(
+            update={
+                "trigger_id": trigger_id,
+                "connection_id": subscription.connection_id,
+            }
+        )
+        replacement = target if trigger_id != existing.trigger_id else None
+
+        try:
+            # The upsert re-enables a disabled instance, so re-apply the desired state.
             await self._sync_provider_enabled(
                 project_id=project_id,
-                subscription=existing,
+                subscription=target,
                 is_active=subscription.flags.is_active,
                 is_valid=existing.flags.is_valid,
             )
+            edited = await self.dao.edit_subscription(
+                project_id=project_id,
+                user_id=user_id,
+                subscription=subscription,
+                artifact_id=artifact_id,
+                trigger_id=trigger_id,
+            )
+        except Exception:
+            if replacement is not None:
+                await self._discard_provider_trigger(
+                    project_id=project_id,
+                    subscription=replacement,
+                )
+            raise
 
-        # The principal stays; the target agent follows the edited references.
-        return await self.dao.edit_subscription(
-            project_id=project_id,
-            user_id=user_id,
-            subscription=subscription,
-            artifact_id=artifact_id,
-        )
+        if replacement is not None:
+            # A row deleted mid-edit keeps nothing; otherwise the old ti_* is stale.
+            await self._discard_provider_trigger(
+                project_id=project_id,
+                subscription=existing if edited is not None else replacement,
+            )
+        return edited
 
     async def delete_subscription(
         self,
