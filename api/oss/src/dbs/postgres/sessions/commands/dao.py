@@ -254,6 +254,29 @@ class SessionCommandsDAO(SessionCommandsDAOInterface):
         async with self.engine.session() as session:
             return await execute(session)
 
+    async def fetch_turn_cancel(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        target_turn_id: str,
+    ) -> Optional[SessionCommand]:
+        async with self.engine.session() as session:
+            stmt = (
+                select(SessionCommandDBE)
+                .where(
+                    SessionCommandDBE.project_id == project_id,
+                    SessionCommandDBE.session_id == session_id,
+                    SessionCommandDBE.kind == SessionCommandKind.cancel.value,
+                    SessionCommandDBE.target_turn_id == target_turn_id,
+                    SessionCommandDBE.deleted_at.is_(None),
+                )
+                .order_by(SessionCommandDBE.created_at.desc())
+                .limit(1)
+            )
+            dbe = (await session.execute(stmt)).scalar_one_or_none()
+            return map_command_dbe_to_dto(dbe) if dbe is not None else None
+
     async def bind_steer_input(
         self,
         *,

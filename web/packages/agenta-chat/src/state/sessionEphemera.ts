@@ -3,6 +3,8 @@ import {clearSessionQuotes} from "@agenta/ui/quote-selection"
 
 import type {StagedUpload} from "../model"
 
+import {clearPendingSendEchoes} from "./pendingSendEchoStore"
+
 /** Per-session memory survives pane remounts but is cleared on permanent deletion. */
 
 /** Unsent composer drafts per session — switching back to a session restores its
@@ -65,6 +67,7 @@ export const clearSessionEphemera = (sessionId: string) => {
     acceptedRunBySession.delete(sessionId)
     turnDeliverySourceBySession.delete(sessionId)
     freshSessionIds.delete(sessionId)
+    clearPendingSendEchoes(sessionId)
     // Staged reply quotes live in @agenta/ui (the file preview needs them too), same lifetime.
     clearSessionQuotes(sessionId)
 }
