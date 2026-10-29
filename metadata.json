@@ -1,0 +1,51 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "01M6477HDT6BR9S0103E1B1YX6",
+  "strategy": "manual-commit",
+  "branch": "fix/044-p6-plan",
+  "checkpoints_count": 2,
+  "files_touched": [
+    ".husky/post-checkout",
+    ".husky/pre-commit",
+    ".husky/pre-push",
+    "docs/design/agent-workflows/scratch/agent-coordination.md",
+    "sdks/python/agenta/sdk/managers/secrets.py",
+    "sdks/python/oss/tests/pytest/unit/test_llm_v0_provider_key_binding.py",
+    "sdks/python/oss/tests/pytest/unit/test_secrets_manager_connection_slug.py",
+    "sdks/python/oss/tests/pytest/unit/test_secrets_manager_custom_provider_ssrf.py",
+    "services/runner/README.md",
+    "services/runner/src/tracing/output-budget.ts",
+    "services/runner/tests/unit/output-budget.test.ts",
+    "web/mobile/src/features/automations/useUnsavedGuard.ts"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 46,
+    "cache_creation_tokens": 27331,
+    "cache_read_tokens": 6354773,
+    "output_tokens": 10512,
+    "api_call_count": 22
+  },
+  "redaction": {
+    "replacements": 52,
+    "layers": {
+      "betterleaks": 2,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 5,
+      "credentialed_uri": 0,
+      "entropy": 45,
+      "key_context": 0,
+      "provider_token": 3,
+      "shell_stdin": 0
+    }
+  }
+}
