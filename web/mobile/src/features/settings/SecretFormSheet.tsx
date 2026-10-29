@@ -6,6 +6,8 @@ import {
     type CustomSecretContent,
     type NamedSecretRow,
 } from "@agenta/entities/secret"
+import {OwnerRadioGroup} from "@agenta/entity-ui/secret"
+import type {AccountOwner} from "@agenta/settings-ui"
 import {slugifyName} from "@agenta/shared/utils"
 import {
     Button,
@@ -52,11 +54,20 @@ export const SecretFormSheet = ({
     open,
     secret,
     onClose,
+    owners,
+    projectName,
 }: {
     open: boolean
     /** The row being edited, or null when creating. */
     secret: NamedSecretRow | null
     onClose: () => void
+    /**
+     * Who may own a new secret; the first is the default. Two ask "Who can use it", one is used
+     * without asking, absent is the project's (today's behaviour). An edit keeps the row's owner.
+     */
+    owners?: AccountOwner[]
+    /** The current project's name, for "Everyone in {project}". */
+    projectName?: string
 }) => {
     const {handleModifyNamedSecret} = useVaultSecret()
 
@@ -67,6 +78,7 @@ export const SecretFormSheet = ({
     const [value, setValue] = useState("")
     const [error, setError] = useState<string | null>(null)
     const [saving, setSaving] = useState(false)
+    const [owner, setOwner] = useState<AccountOwner>(owners?.[0] ?? "project")
 
     const isEditing = Boolean(secret?.id)
 
@@ -75,6 +87,7 @@ export const SecretFormSheet = ({
         setError(null)
         setSlugTouched(false)
         setSaving(false)
+        setOwner(owners?.[0] ?? "project")
         setName(secret?.name ?? "")
         setSlug(secret?.slug ?? "")
         setFormat(secret?.format ?? CustomSecretFormat.Text)
@@ -85,6 +98,8 @@ export const SecretFormSheet = ({
         } else {
             setValue(typeof secret.content === "string" ? secret.content : "")
         }
+        // `owners` is read when the sheet opens; a change while it is open must not reset it.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open, secret])
 
     // On create the slug follows the name until it is edited directly.
@@ -102,6 +117,8 @@ export const SecretFormSheet = ({
         }
         setError(null)
         setSaving(true)
+        // An edit keeps the row's owner; a new secret takes the chosen one.
+        const ownerKind = isEditing ? secret?.ownerKind : owner === "user" ? "user" : undefined
         try {
             await handleModifyNamedSecret({
                 ...(secret ?? {}),
@@ -111,6 +128,7 @@ export const SecretFormSheet = ({
                 slug: isEditing ? undefined : slug.trim(),
                 format,
                 content: isJson ? (parsed?.content ?? {}) : value,
+                ownerKind,
             } as NamedSecretRow)
             onClose()
         } catch (cause) {
@@ -205,6 +223,31 @@ export const SecretFormSheet = ({
                             className="w-full rounded-md border border-input bg-transparent px-3 py-2 font-mono text-sm shadow-xs outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-input/30"
                         />
                     </Field>
+
+                    {!isEditing && owners && owners.length > 1 ? (
+                        // Not a <Field>: its <label> would wrap the radios' own labels.
+                        <div className="flex flex-col gap-1.5">
+                            <span className="text-sm font-medium text-foreground">
+                                Who can use it
+                            </span>
+                            <OwnerRadioGroup<AccountOwner>
+                                value={owner}
+                                onChange={setOwner}
+                                options={[
+                                    {
+                                        value: "user",
+                                        label: "Only me",
+                                        note: "You pick it when an agent asks for your own value.",
+                                    },
+                                    {
+                                        value: "project",
+                                        label: `Everyone in ${projectName ?? "this project"}`,
+                                        note: "Builders can attach it to agents in this project.",
+                                    },
+                                ]}
+                            />
+                        </div>
+                    ) : null}
 
                     {error ? <p className="m-0 text-sm text-colorError">{error}</p> : null}
                 </div>

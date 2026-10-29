@@ -47,10 +47,13 @@ export const personalAccountsAccessAtom = atom<PersonalAccountsAccess>((get) => 
     return "loading"
 })
 
-/** The caller's own named secrets, for the Secrets page and the agent's "Account" select. */
-export const personalNamedSecretsAtom = atom<NamedSecretRow[]>(
-    (get) =>
-        (get(personalSecretsQueryAtom).data ?? []).filter(
-            (secret) => secret.type === SecretKind.CustomSecret,
-        ) as NamedSecretRow[],
+/**
+ * The caller's own named secrets, for the Secrets page and the agent's "Account" select. Each
+ * row is marked as the person's, so an edit or a delete names the owner on its route even when
+ * the response leaves the owner out.
+ */
+export const personalNamedSecretsAtom = atom<NamedSecretRow[]>((get) =>
+    (get(personalSecretsQueryAtom).data ?? [])
+        .filter((secret) => secret.type === SecretKind.CustomSecret)
+        .map((secret) => ({...(secret as NamedSecretRow), ownerKind: "user" as const})),
 )
