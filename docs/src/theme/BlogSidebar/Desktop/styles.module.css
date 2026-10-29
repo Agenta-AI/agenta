@@ -1,8 +1,32 @@
-/* One line per release; long titles truncate (the full title is in the
-   link's title attribute). Height and padding come from .menu__link. */
+/* Date over a one-line title; the full title is in the link's
+   title attribute. */
 .link {
-  display: block;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+  text-align: left;
+  height: auto;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+.date {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--contenttertiary);
+}
+
+.title {
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 13.5px;
+  line-height: 19px;
+}
+
+/* Room between the Releases heading and the first entry. */
+.item:first-child {
+  margin-top: 8px;
 }

@@ -235,11 +235,7 @@ interface LiveLine {
 
 /** What the collapsed line narrates for a step, in words and in the dots' motion. */
 const liveStep = (step: ActivityStep): LiveLine => {
-    if (step.kind === "thought") {
-        return step.source === "text"
-            ? {text: "Writing", format: "writing"}
-            : {text: "Thinking", format: "thinking"}
-    }
+    if (step.kind === "thought") return {text: "Thinking", format: "thinking"}
     // Reached only once the wait is over, so a gate still `approval-requested` here was just answered.
     const display = resolveToolDisplay(
         partToolName(step.part),
@@ -257,6 +253,8 @@ export interface ActivityTimelineProps {
     streaming: boolean
     /** The answer has begun: the fold settles even though the turn is still streaming. */
     answerStarted: boolean
+    /** The agent is writing a message right now. */
+    writing?: boolean
     /** The session whose turn stage the line narrates until the first step. */
     sessionId?: string
     /** The run is parked on the reader (a question, a connect). */
@@ -271,6 +269,8 @@ export interface ActivityTimelineProps {
      * already in progress, whose start has to come from the trace. Defaults to true: a caller
      * that cannot tell is a caller whose turn began here. */
     streamedHere?: boolean
+    /** When the server saved the user message that opened this run (ms). */
+    runStartedAt?: number
     /** Renders a client tool's widget in its step; absent on a read-only host. */
     renderClientTool?: (part: ToolUIPart) => ReactNode
     /** The run failed: the header names it and the server's raw text is the fold's last step. */
@@ -291,12 +291,14 @@ export const ActivityTimeline = ({
     steps,
     streaming,
     answerStarted,
+    writing = false,
     sessionId,
     waitingOnUser = false,
     resuming = false,
     hadGate: recordedGate = false,
     traceId,
     streamedHere = true,
+    runStartedAt,
     renderClientTool,
     failure,
 }: ActivityTimelineProps) => {
@@ -323,16 +325,23 @@ export const ActivityTimeline = ({
     // An open clock inherited on mount may have missed a gate while this timeline was absent.
     const inheritedRunningClock = useRef(Boolean(span && span.endedAt === undefined))
     const hadGate = Boolean(
-        recordedGate ||
-        (span && span.pausedMs > 0) ||
-        resuming ||
-        waitingOnUser ||
-        steps.some(stepHadGate),
+        recordedGate || span?.gated || resuming || waitingOnUser || steps.some(stepHadGate),
     )
-    const startedAt =
-        metMidFlight && !hadGate ? parseTraceTime(trace.rootSpan?.start_time) : undefined
-    // The clock counts the agent's work: from the first step, paused while parked on the reader.
-    const measured = useTurnClock(clockId, live && !awaiting && steps.length > 0, startedAt)
+    // The saved user row is when the run began: before warm-up and before the first step this tab
+    // can see. Only a run streamed here may use it with a gate, because only then were all its
+    // pauses counted here.
+    const fromSend = runStartedAt !== undefined && (streamedHere || !hadGate)
+    const startedAt = fromSend
+        ? runStartedAt
+        : metMidFlight && !hadGate
+          ? parseTraceTime(trace.rootSpan?.start_time)
+          : undefined
+    // The clock counts the agent's work: from the run's start, paused while parked on the reader.
+    const measured = useTurnClock(clockId, live && !awaiting && steps.length > 0, {
+        startedAt,
+        seenFromSend: fromSend && streamedHere,
+        waitingOnReader: awaiting,
+    })
     // A tab that joined later cannot account for earlier waits. A clock already anchored to
     // the trace start is also unsafe if gate history arrives after that start was applied.
     const counted =
@@ -378,7 +387,8 @@ export const ActivityTimeline = ({
 
     // A failure shows only once the run is over: a live line still narrates the work.
     const failed = !live && failure ? failure : null
-    if (!steps.length && !live && !failed) return null
+    // A run parked on the reader still says so, even with no step to fold.
+    if (!steps.length && !live && !failed && !awaiting) return null
 
     const count = steps.length
     const detail = failed?.detail || null
@@ -397,7 +407,7 @@ export const ActivityTimeline = ({
             ? {text: stageWord, format: "working"}
             : resuming && !current
               ? {text: "Working", format: "working"}
-              : answerStarted && !current
+              : writing && !current
                 ? {text: "Answering", format: "writing"}
                 : idle || !verbStep
                   ? {text: "Working", format: "working"}
