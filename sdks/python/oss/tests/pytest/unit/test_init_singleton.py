@@ -105,7 +105,7 @@ def test_init_api_url_host_parsing(reset_singleton, api_url, expected_host):
     assert singleton.tracing.otlp_url == f"{expected_host}/api/otlp/v1/traces"
 
 
-def test_get_trace_url_does_not_corrupt_host_named_api(monkeypatch):
+def test_get_trace_url_does_not_corrupt_host_named_api(reset_singleton, monkeypatch):
     """get_trace_url() builds web_url from api_url; a host literally named
     'api' must survive the '/api' strip instead of being corrupted to 'http://:8000'.
 
@@ -114,20 +114,10 @@ def test_get_trace_url_does_not_corrupt_host_named_api(monkeypatch):
     """
     from agenta.sdk.utils.helpers import strip_trailing_api_segment
 
-    # Reset the singleton that get_trace_url() actually reads.
-    singleton = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE
-    singleton.host = None
-    singleton.api_url = None
-    singleton.api_key = None
-    singleton.scope_type = None
-    singleton.scope_id = None
-    singleton.organization_id = None
-    singleton.workspace_id = None
-    singleton.project_id = None
-    singleton.tracing = None
-    singleton.api = None
-    singleton.async_api = None
-    Singleton._instances.pop(Tracing, None)
+    # get_trace_url() reads ag.DEFAULT_AGENTA_SINGLETON_INSTANCE, so point it at a
+    # fresh instance for this test. monkeypatch restores it afterwards.
+    singleton = AgentaSingleton()
+    monkeypatch.setattr(ag, "DEFAULT_AGENTA_SINGLETON_INSTANCE", singleton)
 
     # Keep the parser deterministic.
     monkeypatch.delenv("DOCKER_NETWORK_MODE", raising=False)
@@ -166,22 +156,12 @@ def test_init_query_string_api_url_produces_wellformed_otlp_url(reset_singleton)
     assert singleton.tracing.otlp_url == ("https://cloud.agenta.ai/api/otlp/v1/traces")
 
 
-def test_get_trace_url_with_query_string_api_url(monkeypatch):
+def test_get_trace_url_with_query_string_api_url(reset_singleton, monkeypatch):
     """get_trace_url() must build a clean web_url from a query-bearing api_url."""
-    # Reset the singleton that get_trace_url() actually reads.
-    singleton = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE
-    singleton.host = None
-    singleton.api_url = None
-    singleton.api_key = None
-    singleton.scope_type = None
-    singleton.scope_id = None
-    singleton.organization_id = None
-    singleton.workspace_id = None
-    singleton.project_id = None
-    singleton.tracing = None
-    singleton.api = None
-    singleton.async_api = None
-    Singleton._instances.pop(Tracing, None)
+    # get_trace_url() reads ag.DEFAULT_AGENTA_SINGLETON_INSTANCE, so point it at a
+    # fresh instance for this test. monkeypatch restores it afterwards.
+    singleton = AgentaSingleton()
+    monkeypatch.setattr(ag, "DEFAULT_AGENTA_SINGLETON_INSTANCE", singleton)
 
     monkeypatch.delenv("DOCKER_NETWORK_MODE", raising=False)
     monkeypatch.delenv("AGENTA_API_URL", raising=False)
@@ -217,9 +197,7 @@ def test_init_host_only_with_query_string_produces_clean_host_and_otlp_url(
 
     assert singleton.host == "https://cloud.agenta.ai"
     assert "tenant=x" not in singleton.host
-    assert singleton.tracing.otlp_url == (
-        "https://cloud.agenta.ai/api/otlp/v1/traces"
-    )
+    assert singleton.tracing.otlp_url == ("https://cloud.agenta.ai/api/otlp/v1/traces")
     assert "tenant=x" not in singleton.tracing.otlp_url
 
 
@@ -269,7 +247,9 @@ def test_resolve_scopes_uses_query_free_api_url(reset_singleton, monkeypatch):
     assert "tenant=x" not in captured["url"]
 
 
-def test_trailing_slash_before_query_does_not_produce_double_slash(reset_singleton, monkeypatch):
+def test_trailing_slash_before_query_does_not_produce_double_slash(
+    reset_singleton, monkeypatch
+):
     """A trailing slash before the query (e.g. "/api/?tenant=x") must not survive
     into self.api_url — otherwise resolve_scopes() produces a double-slash URL
     like ".../api//projects/current" when it concatenates the next path segment."""
