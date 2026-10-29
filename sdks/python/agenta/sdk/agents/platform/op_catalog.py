@@ -1239,7 +1239,8 @@ _TRIGGER_INPUTS_FIELDS_SCHEMA: Dict[str, Any] = {
         "Put only the task in `messages`, not schedule/trigger metadata, timing checks, or "
         "skip-run guards. Configure when to run in the schedule or trigger settings. The "
         "agent reads only `messages`. For subscriptions, the event is added to the last "
-        "user message by default, so do not map it under a sibling key."
+        "user message in `messages` by default, so do not map it under a sibling key. "
+        "When this field is omitted, no message carries the event."
     ),
     "anyOf": [
         {"type": "object", "additionalProperties": True},
