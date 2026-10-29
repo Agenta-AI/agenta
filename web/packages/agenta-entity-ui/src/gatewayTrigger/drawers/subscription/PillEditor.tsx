@@ -35,7 +35,7 @@ export function PillEditor({
             span.dataset.token = inner
             span.contentEditable = "false"
             span.className =
-                "mx-0.5 inline-flex select-none items-center gap-1 rounded bg-[var(--ag-colorPrimaryBg)] px-1.5 py-0.5 text-xs font-medium text-[var(--ag-colorPrimary)]"
+                "mx-0.5 inline-flex select-none items-center gap-1 rounded-md border border-solid border-border bg-muted px-1.5 py-0.5 text-xs font-medium text-foreground"
             span.appendChild(document.createTextNode(label))
             const remove = document.createElement("button")
             remove.type = "button"

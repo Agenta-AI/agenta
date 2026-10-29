@@ -97,7 +97,7 @@ The Instruction field SHALL show a checkbox labeled "Also attach the full event,
 
 ### Requirement: What the agent gets preview
 
-The Instruction field SHALL show a "What the agent gets" preview of the message. Pills SHALL show values from `data.event` of the newest delivery that has one, with the same text rule as the dispatcher (a string unchanged, an absent or null value empty, any other value as compact JSON), else their labels. When the checkbox is on, the preview SHALL show that the full event is added, with its JSON when a delivery has one.
+The Instruction field SHALL show a "What the agent gets" preview of the message. Pills SHALL show values from `data.event` of the newest delivery that has one, with the same text rule as the dispatcher (a string unchanged, an absent or null value empty, any other value as compact JSON), else their labels. When the checkbox is on and a delivery has `data.event`, the preview SHALL show the event text with its JSON. The preview SHALL show the same text Run now sends.
 
 #### Scenario: With a delivery
 
@@ -107,7 +107,7 @@ The Instruction field SHALL show a "What the agent gets" preview of the message.
 #### Scenario: Without a delivery
 
 - **WHEN** no delivery has `data.event`
-- **THEN** the pills show their labels and the preview states that the full event is added when one arrives
+- **THEN** the pills show their labels in square brackets and the preview has no event text, because Run now sends none
 
 #### Scenario: Quoted key
 

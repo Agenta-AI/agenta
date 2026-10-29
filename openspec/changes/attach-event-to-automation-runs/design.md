@@ -229,7 +229,8 @@ Two limits on Run now:
   warning line, and Run now sends today's text (`getScheduleMessagePreview` of the stored
   inputs). This keeps today's behavior for agent-made mappings and avoids a second general
   message builder in the frontend. `parseMessageTemplate` must tell this case apart from an
-  empty instruction.
+  empty instruction. Run now has no agent schema, so a mapping without a `messages` list (a
+  completion agent's input key, reachable only through the API) also sends today's text.
 - **The newest event is read when the user presses Run now**, with one awaited call to
   `queryTriggerDeliveries`. A pure function, `latestDeliveryEvent(deliveries)`, picks the
   newest delivery that has `data.event`. The preview calls the same function on the rows of
