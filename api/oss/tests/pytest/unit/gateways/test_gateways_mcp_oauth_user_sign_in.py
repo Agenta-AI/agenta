@@ -248,3 +248,128 @@ async def test_delete_sign_ins_removes_every_persons_row_at_the_slugs():
 
     assert deleted == 2
     assert vault.person_rows == {}
+
+
+# --- the person's own grant: written at the callback, renewed in place ------------ #
+
+
+def _service_with(handler):
+    attempts = InMemoryMCPOAuthAttemptsDAO()
+    vault = PersonRowsVaultService(secrets_dao=_FakeSecretsDAO())
+    endpoints = InMemoryMCPEndpoints(attempts=attempts)
+    service = MCPOAuthConnectService(
+        vault_service=vault,
+        client=MCPOAuthClient(transport=httpx.MockTransport(handler)),
+        api_url=_API_URL,
+        attempts_dao=attempts,
+        endpoints_dao=endpoints,
+        resolve=_private_resolve,
+    )
+    return service, vault, endpoints
+
+
+@pytest.mark.asyncio
+async def test_a_persons_consent_writes_their_own_grant_and_binds_nothing():
+    service, vault, endpoints = _service_with(_mock_as_handler())
+    organization_id, project_id, person, endpoint_id = (
+        uuid4(),
+        uuid4(),
+        uuid4(),
+        uuid4(),
+    )
+
+    start = await service.begin(
+        project_id=project_id,
+        user_id=person,
+        endpoint_id=endpoint_id,
+        server_url=_SERVER_URL,
+        scopes=["read"],
+        owner_kind=SecretOwnerKind.USER,
+    )
+    attempt = await service.claim(state=start.state, caller_user_id=person)
+    completion = await service.complete(
+        attempt=attempt, code="code-1", organization_id=organization_id
+    )
+
+    grant = vault.person_rows[(organization_id, person, grant_slug(endpoint_id))]
+    assert completion.secret_id == grant.id
+    assert grant.kind == SecretKind.OAUTH_GRANT
+    assert grant.data.grant.access_token == "tok-xyz"
+    # No project grant, and the server still names no grant of its own.
+    assert not [
+        r for _, r in vault.secrets_dao.records if r.kind == SecretKind.OAUTH_GRANT
+    ]
+    assert endpoints.endpoints.get(endpoint_id) is None or (
+        endpoints.endpoints[endpoint_id].secret_id is None
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_persons_consent_needs_the_organization():
+    service, _, _ = _service_with(_mock_as_handler())
+    person = uuid4()
+    start = await service.begin(
+        project_id=uuid4(),
+        user_id=person,
+        endpoint_id=uuid4(),
+        server_url=_SERVER_URL,
+        scopes=["read"],
+        owner_kind=SecretOwnerKind.USER,
+    )
+    attempt = await service.claim(state=start.state, caller_user_id=person)
+
+    with pytest.raises(ValueError):
+        await service.complete(attempt=attempt, code="c")
+
+
+@pytest.mark.asyncio
+async def test_a_persons_grant_is_renewed_in_their_own_row():
+    from oss.tests.pytest.unit.gateways.test_gateways_mcp_oauth_service import (
+        _refreshing_as_handler,
+    )
+    from mcp.shared.auth import OAuthToken
+
+    from oss.src.core.gateways.mcps.oauth.storage import SecretsTokenStorage
+    from oss.src.core.secrets.dtos import SecretOwner
+
+    calls = []
+    service, vault, _ = _service_with(_refreshing_as_handler(calls=calls))
+    organization_id, project_id, person, endpoint_id = (
+        uuid4(),
+        uuid4(),
+        uuid4(),
+        uuid4(),
+    )
+    owner = SecretOwner.for_user(organization_id=organization_id, user_id=person)
+    storage = SecretsTokenStorage(
+        vault_service=vault,
+        project_id=project_id,
+        server_url=_SERVER_URL,
+        endpoint_id=endpoint_id,
+        authorization_server="https://auth.acme.io/",
+        grant_owner=owner,
+    )
+    seeded = await storage.write_tokens(
+        OAuthToken(
+            access_token="stale",
+            token_type="Bearer",
+            expires_in=-60,
+            refresh_token="renew-me",
+        )
+    )
+
+    await service.refresh_grant(
+        project_id=project_id,
+        endpoint_id=endpoint_id,
+        server_url=_SERVER_URL,
+        grant_owner=owner,
+    )
+
+    assert calls == ["refresh_token"]
+    renewed = vault.person_rows[(organization_id, person, grant_slug(endpoint_id))]
+    assert renewed.id == seeded.id
+    assert renewed.data.grant.access_token == "renewed-1"
+    assert renewed.data.grant.refresh_token == "renew-me"
+    assert not [
+        r for _, r in vault.secrets_dao.records if r.kind == SecretKind.OAUTH_GRANT
+    ]

@@ -110,7 +110,7 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         self._resolve_kwargs = {"resolve": resolve} if resolve is not None else {}
         # One lock per connection, for as long as a refresh is using it. See
         # `refresh_grant`.
-        self._refresh_locks: Dict[Tuple[UUID, UUID], _RefreshLock] = {}
+        self._refresh_locks: Dict[Tuple[UUID, UUID, Optional[UUID]], _RefreshLock] = {}
 
     async def discover(self, *, server_url: str) -> MCPOAuthDiscovery:
         return await self.client.discover(server_url=server_url)
@@ -480,9 +480,19 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         Raises `MCPOAuthAttemptCancelledError` when the attempt no longer applies, and the
         exchange's own refusal, recorded as the attempt's failure, when it fails.
         """
+        for_person = attempt.owner_kind == SecretOwnerKind.USER
+        if for_person and organization_id is None:
+            raise ValueError("a person's sign-in is written in their organization")
+        grant_owner = (
+            SecretOwner.for_user(
+                organization_id=organization_id, user_id=attempt.user_id
+            )
+            if for_person
+            else None
+        )
         try:
             storage, client_id, tokens = await self._exchange(
-                attempt=attempt, code=code
+                attempt=attempt, code=code, grant_owner=grant_owner
             )
         except MCPOAuthAttemptCancelledError:
             await self.settle(attempt=attempt, status=MCPOAuthAttemptStatus.CANCELLED)
@@ -521,6 +531,19 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
                 # the authorization server that actually issued it. `refresh_grant` requires
                 # that pin to still hold before it presents the refresh token anywhere.
                 grant = await storage.write_tokens(tokens, client_id=client_id)
+                if for_person:
+                    # A person's own grant: the server row names the project's grant
+                    # only, so nothing is bound.
+                    await self.settle(
+                        attempt=attempt, status=MCPOAuthAttemptStatus.CONNECTED
+                    )
+                    return MCPOAuthCompletion(
+                        project_id=attempt.project_id,
+                        user_id=attempt.user_id,
+                        endpoint_id=attempt.endpoint_id,
+                        server_url=attempt.server_url,
+                        secret_id=grant.id,
+                    )
                 bound = await self.endpoints_dao.bind_endpoint_secret(
                     project_id=attempt.project_id,
                     user_id=attempt.user_id,
@@ -559,7 +582,11 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         )
 
     async def _exchange(
-        self, *, attempt: MCPOAuthAttempt, code: str
+        self,
+        *,
+        attempt: MCPOAuthAttempt,
+        code: str,
+        grant_owner: Optional[SecretOwner] = None,
     ) -> Tuple[SecretsTokenStorage, str, OAuthToken]:
         """Spend the code at the token endpoint the attempt recorded.
 
@@ -581,6 +608,7 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
             # registration to present is the one `begin()` resolved, and the deployment's
             # address could have changed since the browser left.
             redirect_uri=attempt.redirect_uri,
+            grant_owner=grant_owner,
         )
 
         if attempt.strategy == "document":
@@ -753,7 +781,13 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
     # Refresh
 
     @asynccontextmanager
-    async def _refresh_lock(self, *, project_id: UUID, endpoint_id: UUID):
+    async def _refresh_lock(
+        self,
+        *,
+        project_id: UUID,
+        endpoint_id: UUID,
+        grant_owner: Optional[SecretOwner] = None,
+    ):
         """Hold this connection's refresh lock, and drop it when nobody is left holding it.
 
         The dictionary used to be `setdefault` with no removal, so a worker accumulated
@@ -766,7 +800,9 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         between the lookup and the increment runs without awaiting, so no other coroutine
         can interleave and find the entry mid-registration.
         """
-        key = (project_id, endpoint_id)
+        # Per grant: two people's grants at one server renew without waiting on each
+        # other in this worker.
+        key = (project_id, endpoint_id, grant_owner.id if grant_owner else None)
         entry = self._refresh_locks.get(key)
         if entry is None:
             entry = _RefreshLock()
@@ -816,7 +852,11 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         handed one.
         """
         async with (
-            self._refresh_lock(project_id=project_id, endpoint_id=endpoint_id),
+            self._refresh_lock(
+                project_id=project_id,
+                endpoint_id=endpoint_id,
+                grant_owner=grant_owner,
+            ),
             self.endpoints_dao.oauth_lock(
                 project_id=project_id, endpoint_id=endpoint_id
             ),
@@ -826,6 +866,7 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
                 project_id=project_id,
                 server_url=server_url,
                 endpoint_id=endpoint_id,
+                grant_owner=grant_owner,
             )
 
             stored = await storage.get_grant()
