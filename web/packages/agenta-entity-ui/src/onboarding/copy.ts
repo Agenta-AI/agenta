@@ -64,3 +64,29 @@ export const SETUP_COPY = {
     create: "Create agent",
     dismiss: "Cancel setup",
 } as const
+
+/**
+ * The chat's "Connect your accounts" card (approved board `chat-connect-card`): the title, the
+ * badge, the footer line and "Continue" are approved. The row texts are drafts from spec 5.3.
+ */
+export const PERSONAL_SETUP_COPY = {
+    title: "Connect your accounts",
+    badge: "Optional",
+    footnote: "Connect these now, or the agent will ask later.",
+    continue: "Continue",
+    dismiss: "Close",
+    // Drafts.
+    chooseAccount: (name: string) => `Choose which of your ${name} accounts to use`,
+    connectAccount: (name: string) => `Connect your ${name} account`,
+    signIn: (name: string) => `Sign in to ${name} with your own account`,
+    chooseSecret: (envVar: string) => `Choose your value for ${envVar}`,
+    noSecretYet: "Add a secret of your own in Settings, then choose it here.",
+    connect: "Connect",
+    connectAnother: "Connect another",
+    signInAction: "Sign in",
+    defaultMark: "Default",
+    connected: "Connected",
+    signedIn: "Signed in as you",
+    chosen: "Chosen",
+    failed: "That did not work. Try again.",
+} as const
