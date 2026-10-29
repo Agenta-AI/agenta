@@ -468,6 +468,12 @@ export interface SessionEnvironment {
    * cwd mount with the same TTL, so their expiry is never the minimum.
    */
   installedMountExpiries: InstalledMountExpiries;
+  /**
+   * True from the end of the acquire's mounts until the first turn starts. That turn skips the
+   * turn-start refresh of the drive views, because the mounts are seconds old. See
+   * `refreshDriveViewsAtTurnStart`.
+   */
+  driveViewsFresh?: boolean;
   durableCwdSafeToDelete: boolean;
   workspace: { cleanup: () => Promise<void> } | undefined;
   runtimeRemount: Promise<boolean> | undefined;

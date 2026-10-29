@@ -9,6 +9,7 @@ import type {
 import {
   PI_TRACE_MAX_BATCH_BYTES,
   PI_TRACE_MAX_FILES,
+  piTraceDoneFileName,
   piTraceFileName,
 } from "./pi-spool-protocol.ts";
 
@@ -20,10 +21,15 @@ export interface PiFileSpanExporterOptions {
   log?: (message: string) => void;
 }
 
+export interface PiFileSpanExporter extends SerializedTraceBatchTransport {
+  /** Mark the turn's trace as complete. Call it after the final flush. */
+  publishDone(): void;
+}
+
 /** Pi-side transport: publish exact OTLP protobuf bytes through an atomic sibling rename. */
 export function createPiFileSpanExporter(
   options: PiFileSpanExporterOptions,
-): SerializedTraceBatchTransport {
+): PiFileSpanExporter {
   const log = options.log ?? (() => {});
   const maxBatchBytes = Math.min(
     PI_TRACE_MAX_BATCH_BYTES,
@@ -71,6 +77,22 @@ export function createPiFileSpanExporter(
         }
         log(
           `stage=pi_trace_publish failed=true sequence=${sequence} error=${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    },
+    publishDone(): void {
+      try {
+        mkdirSync(options.directory, { recursive: true });
+        writeFileSync(
+          join(options.directory, piTraceDoneFileName(options.channelId)),
+          "",
+          { mode: 0o600 },
+        );
+      } catch (error) {
+        log(
+          `stage=pi_trace_publish done_failed=true error=${
             error instanceof Error ? error.message : String(error)
           }`,
         );
