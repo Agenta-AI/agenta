@@ -2,7 +2,7 @@
  * Row 2 of the Files pane, following the selection: a folder (grid / list · sort · ⋯), a markdown
  * file (formatting bar · save status · mode · ⋯) or any other file (name · save status · ⋯).
  */
-import {useEffect, type ReactNode} from "react"
+import {useEffect, useRef, type ReactNode} from "react"
 
 import {
     type DriveEditorMode,
@@ -11,6 +11,8 @@ import {
     type DriveSortKey,
     type DriveViewMode,
 } from "@agenta/entities/drive"
+import {isCommentModeChord} from "@agenta/shared/previewPicker"
+import {getShortcut, isOnScreen, isOverlayOpen, shortcutText} from "@agenta/shared/utils"
 import {
     Button,
     DropdownMenu,
@@ -268,21 +270,37 @@ const isTyping = (target: EventTarget | null): boolean =>
     target instanceof HTMLElement &&
     (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))
 
-/** Turns comment mode on and off; Esc anywhere on the page outside a text field turns it off. */
+// A note or pin card handles its own Esc.
+const inCommentUi = (target: EventTarget | null): boolean =>
+    target instanceof Element && !!target.closest("[data-quote-ignore]")
+
+/** Alt+M turns comment mode on and off; Esc outside a text field, note or menu turns it off. */
 const CommentToggle = () => {
     const {enabled, setEnabled} = usePreviewCommentMode()
+    const buttonRef = useRef<HTMLButtonElement>(null)
     useEffect(() => {
-        if (!enabled) return
         const onKeyDown = (e: KeyboardEvent) => {
-            if (e.key !== "Escape" || e.defaultPrevented || isTyping(e.target)) return
+            // Sessions stay mounted behind display:none; only the visible pane answers.
+            if (!isOnScreen(buttonRef.current)) return
+            if (isCommentModeChord(e)) {
+                e.preventDefault()
+                setEnabled(!enabled)
+                return
+            }
+            // No defaultPrevented check: an open tooltip claims Esc and left the mode on.
+            if (!enabled || e.key !== "Escape") return
+            if (isTyping(e.target) || inCommentUi(e.target) || isOverlayOpen()) return
             setEnabled(false)
         }
         document.addEventListener("keydown", onKeyDown)
         return () => document.removeEventListener("keydown", onKeyDown)
     }, [enabled, setEnabled])
     return (
-        <Tooltip title="Comment on the preview (Esc to stop)">
+        <Tooltip
+            title={`Comment on the preview (${shortcutText(getShortcut("drive.comment")!)}, Esc to stop)`}
+        >
             <Button
+                ref={buttonRef}
                 variant="ghost"
                 size="icon-sm"
                 aria-label="Comment"

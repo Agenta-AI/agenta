@@ -239,6 +239,9 @@ function bridgeStub(installPicker: typeof installPreviewPicker): void {
         } else if (
             data.type === "pick-start" ||
             data.type === "pick-stop" ||
+            data.type === "pick-hold" ||
+            data.type === "pick-keys" ||
+            data.type === "pin-reveal" ||
             data.type === "pins"
         ) {
             var inbound = data as Record<string, unknown>
