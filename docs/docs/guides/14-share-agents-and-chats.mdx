@@ -108,7 +108,7 @@ Before you share an agent with the project, Agenta shows a similar notice: every
 ## Limits
 
 - **Credentials already issued.** When you remove someone's access, file storage and gateway credentials that Agenta already issued to them keep working until they expire, after up to 12 hours. Their next request for a new credential is refused.
-- **Traces.** Unless trace privacy is on for your deployment, project members who can read traces can read the traces of a private chat. With trace privacy on, they read only the traces of chats they can open, also after a private chat is deleted, and the observability totals show as partial when they leave traces out.
+- **Traces.** Unless trace privacy is on for your deployment, project members who can read traces can read the traces of a private chat. With trace privacy on, they read only the traces of chats they can open, also after a private chat is deleted, and the observability totals show as partial when they leave traces out. Spans that your own code sends with the id of an Agenta chat follow that chat: when the chat is private, those traces are private too.
 - **Delay.** A sharing change applies to the next request. If Agenta cannot clear its cache, a change can take up to 300 seconds. An open chat stream checks access again every 60 seconds.
 - **Running turns.** A turn that is already running finishes. The change applies to the next turn.
 - **API keys and channels.** Agents and chats created with an API key are always shared with the project and have no owner. Chats from Slack or Telegram with a shared agent are too. Everyone in the project can send to these chats in Agenta.
