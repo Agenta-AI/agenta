@@ -15,6 +15,7 @@
  */
 
 import { execFile, spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { promisify } from "node:util";
 
 import {
@@ -351,6 +352,8 @@ export interface MountStorageDeps {
     env: Record<string, string>,
   ) => Promise<{ stop: () => Promise<void> } | void>;
   checkMounted?: (cwd: string) => Promise<boolean>;
+  /** The FUSE device path to check before a real mount attempt. Tests point it elsewhere. */
+  fuseDevice?: string;
   /** Opt-in geesefs behaviors; absent keeps today's argv. */
   geesefs?: GeesefsOptions;
   /** Injectable command/probe seams while retaining production unmountStorage behavior. */
@@ -368,6 +371,8 @@ export interface MountStorageDeps {
  * caller then proceeds on the plain (ephemeral) cwd. Throws when detach is mounted/inconclusive,
  * because recursive ephemeral cleanup must never target a possibly-live FUSE mount.
  */
+let fuseMissingLogged = false;
+
 export async function mountStorage(
   cwd: string,
   creds: MountCredentials,
@@ -377,6 +382,20 @@ export async function mountStorage(
   const checkMounted = deps.checkMounted ?? ((c: string) => isMounted(c, log));
   const signal = deps.signal;
   throwIfAcquireAborted(signal);
+
+  // A host without FUSE (Kubernetes without a FUSE device, e.g. GKE Autopilot) can never mount.
+  // geesefs would exit at once, and the run falls back to throwaway storage either way, so skip
+  // the attempt and say so once per runner process. An injected attempt (tests) mounts no FUSE.
+  if (!deps.runGeesefs && !existsSync(deps.fuseDevice ?? "/dev/fuse")) {
+    if (!fuseMissingLogged) {
+      fuseMissingLogged = true;
+      log(
+        "WARN no /dev/fuse on this runner host: local drive mounts are skipped and runs use " +
+          "throwaway storage. Give the runner a FUSE device to keep files between sessions.",
+      );
+    }
+    return false;
+  }
 
   log(
     `mountStorage begin cwd=${cwd} bucket=${creds.bucket} prefix=${creds.prefix} ` +

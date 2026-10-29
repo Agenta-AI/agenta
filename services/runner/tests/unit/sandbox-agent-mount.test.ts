@@ -538,6 +538,27 @@ describe("mountStorage readiness", () => {
   });
 });
 
+describe("mountStorage without FUSE", () => {
+  it("returns false at once, without probing or starting geesefs, and warns once", async () => {
+    const logs: string[] = [];
+    let checks = 0;
+    const deps = {
+      fuseDevice: "/nonexistent/fuse-device",
+      checkMounted: async () => {
+        checks += 1;
+        return false;
+      },
+      log: (m: string) => logs.push(m),
+    };
+    const started = Date.now();
+    assert.equal(await mountStorage("/work/cwd", CREDS, deps), false);
+    assert.equal(await mountStorage("/work/cwd-agent", CREDS, deps), false);
+    assert.ok(Date.now() - started < 1_000);
+    assert.equal(checks, 0);
+    assert.ok(logs.filter((l) => l.includes("no /dev/fuse")).length <= 1);
+  });
+});
+
 describe("waitForMountReady", () => {
   const clock = () => {
     let t = 0;

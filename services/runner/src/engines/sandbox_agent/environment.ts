@@ -769,10 +769,12 @@ async function acquireEnvironmentOnce(
       environment.agentMountCreds && plan.driveOnRunner
         ? mountLocalAgentCwd(cwdMount)
         : undefined;
+    const localMountsStartedAt = Date.now();
     const [cwdResult, agentResult] = await Promise.allSettled([
       cwdMount,
       agentMount,
     ]);
+    if (cwdMount || agentMount) timingLog("mounts", localMountsStartedAt);
     if (cwdResult.status === "rejected") throw cwdResult.reason;
     if (agentResult.status === "rejected") throw agentResult.reason;
     if (cwdResult.value && piSessionDir) environment.nativeHistoryDurable = true;
