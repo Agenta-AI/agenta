@@ -280,6 +280,31 @@ function stripViewParam(pathname: string, search: string): string {
     return qs ? `${pathname}?${qs}` : pathname
 }
 
+/**
+ * SuperTokens' cookie-mode session cookies that reach a page request (both on path `/`). Either
+ * one means a session exists; the gate never validates it, the app does that after it loads.
+ */
+const SESSION_COOKIES = ["sAccessToken", "sFrontToken"]
+
+/**
+ * Where a signed-out visitor with no Classic mode preference signs in, or `null` to stay.
+ *
+ * Only the entry points move: bare `/w` (where `/` redirects) and `/auth`. A deep link keeps the
+ * desktop sign-in, which returns the user to it (`?redirectToPath=`); `/m`'s sign-in always lands
+ * on its home screen. A website template link goes to the `/m` root, which keeps the key across
+ * sign-in; `/m/auth` would drop it.
+ */
+const signedOutEntryRoute = (pathname: string, search: string): string | null => {
+    if (/^\/w\/?$/.test(pathname)) {
+        const templateQuery = templateQueryFrom(search)
+        return templateQuery ? `/m/${templateQuery}` : "/m/auth"
+    }
+    if (AUTH_RE.test(pathname) && !new URLSearchParams(search).has("redirectToPath")) {
+        return "/m/auth"
+    }
+    return null
+}
+
 /** Forward gate: runs in the DESKTOP apps. Sees no /m traffic behind Traefik. */
 export function decideDesktopGate(input: GateInput): GateDecision {
     try {
@@ -328,6 +353,16 @@ export function decideDesktopGate(input: GateInput): GateDecision {
         // Device: a phone gets /m for anything, mapped or not.
         if (!wantsClassic && isMobileDevice(input.header)) {
             return {kind: "redirect", location: mapDesktopToMobile(input.pathname, input.search)}
+        }
+
+        // Signed out, no preference: the cookie is only written after a sign-in, so without
+        // this a new visitor signs up on the desktop app and never sees /m's onboarding.
+        if (
+            !input.cookie(CLASSIC_MODE_COOKIE) &&
+            !SESSION_COOKIES.some((name) => input.cookie(name))
+        ) {
+            const location = signedOutEntryRoute(input.pathname, input.search)
+            if (location) return {kind: "redirect", location}
         }
 
         // Preference: Classic mode off means live in /m — but only for pages /m actually has.
