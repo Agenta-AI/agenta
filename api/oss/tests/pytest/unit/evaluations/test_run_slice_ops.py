@@ -595,6 +595,7 @@ async def test_add_steps_with_an_existing_key_keeps_the_steps():
     evaluations_service = SimpleNamespace(
         fetch_run=AsyncMock(return_value=run),
         edit_run=AsyncMock(),
+        set_run_principal=AsyncMock(),
     )
     service = _simple_service(evaluations_service=evaluations_service)
 
@@ -606,11 +607,10 @@ async def test_add_steps_with_an_existing_key_keeps_the_steps():
         principal=any_principal(),
     )
 
-    # all keys already present -> the steps stay, and the save still writes the editor
-    assert result is evaluations_service.edit_run.return_value
-    _, kwargs = evaluations_service.edit_run.await_args
-    assert [s.key for s in kwargs["run"].data.steps] == ["input"]
-    assert kwargs["principal"] is not None
+    # all keys already present -> no configuration write; only the editor is written
+    evaluations_service.edit_run.assert_not_awaited()
+    principal = evaluations_service.set_run_principal.await_args.kwargs["principal"]
+    assert result.principal == principal
 
 
 @pytest.mark.asyncio
@@ -652,6 +652,7 @@ async def test_remove_steps_with_an_unknown_key_keeps_the_steps():
     evaluations_service = SimpleNamespace(
         fetch_run=AsyncMock(return_value=run),
         edit_run=AsyncMock(),
+        set_run_principal=AsyncMock(),
     )
     service = _simple_service(evaluations_service=evaluations_service)
 
@@ -663,11 +664,10 @@ async def test_remove_steps_with_an_unknown_key_keeps_the_steps():
         principal=any_principal(),
     )
 
-    # nothing to remove -> the steps stay, and the save still writes the editor
-    assert result is evaluations_service.edit_run.return_value
-    _, kwargs = evaluations_service.edit_run.await_args
-    assert [s.key for s in kwargs["run"].data.steps] == ["input"]
-    assert kwargs["principal"] is not None
+    # nothing to remove -> no configuration write; only the editor is written
+    evaluations_service.edit_run.assert_not_awaited()
+    principal = evaluations_service.set_run_principal.await_args.kwargs["principal"]
+    assert result.principal == principal
 
 
 @pytest.mark.asyncio
