@@ -175,7 +175,6 @@ class SlackAdapter(ChannelAdapterInterface):
     channel = "slack"
     # Unit tests turn this off (no network); see tests' conftest.
     resolve_sender_names = True
-    lists_people = True
     _member_page_size = _LISTING_PAGE_SIZE
 
     def __init__(self, *, http_client: Optional[httpx.AsyncClient] = None) -> None:
@@ -559,7 +558,7 @@ class SlackAdapter(ChannelAdapterInterface):
         *,
         connection: ChannelConnection,
         locator: Dict[str, Any],
-        user_id: str,
+        recipient_id: str,
         content: List[Dict[str, Any]],
     ) -> bool:
         text, _ = _render_content(content)
@@ -568,7 +567,7 @@ class SlackAdapter(ChannelAdapterInterface):
             "chat.postEphemeral",
             {
                 "channel": locator["channel"],
-                "user": user_id,
+                "user": recipient_id,
                 "thread_ts": locator.get("thread_ts"),
                 "text": text,
             },
@@ -806,7 +805,7 @@ class SlackAdapter(ChannelAdapterInterface):
         member = response.get("user")
         if not isinstance(member, dict) or not member.get("id"):
             return None
-        return _person_from_member(member, source="email")
+        return _person_from_member(member, source="email_lookup")
 
     async def _call_waiting_on_rate_limit(
         self, connection: ChannelConnection, method: str, params: Dict[str, Any]

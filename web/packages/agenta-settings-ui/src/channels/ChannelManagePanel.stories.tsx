@@ -215,7 +215,7 @@ export const GroupChatsDenied: Story = {
     render: () => (
         <ManageHost
             connection={telegramHere}
-            options={{behavior: {"cx-telegram": {dm: true, group: false, channels: null}}}}
+            options={{behavior: {"cx-telegram": {dm: true, group: false, spaceIds: null}}}}
         />
     ),
     parameters: {

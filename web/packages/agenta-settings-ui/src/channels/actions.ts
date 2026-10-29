@@ -366,7 +366,7 @@ export const behaviorFromGrants = (
     grants: Row[],
 ): ChannelBehaviorState => {
     const rules = grants
-    if (rules.length === 0) return {dm: true, group: true, channels: null}
+    if (rules.length === 0) return {dm: true, group: true, spaceIds: null}
     const kindRule = (kind: ChannelSpaceKind, effect: "allow" | "deny") =>
         rules.some(
             (grant) =>
@@ -380,9 +380,9 @@ export const behaviorFromGrants = (
     const groupKinds = groupKindsOf(platform)
     const dm = !kindRule("private", "deny") && kindRule("private", "allow")
     if (groupKinds.some((kind) => kindRule(kind, "deny")))
-        return {dm, group: false, channels: chosen.length ? chosen : null}
-    if (groupKinds.some((kind) => kindRule(kind, "allow"))) return {dm, group: true, channels: null}
-    return {dm, group: true, channels: chosen}
+        return {dm, group: false, spaceIds: chosen.length ? chosen : null}
+    if (groupKinds.some((kind) => kindRule(kind, "allow"))) return {dm, group: true, spaceIds: null}
+    return {dm, group: true, spaceIds: chosen}
 }
 
 /**
@@ -395,11 +395,11 @@ export const rulesForBehavior = (
     platform: ChannelPlatform,
     next: ChannelBehaviorState,
 ): BehaviorRule[] => {
-    const chosen: BehaviorRule[] = (next.channels ?? []).map((spaceId) => ({
+    const chosen: BehaviorRule[] = (next.spaceIds ?? []).map((spaceId) => ({
         effect: "allow",
         spaceId,
     }))
-    if (next.group && next.channels !== null) {
+    if (next.group && next.spaceIds !== null) {
         // Always one rule for DMs here: with DMs off and nothing checked, no rule at all
         // would read as "answers everywhere".
         return [
@@ -457,7 +457,9 @@ export const mapPersonRow = (row: Row): ChannelPerson => {
         isBot: row.is_bot === true,
         isDeleted: row.is_deleted === true,
         source:
-            source === "messaged" || source === "directory" || source === "email" ? source : null,
+            source === "recent_senders" || source === "directory" || source === "email_lookup"
+                ? source
+                : null,
     }
 }
 
@@ -573,21 +575,17 @@ export const buildAgentChannelsActions = ({
         const agentId = await channelAgentId(connectionId)
         const grants = await agentGrants(agentId)
         const wanted = rulesForBehavior(platform, next)
-        const ruleOf = (grant: Row): BehaviorRule | null => {
-            const effect = grant.effect === "deny" ? "deny" : "allow"
-            const spaceId = asString(grant.space_id)
-            // A deny for one place (only the API writes one) is never wanted: it would
-            // block a checked channel, so the save removes it.
-            if (spaceId) return effect === "allow" ? {effect, spaceId} : {effect, kind: "group"}
-            const kind = asString(grant.kind)
-            return kind ? {effect, kind: asSpaceKind(kind)} : null
-        }
         const keyOf = (rule: BehaviorRule) =>
             `${rule.effect}:${"spaceId" in rule ? `space:${rule.spaceId}` : `kind:${rule.kind}`}`
-        const grantKey = (grant: Row, rule: BehaviorRule) =>
-            asString(grant.space_id) && grant.effect === "deny"
-                ? `deny:space:${asString(grant.space_id)}`
-                : keyOf(rule)
+        // A stored row's key, in the same form. A deny for one place (only the API writes
+        // one) never matches a wanted rule, so the save removes it.
+        const grantKey = (grant: Row): string | null => {
+            const effect = grant.effect === "deny" ? "deny" : "allow"
+            const spaceId = asString(grant.space_id)
+            if (spaceId) return `${effect}:space:${spaceId}`
+            const kind = asString(grant.kind)
+            return kind ? `${effect}:kind:${asSpaceKind(kind)}` : null
+        }
         const wantedKeys = new Set(wanted.map(keyOf))
         const kept = new Set<string>()
 
@@ -595,9 +593,8 @@ export const buildAgentChannelsActions = ({
         // the backend counts it as an allow rule for that place.
         const obsolete: string[] = []
         for (const grant of grants) {
-            const rule = ruleOf(grant)
-            if (!rule) continue
-            const key = grantKey(grant, rule)
+            const key = grantKey(grant)
+            if (!key) continue
             if (wantedKeys.has(key) && !kept.has(key)) {
                 kept.add(key)
                 continue
@@ -773,7 +770,7 @@ export const buildAgentChannelsActions = ({
                 connection.agentOff = answering
                     ? asRecord(answering.flags).is_active === false
                     : false
-                connection.peopleCount = answering ? audienceOf(answering).length : 0
+                connection.audienceCount = answering ? audienceOf(answering).length : 0
                 // The row's copy counts the places it answers in ("1 group + DMs") and says
                 // when the agent's rules limit them. One call each per connection, side by
                 // side, and a failure only costs the count, not the row.

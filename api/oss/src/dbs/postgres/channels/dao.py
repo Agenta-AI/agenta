@@ -576,7 +576,7 @@ class ChannelsDAO(ChannelsDAOInterface):
         #
         guard_artifact_id: Optional[UUID] = None,
         guard_user_id: Optional[UUID] = None,
-        limits_artifact_ids: Sequence[UUID] = (),
+        guard_artifact_ids: Sequence[UUID] = (),
         installation_senders: Optional[List[str]] = None,
     ) -> Optional[ChannelAgent]:
         async with self.engine.session() as session:
@@ -591,9 +591,9 @@ class ChannelsDAO(ChannelsDAOInterface):
                 )
 
             # Before the binding row: the artifact locks come first, in a fixed
-            # order. `limits_artifact_ids`: the agents whose channel limits this
+            # order. `guard_artifact_ids`: the agents whose channel limits this
             # write changes, checked the same way, active binding or not.
-            guarded = set(limits_artifact_ids)
+            guarded = set(guard_artifact_ids)
             if guard_artifact_id is not None:
                 guarded.add(guard_artifact_id)
             for artifact_id in sorted(guarded):

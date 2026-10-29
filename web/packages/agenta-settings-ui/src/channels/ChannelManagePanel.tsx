@@ -284,7 +284,7 @@ export const ChannelManagePanel = ({
     /** The Advanced "Channels it answers in" row: the switches and the row write one rule set. */
     const saveChannels = async (channels: string[] | null) => {
         if (!connectionId || !behavior) return
-        const next = {...behavior, channels}
+        const next = {...behavior, spaceIds: channels}
         let writeError: unknown = null
         try {
             await actions.writeBehavior(connection.platform, connectionId, next)
@@ -417,7 +417,7 @@ export const ChannelManagePanel = ({
         if (behavior === null) return false
         if (space.kind === "private") return !behavior.dm
         if (!behavior.group) return true
-        return behavior.channels !== null && !behavior.channels.includes(space.id)
+        return behavior.spaceIds !== null && !behavior.spaceIds.includes(space.id)
     }
 
     const {title} = connectionRowText(connection, hostedHandle)

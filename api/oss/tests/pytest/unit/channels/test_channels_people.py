@@ -57,8 +57,6 @@ def cache(monkeypatch):
 
 
 class _Adapter:
-    lists_people = True
-
     def __init__(self, members):
         self.members = members
         self.list_calls = 0
@@ -84,6 +82,8 @@ def _member(i, **extra):
 
 
 CONNECTION = SimpleNamespace(id=uuid4())
+SLACK = SimpleNamespace(people=SimpleNamespace(directory=True, email_lookup=True))
+TELEGRAM = SimpleNamespace(people=SimpleNamespace(directory=False, email_lookup=False))
 
 
 async def _settle():
@@ -92,7 +92,7 @@ async def _settle():
 
 
 def test_people_who_wrote_are_listed_once_newest_first():
-    found = people.people_who_wrote(
+    found = people.recent_senders(
         [
             {"id": "U2", "name": "Ben"},
             {"id": 42, "name": "Tg", "username": "tg"},
@@ -102,8 +102,8 @@ def test_people_who_wrote_are_listed_once_newest_first():
         ]
     )
     assert [(p.id, p.name, p.source) for p in found] == [
-        ("U2", "Ben", "messaged"),
-        ("42", "Tg", "messaged"),
+        ("U2", "Ben", "recent_senders"),
+        ("42", "Tg", "recent_senders"),
     ]
 
 
@@ -113,6 +113,7 @@ async def test_the_first_search_starts_one_background_load_then_finds_by_name(ca
 
     found, directory = await people.query_people(
         adapter=adapter,
+        capabilities=SLACK,
         connection=CONNECTION,
         project_id=project_id,
         senders=[],
@@ -125,6 +126,7 @@ async def test_the_first_search_starts_one_background_load_then_finds_by_name(ca
 
     found, directory = await people.query_people(
         adapter=adapter,
+        capabilities=SLACK,
         connection=CONNECTION,
         project_id=project_id,
         senders=[],
@@ -140,6 +142,7 @@ async def test_a_person_who_wrote_gets_the_workspace_name_and_email(cache):
     project_id = uuid4()
     await people.query_people(
         adapter=adapter,
+        capabilities=SLACK,
         connection=CONNECTION,
         project_id=project_id,
         senders=[],
@@ -149,13 +152,14 @@ async def test_a_person_who_wrote_gets_the_workspace_name_and_email(cache):
 
     found, _ = await people.query_people(
         adapter=adapter,
+        capabilities=SLACK,
         connection=CONNECTION,
         project_id=project_id,
         senders=[{"id": "U1"}],
         text="",
     )
     assert [(p.id, p.email, p.source) for p in found] == [
-        ("U1", "user1@example.com", "messaged")
+        ("U1", "user1@example.com", "recent_senders")
     ]
 
 
@@ -163,6 +167,7 @@ async def test_a_full_email_is_looked_up_when_the_list_does_not_have_it(cache):
     adapter = _Adapter([_member(9)])
     found, _ = await people.query_people(
         adapter=adapter,
+        capabilities=SLACK,
         connection=CONNECTION,
         project_id=uuid4(),
         senders=[],
@@ -177,6 +182,7 @@ async def test_refresh_reloads_the_list(cache):
     project_id = uuid4()
     await people.query_people(
         adapter=adapter,
+        capabilities=SLACK,
         connection=CONNECTION,
         project_id=project_id,
         senders=[],
@@ -185,7 +191,10 @@ async def test_refresh_reloads_the_list(cache):
     await _settle()
 
     directory = await people.refresh_people(
-        adapter=adapter, connection=CONNECTION, project_id=project_id
+        adapter=adapter,
+        capabilities=SLACK,
+        connection=CONNECTION,
+        project_id=project_id,
     )
     await _settle()
 
@@ -194,13 +203,11 @@ async def test_refresh_reloads_the_list(cache):
 
 
 async def test_telegram_has_only_the_people_who_wrote(cache):
-    adapter = SimpleNamespace(lists_people=False)
-
-    async def _no_email(**kwargs):
-        raise AssertionError("Telegram has no email lookup")
+    adapter = SimpleNamespace()  # never asked: the declaration says no
 
     found, directory = await people.query_people(
         adapter=adapter,
+        capabilities=TELEGRAM,
         connection=CONNECTION,
         project_id=uuid4(),
         senders=[{"id": 8883745180, "name": "Ana"}],
@@ -229,6 +236,7 @@ async def test_a_refused_load_reports_failed_and_waits_for_refresh(cache):
     project_id = uuid4()
     _, first = await people.query_people(
         adapter=adapter,
+        capabilities=SLACK,
         connection=CONNECTION,
         project_id=project_id,
         senders=[],
@@ -237,6 +245,7 @@ async def test_a_refused_load_reports_failed_and_waits_for_refresh(cache):
     await _settle()
     _, second = await people.query_people(
         adapter=adapter,
+        capabilities=SLACK,
         connection=CONNECTION,
         project_id=project_id,
         senders=[],
@@ -249,7 +258,10 @@ async def test_a_refused_load_reports_failed_and_waits_for_refresh(cache):
     assert adapter.list_calls == 1  # not started again by itself
 
     refreshed = await people.refresh_people(
-        adapter=adapter, connection=CONNECTION, project_id=project_id
+        adapter=adapter,
+        capabilities=SLACK,
+        connection=CONNECTION,
+        project_id=project_id,
     )
     await _settle()
     assert refreshed.state == "loading"
@@ -261,6 +273,7 @@ async def test_people_on_the_list_come_back_with_their_workspace_state(cache):
     project_id = uuid4()
     await people.query_people(
         adapter=adapter,
+        capabilities=SLACK,
         connection=CONNECTION,
         project_id=project_id,
         senders=[],
@@ -270,6 +283,7 @@ async def test_people_on_the_list_come_back_with_their_workspace_state(cache):
 
     found, _ = await people.query_people(
         adapter=adapter,
+        capabilities=SLACK,
         connection=CONNECTION,
         project_id=project_id,
         senders=[],

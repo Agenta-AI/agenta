@@ -279,6 +279,15 @@ class ChannelSetup(BaseModel):
     hosted_available: bool = False
 
 
+class ChannelPeopleSupport(BaseModel):
+    """What the settings screen's people picker can ask the platform for."""
+
+    # the whole workspace people list (Slack users.list)
+    directory: bool = False
+    # one member by exact email (Slack users.lookupByEmail)
+    email_lookup: bool = False
+
+
 class ChannelCapabilities(BaseModel):
     channel: str
     protocol: ChannelProtocol = Field(default_factory=ChannelProtocol)
@@ -290,6 +299,7 @@ class ChannelCapabilities(BaseModel):
     rendering: ChannelRendering = Field(default_factory=ChannelRendering)
     identity: ChannelIdentity = Field(default_factory=ChannelIdentity)
     setup: ChannelSetup = Field(default_factory=ChannelSetup)
+    people: ChannelPeopleSupport = Field(default_factory=ChannelPeopleSupport)
     #
     commands: List[str] = Field(default_factory=list)
 
@@ -831,7 +841,7 @@ class ChannelPerson(BaseModel):
     is_deleted: Optional[bool] = None
     # where the picker found the person: they wrote to the bot, the cached
     # workspace directory, or a live lookup of a full email
-    source: Optional[Literal["messaged", "directory", "email"]] = None
+    source: Optional[Literal["recent_senders", "directory", "email_lookup"]] = None
 
 
 class ChannelPeopleDirectory(BaseModel):
@@ -1018,7 +1028,8 @@ class ChannelOutboxEvent(Identifier, Lifecycle):
     # None for a send_channel_message post, which belongs to no channel thread
     thread_id: Optional[UUID] = None
     space_id: Optional[UUID] = None
-    # the turn for a reply, the tool call id for a send_channel_message post
+    # the turn for a reply, the tool call id for a send_channel_message post,
+    # `refusal:<reason>` for the once-a-day note to a refused person
     turn_id: str
     key: UUID
     state: ChannelDeliveryState
@@ -1120,9 +1131,9 @@ class ChannelResolution(BaseModel):
 
 class ChannelRefusalReason(str, Enum):
     # the person is not on the agent's people list
-    SENDER_NOT_ALLOWED = "sender_not_allowed"
+    SENDER_NOT_LISTED = "sender_not_listed"
     # the agent's rules do not let it answer in this place (or in DMs)
-    PLACE_OFF = "place_off"
+    SPACE_OFF = "space_off"
 
 
 class ChannelRefusal(BaseModel):
@@ -1295,6 +1306,11 @@ class ChannelPeopleQueryRequest(BaseModel):
 class ChannelPeopleResponse(BaseModel):
     count: int = 0
     people: List[ChannelPerson] = Field(default_factory=list)
+    directory: Optional[ChannelPeopleDirectory] = None
+
+
+class ChannelPeopleDirectoryResponse(BaseModel):
+    count: int = 0
     directory: Optional[ChannelPeopleDirectory] = None
 
 

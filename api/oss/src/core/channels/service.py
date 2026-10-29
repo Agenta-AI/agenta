@@ -1361,7 +1361,7 @@ class ChannelsService:
         guard_user_id: Optional[UUID],
         #
         agent: ChannelAgentEdit,
-        limits_artifact_ids: Sequence[UUID] = (),
+        guard_artifact_ids: Sequence[UUID] = (),
         installation_senders: Optional[List[str]] = None,
     ) -> Optional[ChannelAgent]:
         """Every binding write. The write names its references and its whole flags,
@@ -1400,8 +1400,8 @@ class ChannelsService:
             guard_artifact_id=guard_artifact_id,
             guard_user_id=guard_user_id,
             **(
-                {"limits_artifact_ids": list(limits_artifact_ids)}
-                if limits_artifact_ids
+                {"guard_artifact_ids": list(guard_artifact_ids)}
+                if guard_artifact_ids
                 else {}
             ),
             **_installation_senders(installation_senders),
@@ -1432,7 +1432,7 @@ class ChannelsService:
             # a binding created off but with a people list is still a limits
             # write: only the agent's owner sets it
             guard_artifact_id = await self._limits_guard(
-                project_id=project_id, agent=agent
+                project_id=project_id, references=agent.data.references
             )
         return await self.channels_dao.create_agent(
             project_id=project_id,
@@ -1480,23 +1480,18 @@ class ChannelsService:
         # for that agent. Either way the agent must be the caller's to limit,
         # active binding or not.
         merged = _layer_agent_edit(existing=existing, edit=agent)
-        limits_artifact_ids: List[UUID] = []
+        guard_artifact_ids: List[UUID] = []
         if merged.data.references != existing.data.references:
-            limits_artifact_ids.append(
+            guard_artifact_ids.append(
                 await self._limits_guard(
-                    project_id=project_id,
-                    agent=existing.model_copy(
-                        update={
-                            "data": existing.data.model_copy(
-                                update={"references": merged.data.references}
-                            )
-                        }
-                    ),
+                    project_id=project_id, references=merged.data.references
                 )
             )
         elif merged.data.audience != existing.data.audience:
-            limits_artifact_ids.append(
-                await self._limits_guard(project_id=project_id, agent=existing)
+            guard_artifact_ids.append(
+                await self._limits_guard(
+                    project_id=project_id, references=existing.data.references
+                )
             )
 
         edited = await self._edit_agent_row(
@@ -1505,7 +1500,7 @@ class ChannelsService:
             guard_user_id=guard_user_id,
             #
             agent=merged,
-            limits_artifact_ids=_present(*limits_artifact_ids),
+            guard_artifact_ids=_present(*guard_artifact_ids),
             installation_senders=(
                 list(merged.data.audience.senders)
                 if merged.data.audience != existing.data.audience
@@ -1748,7 +1743,7 @@ class ChannelsService:
         self,
         *,
         project_id: UUID,
-        agent: ChannelAgent | ChannelAgentCreate,
+        references: Dict[str, Reference],
     ) -> Optional[UUID]:
         """The agent a limits write must guard: only its owner changes a private
         agent's limits (its rules and its people list), active binding or not.
@@ -1762,7 +1757,7 @@ class ChannelsService:
         try:
             artifact_id = await self.workflows_service.resolve_agent_artifact_id(
                 project_id=project_id,
-                references=channel_agent_references(agent.data.references),
+                references=channel_agent_references(references),
             )
         except AgentReferenceUnresolved as e:
             raise SharedItemNotFound() from e
@@ -1785,7 +1780,9 @@ class ChannelsService:
         )
         if agent is None:
             return None
-        return await self._limits_guard(project_id=project_id, agent=agent)
+        return await self._limits_guard(
+            project_id=project_id, references=agent.data.references
+        )
 
     async def query_people(
         self,
@@ -1810,6 +1807,9 @@ class ChannelsService:
         )
         return await people.query_people(
             adapter=self.adapter_registry.get(connection.channel),
+            capabilities=await self.fetch_capabilities(
+                channel=connection.channel, connection=connection
+            ),
             connection=connection,
             project_id=project_id,
             senders=senders,
@@ -1833,6 +1833,9 @@ class ChannelsService:
             raise ChannelConnectionNotFound(connection_id=connection_id)
         return await people.refresh_people(
             adapter=self.adapter_registry.get(connection.channel),
+            capabilities=await self.fetch_capabilities(
+                channel=connection.channel, connection=connection
+            ),
             connection=connection,
             project_id=project_id,
         )
@@ -1856,7 +1859,9 @@ class ChannelsService:
         )
         if agent is None:
             raise ChannelAgentNotFound(agent_id=grant.agent_id)
-        guard_artifact_id = await self._limits_guard(project_id=project_id, agent=agent)
+        guard_artifact_id = await self._limits_guard(
+            project_id=project_id, references=agent.data.references
+        )
 
         if grant.space_id is not None:
             space = await self.channels_dao.fetch_space(
@@ -2281,7 +2286,7 @@ class ChannelsService:
             if not answers_here:
                 return ChannelRouting()
             return self._refusal(
-                reason=ChannelRefusalReason.SENDER_NOT_ALLOWED,
+                reason=ChannelRefusalReason.SENDER_NOT_LISTED,
                 event=event,
                 space=space,
                 agent=agent,
@@ -2311,7 +2316,7 @@ class ChannelsService:
         grant = None
         if effect is ChannelGrantEffect.DENY:
             return self._refusal(
-                reason=ChannelRefusalReason.PLACE_OFF,
+                reason=ChannelRefusalReason.SPACE_OFF,
                 event=event,
                 space=space,
                 agent=agent,
@@ -2328,7 +2333,7 @@ class ChannelsService:
             if has_any_grant:
                 # "Only these channels": a place no rule names is off
                 return self._refusal(
-                    reason=ChannelRefusalReason.PLACE_OFF,
+                    reason=ChannelRefusalReason.SPACE_OFF,
                     event=event,
                     space=space,
                     agent=agent,

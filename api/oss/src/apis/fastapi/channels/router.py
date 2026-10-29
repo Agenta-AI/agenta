@@ -38,6 +38,7 @@ from oss.src.apis.fastapi.channels.models import (
     ChannelPolicyResolveRequest,
     ChannelPolicyResponse,
     ChannelSetupResponse,
+    ChannelPeopleDirectoryResponse,
     ChannelPeopleQueryRequest,
     ChannelPeopleResponse,
     ChannelSpaceCandidatesResponse,
@@ -320,7 +321,7 @@ class ChannelsRouter:
             self.refresh_channel_people,
             methods=["POST"],
             operation_id="refresh_channel_people",
-            response_model=ChannelPeopleResponse,
+            response_model=ChannelPeopleDirectoryResponse,
             response_model_exclude_none=True,
         )
 
@@ -1105,7 +1106,7 @@ class ChannelsRouter:
         request: Request,
         *,
         connection_id: UUID,
-    ) -> ChannelPeopleResponse:
+    ) -> ChannelPeopleDirectoryResponse:
         await self._check(request, Permission.EDIT_CHANNELS)
 
         try:
@@ -1116,7 +1117,7 @@ class ChannelsRouter:
         except ChannelConnectionNotFound as e:
             raise HTTPException(status_code=404, detail=e.message) from e
 
-        return ChannelPeopleResponse(count=0, directory=directory)
+        return ChannelPeopleDirectoryResponse(count=1, directory=directory)
 
     # -----------------------------------------------------------------------
     # Agents

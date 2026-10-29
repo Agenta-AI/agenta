@@ -206,7 +206,7 @@ const openAnswersIn = async (
 
 it("limits the channels it answers in to the checked ones", async () => {
     const onSave = vi.fn(async () => {})
-    await openAnswersIn({dm: true, group: true, channels: null}, onSave)
+    await openAnswersIn({dm: true, group: true, spaceIds: null}, onSave)
     expect(byId("channels-advanced-answers-all").dataset.checked).toBe("true")
     await click("channels-advanced-answers-only")
     expect(container.textContent).toContain(
@@ -222,7 +222,7 @@ it("limits the channels it answers in to the checked ones", async () => {
 
 it("saves Only these channels with nothing checked", async () => {
     const onSave = vi.fn(async () => {})
-    await openAnswersIn({dm: true, group: true, channels: null}, onSave)
+    await openAnswersIn({dm: true, group: true, spaceIds: null}, onSave)
     await click("channels-advanced-answers-only")
     await click("channels-advanced-answers-save")
     expect(onSave).toHaveBeenCalledWith([])
@@ -230,7 +230,7 @@ it("saves Only these channels with nothing checked", async () => {
 
 it("reads chosen channels back as chosen and goes back to all", async () => {
     const onSave = vi.fn(async () => {})
-    await openAnswersIn({dm: true, group: true, channels: ["s2"]}, onSave)
+    await openAnswersIn({dm: true, group: true, spaceIds: ["s2"]}, onSave)
     expect(byId("channels-advanced-answers-only").dataset.checked).toBe("true")
     expect(byId("channels-advanced-answers-channel-s2").dataset.checked).toBe("true")
     await click("channels-advanced-answers-all")
@@ -238,7 +238,7 @@ it("reads chosen channels back as chosen and goes back to all", async () => {
 })
 
 it("says channels answer in none while the Channels switch is off", async () => {
-    await openAnswersIn({dm: true, group: false, channels: null}, vi.fn())
+    await openAnswersIn({dm: true, group: false, spaceIds: null}, vi.fn())
     expect(byId("channels-advanced-answers-only")).toBeNull()
     expect(container.textContent).toContain(
         "Channels are switched off above, so it answers in none.",
@@ -249,7 +249,7 @@ it("shows the stored channels again when a save fails", async () => {
     const onSave = vi.fn(async () => {
         throw new Error("Could not save this setting.")
     })
-    await openAnswersIn({dm: true, group: true, channels: ["s2"]}, onSave)
+    await openAnswersIn({dm: true, group: true, spaceIds: ["s2"]}, onSave)
     await click("channels-advanced-answers-all")
     expect(container.textContent).toContain("Could not save this setting.")
     expect(byId("channels-advanced-answers-only").dataset.checked).toBe("true")

@@ -830,25 +830,26 @@ class InboxDispatcher:
         Telegram group). No turn opens, no session, no credits."""
 
         try:
+            space = refusal.space
+            day = datetime.now(timezone.utc).date().isoformat()
+            key = uuid5(
+                _REFUSAL_NOTE_NAMESPACE,
+                f"{connection_id}:{refusal.sender_id}:{space.id}:"
+                f"{refusal.reason.value}:{day}",
+            )
+            dao = self.channels_service.channels_dao
+            # today's note already sent (or tried): one read, nothing more
+            if await dao.fetch_outbox_event_by_key(project_id=project_id, key=key):
+                return
             connection = await self.channels_service.fetch_connection(
                 project_id=project_id,
                 connection_id=connection_id,
             )
             if connection is None:
                 return
-            space = refusal.space
-            day = datetime.now(timezone.utc).date().isoformat()
-            key = uuid5(
-                _REFUSAL_NOTE_NAMESPACE,
-                f"{connection.id}:{refusal.sender_id}:{space.id}:"
-                f"{refusal.reason.value}:{day}",
-            )
-            dao = self.channels_service.channels_dao
-            if await dao.fetch_outbox_event_by_key(project_id=project_id, key=key):
-                return
 
             is_dm = space.kind is ChannelSpaceKind.PRIVATE
-            if refusal.reason is ChannelRefusalReason.SENDER_NOT_ALLOWED:
+            if refusal.reason is ChannelRefusalReason.SENDER_NOT_LISTED:
                 text = REFUSED_SENDER_TEXT
             elif is_dm:
                 text = REFUSED_DIRECT_MESSAGE_TEXT
@@ -895,7 +896,7 @@ class InboxDispatcher:
                     if not await adapter.post_ephemeral(
                         connection=connection,
                         locator=locator,
-                        user_id=refusal.sender_id,
+                        recipient_id=refusal.sender_id,
                         content=content,
                     ):
                         raise ChannelsError("no private message in this place")

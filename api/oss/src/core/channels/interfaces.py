@@ -200,7 +200,7 @@ class ChannelsDAOInterface(ABC):
         #
         guard_artifact_id: Optional[UUID] = None,
         guard_user_id: Optional[UUID] = None,
-        limits_artifact_ids: Sequence[UUID] = (),
+        guard_artifact_ids: Sequence[UUID] = (),
         # rollout only: also set the installation's allowed_senders, in the
         # same transaction (the field the previous release reads)
         installation_senders: Optional[List[str]] = None,

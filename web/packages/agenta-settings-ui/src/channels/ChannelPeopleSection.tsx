@@ -148,7 +148,8 @@ export const ChannelPeopleSection = ({
         return () => clearTimeout(timer)
     }, [restricted, isSlack, draft, search])
 
-    // While the workspace list loads in the background, ask again until it is there.
+    // While the workspace list loads in the background, ask again until it is there. Each
+    // answer, a failed one included, sets `found`, which schedules the next ask.
     useEffect(() => {
         if (!restricted || directory?.state !== "loading") {
             polls.current = 0
@@ -161,7 +162,7 @@ export const ChannelPeopleSection = ({
             void search(isSlack ? draft : "")
         }, wait)
         return () => clearTimeout(timer)
-    }, [restricted, directory, draft, isSlack, search])
+    }, [restricted, directory, found, draft, isSlack, search])
 
     const write = async (next: ChannelAudiencePerson[]) => {
         setSaving(true)
@@ -228,9 +229,9 @@ export const ChannelPeopleSection = ({
         .filter((person) => person.isDeleted && chosen.has(person.id))
         .map((person) => person.id)
     const candidates = (found ?? []).filter((person) => !chosen.has(person.id))
-    const wrote = candidates.filter((person) => person.source === "messaged")
+    const wrote = candidates.filter((person) => person.source === "recent_senders")
     const inWorkspace = candidates.filter((person) => person.source === "directory")
-    const byEmail = candidates.filter((person) => person.source === "email")
+    const byEmail = candidates.filter((person) => person.source === "email_lookup")
     const typedEmail = EMAIL.test(draft.trim())
 
     const whoLine = (() => {

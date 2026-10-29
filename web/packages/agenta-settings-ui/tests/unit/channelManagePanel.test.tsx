@@ -170,7 +170,7 @@ it("shows every private chat as one Direct messages row", async () => {
     expect(rows).toEqual(["Direct messages", "TeamMentions only"])
 })
 it("marks Direct messages off once the switch turns them off", async () => {
-    let behavior = {dm: true, group: true, channels: null as string[] | null}
+    let behavior = {dm: true, group: true, spaceIds: null as string[] | null}
     const readBehavior = vi.fn(async () => behavior)
     const writeBehavior = vi.fn(async (_p: unknown, _c: unknown, next: typeof behavior) => {
         behavior = next
@@ -319,7 +319,7 @@ it("marks a channel left unchecked under Only these channels as off", async () =
         {id: "c-support", kind: "topic", name: "#support"},
         {id: "c-random", kind: "topic", name: "#random"},
     ])
-    const readBehavior = vi.fn(async () => ({dm: true, group: true, channels: ["c-support"]}))
+    const readBehavior = vi.fn(async () => ({dm: true, group: true, spaceIds: ["c-support"]}))
     await render({listSpaces, readBehavior}, {platform: "slack", kind: "custom"})
     const rows = [...container.querySelectorAll('[data-testid="channels-space"]')].map(
         (row) => row.textContent,
@@ -398,3 +398,27 @@ async function type(selector: string, value: string) {
         input.dispatchEvent(new Event("input", {bubbles: true}))
     })
 }
+
+it("keeps asking while the people list loads, after a failed ask too", async () => {
+    vi.useFakeTimers()
+    try {
+        const loading = {state: "loading" as const, updatedAt: null}
+        const queryPeople = vi
+            .fn()
+            .mockResolvedValueOnce({people: [], directory: loading})
+            .mockRejectedValueOnce(new Error("Failed to fetch"))
+            .mockResolvedValue({people: [], directory: loading})
+        await render(
+            {readAudience: vi.fn().mockResolvedValue([person("U1")]), queryPeople},
+            {platform: "slack", kind: "custom"},
+        )
+        for (let i = 0; i < 4; i++) {
+            await act(async () => {
+                await vi.advanceTimersByTimeAsync(3500)
+            })
+        }
+        expect(queryPeople.mock.calls.length).toBeGreaterThanOrEqual(3)
+    } finally {
+        vi.useRealTimers()
+    }
+})

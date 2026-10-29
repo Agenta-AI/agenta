@@ -212,7 +212,7 @@ class ChannelAdapterInterface(ABC):
         *,
         connection: ChannelConnection,
         locator: Dict[str, Any],
-        user_id: str,
+        recipient_id: str,
         content: List[Dict[str, Any]],
     ) -> bool:
         """Show a message to one person inside a shared place, unseen by the
@@ -313,15 +313,13 @@ class ChannelAdapterInterface(ABC):
 
     # --- people ---
 
-    # True when `list_people` works, so the picker offers the workspace list
-    lists_people: bool = False
-
     async def list_people(
         self, *, connection: ChannelConnection
     ) -> List[ChannelPerson]:
         """Every person in the workspace, for the settings screen's people
-        picker. Settings time only, never on the message path. Raises
-        ChannelNotSupported where bots cannot list people (Telegram)."""
+        picker, where the declaration says `people.directory`. Settings time
+        only, never on the message path. Raises ChannelNotSupported where bots
+        cannot list people (Telegram)."""
 
         raise ChannelNotSupported(channel=self.channel)
 

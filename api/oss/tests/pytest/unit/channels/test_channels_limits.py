@@ -186,7 +186,7 @@ async def test_a_person_not_on_the_list_who_mentions_the_agent_is_refused_with_a
 
     assert routing.resolution is None
     assert routing.refusal is not None
-    assert routing.refusal.reason is ChannelRefusalReason.SENDER_NOT_ALLOWED
+    assert routing.refusal.reason is ChannelRefusalReason.SENDER_NOT_LISTED
     assert routing.refusal.sender_id == "BEN"
     # not attached to its space: it never reaches the agent as context
     dao.attach_event_to_space.assert_not_awaited()
@@ -271,7 +271,7 @@ async def test_a_mention_in_an_unchecked_channel_is_refused_with_a_note():
     )
 
     assert routing.resolution is None
-    assert routing.refusal.reason is ChannelRefusalReason.PLACE_OFF
+    assert routing.refusal.reason is ChannelRefusalReason.SPACE_OFF
     assert routing.refusal.space.kind is ChannelSpaceKind.TOPIC
 
 
@@ -306,7 +306,7 @@ async def test_a_dm_while_dms_are_off_is_refused_with_a_note():
         event=_event(text="hello", space_kind=ChannelSpaceKind.PRIVATE),
     )
 
-    assert routing.refusal.reason is ChannelRefusalReason.PLACE_OFF
+    assert routing.refusal.reason is ChannelRefusalReason.SPACE_OFF
     assert routing.refusal.space.kind is ChannelSpaceKind.PRIVATE
 
 
@@ -381,7 +381,7 @@ def _sync_guarded(refuse, result):
         guarded = (
             kwargs.get("guard_artifact_id")
             or kwargs.get("guard_artifact_ids")
-            or kwargs.get("limits_artifact_ids")
+            or kwargs.get("guard_artifact_ids")
         )
         if refuse and guarded:
             raise SharedItemNotFound()
@@ -454,7 +454,7 @@ async def test_an_edit_that_leaves_the_people_list_alone_is_not_guarded():
         agent=ChannelAgentEdit(id=agent.id, name="renamed"),
     )
     assert dao.edit_agent.await_args.kwargs["guard_artifact_id"] is None
-    assert not dao.edit_agent.await_args.kwargs.get("limits_artifact_ids")
+    assert not dao.edit_agent.await_args.kwargs.get("guard_artifact_ids")
 
 
 async def test_someone_else_cannot_add_a_rule_to_a_private_agent():
@@ -578,10 +578,13 @@ def _refusal(*, reason, kind):
     )
 
 
+_NOTE_CONNECTION_ID = uuid4()
+
+
 async def _note(dispatcher, refusal, event=None):
     await dispatcher._send_refusal_note(
         project_id=uuid4(),
-        connection_id=uuid4(),
+        connection_id=_NOTE_CONNECTION_ID,
         event=event or _event(sender="BEN"),
         refusal=refusal,
     )
@@ -595,15 +598,17 @@ async def test_a_refused_person_in_a_channel_gets_one_ephemeral_note_a_day():
     adapter = _NoteAdapter()
     dispatcher, store = _dispatcher(adapter)
     refusal = _refusal(
-        reason=ChannelRefusalReason.SENDER_NOT_ALLOWED, kind=ChannelSpaceKind.TOPIC
+        reason=ChannelRefusalReason.SENDER_NOT_LISTED, kind=ChannelSpaceKind.TOPIC
     )
 
     await _note(dispatcher, refusal)
     await _note(dispatcher, refusal)
 
     adapter.post_ephemeral.assert_awaited_once()
+    # the repeat stopped at the note key: no connection read
+    dispatcher.channels_service.fetch_connection.assert_awaited_once()
     call = adapter.post_ephemeral.await_args
-    assert call.kwargs["user_id"] == "BEN"
+    assert call.kwargs["recipient_id"] == "BEN"
     assert _text(call) == REFUSED_SENDER_TEXT
     adapter.post_message.assert_not_awaited()
     (row,) = store.rows.values()
@@ -614,7 +619,7 @@ async def test_a_dm_while_dms_are_off_gets_a_normal_reply_once():
     adapter = _NoteAdapter()
     dispatcher, _ = _dispatcher(adapter)
     refusal = _refusal(
-        reason=ChannelRefusalReason.PLACE_OFF, kind=ChannelSpaceKind.PRIVATE
+        reason=ChannelRefusalReason.SPACE_OFF, kind=ChannelSpaceKind.PRIVATE
     )
 
     await _note(dispatcher, refusal)
@@ -633,7 +638,7 @@ async def test_an_off_channel_note_says_the_channel_is_off():
 
     await _note(
         dispatcher,
-        _refusal(reason=ChannelRefusalReason.PLACE_OFF, kind=ChannelSpaceKind.TOPIC),
+        _refusal(reason=ChannelRefusalReason.SPACE_OFF, kind=ChannelSpaceKind.TOPIC),
     )
 
     assert _text(adapter.post_ephemeral.await_args) == REFUSED_CHANNEL_TEXT
@@ -646,7 +651,7 @@ async def test_a_telegram_group_gets_no_note():
     await _note(
         dispatcher,
         _refusal(
-            reason=ChannelRefusalReason.SENDER_NOT_ALLOWED,
+            reason=ChannelRefusalReason.SENDER_NOT_LISTED,
             kind=ChannelSpaceKind.GROUP,
         ),
     )
@@ -660,7 +665,7 @@ async def test_a_refused_ephemeral_is_logged_and_dropped_never_retried():
     adapter = _NoteAdapter(ephemeral_error=RuntimeError("user_not_in_channel"))
     dispatcher, store = _dispatcher(adapter)
     refusal = _refusal(
-        reason=ChannelRefusalReason.SENDER_NOT_ALLOWED, kind=ChannelSpaceKind.TOPIC
+        reason=ChannelRefusalReason.SENDER_NOT_LISTED, kind=ChannelSpaceKind.TOPIC
     )
 
     await _note(dispatcher, refusal)
@@ -677,7 +682,7 @@ async def test_a_new_day_gets_a_new_note(monkeypatch):
     adapter = _NoteAdapter()
     dispatcher, store = _dispatcher(adapter)
     refusal = _refusal(
-        reason=ChannelRefusalReason.SENDER_NOT_ALLOWED, kind=ChannelSpaceKind.TOPIC
+        reason=ChannelRefusalReason.SENDER_NOT_LISTED, kind=ChannelSpaceKind.TOPIC
     )
 
     class _Day1(datetime):
@@ -703,7 +708,7 @@ async def test_dispatch_sends_the_note_and_opens_no_turn():
     adapter = _NoteAdapter()
     dispatcher, _ = _dispatcher(adapter)
     refusal = _refusal(
-        reason=ChannelRefusalReason.SENDER_NOT_ALLOWED, kind=ChannelSpaceKind.TOPIC
+        reason=ChannelRefusalReason.SENDER_NOT_LISTED, kind=ChannelSpaceKind.TOPIC
     )
     dispatcher.channels_service.resolve_or_refuse = AsyncMock(
         return_value=SimpleNamespace(resolution=None, refusal=refusal)
@@ -860,7 +865,7 @@ async def test_pointing_an_off_binding_at_someone_elses_private_agent_is_refused
                 ),
             ),
         )
-    assert list(dao.edit_agent.await_args.kwargs["limits_artifact_ids"]) == [
+    assert list(dao.edit_agent.await_args.kwargs["guard_artifact_ids"]) == [
         destination_artifact
     ]
 

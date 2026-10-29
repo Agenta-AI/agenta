@@ -19,6 +19,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from oss.src.core.channels.dtos import (
+    ChannelCapabilities,
     ChannelConnection,
     ChannelPeopleDirectory,
     ChannelPerson,
@@ -67,7 +68,7 @@ def _matches(person: ChannelPerson, text: str) -> bool:
     )
 
 
-def people_who_wrote(senders: List[Dict[str, Any]]) -> List[ChannelPerson]:
+def recent_senders(senders: List[Dict[str, Any]]) -> List[ChannelPerson]:
     """One entry per sender id, in the order given (newest first)."""
 
     seen: Set[str] = set()
@@ -85,7 +86,7 @@ def people_who_wrote(senders: List[Dict[str, Any]]) -> List[ChannelPerson]:
                 id=sender_id,
                 name=sender.get("name") or None,
                 username=sender.get("username") or None,
-                source="messaged",
+                source="recent_senders",
             )
         )
     return people
@@ -166,6 +167,7 @@ async def forget_directory(*, project_id: UUID, connection_id: UUID) -> None:
 async def query_people(
     *,
     adapter,
+    capabilities: ChannelCapabilities,
     connection: ChannelConnection,
     project_id: UUID,
     senders: List[Dict[str, Any]],
@@ -179,13 +181,13 @@ async def query_people(
     needle = (text or "").strip().lower()
     found: Dict[str, ChannelPerson] = {}
 
-    for person in people_who_wrote(senders):
+    for person in recent_senders(senders):
         if _matches(person, needle):
             found[person.id] = person
 
     directory = ChannelPeopleDirectory(state="unavailable")
     by_id: Dict[str, ChannelPerson] = {}
-    if adapter.lists_people and env.agenta.api.caching.enabled:
+    if capabilities.people.directory and env.agenta.api.caching.enabled:
         cached = await get_cache(
             namespace=DIRECTORY_NAMESPACE,
             project_id=str(project_id),
@@ -202,7 +204,9 @@ async def query_people(
             for person_id in list(found):
                 known = by_id.get(person_id)
                 if known is not None:
-                    found[person_id] = known.model_copy(update={"source": "messaged"})
+                    found[person_id] = known.model_copy(
+                        update={"source": "recent_senders"}
+                    )
             if needle:
                 for person in cached.people:
                     if person.is_bot or person.is_deleted or person.id in found:
@@ -221,8 +225,10 @@ async def query_people(
         ):
             directory = ChannelPeopleDirectory(state="loading")
 
-    if _EMAIL.match(needle) and not any(
-        (person.email or "").lower() == needle for person in found.values()
+    if (
+        capabilities.people.email_lookup
+        and _EMAIL.match(needle)
+        and not any((person.email or "").lower() == needle for person in found.values())
     ):
         person = None
         try:
@@ -254,11 +260,15 @@ async def query_people(
 
 
 async def refresh_people(
-    *, adapter, connection: ChannelConnection, project_id: UUID
+    *,
+    adapter,
+    capabilities: ChannelCapabilities,
+    connection: ChannelConnection,
+    project_id: UUID,
 ) -> ChannelPeopleDirectory:
     """Drop the cached list and load it again in the background."""
 
-    if not (adapter.lists_people and env.agenta.api.caching.enabled):
+    if not (capabilities.people.directory and env.agenta.api.caching.enabled):
         return ChannelPeopleDirectory(state="unavailable")
     await forget_directory(project_id=project_id, connection_id=connection.id)
     await invalidate_cache(

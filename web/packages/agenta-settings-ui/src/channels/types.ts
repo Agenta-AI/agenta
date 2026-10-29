@@ -97,7 +97,7 @@ export interface ChannelBehaviorState {
     group: boolean
     /** The channels it answers in: null for every channel the bot is in, else the space ids
      *  it answers in ([] answers in none). Group DMs count as channels. */
-    channels: string[] | null
+    spaceIds: string[] | null
 }
 
 /** One person on the agent's "Who can message it" list. The name and email are only for
@@ -115,7 +115,7 @@ export interface ChannelPerson extends ChannelAudiencePerson {
     isBot: boolean
     isDeleted: boolean
     /** Where the picker found them: they wrote to the bot, the workspace list, or an email. */
-    source: "messaged" | "directory" | "email" | null
+    source: "recent_senders" | "directory" | "email_lookup" | null
 }
 
 /** The cached workspace people list behind the picker (Slack only). */
@@ -168,7 +168,7 @@ export interface ChannelConnection {
     /** Where the answering agent answers, when the host read it. */
     behavior?: ChannelBehaviorState
     /** How many people the answering agent answers; 0 is everyone. */
-    peopleCount?: number
+    audienceCount?: number
     /** WhatsApp only: the callback URL and verify token to paste into Meta's App Dashboard. */
     webhookUrl?: string | null
     webhookVerifyToken?: string | null

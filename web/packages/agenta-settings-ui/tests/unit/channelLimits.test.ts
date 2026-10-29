@@ -15,33 +15,33 @@ const allowSpace = (spaceId: string) => ({id: `s-${spaceId}`, effect: "allow", s
 
 describe("Where the agent answers", () => {
     it("reads no grant as everywhere", () => {
-        expect(behaviorFromGrants("slack", [])).toEqual({dm: true, group: true, channels: null})
+        expect(behaviorFromGrants("slack", [])).toEqual({dm: true, group: true, spaceIds: null})
     })
 
     it("reads today's switches", () => {
         expect(
             behaviorFromGrants("slack", [allow("private"), deny("group"), deny("topic")]),
-        ).toEqual({dm: true, group: false, channels: null})
+        ).toEqual({dm: true, group: false, spaceIds: null})
         expect(
             behaviorFromGrants("slack", [deny("private"), allow("group"), allow("topic")]),
-        ).toEqual({dm: false, group: true, channels: null})
+        ).toEqual({dm: false, group: true, spaceIds: null})
     })
 
     it("reads single-channel allow rules back as chosen channels", () => {
         expect(
             behaviorFromGrants("slack", [allow("private"), allowSpace("s1"), allowSpace("s2")]),
-        ).toEqual({dm: true, group: true, channels: ["s1", "s2"]})
+        ).toEqual({dm: true, group: true, spaceIds: ["s1", "s2"]})
         // DMs off: only the channels
         expect(behaviorFromGrants("slack", [deny("private"), allowSpace("s1")])).toEqual({
             dm: false,
             group: true,
-            channels: ["s1"],
+            spaceIds: ["s1"],
         })
         // nothing checked, DMs on
         expect(behaviorFromGrants("slack", [allow("private")])).toEqual({
             dm: true,
             group: true,
-            channels: [],
+            spaceIds: [],
         })
     })
 
@@ -51,16 +51,16 @@ describe("Where the agent answers", () => {
                 allow("private"),
                 {...allowSpace("s1"), flags: {is_default: true}},
             ]),
-        ).toEqual({dm: true, group: true, channels: ["s1"]})
+        ).toEqual({dm: true, group: true, spaceIds: ["s1"]})
     })
 
     it("keeps DMs off with nothing checked from reading as everywhere", () => {
-        const rules = rulesForBehavior("slack", {dm: false, group: true, channels: []})
+        const rules = rulesForBehavior("slack", {dm: false, group: true, spaceIds: []})
         expect(rules).toEqual([{effect: "deny", kind: "private"}])
     })
 
     it("writes only these channels as allow rules with no deny", () => {
-        const rules = rulesForBehavior("slack", {dm: true, group: true, channels: ["s1"]})
+        const rules = rulesForBehavior("slack", {dm: true, group: true, spaceIds: ["s1"]})
         expect(rules).toEqual([
             {effect: "allow", kind: "private"},
             {effect: "allow", spaceId: "s1"},
@@ -69,13 +69,13 @@ describe("Where the agent answers", () => {
     })
 
     it("writes nothing for everywhere, and today's kind rules for the switches", () => {
-        expect(rulesForBehavior("slack", {dm: true, group: true, channels: null})).toEqual([])
-        expect(rulesForBehavior("slack", {dm: true, group: false, channels: null})).toEqual([
+        expect(rulesForBehavior("slack", {dm: true, group: true, spaceIds: null})).toEqual([])
+        expect(rulesForBehavior("slack", {dm: true, group: false, spaceIds: null})).toEqual([
             {effect: "allow", kind: "private"},
             {effect: "deny", kind: "group"},
             {effect: "deny", kind: "topic"},
         ])
-        expect(rulesForBehavior("telegram", {dm: false, group: true, channels: null})).toEqual([
+        expect(rulesForBehavior("telegram", {dm: false, group: true, spaceIds: null})).toEqual([
             {effect: "deny", kind: "private"},
             {effect: "allow", kind: "group"},
         ])
@@ -83,15 +83,15 @@ describe("Where the agent answers", () => {
 
     it("round-trips every state", () => {
         const states = [
-            {dm: true, group: true, channels: null},
-            {dm: false, group: true, channels: null},
-            {dm: true, group: false, channels: null},
-            {dm: false, group: false, channels: null},
-            {dm: true, group: true, channels: ["s1", "s2"]},
-            {dm: false, group: true, channels: ["s1"]},
-            {dm: true, group: true, channels: []},
-            {dm: false, group: true, channels: []},
-            {dm: true, group: false, channels: ["s1"]},
+            {dm: true, group: true, spaceIds: null},
+            {dm: false, group: true, spaceIds: null},
+            {dm: true, group: false, spaceIds: null},
+            {dm: false, group: false, spaceIds: null},
+            {dm: true, group: true, spaceIds: ["s1", "s2"]},
+            {dm: false, group: true, spaceIds: ["s1"]},
+            {dm: true, group: true, spaceIds: []},
+            {dm: false, group: true, spaceIds: []},
+            {dm: true, group: false, spaceIds: ["s1"]},
         ]
         for (const state of states) {
             const grants = rulesForBehavior("slack", state).map((rule) =>
@@ -131,7 +131,7 @@ describe("Where the agent answers", () => {
         await actions.writeBehavior("slack", "connection", {
             dm: true,
             group: true,
-            channels: ["s1"],
+            spaceIds: ["s1"],
         })
         const deleted = vi
             .mocked(client.deleteChannelGrant)

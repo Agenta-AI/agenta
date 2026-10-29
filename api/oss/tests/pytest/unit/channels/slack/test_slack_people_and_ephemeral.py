@@ -40,7 +40,7 @@ async def test_an_ephemeral_note_reaches_only_the_person():
     shown = await adapter.post_ephemeral(
         connection=_connection(),
         locator={"team": "T-fake", "channel": "C1", "thread_ts": "1.1"},
-        user_id="U2",
+        recipient_id="U2",
         content=[
             {"type": "text", "text": "This agent does not answer in this channel."}
         ],
@@ -67,7 +67,7 @@ async def test_a_refused_ephemeral_raises_for_the_caller_to_log():
         await adapter.post_ephemeral(
             connection=_connection(),
             locator={"channel": "C1"},
-            user_id="U2",
+            recipient_id="U2",
             content=[{"type": "text", "text": "note"}],
         )
 
@@ -129,5 +129,5 @@ async def test_find_person_by_email():
         connection=_connection(), email="nobody@example.com"
     )
 
-    assert found is not None and found.id == "U7" and found.source == "email"
+    assert found is not None and found.id == "U7" and found.source == "email_lookup"
     assert missing is None

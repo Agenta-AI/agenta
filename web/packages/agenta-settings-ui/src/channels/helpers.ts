@@ -82,8 +82,8 @@ export const connectionRowText = (
         ? connection.chats.filter((chat) => chat.type !== "dm").length
         : !behavior.group
           ? 0
-          : behavior.channels !== null
-            ? behavior.channels.length
+          : behavior.spaceIds !== null
+            ? behavior.spaceIds.length
             : connection.chats.filter((chat) => chat.type !== "dm").length
     const noun = slack ? "channel" : "group"
     const places = [
@@ -91,7 +91,7 @@ export const connectionRowText = (
         ...(nonDm ? [`${nonDm} ${noun}${nonDm > 1 ? "s" : ""}`] : []),
     ]
     const where = places.length ? places.join(" and ") : "Answers nowhere"
-    const people = connection.peopleCount ?? 0
+    const people = connection.audienceCount ?? 0
     const who = people
         ? ` · Only ${people} ${slack ? (people === 1 ? "person" : "people") : people === 1 ? "account" : "accounts"}`
         : ""
@@ -369,7 +369,7 @@ export const NOOP_ACTIONS: ChannelsActions = {
     listSpaces: async () => [],
     discoverSpaces: async () => [],
     addSpace: async () => {},
-    readBehavior: async () => ({dm: true, group: true, channels: null}),
+    readBehavior: async () => ({dm: true, group: true, spaceIds: null}),
     writeBehavior: async () => {},
     readAudience: async () => [],
     writeAudience: async () => {},

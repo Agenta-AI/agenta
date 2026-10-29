@@ -57,7 +57,7 @@ const AnswersInRow = ({
 }) => {
     const {behavior, channels, onSave} = answersIn
     const noun = isSlack ? "channel" : "group"
-    const stored = behavior?.channels ?? null
+    const stored = behavior?.spaceIds ?? null
     const [choice, setChoice] = useState<Choice>(stored === null ? "all" : "only")
     const [draft, setDraft] = useState<string[]>(stored ?? [])
     const [saving, setSaving] = useState(false)

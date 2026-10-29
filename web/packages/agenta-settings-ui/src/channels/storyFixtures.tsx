@@ -495,7 +495,7 @@ export const createChannelStoryActions = (
         },
         readBehavior: async (_platform, connectionId) => {
             await delay(latencyMs)
-            return behavior[connectionId] ?? {dm: true, group: true, channels: null}
+            return behavior[connectionId] ?? {dm: true, group: true, spaceIds: null}
         },
         writeBehavior: async (_platform, connectionId, next) => {
             await delay(latencyMs)
