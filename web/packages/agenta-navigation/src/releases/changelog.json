@@ -183,7 +183,28 @@
             }
         ],
         "improvements": [],
-        "fixes": []
+        "fixes": [
+            {
+                "area": "Analytics",
+                "text": "A 30-day range that takes too long shows an error instead of empty charts"
+            },
+            {
+                "area": "Analytics",
+                "text": "Agent runs show in the model charts and the model filter again"
+            },
+            {
+                "area": "Chat",
+                "text": "Replies in a project other than your default one stream while the model writes"
+            },
+            {
+                "area": "Models",
+                "text": "Gemini models from a Vertex AI connection run on the pi_core harness"
+            },
+            {
+                "area": "Triggers",
+                "text": "Triggers added from an agent's config panel bind to the agent by its slug"
+            }
+        ]
     },
     {
         "id": "v0.122.3",
