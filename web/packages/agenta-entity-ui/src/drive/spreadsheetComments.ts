@@ -153,8 +153,8 @@ export function useSheetComments({
     }, [dragging, rootRef])
 
     const onPointerDown = useCallback((e: ReactPointerEvent<HTMLElement>) => {
-        // A press that closed an open note only closes it, as a click in a preview frame does.
-        if (e.button !== 0 || pressClosedNote(e.nativeEvent)) return
+        // A press that closed an open note only closes it, unless Shift extends the range.
+        if (e.button !== 0 || (pressClosedNote(e.nativeEvent) && !e.shiftKey)) return
         const point = pointOf(e.target)
         if (!point) return
         // Keeps the browser from selecting text under the drag.
