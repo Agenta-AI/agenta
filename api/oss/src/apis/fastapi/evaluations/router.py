@@ -127,8 +127,8 @@ log = get_module_logger(__name__)
 
 
 def _caller(request: Request) -> PrincipalRef:
-    """The principal an evaluation run executes as after a create, start or rerun:
-    the calling request's principal. Never taken from the body."""
+    """The principal an evaluation run executes as after a create, start, rerun or
+    edit: the calling request's principal. Never taken from the body."""
 
     principal = getattr(request.state, "principal", None)
     if principal is None:
@@ -666,6 +666,7 @@ class EvaluationsRouter:
             user_id=UUID(request.state.user_id),
             #
             runs=runs_edit_request.runs,
+            principal=_caller(request),
         )
 
         runs_response = EvaluationRunsResponse(
@@ -876,6 +877,7 @@ class EvaluationsRouter:
             user_id=UUID(request.state.user_id),
             #
             run=run_edit_request.run,
+            principal=_caller(request),
         )
 
         run_response = EvaluationRunResponse(
@@ -2104,6 +2106,7 @@ class SimpleEvaluationsRouter:
             user_id=UUID(request.state.user_id),
             #
             evaluation=evaluation_edit,
+            principal=_caller(request),
         )
 
         response = SimpleEvaluationResponse(

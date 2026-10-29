@@ -100,7 +100,9 @@ class EvaluationsDAOInterface(ABC):
         user_id: UUID,
         #
         run: EvaluationRunEdit,
+        principal: Optional[PrincipalRef] = None,
     ) -> Optional[EvaluationRun]:
+        """With a `principal`, the edit also writes it as the executing principal."""
         raise NotImplementedError
 
     @abstractmethod
@@ -111,7 +113,10 @@ class EvaluationsDAOInterface(ABC):
         user_id: UUID,
         #
         runs: List[EvaluationRunEdit],
+        principal: Optional[PrincipalRef] = None,
     ) -> List[EvaluationRun]:
+        """With a `principal`, the edit also writes it as each run's executing
+        principal."""
         raise NotImplementedError
 
     @abstractmethod

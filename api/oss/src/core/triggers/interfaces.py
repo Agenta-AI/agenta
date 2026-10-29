@@ -148,7 +148,10 @@ class TriggersDAOInterface(ABC):
         #
         artifact_id: Any = KEEP_ARTIFACT_ID,
         trigger_id: Optional[str] = None,
-    ) -> Optional[TriggerSubscription]: ...
+        principal: Optional[PrincipalRef] = None,
+    ) -> Optional[TriggerSubscription]:
+        """With a `principal`, the edit also writes it as the executing principal."""
+        ...
 
     @abstractmethod
     async def delete_subscription(
@@ -398,7 +401,10 @@ class TriggersDAOInterface(ABC):
         schedule: TriggerScheduleEdit,
         #
         artifact_id: Any = KEEP_ARTIFACT_ID,
-    ) -> Optional[TriggerSchedule]: ...
+        principal: Optional[PrincipalRef] = None,
+    ) -> Optional[TriggerSchedule]:
+        """With a `principal`, the edit also writes it as the executing principal."""
+        ...
 
     @abstractmethod
     async def delete_schedule(

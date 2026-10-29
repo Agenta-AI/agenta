@@ -1149,9 +1149,11 @@ class TriggersService:
         user_id: UUID,
         #
         subscription: TriggerSubscriptionEdit,
+        principal: PrincipalRef,
     ) -> Optional[TriggerSubscription]:
         """Full-PUT edit. Reflects the connection, event, trigger_config and the
-        combined is_active/is_valid onto the provider ``ti_*``."""
+        combined is_active/is_valid onto the provider ``ti_*``. The editor
+        (`principal`) becomes the executing principal in the same write."""
         existing = await self.dao.fetch_subscription(
             project_id=project_id,
             subscription_id=subscription.id,
@@ -1188,12 +1190,13 @@ class TriggersService:
                     is_valid=existing.flags.is_valid,
                 )
 
-            # The principal stays; the target agent follows the edited references.
+            # The target agent follows the edited references.
             return await self.dao.edit_subscription(
                 project_id=project_id,
                 user_id=user_id,
                 subscription=subscription,
                 artifact_id=artifact_id,
+                principal=principal,
             )
 
         if target_changed:
@@ -1243,6 +1246,7 @@ class TriggersService:
                 subscription=subscription,
                 artifact_id=artifact_id,
                 trigger_id=trigger_id,
+                principal=principal,
             )
         except Exception:
             if replacement is not None:
@@ -1790,8 +1794,10 @@ class TriggersService:
         user_id: UUID,
         #
         schedule: TriggerScheduleEdit,
+        principal: PrincipalRef,
     ) -> Optional[TriggerSchedule]:
-        """Full-PUT edit (load the current row, override owned fields)."""
+        """Full-PUT edit (load the current row, override owned fields). The editor
+        (`principal`) becomes the executing principal in the same write."""
         existing = await self.dao.fetch_schedule(
             project_id=project_id,
             schedule_id=schedule.id,
@@ -1807,12 +1813,13 @@ class TriggersService:
             references=schedule.data.references,
         )
 
-        # The principal stays; the target agent follows the edited references.
+        # The target agent follows the edited references.
         return await self.dao.edit_schedule(
             project_id=project_id,
             user_id=user_id,
             schedule=schedule,
             artifact_id=artifact_id,
+            principal=principal,
         )
 
     async def delete_schedule(

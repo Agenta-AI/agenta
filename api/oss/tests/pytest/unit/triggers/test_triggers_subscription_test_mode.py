@@ -159,6 +159,7 @@ async def test_edit_to_test_bypasses_validation_and_forces_active():
         project_id=uuid4(),
         user_id=uuid4(),
         subscription=_edit(existing, is_test=True),
+        principal=any_principal(),
     )
 
     service._validate_references.assert_not_awaited()
@@ -176,6 +177,7 @@ async def test_edit_test_off_rejects_when_references_do_not_resolve():
             project_id=uuid4(),
             user_id=uuid4(),
             subscription=_edit(existing, is_test=False, references=None),
+            principal=any_principal(),
         )
 
 
@@ -188,6 +190,7 @@ async def test_edit_test_off_succeeds_when_references_resolve():
         project_id=uuid4(),
         user_id=uuid4(),
         subscription=_edit(existing, is_test=False, references={"workflow": {}}),
+        principal=any_principal(),
     )
 
     service._validate_references.assert_awaited_once()

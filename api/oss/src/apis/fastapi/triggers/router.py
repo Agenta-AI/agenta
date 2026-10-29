@@ -120,7 +120,7 @@ def handle_adapter_exceptions():
 
 
 def _request_principal(request: Request) -> PrincipalRef:
-    """The principal the created trigger runs as: the creating request's principal
+    """The principal a created or edited trigger runs as: the request's principal
     (a human, or an API key). Never taken from the body."""
 
     principal = getattr(request.state, "principal", None)
@@ -1171,6 +1171,7 @@ class TriggersRouter:
                 user_id=UUID(str(request.state.user_id)),
                 #
                 subscription=body.subscription,
+                principal=_request_principal(request),
             )
         except TriggerReferenceInvalid as e:
             raise HTTPException(status_code=422, detail=e.message) from e
@@ -1428,6 +1429,7 @@ class TriggersRouter:
                 user_id=UUID(str(request.state.user_id)),
                 #
                 schedule=body.schedule,
+                principal=_request_principal(request),
             )
         except TriggerScheduleInvalid as e:
             raise HTTPException(status_code=422, detail=e.message) from e
