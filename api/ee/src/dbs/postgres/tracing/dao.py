@@ -248,12 +248,14 @@ class TracingRetentionDAO:
         *,
         cutoff: datetime,
         project_ids: List[UUID],
+        max_tombstones: int = 1000,
     ) -> int:
         """Delete the privacy tombstones of deleted private sessions whose traces are
         gone: `deleted_at` before `cutoff` (the trace cutoff minus one day) and no stored
         span carries the session id any more. A span left behind (for example a child
         whose root never arrived, which retention does not select) keeps its tombstone,
-        so its trace stays hidden."""
+        so its trace stays hidden. At most `max_tombstones` per call, oldest first; the
+        next flush takes the rest."""
 
         if not project_ids:
             return 0
@@ -267,10 +269,13 @@ class TracingRetentionDAO:
                     select(
                         SessionTraceTombstoneDBE.project_id,
                         SessionTraceTombstoneDBE.session_id,
-                    ).where(
+                    )
+                    .where(
                         SessionTraceTombstoneDBE.project_id == any_(projects),
                         SessionTraceTombstoneDBE.deleted_at < cutoff,
                     )
+                    .order_by(SessionTraceTombstoneDBE.deleted_at)
+                    .limit(max_tombstones)
                 )
             ).all()
         if not candidates:
