@@ -1957,6 +1957,149 @@ describe("runSandboxAgent orchestration", () => {
     );
   });
 
+  it("Daytona mounts the cwd, the session dir, and the agent drive at the same time, and links after the cwd", async () => {
+    const { deps } = fakeHarness();
+    const creds = (prefix: string) => ({
+      endpoint: "https://s3.example.com",
+      region: "us-east-1",
+      bucket: "agenta-store",
+      prefix,
+      accessKey: "AK-1",
+      secretKey: "SK-1",
+    });
+    deps.signSessionMountCredentials = (async (_s: string, _o: unknown, name?: string) =>
+      creds(`mounts/proj-1/${name ?? "cwd"}`)) as any;
+    deps.signAgentMountCredentials = (async () => creds("mounts/proj-1/agent")) as any;
+    const order: string[] = [];
+    const started = new Set<string>();
+    let releaseCwd!: () => void;
+    const cwdHeld = new Promise<void>((resolve) => {
+      releaseCwd = resolve;
+    });
+    // The session-dir mounts sign their own credentials; route them to the same fake mount.
+    deps.mountHarnessSessionDirs = (async (sb: unknown, _s: string, dirs: Array<{ path: string }>) => {
+      for (const dir of dirs) await deps.mountStorageRemote!(sb as never, dir.path, creds("d") as never, {} as never);
+    }) as any;
+    deps.mountStorageRemote = (async (_sb: unknown, path: string) => {
+      const kind = path.endsWith("-agent")
+        ? "agent"
+        : path.includes("/.claude/")
+          ? "session-dir"
+          : "cwd";
+      started.add(kind);
+      order.push(`start:${kind}`);
+      if (kind === "cwd") {
+        // Hold the cwd mount until the other two have started: a serial acquire never gets here.
+        for (let i = 0; i < 50 && started.size < 3; i++) {
+          await new Promise((r) => setTimeout(r, 1));
+        }
+        await cwdHeld;
+      } else if (started.size === 3) {
+        releaseCwd();
+      }
+      order.push(`done:${kind}`);
+      return true;
+    }) as any;
+    const startSandboxAgent = deps.startSandboxAgent!;
+    deps.startSandboxAgent = (async (opts: any) => {
+      const sandbox: any = await startSandboxAgent(opts);
+      sandbox.runProcess = async (o: { args?: string[] }) => {
+        if ((o.args?.[1] ?? "").includes("agent-files")) order.push("link");
+        return { exitCode: 0 };
+      };
+      return sandbox;
+    }) as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        sandbox: "daytona",
+        sessionId: "sess-1",
+        runContext: { workflow: { artifact: { id: "artifact-1" } } },
+        telemetry: {
+          exporters: { otlp: { headers: { authorization: "ApiKey run" } } },
+        },
+        messages: [{ role: "user", content: "hello" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(
+      [...started].sort(),
+      ["agent", "cwd", "session-dir"],
+      `all three mounts ran: ${order}`,
+    );
+    assert.ok(
+      order.indexOf("start:agent") < order.indexOf("done:cwd") &&
+        order.indexOf("start:session-dir") < order.indexOf("done:cwd"),
+      `the agent and session-dir mounts start before the cwd mount ends: ${order}`,
+    );
+    assert.ok(order.includes("link"), `agent-files is linked: ${order}`);
+    assert.ok(
+      order.indexOf("link") > order.indexOf("done:cwd"),
+      `agent-files is linked only after the cwd mount: ${order}`,
+    );
+  });
+
+  it("Daytona rethrows a cwd mount abort only after the agent mount settled", async () => {
+    const { deps } = fakeHarness();
+    const creds = {
+      endpoint: "https://s3.example.com",
+      region: "us-east-1",
+      bucket: "agenta-store",
+      prefix: "mounts/proj-1/x",
+      accessKey: "AK-1",
+      secretKey: "SK-1",
+    };
+    deps.signSessionMountCredentials = (async () => creds) as any;
+    deps.signAgentMountCredentials = (async () => creds) as any;
+    let agentSettled = false;
+    let linked = false;
+    deps.mountHarnessSessionDirs = (async () => {}) as any;
+    deps.mountStorageRemote = (async (_sb: unknown, path: string) => {
+      if (path.endsWith("-agent")) {
+        await new Promise((r) => setTimeout(r, 20));
+        agentSettled = true;
+        return true;
+      }
+      if (path.includes("/.claude/")) return true;
+      throw new Error("cwd mount exploded");
+    }) as any;
+    const startSandboxAgent = deps.startSandboxAgent!;
+    deps.startSandboxAgent = (async (opts: any) => {
+      const sandbox: any = await startSandboxAgent(opts);
+      sandbox.runProcess = async (o: { args?: string[] }) => {
+        if ((o.args?.[1] ?? "").includes("agent-files")) linked = true;
+        return { exitCode: 0 };
+      };
+      return sandbox;
+    }) as any;
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        sandbox: "daytona",
+        sessionId: "sess-1",
+        runContext: { workflow: { artifact: { id: "artifact-1" } } },
+        telemetry: {
+          exporters: { otlp: { headers: { authorization: "ApiKey run" } } },
+        },
+        messages: [{ role: "user", content: "hello" }],
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, false);
+    assert.match(String(!result.ok && result.error), /cwd mount exploded|could not|failed/i);
+    assert.equal(agentSettled, true, "the agent mount settled before the error surfaced");
+    assert.equal(linked, false, "a failed cwd mount skips the agent-files link");
+  });
+
   it("keeps terminal events empty on the streaming path", async () => {
     const { deps } = fakeHarness();
     const streamed: AgentEvent[] = [];
