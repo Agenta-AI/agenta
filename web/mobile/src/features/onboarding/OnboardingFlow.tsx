@@ -158,7 +158,7 @@ export const OnboardingFlow = ({
         attachments,
         onChooseModel: () => go({step: "credits"}, {returnTo: routeRef.current}),
         onCreate: async (firstMessage) => {
-            const input = blankAgentInput(draftRef.current.agent, firstMessage)
+            const input = blankAgentInput(firstMessage)
             flushDraft()
             return input ? onCreate(input) : false
         },
@@ -225,7 +225,15 @@ export const OnboardingFlow = ({
             className="bg-background text-foreground flex h-dvh flex-col overflow-y-auto overflow-x-hidden"
         >
             <OnboardingHeader onSkip={step === "templates" && !creating ? onSkip : undefined} />
-            <main className="box-border flex min-w-0 flex-1 items-center justify-center px-4 pb-6 pt-6 sm:px-6 md:pb-24">
+            <main
+                className={cn(
+                    "box-border flex min-w-0 flex-1 items-center justify-center px-4 pb-6 pt-6 sm:px-6",
+                    // The gallery is pinned to the top and fills the height, so its title, chips
+                    // and Use template never move with a longer list or a longer template.
+                    // Below this the whole page scrolls instead of squeezing the panel under the dots.
+                    step === "templates" && "md:min-h-[520px] md:items-stretch md:pb-0",
+                )}
+            >
                 <motion.section
                     key={step}
                     custom={shown.direction}
@@ -236,6 +244,7 @@ export const OnboardingFlow = ({
                     className={cn(
                         "w-full min-w-0",
                         isFixedStep(step) ? WIDTH[step] : QUESTION_WIDTH,
+                        step === "templates" && "md:flex md:min-h-0 md:flex-col",
                     )}
                 >
                     {isFixedStep(step) ? body[step]() : question(step)}

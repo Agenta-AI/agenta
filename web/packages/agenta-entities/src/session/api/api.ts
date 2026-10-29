@@ -23,7 +23,6 @@ import {
     sessionCancelExecutionResponseSchema,
     sessionSnapshotSchema,
     sessionsQueryResponseSchema,
-    sessionStreamCommandResponseSchema,
     sessionStreamSchema,
     sessionMountsResponseSchema,
     sessionStreamResponseSchema,
@@ -38,7 +37,6 @@ import {
     type SessionExpansion,
     type SessionOrigin,
     type SessionStream,
-    type SessionStreamCommandResponse,
     type SessionsQueryResponse,
     type SessionWindowing,
 } from "../core/schema"
@@ -889,49 +887,6 @@ export async function fetchSessionStream({
     return validated?.stream ?? null
 }
 
-export interface CommandSessionStreamParams extends SessionScopedParams {
-    /** Steal the run lock from whoever holds it. */
-    force?: boolean
-    /** Fire-and-forget: start the run without holding a connection. */
-    detached?: boolean
-}
-
-/**
- * CONTROL-PLANE call to start/resume/steer/cancel a run (the prompt × force matrix). Returns
- * a handle (`{mode, turn_id, watcher_id, …}`), NOT the token stream — the v6 chunk stream is
- * delivered out-of-band (see the agent-chat transport). Use `force` to steal the lock,
- * `detached` for fire-and-forget.
- *
- * FOLLOWUP(sessions,lifecycle): steer/attach remain unwired in the user-facing desktop chat;
- * cancel IS consumed by the mobile StopButton (cooperative ≤30s; clean "cancelled" settle
- * arrives with the agent-cancel-steer runner work). There's still no live-turn re-watch.
- * See docs/designs/sessions/frontend-integration.md.
- */
-export async function commandSessionStream({
-    sessionId,
-    projectId,
-    appId,
-    abortSignal,
-    force,
-    detached,
-}: CommandSessionStreamParams): Promise<SessionStreamCommandResponse | null> {
-    if (!projectId || !sessionId) return null
-
-    // The prompt→request.data (inputs) mapping is defined by the sessions feature owner when the send path gets wired (see PR #5375 body).
-    const data = await callFern("[commandSessionStream]", () =>
-        getSessionsClient().setSessionStream(
-            {session_id: sessionId, force, detached},
-            projectScopedRequest(projectId, appId, abortSignal),
-        ),
-    )
-    if (!data) return null
-
-    return (
-        safeParseWithLogging(sessionStreamCommandResponseSchema, data, "[commandSessionStream]") ??
-        null
-    )
-}
-
 /**
  * KILL — end a session: collapse the stream nest, force-clear the runner's alive lock (its
  * existing teardown signal, so the sandbox tears down), mark the row ended, and cancel every
@@ -953,81 +908,6 @@ export async function killSession({
         ),
     )
     return data !== null
-}
-
-/** Stop keeps accepted, idle, stale, and failed outcomes distinct. */
-export interface CancelSessionStreamParams extends SessionScopedParams {
-    /** The server cancels this observed execution or nothing. */
-    expectedExecutionId?: string
-}
-
-export type CancelSessionOutcome =
-    | {status: "cancelled"; response: SessionStreamCommandResponse | null}
-    | {status: "idle"}
-    /** The server refused: another turn holds the session, or the Stop arrived too late. */
-    | {status: "stale"; message: string}
-    | {status: "failed"; message: string}
-
-const STALE_CANCEL_FALLBACK =
-    "That run had already finished. The session is running something else now."
-const FAILED_CANCEL_FALLBACK = "Could not stop the run. It may still be running."
-
-/** The response envelope's error message, when it is there. */
-const cancelErrorMessage = (error: unknown, fallback: string): string => {
-    const detail = (error as {body?: {detail?: unknown}} | null)?.body?.detail
-    if (typeof detail === "string") return detail
-    const message = (detail as {message?: unknown} | null)?.message
-    if (typeof message === "string") return message
-    return error instanceof Error && error.message ? error.message : fallback
-}
-
-/** Stop the current turn and preserve the server outcome for the caller. */
-export async function cancelSessionStream({
-    sessionId,
-    projectId,
-    appId,
-    abortSignal,
-    expectedExecutionId,
-}: CancelSessionStreamParams): Promise<CancelSessionOutcome> {
-    if (!projectId || !sessionId) return {status: "failed", message: FAILED_CANCEL_FALLBACK}
-
-    try {
-        const data = await getSessionsClient().setSessionStream(
-            {
-                session_id: sessionId,
-                // Omission selects the server's arrival-time guard.
-                ...(expectedExecutionId ? {expected_execution_id: expectedExecutionId} : {}),
-            },
-            projectScopedRequest(projectId, appId, abortSignal),
-        )
-        const response =
-            safeParseWithLogging(
-                sessionStreamCommandResponseSchema,
-                data,
-                "[cancelSessionStream]",
-            ) ?? null
-        if (!response || !response.cancelled_turn_ids) {
-            return {status: "failed", message: FAILED_CANCEL_FALLBACK}
-        }
-        if (response.cancelled_turn_ids.length === 0) return {status: "idle"}
-        return {
-            status: "cancelled",
-            response,
-        }
-    } catch (error) {
-        if (isAbortError(error)) throw error
-        if (isInteractionConflict(error)) {
-            return {
-                status: "stale",
-                message: cancelErrorMessage(error, STALE_CANCEL_FALLBACK),
-            }
-        }
-        console.error(
-            "[cancelSessionStream] failed:",
-            error instanceof Error ? error.message : String(error),
-        )
-        return {status: "failed", message: cancelErrorMessage(error, FAILED_CANCEL_FALLBACK)}
-    }
 }
 
 /**

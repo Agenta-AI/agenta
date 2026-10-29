@@ -8,6 +8,7 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.core.triggers.dtos import (
     TriggerCatalogProvider,
     TriggerProviderKind,
+    TriggerWebhookRegistration,
 )
 from oss.src.core.triggers.interfaces import TriggersGatewayInterface
 from oss.src.core.triggers.exceptions import AdapterError
@@ -21,6 +22,28 @@ from oss.src.utils.env import env
 log = get_module_logger(__name__)
 
 _WEBHOOK_EVENT = "composio.trigger.message"
+
+
+def normalize_webhook_event(envelope: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """Map a Composio V3 webhook envelope to the internal trigger event shape.
+
+    V3 carries the event id at the top level and the message under ``data``;
+    the dispatcher reads ``metadata.id`` and ``payload``. Returns None when the
+    envelope is not a routable trigger message.
+    """
+    if envelope.get("type") != _WEBHOOK_EVENT:
+        return None
+    metadata = envelope.get("metadata") or {}
+    if not isinstance(metadata, dict):
+        return None
+    trigger_id = metadata.get("trigger_id")
+    event_id = envelope.get("id")
+    if not trigger_id or not event_id:
+        return None
+    return {
+        "metadata": {**metadata, "id": event_id},
+        "payload": envelope.get("data"),
+    }
 
 
 class ComposioTriggersAdapter(ComposioTriggersCatalogClient, TriggersGatewayInterface):
@@ -129,17 +152,20 @@ class ComposioTriggersAdapter(ComposioTriggersCatalogClient, TriggersGatewayInte
     # Webhook subscription (project-level event delivery → Agenta ingress)
     # -----------------------------------------------------------------------
 
-    async def ensure_webhook_subscription(self, *, webhook_url: str) -> str:
-        """GET-or-create-then-GET the delivery webhook; return its secret.
+    async def ensure_webhook_subscription(
+        self, *, webhook_url: str
+    ) -> TriggerWebhookRegistration:
+        """GET-or-create-then-GET the delivery webhook; return its secret and URL.
 
         The one-per-project cap arbitrates the race: the 409 loser re-reads the
-        winner's secret.
+        winner's secret. An existing webhook is never updated, even when its URL
+        differs from ``webhook_url``.
         """
         try:
             existing = await self._get("/webhook_subscriptions")
-            secret = self._first_webhook_secret(existing)
-            if secret:
-                return secret
+            registration = self._first_webhook(existing)
+            if registration:
+                return registration
 
             resp = await self._client.post(
                 f"{self.api_url}/webhook_subscriptions",
@@ -148,16 +174,20 @@ class ComposioTriggersAdapter(ComposioTriggersCatalogClient, TriggersGatewayInte
             )
             if resp.status_code == 409:
                 again = await self._get("/webhook_subscriptions")
-                secret = self._first_webhook_secret(again)
-                if not secret:
+                registration = self._first_webhook(again)
+                if not registration:
                     raise AdapterError(
                         provider_key="composio",
                         operation="ensure_webhook_subscription",
                         detail="409 conflict returned no readable webhook secret",
                     )
-                return secret
+                return registration
             resp.raise_for_status()
-            return resp.json()["secret"]
+            created = resp.json()
+            return TriggerWebhookRegistration(
+                secret=created["secret"],
+                webhook_url=created.get("webhook_url") or webhook_url,
+            )
         except httpx.HTTPError as e:
             raise AdapterError(
                 provider_key="composio",
@@ -166,13 +196,19 @@ class ComposioTriggersAdapter(ComposioTriggersCatalogClient, TriggersGatewayInte
             ) from e
 
     @staticmethod
-    def _first_webhook_secret(payload: object) -> Optional[str]:
+    def _first_webhook(payload: object) -> Optional[TriggerWebhookRegistration]:
         if not isinstance(payload, dict):
             return None
         items = payload.get("items", [])
-        if items and isinstance(items[0], dict):
-            return items[0].get("secret")
-        return None
+        if not items or not isinstance(items[0], dict):
+            return None
+        secret = items[0].get("secret")
+        if not secret:
+            return None
+        return TriggerWebhookRegistration(
+            secret=secret,
+            webhook_url=items[0].get("webhook_url"),
+        )
 
     # -----------------------------------------------------------------------
     # Subscriptions (provider-side trigger instances — ti_*)
@@ -224,6 +260,15 @@ class ComposioTriggersAdapter(ComposioTriggersCatalogClient, TriggersGatewayInte
                 f"/trigger_instances/manage/{trigger_id}",
                 json={"status": status},
             )
+        except httpx.HTTPStatusError as e:
+            # 409 means the instance is already in the requested state.
+            if e.response.status_code == 409:
+                return
+            raise AdapterError(
+                provider_key="composio",
+                operation="set_subscription_status",
+                detail=composio_error_detail(e),
+            ) from e
         except httpx.HTTPError as e:
             raise AdapterError(
                 provider_key="composio",

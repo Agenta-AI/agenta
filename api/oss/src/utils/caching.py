@@ -699,3 +699,30 @@ async def get_cache_many(entries: list) -> list:
         log.warn("[cache] MGET ", count=len(entries))
         log.warn(e)
         return [None] * len(entries)
+
+
+async def invalidate_cache_entries(entries: list) -> Optional[bool]:
+    """Delete several exact entries, in batches of `AGENTA_CACHE_DELETE_BATCH_SIZE` keys
+    per `DEL` (no SCAN). `entries` are dicts with the `get_cache` naming arguments
+    (`namespace`, `project_id`, `user_id`, `key`). Caching disabled: no-op. A Redis
+    error is logged and returns None, like `invalidate_cache`."""
+
+    if not env.agenta.api.caching.enabled or not entries:
+        return None
+    try:
+        names = [
+            _pack(
+                namespace=entry.get("namespace"),
+                key=entry.get("key"),
+                project_id=entry.get("project_id"),
+                user_id=entry.get("user_id"),
+            )
+            for entry in entries
+        ]
+        for i in range(0, len(names), AGENTA_CACHE_DELETE_BATCH_SIZE):
+            await _cache_engine.delete(*names[i : i + AGENTA_CACHE_DELETE_BATCH_SIZE])
+        return True
+    except Exception as e:  # pylint: disable=broad-except
+        log.warn("[cache] DEL MANY", count=len(entries))
+        log.warn(e)
+        return None

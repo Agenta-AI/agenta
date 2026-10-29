@@ -154,6 +154,35 @@ class InvalidAgentInstructionsError(Exception):
         }
 
 
+class InvalidAgentConnectionError(Exception):
+    """The commit carries ``parameters.agent.llm.connection`` that the runtime cannot use.
+
+    Refused at the write boundary, for the reason :class:`InvalidAgentInstructionsError`
+    gives: an organization connection that does not name its slug with scope and namespace
+    ``organization``.
+    """
+
+    code = "invalid_agent_connection"
+
+    def __init__(self, *, reason: str, message: str, next_step: str) -> None:
+        super().__init__(message)
+        self.reason = reason
+        self.message = message
+        self.next_step = next_step
+
+    def to_detail(self) -> Dict[str, Any]:
+        return {
+            "code": self.code,
+            "message": self.message,
+            "retryable": False,
+            "next_step": self.next_step,
+            "details": {
+                "field": "parameters.agent.llm.connection",
+                "reason": self.reason,
+            },
+        }
+
+
 class WorkflowServiceUrlMissing(WorkflowError):
     """Raised when a revision has no runnable service URL to invoke (batch or detached)."""
 

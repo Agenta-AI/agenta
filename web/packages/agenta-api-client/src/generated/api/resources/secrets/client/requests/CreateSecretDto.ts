@@ -20,4 +20,15 @@ export interface CreateSecretDto {
     header: AgentaApi.Header;
     secret: AgentaApi.SecretDto;
     write_only?: boolean;
+    scope?: CreateSecretDto.Scope;
+    availability?: AgentaApi.SecretAvailability | null;
+    project_ids?: string[] | null;
+}
+
+export namespace CreateSecretDto {
+    export const Scope = {
+        Project: "project",
+        Organization: "organization",
+    } as const;
+    export type Scope = (typeof Scope)[keyof typeof Scope];
 }

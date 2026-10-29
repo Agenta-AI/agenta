@@ -458,6 +458,14 @@ class ChannelAgentData(BaseModel):
         return references
 
 
+class ChannelBindingRestore(BaseModel):
+    """An active binding a connection restore brings back, as the restore read it: its
+    references, and the agent they resolve to (None when they resolve to no agent)."""
+
+    references: Dict[str, Reference]
+    artifact_id: Optional[UUID] = None
+
+
 class ChannelSpaceData(BaseModel):
     external_locator: Dict[str, Any]  # the platform's own fields
     policy: Optional[ChannelPolicy] = None

@@ -204,6 +204,7 @@ class TriggersDAO(TriggersDAOInterface):
         subscription: TriggerSubscriptionEdit,
         #
         artifact_id: Any = KEEP_ARTIFACT_ID,
+        trigger_id: Optional[str] = None,
     ) -> Optional[TriggerSubscription]:
         async with self.engine.session() as session:
             stmt = (
@@ -233,6 +234,8 @@ class TriggersDAO(TriggersDAOInterface):
             # The principal never changes on an edit; the target follows the refs.
             if artifact_id is not KEEP_ARTIFACT_ID:
                 subscription_dbe.artifact_id = artifact_id
+            if trigger_id is not None:
+                subscription_dbe.trigger_id = trigger_id
 
             await session.commit()
 

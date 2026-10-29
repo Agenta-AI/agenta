@@ -111,10 +111,38 @@ describe("Channels connection state", () => {
         expect(client.editChannelAgent).toHaveBeenCalledWith(
             {
                 agent_id: "agent-1",
-                agent: {id: "agent-1", data: {references: {application: {id: "app-1"}}}},
+                agent: {
+                    id: "agent-1",
+                    data: {references: {application: {id: "app-1"}}},
+                    flags: {is_default: true, is_active: true},
+                },
             },
             {queryParams: {project_id: "project-1"}},
         )
+    })
+
+    it("turns on a binding a reconnect brought back off", async () => {
+        const {client, actions} = fixture()
+        const off = (appId: string) => ({
+            ...agent(appId),
+            flags: {is_default: true, is_active: false},
+        })
+        for (const appId of ["other-app", "app-1"]) {
+            client.editChannelAgent.mockClear()
+            client.queryChannelAgents.mockResolvedValueOnce({agents: [off(appId)]})
+            await actions.connectHere("slack", "connection-1")
+            expect(client.editChannelAgent).toHaveBeenCalledWith(
+                {
+                    agent_id: "agent-1",
+                    agent: {
+                        id: "agent-1",
+                        data: {references: {application: {id: "app-1"}}},
+                        flags: {is_default: true, is_active: true},
+                    },
+                },
+                {queryParams: {project_id: "project-1"}},
+            )
+        }
     })
 
     it("propagates disconnect failures without reporting success", async () => {

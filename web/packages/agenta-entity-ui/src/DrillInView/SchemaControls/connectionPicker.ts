@@ -19,7 +19,7 @@ import {
     SUBSCRIPTION_SIGN_IN_HINT,
     subscriptionAvailability,
     subscriptionPlanName,
-    connectionNamespaceFrom,
+    savedConnectionNamespace,
     type AgentConnectionNamespace,
     type AgentModelCandidate,
     type AgentModelSelection,
@@ -59,6 +59,8 @@ export interface PickerConnectionRow {
      * sets it, and only when a hosted subscription to the same plan is in the same picker.
      */
     source?: string
+    /** An organization connection: listed after the project's, and tagged as the organization's. */
+    organization?: boolean
     models: PickerModelRow[]
 }
 
@@ -129,6 +131,7 @@ const rowFromCandidate = (
             : (connection?.kind ?? candidate.provider ?? ""),
     kind: candidate.source,
     managed: candidate.managed || undefined,
+    ...(connection?.scope === "organization" ? {organization: true} : {}),
     models: [],
 })
 
@@ -172,6 +175,7 @@ const disabledSubscriptionRow = (connection: ProviderConnection): PickerConnecti
     kind: "subscription",
     disabled: true,
     hint: SUBSCRIPTION_SIGN_IN_HINT,
+    ...(connection.scope === "organization" ? {organization: true} : {}),
     models: [],
 })
 
@@ -221,7 +225,9 @@ export const buildConnectionPickerRows = (args: BuildPickerRowsArgs): PickerConn
         rows.push(disabledSubscriptionRow(connection))
     }
 
-    return rows
+    // The organization connections this project may use come after the project's own rows, in
+    // their own order (a stable partition).
+    return [...rows.filter((row) => !row.organization), ...rows.filter((row) => row.organization)]
 }
 
 export interface PickerOptionMetadata extends Record<string, unknown> {
@@ -231,6 +237,11 @@ export interface PickerOptionMetadata extends Record<string, unknown> {
     harness: string
     provider?: string
 }
+
+/** A saved id names a row by its own spelling or by the bare id the API also resolves. */
+const namesModel = (model: PickerModelRow, modelId: string | null): boolean =>
+    !!modelId &&
+    (model.modelId === modelId || bareModelId(model.modelId, model.provider ?? "") === modelId)
 
 export const modelRowKey = (connectionKey: string, model: PickerModelRow): string =>
     `${connectionKey}:${model.harness}:${model.modelId}`
@@ -251,18 +262,24 @@ export const selectedModelRowKey = (
 ): string | undefined => {
     if (!current.modelId) return undefined
     const all = rows.flatMap((row) => row.models.map((model) => ({key: row.key, model})))
-    const sameModel = all.filter((entry) => entry.model.modelId === current.modelId)
+    const sameModel = all.filter((entry) => namesModel(entry.model, current.modelId))
     const sameHarness = current.harness
         ? sameModel.filter((entry) => entry.model.harness === current.harness)
         : sameModel
     const pool = sameHarness.length ? sameHarness : sameModel
+    const exact = pool.find(
+        (entry) =>
+            entry.model.mode === current.mode &&
+            (entry.model.slug ?? null) === (current.slug ?? null) &&
+            entry.model.namespace === (current.namespace ?? null),
+    )
+    // An organization connection the agent can no longer use is not stood in for by another
+    // connection that offers the same model: the agent uses exactly the one it named.
     const match =
-        pool.find(
-            (entry) =>
-                entry.model.mode === current.mode &&
-                (entry.model.slug ?? null) === (current.slug ?? null) &&
-                entry.model.namespace === (current.namespace ?? null),
-        ) ?? pool[0]
+        exact ??
+        (current.namespace === "organization"
+            ? undefined
+            : pool.find((entry) => entry.model.namespace !== "organization"))
     return match ? modelRowKey(match.key, match.model) : undefined
 }
 
@@ -290,6 +307,19 @@ export const displayedModelRow = (
     vaultSlugs: readonly (string | undefined)[],
 ): {key: string | undefined; modelId: string | null} => {
     const key = selectedModelRowKey(rows, current)
+    // A connection that is gone selects nothing when an organization row is involved: neither a
+    // named organization connection nor a project one may light up another row by model id.
+    if (
+        !key &&
+        (current.namespace === "organization" ||
+            rows.some((row) =>
+                row.models.some(
+                    (m) => m.namespace === "organization" && namesModel(m, current.modelId),
+                ),
+            ))
+    ) {
+        return {key: undefined, modelId: null}
+    }
     const builtinModelId =
         current.slug === RETIRED_STARTER_CREDITS_SLUG &&
         current.mode === "agenta" &&
@@ -439,7 +469,7 @@ export const pickerSelectionFrom = (
         // A slug survives in either mode. Under `self_managed` it names a hosted subscription's
         // stored sign-in; dropping it there sent the run to whatever login the deployment mounted.
         slug: read("connectionSlug"),
-        namespace: mode === "agenta" ? connectionNamespaceFrom(read("connectionNamespace")) : null,
+        namespace: savedConnectionNamespace(mode, read("connectionNamespace")),
         harness: read("harness"),
     }
 }

@@ -36,14 +36,5 @@ class OrganizationNotFound(MembershipError):
         super().__init__("The organization does not exist.")
 
 
-class WorkspaceNotFound(MembershipError):
-    """`create_project` with a workspace outside the organization."""
-
-    def __init__(self, *, organization_id: UUID, workspace_id: UUID):
-        self.organization_id = organization_id
-        self.workspace_id = workspace_id
-        super().__init__("The workspace is not in the organization.")
-
-
 class MembershipsServiceNotRegistered(RuntimeError):
     """A process called the memberships service before registering it."""

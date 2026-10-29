@@ -113,7 +113,7 @@ describe("ChannelAgentPicker", () => {
             />,
         )
         expect(byTestId("channels-picker-audience")?.textContent).toBe(
-            "For a shared agent, everyone in Acme support can read its Slack conversations in Agenta, including direct messages. For a private agent, only its owner can read them.",
+            "For a shared agent, everyone in Acme support can read its Slack conversations in Agenta, including direct messages. For a private agent, new conversations are private to its owner.",
         )
     })
 })

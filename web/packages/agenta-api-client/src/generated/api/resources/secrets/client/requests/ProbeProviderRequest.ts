@@ -12,4 +12,13 @@ export interface ProbeProviderRequest {
     provider?: AgentaApi.ProviderCredentials;
     /** Test the credential stored under this secret, in the caller's project. Fields sent in `provider` override the stored ones. */
     secret_id?: string | null;
+    secret_scope?: ProbeProviderRequest.SecretScope | null;
+}
+
+export namespace ProbeProviderRequest {
+    export const SecretScope = {
+        Project: "project",
+        Organization: "organization",
+    } as const;
+    export type SecretScope = (typeof SecretScope)[keyof typeof SecretScope];
 }
