@@ -581,15 +581,35 @@ A schedule that runs a fixed job every fire:
 { "messages": [ { "role": "user", "content": "Run the daily digest now." } ] }
 ```
 
-A subscription that hands the agent the provider payload alongside a fixed instruction (no
-interpolation, so the payload rides as a SIBLING key, not inlined into the message):
+Your agent reads only `messages`; any other input key never reaches it. On a subscription, the
+platform adds the event to the last user message by default: a header with `event.event_type`,
+then the JSON of `event.attributes`. This is the subscription's `include_event` option (default
+`true`). Set `"include_event": false` in `data` to send the instruction alone.
+
+A subscription with a fixed instruction (the event is added after it):
+
+```json
+{ "messages": [ { "role": "user", "content": "Triage the GitHub issue below." } ] }
+```
+
+To put one field inside the text, write the content as text parts with one selector per part:
 
 ```json
 {
-  "messages": [ { "role": "user", "content": "Triage the GitHub issue in inputs.event." } ],
-  "event": "$.event.attributes"
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        { "type": "text", "text": "Triage the GitHub issue titled: " },
+        { "type": "text", "text": "$.event.attributes.issue.title" }
+      ]
+    }
+  ]
 }
 ```
+
+Inside `messages`, a value that is not a string is sent as text: a number or an object as its
+JSON, and a selector that resolves to nothing as an empty string.
 
 Passing no `inputs_fields` at all gives the agent the raw context object as inputs — fine for a
 smoke test, but a real agent should get an explicit `messages` entry so the run starts from an
@@ -618,7 +638,7 @@ fields exactly as shown here — top-level `name` / `data` / ... — not wrapped
 }
 ```
 
-`create_subscription` — a provider event, with the payload mapped alongside a fixed instruction:
+`create_subscription` — a provider event with a fixed instruction (the event is added to it):
 
 ```json
 {
@@ -630,9 +650,8 @@ fields exactly as shown here — top-level `name` / `data` / ... — not wrapped
     "trigger_config": { "owner": "agenta-ai", "repo": "agenta" },
     "inputs_fields": {
       "messages": [
-        { "role": "user", "content": "Triage the GitHub issue in inputs.event." }
-      ],
-      "event": "$.event.attributes"
+        { "role": "user", "content": "Triage the GitHub issue below." }
+      ]
     }
   }
 }
@@ -641,13 +660,13 @@ fields exactly as shown here — top-level `name` / `data` / ... — not wrapped
 Don't forget:
 
 - A selector must be the WHOLE leaf. `"Summarize $.event.attributes"` stays that literal text; put
-  the selector on its own key instead.
+  the selector in its own text part instead.
 - Give every trigger an explicit imperative `messages` entry so the run starts from a command, not
   raw context.
 - `schedule` is five fields, UTC, with a one-minute floor. Convert the user's timezone yourself
   before writing it.
-- Map the provider payload as a sibling key, such as `"event": "$.event.attributes"`, never inlined
-  into the message text.
+- Do not map the provider payload to a sibling key such as `"event"`: the agent never reads it. The
+  event is already in the message unless `include_event` is `false`.
 """
 
 

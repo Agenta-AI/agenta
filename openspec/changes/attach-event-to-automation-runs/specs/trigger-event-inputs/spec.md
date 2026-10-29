@@ -36,7 +36,7 @@ When `include_event` is true and the event has attributes, the dispatcher SHALL 
 #### Scenario: Last message is not a user message
 
 - **WHEN** the resolved `messages` list ends with a message whose role is not `user`
-- **THEN** a new user message with the event text is appended
+- **THEN** a new user message with the event text, without the leading blank line, is appended
 
 #### Scenario: Empty mapping
 

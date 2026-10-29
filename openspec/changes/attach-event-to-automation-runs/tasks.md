@@ -16,22 +16,22 @@ Composio key from the local-only EE env file and a GitHub account connected in t
   `api/oss/src/core/triggers/dtos.py`, after `inputs_fields`, with a one-line comment: adds the
   event data to the agent's message.
 - [x] 1.2 Add `event: Optional[Dict[str, Any]] = None` to `TriggerDeliveryData`, after `inputs`.
-- [ ] 1.3 Unit test: a row dict without `include_event` validates to `True`; a dict with
+- [x] 1.3 Unit test: a row dict without `include_event` validates to `True`; a dict with
   `false` round-trips through `map_subscription_dto_to_dbe_edit` and
   `map_subscription_dbe_to_dto` as `False`.
-- [ ] 1.4 Unit test: the old models (without the new fields) still validate a row that has them
+- [x] 1.4 Unit test: the old models (without the new fields) still validate a row that has them
   (rollback safety; Pydantic ignores extra keys by default).
 
 ### 2. Inputs composition (pure function)
 
-- [ ] 2.1 In `api/oss/src/core/triggers/utils.py`, add
+- [x] 2.1 In `api/oss/src/core/triggers/utils.py`, add
   `compose_event_inputs(inputs, *, context, include_event) -> Dict[str, Any]`. `context` is the
   event context from `_build_context`; the function reads `context["event"]`. It does not take
   the raw provider body, which `_run` also holds in a local named `event`. It coerces message
   text with the text rule (design decision 5) and adds the event text (design decision 3). It
   does not mutate its argument.
-- [ ] 2.2 Add `format_event_text(event_type, attributes) -> str` in the same file, used by 2.1.
-- [ ] 2.3 Unit tests in `api/oss/tests/pytest/unit/triggers/test_triggers_event_inputs.py`, one
+- [x] 2.2 Add `format_event_text(event_type, attributes) -> str` in the same file, used by 2.1.
+- [x] 2.3 Unit tests in `api/oss/tests/pytest/unit/triggers/test_triggers_event_inputs.py`, one
   per scenario of `specs/trigger-event-inputs/spec.md`: string content, parts content, last
   message not user, `{}`, completion mapping, whole context, option off, no attributes, string,
   number, boolean, object, absent value. One test pins the exact text of the shared example in
@@ -39,34 +39,37 @@ Composio key from the local-only EE env file and a GitHub account connected in t
 
 ### 3. Dispatcher
 
-- [ ] 3.1 In `_run` (`api/oss/src/tasks/asyncio/triggers/dispatcher.py:311-348`), for a
+- [x] 3.1 In `_run` (`api/oss/src/tasks/asyncio/triggers/dispatcher.py:311-348`), for a
   subscription, call `compose_event_inputs` on the resolved inputs, then use the result for both
   `delivery_data.inputs` and the request. Set `delivery_data.event = context["event"]`.
   Schedules keep today's inputs, with no coercion and no `event`.
-- [ ] 3.2 In the test-mode branch (`dispatcher.py:156-188`), do the same, so the test delivery
+- [x] 3.2 In the test-mode branch (`dispatcher.py:156-188`), do the same, so the test delivery
   has the composed inputs and `event`.
-- [ ] 3.3 Keep `data.event` on the failed-build delivery (`dispatcher.py:433-443`): set it as
+- [x] 3.3 Keep `data.event` on the failed-build delivery (`dispatcher.py:433-443`): set it as
   soon as the context is built, before the mapping resolves, so a failed run still shows the
   event.
-- [ ] 3.4 Update `api/oss/tests/pytest/unit/triggers/test_triggers_dispatcher.py`: the happy path
+- [x] 3.4 Update `api/oss/tests/pytest/unit/triggers/test_triggers_dispatcher.py`: the happy path
   with a `messages` mapping gets the event text; the existing `{"number": ...}` tests stay
   unchanged; a schedule run has no `event`; the test capture has `event`.
 
 ### 4. Builder agent guidance
 
-- [ ] 4.1 In `_TRIGGER_INPUTS_REFERENCE`
+- [x] 4.1 In `_TRIGGER_INPUTS_REFERENCE`
   (`sdks/python/agenta/sdk/agents/adapters/agenta_builtins.py:518-650`), replace the sibling
   `"event": "$.event.attributes"` advice with: the agent reads only `messages`; the event is
   included in the last user message by default (`include_event`); set `include_event: false` to
   send the instruction alone; to put one field inside the text, use text parts with a selector
-  per part. Fix both example payloads.
-- [ ] 4.2 Run the SDK unit tests that pin this text, if any (`git grep -n "_TRIGGER_INPUTS_REFERENCE" sdks/python`).
+  per part. Fix both example payloads. The `inputs_fields` description of the
+  `create_schedule` and `create_subscription` tools
+  (`sdks/python/agenta/sdk/agents/platform/op_catalog.py`, `_TRIGGER_INPUTS_FIELDS_SCHEMA`)
+  gives the same sibling-key advice; fix it the same way.
+- [x] 4.2 Run the SDK unit tests that pin this text, if any (`git grep -n "_TRIGGER_INPUTS_REFERENCE" sdks/python`).
 
 ### 5. Backend checks
 
-- [ ] 5.1 `cd api && ruff format && ruff check --fix` and the same in `sdks/python`, with the
+- [x] 5.1 `cd api && ruff format && ruff check --fix` and the same in `sdks/python`, with the
   system ruff.
-- [ ] 5.2 `cd api && py-run-tests` for the triggers unit tests; all pass.
+- [x] 5.2 `cd api && py-run-tests` for the triggers unit tests; all pass.
 - [ ] 5.3 Local stack: create an event subscription through the API with
   `inputs_fields = {"messages":[{"role":"user","content":"Say the PR title."}]}` and no
   `include_event`. `GET` it: `data.include_event` is `true`.

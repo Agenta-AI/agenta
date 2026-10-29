@@ -115,10 +115,13 @@ Event data (GITHUB_PULL_REQUEST_EVENT):
 ```
 ~~~
 
-- It starts with a blank line, because the runner joins text blocks with no separator.
+- It starts with a blank line, because the runner joins text blocks with no separator. The
+  exact string is `"\n\nEvent data (<event_type>):\n```json\n" + <json> + "\n```"`, with no
+  trailing newline.
 - The JSON is `json.dumps(attributes, indent=2, ensure_ascii=False, default=str)`.
 - When `event_type` is absent, the header is `Event data:`.
-- In the `{}` case the leading blank line is dropped.
+- When the event text is a message of its own (the `{}` case and the "last message is not a
+  user message" case), the two leading newlines are dropped.
 
 ### 4. Size of the event text
 
@@ -151,7 +154,7 @@ The text rule, used by the dispatcher and by the frontend preview, so both give 
 | --- | --- |
 | A string | The string, unchanged. |
 | `None` (absent or null) | `""` |
-| Anything else (number, boolean, object, list) | Compact JSON: `json.dumps(value, separators=(",", ":"), ensure_ascii=False)` in Python, `JSON.stringify(value)` in TypeScript. `42` gives `42`, `true` gives `true`. |
+| Anything else (number, boolean, object, list) | Compact JSON: `json.dumps(value, separators=(",", ":"), ensure_ascii=False, default=str)` in Python, `JSON.stringify(value)` in TypeScript. `42` gives `42`, `true` gives `true`. |
 
 Coercion runs for subscriptions only, whether `include_event` is on or off. It touches only the
 `messages` list. Schedules keep today's inputs: their messages are static text, and schedules

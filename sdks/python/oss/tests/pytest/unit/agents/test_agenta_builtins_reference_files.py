@@ -192,7 +192,6 @@ def test_trigger_inputs_reference_keeps_messages_task_only():
     assert "`messages` entry containing only the task" in content
     assert "not schedule/trigger metadata, timing checks, or skip-run guards" in content
     assert "Configure when to run in the schedule or trigger settings" in content
-    assert '"event": "$.event.attributes"' in content
 
 
 def test_config_schema_has_example_commit_revision_requests():
@@ -233,6 +232,13 @@ def test_config_schema_states_the_shipped_mcp_new_tool_rule():
     # The replaced rule, in every spelling that would send an agent back to it.
     assert "Defaults to `permission`" not in content
     assert "and to `ask` when that is unset too" not in content
+
+
+def test_trigger_inputs_reference_says_the_event_is_in_the_message():
+    content = " ".join(_file("references/trigger-inputs.md").content.split())
+    assert "Your agent reads only `messages`" in content
+    assert "`include_event` option (default `true`)" in content
+    assert '"event": "$.event.attributes"' not in content
 
 
 def test_trigger_inputs_has_example_trigger_requests():

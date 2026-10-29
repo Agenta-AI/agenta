@@ -821,10 +821,10 @@ async def test_create_trigger_ops_bind_self_target_and_hide_destination(connecti
     assert "Configure when to run in the schedule or trigger settings" in (
         inputs_fields_description
     )
-    assert "For subscriptions, map event data under a sibling key" in (
+    assert "The agent reads only `messages`" in inputs_fields_description
+    assert "the event is added to the last user message by default" in (
         inputs_fields_description
     )
-    assert '"payload": "$.event.attributes"' in inputs_fields_description
 
     subscription = specs["create_subscription"]
     assert subscription.call.args_into == "subscription"
