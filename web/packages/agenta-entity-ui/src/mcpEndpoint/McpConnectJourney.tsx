@@ -61,7 +61,6 @@ import {
     Alert,
     Button,
     cn,
-    Divider,
     Field,
     Input,
     LoadingButton,
@@ -763,7 +762,42 @@ export function McpConnectSheet({
             keyboard={!sealed}
             closable={!sealed}
             title={title}
-            footer={null}
+            footer={
+                screen === "waiting" ? null : (
+                    <>
+                        <Button variant="outline" onClick={handleClose} disabled={busy}>
+                            Cancel
+                        </Button>
+                        <LoadingButton
+                            loading={busy}
+                            disabled={
+                                !canConfirm({
+                                    screen,
+                                    state,
+                                    nameProblem,
+                                    secretChosen,
+                                    oauthClientReady:
+                                        screen !== "oauth" ||
+                                        state.savedOauthConfig === "failed" ||
+                                        (state.savedOauthConfig !== "loading" &&
+                                            oauthConfigReady(state)),
+                                    bindingReady:
+                                        credentialBindingComplete(binding) &&
+                                        urlMatchesCredentialBinding(state.url, binding),
+                                    busy,
+                                })
+                            }
+                            onClick={confirm}
+                        >
+                            {confirmLabel(screen, state)}
+                            {screen === "oauth" && !isConsentRefusal(state.status) ? (
+                                <ArrowSquareOut size={14} data-icon="inline-end" />
+                            ) : null}
+                        </LoadingButton>
+                    </>
+                )
+            }
+            classNames={{footer: "border-t-0"}}
             width={480}
             destroyOnClose
             getContainer={container ?? false}
@@ -1112,43 +1146,6 @@ export function McpConnectSheet({
                         />
                     ) : null}
                 </div>
-
-                {screen === "waiting" ? null : (
-                    <>
-                        <Divider className="my-0 border-colorBorderSecondary" />
-                        <div className="flex items-center justify-end gap-2">
-                            <Button variant="outline" onClick={handleClose} disabled={busy}>
-                                Cancel
-                            </Button>
-                            <LoadingButton
-                                loading={busy}
-                                disabled={
-                                    !canConfirm({
-                                        screen,
-                                        state,
-                                        nameProblem,
-                                        secretChosen,
-                                        oauthClientReady:
-                                            screen !== "oauth" ||
-                                            state.savedOauthConfig === "failed" ||
-                                            (state.savedOauthConfig !== "loading" &&
-                                                oauthConfigReady(state)),
-                                        bindingReady:
-                                            credentialBindingComplete(binding) &&
-                                            urlMatchesCredentialBinding(state.url, binding),
-                                        busy,
-                                    })
-                                }
-                                onClick={confirm}
-                            >
-                                {confirmLabel(screen, state)}
-                                {screen === "oauth" && !isConsentRefusal(state.status) ? (
-                                    <ArrowSquareOut size={14} data-icon="inline-end" />
-                                ) : null}
-                            </LoadingButton>
-                        </div>
-                    </>
-                )}
             </ModalContent>
         </EnhancedModal>
     )
