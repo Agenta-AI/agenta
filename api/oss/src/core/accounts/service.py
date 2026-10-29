@@ -16,7 +16,6 @@ from uuid import UUID
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.core.memberships.service import invalidate_access_caches
-from oss.src.core.memberships.workspaces import legacy_workspace_id
 from oss.src.core.access.dtos import PrincipalKind, PrincipalRef
 from oss.src.core.access.service import (
     invalidate_principals_after_write,
@@ -36,11 +35,9 @@ from oss.src.services.db_manager import (
     admin_get_api_key_by_id as _db_get_api_key_by_id,
     admin_get_api_key_by_prefix as _db_get_api_key_by_prefix,
     admin_get_orgs_owned_by_user as _db_get_orgs_owned_by_user,
-    admin_get_workspace_ids_for_orgs as _db_get_workspace_ids_for_orgs,
     admin_get_project_ids_for_orgs as _db_get_project_ids_for_orgs,
     admin_get_or_create_user as _db_get_or_create_user,
     admin_create_organization as _db_create_organization,
-    admin_create_workspace as _db_create_workspace,
     admin_create_project as _db_create_project,
     admin_delete_organization as _db_delete_organization,
     admin_delete_workspace as _db_delete_workspace,
@@ -67,7 +64,6 @@ from oss.src.models.db_models import (
     OrganizationDB,
     ProjectDB,
     UserDB,
-    WorkspaceDB,
 )
 
 try:
@@ -177,6 +173,8 @@ from oss.src.core.accounts.errors import (
     AdminUserNotFoundError,
     AdminValidationError,
     AdminWorkspaceNotFoundError,
+    AdminWorkspaceIsOrganizationError,
+    AdminOwnerProtectedError,
 )
 
 log = get_module_logger(__name__)
@@ -264,26 +262,13 @@ def _org_db_to_read_dto(org: OrganizationDB) -> AdminOrganizationRead:
     )
 
 
-def _ws_db_to_read_dto(ws: WorkspaceDB) -> AdminWorkspaceRead:
-    return AdminWorkspaceRead(
-        id=str(ws.id),
-        name=ws.name or "",
-        organization_id=str(ws.organization_id),
-        created_at=ws.created_at.isoformat() if ws.created_at else None,
-        updated_at=ws.updated_at.isoformat() if ws.updated_at else None,
-    )
-
-
 def _proj_db_to_read_dto(proj: ProjectDB) -> AdminProjectRead:
     return AdminProjectRead(
         id=str(proj.id),
         name=proj.project_name or "",
         organization_id=str(proj.organization_id),
-        workspace_id=str(
-            legacy_workspace_id(
-                workspace_id=proj.workspace_id, organization_id=proj.organization_id
-            )
-        ),
+        # The organization id where a workspace id is expected (design D6).
+        workspace_id=str(proj.organization_id),
         is_default=proj.is_default,
         created_at=proj.created_at.isoformat() if proj.created_at else None,
         updated_at=proj.updated_at.isoformat() if proj.updated_at else None,
@@ -518,29 +503,6 @@ async def _create_org_membership_row(
         return membership_db.id, former_owner_id
 
 
-async def _create_ws_membership_row(
-    *,
-    user_id: UUID,
-    workspace_id: UUID,
-    role: str,
-) -> UUID:
-    from oss.src.dbs.postgres.shared.engine import get_transactions_engine
-    from oss.src.models.db_models import WorkspaceMemberDB
-
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        membership_db = WorkspaceMemberDB(
-            user_id=user_id,
-            workspace_id=workspace_id,
-            role=role,
-        )
-        session.add(membership_db)
-        await session.commit()
-
-        return membership_db.id
-
-
 async def _create_project_membership_row(
     *,
     user_id: UUID,
@@ -577,6 +539,48 @@ _MEMBERSHIP_SCOPE_SQL = {
         "JOIN projects p ON p.id = pm.project_id WHERE pm.id = :id"
     ),
 }
+
+# A workspace reference after workspace removal step 2: an organization id names the
+# organization; a legacy workspace id names its organization (until step 2b).
+_ORGANIZATION_ALIAS_SQL = """
+SELECT o.id FROM organizations o WHERE o.id = :id
+UNION ALL
+SELECT w.organization_id FROM workspaces w WHERE w.id = :id
+LIMIT 1
+"""
+
+_OLDEST_ORGANIZATION_MEMBERSHIP_SQL = """
+SELECT id, role FROM organization_members
+WHERE user_id = :user_id AND organization_id = :organization_id
+ORDER BY created_at ASC NULLS LAST, id ASC
+LIMIT 1
+"""
+
+
+async def _organization_alias(entity_id: UUID) -> Optional[UUID]:
+    from sqlalchemy import text as _text
+
+    from oss.src.dbs.postgres.shared.engine import get_transactions_engine
+
+    async with get_transactions_engine().session() as session:
+        return (
+            await session.execute(_text(_ORGANIZATION_ALIAS_SQL), {"id": entity_id})
+        ).scalar()
+
+
+async def _oldest_organization_membership(*, user_id: UUID, organization_id: UUID):
+    from sqlalchemy import text as _text
+
+    from oss.src.dbs.postgres.shared.engine import get_transactions_engine
+
+    async with get_transactions_engine().session() as session:
+        return (
+            await session.execute(
+                _text(_OLDEST_ORGANIZATION_MEMBERSHIP_SQL),
+                {"user_id": user_id, "organization_id": organization_id},
+            )
+        ).first()
+
 
 _ORGANIZATION_OF_SQL = {
     "workspaces": "SELECT organization_id FROM workspaces WHERE id = :id",
@@ -671,7 +675,7 @@ class PlatformAdminAccountsService:
     """
     Service for platform admin account operations.
 
-    Uses existing admin_manager helpers and direct DB access.
+    Uses the db_manager admin helpers and direct DB access.
     No new DAO is introduced.
     """
 
@@ -835,7 +839,8 @@ class PlatformAdminAccountsService:
             tracker.organizations[org_ref] = org_db.id
             account.organizations[org_ref] = _org_db_to_read_dto(org_db)
 
-        # 4. Workspaces
+        # 4. Workspaces: workspace removal step 2 writes no workspace row. An entry
+        # answers its organization, and later refs to it name the organization.
         for ws_ref, ws_create in (dto.workspaces or {}).items():
             org_id = await _resolve_entity_ref_to_uuid(
                 ws_create.organization_ref,
@@ -843,9 +848,21 @@ class PlatformAdminAccountsService:
                 f"workspaces.{ws_ref}.organization_ref",
                 tracker,
             )
-            ws_db = await _db_create_workspace(ws_create.name, org_id)
-            tracker.workspaces[ws_ref] = ws_db.id
-            account.workspaces[ws_ref] = _ws_db_to_read_dto(ws_db)
+            org_db = await _db_get_org_by_id(org_id)
+            if org_db is None:
+                raise AdminOrganizationNotFoundError(str(org_id))
+            tracker.workspaces[ws_ref] = org_id
+            account.workspaces[ws_ref] = AdminWorkspaceRead(
+                id=str(org_id),
+                name=org_db.name or "",
+                organization_id=str(org_id),
+                created_at=(
+                    org_db.created_at.isoformat() if org_db.created_at else None
+                ),
+                updated_at=(
+                    org_db.updated_at.isoformat() if org_db.updated_at else None
+                ),
+            )
 
         # 5. Projects
         user_id_for_seed = next(iter(tracker.users.values()), None)
@@ -856,7 +873,8 @@ class PlatformAdminAccountsService:
                 f"projects.{proj_ref}.organization_ref",
                 tracker,
             )
-            ws_id = await _resolve_entity_ref_to_uuid(
+            # Validated as before; the project gets no workspace.
+            await _resolve_entity_ref_to_uuid(
                 proj_create.workspace_ref,
                 "workspaces",
                 f"projects.{proj_ref}.workspace_ref",
@@ -865,7 +883,6 @@ class PlatformAdminAccountsService:
             proj_db = await _db_create_project(
                 proj_create.name,
                 org_id,
-                ws_id,
                 is_default=bool(proj_create.is_default),
             )
             if bool(options.seed_defaults) and user_id_for_seed:
@@ -975,23 +992,24 @@ class PlatformAdminAccountsService:
                 f"workspace_memberships.{mem_ref}.user_ref",
                 tracker,
             )
-            membership_id = await _create_ws_membership_row(
-                user_id=user_id,
-                workspace_id=ws_id,
-                role=mem_create.role,
+            # Workspace removal step 2 writes no workspace row: the entry answers the
+            # user's membership of the organization the workspace reference names.
+            org_id = await _organization_alias(ws_id)
+            if org_id is None:
+                raise AdminWorkspaceNotFoundError(str(ws_id))
+            membership = await _oldest_organization_membership(
+                user_id=user_id, organization_id=org_id
             )
-            await _invalidate_memberships(
-                user_ids=[user_id],
-                organization_ids=[
-                    await _organization_of(table="workspaces", entity_id=ws_id)
-                ],
-            )
-            tracker.workspace_memberships[mem_ref] = membership_id
+            if membership is None:
+                raise AdminMembershipNotFoundError(
+                    f"organization {org_id} membership of user {user_id}"
+                )
+            tracker.workspace_memberships[mem_ref] = membership.id
             account.workspace_memberships[mem_ref] = AdminWorkspaceMembershipRead(
-                id=str(membership_id),
-                workspace_id=str(ws_id),
+                id=str(membership.id),
+                workspace_id=str(org_id),
                 user_id=str(user_id),
-                role=mem_create.role,
+                role=membership.role,
             )
 
         for mem_ref, mem_create in (dto.project_memberships or {}).items():
@@ -1076,6 +1094,11 @@ class PlatformAdminAccountsService:
 
         # Collect workspace and project IDs
         workspace_ids: List[UUID] = [UUID(wid) for wid in (target.workspace_ids or [])]
+        # An organization id with no workspace row (the alias workspace removal step 2
+        # answers) deletes nothing, never the organization.
+        for wid in workspace_ids:
+            if not await _db_get_workspace_by_id(wid) and await _db_get_org_by_id(wid):
+                raise AdminWorkspaceIsOrganizationError(str(wid))
         project_ids: List[UUID] = [UUID(pid) for pid in (target.project_ids or [])]
 
         if dry_run:
@@ -1530,19 +1553,11 @@ class PlatformAdminAccountsService:
         dto: AdminSimpleAccountsWorkspacesCreate,
     ) -> AdminAccountsResponse:
         options = dto.options or AdminAccountCreateOptions()
-        ws_create = dto.workspace
-        # The workspace's organization must be specified by id/slug
-        # We create a minimal graph: workspace + default project
-        proj_create = AdminProjectCreate(
-            name="Default",
-            organization_ref=ws_create.organization_ref,
-            workspace_ref=EntityRef(ref="wrk"),
-            is_default=True,
-        )
+        # Workspace removal step 2: the answer is the organization; no workspace row
+        # and no project are written (the organization keeps its default project).
         graph_dto = AdminAccountsCreate(
             options=options,
-            workspaces={"wrk": ws_create},
-            projects={"prj": proj_create},
+            workspaces={"wrk": dto.workspace},
         )
         return await self.create_accounts(dto=graph_dto)
 
@@ -1856,6 +1871,10 @@ class PlatformAdminAccountsService:
         wid = _parse_uuid(workspace_id, "workspace_id")
         ws = await _db_get_workspace_by_id(wid)
         if not ws:
+            # An organization id (the alias workspace removal step 2 answers) deletes
+            # nothing: never the organization.
+            if await _db_get_org_by_id(wid):
+                raise AdminWorkspaceIsOrganizationError(workspace_id)
             raise AdminWorkspaceNotFoundError(workspace_id)
 
         scope_snapshot = await read_scope_principals_before_delete(workspace_ids=[wid])
@@ -1872,10 +1891,54 @@ class PlatformAdminAccountsService:
     ) -> AdminDeleteResponse:
         if not is_ee():
             raise AdminNotImplementedError("delete_workspace_membership")
+        mid = _parse_uuid(membership_id, "membership_id")
+        if await _membership_scope(membership_id=mid, scope_type="workspace") is None:
+            alias = await self._delete_organization_membership_alias(
+                organization_id=workspace_id, membership_id=mid
+            )
+            if alias is not None:
+                return alias
         return await self._delete_ee_membership(
             membership_id=membership_id,
             scope_type="workspace",
         )
+
+    async def _delete_organization_membership_alias(
+        self, *, organization_id: str, membership_id: UUID
+    ) -> Optional[AdminDeleteResponse]:
+        """An organization membership id of organization `{ws}` (the alias the admin
+        graph answers for a workspace membership) removes the member through the
+        memberships service; anything else is not an alias (None)."""
+
+        try:
+            org_id = UUID(str(organization_id))
+        except ValueError:
+            return None
+        scope = await _membership_scope(
+            membership_id=membership_id, scope_type="organization"
+        )
+        if scope is None or scope[1] != org_id:
+            return None
+        user = await _db_get_user_by_id(scope[0])
+        if user is None:
+            return None
+        from oss.src.core.memberships.service import (  # noqa: PLC0415
+            get_memberships_service,
+        )
+        from oss.src.core.memberships.types import (  # noqa: PLC0415
+            OrganizationOwnerProtected,
+        )
+
+        try:
+            await get_memberships_service().remove_member(
+                organization_id=org_id, email=user.email
+            )
+        except OrganizationOwnerProtected as exc:
+            raise AdminOwnerProtectedError(str(membership_id)) from exc
+        deleted = AdminDeletedEntities(
+            workspace_memberships=[AdminDeletedEntity(id=str(membership_id))]
+        )
+        return AdminDeleteResponse(dry_run=False, deleted=deleted)
 
     async def delete_project(
         self,
@@ -2137,19 +2200,9 @@ class PlatformAdminAccountsService:
             org_ids = [oid for oid in org_ids if oid in target_member_org_ids]
 
         if org_ids:
-            # Collect workspace + project IDs within the orgs to transfer
-            all_ws_ids = await _db_get_workspace_ids_for_orgs(org_ids)
+            # The projects within the orgs to transfer. `include_workspaces` is
+            # accepted and changes nothing: workspace roles are no longer written.
             all_proj_ids = await _db_get_project_ids_for_orgs(org_ids)
-
-            # Apply include_workspaces / include_projects filters
-            if dto.include_workspaces == "all":
-                ws_scope = all_ws_ids
-            else:
-                ws_filter = {
-                    _parse_uuid(wid, "include_workspaces[]")
-                    for wid in dto.include_workspaces
-                }
-                ws_scope = [wid for wid in all_ws_ids if wid in ws_filter]
 
             if dto.include_projects == "all":
                 proj_scope = all_proj_ids
@@ -2167,7 +2220,6 @@ class PlatformAdminAccountsService:
                 org_ids=org_ids,
                 source_id=source_id,
                 target_id=target_id,
-                workspace_ids=ws_scope,
                 project_ids=proj_scope,
             )
             for oid in org_ids:
@@ -2198,7 +2250,6 @@ class PlatformAdminAccountsService:
                 source_id=str(source_id),
                 target_id=str(target_id),
                 org_count=len(org_ids),
-                ws_count=len(ws_scope),
                 proj_count=len(proj_scope),
             )
         else:

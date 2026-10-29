@@ -428,6 +428,28 @@ describe("reportAttemptOutcome", () => {
     });
   });
 
+  it("posts an organization outcome with organization_id and no project_id", async () => {
+    const { calls, fetchImpl } = scriptedFetch([204]);
+
+    await reportAttemptOutcome(
+      {
+        attemptId: "att-3",
+        organizationId: "org-1",
+        secretId: "secret-1",
+        state: "expired",
+        error: "timed_out",
+      },
+      { fetchImpl, apiBase: "http://api:8000", token: "t", log: () => {} },
+    );
+
+    assert.deepEqual(JSON.parse(calls[0].init.body as string), {
+      organization_id: "org-1",
+      secret_id: "secret-1",
+      state: "expired",
+      error: "timed_out",
+    });
+  });
+
   it("sends a failure with its reason and no login", async () => {
     const { calls, fetchImpl } = scriptedFetch([204]);
 

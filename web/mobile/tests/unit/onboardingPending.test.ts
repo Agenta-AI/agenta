@@ -13,6 +13,7 @@ import {
     isOnboardingPending,
     markOnboardingPending,
     resolvePendingOnboarding,
+    UNOWNED_PENDING_MAX_AGE_MS,
     type PendingOnboardingInput,
 } from "@/features/onboarding/onboardingPending"
 
@@ -45,6 +46,19 @@ describe("onboarding pending mark", () => {
         expect(isOnboardingPending("u1")).toBe(false)
     })
 
+    it("hands an unowned mark to the first user read while it is fresh, and only once", () => {
+        markOnboardingPending(null, 1_000)
+        expect(isOnboardingPending("u1", 1_000 + UNOWNED_PENDING_MAX_AGE_MS)).toBe(true)
+        expect(isOnboardingPending("u2", 1_000 + UNOWNED_PENDING_MAX_AGE_MS)).toBe(false)
+        expect(isOnboardingPending("u1")).toBe(true)
+    })
+
+    it("drops a stale unowned mark instead of sending a later account to onboarding", () => {
+        markOnboardingPending(null, 1_000)
+        expect(isOnboardingPending("u1", 1_001 + UNOWNED_PENDING_MAX_AGE_MS)).toBe(false)
+        expect(isOnboardingPending("u1", 1_000)).toBe(false)
+    })
+
     it("ends onboarding by clearing the user's mark and draft, and no one else's", () => {
         const saved = {...EMPTY_ONBOARDING_DRAFT, answers: {persona: "Engineering"}}
         markOnboardingPending("u1")
@@ -61,7 +75,6 @@ describe("onboarding pending mark", () => {
 
 describe("what Home does about a pending mark", () => {
     const input = (overrides: Partial<PendingOnboardingInput> = {}): PendingOnboardingInput => ({
-        enabled: true,
         pending: true,
         agentCount: 0,
         agentsPending: false,
@@ -85,10 +98,8 @@ describe("what Home does about a pending mark", () => {
         )
     })
 
-    it("leaves Home alone without a mark, with the flag off, or when the list failed", () => {
+    it("leaves Home alone without a mark or when the list failed", () => {
         expect(resolvePendingOnboarding(input({pending: false}))).toBe("none")
-        expect(resolvePendingOnboarding(input({enabled: false}))).toBe("none")
-        expect(resolvePendingOnboarding(input({enabled: false, pending: null}))).toBe("none")
         expect(resolvePendingOnboarding(input({agentsError: true}))).toBe("none")
     })
 })

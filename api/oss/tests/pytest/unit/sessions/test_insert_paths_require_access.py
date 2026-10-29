@@ -2,7 +2,7 @@
 
 The create arm of `set_header`, `heartbeat` and `_start_turn` writes the `access` it is
 given; the arms that find an existing row never write it. The routes derive the policy
-from the request credential, and the channel commands use the ownerless policy.
+from the request credential. A channel `!stop` sends a cancel command and inserts no row.
 """
 
 from types import SimpleNamespace
@@ -14,12 +14,6 @@ import pytest_asyncio
 from pydantic import ValidationError
 
 from oss.src.core.access.dtos import RequestCredentialKind
-from oss.src.core.channels.commands import dispatch_stop
-from oss.src.core.channels.dtos import (
-    ChannelThread,
-    ChannelThreadData,
-    ChannelThreadFlags,
-)
 from oss.src.core.sessions.streams.dtos import (
     CommandMode,
     SessionHeartbeatRequest,
@@ -373,29 +367,4 @@ def test_policy_for_request_installation_session_is_a_channel_session():
             request, kind=SharedItemKind.SESSION, requested=Visibility.PRIVATE
         )
         == OWNERLESS_PROJECT_POLICY
-    )
-
-
-# -- channels ----------------------------------------------------------------------------
-
-
-async def test_channel_command_session_is_ownerless():
-    response = SessionStreamCommandResponse(mode=CommandMode.cancel, session_id="c")
-    streams_service = SimpleNamespace(command=AsyncMock(return_value=response))
-    thread = ChannelThread(
-        id=uuid4(),
-        space_id=uuid4(),
-        agent_id=uuid4(),
-        session_id="c",
-        data=ChannelThreadData(),
-        flags=ChannelThreadFlags(),
-    )
-    await dispatch_stop(
-        streams_service=streams_service,
-        project_id=_PROJECT,
-        user_id=_ALICE,
-        thread=thread,
-    )
-    assert (
-        streams_service.command.await_args.kwargs["access"] == OWNERLESS_PROJECT_POLICY
     )

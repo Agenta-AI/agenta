@@ -1,7 +1,6 @@
 from typing import List
 from uuid import UUID
 
-from sqlalchemy.exc import NoResultFound
 from fastapi.responses import JSONResponse
 from fastapi import HTTPException, Request
 
@@ -46,7 +45,6 @@ from oss.src.core.memberships.types import MemberNotFound, OrganizationNotFound
 if is_ee():
     from ee.src.core.access.entitlements.service import (
         check_entitlements,
-        project_limit_refusal,
         scope_from,
         Tracker,
         Gauge,
@@ -84,20 +82,10 @@ async def list_organizations(
         organizations_db = await db_manager.get_organizations_by_list_ids(
             user_org_workspace_data["organization_ids"]
         )
-        workspaces_by_org = {}
     else:
         organizations_db = await db_manager.get_user_organizations(
             request.state.user_id
         )
-
-        user_workspaces = await db_manager.fetch_user_workspace_items(
-            user_id=request.state.user_id
-        )
-        workspaces_by_org = {}
-        for workspace_db in user_workspaces:
-            workspaces_by_org.setdefault(workspace_db.organization_id, []).append(
-                str(workspace_db.id)
-            )
 
     response = [
         Organization(
@@ -113,7 +101,8 @@ async def list_organizations(
             #
             owner_id=organization_db.owner_id,
             #
-            workspaces=workspaces_by_org.get(organization_db.id, []),
+            # Workspace removal step 2: the organization is the workspace (design D6).
+            workspaces=[str(organization_db.id)],
         ).model_dump(exclude_unset=True)
         for organization_db in organizations_db
     ]
@@ -609,6 +598,11 @@ async def delete_organization(
         )
 
 
+# Workspace create and rename answer this, before any read or permission check: they
+# grant nothing and write nothing.
+_WORKSPACES_REMOVED = "Workspaces were removed. Projects belong to the organization."
+
+
 @router.post(
     "/{organization_id}/workspaces/",
     operation_id="create_workspace",
@@ -619,43 +613,8 @@ async def create_workspace(
     organization_id: str,
     payload: CreateWorkspace,
 ) -> WorkspaceResponse:
-    """Create a new workspace in an organization (owner only)."""
-    try:
-        if not await _check_org_owner(
-            organization_id, request.state.user_id, Permission.CREATE_WORKSPACE
-        ):
-            return JSONResponse(
-                {"detail": "You do not have permission to perform this action"},
-                status_code=403,
-            )
-
-        if not payload.name:
-            return JSONResponse(
-                {"detail": "Please provide a name to create a workspace"},
-                status_code=400,
-            )
-
-        # A workspace comes with its own default project.
-        if is_ee():
-            refusal = await project_limit_refusal(UUID(organization_id))  # type: ignore
-            if refusal:
-                return JSONResponse({"detail": refusal}, status_code=403)
-
-        return await organization_service.create_new_workspace(
-            payload, organization_id, request.state.user_id
-        )
-
-    except NoResultFound as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except Exception:
-        log.error(
-            "Unexpected error while creating workspace",
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=500,
-            detail="An internal error occurred while creating the workspace.",
-        )
+    """Workspaces were removed (workspace removal step 2): always 410."""
+    raise HTTPException(status_code=410, detail=_WORKSPACES_REMOVED)
 
 
 @router.put(
@@ -669,46 +628,6 @@ async def update_workspace(
     workspace_id: str,
     payload: UpdateWorkspace,
 ) -> WorkspaceResponse:
-    """Update a workspace's details (requires EDIT_WORKSPACE permission)."""
-    try:
-        workspace = await db_manager.get_workspace(workspace_id)
-        project = await db_manager.get_project_by_workspace(workspace_id)
-        # The permission is checked on a project, and membership follows the
-        # project's organization. A legacy project can point at a workspace of
-        # another organization, so the workspace, the project and the URL must
-        # name one organization before that check means anything.
-        if (
-            workspace is None
-            or str(workspace.organization_id) != organization_id
-            or str(project.organization_id) != organization_id
-        ):
-            return JSONResponse({"detail": "Workspace not found"}, status_code=404)
-
-        has_permission = await check_action_access(
-            user_uid=request.state.user_id,
-            project_id=str(project.id),
-            permission=Permission.EDIT_WORKSPACE,
-        )
-        if not has_permission:
-            return JSONResponse(
-                {"detail": "You do not have permission to update this workspace"},
-                status_code=403,
-            )
-
-        if not payload.name and not payload.description:
-            return JSONResponse(
-                {"detail": "Please provide a name or description to update"},
-                status_code=400,
-            )
-
-        return await organization_service.update_workspace(payload, workspace_id)
-
-    except Exception:
-        log.error(
-            "Unexpected error while updating workspace",
-            exc_info=True,
-        )
-        raise HTTPException(
-            status_code=500,
-            detail="An internal error occurred while updating the workspace.",
-        )
+    """Workspaces were removed (workspace removal step 2): always 410, and the name
+    stays."""
+    raise HTTPException(status_code=410, detail=_WORKSPACES_REMOVED)

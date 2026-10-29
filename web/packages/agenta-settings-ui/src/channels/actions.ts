@@ -297,7 +297,7 @@ export const connectionsForAgent = (
 
 /**
  * Make a connection answer as an app: create the default channel agent when the connection has
- * none, retarget the answering one otherwise, no-op when it already points there.
+ * none, retarget the answering one and turn it on otherwise, no-op when it already answers there.
  */
 export const pointConnectionAt = async ({
     client,
@@ -331,11 +331,17 @@ export const pointConnectionAt = async ({
         )
         return
     }
-    if (referencedAppId(answering) === appId) return
+    const flags = asRecord(answering.flags)
+    if (referencedAppId(answering) === appId && flags.is_active !== false) return
     const agentId = asString(answering.id)
     if (!agentId) throw new Error("The connection's agent has no id.")
+    // A restore can bring the binding back off (someone else's private agent): connecting
+    // turns it on. The edit writes the whole flags, so `is_default` stays as stored.
     await client.editChannelAgent(
-        {agent_id: agentId, agent: {id: agentId, data: {references}}},
+        {
+            agent_id: agentId,
+            agent: {id: agentId, data: {references}, flags: {...flags, is_active: true}},
+        },
         scope,
     )
 }

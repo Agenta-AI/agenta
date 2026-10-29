@@ -739,12 +739,16 @@ async def test_a_channel_run_creates_its_session_at_the_same_cost(
             if str(c[0]).upper() in ("GET", "MGET")
             and any(b"sharing_agent_access" in _raw(a) for a in c[1:])
         ]
-        return result.stream, statements, agent_reads
+        return result.stream, statements, agent_reads, list(redis_commands.commands)
 
     await _create(world.shared_agent)  # warm
     await _create(world.private_agent)  # warm
-    shared, shared_statements, shared_reads = await _create(world.shared_agent)
-    private, private_statements, private_reads = await _create(world.private_agent)
+    shared, shared_statements, shared_reads, shared_redis = await _create(
+        world.shared_agent
+    )
+    private, private_statements, private_reads, private_redis = await _create(
+        world.private_agent
+    )
 
     assert (shared.visibility, shared.owner_user_id) == (Visibility.PROJECT, None)
     assert (private.visibility, private.owner_user_id) == (
@@ -755,6 +759,10 @@ async def test_a_channel_run_creates_its_session_at_the_same_cost(
     assert len(private_statements) == len(shared_statements), private_statements
     # The admission's one cache read carries the agent entry; the policy reads the memo.
     assert len(shared_reads) == len(private_reads) == 1, (shared_reads, private_reads)
+    # Every Redis command, not only the agent entry's: the same round trips for both.
+    assert [str(c[0]).upper() for c in private_redis] == [
+        str(c[0]).upper() for c in shared_redis
+    ]
 
 
 def _raw(value) -> bytes:

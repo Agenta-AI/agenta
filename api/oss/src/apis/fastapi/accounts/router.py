@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse, Response
 from oss.src.utils.exceptions import (
     BadRequestException,
     ConflictException,
+    ForbiddenException,
     NotFoundException,
     intercept_exceptions,
 )
@@ -30,6 +31,8 @@ from oss.src.core.accounts.errors import (
     AdminUserNotFoundError,
     AdminValidationError,
     AdminWorkspaceNotFoundError,
+    AdminWorkspaceIsOrganizationError,
+    AdminOwnerProtectedError,
 )
 from oss.src.apis.fastapi.accounts.models import (
     AdminAccountsCreate,
@@ -56,8 +59,12 @@ from oss.src.apis.fastapi.accounts.models import (
 
 def _handle_admin_error(exc: AdminError) -> None:
     """Convert a domain AdminError to the appropriate HTTP exception."""
-    if isinstance(exc, AdminUserAlreadyExistsError):
+    if isinstance(
+        exc, (AdminUserAlreadyExistsError, AdminWorkspaceIsOrganizationError)
+    ):
         raise ConflictException(message=exc.message, **exc.details)
+    if isinstance(exc, AdminOwnerProtectedError):
+        raise ForbiddenException(message=exc.message, **exc.details)
     if isinstance(
         exc,
         (

@@ -29,33 +29,38 @@ The cascade from `projects.workspace_id` goes first.
 | Step | Schema | Code |
 | --- | --- | --- |
 | 1. Accept | Drop `projects_workspace_id_fkey`; `projects.workspace_id` nullable; the M4b mount step (organization layout, trigger drop). | Accept organization ids and legacy workspace ids (mapped through `workspaces`). Responses unchanged. |
-| 2. Switch | One default project per organization (workspace-removal spec); EE meter re-key (D7). | Responses per D6. Stop writing `workspaces`, `workspace_members`, `projects.workspace_id`, including the legacy mirror in M1's `add_member`, `set_member_role` and `remove_member`. Tokens carry `workspace_id = organization_id`. `AuthScope` drops `workspace_id`. |
-| 3. Contract | Drop `projects.workspace_id`, `workspace_members`, `workspaces`, `WorkspaceScopeDBA`; EE meter fold, then drop `meters.workspace_id`. | Remove the mapping. Readers ignore the token claim; signers keep it while `/w` lives. |
+| 2. Switch | Repair projects whose workspace belongs to another organization (`workspace_id` NULL); one default project per organization (workspace-removal spec); EE meter re-key (D7). Data only. | Responses per D6. Stop writing `workspaces`, `workspace_members`, `projects.workspace_id`, including the legacy mirror in M1's `add_member`, `set_member_role` and `remove_member`. Tokens carry `workspace_id = organization_id`. `AuthScope` drops `workspace_id`. |
+| 2b. Stop reading | Rerun the step-2 repair, consolidation and meter fold. Data only. | Remove every read and write of `workspaces`, `workspace_members`, `projects.workspace_id` and `meters.workspace_id`, including the mapping of legacy workspace ids. |
+| 3. Contract | Drop `projects.workspace_id`, `workspace_members`, `workspaces`, `WorkspaceScopeDBA`, `meters.workspace_id`. | None: step 2b removed every reader. Readers ignore the token claim; signers keep it while `/w` lives. |
 
 ### D6. Classic compatibility adapter
 
-The rule is CONTRACT.md section 1. Names follow ids. Until step 3, a legacy workspace id of the same organization is also accepted. The admin account graph maps `workspaces` entries to the organization.
+The rule is CONTRACT.md section 1. Names follow ids. Until step 2b, a legacy workspace id of the same organization is also accepted. The admin account graph maps `workspaces` entries to the organization.
 
 | Surface | After step 2 |
 | --- | --- |
 | `GET /projects`, `GET /projects/{id}` | `workspace_id = organization_id`, `workspace_name` = organization name |
-| `GET /organizations/`, `GET /organizations/{id}` | `workspaces = [organization_id]`; `default_workspace.id = organization_id`; its members from organization memberships, with the organization role |
+| `GET /organizations/`, `GET /organizations/{id}` | `workspaces = [organization_id]`; `default_workspace.id = organization_id`; its members are the members of the project that step 1 selected for the organization's details (the same people as before), with the organization role |
 | `GET /workspaces/` | one item per organization of the user |
 | `GET /workspaces/roles/`, `GET /workspaces/permissions/`, the `workspace` key of `GET /access/roles` | unchanged; the role catalog keeps the `workspace` scope (`SCOPES` and the EE mirror in `role_overrides.py`) until `/w` is retired |
 | `POST /workspaces/{id}/roles/` | `set_member_role(organization_id={id}, ...)` |
 | `DELETE /workspaces/{id}/roles/` | `set_member_role(..., role="viewer")`, as M1 maps it |
 | `DELETE /workspaces/{id}/users/` | `remove_member(organization_id={id}, ...)`; owner refused |
-| `/organizations/{org}/workspaces/{ws}/invite`, `/resend`, `/accept` | `{ws}` must equal `{org}` (or, until step 3, be a workspace of `{org}`) |
+| `/organizations/{org}/workspaces/{ws}/invite`, `/resend`, `/accept` | `{ws}` must equal `{org}` (or, until step 2b, be a workspace of `{org}`) |
 | `POST /organizations/{org}/workspaces/`, `PUT /organizations/{org}/workspaces/{ws}` | HTTP 410, "Workspaces were removed. Projects belong to the organization." |
 | `?workspace_id=` on Bearer auth | an organization id; with `project_id`, the project must belong to it, else 401 |
 | `scope_type="workspace"` in `/access` | compares with `organization_id` |
 | Emails and session links | `/w/{organization_id}/p/{project_id}`, `/m/w/{organization_id}/p/...` |
 
+In step 1 the same inputs are accepted (organization id, or a workspace of the same organization), and every answer for an existing row stays as it is, except the organization-id list item for a member without a workspace row and the workspace-only membership check. Bearer `?workspace_id=` without `project_id` resolves the default project of that workspace or organization (its own default, else the organization's) and checks project membership through the resolver; the auth context keeps the organization of the workspace, as before. Step 1 keeps today's answer of `get_project_by_workspace` for a workspace that has projects but no default project (its own project), while the Bearer default-project lookup answers the organization default; step 2 makes the two agree before it stops writing workspace rows.
+
 Rename returns 410 and does not rename the organization: no classic screen calls it. `/m` resolves `/m/w/<segment>/p/<project_id>` by the project id and rewrites a wrong segment.
 
 ### D7. Meter re-key that keeps counts
 
-`MeterScope` becomes `organization -> project -> user`, and `compute_meter_id` drops the `wrk` part. Organization-scope meters (all billed meters) keep their ids. The re-key folds colliding rows by adding `value` and `synced`, which keeps the unreported delta exact; step 3 repeats the fold for rows that step-1 pods wrote (meter-scope spec). During the step 2 rollout a user's daily `TRACES_RETRIEVED` can count under two ids, so the quota may admit a few extra reads.
+`MeterScope` becomes `organization -> project -> user`, and `compute_meter_id` drops the `wrk` part. Organization-scope meters (all billed meters) keep their ids. The re-key folds colliding rows by adding `value` and `synced`, which keeps the unreported delta exact; step 2b repeats the fold for rows that step-1 pods wrote (meter-scope spec). During the step 2 rollout a user's daily `TRACES_RETRIEVED` can count under two ids, so the quota may admit a few extra reads.
+
+The re-key walks the rows that have a workspace once, in `meter_id` order. For each batch, one statement deletes the old rows and inserts their values under the new id, adding into a row that already has it. A concurrent write from an accept-step pod waits for the row lock and then writes a new row under its old id; switch-step code never reads a row with a workspace as the current one, and bumps every row by its stored id, so the step-2b fold takes that row. The re-key holds the usage-report lock for its whole run (it waits for a running report, and no report starts until it ends), and a report bump only sets `synced` when the row still has the `synced` value the report read. A row with a workspace and no project matches no quota; the revision refuses to run when one exists.
 
 ## Data structures
 
@@ -81,26 +86,28 @@ def organization_storage_prefix(*, organization_id: UUID, mount_id: UUID) -> str
 def is_organization_keyed(*, mount: Mount, organization_id: UUID) -> bool: ...
 ```
 
-`AuthScope` loses `workspace_id`. `MeterScope` is `organization_id`, `project_id` (requires the organization), `user_id` (requires the project). M4 adds no membership method. The layout rule lives in `core/mounts/types.py`; the DAO calls it in the insert.
+`AuthScope` loses `workspace_id`. `MeterScope` is `organization_id`, `project_id` (requires the organization), `user_id` (requires the project). M4 adds no membership mutation method and no membership policy. Step 1 adds one reader, `MembershipsService.read_membership`: the same edition policy and DAO read as `resolve`, without its cache, only for callers whose outcome another cache already keeps (the Bearer workspace-only and no-parameter branches). The layout rule lives in `core/mounts/types.py`. In the M4b mount step, the DAO builds the equivalent SQL expression inside the insert. A Postgres test checks that its result equals `organization_storage_prefix`.
 
 ## Migration and mixed-version behavior
 
-Gate: M4a (`NOT NULL`) needs `migration:destructive-approved`. Step 1 is reported (`drop_constraint`) and passes. Step 2 (`NOT NULL`) and step 3 (drops) need `migration:destructive-approved`. Dump `workspaces` and `workspace_members` before step 3.
+Gate: M4a (`NOT NULL`) needs `migration:destructive-approved`. Step 1 is reported (`drop_constraint`) and passes. The M4b mount step revision reports nothing. Step 2 (one-way data changes: the cross-organization repair, the default consolidation, the meter re-key), step 2b (the reruns) and step 3 (drops) need `migration:destructive-approved`. Dump `workspaces` and `workspace_members` before step 3.
 
 | Rollout | Old pods on the new schema | New pods on old data |
 | --- | --- | --- |
 | M4a | Previous-release pods insert mounts without the column; the trigger fills the project layout, which is the key they compute. Re-binds succeed and keep the stored prefix. Rollback of the application is safe. | Every row is backfilled in the same revision. |
-| Step 1 | Pre-step-1 pods write `workspace_id`; M4a pods write the project layout explicitly and read the stored prefix, so they serve organization-keyed mounts and need no trigger. | Projects without `workspace_id` are handled since step 1. |
-| Step 2 | Step-1 pods read stored prefixes, accept organization ids, and write meter rows with a workspace (folded in step 3). | Projects without `workspace_id` are handled since step 1. |
-| Step 3 | Step-2 pods never read the dropped columns or tables. | None. |
+| Step 1 | Pre-step-1 pods write `workspace_id`; M4a pods write the project layout explicitly and read the stored prefix, so they serve organization-keyed mounts and need no trigger. Pods of the release before step 1 still write `workspace_id`; a workspace that such a pod deletes through the admin API during the rollout keeps its projects. | Every existing row keeps its answers. Step-1 pods also serve the rows step 2 writes (a project with a NULL `workspace_id`, an organization without workspace rows), so the step-2 rollout and a rollback to step 1 are safe. |
+| Step 2 | Step-1 pods read stored prefixes, accept organization ids, and serve the rows step 2 writes. They still write workspace rows for organizations they create, a second default project through a workspace-scoped write, and meter rows with a workspace; step-2 readers ignore all three (the meter rows are folded in step 2b). | Step-2 pods answer the organization id for every legacy row. They read auth states and tokens written by step-1 pods with the organization id, never the cached workspace id. |
+| Step 2b | Step-2 pods still read the workspace tables and columns, which exist. | None: 2b data is step-2 data. |
+| Step 3 | Step-2b pods never read the dropped columns or tables. | None. |
 
 Durable state across rollouts: signed tokens (the claim stays), auth caches (step 1 accepts both id forms) and meter rows (the fold). No queued work carries a workspace id.
 
 ## Risks
 
 - M4a: a trigger is a new pattern in these migrations. It has a `WHEN` guard that is false for M4a code, and the M4b mount step drops it.
-- Multi-workspace EE organizations lose workspace grouping and extra default projects. M1 blocks cutover on unresolved cases.
-- After step 3, a link with only a legacy workspace id fails.
+- The M4b mount step: a deployment that skips the M4a release runs pods older than M4a during the rollout. Their mount inserts fail until those pods are gone (no trigger), and they compute keys from `project_id`, so they cannot read mounts in the organization layout. Finish the M4a release on every pod before starting the mount step.
+- Multi-workspace EE organizations lose workspace grouping and extra default projects. M1's preflight reports them; the owner accepted the wider access (CONTRACT.md section 2).
+- After step 2b, a link with only a legacy workspace id fails in `/w`.
 - One-way: objects under `mounts/<organization_id>/` stay there; dropped workspace tables and old meter ids are gone (counts kept).
 
 ## Open questions

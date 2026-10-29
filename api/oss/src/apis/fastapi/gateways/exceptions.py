@@ -17,6 +17,8 @@ from oss.src.core.gateways.llms.types import (
     LLMEndpointProviderMissingError,
     LLMModelIdentifierInvalidError,
     LLMModelNotAllowedError,
+    LLMNamedConnectionNotFoundError,
+    LLMOrganizationConnectionSlugRequiredError,
     LLMRoutingFieldNotAllowedError,
     LLMUpstreamError,
 )
@@ -158,6 +160,30 @@ def handle_gateway_exceptions():
                             "Register the endpoint, or name one that already exists."
                         ),
                         details={"target": _target_of(e)},
+                    ),
+                ) from e
+            except LLMNamedConnectionNotFoundError as e:
+                # A typed miss of a connection the agent named, so a caller can ask the
+                # user to configure it.
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=gateway_error_envelope(
+                        code="connection_not_found",
+                        message=e.message,
+                        next_step=(
+                            "Pick a connection that exists for this project, or ask an "
+                            "organization admin to make this one available to it."
+                        ),
+                        details={"scope": e.scope.value, "slug": e.slug},
+                    ),
+                ) from e
+            except LLMOrganizationConnectionSlugRequiredError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail=gateway_error_envelope(
+                        code="organization_connection_slug_required",
+                        message=e.message,
+                        next_step="Name the organization connection by its slug.",
                     ),
                 ) from e
             except GatewayPlaneDisabledError as e:

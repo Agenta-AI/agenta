@@ -143,7 +143,10 @@ async def test_successful_create_writes_a_secret_and_a_connection_row(channels_s
     )
 
     result = await service.create_connection(
-        project_id=project_id, user_id=user_id, connection=connection
+        project_id=project_id,
+        user_id=user_id,
+        guard_user_id=None,
+        connection=connection,
     )
 
     assert await _secret_count(channels_scope["engine"], project_id) == 1
@@ -174,7 +177,10 @@ async def test_failed_verification_writes_neither_row(channels_scope):
 
     with pytest.raises(ChannelConnectionVerificationFailed):
         await service.create_connection(
-            project_id=project_id, user_id=user_id, connection=connection
+            project_id=project_id,
+            user_id=user_id,
+            guard_user_id=None,
+            connection=connection,
         )
 
     assert await _secret_count(channels_scope["engine"], project_id) == 0
@@ -200,7 +206,7 @@ async def test_two_projects_one_installation_get_a_domain_error_not_a_500(
         credentials={"bot_token": "x", "signing_secret": "y"},
     )
     await service.create_connection(
-        project_id=project_id, user_id=user_id, connection=first
+        project_id=project_id, user_id=user_id, guard_user_id=None, connection=first
     )
 
     other_project_id = uuid4()
@@ -227,7 +233,10 @@ async def test_two_projects_one_installation_get_a_domain_error_not_a_500(
 
         with pytest.raises(ChannelConnectionIdentityConflict):
             await service.create_connection(
-                project_id=other_project_id, user_id=user_id, connection=second
+                project_id=other_project_id,
+                user_id=user_id,
+                guard_user_id=None,
+                connection=second,
             )
     finally:
         async with engine.session() as session:
@@ -256,6 +265,7 @@ async def test_archive_cascades_to_agents_and_leaves_threads_alone(channels_scop
     connection = await service.create_connection(
         project_id=project_id,
         user_id=user_id,
+        guard_user_id=None,
         connection=ChannelConnectionCreate(
             channel="slack",
             external_key=uuid4(),
@@ -266,6 +276,7 @@ async def test_archive_cascades_to_agents_and_leaves_threads_alone(channels_scop
     agent = await service.create_agent(
         project_id=project_id,
         user_id=user_id,
+        guard_user_id=None,
         agent=ChannelAgentCreate(
             connection_id=connection.id,
             slug="archive-agent",

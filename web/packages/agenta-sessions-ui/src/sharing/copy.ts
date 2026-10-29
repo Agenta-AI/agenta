@@ -27,9 +27,6 @@ export const sessionSharingCopy = {
     tooltipPeople: (count: number) => `Shared with ${count} ${count === 1 ? "person" : "people"}`,
     tooltipProject: "Everyone in the project can view and send",
     tooltipNotShareable: "You can share this chat after its first message.",
-    lockOwner: "Private: only you and the people you add",
-    lockShared: (owner: string) => `Private: shared with you by ${owner}`,
-    sharedBy: (owner: string) => `Shared by ${owner}`,
     chipViewOnly: "View only",
     chipCanSend: "Can send",
     // A "Can send" grant works only for a role that may send (added in the M3 gate, QA D3).

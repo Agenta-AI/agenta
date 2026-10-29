@@ -94,7 +94,7 @@ from oss.src.core.channels.identity import (
 from oss.src.core.sessions.attachments.media import classify
 from oss.src.core.sessions.attachments.service import SessionAttachmentsService
 from oss.src.core.sessions.attachments.types import AttachmentTooLarge
-from oss.src.core.sessions.streams.service import SessionStreamsService
+from oss.src.core.sessions.commands.service import SessionCommandsService
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.utils.logging import get_module_logger
 
@@ -139,7 +139,7 @@ class InboxDispatcher:
         run_admission: RunAdmission,
         workflows_service: Optional[WorkflowsService] = None,
         identity_service: Optional[ChannelIdentityService] = None,
-        streams_service: Optional[SessionStreamsService] = None,
+        commands_service: Optional[SessionCommandsService] = None,
         invoke_fn: Optional[InvokeFn] = None,
         respond_interaction_fn: Optional[RespondInteractionFn] = None,
         session_queue: Optional[ChannelSessionQueue] = None,
@@ -154,7 +154,7 @@ class InboxDispatcher:
         self.identity_service = identity_service
         # None means `!stop` is not offered; commands.dispatch_command raises
         # CommandNotOffered before ever touching this attribute either way.
-        self.streams_service = streams_service
+        self.commands_service = commands_service
         # `invoke_fn` overrides the default entirely (tests inject a fake
         # here); otherwise the default closes over `workflows_service`.
         self._invoke_fn = invoke_fn or self._invoke_via_workflows_service
@@ -410,7 +410,7 @@ class InboxDispatcher:
 
         `user_id` falls back to the agent's creator exactly like the invoke
         path, since a command still needs an actor for audit (`close_thread`)
-        and for `SessionStreamsService.command`.
+        and for `SessionCommandsService.request_cancel`.
         """
 
         user_id = await self._invoking_user_id(
@@ -425,7 +425,7 @@ class InboxDispatcher:
         try:
             result = await dispatch_command(
                 channels_service=self.channels_service,
-                streams_service=self.streams_service,
+                commands_service=self.commands_service,
                 project_id=project_id,
                 user_id=user_id,
                 thread=resolution.thread,

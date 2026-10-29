@@ -101,6 +101,7 @@ import {
   runnerConfigSummary,
 } from "./config/runner-config.ts";
 import { applyDaytonaSdkEnv } from "./engines/sandbox_agent/daytona-provider.ts";
+import { seedPinnedAgentProcesses } from "./engines/sandbox_agent/adapter-seed.ts";
 import { flushPendingDaytonaSecretCleanups } from "./engines/sandbox_agent/daytona-secret-provider.ts";
 import { isEntrypoint } from "./entry.ts";
 import { insecureEgressAllowed } from "./tools/ssrf-guard.ts";
@@ -1429,7 +1430,7 @@ function readBodyCapped(
 /** The route prefix every subscription-login request shares. */
 const SUBSCRIPTION_LOGIN_ROUTE = "/subscription-login/attempts";
 
-/** The start body is `{ provider, projectId, secretId }`. */
+/** The start body is `{ provider, projectId | organizationId, secretId }`. */
 const SUBSCRIPTION_LOGIN_BODY_MAX_BYTES = 4 * 1024;
 
 /**
@@ -1472,7 +1473,12 @@ async function handleSubscriptionLoginRoute(
   res.setHeader("cache-control", "no-store");
 
   if (req.method === "POST" && path === SUBSCRIPTION_LOGIN_ROUTE) {
-    let body: { provider?: unknown; projectId?: unknown; secretId?: unknown };
+    let body: {
+      provider?: unknown;
+      projectId?: unknown;
+      organizationId?: unknown;
+      secretId?: unknown;
+    };
     try {
       const raw = await readBodyCapped(req, SUBSCRIPTION_LOGIN_BODY_MAX_BYTES);
       body = raw.trim() ? JSON.parse(raw) : {};
@@ -1492,16 +1498,24 @@ async function handleSubscriptionLoginRoute(
     }
     // Where the outcome goes. Without them the loop could not report, and the user's poll would
     // wait out the provider's whole window for nothing.
+    // A project's login names its project; an organization's login (M5) names its organization.
     const projectId = readRequiredId(body.projectId);
+    const organizationId = readRequiredId(body.organizationId);
     const secretId = readRequiredId(body.secretId);
-    if (!projectId || !secretId) {
+    if (!secretId || Boolean(projectId) === Boolean(organizationId)) {
       return send(res, 400, {
         ok: false,
-        error: "projectId and secretId are required",
+        error:
+          "secretId and exactly one of projectId and organizationId are required",
       });
     }
     try {
-      const view = await attempts.start(provider, { projectId, secretId });
+      const view = await attempts.start(
+        provider,
+        organizationId
+          ? { organizationId, secretId }
+          : { projectId: projectId as string, secretId },
+      );
       // The API keeps this pod's own address on the attempt, so a cancel reaches the pod that
       // runs the provider poll rather than whichever pod the Service URL picks. The id lets the
       // API check, before the cancel, that the address still belongs to this pod.
@@ -2076,6 +2090,12 @@ if (isEntrypoint(import.meta.url)) {
   // one redacted summary, then bridge the typed Daytona credential into the ambient names the
   // vendored SDK reads during sandbox creation.
   let runnerConfig = loadRunnerConfig();
+
+  // BEFORE ANY DAEMON CAN START, which is why it sits at boot rather than in the acquire path:
+  // the daemon reads its data dir when the first run spawns it, and under a HOME override the
+  // image's pinned Codex adapter is not there. Seeding it is what stops the daemon cold-installing
+  // a floating adapter and wedging the session open. Never throws. See `adapter-seed.ts`.
+  seedPinnedAgentProcesses();
 
   // On SIGTERM (a deploy, a node drain, `docker stop`) or Ctrl-C (SIGINT): refuse new turns,
   // let running ones finish, cancel the rest with a settled wait, then delete every sandbox this

@@ -492,13 +492,14 @@ class TestWorkspaceRoutesWithKeys:
         refused = admin_api("DELETE", organization, headers=other)
         assert refused.status_code == 403, refused.text
 
+        # Workspace removal step 2: workspace create answers 410 to every caller.
         refused = admin_api(
             "POST",
             f"{organization}/workspaces/",
             json={"name": "m2-ws"},
             headers=other,
         )
-        assert refused.status_code == 403, refused.text
+        assert refused.status_code == 410, refused.text
 
         if is_ee():
             refused = admin_api(
