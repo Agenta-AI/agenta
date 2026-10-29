@@ -104,3 +104,37 @@ def test_a_binding_cannot_be_moved_away_edited_and_moved_back(sharing_cast):
 
     back = _edit(bob, binding_id, data={"references": private_refs})
     assert (back.status_code, back.json()) == (404, NOT_FOUND_BODY)
+
+
+def test_only_the_owner_creates_a_binding_with_a_people_list(sharing_cast):
+    """Creating a binding that is off but already has a people list is a limits
+    write too: someone else is refused, the owner is not."""
+
+    alice = sharing_cast["alice"]
+    bob = sharing_cast["bob"]
+    private = new_agent(alice, visibility="private")
+
+    def _create(caller):
+        return caller(
+            "POST",
+            "/channels/agents/",
+            json={
+                "agent": {
+                    "connection_id": sharing_cast.installation.connection["id"],
+                    "slug": f"m10-off-{uuid4().hex[:8]}",
+                    "data": {
+                        "references": {
+                            "workflow_revision": {"id": private["revision_id"]}
+                        },
+                        "audience": {"senders": ["U-BOB"], "labels": {}},
+                    },
+                    "flags": {"is_active": False},
+                }
+            },
+        )
+
+    refused = _create(bob)
+    assert (refused.status_code, refused.json()) == (404, NOT_FOUND_BODY)
+    created = _create(alice)
+    assert created.status_code == 200, created.text
+    assert created.json()["agent"]["data"]["audience"]["senders"] == ["U-BOB"]
