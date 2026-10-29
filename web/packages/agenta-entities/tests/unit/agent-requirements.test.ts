@@ -64,9 +64,9 @@ describe("requirementAtPath", () => {
 
 describe("requirementForItem", () => {
     it("matches by kind and slug", () => {
-        expect(requirementForItem(list, {kinds: ["mcp_server", "mcp_sign_in"], slug: "linear"})).toBe(
-            linear,
-        )
+        expect(
+            requirementForItem(list, {kinds: ["mcp_server", "mcp_sign_in"], slug: "linear"}),
+        ).toBe(linear)
         expect(requirementForItem(list, {kinds: ["secret"], slug: "linear"})).toBeUndefined()
     })
 
@@ -79,7 +79,11 @@ describe("requirementForItem", () => {
             }),
         ).toBe(github)
         expect(
-            requirementForItem(list, {kinds: ["app_connection"], slug: "github-x1", integration: "gmail"}),
+            requirementForItem(list, {
+                kinds: ["app_connection"],
+                slug: "github-x1",
+                integration: "gmail",
+            }),
         ).toBeUndefined()
     })
 
