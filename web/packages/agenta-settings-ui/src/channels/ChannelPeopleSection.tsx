@@ -184,7 +184,8 @@ export const ChannelPeopleSection = ({
     const add = async (added: ChannelAudiencePerson[]) => {
         if (!people) return false
         const have = new Set(people.map((person) => person.id))
-        const fresh = added.filter((person) => !have.has(person.id))
+        // once each, also when the same id is typed twice in one entry
+        const fresh = added.filter((person) => !have.has(person.id) && have.add(person.id))
         if (!fresh.length) return true
         return write([...people, ...fresh])
     }

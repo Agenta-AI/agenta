@@ -239,6 +239,14 @@ it("adds an allowed account and saves the list at once", async () => {
     ])
     expect(container.querySelectorAll('[data-testid="channels-allowed-user"]')).toHaveLength(3)
 })
+it("adds an id typed twice in one entry once", async () => {
+    const writeAudience = vi.fn(async () => {})
+    await render({readAudience: vi.fn().mockResolvedValue([person("111")]), writeAudience})
+    await type('[data-testid="channels-allowed-input"]', "222, 222")
+    const add = [...container.querySelectorAll("button")].find((b) => b.textContent === "Add")!
+    await act(async () => add.click())
+    expect(writeAudience).toHaveBeenCalledWith("connection", [person("111"), person("222")])
+})
 it("refuses a Telegram username, which the bot could never match", async () => {
     const writeAudience = vi.fn(async () => {})
     await render({readAudience: vi.fn().mockResolvedValue([person("111")]), writeAudience})
