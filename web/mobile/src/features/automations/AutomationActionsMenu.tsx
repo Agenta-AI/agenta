@@ -76,13 +76,8 @@ export const AutomationActionsMenu = ({
             message.error(blocked)
             return
         }
-        let text: string
-        try {
-            text = await runNowText(automation)
-        } catch (error) {
-            console.error("[AutomationActionsMenu] deliveries query failed", error)
-            return
-        }
+        const text = await runNowText(automation)
+        if (text === null) return
         // Sent on landing, like the detail screen's Run now.
         void startTask(automation.agentId, text)
     }, [automation, startTask])

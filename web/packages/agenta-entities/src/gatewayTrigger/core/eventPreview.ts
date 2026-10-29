@@ -25,6 +25,11 @@ export function addsEventText(inputs: unknown): boolean {
     return Array.isArray(obj.messages) || Object.keys(obj).length === 0
 }
 
+/** A subscription's include-event option. A subscription saved without the key reads as on. */
+export function includesEvent(data: {include_event?: boolean | null} | null | undefined): boolean {
+    return data?.include_event ?? true
+}
+
 /** The event block added to the agent's message, starting with a blank line. */
 export function formatEventText(eventType: unknown, attributes: unknown): string {
     const header =

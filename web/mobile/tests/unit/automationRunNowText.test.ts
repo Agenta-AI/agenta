@@ -68,11 +68,12 @@ describe("runNowText", () => {
         )
     })
 
-    it("rejects when the deliveries call fails, so no run starts", async () => {
+    it("gives null when the deliveries call fails, so no run starts", async () => {
         const query = vi.fn(async () => {
             throw new Error("network")
         })
-        await expect(runNowText(automation(PILL_MAPPING), query)).rejects.toThrow("network")
+        vi.spyOn(console, "error").mockImplementation(() => undefined)
+        await expect(runNowText(automation(PILL_MAPPING), query)).resolves.toBeNull()
     })
 
     it("sends today's text for a mapping the composer cannot show", async () => {
@@ -84,6 +85,14 @@ describe("runNowText", () => {
             ],
         }
         await expect(runNowText(automation(mapping), query)).resolves.toBe("Triage it")
+        expect(query).not.toHaveBeenCalled()
+    })
+
+    it("sends the stored text unchanged for a mapping without messages", async () => {
+        const query = deliveries([])
+        await expect(runNowText(automation({message: "Review it"}), query)).resolves.toBe(
+            "Review it",
+        )
         expect(query).not.toHaveBeenCalled()
     })
 })

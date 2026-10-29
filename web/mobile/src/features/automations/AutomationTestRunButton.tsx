@@ -60,14 +60,10 @@ export const AutomationTestRunButton = ({
                 onClick={async () => {
                     if (!automation.agentId) return
                     setStarting(true)
-                    try {
-                        void startTask(automation.agentId, await runNowText(automation))
-                    } catch (error) {
-                        // Nothing starts; the button is pressable again.
-                        console.error("[AutomationTestRunButton] deliveries query failed", error)
-                    } finally {
-                        setStarting(false)
-                    }
+                    const text = await runNowText(automation)
+                    setStarting(false)
+                    // Null: the deliveries call failed, so nothing starts.
+                    if (text !== null) void startTask(automation.agentId, text)
                 }}
             >
                 <Play aria-hidden className="size-3" />

@@ -1,6 +1,10 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {type TriggerSchedule, type TriggerSubscription} from "@agenta/entities/gatewayTrigger"
+import {
+    includesEvent,
+    type TriggerSchedule,
+    type TriggerSubscription,
+} from "@agenta/entities/gatewayTrigger"
 import {
     workflowLatestRevisionQueryAtomFamily,
     workflowVariantsListQueryStateAtomFamily,
@@ -210,7 +214,7 @@ function seedFrom(automation: Automation | null): AutomationConfigDraft {
         connectionId: automation.connectionId,
         eventKey: automation.eventKey,
         triggerConfig: subscription?.data?.trigger_config ?? undefined,
-        includeEvent: subscription?.data?.include_event ?? true,
+        includeEvent: includesEvent(subscription?.data),
     }
 }
 
