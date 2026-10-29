@@ -1,9 +1,8 @@
 """Unit tests for `SecretsResolver` (specs-wp2.md, tasks-wp2.md).
 
 Every case below runs against a dict-backed mock `VaultService` and a dict-backed mock
-the vault service — no Postgres, no Redis, no encryption key. The mode-table cases
-(`USER_REQUIRED` never falls back, `USER_OPTIONAL` names the narrower owner) are the point
-of this suite; everything else exists to pin the ref-arm matching rules.
+the vault service — no Postgres, no Redis, no encryption key. The suite pins the ref-arm
+matching rules and the errors for a missing secret.
 """
 
 from typing import Dict, List, Optional, Tuple
@@ -14,7 +13,6 @@ import pytest
 from oss.src.core.gateways.policy.dtos import (
     GatewayPlane,
     BoundSecretRef,
-    SecretMode,
     SecretOwnerKind,
     ProviderKeyRef,
     SecretOrigin,
@@ -40,12 +38,6 @@ from oss.src.core.secrets.enums import (
 )
 from oss.src.core.shared.dtos import Header
 from oss.src.utils.context import AuthScope
-
-ALL_MODES = [
-    SecretMode.PROJECT_ONLY,
-    SecretMode.USER_REQUIRED,
-    SecretMode.USER_OPTIONAL,
-]
 
 
 # Resolver test doubles
@@ -147,7 +139,6 @@ async def test_bound_secret_resolves_when_present():
     resolved = await resolver.resolve(
         scope=scope,
         ref=BoundSecretRef(secret_id=secret.id),
-        mode=SecretMode.PROJECT_ONLY,
     )
 
     assert resolved.secret.id == secret.id
@@ -156,19 +147,15 @@ async def test_bound_secret_resolves_when_present():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("mode", ALL_MODES)
-async def test_bound_secret_missing_raises_for_every_mode(mode):
+async def test_bound_secret_missing_raises():
     resolver, _vault = _resolver()
     scope = _scope()
     missing_id = uuid4()
 
     with pytest.raises(SecretNotFoundError) as excinfo:
-        await resolver.resolve(
-            scope=scope, ref=BoundSecretRef(secret_id=missing_id), mode=mode
-        )
+        await resolver.resolve(scope=scope, ref=BoundSecretRef(secret_id=missing_id))
 
     assert excinfo.value.missing == SecretOwnerKind.PROJECT
-    assert excinfo.value.mode == mode
     assert excinfo.value.target == f"secret:{missing_id}"
 
 
@@ -183,7 +170,6 @@ async def test_provider_key_match_resolves():
     resolved = await resolver.resolve(
         scope=_scope(),
         ref=ProviderKeyRef(provider_key="openai"),
-        mode=SecretMode.PROJECT_ONLY,
     )
 
     assert resolved.secret.id == secret.id
@@ -199,7 +185,6 @@ async def test_provider_key_falls_back_to_custom_provider_when_no_provider_key_m
     resolved = await resolver.resolve(
         scope=_scope(),
         ref=ProviderKeyRef(provider_key="azure"),
-        mode=SecretMode.PROJECT_ONLY,
     )
 
     assert resolved.secret.id == custom.id
@@ -215,7 +200,6 @@ async def test_provider_key_prefers_provider_key_kind_over_custom_provider():
     resolved = await resolver.resolve(
         scope=_scope(),
         ref=ProviderKeyRef(provider_key="openai"),
-        mode=SecretMode.PROJECT_ONLY,
     )
 
     assert resolved.secret.id == standard.id
@@ -223,13 +207,12 @@ async def test_provider_key_prefers_provider_key_kind_over_custom_provider():
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("mode", ALL_MODES)
-async def test_provider_key_no_match_raises_for_every_mode(mode):
+async def test_provider_key_no_match_raises():
     resolver, _vault = _resolver()
 
     with pytest.raises(SecretNotFoundError) as excinfo:
         await resolver.resolve(
-            scope=_scope(), ref=ProviderKeyRef(provider_key="openai"), mode=mode
+            scope=_scope(), ref=ProviderKeyRef(provider_key="openai")
         )
 
     assert excinfo.value.missing == SecretOwnerKind.PROJECT

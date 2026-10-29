@@ -17,7 +17,6 @@ from oss.src.core.gateways.policy.dtos import (
     BoundSecretRef,
     GatewayPlane,
     ProviderKeyRef,
-    SecretMode,
 )
 from oss.src.core.gateways.policy.resolution import SecretsResolver
 from oss.src.core.gateways.policy.types import SecretNotFoundError
@@ -31,8 +30,6 @@ from oss.tests.pytest.utils.organization_secrets import (
     make_auth_scope,
     org_secret_payload,
 )
-
-MODE = SecretMode.PROJECT_ONLY
 
 
 class _AllowLimits:
@@ -103,7 +100,6 @@ async def test_the_provider_scan_never_reads_an_organization_row(world):
         await world["llm"].resolve(
             scope=world["sales_scope"],
             ref=ProviderKeyRef(provider_key="openai"),
-            mode=MODE,
         )
 
 
@@ -165,7 +161,6 @@ async def test_named_connection_removed_does_not_fall_back(world):
         await world["llm"].resolve(
             scope=world["sales_scope"],
             ref=BoundSecretRef(secret_id=named.id),
-            mode=MODE,
         )
 
 
@@ -173,7 +168,7 @@ async def test_the_default_is_the_project_key(world):
     await _company(world)
     own = await _project_key(world, world["sales"], slug="mine")
     resolved = await world["llm"].resolve(
-        scope=world["sales_scope"], ref=ProviderKeyRef(provider_key="openai"), mode=MODE
+        scope=world["sales_scope"], ref=ProviderKeyRef(provider_key="openai")
     )
     assert resolved.secret.id == own.id
     assert resolved.owner.kind == SecretOwnerKind.PROJECT
@@ -186,7 +181,6 @@ async def test_resolved_secret_names_the_real_owner(world):
         ref=BoundSecretRef(
             secret_id=company.id, owner_kind=SecretOwnerKind.ORGANIZATION
         ),
-        mode=MODE,
     )
     assert resolved.owner.kind == SecretOwnerKind.ORGANIZATION
     assert resolved.owner.id == world["organization_id"]
@@ -206,7 +200,7 @@ async def test_pinned_reference_never_substitutes(world):
         user_id=uuid4(),
     )
     with pytest.raises(SecretNotFoundError) as excinfo:
-        await world["llm"].resolve(scope=world["sales_scope"], ref=ref, mode=MODE)
+        await world["llm"].resolve(scope=world["sales_scope"], ref=ref)
     assert excinfo.value.missing == SecretOwnerKind.ORGANIZATION
 
     # Deleted.
@@ -214,7 +208,7 @@ async def test_pinned_reference_never_substitutes(world):
         organization_id=world["organization_id"], secret_id=company.id
     )
     with pytest.raises(SecretNotFoundError):
-        await world["llm"].resolve(scope=world["marketing_scope"], ref=ref, mode=MODE)
+        await world["llm"].resolve(scope=world["marketing_scope"], ref=ref)
 
 
 async def test_project_bound_reference_never_reads_organization_rows(world):
@@ -223,7 +217,6 @@ async def test_project_bound_reference_never_reads_organization_rows(world):
         await world["llm"].resolve(
             scope=world["sales_scope"],
             ref=BoundSecretRef(secret_id=company.id),  # owner_kind PROJECT
-            mode=MODE,
         )
     assert excinfo.value.missing == SecretOwnerKind.PROJECT
 
@@ -247,9 +240,7 @@ async def test_mcp_never_resolves_organization_rows(world, monkeypatch):
     )
     assert not await mcp.has_connection(scope=scope, slug="mock-company")
     with pytest.raises(SecretNotFoundError):
-        await mcp.resolve(
-            scope=scope, ref=ProviderKeyRef(provider_key="mock"), mode=MODE
-        )
+        await mcp.resolve(scope=scope, ref=ProviderKeyRef(provider_key="mock"))
     calls = list(world["dao"].calls)
     with pytest.raises(SecretNotFoundError) as excinfo:
         await mcp.resolve(
@@ -257,7 +248,6 @@ async def test_mcp_never_resolves_organization_rows(world, monkeypatch):
             ref=BoundSecretRef(
                 secret_id=company.id, owner_kind=SecretOwnerKind.ORGANIZATION
             ),
-            mode=MODE,
         )
     assert excinfo.value.missing == SecretOwnerKind.ORGANIZATION
     assert world["dao"].calls == calls  # refused without a read
