@@ -75,11 +75,12 @@ export function agentToolsCacheFor(
 
 /**
  * Stat-only fingerprint of a durable `bin/`: the regular files the restore loop would copy (the
- * shell glob `bin/*` skips dot files), by name, size and mtime. Undefined when `bin/` is absent.
+ * shell glob `bin/*` skips dot files), by name, size and mtime, and how many there are.
+ * Undefined when `bin/` is absent.
  */
 async function fingerprintToolsBin(
   binDir: string,
-): Promise<string | undefined> {
+): Promise<{ fingerprint: string; files: number } | undefined> {
   let names: string[];
   try {
     names = await readdir(binDir);
@@ -93,7 +94,13 @@ async function fingerprintToolsBin(
     if (!st?.isFile()) continue;
     rows.push(`${name}\0${st.size}\0${Math.trunc(st.mtimeMs)}`);
   }
-  return createHash("sha256").update(rows.join("\n")).digest("hex").slice(0, 32);
+  return {
+    fingerprint: createHash("sha256")
+      .update(rows.join("\n"))
+      .digest("hex")
+      .slice(0, 32),
+    files: rows.length,
+  };
 }
 
 /** Create `dir` 0700, or accept it only if it is a real directory this uid owns, then force 0700. */
@@ -154,8 +161,8 @@ async function pruneAgentToolsCache(
 /** What the restore script does with the cache for one session. */
 export type AgentToolsCachePlan =
   | { kind: "none" }
-  /** Copy `bin/` from this local entry instead of the durable folder. */
-  | { kind: "hit"; binDir: string }
+  /** Copy `bin/` from this local entry, which holds `files` files, instead of the durable folder. */
+  | { kind: "hit"; binDir: string; files: number }
   /** Copy from the durable folder, then fill `fillDir`; call `commit` after the script. */
   | { kind: "miss"; fillDir: string; commit: () => Promise<void> };
 
@@ -171,28 +178,36 @@ export async function planToolsCache(
 ): Promise<AgentToolsCachePlan> {
   const binDir = join(toolsDir, "bin");
   try {
-    const fingerprint = await fingerprintToolsBin(binDir);
-    if (!fingerprint) return { kind: "none" };
+    const scanned = await fingerprintToolsBin(binDir);
+    if (!scanned) return { kind: "none" };
+    const { fingerprint } = scanned;
     await ensurePrivateDir(cache.root);
     const agentDir = join(cache.root, cache.key);
     await ensurePrivateDir(agentDir);
     const name = `bin-${fingerprint}`;
     const entry = join(agentDir, name);
-    if ((await stat(join(entry, "bin")).catch(() => undefined))?.isDirectory()) {
+    if (
+      (await stat(join(entry, "bin")).catch(() => undefined))?.isDirectory()
+    ) {
       await touch(entry);
       await touch(agentDir);
       log(`agent tools bin cache hit`);
-      return { kind: "hit", binDir: join(entry, "bin") };
+      return { kind: "hit", binDir: join(entry, "bin"), files: scanned.files };
     }
     const tmp = await mkdtemp(join(agentDir, ".tmp-"));
     const commit = async () => {
       try {
-        const complete = await stat(join(tmp, AGENT_TOOLS_CACHE_COMPLETE)).catch(
-          () => undefined,
-        );
+        const complete = await stat(
+          join(tmp, AGENT_TOOLS_CACHE_COMPLETE),
+        ).catch(() => undefined);
         // The owner may have written the folder during the restore; never publish a mix.
-        if (!complete || (await fingerprintToolsBin(binDir)) !== fingerprint) {
-          log(`agent tools bin cache not filled: copy incomplete or bin/ changed`);
+        if (
+          !complete ||
+          (await fingerprintToolsBin(binDir))?.fingerprint !== fingerprint
+        ) {
+          log(
+            `agent tools bin cache not filled: copy incomplete or bin/ changed`,
+          );
           return;
         }
         await rename(tmp, entry).catch((err: NodeJS.ErrnoException) => {
