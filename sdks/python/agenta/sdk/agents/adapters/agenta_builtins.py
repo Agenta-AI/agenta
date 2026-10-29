@@ -607,8 +607,9 @@ To put one field inside the text, write the content as text parts with one selec
 }
 ```
 
-Inside `messages`, a value that is not a string is sent as text: a number or an object as its
-JSON, and a selector that resolves to nothing as an empty string.
+On a subscription, a value inside `messages` that is not a string is sent as text: a number or
+an object as its JSON, and a selector that resolves to nothing as an empty string. A schedule
+sends its values as they are, so write schedule message text as strings.
 
 Passing no `inputs_fields` at all gives the agent the raw context object as inputs — fine for a
 smoke test, but a real agent should get an explicit `messages` entry so the run starts from an
