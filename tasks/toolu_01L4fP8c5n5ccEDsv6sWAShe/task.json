@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01L4fP8c5n5ccEDsv6sWAShe",
+  "agent_id": "a50bfdc51c9749c70",
+  "subagent_type": "general-purpose",
+  "task_description": "Implement backend include_event",
+  "token_usage": {
+    "input_tokens": 212,
+    "cache_creation_tokens": 408776,
+    "cache_read_tokens": 16532829,
+    "output_tokens": 61977,
+    "api_call_count": 101
+  },
+  "started_at": "2026-10-29T18:44:30.514786804+01:00",
+  "completed_at": "2026-10-29T19:03:51.131933791+01:00"
+}
