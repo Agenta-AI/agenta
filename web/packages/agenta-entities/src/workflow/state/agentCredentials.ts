@@ -56,8 +56,12 @@ const withCredentials = (
                 ...agent,
                 sandbox: {
                     ...sandbox,
+                    // A "user" secret has no slug (contract section 5.1); a project secret
+                    // names only its slug.
                     credentials: bindings.map(({secret, binding}) => ({
-                        secret: {slug: secret.slug},
+                        secret: (secret.account_source === "user"
+                            ? {account_source: "user"}
+                            : {slug: secret.slug ?? ""}) as Record<string, string>,
                         binding: {type: binding.type, name: binding.name},
                     })),
                 },

@@ -145,7 +145,8 @@ export function useModelHarness({
               if (!value || typeof value !== "object") return false
               const candidate = value as AgentSecretBinding
               return (
-                  typeof candidate.secret?.slug === "string" &&
+                  (typeof candidate.secret?.slug === "string" ||
+                      candidate.secret?.account_source === "user") &&
                   candidate.binding?.type === "env" &&
                   typeof candidate.binding.name === "string"
               )

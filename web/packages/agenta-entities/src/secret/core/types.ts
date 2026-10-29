@@ -83,10 +83,19 @@ export type CustomSecretContent = CustomSecretSettingsDto["content"]
  * with the two fields named secrets need: the `format` and a `content` that is
  * a text blob or a flat json object — wider than `LlmProvider.key` (string only).
  */
+/**
+ * One `sandbox.credentials[]` entry: the secret, and the environment variable that receives it.
+ * A project secret names its slug. A "user" secret (`account_source: "user"`) has no slug: each
+ * person who runs the agent gives their own value.
+ */
 export interface AgentSecretBinding {
-    secret: {slug: string}
+    secret: {slug?: string; account_source?: "user"}
     binding: {type: "env"; name: string}
 }
+
+/** Whether the binding takes each person's own secret. */
+export const isUserSecretBinding = (binding: AgentSecretBinding): boolean =>
+    binding.secret.account_source === "user"
 
 /**
  * A vault row carrying the custom-provider fields the generated client does not declare yet.

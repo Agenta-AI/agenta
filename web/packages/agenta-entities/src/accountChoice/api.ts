@@ -11,7 +11,9 @@ import {safeParseWithLogging} from "../shared"
 import {
     accountChoiceResponseSchema,
     accountChoicesResponseSchema,
+    itemAccountsResponseSchema,
     type AccountChoice,
+    type ItemAccount,
 } from "./schema"
 
 const BASE = "/account-choices"
@@ -88,4 +90,31 @@ export const deleteAccountChoice = async ({
     accountChoiceId: string
 }): Promise<void> => {
     await axios.delete(`${getAgentaApiUrl()}${BASE}/${accountChoiceId}`, scoped(projectId))
+}
+
+/**
+ * The account each "user" item gets when the asker runs this configuration, saved or not (an
+ * item switched to "each person" in the editor). `parameters` has the revision's `parameters`
+ * shape.
+ */
+export const resolveDraftItemAccounts = async ({
+    projectId,
+    workflowId,
+    parameters,
+}: {
+    projectId: string
+    workflowId: string
+    parameters: Record<string, unknown>
+}): Promise<ItemAccount[]> => {
+    const response = await axios.post(
+        `${getAgentaApiUrl()}${BASE}/resolve`,
+        {workflow_id: workflowId, workflow_revision_ref: null, parameters},
+        scoped(projectId),
+    )
+    const data = safeParseWithLogging(
+        itemAccountsResponseSchema,
+        response.data,
+        "[resolveDraftItemAccounts]",
+    )
+    return data?.item_accounts ?? []
 }
