@@ -215,6 +215,8 @@ export const ChannelPeopleSection = ({
 
     const refresh = async () => {
         setRefreshing(true)
+        // a search sent before the refresh must not overwrite its answer
+        searchSeq.current += 1
         try {
             setDirectory(await actions.refreshPeople(connectionId))
             polls.current = 0
