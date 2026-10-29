@@ -331,10 +331,10 @@ def _reject_unreadable_agent_instructions(data: Any) -> None:
 
 def _binding_claims(data: Any) -> List[BindingClaim]:
     """The revision's `caller_account` bindings, signed into its run credential, or a
-    refusal of a binding the first
-    step of M7 does not support: `specific`, a personal account on an organization
-    connection, a personal account the run path does not serve yet. A format check
-    only: it never checks that an account exists."""
+    refusal of a binding the first step of M7 does not support: `specific`, a personal
+    account on an organization connection, a personal account the run path does not
+    serve yet. Runs at run start only; saving an agent never checks bindings. A format
+    check only: it never checks that an account exists."""
     try:
         return binding_claims_for_revision(data)
     except InvalidBinding as e:
@@ -363,7 +363,6 @@ def _reject_unrunnable_agent_connection(data: Any) -> None:
     agent = (data.get("parameters") or {}).get("agent")
     if not isinstance(agent, dict):
         return
-    _binding_claims(data)
     llm = agent.get("llm")
     connection = llm.get("connection") if isinstance(llm, dict) else None
     if not isinstance(connection, dict):

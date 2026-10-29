@@ -19,7 +19,10 @@ from oss.src.core.credentials.bindings import (
     claims_from_token,
     claims_to_token,
 )
-from oss.src.core.workflows.service import _reject_unrunnable_agent_connection
+from oss.src.core.workflows.service import (
+    _binding_claims,
+    _reject_unrunnable_agent_connection,
+)
 from oss.src.core.workflows.types import InvalidAgentConnectionError
 
 
@@ -169,7 +172,7 @@ def test_unsupported_bindings_name_the_connection(agent, where):
     assert refused.value.where == where
 
 
-def test_commit_refuses_an_unsupported_binding_as_a_format_error():
+def test_an_unsupported_binding_is_saved_and_refused_at_run_start():
     revision = _revision(
         llm={"provider": "openai", "model": "gpt-5"},
         tools=[
@@ -183,8 +186,10 @@ def test_commit_refuses_an_unsupported_binding_as_a_format_error():
             }
         ],
     )
+    # Saving never checks bindings (owner rule: no checks at save time).
+    _reject_unrunnable_agent_connection(revision)
     with pytest.raises(InvalidAgentConnectionError) as refused:
-        _reject_unrunnable_agent_connection(revision)
+        _binding_claims(revision)
     detail = refused.value.to_detail()
     assert detail["details"]["reason"] == "binding_not_supported"
     assert detail["details"]["field"] == "parameters.agent.tools[0].connection"

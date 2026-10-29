@@ -8,8 +8,8 @@ Every model, Composio tool, and MCP gateway connection reference SHALL have a bi
 - **THEN** the system SHALL resolve the organization row, as under M5
 
 #### Scenario: Unsupported combination
-- **WHEN** an author saves `specific` on an MCP gateway connection
-- **THEN** the system SHALL refuse the revision with a validation error that names the connection
+- **WHEN** a run starts on a revision that has `specific` on an MCP gateway connection
+- **THEN** the system SHALL refuse the run with a validation error that names the connection, and saving the revision SHALL NOT check bindings
 
 ### Requirement: An exact binding never substitutes
 A `specific` binding and an agent account SHALL name one credential id that is project-owned in the run's project, or organization-owned and available to it. They SHALL NOT name a user-owned credential. When the named credential is gone or unavailable, the system SHALL refuse the call and SHALL NOT use another credential.
