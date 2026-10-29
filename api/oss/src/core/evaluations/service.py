@@ -778,13 +778,17 @@ class EvaluationsService:
         run_id: UUID,
         principal: PrincipalRef,
         user_id: Optional[UUID] = None,
-    ) -> None:
-        """An explicit start or rerun: the run executes as the caller from now on."""
-        await self.evaluations_dao.set_run_principal(
+        open_only: bool = False,
+    ) -> bool:
+        """An explicit start or rerun, or a step save that changes no step: the run
+        executes as the caller from now on. With `open_only`, a closed run is left as
+        it is. Returns whether the run changed."""
+        return await self.evaluations_dao.set_run_principal(
             project_id=project_id,
             run_id=run_id,
             principal=principal,
             user_id=user_id,
+            open_only=open_only,
         )
 
     async def fetch_run(
@@ -3255,13 +3259,15 @@ class SimpleEvaluationsService:
     ) -> EvaluationRun:
         """A save that changes no step still makes the editor the run's executing
         principal. Only the principal is written, never the fetched snapshot, so a
-        concurrent save's steps stay."""
-        await self.evaluations_service.set_run_principal(
+        concurrent save's steps stay. A closed run refuses the save, as an edit does."""
+        if not await self.evaluations_service.set_run_principal(
             project_id=project_id,
             run_id=run.id,
             principal=principal,
             user_id=user_id,
-        )
+            open_only=True,
+        ):
+            raise EvaluationClosedConflict(run_id=run.id)
         return run.model_copy(update={"principal": principal})
 
     async def add_scenarios(

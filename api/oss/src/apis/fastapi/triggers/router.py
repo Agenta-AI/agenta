@@ -1179,6 +1179,7 @@ class TriggersRouter:
         subscription_id: UUID,
         body: TriggerSubscriptionEditRequest,
     ) -> TriggerSubscriptionResponse:
+        editor = _editor_principal(request)
         await self._check(request, Permission.EDIT_TRIGGERS)
 
         if str(subscription_id) != str(body.subscription.id):
@@ -1193,7 +1194,7 @@ class TriggersRouter:
                 user_id=UUID(str(request.state.user_id)),
                 #
                 subscription=body.subscription,
-                principal=_editor_principal(request),
+                principal=editor,
             )
         except TriggerReferenceInvalid as e:
             raise HTTPException(status_code=422, detail=e.message) from e
@@ -1437,6 +1438,7 @@ class TriggersRouter:
         schedule_id: UUID,
         body: TriggerScheduleEditRequest,
     ) -> TriggerScheduleResponse:
+        editor = _editor_principal(request)
         await self._check(request, Permission.EDIT_TRIGGERS)
 
         if str(schedule_id) != str(body.schedule.id):
@@ -1451,7 +1453,7 @@ class TriggersRouter:
                 user_id=UUID(str(request.state.user_id)),
                 #
                 schedule=body.schedule,
-                principal=_editor_principal(request),
+                principal=editor,
             )
         except TriggerScheduleInvalid as e:
             raise HTTPException(status_code=422, detail=e.message) from e

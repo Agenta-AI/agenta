@@ -334,21 +334,26 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         run_id: UUID,
         principal: PrincipalRef,
         user_id: Optional[UUID] = None,
-    ) -> None:
+        open_only: bool = False,
+    ) -> bool:
+        stmt = update(EvaluationRunDBE).where(
+            EvaluationRunDBE.project_id == project_id,
+            EvaluationRunDBE.id == run_id,
+        )
+        if open_only:
+            stmt = stmt.where(
+                EvaluationRunDBE.flags.contains({"is_closed": True}).isnot(True)
+            )
         async with self.engine.session() as session:
-            await session.execute(
-                update(EvaluationRunDBE)
-                .where(
-                    EvaluationRunDBE.project_id == project_id,
-                    EvaluationRunDBE.id == run_id,
-                )
-                .values(
+            result = await session.execute(
+                stmt.values(
                     principal_kind=principal.kind.value,
                     principal_id=principal.id,
                     principal_user_id=user_id,
                 )
             )
             await session.commit()
+        return result.rowcount > 0
 
     @suppress_exceptions(exclude=[EvaluationClosedConflict])
     async def edit_run(

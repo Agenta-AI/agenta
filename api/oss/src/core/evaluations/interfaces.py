@@ -67,9 +67,11 @@ class EvaluationsDAOInterface(ABC):
         run_id: UUID,
         principal: PrincipalRef,
         user_id: Optional[UUID] = None,
-    ) -> None:
+        open_only: bool = False,
+    ) -> bool:
         """Set the principal the run executes as (an explicit start or rerun), with
-        the acting user of the request that set it."""
+        the acting user of the request that set it. With `open_only`, a closed run is
+        left as it is. Returns whether a row changed."""
         raise NotImplementedError
 
     @abstractmethod

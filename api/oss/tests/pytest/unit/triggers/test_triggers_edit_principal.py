@@ -303,3 +303,5 @@ async def test_a_channel_installation_cannot_edit():
         assert refusal.value.detail["code"] == "edit_from_channel_not_allowed"
     service.edit_schedule.assert_not_awaited()
     service.edit_subscription.assert_not_awaited()
+    # Refused before the permission check, so the caller always sees why.
+    router._check.assert_not_awaited()
