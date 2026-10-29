@@ -27,7 +27,7 @@ from oss.src.apis.fastapi.gateways.mcps.models import (
     MCPEndpointsResponse,
 )
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
-from oss.src.apis.fastapi.shared.personal import require_person
+from oss.src.apis.fastapi.shared.personal import person_or_none, require_person
 from oss.src.core.account_choices.policy import personal_accounts_enabled
 from oss.src.apis.fastapi.vault.router import SecretSafeRoute
 from oss.src.core.access.permissions.service import check_action_access
@@ -285,10 +285,10 @@ class MCPGatewayRouter:
     ) -> Optional[Dict[UUID, bool]]:
         """The caller's own sign-ins to these servers, or None when the caller is no
         person or personal accounts are off. One read for the whole list."""
-        try:
-            organization_id, user_id = require_person(request)
-        except HTTPException:
+        person = person_or_none(request)
+        if person is None:
             return None
+        organization_id, user_id = person
         return await self.oauth_connect_service.sign_ins(
             organization_id=organization_id, user_id=user_id, endpoints=endpoints
         )
@@ -638,12 +638,6 @@ class MCPGatewayRouter:
                 request, scope=scope, endpoint_id=endpoint_id, body=body
             )
         await self._check(scope, Permission.EDIT_MCP_ENDPOINTS)
-        if body.token is not None:
-            raise _refusal(
-                status.HTTP_400_BAD_REQUEST,
-                "token_not_expected",
-                "This server does not take a token.",
-            )
 
         endpoint = await self.service.fetch_endpoint(
             project_id=scope.project_id,
@@ -662,6 +656,13 @@ class MCPGatewayRouter:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="endpoint is not a custom OAuth target",
+            )
+        if body.token is not None:
+            # The project's own key is the server's `secret_id`, set by an edit.
+            raise _refusal(
+                status.HTTP_400_BAD_REQUEST,
+                "token_not_expected",
+                "This server does not take a token.",
             )
 
         server_url = endpoint.data.route.base_url
@@ -747,12 +748,20 @@ class MCPGatewayRouter:
                     "token_required",
                     "Enter your token for this server.",
                 )
-            await self.oauth_connect_service.sign_in_with_token(
+            stored = await self.oauth_connect_service.sign_in_with_token(
                 organization_id=organization_id,
+                project_id=scope.project_id,
                 user_id=user_id,
-                endpoint=endpoint,
+                endpoint_id=endpoint_id,
                 token=body.token,
             )
+            if stored is None:
+                # Deleted, or moved off tokens, since it was read above.
+                raise _refusal(
+                    status.HTTP_409_CONFLICT,
+                    "server_changed",
+                    "This server changed. Open it again and retry.",
+                )
             return MCPConnectResponse(count=1)
 
         if body.token is not None:
@@ -816,16 +825,16 @@ class MCPGatewayRouter:
         if owner_kind == "user":
             organization_id, user_id = require_person(request)
             await self._check(scope, Permission.RUN_SESSIONS)
-            endpoint = await self.service.fetch_endpoint(
-                project_id=scope.project_id, endpoint_id=endpoint_id
+            endpoint = await self.oauth_connect_service.sign_out(
+                organization_id=organization_id,
+                project_id=scope.project_id,
+                user_id=user_id,
+                endpoint_id=endpoint_id,
             )
             if not endpoint:
                 raise MCPEndpointNotFoundError(
                     namespace=GatewayEndpointNamespace.CUSTOM, name=str(endpoint_id)
                 )
-            await self.oauth_connect_service.sign_out(
-                organization_id=organization_id, user_id=user_id, endpoint=endpoint
-            )
             return JSONResponse({"count": 1, "endpoint": _endpoint_json(endpoint, {})})
         await self._check(scope, Permission.EDIT_MCP_ENDPOINTS)
 

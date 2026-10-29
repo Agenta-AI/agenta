@@ -75,10 +75,13 @@ class MCPScopeInsufficientError(GatewaysError):
         scopes: List[str],
         endpoint_id: Optional[UUID] = None,
         detail: Optional[str] = None,
+        for_person: bool = False,
     ):
         self.target = target
         self.scopes = scopes
         self.endpoint_id = endpoint_id
+        # A person's own sign-in asked for more scopes: they repair it themselves.
+        self.for_person = for_person
         message = f"Additional scopes required for {target}: {scopes}"
         super().__init__(f"{message}. The server said: {detail}" if detail else message)
 

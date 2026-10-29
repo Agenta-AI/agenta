@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING, Any, Dict, Optional, get_args
+from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from agenta.sdk.agents.accounts import AccountSource
 from fastapi import APIRouter, Request, Response, status
@@ -210,8 +210,9 @@ def _map_gateway_exception(e: BaseException) -> Response:
         scope_data: Dict[str, Any] = {"target": e.target, "scopes": e.scopes}
         if e.endpoint_id is not None:
             # Reopen scope discovery so the client can request the required scopes.
+            query = "?owner_kind=user" if e.for_person else ""
             scope_data["connect"] = GatewayConnectAffordance(
-                endpoint=f"/gateways/mcps/endpoints/{e.endpoint_id}/connect",
+                endpoint=f"/gateways/mcps/endpoints/{e.endpoint_id}/connect{query}",
                 body={},
             ).model_dump(mode="json")
         return _protocol_error(
@@ -364,19 +365,15 @@ class MCPGatewayProxy:
 
     @intercept_exceptions()
     async def relay_custom(
-        self, request: Request, slug: str, account_source: Optional[str] = None
+        self, request: Request, slug: str, account_source: AccountSource = "agent"
     ) -> Response:
         # `account_source=user` marks a "user" item: the run person's own sign-in to
         # this project server (the SDK adds it to the gateway URL of such an item).
-        if account_source is not None and account_source not in get_args(AccountSource):
-            return _map_gateway_exception(
-                MCPRequestBodyError("account_source must be 'agent' or 'user'")
-            )
         return await self._relay(
             request=request,
             namespace=GatewayEndpointNamespace.CUSTOM,
             name=slug,
-            account_source=account_source or "agent",
+            account_source=account_source,
         )
 
     async def reject_stream_verbs(self) -> Response:

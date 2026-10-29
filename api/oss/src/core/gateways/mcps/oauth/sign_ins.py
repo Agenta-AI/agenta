@@ -1,8 +1,9 @@
-"""A person's sign-in to a project MCP server: where it is stored and when it is ready.
+"""Sign-ins to a project MCP server: where they are stored and when one is ready.
 
-A sign-in is the person's own vault row at a slug that the server's id and `auth_mode`
-give: an OAuth grant at `grant_slug`, or a token at `token_slug`. One sign-in serves every
-agent of the project, so nothing here names an agent.
+A sign-in is a vault row at a slug that the server's id and `auth_mode` give: an OAuth
+grant at `grant_slug`, or a token at `token_slug`. The project holds a grant there, and
+each person may hold their own grant or token there, in their own rows. A person's
+sign-in serves every agent of the project, so nothing here names an agent.
 """
 
 from typing import Optional

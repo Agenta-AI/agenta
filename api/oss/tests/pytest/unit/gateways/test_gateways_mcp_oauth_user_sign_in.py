@@ -43,23 +43,50 @@ from oss.tests.pytest.utils.person_vault import PersonRowsVaultService
 def _service():
     attempts = InMemoryMCPOAuthAttemptsDAO()
     vault = PersonRowsVaultService(secrets_dao=_FakeSecretsDAO())
+    endpoints = InMemoryMCPEndpoints(attempts=attempts)
     service = MCPOAuthConnectService(
         vault_service=vault,
         client=MCPOAuthClient(transport=httpx.MockTransport(_mock_as_handler())),
         api_url=_API_URL,
         attempts_dao=attempts,
-        endpoints_dao=InMemoryMCPEndpoints(attempts=attempts),
+        endpoints_dao=endpoints,
         resolve=_private_resolve,
     )
     return service, vault, attempts
 
 
-def _server(auth_mode: MCPAuthScheme) -> MCPEndpoint:
-    return MCPEndpoint(
+PROJECT = uuid4()
+
+
+def _server(auth_mode: MCPAuthScheme, service=None) -> MCPEndpoint:
+    """A project server, stored in the service's endpoints when one is given."""
+    endpoint = MCPEndpoint(
         id=uuid4(),
         slug="acme",
         auth_mode=auth_mode,
         data=MCPEndpointData(route=MCPEndpointRoute(base_url=_SERVER_URL)),
+    )
+    if service is not None:
+        service.endpoints_dao.put(endpoint)
+    return endpoint
+
+
+async def _token(service, *, organization_id, person, server, token="t"):
+    return await service.sign_in_with_token(
+        organization_id=organization_id,
+        project_id=PROJECT,
+        user_id=person,
+        endpoint_id=server.id,
+        token=token,
+    )
+
+
+async def _sign_out(service, *, organization_id, person, server):
+    return await service.sign_out(
+        organization_id=organization_id,
+        project_id=PROJECT,
+        user_id=person,
+        endpoint_id=server.id,
     )
 
 
@@ -84,11 +111,15 @@ def _grant_row(*, slug, expires_at, refresh_token) -> SecretResponseDTO:
 @pytest.mark.asyncio
 async def test_a_person_signs_in_to_a_token_server_with_their_own_token():
     service, vault, _ = _service()
-    server = _server(MCPAuthScheme.API_KEY)
+    server = _server(MCPAuthScheme.API_KEY, service)
     organization_id, person = uuid4(), uuid4()
 
-    row = await service.sign_in_with_token(
-        organization_id=organization_id, user_id=person, endpoint=server, token="tk-1"
+    row = await _token(
+        service,
+        organization_id=organization_id,
+        person=person,
+        server=server,
+        token="tk-1",
     )
 
     stored = vault.person_rows[(organization_id, person, token_slug(server.id))]
@@ -96,8 +127,12 @@ async def test_a_person_signs_in_to_a_token_server_with_their_own_token():
     assert stored.kind == SecretKind.MCP_TOKEN
     assert stored.data.secret.content == "tk-1"
     # A second sign-in replaces the token in the same row.
-    again = await service.sign_in_with_token(
-        organization_id=organization_id, user_id=person, endpoint=server, token="tk-2"
+    again = await _token(
+        service,
+        organization_id=organization_id,
+        person=person,
+        server=server,
+        token="tk-2",
     )
     assert again.id == row.id
     assert len(vault.person_rows) == 1
@@ -106,19 +141,19 @@ async def test_a_person_signs_in_to_a_token_server_with_their_own_token():
 @pytest.mark.asyncio
 async def test_a_person_signs_out_of_their_own_row_only():
     service, vault, _ = _service()
-    server = _server(MCPAuthScheme.API_KEY)
+    server = _server(MCPAuthScheme.API_KEY, service)
     organization_id, me, colleague = uuid4(), uuid4(), uuid4()
     for person in (me, colleague):
-        await service.sign_in_with_token(
-            organization_id=organization_id, user_id=person, endpoint=server, token="t"
+        await _token(
+            service, organization_id=organization_id, person=person, server=server
         )
 
-    assert await service.sign_out(
-        organization_id=organization_id, user_id=me, endpoint=server
+    assert await _sign_out(
+        service, organization_id=organization_id, person=me, server=server
     )
     # Idempotent: signing out again changes nothing and is no error.
-    assert not await service.sign_out(
-        organization_id=organization_id, user_id=me, endpoint=server
+    assert await _sign_out(
+        service, organization_id=organization_id, person=me, server=server
     )
     assert list(vault.person_rows) == [
         (organization_id, colleague, token_slug(server.id))
@@ -128,14 +163,14 @@ async def test_a_person_signs_out_of_their_own_row_only():
 @pytest.mark.asyncio
 async def test_signing_out_of_an_oauth_server_deletes_the_persons_grant():
     service, vault, _ = _service()
-    server = _server(MCPAuthScheme.OAUTH)
+    server = _server(MCPAuthScheme.OAUTH, service)
     organization_id, person = uuid4(), uuid4()
     vault.person_rows[(organization_id, person, grant_slug(server.id))] = _grant_row(
         slug=grant_slug(server.id), expires_at=None, refresh_token=None
     )
 
-    assert await service.sign_out(
-        organization_id=organization_id, user_id=person, endpoint=server
+    assert await _sign_out(
+        service, organization_id=organization_id, person=person, server=server
     )
     assert vault.person_rows == {}
 
@@ -145,13 +180,11 @@ async def test_the_sign_ins_of_many_servers_are_read_in_one_call():
     service, vault, _ = _service()
     oauth, token, open_server = (
         _server(MCPAuthScheme.OAUTH),
-        _server(MCPAuthScheme.API_KEY),
+        _server(MCPAuthScheme.API_KEY, service),
         _server(MCPAuthScheme.NONE),
     )
     organization_id, person = uuid4(), uuid4()
-    await service.sign_in_with_token(
-        organization_id=organization_id, user_id=person, endpoint=token, token="t"
-    )
+    await _token(service, organization_id=organization_id, person=person, server=token)
     vault.person_calls.clear()
 
     sign_ins = await service.sign_ins(
@@ -233,11 +266,11 @@ async def test_an_attempt_is_for_the_project_unless_it_says_otherwise():
 @pytest.mark.asyncio
 async def test_delete_sign_ins_removes_every_persons_row_at_the_slugs():
     service, vault, _ = _service()
-    server = _server(MCPAuthScheme.API_KEY)
+    server = _server(MCPAuthScheme.API_KEY, service)
     organization_id = uuid4()
     for person in (uuid4(), uuid4()):
-        await service.sign_in_with_token(
-            organization_id=organization_id, user_id=person, endpoint=server, token="t"
+        await _token(
+            service, organization_id=organization_id, person=person, server=server
         )
 
     deleted = await service.delete_sign_ins(
@@ -347,7 +380,7 @@ async def test_a_persons_grant_is_renewed_in_their_own_row():
         server_url=_SERVER_URL,
         endpoint_id=endpoint_id,
         authorization_server="https://auth.acme.io/",
-        grant_owner=owner,
+        owner=owner,
     )
     seeded = await storage.write_tokens(
         OAuthToken(
@@ -362,7 +395,7 @@ async def test_a_persons_grant_is_renewed_in_their_own_row():
         project_id=project_id,
         endpoint_id=endpoint_id,
         server_url=_SERVER_URL,
-        grant_owner=owner,
+        owner=owner,
     )
 
     assert calls == ["refresh_token"]
@@ -373,3 +406,61 @@ async def test_a_persons_grant_is_renewed_in_their_own_row():
     assert not [
         r for _, r in vault.secrets_dao.records if r.kind == SecretKind.OAUTH_GRANT
     ]
+
+
+@pytest.mark.asyncio
+async def test_a_token_for_a_server_that_moved_to_oauth_is_not_written():
+    """The router read a token server; by the time the write takes the server's lock, an
+    admin moved it to OAuth and deleted every token. The write must not bring one back."""
+    service, vault, _ = _service()
+    server = _server(MCPAuthScheme.API_KEY, service)
+    service.endpoints_dao.put(
+        server.model_copy(update={"auth_mode": MCPAuthScheme.OAUTH})
+    )
+
+    stored = await _token(
+        service, organization_id=uuid4(), person=uuid4(), server=server
+    )
+
+    assert stored is None
+    assert vault.person_rows == {}
+
+
+@pytest.mark.asyncio
+async def test_a_token_for_a_deleted_server_is_not_written():
+    service, vault, _ = _service()
+    server = _server(MCPAuthScheme.API_KEY)  # never stored: deleted
+
+    assert (
+        await _token(service, organization_id=uuid4(), person=uuid4(), server=server)
+        is None
+    )
+    assert vault.person_rows == {}
+
+
+@pytest.mark.asyncio
+async def test_signing_out_cancels_only_the_persons_own_attempts():
+    """A consent still in flight would write the grant back after the sign-out."""
+    service, _, attempts = _service()
+    server = _server(MCPAuthScheme.OAUTH, service)
+    person, admin = uuid4(), uuid4()
+    mine = await service.begin(
+        project_id=PROJECT,
+        user_id=person,
+        endpoint_id=server.id,
+        server_url=_SERVER_URL,
+        scopes=["read"],
+        owner_kind=SecretOwnerKind.USER,
+    )
+    projects = await service.begin(
+        project_id=PROJECT,
+        user_id=admin,
+        endpoint_id=server.id,
+        server_url=_SERVER_URL,
+        scopes=["read"],
+    )
+
+    await _sign_out(service, organization_id=uuid4(), person=person, server=server)
+
+    assert attempts.attempts[mine.state].status.value == "cancelled"
+    assert attempts.attempts[projects.state].status.value == "pending"

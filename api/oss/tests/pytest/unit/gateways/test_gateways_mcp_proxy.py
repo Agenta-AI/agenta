@@ -446,8 +446,7 @@ def test_account_source_user_reaches_the_service(client, mock_service):
 def test_an_unknown_account_source_is_refused_before_the_service(client, mock_service):
     response = client.post("/custom/acme-notion?account_source=team", content=_BODY)
 
-    assert response.status_code == 400
-    assert response.json()["error"]["data"]["cause"] == "invalid_request"
+    assert response.status_code == 422
     assert mock_service.calls == []
 
 
@@ -460,3 +459,21 @@ def test_a_missing_sign_in_answers_404_sign_in_missing(client, mock_service):
 
     assert response.status_code == 404
     assert response.json()["error"]["data"]["cause"] == "sign_in_missing"
+
+
+def test_a_persons_scope_challenge_points_to_their_own_sign_in(client, mock_service):
+    from oss.src.core.gateways.mcps.types import MCPScopeInsufficientError
+
+    endpoint_id = uuid4()
+    mock_service.raise_error = MCPScopeInsufficientError(
+        target="custom/acme-notion",
+        scopes=["write"],
+        endpoint_id=endpoint_id,
+        for_person=True,
+    )
+
+    response = client.post("/custom/acme-notion?account_source=user", content=_BODY)
+
+    assert response.json()["error"]["data"]["connect"]["endpoint"] == (
+        f"/gateways/mcps/endpoints/{endpoint_id}/connect?owner_kind=user"
+    )

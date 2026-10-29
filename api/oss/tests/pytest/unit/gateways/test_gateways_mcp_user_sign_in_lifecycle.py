@@ -119,3 +119,20 @@ async def test_deleting_a_server_deletes_every_sign_in(auth_mode):
     assert sorted(refresher.deleted_sign_ins) == sorted(
         [grant_slug(endpoint.id), token_slug(endpoint.id)]
     )
+
+
+@pytest.mark.asyncio
+async def test_a_token_server_at_a_new_address_loses_every_token():
+    """Otherwise an editor could point the server at their own address and receive each
+    person's token on that person's next run."""
+    service, refresher, project_id, endpoint = await _setup(MCPAuthScheme.API_KEY)
+
+    await _edit(
+        service,
+        project_id,
+        endpoint,
+        auth_mode=MCPAuthScheme.API_KEY,
+        url="https://elsewhere.example/mcp",
+    )
+
+    assert refresher.deleted_sign_ins == [token_slug(endpoint.id)]

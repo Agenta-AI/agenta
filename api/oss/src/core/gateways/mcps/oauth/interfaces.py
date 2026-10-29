@@ -30,12 +30,12 @@ class MCPOAuthRefresherInterface(ABC):
         endpoint_id: UUID,
         server_url: str,
         failed_access_token: Optional[str] = None,
-        grant_owner: Optional[SecretOwner] = None,
+        owner: Optional[SecretOwner] = None,
     ) -> None:
         """Refresh one connection's stored grant, in place.
 
-        `grant_owner` is whose grant: the project's when it is None, or a person's own
-        sign-in (a user owner, which names its organization).
+        `owner` is whose grant: the project's when it is None, or a person's own sign-in
+        (a user owner, which names its organization).
 
         `endpoint_id` is which grant, because several connections in one project can
         name the same server and each holds its own. `server_url` is where to rediscover
@@ -49,15 +49,6 @@ class MCPOAuthRefresherInterface(ABC):
         `MCPOAuthRefreshFailedError` when the grant is dead, and
         `MCPOAuthRefreshUnavailableError` when the token endpoint failed on its side.
         """
-        raise NotImplementedError
-
-    @abstractmethod
-    async def release_grant(
-        self, *, project_id: UUID, endpoint_id: UUID, server_url: str
-    ) -> None:
-        """Cancel a connection's consents in flight and delete its grant row, after an
-        edit moved it off OAuth or to another address, or as it is deleted. The caller
-        holds the connection's OAuth lock and clears the binding itself."""
         raise NotImplementedError
 
     @abstractmethod
@@ -82,9 +73,9 @@ class MCPOAuthRefresherInterface(ABC):
     async def delete_sign_ins(
         self, *, organization_id: UUID, project_id: UUID, slugs: List[str]
     ) -> int:
-        """Delete the grants and tokens at these slugs, the project's and every
-        person's, and return how many went. The caller holds the connection's OAuth
-        lock."""
+        """Delete every sign-in at these slugs, the project's grant and each person's
+        grant or token, and return how many went. The caller holds the connection's
+        OAuth lock."""
         raise NotImplementedError
 
 
@@ -159,8 +150,11 @@ class MCPOAuthAttemptsDAOInterface(ABC):
         project_id: UUID,
         endpoint_id: UUID,
         attempt_id: Optional[UUID] = None,
+        person_id: Optional[UUID] = None,
     ) -> int:
         """Cancel one connection's active attempts, or the one named, and return how many.
+
+        With `person_id`, only that person's own sign-in attempts (`owner_kind` user).
 
         Active is pending or claimed: a claimed attempt is mid-exchange, and its
         finalization re-checks the attempt under its lock, so the cancel wins.

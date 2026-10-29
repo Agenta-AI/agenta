@@ -20,7 +20,6 @@ from oss.src.core.gateway.connections.service import ConnectionsService
 from oss.src.core.gateways.mcps.dtos import (
     MCPAuthScheme,
     configured_oauth_client,
-    is_oauth_connection_at,
 )
 from oss.src.core.gateways.dtos import (
     GatewayConnectAffordance,
@@ -54,7 +53,7 @@ from oss.src.core.gateways.mcps.interfaces import (
     MCPRelayResult,
 )
 from oss.src.core.gateways.mcps.oauth.interfaces import MCPOAuthRefresherInterface
-from oss.src.core.gateways.mcps.oauth.sign_ins import is_sign_in_of
+from oss.src.core.gateways.mcps.oauth.sign_ins import is_sign_in_of, sign_in_slug
 from oss.src.core.gateways.mcps.oauth.storage import (
     grant_refresh_due,
     grant_slug,
@@ -452,42 +451,28 @@ class MCPGatewayService:
             )
             if edited is None or current is None or self.oauth_refresher is None:
                 return edited
-            old_url = current.data.route.base_url
-            # Sign-ins the edited server can no longer use, the project's and every
-            # person's: a grant issued for the old address, or a token the server no
-            # longer reads.
-            stale_sign_ins: List[str] = []
-            if (
-                current.auth_mode == MCPAuthScheme.API_KEY
-                and edited.auth_mode != MCPAuthScheme.API_KEY
-            ):
-                stale_sign_ins.append(token_slug(endpoint.id))
-            if (
-                old_url
-                and is_oauth_connection_at(current, old_url)
-                and not is_oauth_connection_at(edited, old_url)
-            ):
-                # The grant was issued for the old address; it goes with the consents.
-                await self.oauth_refresher.release_grant(
-                    project_id=project_id, endpoint_id=endpoint.id, server_url=old_url
-                )
-                stale_sign_ins.append(grant_slug(endpoint.id))
-            elif (
+            moved = (
                 current.auth_mode != edited.auth_mode
-                or old_url != edited.data.route.base_url
-                or configured_oauth_client(current) != configured_oauth_client(edited)
+                or current.data.route.base_url != edited.data.route.base_url
+            )
+            if moved or configured_oauth_client(current) != configured_oauth_client(
+                edited
             ):
                 # A consent begun for another mode, address or client must not finish
-                # on this one. The grant stays: it renews only as the client it was
-                # issued to.
+                # on this one. A grant whose client changed stays: it renews only as the
+                # client it was issued to.
                 await self.oauth_refresher.cancel_attempts(
                     project_id=project_id, endpoint_id=endpoint.id
                 )
-            if stale_sign_ins:
+            stale_slug = sign_in_slug(current)
+            if moved and stale_slug is not None:
+                # Every sign-in of the old mode, the project's grant and each person's
+                # grant or token: it was issued for the old address or mode, and must
+                # never reach the new one.
                 await self.oauth_refresher.delete_sign_ins(
                     organization_id=organization_id,
                     project_id=project_id,
-                    slugs=stale_sign_ins,
+                    slugs=[stale_slug],
                 )
             return edited
 
@@ -500,10 +485,8 @@ class MCPGatewayService:
         endpoint_id: UUID,
         pending_auth_mode: Optional[MCPAuthScheme] = None,
     ) -> bool:
-        """Delete a connection, and its OAuth grant, consents and sign-ins with it.
-
-        Every person's own sign-in to the server goes too: a row no server names is a live
-        credential nothing can use.
+        """Delete a connection, and its consents and every sign-in to it with it: the
+        project's grant and each person's grant or token.
 
         A grant left behind would sit in the vault with nothing naming it, still holding
         a live token. Under the connection's OAuth lock, so no consent binds a grant to
@@ -532,18 +515,10 @@ class MCPGatewayService:
                     )
                 ):
                     raise MCPConnectionChangedError()
-            server_url = current.data.route.base_url if current is not None else None
-            if (
-                server_url
-                and is_oauth_connection_at(current, server_url)
-                and self.oauth_refresher is not None
-            ):
-                await self.oauth_refresher.release_grant(
-                    project_id=project_id,
-                    endpoint_id=endpoint_id,
-                    server_url=server_url,
-                )
             if current is not None and self.oauth_refresher is not None:
+                await self.oauth_refresher.cancel_attempts(
+                    project_id=project_id, endpoint_id=endpoint_id
+                )
                 await self.oauth_refresher.delete_sign_ins(
                     organization_id=organization_id,
                     project_id=project_id,
@@ -1018,6 +993,7 @@ class MCPGatewayService:
                     scopes=challenged_scopes,
                     endpoint_id=target.endpoint.id,
                     detail=_challenge_description(result.headers),
+                    for_person=sign_in_ref is not None,
                 )
 
         # Record the relay and filter tool listings when configured.
@@ -1355,7 +1331,7 @@ class MCPGatewayService:
                 endpoint=endpoint, path=path, for_person=for_person
             )
 
-        grant_owner = (
+        owner = (
             SecretOwner.for_user(
                 organization_id=scope.organization_id, user_id=sign_in_ref.user_id
             )
@@ -1368,7 +1344,7 @@ class MCPGatewayService:
                 endpoint_id=endpoint.id,
                 server_url=server_url,
                 failed_access_token=failed_access_token,
-                grant_owner=grant_owner,
+                owner=owner,
             )
         except MCPOAuthRefreshUnavailableError as e:
             raise MCPUpstreamError(
@@ -1398,14 +1374,10 @@ class MCPGatewayService:
 
         # The refresh rewrote the row this reference already names, so the same lookup
         # returns the new tokens.
-        if sign_in_ref is not None:
-            return await self.resolver.resolve(
-                scope=scope, ref=sign_in_ref, mode=SecretMode.USER_REQUIRED
-            )
         return await self.resolver.resolve(
             scope=scope,
-            ref=BoundSecretRef(secret_id=endpoint.secret_id),  # type: ignore[arg-type]
-            mode=SecretMode.PROJECT_ONLY,
+            ref=sign_in_ref or BoundSecretRef(secret_id=endpoint.secret_id),  # type: ignore[arg-type]
+            mode=SecretMode.USER_REQUIRED if for_person else SecretMode.PROJECT_ONLY,
         )
 
     @staticmethod

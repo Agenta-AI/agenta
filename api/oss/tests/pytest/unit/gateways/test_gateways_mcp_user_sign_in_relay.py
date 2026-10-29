@@ -367,7 +367,7 @@ async def test_an_expired_person_grant_is_renewed_for_that_person():
         await _relay(service, scope)
 
     assert len(refresher.calls) == 1
-    assert refresher.calls[0]["grant_owner"] == SecretOwner.for_user(
+    assert refresher.calls[0]["owner"] == SecretOwner.for_user(
         organization_id=scope.organization_id, user_id=person
     )
     # The re-read names the person's row again, never the project's.
@@ -436,3 +436,35 @@ async def test_a_user_call_costs_the_same_round_trips_as_an_agent_call():
 
     assert await counts("user") == await counts("agent")
     assert (await counts("user"))[1] == 1
+
+
+@pytest.mark.asyncio
+async def test_a_scope_challenge_on_a_person_grant_is_the_persons_to_answer():
+    from oss.src.core.gateways.mcps.interfaces import MCPRelayResult
+    from oss.src.core.gateways.mcps.types import MCPScopeInsufficientError
+
+    dao = MockMCPEndpointsDAO()
+    endpoint = await _server(dao)
+    person = uuid4()
+    grant = _person_grant(endpoint=endpoint, person=person)
+    challenge = MCPRelayResult(
+        status_code=403,
+        headers={
+            "WWW-Authenticate": 'Bearer error="insufficient_scope", scope="write"'
+        },
+        body=b"{}",
+    )
+    service = _relay_service(
+        mcp_endpoints_dao=dao,
+        resolver=_RecordingResolver(secrets=[grant]),
+        adapters={"http": MockUpstreamAdapter(result=challenge)},
+    )
+
+    with _run(
+        person=person,
+        accounts=[RunAccount(item_key=ITEM_KEY, secret_id=grant.secret.id)],
+    ):
+        with pytest.raises(MCPScopeInsufficientError) as excinfo:
+            await _relay(service, _scope())
+
+    assert excinfo.value.for_person is True

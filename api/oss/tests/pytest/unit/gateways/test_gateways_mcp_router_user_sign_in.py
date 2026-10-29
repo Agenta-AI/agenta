@@ -66,6 +66,8 @@ class _PersonOAuthService(MockMCPOAuthConnectService):
         self.sign_ins_return = {}
         self.attempt_by_id = None
         self.completed_organizations = []
+        self.token_server_still_there = True
+        self.sign_out_return = None
 
     async def begin(
         self,
@@ -88,12 +90,15 @@ class _PersonOAuthService(MockMCPOAuthConnectService):
             oauth_config=oauth_config,
         )
 
-    async def sign_in_with_token(self, *, organization_id, user_id, endpoint, token):
-        self.tokens.append((organization_id, user_id, endpoint.id, token))
+    async def sign_in_with_token(
+        self, *, organization_id, project_id, user_id, endpoint_id, token
+    ):
+        self.tokens.append((organization_id, user_id, endpoint_id, token))
+        return object() if self.token_server_still_there else None
 
-    async def sign_out(self, *, organization_id, user_id, endpoint):
-        self.signed_out.append((organization_id, user_id, endpoint.id))
-        return True
+    async def sign_out(self, *, organization_id, project_id, user_id, endpoint_id):
+        self.signed_out.append((organization_id, user_id, endpoint_id))
+        return self.sign_out_return
 
     async def sign_ins(self, *, organization_id, user_id, endpoints):
         self.calls.append(("sign_ins", len(endpoints)))
@@ -174,6 +179,9 @@ def session_user(monkeypatch):
 
 
 def _require_person_answers(monkeypatch, answer):
+    """Stand in for both person checks: `require_person` raises the refusal, and
+    `person_or_none` answers None for it."""
+
     def _require_person(_request):
         if isinstance(answer, HTTPException):
             raise answer
@@ -181,6 +189,10 @@ def _require_person_answers(monkeypatch, answer):
 
     monkeypatch.setattr(
         "oss.src.apis.fastapi.gateways.mcps.router.require_person", _require_person
+    )
+    monkeypatch.setattr(
+        "oss.src.apis.fastapi.gateways.mcps.router.person_or_none",
+        lambda _request: None if isinstance(answer, HTTPException) else answer,
     )
 
 
@@ -377,7 +389,7 @@ def test_a_person_signs_out_of_their_own_sign_in(
     client, service, oauth_service, allow, person
 ):
     server = _server(MCPAuthScheme.OAUTH, secret_id=uuid4())
-    service.fetch_return = server
+    oauth_service.sign_out_return = server
 
     response = client.delete(
         f"/endpoints/{server.id}/connect", params={"owner_kind": "user"}

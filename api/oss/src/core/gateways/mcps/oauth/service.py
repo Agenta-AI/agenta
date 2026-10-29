@@ -41,7 +41,11 @@ from oss.src.core.gateways.mcps.oauth.registration import (
     registration_covers,
 )
 from oss.src.core.gateways.mcps.oauth.state import STATE_TTL_SECONDS, new_state
-from oss.src.core.gateways.mcps.oauth.sign_ins import is_sign_in_ready, sign_in_slug
+from oss.src.core.gateways.mcps.oauth.sign_ins import (
+    is_sign_in_ready,
+    sign_in_kind,
+    sign_in_slug,
+)
 from oss.src.core.gateways.mcps.oauth.storage import (
     SecretsTokenStorage,
     grant_refresh_due,
@@ -110,7 +114,7 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         self._resolve_kwargs = {"resolve": resolve} if resolve is not None else {}
         # One lock per connection, for as long as a refresh is using it. See
         # `refresh_grant`.
-        self._refresh_locks: Dict[Tuple[UUID, UUID, Optional[UUID]], _RefreshLock] = {}
+        self._refresh_locks: Dict[Tuple[UUID, UUID], _RefreshLock] = {}
 
     async def discover(self, *, server_url: str) -> MCPOAuthDiscovery:
         return await self.client.discover(server_url=server_url)
@@ -414,9 +418,13 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         project_id: UUID,
         endpoint_id: UUID,
         attempt_id: Optional[UUID] = None,
+        person_id: Optional[UUID] = None,
     ) -> int:
         return await self.attempts_dao.cancel_attempts(
-            project_id=project_id, endpoint_id=endpoint_id, attempt_id=attempt_id
+            project_id=project_id,
+            endpoint_id=endpoint_id,
+            attempt_id=attempt_id,
+            person_id=person_id,
         )
 
     async def has_active_attempts(self, *, project_id: UUID, endpoint_id: UUID) -> bool:
@@ -483,7 +491,7 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         for_person = attempt.owner_kind == SecretOwnerKind.USER
         if for_person and organization_id is None:
             raise ValueError("a person's sign-in is written in their organization")
-        grant_owner = (
+        owner = (
             SecretOwner.for_user(
                 organization_id=organization_id, user_id=attempt.user_id
             )
@@ -492,7 +500,7 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         )
         try:
             storage, client_id, tokens = await self._exchange(
-                attempt=attempt, code=code, grant_owner=grant_owner
+                attempt=attempt, code=code, owner=owner
             )
         except MCPOAuthAttemptCancelledError:
             await self.settle(attempt=attempt, status=MCPOAuthAttemptStatus.CANCELLED)
@@ -586,7 +594,7 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         *,
         attempt: MCPOAuthAttempt,
         code: str,
-        grant_owner: Optional[SecretOwner] = None,
+        owner: Optional[SecretOwner] = None,
     ) -> Tuple[SecretsTokenStorage, str, OAuthToken]:
         """Spend the code at the token endpoint the attempt recorded.
 
@@ -608,7 +616,7 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
             # registration to present is the one `begin()` resolved, and the deployment's
             # address could have changed since the browser left.
             redirect_uri=attempt.redirect_uri,
-            grant_owner=grant_owner,
+            owner=owner,
         )
 
         if attempt.strategy == "document":
@@ -702,43 +710,78 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         self,
         *,
         organization_id: UUID,
+        project_id: UUID,
         user_id: UUID,
-        endpoint: MCPEndpoint,
+        endpoint_id: UUID,
         token: str,
-    ) -> SecretResponseDTO:
+    ) -> Optional[SecretResponseDTO]:
         """Store a person's own token for a token server, replacing the one they had.
 
         The row is the person's, at `token_slug(endpoint id)`, so one sign-in serves every
-        agent of the project and never touches the project's own key.
+        agent of the project and never touches the project's own key. Under the server's
+        OAuth lock, which an edit and a delete also take, and only while the server still
+        takes a token: a token written after its server was deleted or moved to OAuth
+        would outlive the cleanup. None when the server no longer takes one.
         """
-        return await self.vault_service.put_personal_secret(
-            organization_id=organization_id,
-            user_id=user_id,
-            create_secret_dto=CreateSecretDTO(
-                slug=sign_in_slug(endpoint),
-                header=Header(name=f"MCP token for {endpoint.name or endpoint.slug}"),
-                secret=SecretDTO(
-                    kind=SecretKind.MCP_TOKEN,
-                    data=CustomSecretDTO(
-                        secret=CustomSecretSettingsDTO(
-                            format=CustomSecretFormat.TEXT, content=token
-                        )
+        async with self.endpoints_dao.oauth_lock(
+            project_id=project_id, endpoint_id=endpoint_id
+        ):
+            endpoint = await self.endpoints_dao.fetch_endpoint(
+                project_id=project_id, endpoint_id=endpoint_id
+            )
+            if endpoint is None or sign_in_kind(endpoint) != SecretKind.MCP_TOKEN:
+                return None
+            return await self.vault_service.put_personal_secret(
+                organization_id=organization_id,
+                user_id=user_id,
+                create_secret_dto=CreateSecretDTO(
+                    slug=sign_in_slug(endpoint),
+                    header=Header(
+                        name=f"MCP token for {endpoint.name or endpoint.slug}"
+                    ),
+                    secret=SecretDTO(
+                        kind=SecretKind.MCP_TOKEN,
+                        data=CustomSecretDTO(
+                            secret=CustomSecretSettingsDTO(
+                                format=CustomSecretFormat.TEXT, content=token
+                            )
+                        ),
                     ),
                 ),
-            ),
-        )
+            )
 
     async def sign_out(
-        self, *, organization_id: UUID, user_id: UUID, endpoint: MCPEndpoint
-    ) -> bool:
-        """Delete the person's own sign-in to a server, at the slug its mode selects.
-        Returns whether there was one."""
-        slug = sign_in_slug(endpoint)
-        if slug is None:
-            return False
-        return await self.vault_service.delete_personal_secret_by_slug(
-            organization_id=organization_id, user_id=user_id, slug=slug
-        )
+        self,
+        *,
+        organization_id: UUID,
+        project_id: UUID,
+        user_id: UUID,
+        endpoint_id: UUID,
+    ) -> Optional[MCPEndpoint]:
+        """Delete the person's own sign-in to a server, at the slug its mode selects, and
+        cancel their sign-ins in flight. Returns the server, or None when it is gone.
+
+        Under the server's OAuth lock, which a refresh and a completing consent also
+        take, so neither can write the grant back once this returns. Other people's
+        sign-ins and the project's are left alone.
+        """
+        async with self.endpoints_dao.oauth_lock(
+            project_id=project_id, endpoint_id=endpoint_id
+        ):
+            endpoint = await self.endpoints_dao.fetch_endpoint(
+                project_id=project_id, endpoint_id=endpoint_id
+            )
+            if endpoint is None:
+                return None
+            await self.cancel_attempts(
+                project_id=project_id, endpoint_id=endpoint_id, person_id=user_id
+            )
+            slug = sign_in_slug(endpoint)
+            if slug is not None:
+                await self.vault_service.delete_personal_secret_by_slug(
+                    organization_id=organization_id, user_id=user_id, slug=slug
+                )
+            return endpoint
 
     async def sign_ins(
         self,
@@ -772,8 +815,8 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
     async def delete_sign_ins(
         self, *, organization_id: UUID, project_id: UUID, slugs: List[str]
     ) -> int:
-        """Delete the grants and tokens at these slugs, the project's and every
-        person's, when a server changes its mode or address, or is deleted."""
+        """Delete every sign-in at these slugs, the project's grant and each person's
+        grant or token, when a server changes its mode or address, or is deleted."""
         return await self.vault_service.delete_sign_ins(
             organization_id=organization_id, project_id=project_id, slugs=slugs
         )
@@ -781,13 +824,7 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
     # Refresh
 
     @asynccontextmanager
-    async def _refresh_lock(
-        self,
-        *,
-        project_id: UUID,
-        endpoint_id: UUID,
-        grant_owner: Optional[SecretOwner] = None,
-    ):
+    async def _refresh_lock(self, *, project_id: UUID, endpoint_id: UUID):
         """Hold this connection's refresh lock, and drop it when nobody is left holding it.
 
         The dictionary used to be `setdefault` with no removal, so a worker accumulated
@@ -800,9 +837,7 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         between the lookup and the increment runs without awaiting, so no other coroutine
         can interleave and find the entry mid-registration.
         """
-        # Per grant: two people's grants at one server renew without waiting on each
-        # other in this worker.
-        key = (project_id, endpoint_id, grant_owner.id if grant_owner else None)
+        key = (project_id, endpoint_id)
         entry = self._refresh_locks.get(key)
         if entry is None:
             entry = _RefreshLock()
@@ -823,11 +858,11 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         endpoint_id: UUID,
         server_url: str,
         failed_access_token: Optional[str] = None,
-        grant_owner: Optional[SecretOwner] = None,
+        owner: Optional[SecretOwner] = None,
     ) -> None:
         """Renew one connection's stored grant, in place.
 
-        `grant_owner` names a person's own sign-in; None is the project's grant, as
+        `owner` names a person's own sign-in; None is the project's grant, as
         before.
 
         Without `failed_access_token` this renews a grant that is due (see
@@ -852,11 +887,7 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         handed one.
         """
         async with (
-            self._refresh_lock(
-                project_id=project_id,
-                endpoint_id=endpoint_id,
-                grant_owner=grant_owner,
-            ),
+            self._refresh_lock(project_id=project_id, endpoint_id=endpoint_id),
             self.endpoints_dao.oauth_lock(
                 project_id=project_id, endpoint_id=endpoint_id
             ),
@@ -866,7 +897,7 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
                 project_id=project_id,
                 server_url=server_url,
                 endpoint_id=endpoint_id,
-                grant_owner=grant_owner,
+                owner=owner,
             )
 
             stored = await storage.get_grant()
