@@ -36,6 +36,7 @@ from oss.src.core.gateways.llms.types import (
     LLMConnectionProviderRequiredError,
     LLMEndpointNotFoundError,
     LLMEndpointProviderMissingError,
+    LLMAgentModelNotAvailableError,
     LLMModelNotAllowedError,
     LLMRoutingFieldNotAllowedError,
 )
@@ -433,7 +434,11 @@ async def test_a_gemini_provider_key_resolves_to_an_openai_compatible_route(mode
     assert resolved.model == "gemini-3.7-flash"
 
 
-def _vertex_row(*, protocol: Optional[str] = None) -> LLMEndpoint:
+def _vertex_row(
+    *,
+    protocol: Optional[str] = None,
+    models: Optional[List[str]] = None,
+) -> LLMEndpoint:
     """The endpoint row the vault registrar writes for a Vertex card saved from the UI."""
     endpoint = map_custom_provider_secret_to_endpoint(
         SecretResponseDTO(
@@ -450,7 +455,9 @@ def _vertex_row(*, protocol: Optional[str] = None) -> LLMEndpoint:
                         "vertex_ai_credentials": "{}",
                     }
                 },
-                "models": [{"slug": "google/gemini-3.7-flash"}],
+                "models": [
+                    {"slug": slug} for slug in (models or ["google/gemini-3.7-flash"])
+                ],
                 "provider_slug": "my-vertex",
             },
             header={"name": "my-vertex"},
@@ -488,7 +495,9 @@ async def test_an_openai_shaped_vertex_endpoint_resolves_to_a_custom_route():
 @pytest.mark.asyncio
 async def test_an_anthropic_shaped_vertex_endpoint_keeps_its_deployment():
     dao = _MockLlmEndpointsDAO()
-    dao.rows_by_slug["my-vertex"] = _vertex_row(protocol="anthropic")
+    dao.rows_by_slug["my-vertex"] = _vertex_row(
+        protocol="anthropic", models=["claude-haiku-4-5"]
+    )
 
     resolved = await _service(dao=dao).resolve_agent_connection(
         scope=_scope(),
@@ -1102,17 +1111,16 @@ async def test_resolve_picks_the_model_the_qualified_key_names_among_nested_ids(
 
 
 @pytest.mark.asyncio
-async def test_resolve_leaves_a_model_the_endpoint_does_not_list_unchanged():
-    resolved = await _service(
-        dao=_fireworks_dao(["kimi-k3-fast"])
-    ).resolve_agent_connection(
-        scope=_scope(),
-        model="Fireworks/custom/other-model",
-        provider_key=None,
-        connection_slug=_FIREWORKS_SLUG,
-    )
-
-    assert resolved.model == "Fireworks/custom/other-model"
+async def test_resolve_refuses_a_model_the_endpoint_does_not_list():
+    """Needs setup: a model the custom endpoint does not offer stops the run at resolve,
+    before a sandbox starts. The relay refuses the same model at call time."""
+    with pytest.raises(LLMAgentModelNotAvailableError):
+        await _service(dao=_fireworks_dao(["kimi-k3-fast"])).resolve_agent_connection(
+            scope=_scope(),
+            model="Fireworks/custom/other-model",
+            provider_key=None,
+            connection_slug=_FIREWORKS_SLUG,
+        )
 
 
 @pytest.mark.asyncio
@@ -1786,3 +1794,91 @@ async def test_an_endpoint_with_no_ceiling_relays_the_body_byte_for_byte():
     await _relay(service, body)
 
     assert adapter.calls[0]["body"] == json.dumps(body).encode()
+
+
+# --- needs setup: what an agent's model connection needs ---------------------- #
+
+
+@pytest.mark.asyncio
+async def test_requirement_of_a_named_key_that_is_gone_is_not_found():
+    outcome, _ = await _service().agent_connection_requirement(
+        scope=_scope(),
+        model="gpt-4o",
+        provider_key="openai",
+        connection_slug="gone-key",
+    )
+    assert outcome == ("model_key", "not_found")
+
+
+@pytest.mark.asyncio
+async def test_requirement_of_a_turned_off_endpoint_is_turned_off():
+    dao = _MockLlmEndpointsDAO()
+    row = _custom_row(slug="acme")
+    row.flags.is_active = False
+    dao.rows_by_slug["acme"] = row
+    outcome, _ = await _service(dao=dao).agent_connection_requirement(
+        scope=_scope(), model="gpt-4o", provider_key=None, connection_slug="acme"
+    )
+    assert outcome == ("model_key", "turned_off")
+
+
+@pytest.mark.asyncio
+async def test_requirement_of_an_unnamed_key_without_a_project_key_is_not_chosen():
+    outcome, _ = await _service(
+        resolver=_MockResolver(provider_keys=set())
+    ).agent_connection_requirement(
+        scope=_scope(), model="gpt-4o", provider_key="openai", connection_slug=None
+    )
+    assert outcome == ("model_key", "not_chosen")
+
+
+@pytest.mark.asyncio
+async def test_an_unnamed_key_keeps_the_project_default():
+    outcome, _ = await _service(
+        resolver=_MockResolver(provider_keys={"openai"})
+    ).agent_connection_requirement(
+        scope=_scope(), model="gpt-4o", provider_key="openai", connection_slug=None
+    )
+    assert outcome is None
+
+
+@pytest.mark.asyncio
+async def test_requirement_of_a_model_the_endpoint_does_not_offer_is_not_available():
+    outcome, _ = await _service(
+        dao=_fireworks_dao(["kimi-k3-fast"])
+    ).agent_connection_requirement(
+        scope=_scope(),
+        model="other-model",
+        provider_key=None,
+        connection_slug=_FIREWORKS_SLUG,
+    )
+    assert outcome == ("model", "not_available")
+
+
+@pytest.mark.asyncio
+async def test_a_ready_named_endpoint_has_no_requirement():
+    outcome, _ = await _service(
+        dao=_fireworks_dao(["kimi-k3-fast"])
+    ).agent_connection_requirement(
+        scope=_scope(),
+        model="kimi-k3-fast",
+        provider_key=None,
+        connection_slug=_FIREWORKS_SLUG,
+    )
+    assert outcome is None
+
+
+@pytest.mark.asyncio
+async def test_the_resolve_reads_the_same_rows_as_before_the_model_check():
+    """Round trips: the model allowlist check reads the target already loaded, so a named
+    custom endpoint still costs one row read and no vault read."""
+    dao = _fireworks_dao(["kimi-k3-fast"])
+    resolver = _MockResolver()
+    await _service(dao=dao, resolver=resolver).resolve_agent_connection(
+        scope=_scope(),
+        model="kimi-k3-fast",
+        provider_key=None,
+        connection_slug=_FIREWORKS_SLUG,
+    )
+    assert [call[0] for call in dao.calls] == ["fetch_endpoint_by_slug"]
+    assert resolver.resolve_calls == []

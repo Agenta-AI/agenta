@@ -43,13 +43,37 @@ from oss.src.core.sharing.dtos import SharedItemKind
 from oss.src.core.sharing.service import SharingService, get_sharing_service
 from oss.src.core.sharing.types import AdmissionDenied
 from oss.src.core.workflows.service import WorkflowsService
+from oss.src.core.workflows.types import WorkflowDetachedStartRejected
 from oss.src.utils.logging import get_module_logger
 
+from agenta.sdk.agents.requirements import (
+    AGENT_NEEDS_SETUP,
+    AGENT_NEEDS_SETUP_MESSAGE,
+)
 from agenta.sdk.decorators.running import WorkflowServiceRequest
 from agenta.sdk.models.workflows import WorkflowRequestData
 from agenta.sdk.utils.resolvers import resolve_target_fields
 
 log = get_module_logger(__name__)
+
+
+# A fire skipped because the agent's model needs setup: recorded once, never retried, and
+# the trigger stays on. Not the retryable "500", so the claim and the dedup treat it as seen.
+SKIPPED_STATUS_CODE = "422"
+SKIPPED_STATUS_MESSAGE = "skipped"
+
+
+def _needs_setup_details(failure_code: Any, details: Any) -> Optional[AgentError]:
+    """The delivery's error envelope when the run start says the model needs setup."""
+    if failure_code != AGENT_NEEDS_SETUP:
+        return None
+    return AgentError(
+        code=AGENT_NEEDS_SETUP,
+        message=AGENT_NEEDS_SETUP_MESSAGE,
+        retryable=False,
+        next_step="Set up the agent's model. The next run starts as usual.",
+        details=details if isinstance(details, dict) else None,
+    )
 
 
 def _agent_deleted_error() -> AgentError:
@@ -453,6 +477,25 @@ class TriggersDispatcher:
                     envelope=envelope,
                 )
             except Exception as e:
+                skipped = (
+                    _needs_setup_details(e.failure_code, e.failure_details)
+                    if isinstance(e, WorkflowDetachedStartRejected)
+                    else None
+                )
+                if skipped is not None:
+                    await self._skip_delivery(
+                        project_id=project_id,
+                        delivery_id=delivery_id,
+                        session_id=session_id,
+                        delivery_data=delivery_data,
+                        error=skipped,
+                    )
+                    log.info(
+                        "[TRIGGERS DISPATCHER] skipped entity=%s event=%s: agent needs setup",
+                        entity.id,
+                        event_id,
+                    )
+                    return
                 log.error("[TRIGGERS DISPATCHER] detached invoke failed: %s", e)
                 await self._complete_delivery(
                     project_id=project_id,
@@ -501,6 +544,20 @@ class TriggersDispatcher:
             getattr(response, "data", None), "outputs", None
         )
 
+        skipped = _needs_setup_details(
+            getattr(status_obj, "failure_code", None),
+            getattr(status_obj, "details", None),
+        )
+        if skipped is not None:
+            await self._skip_delivery(
+                project_id=project_id,
+                delivery_id=delivery_id,
+                session_id=session_id,
+                delivery_data=delivery_data,
+                error=skipped,
+            )
+            return
+
         if status_code not in (None, 200):
             await self._complete_delivery(
                 project_id=project_id,
@@ -537,6 +594,28 @@ class TriggersDispatcher:
             "[TRIGGERS DISPATCHER] dispatch complete entity=%s event=%s status=200",
             entity.id,
             event_id,
+        )
+
+    async def _skip_delivery(
+        self,
+        *,
+        project_id: UUID,
+        delivery_id: Any,
+        session_id: Any,
+        delivery_data: Any,
+        error: AgentError,
+    ) -> None:
+        """Record a fire the agent could not run (needs setup) and keep the trigger on."""
+        await self._complete_delivery(
+            project_id=project_id,
+            delivery_id=delivery_id,
+            status=Status(code=SKIPPED_STATUS_CODE, message=SKIPPED_STATUS_MESSAGE),
+            data=delivery_data.model_copy(
+                update={"error": error.message, "error_details": error}
+            ),
+        )
+        await self._abandon_claimed_session(
+            project_id=project_id, session_id=session_id
         )
 
     async def _organization_id(self, *, project_id: UUID) -> UUID:

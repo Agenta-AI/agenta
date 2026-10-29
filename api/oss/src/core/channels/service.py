@@ -117,6 +117,8 @@ class ChannelsService:
         # resolve the agent the binding runs (the activation guard). Without it, such a
         # write fails closed.
         self.workflows_service = workflows_service
+        # Refuses binding an agent whose model needs setup. Set at wiring.
+        self.needs_setup_guard: Optional[Any] = None
 
     # --- principal invalidation ------------------------------------------------ #
     #
@@ -1336,6 +1338,37 @@ class ChannelsService:
             raise SharedItemNotFound()
         return artifact_id
 
+    async def _check_needs_setup(
+        self,
+        *,
+        project_id: UUID,
+        agent: Any,
+        stored: Optional[Any],
+    ) -> None:
+        """Refuse a write that turns a binding on, or points an active binding at another
+        agent, while that agent's model needs setup. A rename or a turn-off is never
+        refused."""
+        if self.needs_setup_guard is None or not agent.flags.is_active:
+            return
+        agent_id = getattr(agent, "id", None)
+        if stored is None and agent_id is not None:
+            stored = await self.channels_dao.fetch_agent(
+                project_id=project_id, agent_id=agent_id
+            )
+        if (
+            stored is not None
+            and stored.flags.is_active
+            and stored.data.references == agent.data.references
+        ):
+            return
+        await self.needs_setup_guard.check(
+            project_id=project_id,
+            references={
+                key: ref.model_dump(mode="json", exclude_none=True)
+                for key, ref in agent.data.references.items()
+            },
+        )
+
     async def _edit_agent_row(
         self,
         *,
@@ -1351,6 +1384,7 @@ class ChannelsService:
         the references the write stores, so a write that sends only flags (or
         nothing) cannot activate a binding of someone else's private agent."""
 
+        stored = None
         if agent.data is None or agent.data.references is None or agent.flags is None:
             stored = await self.channels_dao.fetch_agent(
                 project_id=project_id,
@@ -1371,6 +1405,11 @@ class ChannelsService:
             project_id=project_id,
             references=agent.data.references,
             is_active=agent.flags.is_active,
+        )
+        await self._check_needs_setup(
+            project_id=project_id,
+            agent=agent,
+            stored=stored,
         )
         return await self.channels_dao.edit_agent(
             project_id=project_id,
@@ -1402,6 +1441,11 @@ class ChannelsService:
             project_id=project_id,
             references=agent.data.references,
             is_active=agent.flags.is_active,
+        )
+        await self._check_needs_setup(
+            project_id=project_id,
+            agent=agent,
+            stored=None,
         )
         return await self.channels_dao.create_agent(
             project_id=project_id,

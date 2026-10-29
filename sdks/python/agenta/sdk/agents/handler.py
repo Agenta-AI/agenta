@@ -47,6 +47,16 @@ from agenta.sdk.agents.platform import (
     resolve_connection as _platform_resolve_connection,
 )
 from agenta.sdk.agents.platform import resolve_mcp as _platform_resolve_mcp
+from agenta.sdk.agents.platform import (
+    unready_mcp_servers as _platform_unready_mcp_servers,
+)
+from agenta.sdk.agents.requirements import (
+    AgentNeedsSetupError,
+    LlmReference,
+    model_requirement_from_error,
+)
+from agenta.sdk.agents.mcp import MCPGatewayConnection
+from agenta.sdk.agents.tools import MissingSecretPolicy
 from agenta.sdk.agents.platform import resolve_tools as _platform_resolve_tools
 from agenta.sdk.agents.platform import CHANNEL_TOOL_OPS
 from agenta.sdk.agents.platform import read_channel_tools as _platform_channel_tools
@@ -102,6 +112,7 @@ TraceContextFn = Callable[[], Any]
 RunContextFn = Callable[[], Any]
 RecordUsageFn = Callable[[Optional[Dict[str, Any]]], None]
 RecordSandboxFn = Callable[[Optional[str]], None]
+UnreadyMCPFn = Callable[..., Awaitable[Any]]
 
 
 def _default_template() -> AgentTemplate:
@@ -227,6 +238,21 @@ async def _await_in_order(*starts: Callable[[], Awaitable[Any]]) -> List[Any]:
             task.cancel()
         # Consume every outcome so a sibling's error is not reported as never retrieved.
         await asyncio.gather(*tasks, return_exceptions=True)
+
+
+def _without_unready_mcp(
+    resolved: List[ResolvedMCPServer], configs: List[Any], unready_slugs: Any
+) -> List[ResolvedMCPServer]:
+    """The resolved MCP servers minus the ones whose named server needs setup."""
+    if not unready_slugs:
+        return resolved
+    left_out = {
+        config.name
+        for config in configs
+        if isinstance(config.connection, MCPGatewayConnection)
+        and config.connection.slug in unready_slugs
+    }
+    return [server for server in resolved if server.name not in left_out]
 
 
 def _reference_id(references, name: str) -> Optional[str]:
@@ -391,6 +417,8 @@ class AgentComposition:
     default_template: DefaultTemplateFn = field(default=_default_template)
     resolve_tools: ResolveToolsFn = field(default=_default_resolve_tools)
     resolve_mcp_servers: ResolveMCPFn = field(default=_default_resolve_mcp_servers)
+    # The named MCP servers that need setup (missing, turned off, signed out): left out.
+    unready_mcp_servers: UnreadyMCPFn = field(default=_platform_unready_mcp_servers)
     resolve_connection: ResolveConnectionFn = field(default=_default_resolve_connection)
     resolve_sandbox_credentials: ResolveSandboxCredentialsFn = field(
         default=_resolve_sandbox_credentials
@@ -501,6 +529,9 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
                 run_tools,
                 permission_default=agent_template.permission_default,
                 session_id=session_id,
+                # A code tool whose custom secret is missing runs without it: only a
+                # model item blocks a run (needs setup); the editor tags the secret.
+                missing_secret_policy=MissingSecretPolicy.OMIT,
             )
             resolved_mcp = await comp.resolve_mcp_servers(
                 agent_template.mcp_servers,
@@ -525,12 +556,35 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
                     m, c, resolve_connection=comp.resolve_connection
                 )
             )
-            return await resolve_session_connection(model_ref, ctx)
+            try:
+                return await resolve_session_connection(model_ref, ctx)
+            except Exception as error:
+                # A missing model item stops the run here, before a sandbox starts, with
+                # one error the editor and the automations read (needs setup).
+                needs = model_requirement_from_error(
+                    error,
+                    LlmReference.from_model_ref(
+                        model_ref, harness=agent_template.harness
+                    ),
+                )
+                if needs is None:
+                    raise
+                raise AgentNeedsSetupError([needs]) from error
+
+        async def _unready_mcp_slugs():
+            return await comp.unready_mcp_servers(agent_template.mcp_servers)
 
         async def _resolve_run_sandbox_credentials():
             # Needs the connection and the MCP servers: it rejects a binding they already own.
-            (resolved_tools, resolved_mcp), resolved_connection = await _await_in_order(
-                _resolve_run_tools, _resolve_run_connection
+            (
+                (resolved_tools, resolved_mcp),
+                resolved_connection,
+                unready_slugs,
+            ) = await _await_in_order(
+                _resolve_run_tools, _resolve_run_connection, _unready_mcp_slugs
+            )
+            resolved_mcp = _without_unready_mcp(
+                resolved_mcp, agent_template.mcp_servers, unready_slugs
             )
             resolved_sandbox_credentials = await comp.resolve_sandbox_credentials(
                 agent_template.sandbox_credentials,
