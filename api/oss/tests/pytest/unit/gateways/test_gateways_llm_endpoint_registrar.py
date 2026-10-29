@@ -633,7 +633,7 @@ def _resolved_route(endpoint: LLMEndpointCreate, *, model: str) -> LLMResolvedRo
 def _resolved(connection: SecretResponseDTO) -> ResolvedSecret:
     return ResolvedSecret(
         secret=connection,
-        owner=SecretOwner(kind=SecretOwnerKind.PROJECT),
+        owner=SecretOwner(kind=SecretOwnerKind.PROJECT, id=uuid4()),
         origin=SecretOrigin.VAULT,
     )
 

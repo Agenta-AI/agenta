@@ -94,6 +94,7 @@ from oss.src.dbs.postgres.folders.dao import FoldersDAO
 
 # Services
 from oss.src.core.secrets.services import VaultService
+from oss.src.core.secrets.limits import NoProjectLimits
 from oss.src.core.secrets.claude_token import ClaudeTokenClient
 from oss.src.core.secrets.subscription_login import SubscriptionLoginRunnerClient
 from oss.src.core.secrets.subscription_service import SubscriptionLoginService
@@ -193,6 +194,7 @@ from oss.src.tasks.taskiq.shared.broker import ProducerOnlyRedisStreamBroker
 from oss.src.dbs.postgres.gateways.llms.dao import LLMEndpointsDAO
 from oss.src.dbs.postgres.gateways.mcps.dao import MCPEndpointsDAO
 from oss.src.dbs.postgres.gateways.mcps.oauth_dao import MCPOAuthAttemptsDAO
+from oss.src.core.gateways.policy.dtos import GatewayPlane
 from oss.src.core.gateways.policy.resolution import SecretsResolver
 from oss.src.core.gateways.policy.service import GatewayPolicyService
 from oss.src.core.gateways.llms.registrar import LLMEndpointRegistrar
@@ -793,11 +795,20 @@ _t_services = time.perf_counter()
 # Membership and access first: every permission check goes through them.
 bootstrap_access()
 
+# The EE project limit of organization credentials reuses the RBAC entitlement (M5).
+if is_ee():
+    from ee.src.core.secrets.limits import EntitlementProjectLimits
+
+    _project_limits = EntitlementProjectLimits(rbac=get_access_service().rbac)
+else:
+    _project_limits = NoProjectLimits()
+
 vault_service = VaultService(
     secrets_dao=secrets_dao,
     llm_endpoint_registrar=LLMEndpointRegistrar(
         llm_endpoints_dao=llm_endpoints_dao,
     ),
+    project_limits=_project_limits,
 )
 
 subscription_login_service = SubscriptionLoginService(
@@ -1395,8 +1406,16 @@ channel_tools = ChannelToolsRouter(
 # other DAOs, because the vault's endpoint registrar takes it.
 mcp_endpoints_dao = MCPEndpointsDAO(engine=_transactions_engine)
 
-secrets_resolver = SecretsResolver(
+# One resolver per plane: only the LLM gateway answers an organization connection an
+# agent names. Every other user of a resolver (the MCP gateway, the shared policy service)
+# gets the project-only plane.
+llm_secrets_resolver = SecretsResolver(
     vault_service=vault_service,
+    plane=GatewayPlane.LLM,
+)
+mcp_secrets_resolver = SecretsResolver(
+    vault_service=vault_service,
+    plane=GatewayPlane.MCP,
 )
 
 # The wallet's side of the gateway seam, bound only in EE with the wallet on. Otherwise the
@@ -1448,7 +1467,7 @@ if ee and is_ee() and env.wallets.enabled and env.mock_gateways.enabled:
     )
 
 gateway_policy_service = GatewayPolicyService(
-    resolver=secrets_resolver,
+    resolver=mcp_secrets_resolver,
     spend_admission=gateway_spend_admission,
     usage_sink=gateway_usage_sink,
 )
@@ -1456,7 +1475,7 @@ gateway_policy_service = GatewayPolicyService(
 llm_gateway_service = LLMGatewayService(
     llm_endpoints_dao=llm_endpoints_dao,
     policy=gateway_policy_service,
-    resolver=secrets_resolver,
+    resolver=llm_secrets_resolver,
     upstream_registry=LLMUpstreamRegistry(
         adapters={
             "relay": RelayLLMAdapter(),
@@ -1482,7 +1501,7 @@ mcp_oauth_connect_service = MCPOAuthConnectService(
 mcp_gateway_service = MCPGatewayService(
     mcp_endpoints_dao=mcp_endpoints_dao,
     policy=gateway_policy_service,
-    resolver=secrets_resolver,
+    resolver=mcp_secrets_resolver,
     connections_service=connections_service,
     agenta_tools_router=tools,
     upstream_registry=MCPUpstreamRegistry(

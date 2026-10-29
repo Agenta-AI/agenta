@@ -16,7 +16,10 @@ import uuid_utils.compat as uuid
 from typing import Any, Awaitable, Callable, Dict, Iterable, List, Optional, Tuple
 from uuid import UUID
 
-from oss.src.core.access.dtos import PrincipalRef, RunEnvelope, RunOrigin
+from oss.src.core.access.dtos import (
+    PrincipalRef,
+    RunEnvelope,
+)
 from oss.src.utils.logging import get_module_logger
 
 from oss.src.dbs.redis.shared.engine import LockEngine
@@ -89,6 +92,7 @@ from oss.src.core.sharing.types import AdmissionDenied
 from oss.src.core.workflows.types import AgentReferenceUnresolved
 from oss.src.core.sharing.service import (
     cache_created_session_access,
+    channel_binding_of,
     channel_session_policy,
     created_session_access,
     get_sharing_service,
@@ -1051,7 +1055,7 @@ class SessionStreamsService:
             # A channel session is the one its installation's run creates: private to the
             # agent's owner when the agent is private. One memo for both: the policy read
             # takes the agent entry the admission read (no round trip).
-            by_channel_run = envelope.context.origin == RunOrigin.INSTALLATION
+            channel_binding_id = channel_binding_of(envelope)
             with request_memo_scope():
                 agent_artifact_id = await run_admission.admit_turn(
                     envelope=admission_envelope,
@@ -1059,7 +1063,7 @@ class SessionStreamsService:
                     project_id=project_id,
                     references=request.references,
                 )
-                if by_channel_run:
+                if channel_binding_id is not None:
                     access = await channel_session_policy(
                         project_id=project_id, agent_artifact_id=agent_artifact_id
                     )
@@ -1078,7 +1082,7 @@ class SessionStreamsService:
                         name=normalize_session_name(request.name),
                         references=request.references or None,
                         access=access,
-                        by_channel_run=by_channel_run,
+                        channel_binding_id=channel_binding_id,
                     ),
                 )
             except SessionStreamAlreadyExists:
@@ -1670,13 +1674,15 @@ class SessionStreamsService:
         stream: SessionStreamCreate,
     ) -> SessionStream:
         """Insert the session row, then write its sharing cache entry (once per session;
-        the next decision on it reads the entry it just wrote). `stream.by_channel_run`:
-        the row is created by a channel installation's run (only a beat can be that)."""
+        the next decision on it reads the entry it just wrote). `stream.channel_binding_id`:
+        the row is created by that channel binding's own run."""
         created = await self._dao.create(
             project_id=project_id, user_id=user_id, stream=stream
         )
-        policy, in_channel = created_session_access(
-            created, requested=stream.access, by_installation=stream.by_channel_run
+        policy, in_channel, binding_id = created_session_access(
+            created,
+            requested=stream.access,
+            channel_binding_id=stream.channel_binding_id,
         )
         await cache_created_session_access(
             project_id=project_id,
@@ -1684,6 +1690,7 @@ class SessionStreamsService:
             stream_id=getattr(created, "id", None),
             policy=policy,
             is_channel=in_channel,
+            channel_binding_id=binding_id,
         )
         return created
 

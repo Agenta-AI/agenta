@@ -713,7 +713,7 @@ def _resolved_secret(*, user_id: Optional[UUID] = None) -> ResolvedSecret:
         ),
         owner=SecretOwner(
             kind=SecretOwnerKind.USER if user_id else SecretOwnerKind.PROJECT,
-            user_id=user_id,
+            id=user_id or uuid4(),
         ),
         origin=SecretOrigin.VAULT,
     )
@@ -731,7 +731,7 @@ def _composio_resolved_secret() -> ResolvedSecret:
                 provider=StandardProviderSettingsDTO(key="project-composio-key"),
             ),
         ),
-        owner=SecretOwner(kind=SecretOwnerKind.PROJECT),
+        owner=SecretOwner(kind=SecretOwnerKind.PROJECT, id=uuid4()),
         origin=SecretOrigin.VAULT,
     )
 
@@ -1714,7 +1714,7 @@ def _grant_secret(*, access_token: str, expires_at: Optional[int]) -> ResolvedSe
             ),
             header=Header(name="grant"),
         ),
-        owner=SecretOwner(kind=SecretOwnerKind.PROJECT),
+        owner=SecretOwner(kind=SecretOwnerKind.PROJECT, id=uuid4()),
         origin=SecretOrigin.VAULT,
     )
 

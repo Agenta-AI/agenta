@@ -404,3 +404,33 @@ async def test_a_builtin_pick_never_falls_back_to_the_vault(platform, monkeypatc
         await VaultConnectionResolver(platform).resolve(model=model, context=_context())
 
     assert routes.paths() == [RESOLVE_PATH]
+
+
+async def test_an_organization_connection_never_falls_back_to_the_vault(
+    platform, monkeypatch
+):
+    """With the gateway not serving the run, an organization connection fails: its value is
+    never read in plaintext, and a project row with the same slug is never used."""
+    from agenta.sdk.agents.connections import OrganizationConnectionUnavailableError
+
+    routes = _Routes(
+        {
+            RESOLVE_PATH: _Response(403, _envelope("llm_gateway_disabled")),
+            SECRETS_PATH: _Response(200, _vault()),
+        }
+    ).install(monkeypatch, connections, platform_connection)
+
+    with pytest.raises(OrganizationConnectionUnavailableError):
+        await VaultConnectionResolver(platform).resolve(
+            model=ModelRef(
+                provider="openai",
+                model="gpt-5.5",
+                connection={
+                    "mode": "agenta",
+                    "slug": "openai",
+                    "scope": "organization",
+                },
+            ),
+            context=_context(),
+        )
+    assert routes.paths() == [RESOLVE_PATH]

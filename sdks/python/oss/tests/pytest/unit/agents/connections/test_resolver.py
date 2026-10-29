@@ -164,3 +164,32 @@ async def test_static_resolver_from_dict():
     )
     assert _credential_environment(resolved) == {"ANTHROPIC_API_KEY": "sk-ant"}
     assert resolved.provider == "anthropic"
+
+
+@pytest.mark.parametrize(
+    "connection",
+    [
+        {"mode": "agenta", "slug": "openai-company", "scope": "organization"},
+        {"mode": "self_managed", "slug": "chatgpt", "scope": "organization"},
+    ],
+    ids=["key", "subscription"],
+)
+@pytest.mark.parametrize(
+    "resolver",
+    [
+        lambda: EnvConnectionResolver(env={"OPENAI_API_KEY": "sk-local-0123"}),
+        lambda: StaticConnectionResolver(provider="openai", api_key="sk-local-0123"),
+    ],
+    ids=["env", "static"],
+)
+async def test_offline_resolvers_refuse_an_organization_connection(
+    resolver, connection
+):
+    """No local key or local login stands in for a named organization connection."""
+    from agenta.sdk.agents.connections import OrganizationConnectionUnavailableError
+
+    with pytest.raises(OrganizationConnectionUnavailableError):
+        await resolver().resolve(
+            model=ModelRef(provider="openai", model="gpt-5.5", connection=connection),
+            context=RuntimeAuthContext(harness="pi_core", backend="local"),
+        )

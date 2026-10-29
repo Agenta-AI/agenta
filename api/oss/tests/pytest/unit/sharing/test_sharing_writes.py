@@ -750,28 +750,18 @@ class _Workflows:
 
 
 def _channels(world: SharingWorld, workflows: _Workflows):
-    """A `ChannelsService` whose DAO applies the guard like the Postgres DAO: a
-    private agent named by `guard_artifact_id` is refused before the write unless the
-    writer owns it."""
+    """A `ChannelsService` whose DAO records the guard each write asks for. The guard
+    itself (`guard_agent_activation`) is tested against Postgres in
+    `test_sharing_dao_locks.py`."""
 
     dao = MagicMock()
     dao.writes = []
     dao.fetch_connection = AsyncMock(return_value=MagicMock())
 
-    def _guard(project_id, user_id, guard_artifact_id):
-        dao.writes.append(guard_artifact_id)
-        if guard_artifact_id is None:
-            return
-        policy = world.dao.agents.get((project_id, guard_artifact_id))
-        if (
-            policy is not None
-            and policy.visibility == Visibility.PRIVATE
-            and policy.owner_user_id != user_id
-        ):
-            raise SharedItemNotFound()
-
-    async def _create(*, project_id, user_id, agent, guard_artifact_id=None):
-        _guard(project_id, user_id, guard_artifact_id)
+    async def _create(
+        *, project_id, user_id, agent, guard_artifact_id=None, guard_user_id=None
+    ):
+        dao.writes.append((guard_artifact_id, guard_user_id))
         return ChannelAgent(
             id=uuid4(),
             slug=agent.slug,
@@ -780,8 +770,10 @@ def _channels(world: SharingWorld, workflows: _Workflows):
             flags=agent.flags,
         )
 
-    async def _edit(*, project_id, user_id, agent, guard_artifact_id=None):
-        _guard(project_id, user_id, guard_artifact_id)
+    async def _edit(
+        *, project_id, user_id, agent, guard_artifact_id=None, guard_user_id=None
+    ):
+        dao.writes.append((guard_artifact_id, guard_user_id))
         return MagicMock()
 
     dao.create_agent = AsyncMock(side_effect=_create)
@@ -796,6 +788,27 @@ def _channels(world: SharingWorld, workflows: _Workflows):
     )
 
 
+def test_only_a_person_is_the_guard_user_of_a_channel_route():
+    """The routes pass the person who makes the request as the guard user. An API key
+    of Alice, or a channel run credential, is no person: its writes never activate a
+    private agent's binding."""
+
+    from types import SimpleNamespace
+
+    from oss.src.apis.fastapi.channels.router import _human_user_id
+
+    alice = uuid4()
+
+    def _request(kind, principal_id):
+        principal = PrincipalRef(kind=kind, id=principal_id)
+        return SimpleNamespace(state=SimpleNamespace(principal=principal))
+
+    assert _human_user_id(_request(PrincipalKind.HUMAN, alice)) == alice
+    assert _human_user_id(_request(PrincipalKind.API_KEY, uuid4())) is None
+    assert _human_user_id(_request(PrincipalKind.INSTALLATION, uuid4())) is None
+    assert _human_user_id(SimpleNamespace(state=SimpleNamespace())) is None
+
+
 def _create(references, *, is_active=True) -> ChannelAgentCreate:
     return ChannelAgentCreate(
         connection_id=uuid4(),
@@ -805,9 +818,9 @@ def _create(references, *, is_active=True) -> ChannelAgentCreate:
     )
 
 
-async def test_activate_private_agent_of_someone_else_rejected(monkeypatch):
-    """Only the owner of a private agent activates a binding of it (Bob cannot see
-    Alice's private agent, so he cannot put it in a channel)."""
+async def test_an_active_binding_write_is_guarded_with_its_writer(monkeypatch):
+    """A write that leaves a binding active asks the DAO to guard its agent for the
+    guard user the route passed; an inactive binding is no activation."""
 
     monkeypatch.setattr(
         "oss.src.core.channels.service.invalidate_principals_after_write",
@@ -821,39 +834,46 @@ async def test_activate_private_agent_of_someone_else_rejected(monkeypatch):
     references = {"workflow": Reference(id=private)}
 
     service, dao = _channels(world, _Workflows(resolved=private))
-    with pytest.raises(SharedItemNotFound):
-        await service.create_agent(
-            project_id=world.project_id, user_id=bob, agent=_create(references)
-        )
-    assert dao.writes == [private]
-
-    # Alice, the owner, puts her private agent in a channel.
-    dao.writes.clear()
     await service.create_agent(
-        project_id=world.project_id, user_id=alice, agent=_create(references)
+        project_id=world.project_id,
+        user_id=bob,
+        guard_user_id=bob,
+        agent=_create(references),
     )
-    assert dao.writes == [private]
+    assert dao.writes == [(private, bob)]
 
-    # An inactive binding is not an activation: no guard, written.
+    # An API key's write carries no guard user.
     dao.writes.clear()
     await service.create_agent(
         project_id=world.project_id,
         user_id=alice,
+        guard_user_id=None,
+        agent=_create(references),
+    )
+    assert dao.writes == [(private, None)]
+
+    # An inactive binding is not an activation: no guard.
+    dao.writes.clear()
+    await service.create_agent(
+        project_id=world.project_id,
+        user_id=alice,
+        guard_user_id=alice,
         agent=_create(references, is_active=False),
     )
-    assert dao.writes == [None]
+    assert dao.writes == [(None, alice)]
 
-    # A project agent is guarded and written.
+    # A project agent is guarded too.
     service, dao = _channels(world, _Workflows(resolved=shared))
     await service.create_agent(
         project_id=world.project_id,
         user_id=alice,
+        guard_user_id=alice,
         agent=_create({"workflow": Reference(id=shared)}),
     )
-    assert dao.writes == [shared]
+    assert dao.writes == [(shared, alice)]
 
-    # Edit: the result of the edit decides. Bob reactivating a binding of Alice's
-    # private agent is refused.
+    # Edit: the result of the edit decides. Bob reactivating a binding is guarded;
+    # keeping it inactive is not.
     service, dao = _channels(world, _Workflows(resolved=private))
     existing = ChannelAgent(
         id=uuid4(),
@@ -863,21 +883,19 @@ async def test_activate_private_agent_of_someone_else_rejected(monkeypatch):
         flags=ChannelAgentFlags(is_active=False),
     )
     dao.fetch_agent = AsyncMock(return_value=existing)
-    with pytest.raises(SharedItemNotFound):
-        await service.edit_agent(
-            project_id=world.project_id,
-            user_id=bob,
-            agent=ChannelAgentEdit(
-                id=existing.id, flags=ChannelAgentFlags(is_active=True)
-            ),
-        )
-    # Keeping it inactive is fine.
     await service.edit_agent(
         project_id=world.project_id,
         user_id=bob,
+        guard_user_id=bob,
+        agent=ChannelAgentEdit(id=existing.id, flags=ChannelAgentFlags(is_active=True)),
+    )
+    await service.edit_agent(
+        project_id=world.project_id,
+        user_id=bob,
+        guard_user_id=bob,
         agent=ChannelAgentEdit(id=existing.id, name="renamed"),
     )
-    assert dao.writes == [private, None]
+    assert dao.writes == [(private, bob), (None, bob)]
 
 
 def _stored_binding(references, *, is_active, is_default=False) -> ChannelAgent:
@@ -901,7 +919,7 @@ async def test_every_binding_write_left_active_is_guarded():
     private = world.dao.add_agent(project_id=world.project_id, policy=_private(alice))
     shared = world.dao.add_agent(project_id=world.project_id, policy=_project(alice))
 
-    # Bob's flags-only reactivation of a binding of Alice's private agent is refused.
+    # Bob's flags-only reactivation of a binding of Alice's private agent is guarded.
     service, dao = _channels(world, _Workflows(resolved=private))
     stored = _stored_binding({"workflow": Reference(id=private)}, is_active=False)
     dao.fetch_agent = AsyncMock(return_value=stored)
@@ -909,20 +927,20 @@ async def test_every_binding_write_left_active_is_guarded():
         ChannelAgentEdit(id=stored.id, flags=ChannelAgentFlags(is_active=True)),
         ChannelAgentEdit(id=stored.id, name="renamed", flags=ChannelAgentFlags()),
     ):
-        with pytest.raises(SharedItemNotFound):
-            await service._edit_agent_row(
-                project_id=world.project_id, user_id=bob, agent=edit
-            )
-    assert dao.writes == [private, private]
+        await service._edit_agent_row(
+            project_id=world.project_id, user_id=bob, guard_user_id=bob, agent=edit
+        )
+    assert dao.writes == [(private, bob), (private, bob)]
 
     # An edit that sends no flags keeps the stored (inactive) flags: not guarded.
     dao.writes.clear()
     await service._edit_agent_row(
         project_id=world.project_id,
         user_id=alice,
+        guard_user_id=alice,
         agent=ChannelAgentEdit(id=stored.id, name="renamed"),
     )
-    assert dao.writes == [None]
+    assert dao.writes == [(None, alice)]
 
     # A project agent's flags-only reactivation is guarded and written, with the
     # stored references in the write.
@@ -932,9 +950,10 @@ async def test_every_binding_write_left_active_is_guarded():
     await service._edit_agent_row(
         project_id=world.project_id,
         user_id=alice,
+        guard_user_id=alice,
         agent=ChannelAgentEdit(id=stored.id, flags=ChannelAgentFlags(is_active=True)),
     )
-    assert dao.writes == [shared]
+    assert dao.writes == [(shared, alice)]
     written = dao.edit_agent.await_args.kwargs["agent"]
     assert written.data.references == {"workflow": Reference(id=shared)}
     assert written.flags.is_active is True
@@ -946,6 +965,7 @@ async def test_every_binding_write_left_active_is_guarded():
         await service._edit_agent_row(
             project_id=world.project_id,
             user_id=alice,
+            guard_user_id=alice,
             agent=ChannelAgentEdit(id=uuid4(), flags=ChannelAgentFlags()),
         )
         is None
@@ -967,18 +987,24 @@ async def test_set_agent_default_guards_the_active_binding():
     dao.fetch_agent = AsyncMock(return_value=stored)
     dao.fetch_default_agent = AsyncMock(return_value=None)
     await service.set_agent_default(
-        project_id=world.project_id, user_id=alice, agent_id=stored.id
+        project_id=world.project_id,
+        user_id=alice,
+        guard_user_id=alice,
+        agent_id=stored.id,
     )
-    assert dao.writes == [shared]
+    assert dao.writes == [(shared, alice)]
 
     service, dao = _channels(world, _Workflows(resolved=private))
     stored = _stored_binding({"workflow": Reference(id=private)}, is_active=False)
     dao.fetch_agent = AsyncMock(return_value=stored)
     dao.fetch_default_agent = AsyncMock(return_value=None)
     await service.set_agent_default(
-        project_id=world.project_id, user_id=alice, agent_id=stored.id
+        project_id=world.project_id,
+        user_id=alice,
+        guard_user_id=alice,
+        agent_id=stored.id,
     )
-    assert dao.writes == [None]
+    assert dao.writes == [(None, alice)]
     assert dao.edit_agent.await_args.kwargs["agent"].flags.is_active is False
 
 
@@ -1002,13 +1028,16 @@ async def test_set_agent_default_keeps_the_old_default_on():
     dao.fetch_default_agent = AsyncMock(return_value=old_default)
     dao.clear_agent_default = AsyncMock(return_value=None)
     await service.set_agent_default(
-        project_id=world.project_id, user_id=bob, agent_id=promoted.id
+        project_id=world.project_id,
+        user_id=bob,
+        guard_user_id=bob,
+        agent_id=promoted.id,
     )
     dao.clear_agent_default.assert_awaited_once_with(
         project_id=world.project_id, user_id=bob, agent_id=old_default.id
     )
     # Only the promoted binding is written through the guarded edit.
-    assert dao.writes == [shared]
+    assert dao.writes == [(shared, bob)]
     assert dao.edit_agent.await_count == 1
 
 
@@ -1023,6 +1052,7 @@ async def test_unresolved_or_missing_agent_reference_is_refused():
             await service.create_agent(
                 project_id=world.project_id,
                 user_id=uuid4(),
+                guard_user_id=None,
                 agent=_create({"workflow": Reference(slug="gone")}),
             )
         assert dao.writes == []
@@ -1037,6 +1067,7 @@ async def test_activation_without_workflows_service_fails_closed():
         await service.create_agent(
             project_id=uuid4(),
             user_id=uuid4(),
+            guard_user_id=None,
             agent=_create({"workflow": Reference(id=uuid4())}),
         )
 
@@ -1072,12 +1103,13 @@ async def test_channel_references_reach_the_resolver():
     await service.create_agent(
         project_id=world.project_id,
         user_id=uuid4(),
+        guard_user_id=None,
         agent=_create({"application_revision": Reference(id=revision)}),
     )
 
     (references,) = workflows.calls
     assert [(r.key, r.id) for r in references] == [("application_revision", revision)]
-    assert dao.writes == [artifact_id]
+    assert dao.writes == [(artifact_id, None)]
 
 
 @pytest.mark.parametrize(

@@ -45,7 +45,7 @@
     "proper-lockfile": "4.1.2",
     "sandbox-agent": "0.4.2",
     "tar": "7.5.21",
-    "undici": "8.10.2"
+    "undici": "8.12.2"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
@@ -79,9 +79,11 @@
       "@opentelemetry/propagator-jaeger": "2.9.0",
       "axios": "1.20.0",
       "brace-expansion": "5.0.12",
-      "fast-uri": "3.1.8",
-      "hono": "4.13.7",
-      "ip-address": "10.7.1",
+      "body-parser@<2.4.0": "2.4.0",
+      "fast-uri": "3.1.9",
+      "follow-redirects": "1.16.1",
+      "hono": "4.13.11",
+      "ip-address": "10.7.4",
       "postcss": "8.5.23",
       "protobufjs": "7.6.5",
       "proxy-addr@<2.0.8": "^2.0.8",
