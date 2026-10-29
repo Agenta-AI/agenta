@@ -831,9 +831,8 @@ class InboxDispatcher:
 
         try:
             space = refusal.space
-            # never write to a person who opted out, and never answer an opt-out
-            # or opt-in word with a refusal (WhatsApp consent)
-            if space.flags.is_opted_out or _consent_keyword(event) is not None:
+            # never write to a person who opted out
+            if space.flags.is_opted_out:
                 return
             day = datetime.now(timezone.utc).date().isoformat()
             key = uuid5(
@@ -864,6 +863,13 @@ class InboxDispatcher:
                 channel=connection.channel,
                 connection=connection,
             )
+            # an opt-out or opt-in word is consent, not a request (where the
+            # platform has consent words: WhatsApp)
+            if (
+                capabilities.conversation.opt_out
+                and _consent_keyword(event) is not None
+            ):
+                return
             item = render_notice(capabilities=capabilities, text=text)
             content = [part.model_dump(exclude_none=True) for part in item.parts]
             adapter = self.channels_service.adapter_registry.get(connection.channel)

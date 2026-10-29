@@ -496,8 +496,9 @@ async def test_the_owner_adds_a_rule():
 
 
 class _NoteAdapter:
-    def __init__(self, *, ephemeral=True, ephemeral_error=None):
+    def __init__(self, *, ephemeral=True, ephemeral_error=None, opt_out=False):
         self.ephemeral = ephemeral
+        self.opt_out = opt_out
         self.ephemeral_error = ephemeral_error
         self.post_message = AsyncMock(return_value={"channel": "D1", "ts": "1.1"})
         self.post_ephemeral = AsyncMock(side_effect=ephemeral_error, return_value=True)
@@ -505,6 +506,7 @@ class _NoteAdapter:
     async def fetch_capabilities(self, *, connection=None):
         caps = await WellBehavedFakeAdapter().fetch_capabilities()
         caps.rendering.controls.ephemeral = self.ephemeral
+        caps.conversation.opt_out = self.opt_out
         return caps
 
 
@@ -976,7 +978,7 @@ def test_a_request_may_send_at_most_1000_people_but_a_stored_list_stays_readable
 
 
 async def test_no_note_to_a_person_who_opted_out_or_for_an_opt_out_word():
-    adapter = _NoteAdapter()
+    adapter = _NoteAdapter(opt_out=True)
     dispatcher, store = _dispatcher(adapter)
     opted_out = _refusal(
         reason=ChannelRefusalReason.SENDER_NOT_LISTED, kind=ChannelSpaceKind.PRIVATE
@@ -995,3 +997,19 @@ async def test_no_note_to_a_person_who_opted_out_or_for_an_opt_out_word():
 
     adapter.post_message.assert_not_awaited()
     assert store.rows == {}
+
+
+async def test_a_stop_word_on_a_platform_without_consent_words_still_gets_the_note():
+    adapter = _NoteAdapter(opt_out=False)
+    dispatcher, _ = _dispatcher(adapter)
+
+    await _note(
+        dispatcher,
+        _refusal(
+            reason=ChannelRefusalReason.SENDER_NOT_LISTED,
+            kind=ChannelSpaceKind.PRIVATE,
+        ),
+        event=_event(text="STOP", sender="BEN", space_kind=ChannelSpaceKind.PRIVATE),
+    )
+
+    adapter.post_message.assert_awaited_once()
