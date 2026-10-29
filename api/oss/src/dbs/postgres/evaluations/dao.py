@@ -89,6 +89,14 @@ _FETCH_RUN_ATTEMPTS = 3
 _FETCH_RUN_BACKOFF_SECONDS = 2.0
 
 
+def _set_run_principal(run_dbe, *, principal: PrincipalRef, user_id: UUID) -> None:
+    """The run executes as `principal`; `user_id` is the acting user of the request
+    that set it (an installation's linked user)."""
+    run_dbe.principal_kind = principal.kind.value
+    run_dbe.principal_id = principal.id
+    run_dbe.principal_user_id = user_id
+
+
 class EvaluationsDAO(EvaluationsDAOInterface):
     def __init__(self, engine: TransactionsEngine = None):
         if engine is None:
@@ -401,9 +409,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             # An explicit start or an edit route's save sets the principal in
             # this same UPDATE.
             if principal is not None:
-                run_dbe.principal_kind = principal.kind.value
-                run_dbe.principal_id = principal.id
-                run_dbe.principal_user_id = user_id
+                _set_run_principal(run_dbe, principal=principal, user_id=user_id)
 
             await session.commit()
 
@@ -482,9 +488,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
                 # An edit route's save sets the principal in this same UPDATE.
                 if principal is not None:
-                    run_dbe.principal_kind = principal.kind.value
-                    run_dbe.principal_id = principal.id
-                    run_dbe.principal_user_id = user_id
+                    _set_run_principal(run_dbe, principal=principal, user_id=user_id)
 
             await session.commit()
 

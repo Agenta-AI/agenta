@@ -112,8 +112,8 @@ async def trigger_scope(_fresh_engine_per_test):
             {
                 "id": user_id,
                 "uid": str(user_id),
-                "username": "trigger-soft-delete-test",
-                "email": f"trigger-soft-delete-{user_id.hex[:8]}@example.com",
+                "username": "trigger-test",
+                "email": f"trigger-test-{user_id.hex[:8]}@example.com",
             },
         )
         await session.execute(
@@ -123,7 +123,7 @@ async def trigger_scope(_fresh_engine_per_test):
             ),
             {
                 "id": organization_id,
-                "name": "trigger-soft-delete-org",
+                "name": "trigger-test-org",
                 "owner_id": user_id,
             },
         )
@@ -134,7 +134,7 @@ async def trigger_scope(_fresh_engine_per_test):
             ),
             {
                 "id": workspace_id,
-                "name": "trigger-soft-delete-workspace",
+                "name": "trigger-test-workspace",
                 "organization_id": organization_id,
             },
         )
@@ -146,7 +146,7 @@ async def trigger_scope(_fresh_engine_per_test):
             ),
             {
                 "id": project_id,
-                "name": "trigger-soft-delete-project",
+                "name": "trigger-test-project",
                 "workspace_id": workspace_id,
                 "organization_id": organization_id,
             },
@@ -161,7 +161,7 @@ async def trigger_scope(_fresh_engine_per_test):
                 "id": connection_id,
                 "project_id": project_id,
                 "user_id": user_id,
-                "slug": "trigger-soft-delete-connection",
+                "slug": "trigger-test-connection",
                 "provider_key": "composio",
                 "integration_key": "github",
             },

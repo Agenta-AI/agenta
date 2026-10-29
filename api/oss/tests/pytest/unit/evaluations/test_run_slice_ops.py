@@ -576,6 +576,7 @@ async def test_add_steps_appends_new_columns():
         user_id=uuid4(),
         run_id=run_id,
         steps=[_step("evaluator")],
+        principal=any_principal(),
     )
 
     assert result == edited
@@ -602,6 +603,7 @@ async def test_add_steps_skips_existing_key():
         user_id=uuid4(),
         run_id=run_id,
         steps=[_step("input")],
+        principal=any_principal(),
     )
 
     # all keys already present -> no edit, run returned unchanged
@@ -629,6 +631,7 @@ async def test_remove_steps_drops_named_columns():
         user_id=uuid4(),
         run_id=run_id,
         step_keys=["evaluator"],
+        principal=any_principal(),
     )
 
     assert result == edited
@@ -655,6 +658,7 @@ async def test_remove_steps_unknown_key_is_noop():
         user_id=uuid4(),
         run_id=run_id,
         step_keys=["missing"],
+        principal=any_principal(),
     )
 
     assert result is run
@@ -683,6 +687,7 @@ async def test_set_repeats_sets_run_data_repeats():
         user_id=uuid4(),
         run_id=run_id,
         repeats=3,
+        principal=any_principal(),
     )
 
     assert result == edited
@@ -701,6 +706,7 @@ async def test_set_repeats_returns_none_when_run_missing():
         user_id=uuid4(),
         run_id=uuid4(),
         repeats=3,
+        principal=any_principal(),
     )
 
     assert result is None

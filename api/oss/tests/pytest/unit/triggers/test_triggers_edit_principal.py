@@ -246,14 +246,60 @@ async def test_edit_routes_pass_the_request_principal(editor):
 
 
 def test_edit_bodies_cannot_carry_a_principal():
-    body = TriggerScheduleEditRequest.model_validate(
+    principal = {"kind": "human", "id": str(uuid4())}
+    schedule = TriggerScheduleEditRequest.model_validate(
         {
             "schedule": {
                 "id": str(uuid4()),
-                "principal": {"kind": "human", "id": str(uuid4())},
+                "principal": principal,
                 "data": {"event_key": "cron.tick", "schedule": "0 * * * *"},
             }
         }
     )
+    subscription = TriggerSubscriptionEditRequest.model_validate(
+        {
+            "subscription": {
+                "id": str(uuid4()),
+                "connection_id": str(uuid4()),
+                "principal": principal,
+                "data": {"event_key": "GITHUB_ISSUE_EVENT"},
+            }
+        }
+    )
 
-    assert "principal" not in body.schedule.model_dump()
+    assert "principal" not in schedule.schedule.model_dump()
+    assert "principal" not in subscription.subscription.model_dump()
+
+
+async def test_a_channel_installation_cannot_edit():
+    from fastapi import HTTPException
+
+    schedule = _schedule()
+    subscription = _subscription()
+    service = MagicMock()
+    service.edit_schedule = AsyncMock()
+    service.edit_subscription = AsyncMock()
+    router = TriggersRouter(triggers_service=service)
+    router._check = AsyncMock()
+    installation = PrincipalRef(kind=PrincipalKind.INSTALLATION, id=uuid4())
+
+    with pytest.raises(HTTPException) as schedule_refusal:
+        await router.edit_schedule(
+            _request(installation),
+            schedule_id=schedule.id,
+            body=TriggerScheduleEditRequest(schedule=_schedule_edit(schedule)),
+        )
+    with pytest.raises(HTTPException) as subscription_refusal:
+        await router.edit_subscription(
+            _request(installation),
+            subscription_id=subscription.id,
+            body=TriggerSubscriptionEditRequest(
+                subscription=_subscription_edit(subscription)
+            ),
+        )
+
+    for refusal in (schedule_refusal, subscription_refusal):
+        assert refusal.value.status_code == 403
+        assert refusal.value.detail["code"] == "edit_from_channel_not_allowed"
+    service.edit_schedule.assert_not_awaited()
+    service.edit_subscription.assert_not_awaited()

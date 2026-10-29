@@ -44,7 +44,7 @@ That destination might be a channel, an email, a document, a task, or a row in a
 
 If later runs need the result, have the agent also save a copy in its files. Next Monday's report can then compare itself with this one.
 
-## An automation runs as the person who last saved it
+## An automation runs as whoever last saved it
 
 Each run has the access of the user or API key that created the automation or last saved a change to it. When someone else saves a change, even a new name, the automation runs as them from then on. Pausing, resuming and deleting an automation do not change who it runs as. If that user leaves the project or loses the role, or the key is deleted, the next run is refused and the automation is paused. Its run history says why. To run it again, save it under an active user or API key, then resume it. Archiving the agent also pauses its automations, and unarchiving it does not start them again.
 

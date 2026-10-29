@@ -852,8 +852,10 @@ class EvaluationsService:
         user_id: UUID,
         #
         runs: List[EvaluationRunEdit],
-        principal: Optional[PrincipalRef] = None,
+        principal: PrincipalRef,
     ) -> List[EvaluationRun]:
+        """The editor (`principal`) becomes each run's executing principal in the same
+        write."""
         for run in runs:
             run.version = CURRENT_VERSION
 
@@ -3222,11 +3224,14 @@ class SimpleEvaluationsService:
         #
         run: EvaluationRun,
         new_data: EvaluationRunData,
+        principal: PrincipalRef,
     ) -> Optional[EvaluationRun]:
-        """Persist a new `data` payload for `run`, preserving every other field."""
+        """Persist a new `data` payload for `run`, preserving every other field. The
+        editor (`principal`) becomes the run's executing principal in the same write."""
         return await self.evaluations_service.edit_run(
             project_id=project_id,
             user_id=user_id,
+            principal=principal,
             run=EvaluationRunEdit(
                 id=run.id,
                 name=run.name,
@@ -3317,6 +3322,7 @@ class SimpleEvaluationsService:
         #
         run_id: UUID,
         steps: List[EvaluationRunDataStep],
+        principal: PrincipalRef,
     ) -> Optional[EvaluationRun]:
         """Append steps to the run (width dimension).
 
@@ -3346,6 +3352,7 @@ class SimpleEvaluationsService:
             user_id=user_id,
             run=run,
             new_data=new_data,
+            principal=principal,
         )
 
     async def remove_steps(
@@ -3356,6 +3363,7 @@ class SimpleEvaluationsService:
         #
         run_id: UUID,
         step_keys: List[str],
+        principal: PrincipalRef,
     ) -> Optional[EvaluationRun]:
         """Drop steps from the run by key (width dimension).
 
@@ -3383,6 +3391,7 @@ class SimpleEvaluationsService:
             user_id=user_id,
             run=run,
             new_data=new_data,
+            principal=principal,
         )
 
     async def set_repeats(
@@ -3393,6 +3402,7 @@ class SimpleEvaluationsService:
         #
         run_id: UUID,
         repeats: int,
+        principal: PrincipalRef,
     ) -> Optional[EvaluationRun]:
         """Set the run's repeat (depth) dimension.
 
@@ -3413,6 +3423,7 @@ class SimpleEvaluationsService:
             user_id=user_id,
             run=run,
             new_data=new_data,
+            principal=principal,
         )
 
     async def close(
