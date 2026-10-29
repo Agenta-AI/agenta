@@ -27,9 +27,10 @@ The cause is in two places:
 - Test-mode captures use the same message as a real run.
 - The agent-facing reference text stops telling builder agents to use a sibling `event` key.
 - On `/m`, for event automations only, the Instruction field gets:
-  - a grid of field cards built from the event's payload schema, with a humanized name and the
-    provider's own description, and a check on the cards already used;
-  - pills: a click on a card inserts the field into the instruction;
+  - a row of small field tags inside the instruction box, built from the event's payload
+    schema, each with a humanized name, the provider's own description on hover, and a check
+    on the tags already used;
+  - pills: a click on a tag inserts the field into the instruction;
   - a checkbox "Also attach the full event, so the agent can use any detail", on by default;
   - a "What the agent gets" preview, filled from the newest delivery when one exists.
 - "Run now" sends the preview text: pills filled from the newest delivery, and the event when
@@ -41,7 +42,7 @@ The cause is in two places:
 
 - `trigger-event-inputs`: how the dispatcher builds the agent's inputs for an event
   automation, including the event text, text coercion and the recorded event.
-- `automation-event-fields`: the `/m` Instruction field for event automations: field cards,
+- `automation-event-fields`: the `/m` Instruction field for event automations: field tags,
   pills, the include-event option, the preview and Run now.
 
 ### Modified Capabilities
@@ -54,7 +55,7 @@ None. No spec in `openspec/specs/` covers triggers or automations yet.
   `api/oss/src/core/triggers/utils.py`, unit tests in `api/oss/tests/pytest/unit/triggers/`.
 - SDK: the reference text in `sdks/python/agenta/sdk/agents/adapters/agenta_builtins.py`.
 - Web: `@agenta/entities/gatewayTrigger` (types and pure helpers),
-  `@agenta/entity-ui/gatewayTrigger` (pill composer, field cards),
+  `@agenta/entity-ui/gatewayTrigger` (pill composer, field tags),
   `@agenta/automation-ui` (Instruction field, drafts, request body builders), `web/mobile` (Run now).
 - Generated client: two Fern type files, regenerated from an EE spec.
 - Data: no migration. `data` is a JSON column on both tables. Old rows read the defaults.
