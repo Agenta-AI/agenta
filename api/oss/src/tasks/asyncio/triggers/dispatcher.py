@@ -311,7 +311,9 @@ class TriggersDispatcher:
                 entity=entity,
                 event_id=event_id,
                 reason="missing_principal",
-                error=missing_principal_error(next_step="Create the trigger again."),
+                error=missing_principal_error(
+                    next_step="Save the trigger again, then start it."
+                ),
             )
             return
 
