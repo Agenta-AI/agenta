@@ -144,6 +144,9 @@ class ChannelsDAOInterface(ABC):
         #
         guard_artifact_id: Optional[UUID] = None,
         guard_user_id: Optional[UUID] = None,
+        # rollout only: also set the installation's allowed_senders, in the
+        # same transaction (the field the previous release reads)
+        installation_senders: Optional[List[str]] = None,
     ) -> ChannelAgent:
         """With `guard_artifact_id`, the write transaction first locks that agent's
         artifact, reads its policy uncached and raises `SharedItemNotFound` for a
@@ -198,6 +201,9 @@ class ChannelsDAOInterface(ABC):
         guard_artifact_id: Optional[UUID] = None,
         guard_user_id: Optional[UUID] = None,
         limits_artifact_ids: Sequence[UUID] = (),
+        # rollout only: also set the installation's allowed_senders, in the
+        # same transaction (the field the previous release reads)
+        installation_senders: Optional[List[str]] = None,
     ) -> Optional[ChannelAgent]:
         """`guard_artifact_id` and `guard_user_id` as in `create_agent`."""
 
@@ -458,17 +464,6 @@ class ChannelsDAOInterface(ABC):
         #
         windowing: Optional[Windowing] = None,
     ) -> List[ChannelGrant]: ...
-
-    async def write_installation_senders(
-        self,
-        *,
-        project_id: UUID,
-        connection_id: UUID,
-        senders: List[str],
-    ) -> None:
-        """Rollout only: set `allowed_senders` on the installation, the field
-        the previous release reads. Remove with that field."""
-        raise NotImplementedError
 
     async def query_recent_senders(
         self,

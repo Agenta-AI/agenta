@@ -105,6 +105,15 @@ from oss.src.core.sharing.types import SharedItemNotFound
 from oss.src.dbs.postgres.sharing.dao import guard_agent_activation
 
 
+_INSTALLATION_SENDERS_SQL = text(
+    "UPDATE channel_connections "
+    "SET data = jsonb_set("
+    "COALESCE(data::jsonb, '{}'::jsonb), '{allowed_senders}', "
+    "CAST(:senders AS jsonb))::json "
+    "WHERE project_id = :project_id AND id = :connection_id"
+)
+
+
 class ChannelsDAO(ChannelsDAOInterface):
     def __init__(self, engine: TransactionsEngine = None):
         if engine is None:
@@ -431,6 +440,7 @@ class ChannelsDAO(ChannelsDAOInterface):
         #
         guard_artifact_id: Optional[UUID] = None,
         guard_user_id: Optional[UUID] = None,
+        installation_senders: Optional[List[str]] = None,
     ) -> ChannelAgent:
         agent_dbe = map_agent_dto_to_dbe_create(
             project_id=project_id,
@@ -449,6 +459,16 @@ class ChannelsDAO(ChannelsDAOInterface):
                 )
 
             session.add(agent_dbe)
+
+            if installation_senders is not None:
+                await session.execute(
+                    _INSTALLATION_SENDERS_SQL,
+                    {
+                        "senders": json.dumps(installation_senders),
+                        "project_id": project_id,
+                        "connection_id": agent.connection_id,
+                    },
+                )
 
             await session.commit()
 
@@ -539,6 +559,7 @@ class ChannelsDAO(ChannelsDAOInterface):
         guard_artifact_id: Optional[UUID] = None,
         guard_user_id: Optional[UUID] = None,
         limits_artifact_ids: Sequence[UUID] = (),
+        installation_senders: Optional[List[str]] = None,
     ) -> Optional[ChannelAgent]:
         async with self.engine.session() as session:
             # Before the binding row: the artifact locks come first, in a fixed
@@ -574,6 +595,16 @@ class ChannelsDAO(ChannelsDAOInterface):
                 #
                 agent=agent,
             )
+
+            if installation_senders is not None:
+                await session.execute(
+                    _INSTALLATION_SENDERS_SQL,
+                    {
+                        "senders": json.dumps(installation_senders),
+                        "project_id": project_id,
+                        "connection_id": agent_dbe.connection_id,
+                    },
+                )
 
             await session.commit()
 
@@ -1326,30 +1357,6 @@ class ChannelsDAO(ChannelsDAOInterface):
             result = await session.execute(stmt)
 
             return len(result.scalars().all())
-
-    async def write_installation_senders(
-        self,
-        *,
-        project_id: UUID,
-        connection_id: UUID,
-        senders: List[str],
-    ) -> None:
-        async with self.engine.session() as session:
-            await session.execute(
-                text(
-                    "UPDATE channel_connections "
-                    "SET data = jsonb_set("
-                    "COALESCE(data::jsonb, '{}'::jsonb), '{allowed_senders}', "
-                    "CAST(:senders AS jsonb))::json "
-                    "WHERE project_id = :project_id AND id = :connection_id"
-                ),
-                {
-                    "senders": json.dumps(senders),
-                    "project_id": project_id,
-                    "connection_id": connection_id,
-                },
-            )
-            await session.commit()
 
     async def query_recent_senders(
         self,

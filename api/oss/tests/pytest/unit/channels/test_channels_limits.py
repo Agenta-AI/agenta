@@ -413,7 +413,7 @@ def _guarded_service(dao, *, refuse):
             ),
         )
     )
-    dao.write_installation_senders = AsyncMock()
+
     dao.edit_grant = AsyncMock(
         side_effect=_sync_guarded(refuse, lambda kw: MagicMock())
     )
@@ -890,7 +890,6 @@ async def test_someone_else_cannot_create_an_off_binding_with_a_people_list():
                 flags=ChannelAgentFlags(is_active=False),
             ),
         )
-    dao.write_installation_senders.assert_not_awaited()
 
 
 async def test_an_off_binding_without_a_people_list_is_created_as_before():
@@ -913,6 +912,8 @@ async def test_an_off_binding_without_a_people_list_is_created_as_before():
         ),
     )
     assert dao.create_agent.await_args.kwargs["guard_artifact_id"] is None
+    # no list: the installation is not touched
+    assert "installation_senders" not in dao.create_agent.await_args.kwargs
 
 
 async def test_a_people_list_change_is_also_written_to_the_installation():
@@ -932,15 +933,13 @@ async def test_a_people_list_change_is_also_written_to_the_installation():
             id=agent.id, data=ChannelAgentDataEdit(audience={"senders": ["BEN"]})
         ),
     )
-    dao.write_installation_senders.assert_awaited_once_with(
-        project_id=project_id, connection_id=agent.connection_id, senders=["BEN"]
-    )
+    # in the same write as the binding
+    assert dao.edit_agent.await_args.kwargs["installation_senders"] == ["BEN"]
 
-    dao.write_installation_senders.reset_mock()
     await service.edit_agent(
         project_id=project_id,
         user_id=uuid4(),
         guard_user_id=uuid4(),
         agent=ChannelAgentEdit(id=agent.id, name="renamed"),
     )
-    dao.write_installation_senders.assert_not_awaited()
+    assert "installation_senders" not in dao.edit_agent.await_args.kwargs

@@ -1362,6 +1362,7 @@ class ChannelsService:
         #
         agent: ChannelAgentEdit,
         limits_artifact_ids: Sequence[UUID] = (),
+        installation_senders: Optional[List[str]] = None,
     ) -> Optional[ChannelAgent]:
         """Every binding write. The write names its references and its whole flags,
         taken from the stored row when the edit sends none, and it is guarded when
@@ -1403,6 +1404,7 @@ class ChannelsService:
                 if limits_artifact_ids
                 else {}
             ),
+            **_installation_senders(installation_senders),
         )
 
     async def create_agent(
@@ -1432,7 +1434,7 @@ class ChannelsService:
             guard_artifact_id = await self._limits_guard(
                 project_id=project_id, agent=agent
             )
-        created = await self.channels_dao.create_agent(
+        return await self.channels_dao.create_agent(
             project_id=project_id,
             user_id=user_id,
             #
@@ -1440,29 +1442,7 @@ class ChannelsService:
             #
             guard_artifact_id=guard_artifact_id,
             guard_user_id=guard_user_id,
-        )
-        if agent.data.audience.senders:
-            await self._mirror_installation_senders(
-                project_id=project_id,
-                connection_id=agent.connection_id,
-                senders=list(agent.data.audience.senders),
-            )
-        return created
-
-    async def _mirror_installation_senders(
-        self, *, project_id: UUID, connection_id: UUID, senders: List[str]
-    ) -> None:
-        """Rollout only: an API pod of the previous release reads the people list
-        from the installation (`allowed_senders`), so each change of a binding's
-        list is written there too until every pod reads the binding. Remove in
-        the release after this one, with the old field. On an installation with
-        several bindings the last list written applies to all of them on an old
-        pod, which is how the old pods always behaved."""
-
-        await self.channels_dao.write_installation_senders(
-            project_id=project_id,
-            connection_id=connection_id,
-            senders=senders,
+            **_installation_senders(agent.data.audience.senders or None),
         )
 
     async def fetch_agent(
@@ -1526,16 +1506,15 @@ class ChannelsService:
             #
             agent=merged,
             limits_artifact_ids=_present(*limits_artifact_ids),
+            installation_senders=(
+                list(merged.data.audience.senders)
+                if merged.data.audience != existing.data.audience
+                else None
+            ),
         )
         await self._invalidate_bindings(
             binding_ids=[existing.id], source="channels.edit_agent"
         )
-        if edited is not None and merged.data.audience != existing.data.audience:
-            await self._mirror_installation_senders(
-                project_id=project_id,
-                connection_id=existing.connection_id,
-                senders=list(merged.data.audience.senders),
-            )
         return edited
 
     async def delete_agent(
@@ -3121,6 +3100,16 @@ def _context_part(context: Optional[Dict[str, Any]]) -> Optional[dict]:
         + json.dumps(context, ensure_ascii=False, sort_keys=True)
         + "\n\n",
     }
+
+
+def _installation_senders(senders: Optional[List[str]]) -> Dict[str, Any]:
+    """Rollout only, remove in the next release with the field: a people-list
+    change is also written to the installation's `allowed_senders`, in the same
+    transaction, because an API pod of the previous release reads it there. On
+    an installation with several bindings the last list written applies to all
+    of them on an old pod, which is how old pods always behaved."""
+
+    return {} if senders is None else {"installation_senders": list(senders)}
 
 
 def _present(*ids: Optional[UUID]) -> List[UUID]:
