@@ -182,6 +182,38 @@ describe("attachPermissionResponder", () => {
     assert.deepEqual(denied, ["tool-7"]);
   });
 
+  it("deny verdict replies decline through the adapter when the harness offers decline", async () => {
+    const replies: Array<{ id: string; reply: string }> = [];
+    const { session, emit } = makeSession(async (id, reply) => {
+      replies.push({ id, reply });
+    });
+    const events: AgentEvent[] = [];
+    const denied: Array<string | undefined> = [];
+
+    attachPermissionResponder({
+      session,
+      run: {
+        emitEvent: (event) => events.push(event),
+        markToolCallDenied: (id) => denied.push(id),
+      },
+      responder: fakeResponder({ kind: "deny" }),
+    });
+    // Codex's harness offers decline alongside the standard replies; the deny
+    // must reach respondPermission as `decline`, not `reject`, so the harness
+    // closes the call as a user refusal rather than a breakage.
+    emit({
+      id: "perm-1",
+      availableReplies: ["once", "always", "decline", "reject"],
+      toolCall: { toolCallId: "tool-7", name: "edit", rawInput: { path: "a" } },
+    });
+    await flushPromises();
+
+    assert.deepEqual(replies, [{ id: "perm-1", reply: "decline" }]);
+    // The denied flag still fires before the decline reply.
+    assert.deepEqual(denied, ["tool-7"]);
+    assert.deepEqual(events, []);
+  });
+
   it("allow verdict does NOT flag the tool-call id denied", async () => {
     const { session, emit } = makeSession(async () => {});
     const events: AgentEvent[] = [];
