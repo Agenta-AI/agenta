@@ -1356,7 +1356,9 @@ class MCPGatewayService:
             )
 
         grant_owner = (
-            SecretOwner(kind=SecretOwnerKind.USER, id=sign_in_ref.user_id)
+            SecretOwner.for_user(
+                organization_id=scope.organization_id, user_id=sign_in_ref.user_id
+            )
             if sign_in_ref is not None
             else None
         )
@@ -1367,7 +1369,6 @@ class MCPGatewayService:
                 server_url=server_url,
                 failed_access_token=failed_access_token,
                 grant_owner=grant_owner,
-                organization_id=scope.organization_id,
             )
         except MCPOAuthRefreshUnavailableError as e:
             raise MCPUpstreamError(

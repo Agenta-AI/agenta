@@ -11,7 +11,7 @@ from typing import Dict, List, Optional, Sequence, Tuple
 from uuid import UUID, uuid4
 
 from oss.src.core.secrets.dtos import CreateSecretDTO, SecretOwner, SecretResponseDTO
-from oss.src.core.secrets.enums import SecretKind, SecretOwnerKind
+from oss.src.core.secrets.enums import SecretKind
 from oss.src.core.secrets.services import VaultService
 
 _SIGN_IN_KINDS = (SecretKind.OAUTH_GRANT, SecretKind.MCP_TOKEN)
@@ -53,7 +53,9 @@ class PersonRowsVaultService(VaultService):
             kind=create_secret_dto.secret.kind,
             data=create_secret_dto.secret.data.model_dump(exclude_none=True),
             header=create_secret_dto.header,
-            owner=SecretOwner(kind=SecretOwnerKind.USER, id=user_id),
+            owner=SecretOwner.for_user(
+                organization_id=organization_id, user_id=user_id
+            ),
         )
         self.person_rows[key] = row
         return row

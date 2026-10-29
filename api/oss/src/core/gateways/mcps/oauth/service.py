@@ -788,12 +788,11 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         server_url: str,
         failed_access_token: Optional[str] = None,
         grant_owner: Optional[SecretOwner] = None,
-        organization_id: Optional[UUID] = None,
     ) -> None:
         """Renew one connection's stored grant, in place.
 
-        `grant_owner` names a person's own sign-in, read and written in
-        `organization_id`; None is the project's grant, as before.
+        `grant_owner` names a person's own sign-in; None is the project's grant, as
+        before.
 
         Without `failed_access_token` this renews a grant that is due (see
         `grant_refresh_due`). With it, the upstream refused that token, and the grant is

@@ -31,12 +31,11 @@ class MCPOAuthRefresherInterface(ABC):
         server_url: str,
         failed_access_token: Optional[str] = None,
         grant_owner: Optional[SecretOwner] = None,
-        organization_id: Optional[UUID] = None,
     ) -> None:
         """Refresh one connection's stored grant, in place.
 
         `grant_owner` is whose grant: the project's when it is None, or a person's own
-        sign-in, which is read and written in `organization_id`.
+        sign-in (a user owner, which names its organization).
 
         `endpoint_id` is which grant, because several connections in one project can
         name the same server and each holds its own. `server_url` is where to rediscover

@@ -2,7 +2,7 @@
 
 import html as html_lib
 import json
-from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional
 from urllib.parse import urlsplit
 from uuid import UUID
 
@@ -280,25 +280,13 @@ class MCPGatewayRouter:
             operation_id="sweep_mcp_oauth_attempts",
         )
 
-    async def _person(self, request: Request) -> Tuple[UUID, UUID]:
-        """The organization and person a sign-in route acts for: the caller, signed in
-        to the app, with personal accounts on (CONTRACT section 7, Person and Switch)."""
-        organization_id, user_id = await require_person(request)
-        if not personal_accounts_enabled():
-            raise _refusal(
-                status.HTTP_403_FORBIDDEN,
-                "personal_accounts_disabled",
-                "Personal accounts are turned off.",
-            )
-        return organization_id, user_id
-
     async def _sign_ins(
         self, request: Request, endpoints: List[MCPEndpoint]
     ) -> Optional[Dict[UUID, bool]]:
         """The caller's own sign-ins to these servers, or None when the caller is no
         person or personal accounts are off. One read for the whole list."""
         try:
-            organization_id, user_id = await self._person(request)
+            organization_id, user_id = require_person(request)
         except HTTPException:
             return None
         return await self.oauth_connect_service.sign_ins(
@@ -330,7 +318,7 @@ class MCPGatewayRouter:
             or attempt.user_id != scope.user_id
         ):
             raise FORBIDDEN_EXCEPTION
-        await self._person(request)
+        require_person(request)
         await self._check(scope, Permission.RUN_SESSIONS)
 
     async def _check(self, scope: AuthScope, permission: Permission) -> None:
@@ -731,7 +719,8 @@ class MCPGatewayRouter:
         uses the discovery a project admin's connect stored, and the attempt it starts
         writes the person's own grant at the callback.
         """
-        organization_id, user_id = await self._person(request)
+        # Person and Switch (CONTRACT section 7), then the run permission.
+        organization_id, user_id = require_person(request)
         await self._check(scope, Permission.RUN_SESSIONS)
 
         endpoint = await self.service.fetch_endpoint(
@@ -825,7 +814,7 @@ class MCPGatewayRouter:
         """
         scope = get_auth_scope()
         if owner_kind == "user":
-            organization_id, user_id = await self._person(request)
+            organization_id, user_id = require_person(request)
             await self._check(scope, Permission.RUN_SESSIONS)
             endpoint = await self.service.fetch_endpoint(
                 project_id=scope.project_id, endpoint_id=endpoint_id

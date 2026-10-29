@@ -1754,7 +1754,6 @@ class _StubRefresher:
         server_url,
         failed_access_token=None,
         grant_owner=None,
-        organization_id=None,
     ) -> None:
         self.calls.append(server_url)
         self.endpoint_ids.append(endpoint_id)
@@ -2181,7 +2180,6 @@ class _UnavailableOnceRefresher(_StubRefresher):
         server_url,
         failed_access_token=None,
         grant_owner=None,
-        organization_id=None,
     ) -> None:
         await super().refresh_grant(
             project_id=project_id,
@@ -2939,7 +2937,6 @@ class _ReleasingRefresher:
         server_url,
         failed_access_token=None,
         grant_owner=None,
-        organization_id=None,
     ) -> None:
         raise AssertionError("an edit does not refresh")
 

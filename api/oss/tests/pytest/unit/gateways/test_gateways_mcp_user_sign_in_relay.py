@@ -111,7 +111,7 @@ def _person_grant(
             ),
             header=Header(name="grant"),
         ),
-        owner=SecretOwner(kind=SecretOwnerKind.USER, id=person),
+        owner=SecretOwner.for_user(organization_id=uuid4(), user_id=person),
         origin=SecretOrigin.VAULT,
     )
 
@@ -129,7 +129,7 @@ def _person_token(*, endpoint: MCPEndpoint, person: UUID, slug=None) -> Resolved
             ),
             header=Header(name="token"),
         ),
-        owner=SecretOwner(kind=SecretOwnerKind.USER, id=person),
+        owner=SecretOwner.for_user(organization_id=uuid4(), user_id=person),
         origin=SecretOrigin.VAULT,
     )
 
@@ -367,10 +367,9 @@ async def test_an_expired_person_grant_is_renewed_for_that_person():
         await _relay(service, scope)
 
     assert len(refresher.calls) == 1
-    assert refresher.calls[0]["grant_owner"] == SecretOwner(
-        kind=SecretOwnerKind.USER, id=person
+    assert refresher.calls[0]["grant_owner"] == SecretOwner.for_user(
+        organization_id=scope.organization_id, user_id=person
     )
-    assert refresher.calls[0]["organization_id"] == scope.organization_id
     # The re-read names the person's row again, never the project's.
     assert all(ref.owner_kind == SecretOwnerKind.USER for ref in resolver.refs)
     assert adapter.last_auth.secret.secret.data.grant.access_token == "renewed"

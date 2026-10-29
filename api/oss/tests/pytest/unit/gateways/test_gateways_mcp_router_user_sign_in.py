@@ -173,37 +173,40 @@ def session_user(monkeypatch):
     return _apply
 
 
-@pytest.fixture
-def person(monkeypatch):
-    async def _require_person(_request):
-        return FIXED_SCOPE.organization_id, PERSON
+def _require_person_answers(monkeypatch, answer):
+    def _require_person(_request):
+        if isinstance(answer, HTTPException):
+            raise answer
+        return answer
 
     monkeypatch.setattr(
         "oss.src.apis.fastapi.gateways.mcps.router.require_person", _require_person
     )
-    monkeypatch.setattr(
-        "oss.src.apis.fastapi.gateways.mcps.router.personal_accounts_enabled",
-        lambda: True,
-    )
+
+
+@pytest.fixture
+def person(monkeypatch):
+    _require_person_answers(monkeypatch, (FIXED_SCOPE.organization_id, PERSON))
 
 
 @pytest.fixture
 def no_person(monkeypatch):
-    async def _require_person(_request):
-        raise HTTPException(
+    _require_person_answers(
+        monkeypatch,
+        HTTPException(
             status_code=403, detail={"code": "user_required", "message": "x"}
-        )
-
-    monkeypatch.setattr(
-        "oss.src.apis.fastapi.gateways.mcps.router.require_person", _require_person
+        ),
     )
 
 
 @pytest.fixture
-def switch_off(monkeypatch, person):
-    monkeypatch.setattr(
-        "oss.src.apis.fastapi.gateways.mcps.router.personal_accounts_enabled",
-        lambda: False,
+def switch_off(monkeypatch):
+    _require_person_answers(
+        monkeypatch,
+        HTTPException(
+            status_code=403,
+            detail={"code": "personal_accounts_disabled", "message": "x"},
+        ),
     )
 
 

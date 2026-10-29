@@ -31,7 +31,7 @@ def _scope() -> AuthScope:
     return AuthScope(organization_id=uuid4(), project_id=uuid4(), user_id=uuid4())
 
 
-def _token_row(*, user_id) -> SecretResponseDTO:
+def _token_row(*, user_id, organization_id=None) -> SecretResponseDTO:
     return SecretResponseDTO(
         id=uuid4(),
         slug="mcp-token-0123456789ab",
@@ -42,7 +42,9 @@ def _token_row(*, user_id) -> SecretResponseDTO:
             )
         ),
         header=Header(name="token"),
-        owner=SecretOwner(kind=SecretOwnerKind.USER, id=user_id),
+        owner=SecretOwner.for_user(
+            organization_id=organization_id or uuid4(), user_id=user_id
+        ),
     )
 
 
@@ -90,7 +92,7 @@ def test_only_a_user_reference_names_a_person():
 @pytest.mark.asyncio
 async def test_the_mcp_plane_reads_the_persons_row_in_the_runs_organization():
     scope, person = _scope(), uuid4()
-    row = _token_row(user_id=person)
+    row = _token_row(user_id=person, organization_id=scope.organization_id)
     vault = _Vault(row=row, owner_id=person, organization_id=scope.organization_id)
     resolver = SecretsResolver(vault_service=vault, plane=GatewayPlane.MCP)
 
@@ -101,7 +103,9 @@ async def test_the_mcp_plane_reads_the_persons_row_in_the_runs_organization():
     )
 
     assert resolved.secret.id == row.id
-    assert resolved.owner == SecretOwner(kind=SecretOwnerKind.USER, id=person)
+    assert resolved.owner == SecretOwner.for_user(
+        organization_id=scope.organization_id, user_id=person
+    )
     # One read, of the person's own row, and no project read.
     assert vault.calls == [("person", scope.organization_id, person, row.id)]
 
