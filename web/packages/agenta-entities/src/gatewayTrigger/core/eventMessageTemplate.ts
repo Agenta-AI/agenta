@@ -9,7 +9,7 @@
  * same whole-string-or-literal leaf resolution, just structured as parts.
  *
  * Display ≠ storage: the editor shows `{{event.attributes.body}}`; we store
- * `{type:"text", text:"$.event.attributes.body"}`.
+ * `{type:"text", text:"$.event.attributes.body"}`. Other keys of the mapping are kept.
  */
 
 export interface TemplateSegment {
@@ -50,29 +50,62 @@ export function splitTemplate(template: string): TemplateSegment[] {
     return segments
 }
 
-// Segments → a message `content`: "" when empty, a bare string when there's a single
-// literal/selector, else an array of resolvable text parts.
-function segmentsToContent(segments: TemplateSegment[]): string | {type: "text"; text: string}[] {
+// Segments → a message `content`: "" when empty, a bare string for one literal (or one selector
+// when `pillsAsParts` is off), else an array of resolvable text parts.
+function segmentsToContent(
+    segments: TemplateSegment[],
+    pillsAsParts: boolean,
+): string | {type: "text"; text: string}[] {
     const nonEmpty = segments.filter((s) => (s.selector ?? s.literal ?? "") !== "")
     if (nonEmpty.length === 0) return ""
-    if (nonEmpty.length === 1) return nonEmpty[0].selector ?? nonEmpty[0].literal ?? ""
+    const only = nonEmpty.length === 1 ? nonEmpty[0] : null
+    if (only && (only.literal !== undefined || !pillsAsParts))
+        return only.selector ?? only.literal ?? ""
     return nonEmpty.map((s) => ({type: "text" as const, text: s.selector ?? s.literal ?? ""}))
 }
 
+/** The selectors a template uses, in order; the field cards mark these as used. */
+export function templateSelectors(template: string): string[] {
+    return splitTemplate(template).flatMap((s) => (s.selector ? [s.selector] : []))
+}
+
+function parseObject(inputsText: string): Record<string, unknown> | null {
+    try {
+        const parsed: unknown = inputsText.trim() ? JSON.parse(inputsText) : {}
+        return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+            ? (parsed as Record<string, unknown>)
+            : null
+    } catch {
+        return null
+    }
+}
+
+// A `messages` payload edits as chat even when the schema says completion, like `messageInputs`.
+function messageKey(obj: Record<string, unknown>, isChat: boolean, primaryKey: string): string {
+    return isChat || Array.isArray(obj.messages) ? "messages" : primaryKey
+}
+
 /**
- * Compile a token template into `inputs_fields`. Chat agents → a `messages` user message;
- * completion agents → the primary input key. Empty template → `{}`.
+ * Write a token template into `inputs_fields`, returning the serialized JSON. Only the message
+ * key changes: chat agents get one `messages` user message, completion agents the primary key.
+ * In `messages`, a pill is always a text part, even alone. Every other key is kept. An empty
+ * template removes the message key.
  */
 export function compileMessageTemplate(
+    inputsText: string,
     template: string,
     isChat: boolean,
     primaryKey: string,
-): Record<string, unknown> {
-    if (!template.trim()) return {}
-    const content = segmentsToContent(splitTemplate(template))
-    if (content === "") return {}
-    if (isChat) return {messages: [{role: "user", content}]}
-    return {[primaryKey]: content}
+): string {
+    const obj = parseObject(inputsText) ?? {}
+    const key = messageKey(obj, isChat, primaryKey)
+    // A bare selector on an array field would become the message parts; a text part keeps it text.
+    const content = template.trim()
+        ? segmentsToContent(splitTemplate(template), key === "messages")
+        : ""
+    if (content === "") delete obj[key]
+    else obj[key] = key === "messages" ? [{role: "user", content}] : content
+    return Object.keys(obj).length ? JSON.stringify(obj, null, 2) : "{}"
 }
 
 // A content value the composer can REPRODUCE: a plain string, or an array of strictly
@@ -105,35 +138,40 @@ function contentToTemplate(content: unknown): string | null {
 }
 
 /**
- * Parse `inputs_fields` (serialized JSON) back into a token template for the editor. Returns ""
- * unless the mapping is EXACTLY what `compileMessageTemplate` emits — a single `{role:"user"}`
- * message (chat) / the one `primaryKey` (completion) with representable content, and no other
- * keys. Anything else (multi-message, system/assistant, non-text parts, extra keys) isn't
- * representable; the caller falls back to the raw-JSON Advanced editor instead of collapsing it.
+ * Read `inputs_fields` (serialized JSON) back into a token template for the editor. Keys other
+ * than the message key are ignored. Returns "" when there is no message yet, and null when the
+ * composer cannot show the mapping (several messages, a non-user message, a non-text part).
  */
 export function parseMessageTemplate(
     inputsText: string,
     isChat: boolean,
     primaryKey: string,
+): string | null {
+    const obj = parseObject(inputsText)
+    if (!obj) return null
+    const key = messageKey(obj, isChat, primaryKey)
+    if (!(key in obj)) return ""
+    if (key !== "messages") return contentToTemplate(obj[key])
+    const messages = obj.messages
+    if (!Array.isArray(messages) || messages.length !== 1) return null
+    const message = messages[0]
+    if (!message || typeof message !== "object" || (message as {role?: string}).role !== "user")
+        return null
+    return contentToTemplate((message as {content?: unknown}).content)
+}
+
+/**
+ * Move the template to a new agent input shape once the bound agent resolves. The old key is
+ * removed, other keys are kept, and a mapping the composer cannot show is returned unchanged.
+ */
+export function remapMessageTemplate(
+    inputsText: string,
+    prev: {isChat: boolean; primaryKey: string},
+    next: {isChat: boolean; primaryKey: string},
 ): string {
-    let parsed: unknown
-    try {
-        parsed = inputsText.trim() ? JSON.parse(inputsText) : {}
-    } catch {
-        return ""
-    }
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return ""
-    const obj = parsed as Record<string, unknown>
-    const keys = Object.keys(obj)
-    if (isChat) {
-        if (keys.length !== 1 || keys[0] !== "messages") return ""
-        const messages = obj.messages
-        if (!Array.isArray(messages) || messages.length !== 1) return ""
-        const message = messages[0]
-        if (!message || typeof message !== "object" || (message as {role?: string}).role !== "user")
-            return ""
-        return contentToTemplate((message as {content?: unknown}).content) ?? ""
-    }
-    if (keys.length !== 1 || keys[0] !== primaryKey) return ""
-    return contentToTemplate(obj[primaryKey]) ?? ""
+    const template = parseMessageTemplate(inputsText, prev.isChat, prev.primaryKey)
+    if (!template) return inputsText
+    const obj = parseObject(inputsText) ?? {}
+    delete obj[messageKey(obj, prev.isChat, prev.primaryKey)]
+    return compileMessageTemplate(JSON.stringify(obj), template, next.isChat, next.primaryKey)
 }

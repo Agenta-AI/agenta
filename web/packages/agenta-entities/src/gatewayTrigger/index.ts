@@ -103,10 +103,22 @@ export {
 export {
     compileMessageTemplate,
     parseMessageTemplate,
+    remapMessageTemplate,
     splitTemplate,
+    templateSelectors,
 } from "./core/eventMessageTemplate"
+export {
+    eventFieldLabels,
+    eventFieldSelector,
+    eventFieldsFromSchema,
+    fieldLabel,
+    selectorLabel,
+} from "./core/eventFields"
+export type {EventFieldCard, EventFieldGroup} from "./core/eventFields"
+export {eventValueText, formatEventText, renderMessagePreview} from "./core/eventPreview"
+export {latestDeliveryEvent} from "./core/latestDeliveryEvent"
 export {localFaceToUtcIso, utcIsoToLocalFace} from "./core/window"
-export {previewValue, resolveSelectorPreview} from "./core/selectorPreview"
+export {previewValue, resolveSelectorPreview, selectorPath} from "./core/selectorPreview"
 export {normalizeRepoFilters} from "./core/repoFilter"
 
 // ---------------------------------------------------------------------------

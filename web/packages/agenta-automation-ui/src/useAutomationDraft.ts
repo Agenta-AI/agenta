@@ -27,6 +27,8 @@ export interface AutomationConfigDraft {
     connectionId: string | null
     eventKey: string | null
     triggerConfig?: Record<string, unknown>
+    /** Event subscriptions only — whether the event data is added to the agent's message. */
+    includeEvent: boolean
 }
 
 interface DraftState {
@@ -45,6 +47,7 @@ const EMPTY_DRAFT: AutomationConfigDraft = {
     inputsFields: {},
     connectionId: null,
     eventKey: null,
+    includeEvent: true,
 }
 
 /**
@@ -103,6 +106,7 @@ export const useAutomationDraft = (automation: Automation | null, edit: SaveAuto
             patch({connectionId, eventKey, triggerConfig}),
         [patch],
     )
+    const setIncludeEvent = useCallback((includeEvent: boolean) => patch({includeEvent}), [patch])
 
     const discard = useCallback(() => {
         setState((current) => ({...current, draft: current.baseline}))
@@ -144,6 +148,7 @@ export const useAutomationDraft = (automation: Automation | null, edit: SaveAuto
                               connectionId: draft.connectionId ?? undefined,
                               eventKey: draft.eventKey ?? undefined,
                               triggerConfig: draft.triggerConfig,
+                              includeEvent: draft.includeEvent,
                           }),
                 }),
             )
@@ -179,7 +184,19 @@ export const useAutomationDraft = (automation: Automation | null, edit: SaveAuto
         [automation, draft],
     )
 
-    return {draft, preview, dirty, saving, setAgent, setCron, setInputs, setEvent, discard, save}
+    return {
+        draft,
+        preview,
+        dirty,
+        saving,
+        setAgent,
+        setCron,
+        setInputs,
+        setEvent,
+        setIncludeEvent,
+        discard,
+        save,
+    }
 }
 
 function seedFrom(automation: Automation | null): AutomationConfigDraft {
@@ -193,6 +210,7 @@ function seedFrom(automation: Automation | null): AutomationConfigDraft {
         connectionId: automation.connectionId,
         eventKey: automation.eventKey,
         triggerConfig: subscription?.data?.trigger_config ?? undefined,
+        includeEvent: subscription?.data?.include_event ?? true,
     }
 }
 
@@ -228,6 +246,7 @@ function withDraft(automation: Automation, draft: AutomationConfigDraft): Automa
                 event_key: draft.eventKey ?? "",
                 trigger_config: draft.triggerConfig,
                 inputs_fields: draft.inputsFields,
+                include_event: draft.includeEvent,
             },
         },
     }
@@ -250,6 +269,7 @@ function sameDraft(a: AutomationConfigDraft, b: AutomationConfigDraft): boolean 
         a.cron === b.cron &&
         a.connectionId === b.connectionId &&
         a.eventKey === b.eventKey &&
+        a.includeEvent === b.includeEvent &&
         JSON.stringify(a.inputsFields) === JSON.stringify(b.inputsFields) &&
         JSON.stringify(a.triggerConfig ?? null) === JSON.stringify(b.triggerConfig ?? null)
     )
