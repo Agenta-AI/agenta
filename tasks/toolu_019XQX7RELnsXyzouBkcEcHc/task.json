@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_019XQX7RELnsXyzouBkcEcHc",
+  "agent_id": "ab1aa572a6b02aebc",
+  "subagent_type": "general-purpose",
+  "task_description": "Research and spec event field picker",
+  "token_usage": {
+    "input_tokens": 216,
+    "cache_creation_tokens": 250468,
+    "cache_read_tokens": 17303218,
+    "output_tokens": 67832,
+    "api_call_count": 108
+  },
+  "started_at": "2026-10-29T18:10:55.463801743+01:00",
+  "completed_at": "2026-10-29T18:25:39.031411711+01:00"
+}
