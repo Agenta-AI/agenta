@@ -6,7 +6,7 @@ from functools import partial
 from typing import Callable, List
 from urllib.parse import urlparse
 
-from mcp.shared.auth import OAuthClientInformationFull, OAuthClientMetadata
+from mcp.shared.auth import OAuthClientInformationFull
 
 from oss.src.core.gateways.egress import resolve_offloaded
 
@@ -38,26 +38,22 @@ def client_metadata_url(*, api_url: str) -> str:
     return f"{api_url.rstrip('/')}{_METADATA_PATH}"
 
 
-def client_metadata_document(*, api_url: str, redirect_uri: str) -> OAuthClientMetadata:
-    """Build the deployment-wide OAuth client identity document."""
-    return OAuthClientMetadata(
+def identity_document_client_info(
+    *, api_url: str, redirect_uri: str
+) -> OAuthClientInformationFull:
+    """Build the deployment-wide client identity document, served as-is at its URL.
+
+    The authorization server requires `client_id` to equal the URL it fetched the
+    document from, so the served document and the client the flow presents are one value.
+    """
+    return OAuthClientInformationFull(
+        client_id=client_metadata_url(api_url=api_url),
         redirect_uris=[redirect_uri],
         grant_types=["authorization_code", "refresh_token"],
         response_types=["code"],
         token_endpoint_auth_method="none",
         client_name="Agenta",
         application_type="web",
-    )
-
-
-def identity_document_client_info(
-    *, api_url: str, redirect_uri: str
-) -> OAuthClientInformationFull:
-    """Build deterministic client information for the identity-document strategy."""
-    document = client_metadata_document(api_url=api_url, redirect_uri=redirect_uri)
-    return OAuthClientInformationFull(
-        client_id=client_metadata_url(api_url=api_url),
-        **document.model_dump(),
     )
 
 
