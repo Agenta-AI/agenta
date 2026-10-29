@@ -2,7 +2,7 @@ from typing import List, Optional
 from datetime import datetime, timezone
 from uuid import UUID
 
-from sqlalchemy import func, select, delete, update
+from sqlalchemy import func, select, delete
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.attributes import flag_modified
 
@@ -10,6 +10,7 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import suppress_exceptions
 
 from oss.src.core.secrets.dtos import SecretOwner
+from oss.src.core.secrets.enums import SecretOwnerKind
 from oss.src.core.shared.exceptions import EntityCreationConflict
 from oss.src.core.gateway.connections.interfaces import ConnectionsDAOInterface
 from oss.src.core.gateway.connections.dtos import (
@@ -49,10 +50,15 @@ class ConnectionsDAO(ConnectionsDAOInterface):
             engine = get_transactions_engine()
         self.engine = engine
 
-    def _scope(self, *, project_id: Optional[UUID], owner: Optional[SecretOwner]):
+    def _owner_filter(
+        self, *, project_id: Optional[UUID], owner: Optional[SecretOwner]
+    ):
         """The rows one caller addresses: a person's own rows (person AND organization),
-        or a project's rows. A project read never sees a person's row, and the reverse."""
+        or a project's rows. A project read never sees a person's row, and the reverse.
+        Only a person owns connections through `owner`."""
         if owner is not None:
+            if owner.kind != SecretOwnerKind.USER:
+                raise ValueError("a connection owner is a person")
             return (
                 self.ConnectionDBE.organization_id == owner.organization_id,
                 self.ConnectionDBE.user_id == owner.id,
@@ -74,7 +80,7 @@ class ConnectionsDAO(ConnectionsDAOInterface):
         With a user `owner`, the row is that person's own, with no project. The person's
         first connection for the integration becomes the default. When two creates race,
         the default index refuses one, and that create is stored as not the default."""
-        is_default = owner is not None and not await self._has_owned_connections(
+        is_default = owner is not None and not await self._has_personal_connections(
             owner=owner,
             provider_key=connection_create.provider_key,
             integration_key=connection_create.integration_key,
@@ -138,7 +144,7 @@ class ConnectionsDAO(ConnectionsDAOInterface):
             await session.refresh(dbe)
             return map_connection_dbe_to_dto(dbe=dbe)
 
-    async def _has_owned_connections(
+    async def _has_personal_connections(
         self, *, owner: SecretOwner, provider_key, integration_key: str
     ) -> bool:
         async with self.engine.session() as session:
@@ -146,7 +152,7 @@ class ConnectionsDAO(ConnectionsDAOInterface):
                 select(func.count())
                 .select_from(self.ConnectionDBE)
                 .filter(
-                    *self._scope(project_id=None, owner=owner),
+                    *self._owner_filter(project_id=None, owner=owner),
                     self.ConnectionDBE.provider_key
                     == getattr(provider_key, "value", provider_key),
                     self.ConnectionDBE.integration_key == integration_key,
@@ -167,7 +173,7 @@ class ConnectionsDAO(ConnectionsDAOInterface):
         async with self.engine.session() as session:
             stmt = (
                 select(self.ConnectionDBE)
-                .filter(*self._scope(project_id=project_id, owner=owner))
+                .filter(*self._owner_filter(project_id=project_id, owner=owner))
                 .filter(self.ConnectionDBE.id == connection_id)
                 .limit(1)
             )
@@ -197,7 +203,7 @@ class ConnectionsDAO(ConnectionsDAOInterface):
         async with self.engine.session() as session:
             stmt = (
                 select(self.ConnectionDBE)
-                .filter(*self._scope(project_id=project_id, owner=owner))
+                .filter(*self._owner_filter(project_id=project_id, owner=owner))
                 .filter(self.ConnectionDBE.id == connection_id)
                 .limit(1)
             )
@@ -248,7 +254,7 @@ class ConnectionsDAO(ConnectionsDAOInterface):
         async with self.engine.session() as session:
             stmt = (
                 delete(self.ConnectionDBE)
-                .where(*self._scope(project_id=project_id, owner=owner))
+                .where(*self._owner_filter(project_id=project_id, owner=owner))
                 .where(self.ConnectionDBE.id == connection_id)
             )
 
@@ -261,16 +267,17 @@ class ConnectionsDAO(ConnectionsDAOInterface):
     async def query_connections(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID],
         #
         provider_key: Optional[str] = None,
         integration_key: Optional[str] = None,
         is_active: Optional[bool] = True,
+        owner: Optional[SecretOwner] = None,
     ) -> List[Connection]:
         """List connections with optional filters. Defaults to active-only (is_active=True)."""
         async with self.engine.session() as session:
             stmt = select(self.ConnectionDBE).filter(
-                self.ConnectionDBE.project_id == project_id,
+                *self._owner_filter(project_id=project_id, owner=owner)
             )
 
             if provider_key:
@@ -297,15 +304,16 @@ class ConnectionsDAO(ConnectionsDAOInterface):
     async def activate_connection_by_provider_id(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID],
         provider_connection_id: str,
+        owner: Optional[SecretOwner] = None,
     ) -> Optional[Connection]:
         """Set is_valid=True and is_active=True for the connection matching the provider ID."""
         async with self.engine.session() as session:
             stmt = (
                 select(self.ConnectionDBE)
                 .filter(
-                    self.ConnectionDBE.project_id == project_id,
+                    *self._owner_filter(project_id=project_id, owner=owner),
                     self.ConnectionDBE.data["connected_account_id"].astext
                     == provider_connection_id,
                 )
@@ -360,91 +368,54 @@ class ConnectionsDAO(ConnectionsDAOInterface):
 
     # -- a person's own connections ----------------------------------------------------
 
-    @suppress_exceptions(default=[])
-    async def query_owned_connections(
-        self,
-        *,
-        owner: SecretOwner,
-        provider_key: Optional[str] = None,
-        integration_key: Optional[str] = None,
-    ) -> List[Connection]:
-        """The person's connections in the organization, newest first. Inactive ones are
-        listed too, so the person can see and remove them."""
-        async with self.engine.session() as session:
-            stmt = select(self.ConnectionDBE).filter(
-                *self._scope(project_id=None, owner=owner)
-            )
-            if provider_key:
-                stmt = stmt.filter(self.ConnectionDBE.provider_key == provider_key)
-            if integration_key:
-                stmt = stmt.filter(
-                    self.ConnectionDBE.integration_key == integration_key
-                )
-            stmt = stmt.order_by(self.ConnectionDBE.created_at.desc())
-            result = await session.execute(stmt)
-            return [map_connection_dbe_to_dto(dbe=dbe) for dbe in result.scalars()]
-
-    async def delete_owned_connections(self, *, owner: SecretOwner) -> int:
+    async def delete_personal_connections(self, *, owner: SecretOwner) -> int:
         """Delete every connection of the person in the organization."""
         async with self.engine.session() as session:
             result = await session.execute(
                 delete(self.ConnectionDBE).where(
-                    *self._scope(project_id=None, owner=owner)
+                    *self._owner_filter(project_id=None, owner=owner)
                 )
             )
             await session.commit()
             return result.rowcount or 0
 
-    @suppress_exceptions(default=None)
-    async def activate_owned_connection_by_provider_id(
-        self, *, owner: SecretOwner, provider_connection_id: str
-    ) -> Optional[Connection]:
-        async with self.engine.session() as session:
-            result = await session.execute(
-                select(self.ConnectionDBE)
-                .filter(
-                    *self._scope(project_id=None, owner=owner),
-                    self.ConnectionDBE.data["connected_account_id"].astext
-                    == provider_connection_id,
-                )
-                .limit(1)
-            )
-            dbe = result.scalars().first()
-            if not dbe:
-                return None
-            dbe.flags = {**(dbe.flags or {}), "is_valid": True, "is_active": True}
-            flag_modified(dbe, "flags")
-            dbe.updated_at = datetime.now(timezone.utc)
-            await session.commit()
-            await session.refresh(dbe)
-            return map_connection_dbe_to_dto(dbe=dbe)
-
     async def make_default(
         self, *, owner: SecretOwner, connection_id: UUID
     ) -> Optional[Connection]:
         """One transaction: clear the person's old default of the integration, then set
-        this connection. None when the connection is not the person's."""
-        scope = self._scope(project_id=None, owner=owner)
+        this connection. None when the connection is not the person's.
+
+        Every connection of the person for that integration is locked first, so two calls
+        at once run one after the other instead of both clearing and both setting."""
+        owner_filter = self._owner_filter(project_id=None, owner=owner)
         async with self.engine.session() as session:
+            target = (
+                select(
+                    self.ConnectionDBE.provider_key,
+                    self.ConnectionDBE.integration_key,
+                )
+                .filter(*owner_filter, self.ConnectionDBE.id == connection_id)
+                .subquery()
+            )
             result = await session.execute(
                 select(self.ConnectionDBE)
-                .filter(*scope, self.ConnectionDBE.id == connection_id)
-                .with_for_update()
+                .filter(
+                    *owner_filter,
+                    self.ConnectionDBE.provider_key == target.c.provider_key,
+                    self.ConnectionDBE.integration_key == target.c.integration_key,
+                )
+                .order_by(self.ConnectionDBE.id)
+                .with_for_update(of=self.ConnectionDBE)
             )
-            dbe = result.scalars().first()
+            rows = list(result.scalars())
+            dbe = next((row for row in rows if row.id == connection_id), None)
             if dbe is None:
                 return None
             if not dbe.is_default:
-                await session.execute(
-                    update(self.ConnectionDBE)
-                    .where(
-                        *scope,
-                        self.ConnectionDBE.provider_key == dbe.provider_key,
-                        self.ConnectionDBE.integration_key == dbe.integration_key,
-                        self.ConnectionDBE.is_default.is_(True),
-                    )
-                    .values(is_default=False)
-                )
+                for row in rows:
+                    if row.is_default:
+                        row.is_default = False
+                await session.flush()
                 dbe.is_default = True
                 dbe.updated_at = datetime.now(timezone.utc)
                 dbe.updated_by_id = owner.id

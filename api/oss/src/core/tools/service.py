@@ -559,7 +559,7 @@ class ToolsService:
         )
         return self._as_tool_connection(conn)
 
-    async def make_default_connection(
+    async def make_default(
         self, *, organization_id: UUID, user_id: UUID, connection_id: UUID
     ) -> Optional[ToolConnection]:
         conn = await self.connections_service.make_default(

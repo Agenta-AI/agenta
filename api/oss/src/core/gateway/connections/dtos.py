@@ -74,15 +74,6 @@ class Connection(
     is_default: bool = False
 
     @property
-    def owner(self) -> Optional[SecretOwner]:
-        """The person who owns this connection, or None for a project connection."""
-        if self.user_id is None or self.organization_id is None:
-            return None
-        return SecretOwner.for_user(
-            organization_id=self.organization_id, user_id=self.user_id
-        )
-
-    @property
     def provider_connection_id(self) -> Optional[str]:
         """Get provider-specific connection ID from data."""
         if self.data and isinstance(self.data, dict):
@@ -184,17 +175,6 @@ def entity_for(*, owner: Optional[SecretOwner], project_id: Any) -> str:
     """The provider-side user of a connection: its project, or for a person's own
     connection `org:<organization id>:user:<user id>`. The format lives at Composio, so
     changing it means every person connects again."""
-    if owner is not None and owner.organization_id is not None:
+    if owner is not None:
         return f"org:{owner.organization_id}:user:{owner.id}"
     return str(project_id)
-
-
-def provider_entity(connection: Any) -> Optional[str]:
-    """The provider-side user a stored connection was made for."""
-    owner = getattr(connection, "owner", None)
-    if owner is not None:
-        return entity_for(owner=owner, project_id=None)
-    data = getattr(connection, "data", None)
-    if isinstance(data, dict) and data.get("project_id"):
-        return str(data["project_id"])
-    return None

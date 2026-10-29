@@ -180,8 +180,8 @@ def test_only_custom_secrets_are_personal(world):
         ("post", "/secrets/", _custom()),
         ("get", "/secrets/?scope=user", None),
         ("get", "/secrets/github?scope=user", None),
-        ("put", f"/secrets/{uuid4()}?scope=user", {"header": {"name": "x"}}),
-        ("delete", f"/secrets/{uuid4()}?scope=user", None),
+        ("put", "/secrets/0193d1a0-0000-7000-8000-000000000001?scope=user", {"header": {"name": "x"}}),
+        ("delete", "/secrets/0193d1a0-0000-7000-8000-000000000001?scope=user", None),
     ],
 )
 def test_every_person_route_is_off_with_the_switch(

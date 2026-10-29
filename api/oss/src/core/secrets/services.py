@@ -18,7 +18,6 @@ from oss.src.core.secrets.enums import (
     SUBSCRIPTION_PROVIDER_DISPLAY_NAMES,
     ORGANIZATION_SECRET_KINDS,
     PERSONAL_SECRET_KINDS,
-    SIGN_IN_SECRET_KINDS,
     LLMCustomProviderKind,
     SecretAvailability,
     SecretKind,
@@ -1190,14 +1189,15 @@ class VaultService:
     async def list_personal_secrets(
         self, *, organization_id: UUID, user_id: UUID
     ) -> List[SecretResponseDTO]:
-        """The person's own rows in the organization, without MCP sign-ins."""
+        """The person's own custom secrets in the organization. Their MCP sign-ins and
+        any other kind stay out: the vault routes serve only `PERSONAL_SECRET_KINDS`."""
         with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
             secrets = await self.secrets_dao.list(
                 owner=SecretOwner.for_user(
                     organization_id=organization_id, user_id=user_id
                 )
             )
-        return [secret for secret in secrets if secret.kind not in SIGN_IN_SECRET_KINDS]
+        return [secret for secret in secrets if secret.kind in PERSONAL_SECRET_KINDS]
 
     async def get_personal_secret_by_id(
         self, *, organization_id: UUID, user_id: UUID, secret_id: UUID

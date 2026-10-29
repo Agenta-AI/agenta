@@ -174,7 +174,7 @@ class ConnectionsService:
             secret_key=env.agenta.crypt_key,
             slug=connection_create.slug,
             integration_key=integration_key,
-            owner_organization_id=owner.organization_id if owner else None,
+            user_organization_id=owner.organization_id if owner else None,
         )
         callback_url = f"{env.agenta.api_url}{_CALLBACK_PATH}?state={state}"
 
@@ -345,7 +345,7 @@ class ConnectionsService:
             secret_key=env.agenta.crypt_key,
             slug=conn.slug,
             integration_key=conn.integration_key,
-            owner_organization_id=owner.organization_id if owner else None,
+            user_organization_id=owner.organization_id if owner else None,
         )
         callback_url = f"{env.agenta.api_url}{_CALLBACK_PATH}?state={state}"
 
@@ -400,18 +400,22 @@ class ConnectionsService:
         provider_key: Optional[str] = None,
         integration_key: Optional[str] = None,
     ) -> List[Connection]:
-        return await self.connections_dao.query_owned_connections(
+        # A person sees every connection of theirs, inactive ones too, to remove them.
+        return await self.connections_dao.query_connections(
+            project_id=None,
             owner=SecretOwner.for_user(
                 organization_id=organization_id, user_id=user_id
             ),
             provider_key=provider_key,
             integration_key=integration_key,
+            is_active=None,
         )
 
     async def activate_personal_connection(
         self, *, organization_id: UUID, user_id: UUID, provider_connection_id: str
     ) -> Optional[Connection]:
-        return await self.connections_dao.activate_owned_connection_by_provider_id(
+        return await self.connections_dao.activate_connection_by_provider_id(
+            project_id=None,
             owner=SecretOwner.for_user(
                 organization_id=organization_id, user_id=user_id
             ),
@@ -436,7 +440,9 @@ class ConnectionsService:
         """Delete every connection of the person in the organization (they left it).
         The provider revoke is best effort and never blocks the local delete."""
         owner = SecretOwner.for_user(organization_id=organization_id, user_id=user_id)
-        connections = await self.connections_dao.query_owned_connections(owner=owner)
+        connections = await self.connections_dao.query_connections(
+            project_id=None, owner=owner, is_active=None
+        )
         for connection in connections:
             if not connection.provider_connection_id:
                 continue
@@ -448,6 +454,5 @@ class ConnectionsService:
                 )
             except Exception:  # noqa: BLE001 - best effort, the local delete still runs
                 log.warning("Failed to revoke a personal provider connection")
-        if not connections:
-            return 0
-        return await self.connections_dao.delete_owned_connections(owner=owner)
+        # Always deleted, even when the read above found nothing or failed.
+        return await self.connections_dao.delete_personal_connections(owner=owner)

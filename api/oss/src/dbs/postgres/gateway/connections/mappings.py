@@ -4,6 +4,7 @@ from uuid import UUID
 from pydantic import BaseModel
 
 from oss.src.core.secrets.dtos import SecretOwner
+from oss.src.core.secrets.enums import SecretOwnerKind
 from oss.src.core.gateway.connections.dtos import (
     Connection,
     ConnectionCreate,
@@ -22,6 +23,8 @@ def map_connection_create_to_dbe(
     is_default: bool = False,
 ) -> ConnectionDBE:
     """`owner` set: a person's own row, with no project."""
+    if owner is not None and owner.kind != SecretOwnerKind.USER:
+        raise ValueError("a connection owner is a person")
     # The service replaces data with a provider-shaped dict before persistence;
     # a typed model (validate-on-assignment is off) is dumped, dropping unset keys.
     data = None

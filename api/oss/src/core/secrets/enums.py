@@ -85,8 +85,8 @@ ORGANIZATION_SECRET_KINDS = frozenset(
 # two, and no flow creates a person's subscription login yet.
 PERSONAL_SECRET_KINDS = frozenset({SecretKind.CUSTOM_SECRET})
 
-# A person's MCP sign-ins: written and read only by the MCP routes and gateway, never
-# listed by the vault.
+# MCP sign-ins, a project's or a person's: OAuth grants and pasted tokens. Only the MCP
+# routes and the MCP gateway write and read them; the vault person routes never serve them.
 SIGN_IN_SECRET_KINDS = frozenset({SecretKind.OAUTH_GRANT, SecretKind.MCP_TOKEN})
 # The organization kinds the LLM gateway serves. Their values never leave the API. An
 # organization subscription login is the one kind that does: it reaches the runner of a

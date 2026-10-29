@@ -21,7 +21,7 @@ from oss.src.core.secrets.dtos import (
     PublicSecretResponseDTO,
 )
 from oss.src.core.secrets.enums import (
-    SIGN_IN_SECRET_KINDS,
+    PERSONAL_SECRET_KINDS,
     SecretAvailability,
     SecretKind,
 )
@@ -50,7 +50,6 @@ from oss.src.core.secrets.types import (
     SubscriptionLoginAttemptNotFound,
     SubscriptionLoginRunnerNotConfigured,
     SubscriptionLoginRunnerUnavailable,
-    SubscriptionProviderConflict,
     SubscriptionProviderMismatch,
     SubscriptionSecretNotFound,
     SubscriptionTokenError,
@@ -153,7 +152,6 @@ def handle_secrets_exceptions():
             # A managed row's state, not the payload, forbids the change: 409, not 400.
             except (
                 SecretSlugConflict,
-                SubscriptionProviderConflict,
                 SubscriptionProviderMismatch,
                 ManagedSecretReadOnlyError,
             ) as e:
@@ -679,11 +677,19 @@ class VaultRouter:
             # Like a project delete: an id that is not one of the caller's rows deletes
             # nothing and still answers 204.
             organization_id, user_id = require_person(request)
-            await self.service.delete_personal_secret(
+            stored = await self.service.get_personal_secret_by_id(
                 organization_id=organization_id,
                 user_id=user_id,
                 secret_id=UUID(secret_id),
             )
+            # Only the kinds these routes serve; an MCP sign-in goes through the MCP
+            # disconnect route.
+            if stored is not None and stored.kind in PERSONAL_SECRET_KINDS:
+                await self.service.delete_personal_secret(
+                    organization_id=organization_id,
+                    user_id=user_id,
+                    secret_id=stored.id,
+                )
             return status.HTTP_204_NO_CONTENT
 
         if scope == "organization":
@@ -722,7 +728,8 @@ class VaultRouter:
                 )
 
     async def _read_personal_secret(self, request: Request, secret_id_or_slug: str):
-        """One of the caller's own rows, by id or slug. A sign-in is never read here."""
+        """One of the caller's own custom secrets, by id or slug. Another kind is not
+        found here."""
         organization_id, user_id = require_person(request)
         try:
             secret_id = UUID(secret_id_or_slug)
@@ -738,7 +745,7 @@ class VaultRouter:
                 user_id=user_id,
                 secret_id=secret_id,
             )
-        if secret is None or secret.kind in SIGN_IN_SECRET_KINDS:
+        if secret is None or secret.kind not in PERSONAL_SECRET_KINDS:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Secret not found"
             )

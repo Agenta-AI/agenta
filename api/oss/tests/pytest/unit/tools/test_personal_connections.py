@@ -16,7 +16,6 @@ from oss.src.core.gateway.connections.dtos import (
     ConnectionCreate,
     ConnectionProviderKind,
     entity_for,
-    provider_entity,
 )
 from oss.src.core.gateway.connections.service import ConnectionsService
 from oss.src.core.gateway.connections.utils import decode_oauth_state
@@ -87,8 +86,8 @@ class _Service:
         self.calls.append(("delete_connection", kwargs))
         return True
 
-    async def make_default_connection(self, **kwargs):
-        self.calls.append(("make_default_connection", kwargs))
+    async def make_default(self, **kwargs):
+        self.calls.append(("make_default", kwargs))
         return self.owned
 
     async def query_personal_connections(self, **kwargs):
@@ -126,10 +125,7 @@ async def test_create_with_scope_user_passes_the_person_owner(switch_on, person)
             integration_key="gmail",
         )
     )
-    response = await _router(service).create_connection(
-        person.request, body=body, scope="user"
-    )
-    assert response.connection.is_default is True
+    await _router(service).create_connection(person.request, body=body, scope="user")
     _, kwargs = service.calls[0]
     assert kwargs["owner"] == SecretOwner.for_user(
         organization_id=person.organization_id, user_id=person.user_id
@@ -185,12 +181,8 @@ def test_the_composio_user_of_a_person_is_their_entity():
     assert entity_for(owner=owner, project_id=uuid4()) == (
         f"org:{organization_id}:user:{user_id}"
     )
-    stored = _connection(organization_id=organization_id, user_id=user_id)
-    assert provider_entity(stored) == f"org:{organization_id}:user:{user_id}"
     project_id = uuid4()
-    assert provider_entity(_connection(data={"project_id": str(project_id)})) == str(
-        project_id
-    )
+    assert entity_for(owner=None, project_id=project_id) == str(project_id)
 
 
 async def test_initiate_for_a_person_stores_no_project_and_signs_the_owner(
@@ -243,3 +235,27 @@ async def test_initiate_for_a_person_stores_no_project_and_signs_the_owner(
     assert payload["owner"] == "user"
     assert payload["organization_id"] == str(organization_id)
     assert payload["user_id"] == str(user_id)
+
+
+async def test_the_callback_activates_nothing_while_the_switch_is_off(monkeypatch):
+    from oss.src.core.gateway.connections.utils import make_oauth_state
+    import oss.src.apis.fastapi.tools.router as router_module
+
+    monkeypatch.setattr(router_module.env.agenta, "crypt_key", KEY)
+    service = SimpleNamespace(activate_personal_connection=None)
+    state = make_oauth_state(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        secret_key=KEY,
+        slug="gmail-main",
+        integration_key="gmail",
+        user_organization_id=uuid4(),
+    )
+    response = await _router(service).callback_connection(
+        SimpleNamespace(state=SimpleNamespace(), headers={}),
+        connected_account_id="ca_1",
+        status="success",
+        error_message=None,
+        state=state,
+    )
+    assert response.status_code == 403

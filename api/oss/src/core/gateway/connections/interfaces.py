@@ -27,8 +27,8 @@ class ConnectionsDAOInterface(ABC):
         owner: Optional[SecretOwner] = None,
     ) -> Optional[Connection]: ...
 
-    # The by-id methods address a project's row, or a person's own row when `owner` is
-    # set (then `project_id` is not read).
+    # Every method that takes `owner` addresses a person's own rows when it is set (then
+    # `project_id` is not read), and the project's rows otherwise.
 
     @abstractmethod
     async def get_connection(
@@ -66,11 +66,12 @@ class ConnectionsDAOInterface(ABC):
     async def query_connections(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID],
         #
         provider_key: Optional[str] = None,
         integration_key: Optional[str] = None,
         is_active: Optional[bool] = True,
+        owner: Optional[SecretOwner] = None,
     ) -> List[Connection]: ...
 
     @abstractmethod
@@ -85,28 +86,15 @@ class ConnectionsDAOInterface(ABC):
     async def activate_connection_by_provider_id(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID],
         provider_connection_id: str,
+        owner: Optional[SecretOwner] = None,
     ) -> Optional[Connection]: ...
 
     # -- a person's own connections: always by the person AND the organization.
 
     @abstractmethod
-    async def query_owned_connections(
-        self,
-        *,
-        owner: SecretOwner,
-        provider_key: Optional[str] = None,
-        integration_key: Optional[str] = None,
-    ) -> List[Connection]: ...
-
-    @abstractmethod
-    async def delete_owned_connections(self, *, owner: SecretOwner) -> int: ...
-
-    @abstractmethod
-    async def activate_owned_connection_by_provider_id(
-        self, *, owner: SecretOwner, provider_connection_id: str
-    ) -> Optional[Connection]: ...
+    async def delete_personal_connections(self, *, owner: SecretOwner) -> int: ...
 
     @abstractmethod
     async def make_default(

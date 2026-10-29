@@ -39,7 +39,6 @@ from oss.src.core.secrets.enums import (
     ORGANIZATION_SECRET_KINDS,
     SIGN_IN_SECRET_KINDS,
     SecretAvailability,
-    SecretKind,
     SecretOwnerKind,
 )
 from oss.src.core.secrets.interfaces import SecretsDAOInterface
@@ -48,7 +47,6 @@ from oss.src.core.secrets.types import (
     ProjectNotInOrganization,
     SecretSlugConflict,
     SecretStorageError,
-    SubscriptionProviderConflict,
 )
 from oss.src.dbs.postgres.secrets.dbes import SecretProjectDBE, SecretsDBE
 from oss.src.dbs.postgres.secrets.mappings import (
@@ -177,18 +175,9 @@ def _conflict_from(
         or "uq_secrets_organization_id_slug" in message
         or "uq_secrets_user_slug" in message
     ):
-        if (
-            create_secret_dto is not None
-            and create_secret_dto.secret.kind == SecretKind.SUBSCRIPTION_PROVIDER
-        ):
-            provider = create_secret_dto.secret.data.provider
-            return SubscriptionProviderConflict(
-                provider=getattr(provider, "value", provider),
-                owner=owner.kind.value if owner is not None else "project",
-            )
-        # Every other kind gets the generic conflict, so a caller writing under a slug it
-        # derives (rather than one the user typed) can read the winner and update instead
-        # of crashing on a raw driver error.
+        # The generic conflict, so a caller writing under a slug it derives (rather than
+        # one the user typed) can read the winner and update instead of crashing on a raw
+        # driver error.
         slug = create_secret_dto.slug if create_secret_dto is not None else ""
         return SecretSlugConflict(slug=slug or "")
     return SecretStorageError()

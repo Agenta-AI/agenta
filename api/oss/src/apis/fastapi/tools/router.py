@@ -4,7 +4,7 @@ import json
 import re
 from datetime import datetime, timezone
 from functools import wraps
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Tuple
 from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
@@ -16,6 +16,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from oss.src.core.access.principals import access_denied_error
 from oss.src.core.secrets.dtos import SecretOwner
 from oss.src.apis.fastapi.shared.personal import person_or_none, require_person
+from oss.src.core.account_choices.policy import personal_accounts_enabled
 from oss.src.core.access.service import get_access_service
 from oss.src.core.access.types import AccessDenied
 from oss.src.core.access.dtos import RunEnvelope
@@ -55,6 +56,7 @@ from oss.src.core.tools.dtos import (
     ToolCatalogIntegrationDetails,  # noqa: F401
     #
     ToolCall,
+    ToolConnection,
     ToolResult,
     ToolResultData,
     #
@@ -1118,15 +1120,15 @@ class ToolsRouter:
         connection_id: UUID,
     ) -> ToolConnectionResponse:
         """Get a connection by ID: the caller's own, or one of the project's."""
-        owner = await self._connection_owner(
+        owner, connection = await self._connection_owner(
             request, connection_id, permission=Permission.VIEW_TOOLS
         )
 
-        connection = await self.tools_service.get_connection(
-            project_id=UUID(request.state.project_id),
-            connection_id=connection_id,
-            owner=owner,
-        )
+        if connection is None:
+            connection = await self.tools_service.get_connection(
+                project_id=UUID(request.state.project_id),
+                connection_id=connection_id,
+            )
         if not connection:
             return JSONResponse(
                 status_code=404,
@@ -1145,7 +1147,7 @@ class ToolsRouter:
         connection_id: UUID,
     ) -> None:
         """Delete a connection by ID: the caller's own, or one of the project's."""
-        owner = await self._connection_owner(
+        owner, _ = await self._connection_owner(
             request, connection_id, permission=Permission.EDIT_TOOLS
         )
 
@@ -1164,7 +1166,7 @@ class ToolsRouter:
         force: bool = Query(default=False),
     ) -> ToolConnectionResponse:
         """Refresh a connection's credentials."""
-        owner = await self._connection_owner(
+        owner, _ = await self._connection_owner(
             request, connection_id, permission=Permission.EDIT_TOOLS
         )
 
@@ -1187,7 +1189,7 @@ class ToolsRouter:
         connection_id: UUID,
     ) -> ToolConnectionResponse:
         """Mark a connection invalid locally (does not revoke at the provider)."""
-        owner = await self._connection_owner(
+        owner, _ = await self._connection_owner(
             request, connection_id, permission=Permission.EDIT_TOOLS
         )
 
@@ -1211,7 +1213,7 @@ class ToolsRouter:
         """Make one of the caller's own connections their default for its integration.
         Only a person has a default."""
         organization_id, user_id = require_person(request)
-        connection = await self.tools_service.make_default_connection(
+        connection = await self.tools_service.make_default(
             organization_id=organization_id,
             user_id=user_id,
             connection_id=connection_id,
@@ -1225,17 +1227,19 @@ class ToolsRouter:
 
     async def _connection_owner(
         self, request: Request, connection_id: UUID, *, permission: Permission
-    ) -> Optional[SecretOwner]:
-        """Who a by-id route acts for. An id names one row: the caller's own row (a
-        person, with the switch on), or else a row of the request's project with today's
-        permission. A row of neither answers 404 in the route."""
+    ) -> Tuple[Optional[SecretOwner], Optional[ToolConnection]]:
+        """Who a by-id route acts for, and the caller's own row when it is one. An id
+        names one row: the caller's own row (a person, with the switch on), or else a row
+        of the request's project with today's permission (owner None, no row read). A
+        row of neither answers 404 in the route."""
         person = person_or_none(request)
         if person is not None:
             owner = SecretOwner.for_user(organization_id=person[0], user_id=person[1])
-            if await self.tools_service.get_connection(
+            connection = await self.tools_service.get_connection(
                 project_id=None, connection_id=connection_id, owner=owner
-            ):
-                return owner
+            )
+            if connection is not None:
+                return owner, connection
 
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
@@ -1244,7 +1248,7 @@ class ToolsRouter:
         )
         if not has_permission:
             raise FORBIDDEN_EXCEPTION
-        return None
+        return None, None
 
     async def callback_connection(
         self,
@@ -1321,7 +1325,18 @@ class ToolsRouter:
         try:
             if state_payload.get("owner") == "user":
                 # A person's own connection: the signed state names the person and their
-                # organization; never a project row.
+                # organization; never a project row. Nothing activates while the
+                # deployment switch is off.
+                if not personal_accounts_enabled():
+                    return HTMLResponse(
+                        status_code=403,
+                        content=_oauth_card(
+                            success=False,
+                            error="Personal accounts are not available here.",
+                            slug=state_slug,
+                            integration_key=state_integration,
+                        ),
+                    )
                 conn = await self.tools_service.activate_personal_connection(
                     organization_id=UUID(state_payload["organization_id"]),
                     user_id=UUID(state_payload["user_id"]),
