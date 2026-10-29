@@ -17,7 +17,7 @@ lists again, as they were before the upgrade. Lists set or changed after the upg
 lost on a rollback.
 
 Revision ID: oss000000055
-Revises: oss000000054
+Revises: oss000000053
 Create Date: 2026-10-28 00:00:00.000000
 """
 
@@ -28,7 +28,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "oss000000055"
-down_revision: Union[str, None] = "oss000000054"
+down_revision: Union[str, None] = "oss000000053"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
