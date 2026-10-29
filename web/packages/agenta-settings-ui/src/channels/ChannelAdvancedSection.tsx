@@ -5,7 +5,9 @@ import {CaretDown, CaretRight} from "@phosphor-icons/react"
 
 import {errorMessage} from "./helpers"
 import type {
+    ChannelBehaviorState,
     ChannelPlatform,
+    ChannelSpace,
     ChannelReadableChannel,
     ChannelToolSettings,
     ChannelsActions,
@@ -18,10 +20,23 @@ import type {
  * value the backend still holds.
  */
 
+export interface ChannelAnswersInProps {
+    /** Where the agent answers now; null while it loads. */
+    behavior: ChannelBehaviorState | null
+    /** The channels (or groups) the bot is in that have a place row, for the checklist. */
+    channels: ChannelSpace[]
+    /** Save "Channels it answers in": null for every channel, else the chosen space ids. */
+    onSave: (channels: string[] | null) => Promise<void>
+    /** True while any save of where it answers runs (this row or a switch). */
+    busy?: boolean
+}
+
 export interface ChannelAdvancedSectionProps {
     platform: ChannelPlatform
     connectionId: string
     actions: ChannelsActions
+    /** The "Channels it answers in" row; left out where the agent answers only in DMs. */
+    answersIn?: ChannelAnswersInProps
 }
 
 type Choice = "all" | "only"
@@ -30,10 +45,170 @@ const CARD = "overflow-hidden rounded-lg border border-solid border-colorBorderS
 const DIVIDED = "border-0 border-t border-solid border-colorBorderSecondary"
 const HELP = "text-xs leading-normal text-colorTextSecondary"
 
+/**
+ * "Channels it answers in" ("Groups it answers in" on Telegram): every channel the bot is in, or
+ * only the checked ones. A channel left unchecked stays listed in the panel, marked Off, and a
+ * channel the bot joins later stays off until it is checked.
+ */
+const AnswersInRow = ({
+    isSlack,
+    answersIn,
+}: {
+    isSlack: boolean
+    answersIn: ChannelAnswersInProps
+}) => {
+    const {behavior, channels, onSave, busy = false} = answersIn
+    const noun = isSlack ? "channel" : "group"
+    const stored = behavior?.spaceIds ?? null
+    const [choice, setChoice] = useState<Choice>(stored === null ? "all" : "only")
+    const [draft, setDraft] = useState<string[]>(stored ?? [])
+    const [ownSave, setOwnSave] = useState(false)
+    // off while any save of where it answers runs; the spinner only for this row's own
+    const saving = ownSave || busy
+    const [error, setError] = useState<string | null>(null)
+
+    // Follow what the backend holds after every save or switch change.
+    const storedKey = stored === null ? "all" : stored.join(",")
+    useEffect(() => {
+        setChoice(stored === null ? "all" : "only")
+        setDraft(stored ?? [])
+    }, [storedKey])
+
+    const save = async (next: string[] | null) => {
+        setOwnSave(true)
+        setError(null)
+        try {
+            await onSave(next)
+        } catch (e) {
+            // Show what the backend still holds, not what the refused save asked for.
+            setChoice(stored === null ? "all" : "only")
+            setDraft(stored ?? [])
+            setError(errorMessage(e, "Could not save this setting."))
+        } finally {
+            setOwnSave(false)
+        }
+    }
+
+    const choose = (value: string) => {
+        if (value === "all") {
+            setChoice("all")
+            if (stored !== null) void save(null)
+            return
+        }
+        setChoice("only")
+        setDraft(stored ?? [])
+    }
+
+    const title = isSlack ? "Channels it answers in" : "Groups it answers in"
+
+    return (
+        <div
+            className={`flex flex-col gap-2.5 px-3 py-3 ${DIVIDED}`}
+            data-testid="channels-advanced-answers"
+        >
+            <span className="flex flex-col gap-0.5">
+                <span className="text-[13px] font-medium text-colorText">{title}</span>
+                <span className={HELP}>
+                    Where it answers when mentioned. {isSlack ? "Direct messages" : "Private chats"}{" "}
+                    follow the switch above.{isSlack ? " Channels include group DMs." : ""}
+                </span>
+            </span>
+            {error ? <Alert type="error" showIcon message={error} /> : null}
+            {behavior === null ? (
+                <div className="flex items-center gap-2 text-xs text-colorTextSecondary">
+                    <Spinner size="small" /> Loading…
+                </div>
+            ) : !behavior.group ? (
+                <span className={HELP}>
+                    {isSlack ? "Channels" : "Group chats"} are switched off above, so it answers in
+                    none.
+                </span>
+            ) : (
+                <>
+                    <RadioGroup
+                        value={choice}
+                        onValueChange={choose}
+                        disabled={saving}
+                        aria-label={title}
+                    >
+                        {(
+                            [
+                                ["all", `All ${noun}s the bot is in`],
+                                ["only", `Only these ${noun}s`],
+                            ] as const
+                        ).map(([value, label]) => (
+                            <label
+                                key={value}
+                                className="flex cursor-pointer items-center gap-2 text-[13px] text-colorText"
+                            >
+                                <RadioGroupItem
+                                    value={value}
+                                    data-testid={`channels-advanced-answers-${value}`}
+                                />
+                                {label}
+                            </label>
+                        ))}
+                    </RadioGroup>
+                    {choice === "only" ? (
+                        <div
+                            className="flex flex-col gap-2 rounded-md bg-colorFillQuaternary p-2.5"
+                            data-testid="channels-advanced-answers-checklist"
+                        >
+                            {channels.length === 0 ? (
+                                <span className="text-xs text-colorTextTertiary">
+                                    The bot is in no {noun} yet.
+                                </span>
+                            ) : (
+                                channels.map((channel) => (
+                                    <label
+                                        key={channel.id}
+                                        className="flex min-w-0 cursor-pointer items-center gap-2 text-[13px] text-colorText"
+                                    >
+                                        <Checkbox
+                                            checked={draft.includes(channel.id)}
+                                            disabled={saving}
+                                            onCheckedChange={(value) =>
+                                                setDraft((ids) =>
+                                                    value === true
+                                                        ? [...ids, channel.id]
+                                                        : ids.filter((id) => id !== channel.id),
+                                                )
+                                            }
+                                            data-testid={`channels-advanced-answers-channel-${channel.id}`}
+                                        />
+                                        <span className="truncate">{channel.name}</span>
+                                    </label>
+                                ))
+                            )}
+                            <span className={HELP}>
+                                {draft.length === 0
+                                    ? `With no ${noun} checked, the agent answers in no ${noun}.`
+                                    : `A ${noun} the bot joins later stays off until you check it.`}
+                            </span>
+                            <div className="flex justify-end">
+                                <Button
+                                    size="sm"
+                                    disabled={saving}
+                                    onClick={() => void save(draft)}
+                                    data-testid="channels-advanced-answers-save"
+                                >
+                                    {ownSave ? <Spinner size="small" /> : null}
+                                    Save
+                                </Button>
+                            </div>
+                        </div>
+                    ) : null}
+                </>
+            )}
+        </div>
+    )
+}
+
 export const ChannelAdvancedSection = ({
     platform,
     connectionId,
     actions,
+    answersIn,
 }: ChannelAdvancedSectionProps) => {
     const isSlack = platform === "slack"
     const [open, setOpen] = useState(false)
@@ -260,6 +435,9 @@ export const ChannelAdvancedSection = ({
                                     </div>
                                 ) : null}
                             </div>
+                            {answersIn ? (
+                                <AnswersInRow isSlack={isSlack} answersIn={answersIn} />
+                            ) : null}
                         </div>
                     )}
                 </div>

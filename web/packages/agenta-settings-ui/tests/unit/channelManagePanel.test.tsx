@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import React, {act} from "react"
+
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, expect, it, vi} from "vitest"
 
@@ -17,7 +18,27 @@ vi.mock("@agenta/ui/ui", () => {
                 {children}
             </button>
         ),
-        Checkbox: () => <input type="checkbox" />,
+        Checkbox: ({
+            checked,
+            onCheckedChange,
+            disabled,
+            ...props
+        }: {
+            checked?: boolean
+            onCheckedChange?: (value: boolean) => void
+            disabled?: boolean
+            "aria-label"?: string
+            "data-testid"?: string
+        }) => (
+            <input
+                type="checkbox"
+                checked={!!checked}
+                disabled={disabled}
+                aria-label={props["aria-label"]}
+                data-testid={props["data-testid"]}
+                onChange={(e) => onCheckedChange?.(e.target.checked)}
+            />
+        ),
         Input: (props: React.ComponentProps<"input">) => <input {...props} />,
         PasswordInput: () => <input />,
         RadioGroup: Wrap,
@@ -83,15 +104,18 @@ afterEach(async () => {
     await act(async () => root.unmount())
     container.remove()
 })
-const render = async (overrides: Partial<ChannelsActions>) => {
+const render = async (
+    overrides: Partial<ChannelsActions>,
+    connection: {platform?: "telegram" | "slack"; kind?: "hosted" | "custom"} = {},
+) => {
     await act(async () =>
         root.render(
             <ChannelManagePanel
                 agentName="QA"
                 agentId="agent"
                 connection={{
-                    platform: "telegram",
-                    kind: "hosted",
+                    platform: connection.platform ?? "telegram",
+                    kind: connection.kind ?? "hosted",
                     status: "connected",
                     connectionId: "connection",
                     agent: {id: "agent", name: "QA"},
@@ -107,11 +131,11 @@ const render = async (overrides: Partial<ChannelsActions>) => {
     )
 }
 it("shows an unknown allowed-user state on lookup failure and allows retry", async () => {
-    const readAllowedUsers = vi
+    const readAudience = vi
         .fn()
         .mockRejectedValueOnce(new Error("Allowed accounts unavailable"))
-        .mockResolvedValue(["123"])
-    await render({readAllowedUsers})
+        .mockResolvedValue([person("123")])
+    await render({readAudience})
     expect(container.textContent).toContain("Allowed accounts unavailable")
     expect(container.textContent).toContain("Unavailable")
     expect(
@@ -146,7 +170,7 @@ it("shows every private chat as one Direct messages row", async () => {
     expect(rows).toEqual(["Direct messages", "TeamMentions only"])
 })
 it("marks Direct messages off once the switch turns them off", async () => {
-    let behavior = {dm: true, group: true}
+    let behavior = {dm: true, group: true, spaceIds: null as string[] | null}
     const readBehavior = vi.fn(async () => behavior)
     const writeBehavior = vi.fn(async (_p: unknown, _c: unknown, next: typeof behavior) => {
         behavior = next
@@ -203,29 +227,239 @@ it("shows no read-only settings: Advanced holds only editable controls and no St
     expect(container.querySelector('[data-testid="channels-status"]')).toBeNull()
 })
 it("adds an allowed account and saves the list at once", async () => {
-    const writeAllowedUsers = vi.fn(async () => {})
-    await render({readAllowedUsers: vi.fn().mockResolvedValue(["111"]), writeAllowedUsers})
-    const input = container.querySelector(
-        '[data-testid="channels-allowed-input"]',
-    ) as HTMLInputElement
-    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!
-    await act(async () => {
-        setter.call(input, "222, @333")
-        input.dispatchEvent(new Event("input", {bubbles: true}))
-    })
+    const writeAudience = vi.fn(async () => {})
+    await render({readAudience: vi.fn().mockResolvedValue([person("111")]), writeAudience})
+    await type('[data-testid="channels-allowed-input"]', "222, 333")
     const add = [...container.querySelectorAll("button")].find((b) => b.textContent === "Add")!
     await act(async () => add.click())
-    expect(writeAllowedUsers).toHaveBeenCalledWith("connection", ["222", "333", "111"])
+    expect(writeAudience).toHaveBeenCalledWith("connection", [
+        person("111"),
+        person("222"),
+        person("333"),
+    ])
     expect(container.querySelectorAll('[data-testid="channels-allowed-user"]')).toHaveLength(3)
 })
+it("adds an id typed twice in one entry once", async () => {
+    const writeAudience = vi.fn(async () => {})
+    await render({readAudience: vi.fn().mockResolvedValue([person("111")]), writeAudience})
+    await type('[data-testid="channels-allowed-input"]', "222, 222")
+    const add = [...container.querySelectorAll("button")].find((b) => b.textContent === "Add")!
+    await act(async () => add.click())
+    expect(writeAudience).toHaveBeenCalledWith("connection", [person("111"), person("222")])
+})
+it("refuses a Telegram username, which the bot could never match", async () => {
+    const writeAudience = vi.fn(async () => {})
+    await render({readAudience: vi.fn().mockResolvedValue([person("111")]), writeAudience})
+    await type('[data-testid="channels-allowed-input"]', "222, @ana")
+    const add = [...container.querySelectorAll("button")].find((b) => b.textContent === "Add")!
+    await act(async () => add.click())
+    expect(writeAudience).not.toHaveBeenCalled()
+    expect(container.querySelector('[data-testid="channels-allowed-error"]')?.textContent).toBe(
+        "Enter the numeric Telegram ID. A username cannot be matched.",
+    )
+})
 it("clears the allowed list when access goes back to everyone", async () => {
-    const writeAllowedUsers = vi.fn(async () => {})
-    await render({readAllowedUsers: vi.fn().mockResolvedValue(["111"]), writeAllowedUsers})
+    const writeAudience = vi.fn(async () => {})
+    await render({readAudience: vi.fn().mockResolvedValue([person("111")]), writeAudience})
     const select = container.querySelector('[data-testid="allowed-mode"]') as HTMLSelectElement
     await act(async () => {
         select.value = "everyone"
         select.dispatchEvent(new Event("change", {bubbles: true}))
     })
-    expect(writeAllowedUsers).toHaveBeenCalledWith("connection", [])
+    expect(writeAudience).toHaveBeenCalledWith("connection", [])
     expect(container.textContent).toContain("Any Telegram account can message the bot.")
+})
+it("returns to Everyone when the last person is removed", async () => {
+    const writeAudience = vi.fn(async () => {})
+    await render({readAudience: vi.fn().mockResolvedValue([person("111")]), writeAudience})
+    const remove = container.querySelector(
+        '[data-testid="channels-allowed-user"] button',
+    ) as HTMLButtonElement
+    await act(async () => remove.click())
+    expect(writeAudience).toHaveBeenCalledWith("connection", [])
+    expect(
+        (container.querySelector('[data-testid="allowed-mode"]') as HTMLSelectElement).value,
+    ).toBe("everyone")
+    expect(container.textContent).toContain("Any Telegram account can message the bot.")
+})
+it("offers Who can message it on Slack and picks a person by name", async () => {
+    const writeAudience = vi.fn(async () => {})
+    const queryPeople = vi.fn(async () => ({
+        people: [
+            {
+                id: "U2",
+                name: "Ben Ito",
+                email: "ben@example.com",
+                username: "ben",
+                isGuest: false,
+                isBot: false,
+                isDeleted: false,
+                source: "directory" as const,
+            },
+        ],
+        directory: {state: "ready" as const, updatedAt: new Date().toISOString()},
+    }))
+    await render(
+        {readAudience: vi.fn().mockResolvedValue([]), writeAudience, queryPeople},
+        {platform: "slack", kind: "custom"},
+    )
+    expect(container.textContent).toContain("Any Slack member can message the bot.")
+    const select = container.querySelector('[data-testid="allowed-mode"]') as HTMLSelectElement
+    await act(async () => {
+        select.value = "specific"
+        select.dispatchEvent(new Event("change", {bubbles: true}))
+    })
+    await type('[data-testid="channels-allowed-input"]', "ben")
+    await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 300))
+    })
+    expect(queryPeople).toHaveBeenCalledWith("connection", "ben", undefined)
+    const result = container.querySelector(
+        '[data-testid="channels-people-result"]',
+    ) as HTMLButtonElement
+    await act(async () => result.click())
+    expect(writeAudience).toHaveBeenCalledWith("connection", [
+        {id: "U2", name: "Ben Ito", email: "ben@example.com"},
+    ])
+})
+it("marks a channel left unchecked under Only these channels as off", async () => {
+    const listSpaces = vi.fn().mockResolvedValue([
+        {id: "c-support", kind: "topic", name: "#support"},
+        {id: "c-random", kind: "topic", name: "#random"},
+    ])
+    const readBehavior = vi.fn(async () => ({dm: true, group: true, spaceIds: ["c-support"]}))
+    await render({listSpaces, readBehavior}, {platform: "slack", kind: "custom"})
+    const rows = [...container.querySelectorAll('[data-testid="channels-space"]')].map(
+        (row) => row.textContent,
+    )
+    expect(rows).toEqual(["#supportMentions only", "#randomOff"])
+})
+it("adds several channels from the picker at once", async () => {
+    const addSpace = vi.fn(async () => {})
+    const discoverSpaces = vi
+        .fn()
+        .mockResolvedValue([candidate("#support"), candidate("#ops"), candidate("#random")])
+    await render({addSpace, discoverSpaces}, {platform: "slack", kind: "custom"})
+    await act(async () =>
+        (
+            container.querySelector('[data-testid="channels-add-space"]') as HTMLButtonElement
+        ).click(),
+    )
+    await type('[data-testid="channels-space-search"]', "p")
+    const boxes = [...container.querySelectorAll('[data-testid="channels-space-candidate"] input')]
+    // "p" matches #support and #ops, not #random
+    expect(boxes).toHaveLength(2)
+    for (const box of boxes) await act(async () => (box as HTMLInputElement).click())
+    const add = container.querySelector('[data-testid="channels-space-add"]') as HTMLButtonElement
+    expect(add.textContent).toBe("Add 2 channels")
+    await act(async () => add.click())
+    expect(addSpace).toHaveBeenCalledTimes(2)
+    expect(container.querySelector('[data-testid="channels-space-picker"]')).toBeNull()
+})
+
+it("keeps a channel that failed to add checked for a retry", async () => {
+    const addSpace = vi
+        .fn()
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error("Slack refused #ops."))
+    // discovery returns fresh objects every time, as the real client does
+    const discoverSpaces = vi.fn(async () => [candidate("#support"), candidate("#ops")])
+    await render({addSpace, discoverSpaces}, {platform: "slack", kind: "custom"})
+    await act(async () =>
+        (
+            container.querySelector('[data-testid="channels-add-space"]') as HTMLButtonElement
+        ).click(),
+    )
+    for (const box of container.querySelectorAll('[data-testid="channels-space-candidate"] input'))
+        await act(async () => (box as HTMLInputElement).click())
+    await act(async () =>
+        (
+            container.querySelector('[data-testid="channels-space-add"]') as HTMLButtonElement
+        ).click(),
+    )
+    expect(container.textContent).toContain("Slack refused #ops.")
+    const checked = [
+        ...container.querySelectorAll('[data-testid="channels-space-candidate"]'),
+    ].filter((row) => (row.querySelector("input") as HTMLInputElement).checked)
+    expect(checked.map((row) => row.textContent)).toEqual(["#opsIn channel"])
+})
+
+function person(id: string) {
+    return {id, name: null, email: null}
+}
+
+function candidate(name: string) {
+    return {
+        kind: "topic" as const,
+        externalLocator: {channel: name},
+        displayName: name,
+        isConfigured: false,
+        membership: "member" as const,
+    }
+}
+
+async function type(selector: string, value: string) {
+    const input = container.querySelector(selector) as HTMLInputElement
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!
+    await act(async () => {
+        setter.call(input, value)
+        input.dispatchEvent(new Event("input", {bubbles: true}))
+    })
+}
+
+it("keeps asking while the people list loads, after a failed ask too", async () => {
+    vi.useFakeTimers()
+    try {
+        const loading = {state: "loading" as const, updatedAt: null}
+        const queryPeople = vi
+            .fn()
+            .mockResolvedValueOnce({people: [], directory: loading})
+            .mockRejectedValueOnce(new Error("Failed to fetch"))
+            .mockResolvedValue({people: [], directory: loading})
+        await render(
+            {readAudience: vi.fn().mockResolvedValue([person("U1")]), queryPeople},
+            {platform: "slack", kind: "custom"},
+        )
+        for (let i = 0; i < 4; i++) {
+            await act(async () => {
+                await vi.advanceTimersByTimeAsync(3500)
+            })
+        }
+        expect(queryPeople.mock.calls.length).toBeGreaterThanOrEqual(3)
+    } finally {
+        vi.useRealTimers()
+    }
+})
+
+it("keeps the channel row off while a switch saves, and back on after", async () => {
+    let release: () => void = () => {}
+    const writeBehavior = vi.fn(
+        () =>
+            new Promise<void>((resolve) => {
+                release = resolve
+            }),
+    )
+    const readBehavior = vi.fn(async () => ({dm: true, group: true, spaceIds: ["c-support"]}))
+    const listSpaces = vi
+        .fn()
+        .mockResolvedValue([{id: "c-support", kind: "topic", name: "#support"}])
+    await render({readBehavior, writeBehavior, listSpaces}, {platform: "slack", kind: "custom"})
+    await act(async () =>
+        (
+            container.querySelector('[data-testid="channels-advanced-toggle"]') as HTMLButtonElement
+        ).click(),
+    )
+    const rowSave = () =>
+        container.querySelector(
+            '[data-testid="channels-advanced-answers-save"]',
+        ) as HTMLButtonElement
+    expect(rowSave().disabled).toBe(false)
+    await act(async () =>
+        (
+            container.querySelector('[data-testid="channels-behavior-dm"]') as HTMLButtonElement
+        ).click(),
+    )
+    expect(rowSave().disabled).toBe(true)
+    await act(async () => release())
+    expect(rowSave().disabled).toBe(false)
 })

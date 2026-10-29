@@ -3,15 +3,11 @@ import {useCallback, useEffect, useState} from "react"
 import {
     Alert,
     Button,
+    Checkbox,
     Input,
     PasswordInput,
     RadioGroup,
     RadioGroupItem,
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
     Spinner,
     Switch,
 } from "@agenta/ui/ui"
@@ -23,11 +19,11 @@ import {
     Plus,
     UsersThree,
     Warning,
-    X,
 } from "@phosphor-icons/react"
 
 import {nameSpacesFrom} from "./actions"
 import {ChannelAdvancedSection} from "./ChannelAdvancedSection"
+import {ChannelPeopleSection} from "./ChannelPeopleSection"
 import {
     NOOP_ACTIONS,
     ROW_BUTTON,
@@ -102,6 +98,10 @@ const FALLBACK_SECRETS: Record<ChannelPlatform, ChannelSetupField[]> = {
     ],
 }
 
+/** A discovered place's stable identity: its kind and platform address. */
+const candidateKey = (candidate: ChannelSpaceCandidate): string =>
+    `${candidate.kind}:${JSON.stringify(candidate.externalLocator)}`
+
 const spaceIcon = (kind: ChannelSpaceKind, isSlack: boolean) => {
     if (kind === "private") return <ChatCircle size={15} />
     return isSlack ? <Hash size={15} /> : <UsersThree size={15} />
@@ -143,6 +143,9 @@ export const ChannelManagePanel = ({
     const scope = connectionScope(connection, agentId)
     const unassigned = scope === "unassigned"
     const elsewhere = scope === "elsewhere" || unassigned
+    // "Who can message it" limits this agent's binding; the panel of another agent's
+    // connection ("elsewhere") has no binding of this agent to limit.
+    const hasPeople = (isSlack || isTelegram) && !elsewhere
     const otherAgent = unassigned ? "no agent" : answeringAgentName(connection)
     const connectedOn = formatConnectedOn(connection.connectedAt)
     // Only a custom install has secrets of its own to replace.
@@ -181,16 +184,18 @@ export const ChannelManagePanel = ({
     const [pickerOpen, setPickerOpen] = useState(false)
     const [candidates, setCandidates] = useState<ChannelSpaceCandidate[] | null>(null)
     const [pickerError, setPickerError] = useState<string | null>(null)
-    const [addingName, setAddingName] = useState<string | null>(null)
-    // A private channel the bot is not in: only a Slack member can invite it.
-    const [inviteFor, setInviteFor] = useState<string | null>(null)
+    const [pickerQuery, setPickerQuery] = useState("")
+    // The candidates checked to add, by key, so a reloaded list keeps them checked.
+    const [picked, setPicked] = useState<string[]>([])
+    const [adding, setAdding] = useState(false)
 
     const openPicker = async () => {
         if (!connectionId) return
         setPickerOpen(true)
         setCandidates(null)
         setPickerError(null)
-        setInviteFor(null)
+        setPickerQuery("")
+        setPicked([])
         try {
             setCandidates(await actions.discoverSpaces(connectionId))
         } catch (e) {
@@ -199,29 +204,53 @@ export const ChannelManagePanel = ({
         }
     }
 
-    const addCandidate = async (candidate: ChannelSpaceCandidate) => {
-        if (!connectionId) return
+    const togglePicked = (candidate: ChannelSpaceCandidate, checked: boolean) => {
+        const key = candidateKey(candidate)
+        setPicked((current) =>
+            checked
+                ? current.includes(key)
+                    ? current
+                    : [...current, key]
+                : current.filter((k) => k !== key),
+        )
+    }
+
+    const addPicked = async () => {
+        const chosen = (candidates ?? []).filter((c) => picked.includes(candidateKey(c)))
+        if (!connectionId || !chosen.length) return
         setPickerError(null)
-        if (candidate.membership === "invite_required") {
-            setInviteFor(candidate.displayName)
+        setAdding(true)
+        const failed: string[] = []
+        let firstError: unknown = null
+        for (const candidate of chosen) {
+            try {
+                await actions.addSpace(connectionId, candidate)
+            } catch (e) {
+                failed.push(candidateKey(candidate))
+                firstError = firstError ?? e
+            }
+        }
+        setAdding(false)
+        await loadSpaces()
+        if (failed.length) {
+            // Keep the ones that failed checked, so a retry adds only those.
+            setPicked(failed)
+            setPickerError(errorMessage(firstError, "Could not add this channel."))
+            try {
+                setCandidates(await actions.discoverSpaces(connectionId))
+            } catch {
+                /* keep the list as it was */
+            }
             return
         }
-        setInviteFor(null)
-        setAddingName(candidate.displayName)
-        try {
-            await actions.addSpace(connectionId, candidate)
-            setPickerOpen(false)
-            await loadSpaces()
-        } catch (e) {
-            setPickerError(errorMessage(e, "Could not add this channel."))
-        } finally {
-            setAddingName(null)
-        }
+        setPickerOpen(false)
     }
 
     // --- the two behavior switches --------------------------------------------- //
     const [behavior, setBehavior] = useState<ChannelBehaviorState | null>(null)
-    const [behaviorSaving, setBehaviorSaving] = useState<"dm" | "group" | null>(null)
+    // One save of where it answers at a time: the switches and the Advanced row write the
+    // same rule set, so each control is off while any of them saves.
+    const [behaviorSaving, setBehaviorSaving] = useState<"dm" | "group" | "channels" | null>(null)
     const [behaviorError, setBehaviorError] = useState<string | null>(null)
 
     const loadBehavior = useCallback(async () => {
@@ -236,7 +265,7 @@ export const ChannelManagePanel = ({
     }, [actions, connectionId, connection.platform])
 
     const toggleBehavior = async (key: "dm" | "group", value: boolean) => {
-        if (!connectionId || !behavior) return
+        if (!connectionId || !behavior || behaviorSaving !== null) return
         const next = {...behavior, [key]: value}
         setBehavior(next)
         setBehaviorSaving(key)
@@ -254,51 +283,21 @@ export const ChannelManagePanel = ({
         }
     }
 
-    // --- who may message the bot (Telegram) ------------------------------------ //
-    const [allowed, setAllowed] = useState<string[] | null>(null)
-    // "Specific people" with nobody added yet is only local: an empty list means everyone.
-    const [restrictDraft, setRestrictDraft] = useState(false)
-    const [allowedDraft, setAllowedDraft] = useState("")
-    const [allowedSaving, setAllowedSaving] = useState(false)
-    const [allowedError, setAllowedError] = useState<string | null>(null)
-
-    const loadAllowed = useCallback(async () => {
-        if (!connectionId) return
-        setAllowedError(null)
+    /** The Advanced "Channels it answers in" row: the switches and the row write one rule set. */
+    const saveChannels = async (channels: string[] | null) => {
+        if (!connectionId || !behavior || behaviorSaving !== null) return
+        const next = {...behavior, spaceIds: channels}
+        setBehaviorSaving("channels")
+        let writeError: unknown = null
         try {
-            setAllowed(await actions.readAllowedUsers(connectionId))
+            await actions.writeBehavior(connection.platform, connectionId, next)
         } catch (e) {
-            setAllowed(null)
-            setAllowedError(errorMessage(e, "Could not read the allowed accounts."))
-        }
-    }, [actions, connectionId])
-
-    const writeAllowed = async (ids: string[]) => {
-        if (!connectionId) return
-        setAllowedSaving(true)
-        setAllowedError(null)
-        try {
-            await actions.writeAllowedUsers(connectionId, ids)
-            setAllowed(ids)
-            return true
-        } catch (e) {
-            setAllowedError(errorMessage(e, "Could not save the allowed accounts."))
-            return false
+            writeError = e
         } finally {
-            setAllowedSaving(false)
+            await loadBehavior()
+            setBehaviorSaving(null)
         }
-    }
-
-    const restricted = restrictDraft || (allowed?.length ?? 0) > 0
-
-    const addAllowed = async () => {
-        const ids = allowedDraft
-            .split(",")
-            .map((value) => value.trim().replace(/^@/, ""))
-            .filter(Boolean)
-        if (!ids.length || !allowed) return
-        const next = Array.from(new Set([...ids, ...allowed]))
-        if (await writeAllowed(next)) setAllowedDraft("")
+        if (writeError) throw writeError
     }
 
     // --- replacing the secrets of a custom install ------------------------------ //
@@ -359,8 +358,7 @@ export const ChannelManagePanel = ({
         if (elsewhere || !connectionId) return
         void loadSpaces()
         void loadBehavior()
-        if (isTelegram) void loadAllowed()
-    }, [elsewhere, connectionId, isTelegram, loadSpaces, loadBehavior, loadAllowed])
+    }, [elsewhere, connectionId, loadSpaces, loadBehavior])
 
     const run = async (
         kind: "disconnect" | "connect-here" | "turn-on",
@@ -418,9 +416,14 @@ export const ChannelManagePanel = ({
                       : []),
                   ...spaces.filter((space) => space.kind !== "private"),
               ]
-    // A place a behavior switch turned off stays listed, marked off.
-    const placeOff = (kind: ChannelSpaceKind): boolean =>
-        behavior !== null && (kind === "private" ? !behavior.dm : !behavior.group)
+    // A place a behavior switch turned off stays listed, marked off; so does a channel left
+    // unchecked under "Only these channels".
+    const placeOff = (space: ChannelSpace): boolean => {
+        if (behavior === null) return false
+        if (space.kind === "private") return !behavior.dm
+        if (!behavior.group) return true
+        return behavior.spaceIds !== null && !behavior.spaceIds.includes(space.id)
+    }
 
     const {title} = connectionRowText(connection, hostedHandle)
     // The binding is off: nothing answers until it is turned on.
@@ -785,7 +788,7 @@ export const ChannelManagePanel = ({
                                 </span>
                                 <span
                                     className={`flex-1 truncate text-sm ${
-                                        placeOff(space.kind)
+                                        placeOff(space)
                                             ? "text-muted-foreground"
                                             : "text-foreground"
                                     }`}
@@ -793,7 +796,7 @@ export const ChannelManagePanel = ({
                                     {space.name}
                                 </span>
                                 <span className="flex-none text-[13px] text-muted-foreground">
-                                    {placeOff(space.kind)
+                                    {placeOff(space)
                                         ? "Off"
                                         : space.kind === "private"
                                           ? ""
@@ -809,66 +812,111 @@ export const ChannelManagePanel = ({
                             data-testid="channels-space-picker"
                         >
                             <span className="text-[13px] text-muted-foreground">
-                                Pick a channel. The app joins public channels itself. For a private
-                                channel, run /invite {inviteHandle} in it first.
+                                Pick one or more channels. The app joins public channels itself. For
+                                a private channel, run /invite {inviteHandle} in it first.
                             </span>
                             {pickerError ? (
                                 <Alert type="error" showIcon message={pickerError} />
                             ) : null}
-                            {inviteFor ? (
-                                <Alert
-                                    type="info"
-                                    showIcon
-                                    message={`#${inviteFor.replace(/^#/, "")} is private. Run /invite ${inviteHandle} in it in Slack, then add it again.`}
-                                    data-testid="channels-space-invite-hint"
-                                />
-                            ) : null}
-                            {candidates === null ? (
-                                <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
-                                    <Spinner size="small" /> Looking…
-                                </div>
-                            ) : candidates.filter((c) => !c.isConfigured).length === 0 ? (
-                                <span className="text-[13px] text-muted-foreground">
-                                    No new channels.
-                                </span>
-                            ) : (
-                                <div className="flex flex-col gap-1.5">
-                                    {candidates
-                                        .filter((candidate) => !candidate.isConfigured)
-                                        .map((candidate) => (
-                                            <Button
-                                                key={`${candidate.kind}-${candidate.displayName}`}
-                                                variant="outline"
-                                                disabled={addingName !== null}
-                                                onClick={() => void addCandidate(candidate)}
-                                                className={`${ROW_BUTTON} gap-2.5 px-2.5 py-2`}
-                                            >
-                                                <span className="flex flex-none text-muted-foreground">
-                                                    {spaceIcon(candidate.kind, isSlack)}
-                                                </span>
-                                                <span className="flex-1 truncate text-[13px] text-foreground">
-                                                    {candidate.displayName}
-                                                </span>
-                                                {candidate.membership === "member" ? (
-                                                    <span className="flex-none text-xs text-muted-foreground">
-                                                        In channel
+                            <Input
+                                value={pickerQuery}
+                                onChange={(e) => setPickerQuery(e.target.value)}
+                                placeholder="Search channels"
+                                className="text-[13px]"
+                                data-testid="channels-space-search"
+                            />
+                            {(() => {
+                                if (candidates === null)
+                                    return (
+                                        <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
+                                            <Spinner size="small" /> Looking…
+                                        </div>
+                                    )
+                                const fresh = candidates.filter((c) => !c.isConfigured)
+                                const query = pickerQuery.trim().toLowerCase().replace(/^#/, "")
+                                const shown = query
+                                    ? fresh.filter((c) =>
+                                          c.displayName
+                                              .toLowerCase()
+                                              .replace(/^#/, "")
+                                              .includes(query),
+                                      )
+                                    : fresh
+                                if (!shown.length)
+                                    return (
+                                        <span className="text-[13px] text-muted-foreground">
+                                            {query
+                                                ? `No channel matches “${pickerQuery.trim()}”.`
+                                                : "No new channels."}
+                                        </span>
+                                    )
+                                return (
+                                    <div className="flex max-h-64 flex-col gap-1.5 overflow-y-auto">
+                                        {shown.map((candidate) => {
+                                            // A private channel the bot is not in: only a Slack
+                                            // member can invite it.
+                                            const blocked =
+                                                candidate.membership === "invite_required"
+                                            return (
+                                                <label
+                                                    key={`${candidate.kind}-${candidate.displayName}`}
+                                                    className={`${ROW_BUTTON} flex items-center gap-2.5 rounded-md border border-solid border-border bg-background px-2.5 py-2 ${
+                                                        blocked
+                                                            ? "cursor-not-allowed opacity-70"
+                                                            : "cursor-pointer"
+                                                    }`}
+                                                    data-testid="channels-space-candidate"
+                                                >
+                                                    <Checkbox
+                                                        checked={picked.includes(
+                                                            candidateKey(candidate),
+                                                        )}
+                                                        disabled={blocked || adding}
+                                                        onCheckedChange={(value) =>
+                                                            togglePicked(candidate, value === true)
+                                                        }
+                                                        aria-label={candidate.displayName}
+                                                    />
+                                                    <span className="flex flex-none text-muted-foreground">
+                                                        {spaceIcon(candidate.kind, isSlack)}
                                                     </span>
-                                                ) : null}
-                                                {addingName === candidate.displayName ? (
-                                                    <Spinner size="small" />
-                                                ) : null}
-                                            </Button>
-                                        ))}
-                                </div>
-                            )}
-                            <div className="flex justify-end">
+                                                    <span className="flex-1 truncate text-[13px] text-foreground">
+                                                        {candidate.displayName}
+                                                    </span>
+                                                    {blocked ? (
+                                                        <span className="flex-none text-xs text-muted-foreground">
+                                                            Run /invite first
+                                                        </span>
+                                                    ) : candidate.membership === "member" ? (
+                                                        <span className="flex-none text-xs text-muted-foreground">
+                                                            In channel
+                                                        </span>
+                                                    ) : null}
+                                                </label>
+                                            )
+                                        })}
+                                    </div>
+                                )
+                            })()}
+                            <div className="flex justify-end gap-2">
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    disabled={addingName !== null}
+                                    disabled={adding}
                                     onClick={() => setPickerOpen(false)}
                                 >
                                     Cancel
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    disabled={adding || !picked.length}
+                                    onClick={() => void addPicked()}
+                                    data-testid="channels-space-add"
+                                >
+                                    {adding ? <Spinner size="small" /> : null}
+                                    {picked.length > 1
+                                        ? `Add ${picked.length} channels`
+                                        : "Add channel"}
                                 </Button>
                             </div>
                         </div>
@@ -893,134 +941,18 @@ export const ChannelManagePanel = ({
             ) : null}
 
             {/* --- who may message it, and its credentials --- */}
-            {isTelegram || canUpdateToken ? (
+            {hasPeople || canUpdateToken ? (
                 <div className="flex flex-col">
                     <span className={SECTION_TITLE}>Access</span>
-                    {!isTelegram ? null : (
-                        <>
-                            <div className={`flex items-center gap-4 ${ROW}`}>
-                                <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                                    <span className="text-sm text-foreground">
-                                        Who can message it
-                                    </span>
-                                    <span className="text-[13px] text-muted-foreground">
-                                        {allowed === null
-                                            ? allowedError
-                                                ? "Unavailable"
-                                                : "Loading…"
-                                            : !restricted
-                                              ? "Any Telegram account can message the bot."
-                                              : allowed.length
-                                                ? `Only ${allowed.length} ${allowed.length === 1 ? "account" : "accounts"}. Everyone else is ignored.`
-                                                : "Add at least one account below."}
-                                    </span>
-                                </span>
-                                {allowedSaving ? <Spinner size="small" /> : null}
-                                <Select
-                                    value={restricted ? "specific" : "everyone"}
-                                    disabled={allowed === null || allowedSaving}
-                                    onValueChange={async (value) => {
-                                        if (value === "specific") {
-                                            setRestrictDraft(true)
-                                            return
-                                        }
-                                        setRestrictDraft(false)
-                                        if (allowed?.length) await writeAllowed([])
-                                    }}
-                                >
-                                    <SelectTrigger
-                                        size="sm"
-                                        className="w-[150px]"
-                                        data-testid="channels-allowed-mode"
-                                    >
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="everyone">Everyone</SelectItem>
-                                        <SelectItem value="specific">Specific people</SelectItem>
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            {allowedError ? (
-                                <div className="flex items-center gap-2 pt-3">
-                                    <Alert
-                                        type="error"
-                                        showIcon
-                                        message={allowedError}
-                                        className="flex-1"
-                                    />
-                                    {allowed === null ? (
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            onClick={() => void loadAllowed()}
-                                        >
-                                            Try again
-                                        </Button>
-                                    ) : null}
-                                </div>
-                            ) : null}
-                            {restricted && allowed !== null ? (
-                                <>
-                                    <div className={`flex flex-col gap-1.5 ${ROW}`}>
-                                        <div className="flex gap-2">
-                                            <Input
-                                                value={allowedDraft}
-                                                onChange={(e) => setAllowedDraft(e.target.value)}
-                                                onKeyDown={(e) => {
-                                                    if (e.key === "Enter") void addAllowed()
-                                                }}
-                                                placeholder="Telegram user ID"
-                                                className="min-w-0 flex-1 font-mono text-xs"
-                                                data-testid="channels-allowed-input"
-                                            />
-                                            <Button
-                                                variant="outline"
-                                                disabled={!allowedDraft.trim() || allowedSaving}
-                                                onClick={() => void addAllowed()}
-                                                data-testid="channels-allowed-save"
-                                            >
-                                                Add
-                                            </Button>
-                                        </div>
-                                        <span className="text-xs text-muted-foreground">
-                                            Numeric IDs, from @userinfobot. Separate several with
-                                            commas.
-                                        </span>
-                                    </div>
-                                    {allowed.map((id) => (
-                                        <div
-                                            key={id}
-                                            className="flex items-center gap-2.5 border-0 border-b border-solid border-border py-2.5"
-                                            data-testid="channels-allowed-user"
-                                        >
-                                            <span className="box-border flex size-6 flex-none items-center justify-center rounded-md border border-solid border-border bg-muted text-muted-foreground">
-                                                <UsersThree size={12} />
-                                            </span>
-                                            <span className="min-w-0 flex-1 truncate font-mono text-[13px] text-foreground">
-                                                {id}
-                                            </span>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon-xs"
-                                                title="Remove"
-                                                aria-label={`Remove ${id}`}
-                                                disabled={allowedSaving}
-                                                onClick={() => {
-                                                    const next = allowed.filter((x) => x !== id)
-                                                    // Removing the last one keeps "Specific people" open.
-                                                    if (!next.length) setRestrictDraft(true)
-                                                    void writeAllowed(next)
-                                                }}
-                                            >
-                                                <X />
-                                            </Button>
-                                        </div>
-                                    ))}
-                                </>
-                            ) : null}
-                        </>
-                    )}
+                    {hasPeople && connectionId ? (
+                        <ChannelPeopleSection
+                            platform={connection.platform}
+                            connectionId={connectionId}
+                            actions={actions}
+                            handle={handle}
+                            workspaceName={connection.workspaceName}
+                        />
+                    ) : null}
                     {canUpdateToken ? (
                         <div className={`flex items-center gap-4 ${ROW}`}>
                             <span className="flex min-w-0 flex-1 flex-col gap-0.5">
@@ -1080,6 +1012,18 @@ export const ChannelManagePanel = ({
                     platform={connection.platform}
                     connectionId={connectionId}
                     actions={actions}
+                    answersIn={
+                        isWhatsApp || elsewhere || (isTelegram && connection.kind === "hosted")
+                            ? undefined
+                            : {
+                                  behavior,
+                                  channels: (spaces ?? []).filter(
+                                      (space) => space.kind !== "private",
+                                  ),
+                                  onSave: saveChannels,
+                                  busy: behaviorSaving !== null,
+                              }
+                    }
                 />
             ) : null}
 

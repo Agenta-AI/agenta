@@ -15,6 +15,7 @@ SLACK_CAPABILITIES: dict = {
         "commands": {"native": True, "in_conversation": False},
     },
     "spaces": {"private": True, "group": True, "topic": True},
+    "people": {"directory": True, "email_lookup": True},
     "conversation": {"units": ["thread", "space"], "default": "thread"},
     "fill": {
         "backfill": {"supported": True, "requires_permission": "channels:history"},
