@@ -305,6 +305,9 @@ export type TriggerStatus = z.infer<typeof triggerStatusSchema>
 export const triggerDeliveryDataSchema = z
     .object({
         event_key: z.string().nullish(),
+        // The session this delivery produced — minted by the dispatcher, so it is present
+        // regardless of which dispatch path ran. Absent on deliveries written before it existed.
+        session_id: z.string().nullish(),
         references: z.record(z.string(), triggerReferenceSchema).nullish(),
         inputs: z.record(z.string(), z.unknown()).nullish(),
         result: z.record(z.string(), z.unknown()).nullish(),
@@ -453,6 +456,36 @@ export interface TriggerScheduleQuery {
 // ---------------------------------------------------------------------------
 
 /** Read `flags.is_active`, defaulting to `true` when the flag is absent. */
+/**
+ * The agent a trigger runs, from its `data.references`.
+ *
+ * One reader for the reference precedence, because a trigger's binding is entity knowledge:
+ * every surface that names the agent behind a schedule or subscription (the rail's next-triggers
+ * list, the settings table) was deriving it independently off the same three keys.
+ */
+export function triggerBoundAgentId(
+    references?: Record<string, {id?: string | null} | undefined> | null,
+): string | null {
+    return (
+        references?.application?.id ??
+        references?.application_variant?.id ??
+        references?.application_revision?.id ??
+        // SDK/API-created triggers bind the parallel `workflow_*` family the backend also
+        // accepts; without these they read as unbound everywhere the UI names the agent.
+        references?.workflow?.id ??
+        references?.workflow_variant?.id ??
+        references?.workflow_revision?.id ??
+        null
+    )
+}
+
+/** Return an application artifact ID only when the reference proves that entity kind. */
+export function triggerApplicationArtifactId(
+    references?: Record<string, {id?: string | null} | undefined> | null,
+): string | null {
+    return references?.application?.id || null
+}
+
 export function isEntityActive(entity?: {flags?: Record<string, unknown> | null} | null): boolean {
     const raw = entity?.flags?.is_active
     return raw === undefined || raw === null ? true : Boolean(raw)

@@ -353,7 +353,7 @@ describe("extractTemplateVariables — typing-state behaviour (mustache)", () =>
     // complete tokens. These tests verify the walker doesn't surface
     // confusing output at those intermediate stages.
 
-    const cases: Array<[string, string[], string]> = [
+    const cases: [string, string[], string][] = [
         ["", [], "empty editor"],
         ["{{}}", [], "autoclose only — empty token"],
         ["{{#}}", [], "typed `#` (empty section name) — walker skips empty"],

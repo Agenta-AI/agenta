@@ -12,10 +12,10 @@
  *
  * Authority: `docs/designs/mustache-section-support.md` Phase 2a.
  */
-import {describe, expect, it} from "vitest"
 
 import {parseMustache, walkMustache} from "@agenta/shared/utils"
 import type {MustacheNode, SectionNode, VariableNode} from "@agenta/shared/utils"
+import {describe, expect, it} from "vitest"
 
 const collect = (ast: MustacheNode[], pred: (n: MustacheNode) => boolean): MustacheNode[] => {
     const out: MustacheNode[] = []

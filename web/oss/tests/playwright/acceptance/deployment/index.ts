@@ -10,7 +10,7 @@ import {
     TestSpeedType,
 } from "@agenta/web-tests/playwright/config/testTags"
 import {test} from "@agenta/web-tests/tests/fixtures/base.fixture"
-import {expect} from "@agenta/web-tests/utils"
+import {expect, pollLocatorState} from "@agenta/web-tests/utils"
 
 import {expectAuthenticatedSession} from "../utils/auth"
 import {createScenarios} from "../utils/scenarios"
@@ -86,12 +86,17 @@ const deployVariantToEnv = async (
         .poll(
             async () => {
                 const radioControl = realRow.locator(radioSelector).first()
-                if (await radioControl.isVisible().catch(() => false)) {
+                if (await pollLocatorState(() => radioControl.isVisible())) {
                     await radioControl.click({force: true}).catch(() => null)
                 } else {
                     await realRow.click({force: true}).catch(() => null)
                 }
-                return await deployBtn.isEnabled().catch(() => false)
+                // deployBtn is not narrowed with .first(): if a UI change ever makes it
+                // match more than one "Deploy" button, isEnabled() throws a strict-mode
+                // violation. pollLocatorState lets that through instead of swallowing it
+                // into a permanent `false`, so the failure names the real selector bug
+                // instead of a bare poll timeout.
+                return await pollLocatorState(() => deployBtn.isEnabled())
             },
             {timeout: 30000},
         )
@@ -184,13 +189,16 @@ const deploymentTests = () => {
                             await row.scrollIntoViewIfNeeded().catch(() => null)
 
                             const radioControl = row.locator(radioSelector).first()
-                            if (await radioControl.isVisible().catch(() => false)) {
+                            if (await pollLocatorState(() => radioControl.isVisible())) {
                                 await radioControl.click({force: true}).catch(() => null)
                             } else {
                                 await row.click({force: true}).catch(() => null)
                             }
 
-                            if (await deployBtn.isEnabled().catch(() => false)) {
+                            // See the pollLocatorState comment above: deployBtn isn't
+                            // narrowed with .first(), so a strict-mode violation here must
+                            // surface instead of being swallowed into `false`.
+                            if (await pollLocatorState(() => deployBtn.isEnabled())) {
                                 return true
                             }
                         }

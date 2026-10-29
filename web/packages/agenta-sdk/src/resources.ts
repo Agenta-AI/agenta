@@ -8,18 +8,37 @@
  * not all 27 resource clients. Resource clients self-normalize auth in their own
  * constructors, so they are equivalent to `getAgentaSdkClient().traces` etc.
  */
+import {AccessClient} from "@agentaai/api-client/resources/access"
 import {ApplicationsClient} from "@agentaai/api-client/resources/applications"
+import {ChannelsClient} from "@agentaai/api-client/resources/channels"
 import {EvaluationsClient} from "@agentaai/api-client/resources/evaluations"
 import {EventsClient} from "@agentaai/api-client/resources/events"
+import {KeysClient} from "@agentaai/api-client/resources/keys"
 import {MountsClient} from "@agentaai/api-client/resources/mounts"
+import {ProjectsClient} from "@agentaai/api-client/resources/projects"
 import {SecretsClient} from "@agentaai/api-client/resources/secrets"
 import {SessionsClient} from "@agentaai/api-client/resources/sessions"
+import {SharingClient} from "@agentaai/api-client/resources/sharing"
+import {SkillsClient} from "@agentaai/api-client/resources/skills"
 import {TestsetsClient} from "@agentaai/api-client/resources/testsets"
 import {ToolsClient} from "@agentaai/api-client/resources/tools"
 import {TracesClient} from "@agentaai/api-client/resources/traces"
+import {TriggersClient} from "@agentaai/api-client/resources/triggers"
+import {UsersClient} from "@agentaai/api-client/resources/users"
+import {WebhooksClient} from "@agentaai/api-client/resources/webhooks"
 import {WorkflowsClient} from "@agentaai/api-client/resources/workflows"
 
 import {buildClientOptions, withLowPriorityFetch} from "./config"
+
+let _skills: SkillsClient | undefined
+export function getSkillsClient(): SkillsClient {
+    return (_skills ??= new SkillsClient(buildClientOptions()))
+}
+
+let _access: AccessClient | undefined
+export function getAccessClient(): AccessClient {
+    return (_access ??= new AccessClient(buildClientOptions()))
+}
 
 let _applications: ApplicationsClient | undefined
 export function getApplicationsClient(): ApplicationsClient {
@@ -53,6 +72,21 @@ export function getLowPriorityToolsClient(): ToolsClient {
 let _secrets: SecretsClient | undefined
 export function getSecretsClient(): SecretsClient {
     return (_secrets ??= new SecretsClient(buildClientOptions()))
+}
+
+let _keys: KeysClient | undefined
+export function getKeysClient(): KeysClient {
+    return (_keys ??= new KeysClient(buildClientOptions()))
+}
+
+let _users: UsersClient | undefined
+export function getUsersClient(): UsersClient {
+    return (_users ??= new UsersClient(buildClientOptions()))
+}
+
+let _webhooks: WebhooksClient | undefined
+export function getWebhooksClient(): WebhooksClient {
+    return (_webhooks ??= new WebhooksClient(buildClientOptions()))
 }
 
 let _workflows: WorkflowsClient | undefined
@@ -89,12 +123,22 @@ export function getSessionsClient(): SessionsClient {
     return (_sessions ??= new SessionsClient(buildClientOptions()))
 }
 
+let _triggers: TriggersClient | undefined
+export function getTriggersClient(): TriggersClient {
+    return (_triggers ??= new TriggersClient(buildClientOptions()))
+}
+
 let _sessionsLowPriority: SessionsClient | undefined
 /** Same host/auth as `getSessionsClient`, but requests carry `priority: "low"` — for secondary
  * session reads (record-replay hydration, liveness polling) that must yield to the live
  * conversation stream. */
 export function getLowPrioritySessionsClient(): SessionsClient {
     return (_sessionsLowPriority ??= new SessionsClient(withLowPriorityFetch(buildClientOptions())))
+}
+
+let _projects: ProjectsClient | undefined
+export function getProjectsClient(): ProjectsClient {
+    return (_projects ??= new ProjectsClient(buildClientOptions()))
 }
 
 let _mounts: MountsClient | undefined
@@ -107,4 +151,14 @@ let _mountsLowPriority: MountsClient | undefined
  * background mount file listing that must yield to render-critical traffic. */
 export function getLowPriorityMountsClient(): MountsClient {
     return (_mountsLowPriority ??= new MountsClient(withLowPriorityFetch(buildClientOptions())))
+}
+
+let _channels: ChannelsClient | undefined
+export function getChannelsClient(): ChannelsClient {
+    return (_channels ??= new ChannelsClient(buildClientOptions()))
+}
+
+let _sharing: SharingClient | undefined
+export function getSharingClient(): SharingClient {
+    return (_sharing ??= new SharingClient(buildClientOptions()))
 }

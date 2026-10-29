@@ -1,15 +1,16 @@
 import {useCallback, useState, useMemo, type FC} from "react"
 
+import {inviteToWorkspace} from "@agenta/entities/organization"
+import {isEE, isEmailInvitationsEnabled} from "@agenta/shared/api"
 import {message} from "@agenta/ui/app-message"
+import {EnhancedModal} from "@agenta/ui/components/modal"
 import {MinusCircleOutlined} from "@ant-design/icons"
-import {Alert, Form, Input, Modal, Select, Space, Typography, theme} from "antd"
+import {Alert, Form, Input, Select, Space, Typography, theme} from "antd"
 import Link from "next/link"
 
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
-import {isEE, isEmailInvitationsEnabled} from "@/oss/lib/helpers/isEE"
 import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
 import {snakeToTitle} from "@/oss/lib/helpers/utils"
-import {inviteToWorkspace} from "@/oss/services/workspace/api"
 import {useOrgData} from "@/oss/state/org"
 import {useWorkspaceRoles} from "@/oss/state/workspace"
 
@@ -201,9 +202,9 @@ const InviteUsersModal: FC<InviteUsersModalProps> = ({
     }
 
     return (
-        <Modal
+        <EnhancedModal
             {...props}
-            title="Invite Members"
+            title="Invite members"
             onOk={form.submit}
             okText="Invite"
             okButtonProps={{loading}}
@@ -226,7 +227,7 @@ const InviteUsersModal: FC<InviteUsersModalProps> = ({
                 workspaceId={workspaceId}
                 setLoading={setLoading}
             />
-        </Modal>
+        </EnhancedModal>
     )
 }
 

@@ -20,8 +20,8 @@ import {cn} from "./utils"
  *
  * ICON CENTERING: antd centres the item label by line-height, so a bare inline <svg> hangs off
  * the text baseline and lands ~4px ABOVE centre (measured, 16px icon in a 24px label). Call-sites
- * patch it by flexing the LABEL BOX (globals.css `.ag-icon-segmented`, ThemeSwitcher's inline
- * override); we build that in with `items-center justify-center` on the item.
+ * patch it by flexing the LABEL BOX (globals.css `.ag-icon-segmented` override); we build that
+ * in with `items-center justify-center` on the item.
  */
 
 export type SegmentedValue = string | number

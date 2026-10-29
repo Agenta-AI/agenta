@@ -75,6 +75,8 @@ export {HeightCollapse, type HeightCollapseProps} from "./HeightCollapse"
 
 export {default as PageLayout, type PageLayoutProps} from "./PageLayout"
 
+export {pageContentWidthClass, pageGutterClass} from "./pageWidth"
+
 export {EntityCard, type EntityCardProps} from "./EntityCard"
 
 // ============================================================================

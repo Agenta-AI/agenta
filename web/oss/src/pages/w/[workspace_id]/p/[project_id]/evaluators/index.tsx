@@ -5,7 +5,7 @@ const ProjectEvaluatorsPage = () => {
     return (
         <>
             <PageTitle title="Evaluators" />
-            <EvaluatorsRegistry scope="project" />
+            <EvaluatorsRegistry />
         </>
     )
 }

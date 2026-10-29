@@ -54,6 +54,7 @@ export default function CatalogDrawer({onConnectionCreated}: Props) {
     const [connectIntegration, setConnectIntegration] = useState<CatalogIntegrationItem | null>(
         null,
     )
+    const [panel, setPanel] = useState<HTMLDivElement | null>(null)
 
     const setIntegrationsSearch = useSetAtom(toolIntegrationsSearchAtom)
     const setActionsSearch = useSetAtom(toolActionsSearchAtom)
@@ -88,6 +89,7 @@ export default function CatalogDrawer({onConnectionCreated}: Props) {
                 title={selectedIntegration ? "Browse Actions" : "Browse Integrations"}
                 size="large"
                 destroyOnClose
+                panelRef={setPanel}
                 styles={{
                     body: {
                         padding: 0,
@@ -111,6 +113,7 @@ export default function CatalogDrawer({onConnectionCreated}: Props) {
             {connectIntegration && (
                 <ConnectDrawer
                     open={!!connectIntegration}
+                    container={panel}
                     integrationKey={connectIntegration.key}
                     integrationName={connectIntegration.name}
                     integrationLogo={connectIntegration.logo ?? undefined}
@@ -209,7 +212,7 @@ function IntegrationsView({onSelect}: {onSelect: (integration: CatalogIntegratio
                                                     {integration.name}
                                                 </span>
                                                 {integration.actions_count != null && (
-                                                    <span className="inline-flex shrink-0 items-center rounded-full bg-colorInfo px-2 py-0.5 text-[11px] leading-4 text-white">
+                                                    <span className="inline-flex shrink-0 items-center rounded-full bg-colorInfo px-2 py-0.5 text-xs leading-4 text-white">
                                                         {integration.actions_count} actions
                                                     </span>
                                                 )}

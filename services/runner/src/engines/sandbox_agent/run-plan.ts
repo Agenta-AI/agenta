@@ -5,6 +5,7 @@ import { basename, join } from "node:path";
 
 import {
   type AgentRunRequest,
+  type ModelConnectionSubscription,
   type ResolvedToolSpec,
   type SandboxPermission,
   currentUserTurn,
@@ -12,12 +13,10 @@ import {
 } from "../../protocol.ts";
 import { executableToolSpecs } from "../../tools/public-spec.ts";
 import { attachmentCountError } from "../../sessions/attachments.ts";
+import { harnessKindOf } from "../../harness-kind.ts";
 import { CODE_TOOL_UNSUPPORTED_MESSAGE } from "../../tools/code.ts";
-import { PI_USER_MCP_UNSUPPORTED_MESSAGE } from "../../tools/mcp-bridge.ts";
-import {
-  INTERNAL_TOOL_MCP_SERVER_NAME,
-  RESERVED_MCP_SERVER_NAME_MESSAGE,
-} from "./mcp.ts";
+import { piGatewayMcpServersFromWire } from "../../extensions/pi-mcp.ts";
+import { reservedUserMcpNameError } from "./mcp.ts";
 import {
   permissionsFromRequest,
   piBuiltinIdentity,
@@ -31,9 +30,12 @@ import { assert } from "./capabilities.ts";
 import type { ClientToolPauseDisposition } from "./client-tools.ts";
 import { carriesApprovalReplyOnly } from "./session-identity.ts";
 import { buildTurnText } from "./transcript.ts";
+import { isInNetworkApiEndpoint } from "../../apiBase.ts";
 import {
   KNOWN_SANDBOX_PROVIDER_IDS,
+  sandboxProviderTraits,
   loadRunnerConfig,
+  providerNotEnabledMessage,
   type SandboxProviderId,
 } from "../../config/runner-config.ts";
 import {
@@ -41,6 +43,10 @@ import {
   daytonaOpaqueSecretsEnabled,
   type DaytonaSecretPlan,
 } from "./daytona-secret-plan.ts";
+import {
+  isReservedSandboxEnvironmentName,
+  materializeSandboxCredentials,
+} from "./sandbox-credentials.ts";
 
 type Log = (message: string) => void;
 
@@ -99,12 +105,115 @@ export const LOCAL_SUBSCRIPTION_MOUNT_MISSING_MESSAGE =
   "(Pi), CLAUDE_CONFIG_DIR (Claude), or CODEX_HOME (Codex) to a read-write mount of your harness login.";
 
 /**
+ * A delivered subscription block the runner cannot act on.
+ *
+ * The block carries the run's only credential, so a malformed one must stop the run rather than
+ * fall through to the operator-mount path — that path would authenticate as the OPERATOR, on
+ * someone else's connection, which is worse than a failed run.
+ */
+export const SUBSCRIPTION_INVALID_MESSAGE =
+  "modelConnection.subscription is invalid: it needs an id (letters, digits, '.', '_' or '-'), " +
+  "and a login with access, refresh, and a numeric expires.";
+
+/**
+ * The only harness and product family a hosted subscription run is implemented for.
+ *
+ * The runner materializes a ChatGPT-shaped `auth.json` into a Pi agent dir. Any other pair would
+ * write a credential the harness does not read, and the run would authenticate as nobody while
+ * looking configured. The SDK refuses these on the product path; this is the runner's own wire
+ * boundary, which a direct `/run` caller reaches without passing through the SDK.
+ */
+export const SUBSCRIPTION_SUPPORTED_PROVIDER = "chatgpt";
+
+/**
+ * The marker an M5 SDK sends in `subscription` beside an organization login. A runner older
+ * than M5 does not read `organizationSubscription`; it reads this marker as an unusable
+ * subscription and refuses the run (`SUBSCRIPTION_INVALID_MESSAGE`), so it never falls through
+ * to the operator's own login. This runner accepts the marker only beside
+ * `organizationSubscription`.
+ */
+export const ORGANIZATION_SUBSCRIPTION_FENCE = "organization";
+
+function isOrganizationSubscriptionFence(value: unknown): boolean {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    (value as { fence?: unknown }).fence === ORGANIZATION_SUBSCRIPTION_FENCE &&
+    !("login" in value)
+  );
+}
+
+export const SUBSCRIPTION_UNSUPPORTED_MESSAGE =
+  "A subscription connection is supported only for the ChatGPT provider on a Pi harness. " +
+  "Use a managed API key (credentialMode 'env') for anything else.";
+
+/**
+ * The id doubles as a directory name, so it must be one plain path segment and nothing else.
+ *
+ * `.` and `..` are spelled out of the character class because they pass every other test and then
+ * collapse the per-connection home into its own parent: `..` makes the local home the runner state
+ * dir itself and the Daytona home `/home/sandbox/agenta`. A run on such an id would write its
+ * login into a directory shared with every other connection and clear prompt files there.
+ */
+const SUBSCRIPTION_ID_PATTERN = /^(?!\.{1,2}$)[A-Za-z0-9._-]{1,128}$/;
+
+/**
+ * Where this runner keeps state that outlives a single run but is not session data.
+ *
+ * A subscription login lands under it, one directory per connection. It is deliberately NOT the
+ * durable cwd: that is a geesefs mount into object storage, and a credential file there would be
+ * both visible to the agent's own tools and subject to the degraded-symlink and non-atomic-write
+ * hazards the Codex path already fights.
+ */
+export function runnerStateDir(): string {
+  return (
+    process.env.AGENTA_RUNNER_STATE_DIR?.trim() ||
+    join(tmpdir(), "agenta", "runner-state")
+  );
+}
+
+/**
+ * The agent dir holding one subscription's login for this run.
+ *
+ * Local: under the runner's own state dir. Daytona: on the sandbox's in-VM disk, a sibling of the
+ * Codex SQLite home, for the same reason that one is there — the geesefs cwd is the wrong
+ * filesystem for a file the harness rewrites in place.
+ *
+ * Keyed by connection id, so two connections never share a login file and a warm sandbox cannot
+ * serve the second one the first one's token.
+ */
+export function subscriptionHomeDir(id: string, isDaytona: boolean): string {
+  return isDaytona
+    ? `/home/sandbox/agenta/subscriptions/${id}`
+    : join(runnerStateDir(), "subscriptions", id);
+}
+
+/** Whether a delivered subscription block is usable. Shape only; the provider judges the token. */
+export function isUsableSubscription(
+  subscription: ModelConnectionSubscription | undefined,
+): boolean {
+  if (!subscription) return false;
+  if (!SUBSCRIPTION_ID_PATTERN.test(subscription.id ?? "")) return false;
+  const login = subscription.login;
+  if (typeof login !== "object" || login === null) return false;
+  return (
+    typeof login.access === "string" &&
+    !!login.access &&
+    typeof login.refresh === "string" &&
+    !!login.refresh &&
+    typeof login.expires === "number" &&
+    Number.isFinite(login.expires)
+  );
+}
+
+/**
  * How the run authenticates with the model provider. Everything here describes the credential
  * itself and how it is delivered, not where the run executes or what it asks the model to do.
  */
 export interface RunPlanCredentials {
   /** Final plaintext model environment, after validating modelConnection. */
   modelEnvironment: Record<string, string>;
+  sandboxEnvironment: Record<string, string>;
   /**
    * Process-local opaque credential plan. Present for every Daytona run unless credential
    * hiding was switched off with AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS, and present even with
@@ -128,6 +237,23 @@ export interface RunPlanCredentials {
    * that request may still use the harness login. Drives clear-then-apply env (Security rule 5).
    */
   credentialMode?: string;
+  /**
+   * The hosted subscription connection this run authenticates from, when it has one. Present only
+   * alongside `credentialMode: "runtime_provided"`, and its presence is what separates a HOSTED
+   * subscription run (the login rides the request, Daytona allowed) from the OPERATOR-mount run
+   * this runner already served (the login is a mount on this box, local only).
+   *
+   * It holds the login itself. Nothing may put it in a log line, a trace, or an error message.
+   */
+  subscription?: ModelConnectionSubscription;
+  /**
+   * The agent dir this run's subscription login is materialized into. Set together with
+   * `subscription` and never without it. Local runs get a runner-state path; Daytona runs get the
+   * in-VM path the sandbox writes to. See `subscriptionHomeDir`.
+   */
+  subscriptionHome?: string;
+  /** Whether the run reaches its model through the Agenta LLM gateway (it carries gateway credentials). */
+  throughGateway?: boolean;
 }
 
 /**
@@ -137,6 +263,8 @@ export interface RunPlanCredentials {
 export interface RunPlanWorkspace {
   cwd: string;
   relayDir: string;
+  /** Ephemeral Pi telemetry IPC, sibling to relay and keyed to the same conversation cwd. */
+  telemetryDir: string;
   /**
    * Where the in-sandbox stdio MCP shim assets (bundle + public-specs file) are uploaded on
    * the Daytona non-Pi executable-tools path (`uploadToolMcpAssets`). An ephemeral in-VM
@@ -148,6 +276,8 @@ export interface RunPlanWorkspace {
   toolMcpDir: string;
   usageOutPath?: string;
   skillDirs: MaterializedSkill[];
+  /** "name: reason" per skill that did NOT materialize — stamped as `ag.meta.skills.dropped`. */
+  skillsDropped: string[];
   /** Removes the per-run skills temp root. The engine runs it in its `finally` so it never leaks. */
   skillsCleanup: () => void;
   sourcePiAgentDir: string;
@@ -169,6 +299,12 @@ export interface RunPlanTools {
   executableToolSpecs: ResolvedToolSpec[];
   /** True when the permission policy needs the extension to intercept Pi builtin calls. */
   builtinGatingActive: boolean;
+  /**
+   * The run's permission posture. `allow` is the only posture under which the runner executes
+   * owner-authored startup code (`agent-files/.tools/setup.sh`) unattended; see
+   * `agent-tools-setup.ts`.
+   */
+  permissionDefault: PermissionPlan["default"];
   useToolRelay: boolean;
   /**
    * How a parked client tool disposes of the turn and the in-sandbox shim's blocking call (closed
@@ -198,6 +334,15 @@ export interface RunPlan {
   sandboxId: string;
   isPi: boolean;
   isDaytona: boolean;
+  /** The runner host mounts the drive (`local`); see `SandboxProviderTraits`. */
+  driveOnRunner: boolean;
+  /** The harness runs inside this runner process (`inprocess`): no daemon, no ACP transport. */
+  harnessInRunner: boolean;
+  /**
+   * What an error no rule recognizes shows: `inprocess` hides it behind a reference (its text can
+   * carry the runner's own internals), the others show its redacted first line.
+   */
+  unknownErrorText: "sanitized" | "hidden";
   credentials: RunPlanCredentials;
   workspace: RunPlanWorkspace;
   tools: RunPlanTools;
@@ -212,8 +357,7 @@ export interface RunPlan {
 }
 
 export type BuildRunPlanResult =
-  | { ok: true; plan: RunPlan }
-  | { ok: false; error: string };
+  { ok: true; plan: RunPlan } | { ok: false; error: string };
 
 // The five wire fields this change RETIRED. They are listed here so the runner can reject a
 // request that still sends them, rather than ignore them.
@@ -292,11 +436,68 @@ function computeBuiltinGatingActive(
   }
 }
 
-function defaultLocalCwd(durableCwd?: string): string {
+/**
+ * Root of the LOCAL provider's durable mounts: `<root>/<stored prefix>`, where the stored prefix
+ * is `mounts/<scope_id>/<mount_id>`.
+ *
+ * Deliberately NOT under `/tmp`. Every harness treats `/tmp` as scratch it is free to clear, and
+ * on this provider a single mount namespace holds every concurrent session's geesefs mount, so one
+ * session clearing `/tmp` walks into drives it does not own (2026-09-10 data loss).
+ *
+ * `agenta` must stay its own path segment with `mounts` directly beneath it: the UI recovers a
+ * drive path from a harness tool path by scanning for exactly that pair (`sandboxRootEnd` in
+ * `@agenta/entities`), and a root that breaks the pair silently mis-resolves every file link.
+ *
+ * Sessions recorded before this move keep `/tmp/agenta/...` tool paths in the database forever, so
+ * every consumer of these paths must accept both roots.
+ */
+export const LOCAL_DURABLE_MOUNT_ROOT = "/var/lib/agenta";
+
+/** Root of the DAYTONA provider's durable mounts. Each session owns its sandbox, so it is safe. */
+export const DAYTONA_DURABLE_MOUNT_ROOT = "/home/sandbox/agenta";
+
+/**
+ * The provider a run will actually execute on.
+ *
+ * Every decision that differs by provider has to ask this one function. The durable mount root is
+ * the reason it exists: it is chosen before `buildRunPlan` runs, and when the two disagreed a run
+ * that `buildRunPlan` sent to Daytona could be handed the LOCAL root, which does not exist in a
+ * Daytona sandbox, so the mount failed. The precedence is the request first, then the caller's
+ * resolved provider, then the deployment default.
+ */
+export function resolveSandboxProviderId(
+  request: Pick<AgentRunRequest, "sandbox">,
+  sandboxProvider?: string,
+): string {
+  return (
+    request.sandbox ||
+    sandboxProvider ||
+    loadRunnerConfig().providers.default ||
+    "local"
+  );
+}
+
+export function defaultLocalCwd(durableCwd?: string): string {
   // When the caller pre-computed a durable cwd from the sign prefix, use it — same prefix means
   // same mountpoint across turns, so checkMounted short-circuits and no geesefs leak accrues.
   if (durableCwd) {
-    mkdirSync(durableCwd, { recursive: true });
+    try {
+      mkdirSync(durableCwd, { recursive: true });
+    } catch (err) {
+      // The runner images pre-create the root world-writable, so this only fires for a runner run
+      // straight on a host, where the root's parent is root-owned. The bare EACCES names a path
+      // nobody recognizes, so say what to create instead of making the reader find this line.
+      const code = (err as NodeJS.ErrnoException)?.code;
+      if (code === "EACCES" || code === "EPERM") {
+        throw new Error(
+          `cannot create the durable session cwd '${durableCwd}': ${code}. The runner images ` +
+            `pre-create this root; running the runner directly on a host needs it once: ` +
+            `sudo mkdir -p ${LOCAL_DURABLE_MOUNT_ROOT}/mounts && sudo chmod 1777 ` +
+            `${LOCAL_DURABLE_MOUNT_ROOT} ${LOCAL_DURABLE_MOUNT_ROOT}/mounts`,
+        );
+      }
+      throw err;
+    }
     return durableCwd;
   }
   // Ephemeral fallback for non-session runs.
@@ -306,6 +507,82 @@ function defaultLocalCwd(durableCwd?: string): string {
 function defaultDaytonaCwd(durableCwd?: string): string {
   // Daytona: the remote sandbox creates the dir via mkdir-p in mountStorageRemote; no mkdirSync.
   return durableCwd ?? `/home/sandbox/agenta-${randomBytes(6).toString("hex")}`;
+}
+
+// `host.docker.internal` is here for the same reason the Python SDK's `_LOOPBACK_HOSTNAMES`
+// carries it: Docker exposes the host loopback to a container under that fixed alias, so a
+// hop to it is the same hop. It was missing on this leg, which meant the SDK admitted a
+// connection the runner then refused — the run reached the sandbox and died there.
+const LOOPBACK_HOSTNAMES = new Set([
+  "localhost",
+  "127.0.0.1",
+  "::1",
+  "host.docker.internal",
+]);
+
+/** The deployment opt-in that lets OUR gateway credentials cross plain HTTP to a routable
+ * host. Mirrors the Python SDK's `AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED`
+ * (`connections/models.py`): with the flag off both legs refuse, with it on both allow, so a
+ * run can never be admitted by one and stranded by the other. Default off, and deliberately
+ * not consulted for a provider's own secret — that rule stays HTTPS-or-loopback always.
+ * Read per call, because a container recreate is what changes it. */
+function gatewayInsecureHttpAllowed(): boolean {
+  const raw = (process.env.AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED ?? "")
+    .trim()
+    .toLowerCase();
+  return (
+    raw === "1" ||
+    raw === "true" ||
+    raw === "t" ||
+    raw === "y" ||
+    raw === "yes" ||
+    raw === "on" ||
+    raw === "enable" ||
+    raw === "enabled"
+  );
+}
+
+/** Mirrors the provider-credential transport rule in the Python SDK: HTTPS anywhere, or
+ * plain HTTP to loopback, which has no remote to leak a provider credential to. */
+function isEffectiveSecureEndpoint(baseUrl: string | undefined): boolean {
+  try {
+    const endpoint = new URL(baseUrl ?? "");
+    if (!endpoint.hostname) return false;
+    if (endpoint.protocol === "https:") return true;
+    return (
+      endpoint.protocol === "http:" &&
+      LOOPBACK_HOSTNAMES.has(endpoint.hostname.replace(/^\[|\]$/g, ""))
+    );
+  } catch {
+    return false;
+  }
+}
+
+/** The env var a gateway credential's raw value lands in, for a harness config file (Pi
+ * `models.json`, Codex `config.toml`) to reference by `$VAR` indirection rather than writing
+ * the secret to disk — the same pattern `apiKeyEnv` already uses for provider keys. */
+export const GATEWAY_CREDENTIALS_VALUE_ENV = "AGENTA_GATEWAY_CREDENTIALS_VALUE";
+
+const HTTP_FIELD_NAME = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
+
+function isSafeHttpHeader(name: string, value: string): boolean {
+  return HTTP_FIELD_NAME.test(name) && !/[\r\n]/.test(value);
+}
+
+/** The gateway credentials as the header they belong in. The header counterpart of
+ * `materializeModelEnvironment`; validated there, materialized here. */
+export function materializeGatewayHeaders(
+  request: AgentRunRequest,
+): Record<string, string> {
+  const credentials = request.modelConnection?.gatewayCredentials;
+  if (
+    !credentials?.header?.trim() ||
+    !credentials.value ||
+    !isSafeHttpHeader(credentials.header, credentials.value)
+  ) {
+    return {};
+  }
+  return { [credentials.header]: credentials.value };
 }
 
 export function materializeModelEnvironment(
@@ -329,6 +606,15 @@ export function materializeModelEnvironment(
         ok: false,
         error:
           "modelConnection environment requires non-empty names and values",
+      };
+    }
+    // M20. The same reserved set `sandboxCredentials` is screened against: both land in one
+    // process environment, so screening one and not the other only decides which field an
+    // override has to arrive in.
+    if (isReservedSandboxEnvironmentName(name)) {
+      return {
+        ok: false,
+        error: `modelConnection environment '${name}' is reserved by the runtime`,
       };
     }
     environment[name] = value;
@@ -371,19 +657,21 @@ export function materializeModelEnvironment(
         error: "modelConnection credential usage is invalid",
       };
     }
-    if (credential.usage === "opaque_http") {
-      try {
-        const endpoint = new URL(connection.endpoint?.baseUrl ?? "");
-        if (endpoint.protocol !== "https:" || !endpoint.hostname) {
-          throw new Error("invalid endpoint");
-        }
-      } catch {
-        return {
-          ok: false,
-          error:
-            "opaque_http model credentials require an effective HTTPS endpoint",
-        };
-      }
+    if (
+      credential.usage === "opaque_http" &&
+      !isEffectiveSecureEndpoint(connection.endpoint?.baseUrl)
+    ) {
+      return {
+        ok: false,
+        error:
+          "opaque_http model credentials require an effective HTTPS endpoint",
+      };
+    }
+    if (isReservedSandboxEnvironmentName(name)) {
+      return {
+        ok: false,
+        error: `modelConnection credential binding '${name}' is reserved by the runtime`,
+      };
     }
     if (Object.hasOwn(environment, name)) {
       return {
@@ -392,6 +680,49 @@ export function materializeModelEnvironment(
       };
     }
     environment[name] = credential.value;
+  }
+
+  const gatewayCredentials = connection.gatewayCredentials;
+  if (gatewayCredentials !== undefined) {
+    if (
+      !gatewayCredentials.header?.trim() ||
+      !gatewayCredentials.value ||
+      !isSafeHttpHeader(gatewayCredentials.header, gatewayCredentials.value)
+    ) {
+      return {
+        ok: false,
+        error:
+          "gateway credentials require a valid header name and newline-free value",
+      };
+    }
+    // Gateway credentials are bearer credentials too, so the transport rule that guards a
+    // provider secret above guards them here. Without this the two legs disagreed: the SDK
+    // refused a plain-http routable gateway while the runner accepted one, which is the
+    // inconsistency `AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED` now resolves in both directions.
+    // The operator's own in-network api hop counts as secure: the runner already sends its
+    // token and the run credential there (`apiBase.ts`), and an in-process harness is moved onto
+    // it (`gateway-in-network.ts`).
+    if (
+      !isEffectiveSecureEndpoint(connection.endpoint?.baseUrl) &&
+      !isInNetworkApiEndpoint(connection.endpoint?.baseUrl) &&
+      !gatewayInsecureHttpAllowed()
+    ) {
+      return {
+        ok: false,
+        error:
+          "gateway credentials require an effective HTTPS endpoint; serve the deployment " +
+          "over HTTPS, or set AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED=true on a trusted " +
+          "single-tenant deployment",
+      };
+    }
+    // Gateway credentials replace provider credentials for a gateway-routed connection.
+    if (credentials.length > 0) {
+      return {
+        ok: false,
+        error:
+          "modelConnection cannot combine gateway credentials with provider credentials",
+      };
+    }
   }
 
   return {
@@ -414,10 +745,38 @@ export function buildRunPlan(
   }: BuildRunPlanDeps = {},
 ): BuildRunPlanResult {
   const runnerConfig = loadRunnerConfig();
-  const defaultProvider = sandboxProvider ?? runnerConfig.providers.default;
   const enabled = enabledProviders ?? runnerConfig.providers.enabled;
+  // Fail CLOSED on a non-string harness, matching `harnessKindOf`: `/stream` decodes with an
+  // unchecked `JSON.parse`, so a malformed payload can put `null`, `0`, or `false` here, and a
+  // bare `||` would quietly run it as Pi while the lifecycle router classifies it `unknown`.
+  if (request.harness !== undefined && typeof request.harness !== "string") {
+    return {
+      ok: false,
+      error: `Unrecognized harness ${JSON.stringify(request.harness)}: not a string.`,
+    };
+  }
+  if (
+    request.platformInstructions !== undefined &&
+    typeof request.platformInstructions !== "string"
+  ) {
+    return {
+      ok: false,
+      error: "platformInstructions must be a string when provided.",
+    };
+  }
+  // The internal gateway-tool channel's name is reserved on every transport: the Python
+  // Claude adapter renders permission rules against `agenta-tools`, so a user server with
+  // that name would collide with the internal channel and inherit/steal its rendered rules.
+  // Object-key specials (`__proto__`, ...) are refused too, because runner maps are keyed by
+  // server name, so this runs before any of them is built. Refuse at declaration time;
+  // `buildSessionMcpServers` repeats the check at session materialization as defense in depth.
+  const reservedNameError = reservedUserMcpNameError(request.mcpServers);
+  if (reservedNameError) {
+    return { ok: false, error: reservedNameError };
+  }
+
   const harness = request.harness || "pi_core";
-  const sandboxId = request.sandbox || defaultProvider || "local";
+  const sandboxId = resolveSandboxProviderId(request, sandboxProvider);
 
   // Deployment posture gate (interface.md section 2, rule 7): a request for a known but disabled
   // provider fails here, before any cwd/temp dir, mount, file, secret, or sandbox is created.
@@ -428,9 +787,7 @@ export function buildRunPlan(
   ) {
     return {
       ok: false,
-      error:
-        `Sandbox provider '${sandboxId}' is not enabled on this deployment ` +
-        `(enabled: ${enabled.join(", ")}).`,
+      error: providerNotEnabledMessage(sandboxId, enabled),
     };
   }
 
@@ -447,17 +804,18 @@ export function buildRunPlan(
   }
 
   // The harness identity maps to a real ACP agent the daemon knows (`pi` / `claude`).
-  // `pi_core` (plain Pi) and `pi_agenta` (Pi with Agenta's forced skills/prompt/policy) both
+  // `pi_agenta` (a removed experiment: Pi plus a forced Agenta overlay) is read as Pi so an
+  // old stored request or replay still runs; the mapping is `harnessKindOf`, THE shared
+  // normalizer — `pi_core` and that legacy spelling both
   // run on the `pi` ACP agent; `claude` runs on the `claude` ACP agent. `harness` remains the
   // selected identity for logs, traces, and user-facing errors.
-  const acpAgent =
-    harness === "pi_core" || harness === "pi_agenta" ? "pi" : harness;
+  const acpAgent = harnessKindOf(harness) === "pi" ? "pi" : harness;
 
   // Debug assertion: every Pi identity must resolve to the `pi` ACP agent and nothing else may.
   // Catches a future harness-id typo (e.g. a new `pi_*` value forgotten here) at plan-build time
   // rather than as a daemon "unknown agent" error mid-run.
   assert(
-    (harness === "pi_core" || harness === "pi_agenta") === (acpAgent === "pi"),
+    (harnessKindOf(harness) === "pi") === (acpAgent === "pi"),
     `harness '${harness}' resolved to ACP agent '${acpAgent}', but pi identity mapping disagrees`,
   );
 
@@ -486,39 +844,100 @@ export function buildRunPlan(
 
   const isPi = acpAgent === "pi";
   const isDaytona = sandboxId === "daytona";
-  // Any non-local sandbox counts as remote for the F1 tools gate below. An unknown provider id
-  // currently falls through to the LOCAL cwd/provider path further down, but for tool delivery
-  // it must fail CLOSED: a future provider (E2B et al.) has no proven delivery path until it
-  // ships one, and "unknown" must not silently behave like "reachable loopback".
-  const isRemoteSandbox = sandboxId !== "local";
-
-  // Subscription (runtime_provided) auth is a LOCAL-only capability: the harness reads and refreshes
-  // its login on a read-write mount that lives in the runner container and is never shipped to a
-  // third-party sandbox. Reject Daytona + runtime_provided here, before any sandbox is created,
-  // rather than silently falling back to an unauthenticated remote run (interface.md sections 5-6).
-  const requestCredentialMode = request.modelConnection?.credentialMode;
-  if (isDaytona && requestCredentialMode === "runtime_provided") {
-    return { ok: false, error: DAYTONA_SUBSCRIPTION_UNSUPPORTED_MESSAGE };
+  const traits = sandboxProviderTraits(sandboxId);
+  // Any provider whose files are not on the runner counts as remote for the F1 tools gate below.
+  // An unknown provider id currently falls through to the LOCAL cwd/provider path further down,
+  // but for tool delivery it must fail CLOSED: a future provider (E2B et al.) has no proven
+  // delivery path until it ships one, and "unknown" must not silently behave like "reachable
+  // loopback". `inprocess` delivers tools exactly like `local`: the extension and the relay live
+  // in this runner process.
+  const isRemoteSandbox = !traits.filesOnRunner;
+  if (traits.harnesses && !traits.harnesses.includes(harness)) {
+    return {
+      ok: false,
+      error: `The ${sandboxId} sandbox runs only these harnesses: ${traits.harnesses.join(", ")}. Pick one of them or another sandbox.`,
+    };
   }
 
-  // A local runtime_provided run authenticates from an explicitly mounted subscription; Codex
-  // reads its login from the CODEX_HOME mount too. If the harness config var is unset there is no
-  // mount to read, so fail up front rather than discovering the runner's own home (interface.md
-  // section 6). Managed ("env") / "none" runs are unaffected.
-  if (!isDaytona && requestCredentialMode === "runtime_provided") {
+  // TWO SHAPES OF `runtime_provided`, told apart by `modelConnection.subscription`.
+  //
+  // HOSTED (the block is present): the API delivers the login with the request and the runner
+  // materializes it into a per-connection agent dir. Nothing is read off an operator mount, so the
+  // mount gate below does not apply, and the login CAN be delivered into a Daytona sandbox because
+  // it belongs to the project rather than to this box — which is what the old Daytona rejection
+  // existed to prevent.
+  //
+  // OPERATOR MOUNT (no block): unchanged. Local only, and the harness config var must name a
+  // read-write mount of the operator's own login.
+  const requestCredentialMode = request.modelConnection?.credentialMode;
+  const organizationSubscription =
+    request.modelConnection?.organizationSubscription;
+  if (organizationSubscription) {
+    // An organization login never takes the operator path: the only `subscription` beside it
+    // is the fence an older runner refuses. Past this it runs exactly like a project login, on
+    // every engine; only its owner differs, which sends its refreshes to the organization's row.
+    const besideSubscription = request.modelConnection?.subscription;
+    if (
+      (besideSubscription &&
+        !isOrganizationSubscriptionFence(besideSubscription)) ||
+      requestCredentialMode !== "runtime_provided"
+    ) {
+      return {
+        ok: false,
+        error:
+          "modelConnection.organizationSubscription requires credentialMode 'runtime_provided' and no project subscription.",
+      };
+    }
+  }
+  const requestSubscription = organizationSubscription
+    ? { ...organizationSubscription, owner: "organization" as const }
+    : request.modelConnection?.subscription;
+  if (requestCredentialMode === "runtime_provided" && requestSubscription) {
+    // A malformed block is terminal. Falling through would run on the operator's mount instead,
+    // which authenticates as the wrong account.
+    if (!isUsableSubscription(requestSubscription)) {
+      return { ok: false, error: SUBSCRIPTION_INVALID_MESSAGE };
+    }
+    if (
+      !isPi ||
+      requestSubscription.provider?.trim().toLowerCase() !==
+        SUBSCRIPTION_SUPPORTED_PROVIDER
+    ) {
+      return { ok: false, error: SUBSCRIPTION_UNSUPPORTED_MESSAGE };
+    }
+  } else if (requestSubscription) {
+    // A subscription with any other credential mode is a caller that half-migrated. Refuse rather
+    // than pick one of the two credentials it now carries.
+    return {
+      ok: false,
+      error:
+        "modelConnection.subscription requires credentialMode 'runtime_provided'.",
+    };
+  } else if (requestCredentialMode === "runtime_provided") {
+    if (isDaytona) {
+      return { ok: false, error: DAYTONA_SUBSCRIPTION_UNSUPPORTED_MESSAGE };
+    }
     const subscriptionEnvVar =
       acpAgent === "claude"
         ? "CLAUDE_CONFIG_DIR"
         : acpAgent === "codex"
           ? "CODEX_HOME"
           : "PI_CODING_AGENT_DIR";
-    if (!process.env[subscriptionEnvVar]) {
+    // The mock harness answers from a scripted behaviour and never authenticates, so it has
+    // no login to read and the mount is not a precondition for it.
+    if (acpAgent !== "mock" && !process.env[subscriptionEnvVar]) {
       return { ok: false, error: LOCAL_SUBSCRIPTION_MOUNT_MISSING_MESSAGE };
     }
   }
+  const subscription =
+    requestCredentialMode === "runtime_provided"
+      ? requestSubscription
+      : undefined;
 
   const materializedModel = materializeModelEnvironment(request);
   if (!materializedModel.ok) return materializedModel;
+  const materializedSandbox = materializeSandboxCredentials(request);
+  if (!materializedSandbox.ok) return materializedSandbox;
   // Daytona opaque-credential delivery is ON by default and switched off only by
   // AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS. Switched OFF: no secret plan is built at all, so
   // behavior is identical to the pre-feature runner — the full materialized environment reaches
@@ -574,7 +993,8 @@ export function buildRunPlan(
   // Daytona the policy IS applied (`provider.ts` `daytonaNetworkFields`).
   const network = request.sandboxPermission?.network;
   const networkRestricted = !!network && (network.mode ?? "on") !== "on";
-  if (networkRestricted && !isDaytona) {
+  // `inprocess` applies the policy to its command sandbox, the only place its commands run.
+  if (networkRestricted && !traits.commandsInRemoteSandbox) {
     return { ok: false, error: LOCAL_NETWORK_UNSUPPORTED_MESSAGE };
   }
 
@@ -588,25 +1008,21 @@ export function buildRunPlan(
     return { ok: false, error: CODE_TOOL_UNSUPPORTED_MESSAGE };
   }
 
-  // Pi delivers tools through its bundled extension, not over ACP MCP, so a user MCP server on
-  // a Pi run is DROPPED by `buildSessionMcpServers` (it returns [] for Pi). Dropping it silently
-  // (no log, HTTP 200) is the F-032 silent-drop bug. Refuse any external user MCP server
-  // on Pi up front with a Pi-specific message.
-  if (isPi && (request.mcpServers?.length ?? 0) > 0) {
-    return { ok: false, error: PI_USER_MCP_UNSUPPORTED_MESSAGE };
-  }
-
-  // The internal gateway-tool channel's name is reserved on every transport: the Python
-  // Claude adapter renders permission rules against `agenta-tools`, so a user server with
-  // that name would collide with the internal channel and inherit/steal its rendered rules.
-  // Refuse at declaration time; `buildSessionMcpServers` repeats the check at session
-  // materialization as defense in depth.
-  if (
-    (request.mcpServers ?? []).some(
-      (server) => server.name === INTERNAL_TOOL_MCP_SERVER_NAME,
-    )
-  ) {
-    return { ok: false, error: RESERVED_MCP_SERVER_NAME_MESSAGE };
+  // Pi delivers tools through its bundled extension, not over ACP MCP, so a user MCP server it
+  // cannot express is DROPPED by `buildSessionMcpServers`, and dropping it silently (no log,
+  // HTTP 200) is the F-032 silent-drop bug. Pi's native extension CAN register HTTP MCP tools,
+  // but only for the already-resolved Agenta gateway route shape. Validate up front, before any
+  // run state is allocated, so an unsupported server fails loud here and a forged direct
+  // upstream URL cannot become a Pi extension input.
+  if (isPi) {
+    try {
+      piGatewayMcpServersFromWire(request.mcpServers);
+    } catch (error) {
+      return {
+        ok: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
   }
 
   // Non-Pi + remote + tools: executable and client tools are both deliverable on Daytona via the
@@ -625,7 +1041,7 @@ export function buildRunPlan(
   // "strict", so the live path is unchanged; this aligns a DIRECT runner caller (and the
   // omit-when-default goldens) so only an explicit "best_effort" opts out of the hard guarantee.
   const strict = request.sandboxPermission?.enforcement !== "best_effort";
-  if (networkRestricted && isDaytona && strict) {
+  if (networkRestricted && traits.commandsInRemoteSandbox && strict) {
     const mode = network?.mode ?? "on";
     if (executableToolSpecsForRun.length > 0) {
       return {
@@ -649,6 +1065,10 @@ export function buildRunPlan(
     ? "/home/sandbox/agenta/relay"
     : join(tmpdir(), "agenta", "relay");
   const relayDir = join(relayBase, basename(cwd));
+  const telemetryBase = isDaytona
+    ? "/home/sandbox/agenta/telemetry"
+    : join(tmpdir(), "agenta", "telemetry");
+  const telemetryDir = join(telemetryBase, basename(cwd));
   // The in-sandbox stdio MCP shim assets live in an ephemeral SIBLING of the relay dir, keyed
   // the same way (stable across turns of one conversation). Never inside the relay dir — the
   // relay loop sweeps/watches it — and never on the geesefs mount (see `toolMcpDir` docs).
@@ -660,18 +1080,39 @@ export function buildRunPlan(
   // Skills materialize once from the resolved inline packages. Pi/Agenta consume the dirs
   // through Pi's agent-dir user scope; Claude consumes the same packages from the project-local
   // `.claude/skills` tree that `prepareWorkspace` writes below.
-  const { skills: skillDirs, cleanup: skillsCleanup } = resolveSkillDirs(
-    request.skills,
-    log,
-  );
+  const {
+    skills: skillDirs,
+    dropped: skillsDropped,
+    cleanup: skillsCleanup,
+  } = resolveSkillDirs(request.skills, log);
   if (skillDirs.length > 0)
     log(`skills: ${skillDirs.map((s) => s.name).join(", ")}`);
 
   const systemPrompt = isPi
     ? request.systemPrompt?.trim() || undefined
     : undefined;
+  // SDK-owned platform instructions are spliced HERE, at environment build time, before the
+  // author's text. The runner owns the harness delivery choice: Pi uses its append-system prompt;
+  // Claude and Codex use their rendered instructions file. Keep accepting the old carrier-bearing
+  // field during the rolling deployment, but prefer the new field so a mixed request cannot
+  // duplicate guidance. Both inputs remain outside session identity to preserve today's warm
+  // behavior: generated guidance changes take effect on the next ordinary environment build.
+  const platformInstructions =
+    request.platformInstructions !== undefined
+      ? request.platformInstructions.trim() || undefined
+      : request.gatewayGuidance?.text?.trim() || undefined;
+  const splicePlatformInstructions = (
+    authored: string | undefined,
+  ): string | undefined =>
+    platformInstructions
+      ? authored
+        ? `${platformInstructions}\n\n${authored}`
+        : platformInstructions
+      : authored;
   const appendSystemPrompt = isPi
-    ? request.appendSystemPrompt?.trim() || undefined
+    ? splicePlatformInstructions(
+        request.appendSystemPrompt?.trim() || undefined,
+      )
     : undefined;
 
   // Debug assertions: the derived run state must be self-consistent before the engine acts on
@@ -681,6 +1122,13 @@ export function buildRunPlan(
   assert(
     !!relayDir && relayDir !== cwd,
     `relay dir '${relayDir}' must be a distinct ephemeral dir, not the durable cwd`,
+  );
+  assert(
+    !!telemetryDir &&
+      telemetryDir !== cwd &&
+      telemetryDir !== relayDir &&
+      !telemetryDir.startsWith(`${relayDir}/`),
+    `telemetry dir '${telemetryDir}' must be an ephemeral sibling of the relay dir`,
   );
   assert(
     !!toolMcpDir &&
@@ -703,23 +1151,38 @@ export function buildRunPlan(
       sandboxId,
       isPi,
       isDaytona,
+      driveOnRunner: traits.driveOnRunner,
+      harnessInRunner: traits.harnessInRunner,
+      unknownErrorText: traits.harnessInRunner ? "hidden" : "sanitized",
       credentials: {
         modelEnvironment,
+        sandboxEnvironment: materializedSandbox.environment,
         daytonaSecretPlan,
         harnessApiKeyVar,
         // Consult the FULL materialized environment: on a Daytona Secrets run the opaque key is
         // delivered as a Secret attachment rather than plaintext env, but the harness still has it.
         hasApiKey: !!materializedModel.environment[harnessApiKeyVar],
         credentialMode: materializedModel.credentialMode,
+        subscription,
+        subscriptionHome: subscription
+          ? subscriptionHomeDir(subscription.id, isDaytona)
+          : undefined,
+        throughGateway:
+          Object.keys(materializeGatewayHeaders(request)).length > 0,
       },
       workspace: {
         cwd,
         relayDir,
+        telemetryDir,
         toolMcpDir,
         // Usage capture is ephemeral runner output, not durable session data — keep it off the
-        // geesefs mount alongside the relay dir (a mount write would risk ENOTCONN).
-        usageOutPath: isPi ? join(relayDir, ".agenta-usage.json") : undefined,
+        // geesefs mount in Pi's always-created telemetry dir. A plain chat has no tool relay, so
+        // the relay dir may not exist at all.
+        usageOutPath: isPi
+          ? join(telemetryDir, ".agenta-usage.json")
+          : undefined,
         skillDirs,
+        skillsDropped,
         skillsCleanup,
         sourcePiAgentDir:
           process.env.PI_CODING_AGENT_DIR || join(homedir(), ".pi", "agent"),
@@ -732,6 +1195,7 @@ export function buildRunPlan(
         toolSpecs,
         executableToolSpecs: executableToolSpecsForRun,
         builtinGatingActive,
+        permissionDefault: permissionPlan.default,
         // The relay carries tool EXECUTION only (permission gates ride the extension's
         // `ctx.ui.confirm` dialog onto the ACP plane), so a builtin-gating-only run needs no relay.
         useToolRelay: toolSpecs.length > 0,
@@ -742,7 +1206,9 @@ export function buildRunPlan(
       prompt: {
         text: prompt,
         turnText: buildTurnText(request, log),
-        agentsMd: request.agentsMd?.trim() || undefined,
+        agentsMd: isPi
+          ? request.agentsMd?.trim() || undefined
+          : splicePlatformInstructions(request.agentsMd?.trim() || undefined),
         systemPrompt,
         appendSystemPrompt,
         hasSystemPrompt: !!(systemPrompt || appendSystemPrompt),

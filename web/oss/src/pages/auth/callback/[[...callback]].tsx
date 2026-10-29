@@ -1,5 +1,6 @@
 import {useEffect, useRef, useState} from "react"
 
+import {isTurnstileEnabled, setPendingTurnstileToken} from "@agenta/auth"
 import {Alert, Spin} from "antd"
 import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -8,7 +9,6 @@ import {signInAndUp} from "supertokens-auth-react/recipe/thirdparty"
 
 import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import usePostAuthRedirect from "@/oss/hooks/usePostAuthRedirect"
-import {isTurnstileEnabled, setPendingTurnstileToken} from "@/oss/lib/helpers/auth/turnstile"
 import {isBackendAvailabilityIssue} from "@/oss/lib/helpers/errorHandler"
 import {AuthErrorMsgType} from "@/oss/lib/Types"
 import {mergeSessionIdentities} from "@/oss/services/auth/api"
@@ -16,7 +16,10 @@ import {authFlowAtom} from "@/oss/state/session"
 import {buildPostLoginPath, waitForWorkspaceContext} from "@/oss/state/url/postLoginRedirect"
 
 const Auth = dynamic(() => import("../[[...path]]"), {ssr: false})
-const TurnstileWidget = dynamic(() => import("@/oss/components/pages/auth/Turnstile"), {ssr: false})
+const TurnstileWidget = dynamic(
+    () => import("@agenta/auth-ui").then((mod) => mod.TurnstileWidget),
+    {ssr: false},
+)
 
 const Callback = () => {
     const router = useRouter()

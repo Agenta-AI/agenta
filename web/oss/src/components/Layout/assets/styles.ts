@@ -1,10 +1,10 @@
 import {createUseStyles} from "react-jss"
 
-import type {JSSTheme, StyleProps as MainStyleProps} from "@/oss/lib/Types"
+import type {StyleProps as MainStyleProps} from "@/oss/lib/Types"
 
 export type StyleProps = MainStyleProps
 
-export const useStyles = createUseStyles((theme: JSSTheme) => ({
+export const useStyles = createUseStyles(() => ({
     layout: ({themeMode}: StyleProps) => ({
         display: "flex",
         background: themeMode === "dark" ? "#141414" : "#ffffff",
@@ -21,29 +21,14 @@ export const useStyles = createUseStyles((theme: JSSTheme) => ({
         flex: 1,
         gap: 16,
     },
-    breadcrumbContainer: {
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "space-between",
-        width: "100%",
-        padding: "8px 1.5rem",
-        borderBottom: "1px solid var(--ag-shell-line)",
-    },
-    topRightBar: {
-        display: "flex",
-        alignItems: "center",
-        gap: "1rem",
-        "& span.ant-typography": {
-            color: theme.colorTextTertiary,
-        },
-    },
     banner: {
         position: "sticky",
         zIndex: 10,
         top: 0,
         left: 0,
         height: 38,
-        backgroundColor: "#1c2c3d",
+        // Stays a dark bar in both themes so the white text below keeps its contrast.
+        backgroundColor: "var(--ag-colorBgSpotlight)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",

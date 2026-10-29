@@ -2,17 +2,17 @@
  * AgentTemplateControl
  *
  * The agent playground's left config panel. It renders the whole agent config as a set
- * of collapsible accordion sections (Model & harness, Instructions, Tools, MCP servers,
- * Advanced), built on the reusable {@link ConfigAccordionSection} primitive so the same
- * pattern can roll out to other config surfaces.
+ * of collapsible accordion sections (Model, Instructions, Integrations, Subagents,
+ * MCP servers, Permissions, Advanced), built on the reusable {@link ConfigAccordionSection} primitive
+ * so the same pattern can roll out to other config surfaces.
  *
  * Dispatched from `x-ag-type: "agent-template"` / `x-ag-type-ref: "agent-template"` (see
  * SchemaPropertyRenderer). Its `value` IS the agent template (the `parameters.agent` object,
  * just as the prompt control's value is the prompt template): the portable definition
  * (instructions/llm/tools/mcps/skills) is FLAT on it, and the execution parts
  * (harness/runner/sandbox) are nested sub-objects. It reuses the existing schema controls rather
- * than inventing new ones: the model selector (GroupedChoiceControl), the agent tool picker
- * (AgentToolSelectorPopover + ToolItemControl), the MCP server editor (McpServerItemControl), enum
+ * than inventing new ones: the model selector (GroupedChoiceControl), the integration and
+ * subagent lists (ToolManagementList + SubagentList), the MCP server editor (McpServerItemControl), enum
  * selects (harness, sandbox, permission policy), and a textarea (agents_md). The shape is the
  * `agent-template` catalog type generated from the SDK model (AgentTemplateSchema in
  * agenta.sdk.utils.types); the agent service ships a thin `x-ag-type-ref` the playground resolves
@@ -25,22 +25,44 @@ import {memo, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {toolActionAvailabilityKey, useToolActionAvailability} from "@agenta/entities/gatewayTool"
 import type {SchemaProperty} from "@agenta/entities/shared"
-import {agentCreationPrefsAtom, workflowBuildKitEnabledAtomFamily} from "@agenta/entities/workflow"
+import {
+    agentCreationPrefsAtom,
+    workflowBuildKitUiStateAtomFamily,
+    migrateBuildKitStateAtom,
+    type BuildKitUiState,
+} from "@agenta/entities/workflow"
 import {agentItemIdentity, stableStringify} from "@agenta/entities/workflow/commitDiff"
 import {draftConfigChangeSignalAtom, openAgentConfigSectionAtom} from "@agenta/shared/state"
 import {stripAgentaMetadataDeep} from "@agenta/shared/utils"
-import {HeightCollapse} from "@agenta/ui/components"
 import {useRecentFlag, type SectionIndicatorTone} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {cn} from "@agenta/ui/styles"
-import {Cpu, FileText, GraduationCap, Plugs, SlidersHorizontal, Wrench} from "@phosphor-icons/react"
+import {
+    Button,
+    Spinner,
+    Tooltip,
+    TooltipContent,
+    TooltipProvider,
+    TooltipTrigger,
+} from "@agenta/ui/ui"
+import {
+    Cpu,
+    FileText,
+    GraduationCap,
+    Plugs,
+    Robot,
+    ShieldCheck,
+    SlidersHorizontal,
+    UploadSimple,
+    Wrench,
+} from "@phosphor-icons/react"
 import deepEqual from "fast-deep-equal"
 import {useAtom, useAtomValue, useStore} from "jotai"
 
 import {ChangedPathsProvider} from "../../drawers/shared"
 import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 
-import {AddTextLink} from "./AddTextLink"
+import {mergeAgentConfigDraft, readRunnerPermission} from "./agentConfigPatch"
 import {useAutoExpandOnPopulate} from "./agentSectionAutoExpand"
 import {AgentIntegrationDrawer} from "./agentTemplate/AgentIntegrationDrawer"
 import {
@@ -48,10 +70,19 @@ import {
     type AgentTemplateSectionDescriptor,
 } from "./agentTemplate/AgentTemplateSectionList"
 import {countSummary} from "./agentTemplate/agentTemplateUtils"
-import {AgentToolSelectorPopover} from "./agentTemplate/AgentToolSelectorPopover"
 import {ConfigItemList} from "./agentTemplate/ConfigItemList"
+import {CreateWithAIAddMenu} from "./agentTemplate/CreateWithAIAddMenu"
+import {IntegrationPermissionDrawer} from "./agentTemplate/IntegrationPermissionDrawer"
+import {
+    embedRevisionVersion,
+    isEmbedRefSkill,
+    isStaticSkill,
+    staticEmbedSlug,
+    toolReferenceSlug,
+} from "./agentTemplate/itemDescriptors"
 import {ITEM_KINDS, type ItemKind} from "./agentTemplate/itemKinds"
 import {InstructionsFileRow, type ItemRowStatus} from "./agentTemplate/ItemRow"
+import {McpServersSectionBody} from "./agentTemplate/McpServersSectionBody"
 import {SectionAddButton} from "./agentTemplate/SectionAddButton"
 import {SectionChangeBody} from "./agentTemplate/SectionChangeBody"
 import {
@@ -60,7 +91,16 @@ import {
     type PanelSectionKey,
 } from "./agentTemplate/sectionChanges"
 import {SectionTitleBadge} from "./agentTemplate/SectionTitleBadge"
-import {ToolManagementList} from "./agentTemplate/ToolManagementList"
+import {
+    ConnectedSubagentList,
+    SubagentDrawerContainer,
+} from "./agentTemplate/SubagentDrawerContainer"
+import {SubagentHeaderTitle, SubagentOpenAgentButton} from "./agentTemplate/SubagentHeader"
+import {
+    selectSubagentTools,
+    SubagentList,
+    ToolManagementList,
+} from "./agentTemplate/ToolManagementList"
 import {useAgentTools} from "./agentTemplate/useAgentTools"
 import {useConfigItemDrawer} from "./agentTemplate/useConfigItemDrawer"
 import {useModelHarness} from "./agentTemplate/useModelHarness"
@@ -69,15 +109,16 @@ import {connectionFromConfig, modelIdFromConfig} from "./connectionUtils"
 import {InstructionsDrawer} from "./InstructionsDrawer"
 import {JsonObjectEditor} from "./JsonObjectEditor"
 import {SectionDrawer} from "./SectionDrawer"
-import {SectionQuickAction} from "./SectionQuickAction"
 import {
-    isHarnessBuiltinTool,
-    parseGatewayTool,
-    type ParsedGatewayTool,
-    type ToolObj,
+    findIntegrationRow,
+    integrationRowConnection,
+    integrationRowIndices,
+    parseGatewayEntry,
+    type GatewayConnectionTarget,
+    type GatewayEntry,
+    type IntegrationRow,
 } from "./toolUtils"
 import {useAgentTriggers} from "./TriggerManagementSection"
-import {WorkflowReferenceSelector} from "./WorkflowReferenceSelector"
 
 // Tooltip copy for the config-panel draft/validation indicators.
 const INVALID_ITEM_TIP: Record<ItemKind, string> = {
@@ -88,10 +129,12 @@ const INVALID_ITEM_TIP: Record<ItemKind, string> = {
 const DRAFT_TIP: Record<string, string> = {
     "model-harness": "Unsaved model or harness changes.",
     instructions: "Unsaved instruction changes.",
-    tools: "Unsaved tool changes.",
+    tools: "Unsaved integration changes.",
+    subagents: "Unsaved subagent changes.",
     mcp: "Unsaved MCP server changes.",
     skills: "Unsaved skill changes.",
     advanced: "Unsaved advanced-setting changes.",
+    permissions: "Unsaved permission changes.",
 }
 
 export interface AgentTemplateControlProps {
@@ -112,25 +155,29 @@ export interface AgentTemplateControlProps {
 //     must run BELOW the providers — wrapping its output in them does nothing. A body rendered from
 //     the parent's `mh` silently ignores both filters.
 //  2. Cost. `useModelHarness` carries harness-catalog + vault-secrets + build-kit-overlay
-//     subscriptions; mounting it per body keeps them scoped to a body that is actually on screen
-//     (`SectionDrawer` uses `destroyOnClose`; the inline body mounts only while a section has
-//     uncommitted changes).
+//     subscriptions; mounting it per body keeps them scoped to the bodies that are on screen
+//     (`SectionDrawer` uses `destroyOnClose`).
 const ModelHarnessSectionBody = ({
     section,
     ...params
 }: {
-    section: "model-harness" | "advanced"
+    section: "model-harness" | "advanced" | "permissions"
 } & Parameters<typeof useModelHarness>[0]) => {
     const mh = useModelHarness(params)
+    if (section === "permissions") return <>{mh.permissionsBody}</>
     if (section === "advanced") {
         return <>{mh.advancedDrawerBody}</>
     }
-    return <>{mh.modelHarnessDrawerBody}</>
+    return <>{mh.modelHarnessBody}</>
 }
 
 // The four list sections whose open-state is controlled so the accordion can auto-expand when
 // the agent populates them (see `useAutoExpandOnPopulate`).
-const CONTROLLED_SECTION_KEYS = new Set(["tools", "mcp", "skills", "triggers"])
+/** Stable no-op stand-in when no skills bridge is wired (hook order must not depend on data). */
+const useNoHeadVersions = (): Record<string, string> => EMPTY_HEAD_VERSIONS
+const EMPTY_HEAD_VERSIONS: Record<string, string> = {}
+
+const CONTROLLED_SECTION_KEYS = new Set(["tools", "subagents", "mcp", "skills", "triggers"])
 
 export const AgentTemplateControl = memo(function AgentTemplateControl({
     schema,
@@ -140,7 +187,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     disabled,
     className,
 }: AgentTemplateControlProps) {
-    const {gatewayTools, workflowReference} = useDrillInUI()
+    const {gatewayTools, workflowReference, skills: skillsBridge} = useDrillInUI()
     const config = (value ?? {}) as Record<string, unknown>
 
     // Latest config, so an async write (e.g. after a schema lookup) doesn't clobber concurrent edits.
@@ -151,50 +198,68 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
 
     const [referenceSelectorOpen, setReferenceSelectorOpen] = useState(false)
     const [integrationDrawerOpen, setIntegrationDrawerOpen] = useState(false)
-    // Preselected app for the integration drawer: set when a provider group's "Add {app} tool" opens
-    // it (jump to that app's actions), cleared for the header + (open on the app grid).
-    const [integrationDefaultKey, setIntegrationDefaultKey] = useState<string | undefined>(
-        undefined,
-    )
-    const openIntegration = useCallback((integrationKey?: string) => {
-        setIntegrationDefaultKey(integrationKey)
-        setIntegrationDrawerOpen(true)
-    }, [])
+    const openIntegration = useCallback(() => setIntegrationDrawerOpen(true), [])
+    // The integration whose permission drawer is open, addressed by provider and integration.
+    const [permissionTarget, setPermissionTarget] = useState<GatewayConnectionTarget | null>(null)
+    // The MCP endpoint being authorized. Held here, not on the row: `extra` renders inside the
+    // row's own click target, and React events propagate through the React tree, so a dialog
+    // mounted there reopens the edit drawer on every click inside it — including the one that
+    // opens the consent popup, which then surfaces behind it.
+    // The Add MCP server drawer, B1 and B2. Only the open flag lives here, because the
+    // section header's add button renders outside the section body that owns the drawer.
+    const [addMcpOpen, setAddMcpOpen] = useState(false)
     // Shared draft-then-save drawer for tools, MCP servers, and skills (writes via ITEM_KINDS).
+    // Nothing is registered at save any more. An MCP item names a connection that already
+    // exists, created by the connect journey, so committing one writes the reference and
+    // nothing else.
+    const prepareItemCommit = useCallback(
+        async (_kind: ItemKind, item: Record<string, unknown>) => item,
+        [],
+    )
     const {
         editing,
         draft,
         setDraft,
-        drawerView,
-        setDrawerView,
         jsonInvalid,
         setJsonInvalid,
         openCreate,
         openEdit,
         closeEditor,
         commitDraft,
+        commitError,
+        committing,
         removeItem,
         draftInvalid,
-    } = useConfigItemDrawer({config, onChange})
+        draftUnchanged,
+    } = useConfigItemDrawer({config, onChange, prepareCommit: prepareItemCommit})
 
     // Instructions file editor (a file list — one AGENTS.md today). Draft + Save like the item drawer.
     const [editingInstruction, setEditingInstruction] = useState<{filename: string} | null>(null)
     const [instructionDraft, setInstructionDraft] = useState("")
+    // The content we opened with — Save is gated on a real diff against it, like the section drawers.
+    const [instructionOriginal, setInstructionOriginal] = useState("")
     const openInstruction = useCallback((filename: string, content: string) => {
         setInstructionDraft(content)
+        setInstructionOriginal(content)
         setEditingInstruction({filename})
     }, [])
+    const instructionDirty = instructionDraft !== instructionOriginal
 
     // Section drawers (Model & harness, Advanced) use a SCOPED draft: edits are buffered locally and
     // relayed to the entity only on Save (Cancel discards; Save is gated on a real diff vs. the value
-    // we opened with). The build-kit enable toggle lives OUTSIDE the config (a persisted atom), so it
-    // is buffered alongside the config draft and committed to the atom on Save.
+    // we opened with). The build-kit state lives OUTSIDE the config (playground-only atoms), so it is
+    // buffered alongside the config draft and committed to the atoms on Save.
     const [openSection, setOpenSection] = useState<null | "model-harness" | "advanced">(null)
     const [draftConfig, setDraftConfig] = useState<Record<string, unknown> | null>(null)
-    const [draftBuildKit, setDraftBuildKit] = useState<boolean | null>(null)
-    const sectionBaseline = useRef<{config: Record<string, unknown>; buildKit: boolean} | null>(
-        null,
-    )
+    const [draftBuildKit, setDraftBuildKit] = useState<BuildKitUiState | null>(null)
+    const sectionBaseline = useRef<{
+        config: Record<string, unknown>
+        buildKit: BuildKitUiState
+    } | null>(null)
+    // The revision the open drawer was snapshotted against. State, not a ref: the drawer BODY reads
+    // it during render, and both its overlay and Save must stay on it even if the active revision
+    // changes underneath. Null whenever no section drawer is open.
+    const [sectionRevision, setSectionRevision] = useState<string | null>(null)
     const store = useStore()
     const revisionIdRef = useRef<string | null>(null)
     const applyDraftConfig = useCallback(
@@ -208,7 +273,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             openSection !== null &&
             sectionBaseline.current !== null &&
             (!deepEqual(draftConfig, sectionBaseline.current.config) ||
-                draftBuildKit !== sectionBaseline.current.buildKit),
+                !deepEqual(draftBuildKit, sectionBaseline.current.buildKit)),
         [openSection, draftConfig, draftBuildKit],
     )
     const openSectionDrawer = useCallback(
@@ -218,12 +283,16 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             // Another section is open with unsaved edits: drop the request rather than clobber it.
             if (isCurrentSectionDirty()) return
             const snapshotConfig = (value ?? {}) as Record<string, unknown>
-            const snapshotBuildKit = store.get(
-                workflowBuildKitEnabledAtomFamily(revisionIdRef.current ?? ""),
-            )
+            const snapshotRevision = revisionIdRef.current ?? ""
+            store.set(migrateBuildKitStateAtom, snapshotRevision)
+            const snapshotBuildKit = store.get(workflowBuildKitUiStateAtomFamily(snapshotRevision))
             setDraftConfig(snapshotConfig)
             setDraftBuildKit(snapshotBuildKit)
-            sectionBaseline.current = {config: snapshotConfig, buildKit: snapshotBuildKit}
+            setSectionRevision(snapshotRevision)
+            sectionBaseline.current = {
+                config: snapshotConfig,
+                buildKit: snapshotBuildKit,
+            }
             setOpenSection(key)
         },
         [value, store, openSection, isCurrentSectionDirty],
@@ -232,10 +301,11 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         setOpenSection(null)
         setDraftConfig(null)
         setDraftBuildKit(null)
+        setSectionRevision(null)
         sectionBaseline.current = null
     }, [])
 
-    // Remote request to open a section drawer (e.g. the chat's connect-a-model banner → Model & harness).
+    // Remote request to open a section drawer (e.g. the chat's connect-a-model banner → the Model section).
     const [openSectionRequest, setOpenSectionRequest] = useAtom(openAgentConfigSectionAtom)
     useEffect(() => {
         if (!openSectionRequest) return
@@ -247,10 +317,21 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // Cancel: nothing was written live, so just drop the draft.
     const cancelSection = closeSectionDraft
     const saveSection = useCallback(() => {
-        if (draftConfig !== null) {
-            onChange(draftConfig)
+        if (sectionRevision !== (revisionIdRef.current ?? "")) {
+            closeSectionDraft()
+            return
+        }
+        if (draftConfig !== null && sectionBaseline.current !== null) {
+            onChange(
+                mergeAgentConfigDraft(
+                    configRef.current,
+                    sectionBaseline.current.config,
+                    draftConfig,
+                    openSection ?? undefined,
+                ),
+            )
             // Remember the harness/model/connection pick for future agent creations — only on an
-            // explicit Model & harness save, not on every keystroke or the Advanced section.
+            // explicit Model-section save, not on every keystroke or the Advanced section.
             if (openSection === "model-harness") {
                 const harness = draftConfig.harness
                 const harnessKind =
@@ -263,16 +344,31 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                     version: 1,
                     harness: typeof harnessKind === "string" ? harnessKind : prev.harness,
                     model: modelId ?? prev.model,
-                    provider: connection.provider ?? prev.provider,
+                    // Not `?? prev.provider`: a custom-connection pick deliberately stores none,
+                    // and inheriting the last family would seed the next agent with a provider its
+                    // model contradicts.
+                    provider: connection.provider ?? undefined,
                     connectionMode: connection.mode ?? prev.connectionMode,
+                    connectionSlug: connection.slug ?? undefined,
+                    connectionNamespace: connection.namespace ?? undefined,
                 }))
             }
         }
-        if (draftBuildKit !== null) {
-            store.set(workflowBuildKitEnabledAtomFamily(revisionIdRef.current ?? ""), draftBuildKit)
+        if (draftBuildKit !== null && sectionBaseline.current !== null) {
+            const revision = sectionRevision ?? revisionIdRef.current ?? ""
+            if (!deepEqual(draftBuildKit, sectionBaseline.current.buildKit))
+                store.set(workflowBuildKitUiStateAtomFamily(revision), draftBuildKit)
         }
         closeSectionDraft()
-    }, [draftConfig, draftBuildKit, openSection, onChange, store, closeSectionDraft])
+    }, [
+        draftConfig,
+        draftBuildKit,
+        openSection,
+        sectionRevision,
+        onChange,
+        store,
+        closeSectionDraft,
+    ])
     // Enable Save only when the draft actually differs from what we opened with (config or build-kit).
     const sectionDirty = isCurrentSectionDirty()
 
@@ -292,6 +388,39 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const drillIn = useOptionalDrillIn<unknown>()
     const revisionId = drillIn?.entityId ?? null
     revisionIdRef.current = revisionId
+    // A secret attach/edit/remove commits a new revision from inside the open drawer. Keep the
+    // drawer open on it: re-snapshot the (clean) draft from the adopted revision instead of closing.
+    const credentialRebaseTarget = useRef<string | null>(null)
+    const rebaseSectionOnCredentialCommit = useCallback((nextRevisionId: string) => {
+        credentialRebaseTarget.current = nextRevisionId
+    }, [])
+    useEffect(() => {
+        if (!openSection || sectionRevision === (revisionId ?? "")) return
+        const rebase =
+            revisionId !== null &&
+            credentialRebaseTarget.current === revisionId &&
+            !isCurrentSectionDirty()
+        credentialRebaseTarget.current = null
+        if (!rebase) {
+            closeSectionDraft()
+            return
+        }
+        const snapshotConfig = (value ?? {}) as Record<string, unknown>
+        store.set(migrateBuildKitStateAtom, revisionId)
+        const snapshotBuildKit = store.get(workflowBuildKitUiStateAtomFamily(revisionId))
+        setDraftConfig(snapshotConfig)
+        setDraftBuildKit(snapshotBuildKit)
+        setSectionRevision(revisionId)
+        sectionBaseline.current = {config: snapshotConfig, buildKit: snapshotBuildKit}
+    }, [
+        revisionId,
+        sectionRevision,
+        openSection,
+        closeSectionDraft,
+        isCurrentSectionDirty,
+        value,
+        store,
+    ])
 
     // Trigger count for the section auto-expand/summary state (the Triggers UI itself now lives in
     // the sibling AgentOperationsSections; this shares the same deduped query).
@@ -358,35 +487,75 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     //  - The DRAFT instance (config + build-kit buffer) that drives the OPEN section drawer's body
     //    now lives inside `ModelHarnessSectionBody`, mounted only while a drawer/inline body is on screen, so
     //    its harness/vault/overlay subscriptions don't run in the background.
-    const mh = useModelHarness({schema, config, onChange, disabled, withTooltip, revisionId})
+    const mh = useModelHarness({
+        schema,
+        config,
+        onChange,
+        disabled,
+        withTooltip,
+        revisionId,
+        normalizeSandbox: true,
+    })
     const draftBuildKitOverride = useMemo(
         () =>
             draftBuildKit !== null ? {value: draftBuildKit, onChange: setDraftBuildKit} : undefined,
         [draftBuildKit],
     )
-    // "Current" marks the SAVED harness (from the live entity), not the draft pick.
-    const savedHarnessValue =
-        ((config.harness as Record<string, unknown> | undefined)?.kind as string | undefined) ??
-        null
 
     // Tool add/remove (inline function, builtin, gateway, workflow reference) lives in its own hook.
     const {
         tools,
-        handleAddTool,
         handleAddWorkflowReference,
-        handleRemoveToolByName,
-        handleRemoveBuiltinTool,
-        selectedToolNames,
-        selectedGatewayIds,
-        removeGatewayToolByIdentity,
-        referenceableWorkflows,
+        handleRemoveReferenceBySlug,
+        integrationRows,
+        setIntegrationConnection,
+        setIntegrationPermissions,
+        setIntegrationToolPermission,
+        removeIntegration,
+        migrateIntegrationEntries,
     } = useAgentTools({config, onChange, configRef, openCreate, workflowReference})
 
-    // Legacy harness built-in entries render nowhere (ToolManagementList drops them), so the
-    // header count and the section's open state must ignore them too.
-    const visibleToolCount = useMemo(
-        () => tools.filter((tool) => !isHarnessBuiltinTool(tool)).length,
-        [tools],
+    /**
+     * Open one integration's permission drawer. Migration runs HERE, on the click, and never on a
+     * page load: viewing an untouched agent must not rewrite it. An integration whose legacy
+     * entries name two or more connections is left alone and the drawer says why.
+     */
+    const openIntegrationPermissions = useCallback(
+        (row: IntegrationRow) => {
+            // Target first: the migration write below re-renders the tree and swallowed the open.
+            setPermissionTarget({provider: row.provider, integration: row.integration})
+            migrateIntegrationEntries({provider: row.provider, integration: row.integration})
+        },
+        [migrateIntegrationEntries],
+    )
+
+    // The agent-wide `runner.permissions.default`. The "Ask for write and delete" preset saves
+    // `inherit`, which means "reads run, writes ask" only while this is its default, so the drawer
+    // says so when an author has changed it.
+    const agentPermissionPolicy = readRunnerPermission(config)
+
+    // Read back from the live config, so the drawer shows the migrated entry the click just wrote.
+    const permissionRow = useMemo(
+        () =>
+            permissionTarget ? findIntegrationRow(integrationRows, permissionTarget) : undefined,
+        [permissionTarget, integrationRows],
+    )
+
+    // The subagents, each keeping its index in `tools`: edit and remove address it by index.
+    const subagentTools = useMemo(
+        () => selectSubagentTools(tools, integrationRows),
+        [tools, integrationRows],
+    )
+    // Each section counts only the kind it renders; what renders nowhere is counted nowhere.
+    const integrationCount = integrationRows.length
+    const subagentCount = subagentTools.length
+    // What the picker marks as added, read from the saved tools rather than the picker's state.
+    const savedSubagentSlugs = useMemo(
+        () =>
+            subagentTools
+                .map(({item}) => toolReferenceSlug(item))
+                .filter((s): s is string => Boolean(s)),
+        [subagentTools],
     )
 
     // External HTTP MCP servers from the saved agent template.
@@ -394,25 +563,78 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         () => (Array.isArray(config.mcps) ? (config.mcps as unknown[]) : []),
         [config.mcps],
     )
-    const handleAddMcpServer = useCallback(
-        () => openCreate("mcp", ITEM_KINDS.mcp.createSeed(), "form"),
-        [openCreate],
-    )
+    // The plus opens the registry drawer, not a blank form. Creating a server here used to
+    // mean filling in a form whose first field was a select over connections the author
+    // could not see until they opened it. The registry itself is read by the section body,
+    // so a host with no MCP section fetches nothing.
+    const handleAddMcpServer = useCallback(() => setAddMcpOpen(true), [])
 
     // Skills: a flat array of inline SKILL.md packages or `@ag.embed` references the backend inlines.
     const skills = useMemo(
         () => (Array.isArray(config.skills) ? (config.skills as unknown[]) : []),
         [config.skills],
     )
-    const handleAddSkill = useCallback(
-        () => openCreate("skill", ITEM_KINDS.skill.createSeed(), "form"),
-        [openCreate],
+    // Registry-backed picker via the drill-in bridge (artboard 4b); the inline-skill
+    // editor stays the fallback on hosts that never wired the bridge.
+    const [skillPickerOpen, setSkillPickerOpen] = useState(false)
+    // Row click on a project-owned embed ref opens the registry DETAIL drawer; static
+    // embeds and shapes the bridge can't resolve keep the JSON round-trip editor.
+    const [skillDetailSlug, setSkillDetailSlug] = useState<string | null>(null)
+    const openSkillItem = useCallback(
+        (kind: ItemKind, index: number, item: unknown) => {
+            if (skillsBridge?.DetailHost && isEmbedRefSkill(item) && !isStaticSkill(item)) {
+                const slug = staticEmbedSlug(item as Record<string, unknown>)
+                if (slug) {
+                    setSkillDetailSlug(slug)
+                    return
+                }
+            }
+            openEdit(kind, index, item)
+        },
+        [openEdit, skillsBridge],
+    )
+    const handleAddSkill = useCallback(() => {
+        if (skillsBridge?.enabled) setSkillPickerOpen(true)
+        else openCreate("skill", ITEM_KINDS.skill.createSeed())
+    }, [openCreate, skillsBridge])
+    /** Embed slugs already on this agent, with their pin — what the picker marks "Added". */
+    const addedSkillRefs = useMemo(
+        () =>
+            skills
+                .filter((entry) => isEmbedRefSkill(entry))
+                .flatMap((entry): {slug: string; pinnedVersion?: string}[] => {
+                    const record = entry as Record<string, unknown>
+                    const slug = staticEmbedSlug(record)
+                    if (!slug) return []
+                    const pinnedVersion = embedRevisionVersion(record)
+                    return [pinnedVersion ? {slug, pinnedVersion} : {slug}]
+                }),
+        [skills],
+    )
+    const handleAddSkillEmbeds = useCallback(
+        (entries: Record<string, unknown>[]) => setAgentField("skills", [...skills, ...entries]),
+        [setAgentField, skills],
+    )
+    const handleRemoveSkillEmbeds = useCallback(
+        (slugs: string[]) => {
+            const drop = new Set(slugs)
+            setAgentField(
+                "skills",
+                skills.filter((entry) => {
+                    if (!isEmbedRefSkill(entry)) return true
+                    const slug = staticEmbedSlug(entry as Record<string, unknown>)
+                    return !slug || !drop.has(slug)
+                }),
+            )
+        },
+        [setAgentField, skills],
     )
 
-    // Controlled open-state for the four list sections so the accordion can react to the agent
+    // Controlled open-state for the list sections so the accordion can react to the agent
     // populating a section. Seeded once from the initial counts; the edge hook below flips it.
     const [sectionOpen, setSectionOpen] = useState<Record<string, boolean>>(() => ({
-        tools: visibleToolCount > 0,
+        tools: integrationCount > 0,
+        subagents: subagentCount > 0,
         mcp: mcpServers.length > 0,
         skills: skills.length > 0,
         triggers: triggerCount > 0,
@@ -424,12 +646,13 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     )
     const sectionCounts = useMemo(
         () => ({
-            tools: visibleToolCount,
+            tools: integrationCount,
+            subagents: subagentCount,
             mcp: mcpServers.length,
             skills: skills.length,
             triggers: triggerCount,
         }),
-        [visibleToolCount, mcpServers.length, skills.length, triggerCount],
+        [integrationCount, subagentCount, mcpServers.length, skills.length, triggerCount],
     )
     useAutoExpandOnPopulate(sectionCounts, setSectionOpenByKey)
 
@@ -479,10 +702,12 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const drawerChangedPaths = useMemo(
         () => ({
             ...sectionChanges.draft,
-            revert: (paths: string[]) =>
-                applyDraftConfig(revertPathsTo(draftConfig ?? config, committed, paths)),
+            revert: disabled
+                ? undefined
+                : (paths: string[]) =>
+                      applyDraftConfig(revertPathsTo(draftConfig ?? config, committed, paths)),
         }),
-        [sectionChanges.draft, applyDraftConfig, committed, draftConfig, config],
+        [sectionChanges.draft, applyDraftConfig, committed, draftConfig, config, disabled],
     )
 
     // Revert for the PANEL's own inline bodies: writes the entity draft straight through `onChange`,
@@ -491,9 +716,11 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const panelChangedPaths = useMemo(
         () => ({
             ...sectionChanges.draft,
-            revert: (paths: string[]) => onChange(revertPathsTo(config, committed, paths)),
+            revert: disabled
+                ? undefined
+                : (paths: string[]) => onChange(revertPathsTo(config, committed, paths)),
         }),
-        [sectionChanges.draft, onChange, config, committed],
+        [sectionChanges.draft, onChange, config, committed, disabled],
     )
     // The inline body for a drawer-backed section: its own controls, narrowed to what changed — the
     // same affordance as the Connect-key field, with a different filter (see SectionChangeBody).
@@ -504,7 +731,12 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             // The classifier already assigns each changed path to its own section bucket; read this
             // section's paths from there so Advanced never picks up an instructions/tools/mcp/skills edit.
             const section = sectionChanges.draft.sectionsByKey.get(key)
-            const sectionPaths = (section?.scalarChanges ?? []).map((c) => c.key)
+            const sectionPaths = (section?.scalarChanges ?? [])
+                .map((c) => c.key)
+                .filter(
+                    (path) =>
+                        key !== "advanced" || (mh.hasExecutionGroup && path === "sandbox.kind"),
+                )
             if (!sectionPaths.length) return null
             return (
                 <SectionChangeBody
@@ -521,7 +753,6 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         disabled={disabled}
                         withTooltip={withTooltip}
                         revisionId={revisionId}
-                        savedHarnessValue={savedHarnessValue}
                     />
                 </SectionChangeBody>
             )
@@ -536,7 +767,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             onChange,
             withTooltip,
             revisionId,
-            savedHarnessValue,
+            mh.hasExecutionGroup,
         ],
     )
 
@@ -567,8 +798,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                 if ([...baseMaps[kind].values()].includes(currentValue)) return undefined
                 const prev = baseMaps[kind].get(agentItemIdentity(kind, item, index))
                 if (prev === undefined)
-                    return {tone: "new", label: "New", tooltip: "Added since the last commit."}
-                return {tone: "edited", label: "Edited", tooltip: "Edited — not yet committed."}
+                    return {tone: "new", label: "New", tooltip: "Added since the last version."}
+                return {tone: "edited", label: "Edited", tooltip: "Edited — not saved yet."}
             },
         [committed, baseMaps],
     )
@@ -578,20 +809,24 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     // shows the raw-JSON warning) so the row is marked BEFORE the drawer is opened. The probe
     // reuses the drawer's query family (low-priority fetch, 5-min cache), and the connection
     // registry is already loaded by the provider — no extra render-critical requests.
+    // Both kinds of gateway entry name a connection, so both get the connection checks below. Only
+    // an action entry names an action, which is what the availability probe needs.
     const gatewayToolViews = useMemo(() => {
-        const views = new Map<number, ParsedGatewayTool>()
+        const views = new Map<number, GatewayEntry>()
         tools.forEach((item, index) => {
-            const gw = parseGatewayTool(item)
-            if (gw) views.set(index, gw)
+            const entry = parseGatewayEntry(item)
+            if (entry) views.set(index, entry)
         })
         return views
     }, [tools])
     const actionProbePairs = useMemo(
         () =>
             gatewayTools?.enabled
-                ? [...gatewayToolViews.values()]
-                      .filter((v) => v.encoding === "canonical")
-                      .map((v) => ({integrationKey: v.integration, actionKey: v.action}))
+                ? [...gatewayToolViews.values()].flatMap((v) =>
+                      v.kind === "action" && v.action.encoding === "canonical"
+                          ? [{integrationKey: v.action.integration, actionKey: v.action.action}]
+                          : [],
+                  )
                 : [],
         [gatewayToolViews, gatewayTools?.enabled],
     )
@@ -610,12 +845,14 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     }, [gatewayTools])
     const toolResolutionStatus = useCallback(
         (index: number): ItemRowStatus | undefined => {
-            const gw = gatewayToolViews.get(index)
-            if (!gw) return undefined
+            const entry = gatewayToolViews.get(index)
+            if (!entry) return undefined
             if (
-                gw.encoding === "canonical" &&
-                actionAvailability[toolActionAvailabilityKey(gw.integration, gw.action)] ===
-                    "missing"
+                entry.kind === "action" &&
+                entry.action.encoding === "canonical" &&
+                actionAvailability[
+                    toolActionAvailabilityKey(entry.action.integration, entry.action.action)
+                ] === "missing"
             ) {
                 return {
                     tone: "invalid",
@@ -626,19 +863,21 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             }
             // Null while connections are still loading: never flash "Unresolved" on a slow load.
             if (!connectionLookup) return undefined
-            const connection = connectionLookup.get(gw.connection)
+            const slug =
+                entry.kind === "connection" ? entry.connection.connection : entry.action.connection
+            const connection = connectionLookup.get(slug)
             if (!connection) {
                 return {
                     tone: "invalid",
                     label: "Unresolved",
-                    tooltip: `The "${gw.connection}" connection no longer exists in this project. Reconnect the app or remove the tool.`,
+                    tooltip: `The "${slug}" connection no longer exists in this project. Reconnect the app or remove the tool.`,
                 }
             }
             if (connection.flags?.is_valid === false) {
                 return {
                     tone: "incomplete",
                     label: "Reconnect",
-                    tooltip: `The ${connection.name || gw.connection} connection needs to be re-authenticated.`,
+                    tooltip: `The ${connection.name || slug} connection needs to be re-authenticated.`,
                 }
             }
             return undefined
@@ -667,7 +906,73 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         }
     }, [statusForKind, toolResolutionStatus])
     const mcpStatusFor = useMemo(() => statusForKind("mcp"), [statusForKind])
-    const skillStatusFor = useMemo(() => statusForKind("skill"), [statusForKind])
+    // Registry head versions for the pinned-row nudge. The bridge's presence is host-stable,
+    // so the conditional hook resolution keeps a stable hook order in practice.
+    const useHeadVersions = skillsBridge?.useHeadVersions ?? useNoHeadVersions
+    const skillHeadVersions = useHeadVersions()
+    // Publish-to-registry for INLINE packages: the migration path off pre-registry
+    // configs. The bridge creates the registry skill and answers with the embed entry
+    // that replaces the inline one at the same index; auto-commit persists the swap.
+    const [publishingSkillIndex, setPublishingSkillIndex] = useState<number | null>(null)
+    const [publishSkillError, setPublishSkillError] = useState<string | null>(null)
+    const publishInlineSkill = useCallback(
+        // `item` is the row's identity in the config; `content` is what goes to the registry —
+        // the drawer's draft, so an edit made before publishing is what gets published.
+        async (item: unknown, index: number, content: unknown = item) => {
+            const publish = skillsBridge?.publishInlineSkill
+            if (!publish || publishingSkillIndex !== null) return
+            setPublishingSkillIndex(index)
+            setPublishSkillError(null)
+            try {
+                const outcome = await publish(content as Record<string, unknown>)
+                if ("error" in outcome) {
+                    setPublishSkillError(outcome.error)
+                    return
+                }
+                const current = Array.isArray(configRef.current?.skills)
+                    ? (configRef.current.skills as unknown[])
+                    : skills
+                // The list may have shifted during the await — swap by IDENTITY of the
+                // published item, never by its captured index.
+                const liveIndex = current.indexOf(item)
+                if (liveIndex === -1) {
+                    setPublishSkillError(
+                        "The skill was published to the registry, but this row changed while publishing — add it from the picker.",
+                    )
+                    return
+                }
+                onChange({
+                    ...(configRef.current ?? config),
+                    skills: current.map((entry, i) => (i === liveIndex ? outcome.entry : entry)),
+                })
+                closeEditor()
+            } finally {
+                setPublishingSkillIndex(null)
+            }
+        },
+        [closeEditor, config, configRef, onChange, publishingSkillIndex, skills, skillsBridge],
+    )
+    const skillStatusFor = useMemo(() => {
+        const base = statusForKind("skill")
+        return (item: unknown, index: number) => {
+            const status = base(item, index)
+            if (status) return status
+            // Gold nudge on pinned embeds the registry has moved past.
+            if (!isEmbedRefSkill(item) || isStaticSkill(item)) return undefined
+            const record = item as Record<string, unknown>
+            const pinned = embedRevisionVersion(record)
+            if (!pinned) return undefined
+            const slug = staticEmbedSlug(record)
+            const head = slug ? skillHeadVersions[slug] : undefined
+            if (!head || Number(pinned) >= Number(head)) return undefined
+            return {
+                tone: "incomplete" as const,
+                label: "Update available",
+                tooltip:
+                    "This skill is pinned and the registry has a newer version. Re-add it pinned to update, or switch the reference to Latest.",
+            }
+        }
+    }, [statusForKind, skillHeadVersions])
 
     // Section headers: a blocking problem (invalid) outranks unsaved edits (draft).
     const sectionInvalidTip = (key: string): string | null => {
@@ -677,9 +982,23 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             if (mh.modelUnsupported) return "The selected model isn't available on this harness."
             return null
         }
+        if (key === "subagents") {
+            return subagentTools.some(({item}) =>
+                ITEM_KINDS.tool.draftInvalid(item as Record<string, unknown>),
+            )
+                ? "A subagent is missing its name."
+                : null
+        }
         if (key === "tools") {
-            if (tools.some((t) => ITEM_KINDS.tool.draftInvalid(t as Record<string, unknown>)))
-                return "A tool is missing its name."
+            // Integration entries only: anything else has its own header or renders nowhere.
+            const owned = new Set(integrationRows.flatMap(integrationRowIndices))
+            if (
+                tools.some(
+                    (t, i) =>
+                        owned.has(i) && ITEM_KINDS.tool.draftInvalid(t as Record<string, unknown>),
+                )
+            )
+                return "An integration is missing its name."
             if (toolResolutionSummary.unresolved > 0)
                 return "A connected-app tool couldn't be resolved — its action or connection may have been renamed or removed."
             return null
@@ -712,7 +1031,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         if (draftSectionKeys.has(key as PanelSectionKey))
             return {
                 tone: "draft",
-                tooltip: DRAFT_TIP[key] ?? "Unsaved changes — not yet committed.",
+                tooltip: DRAFT_TIP[key] ?? "Unsaved changes.",
             }
         return undefined
     }
@@ -722,7 +1041,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const sectionIndicator = (key: string) =>
         withDraftPulse(key, headerIndicator(key) ?? agentChangeIndicator(key))
 
-    // The blocking cases the user must resolve, as a short pill next to the Model & harness title.
+    // The blocking cases the user must resolve, as a short pill next to the Model section title.
     const modelHarnessBadge: React.ReactNode =
         mh.hasModelOrHarness && !modelIdFromConfig(config.llm) ? (
             <SectionTitleBadge label="No model" tone="error" />
@@ -733,30 +1052,18 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         ) : null
 
     const instructionsStatus: ItemRowStatus | undefined = draftSectionKeys.has("instructions")
-        ? {tone: "edited", label: "Edited", tooltip: "Edited — not yet committed."}
+        ? {tone: "edited", label: "Edited", tooltip: "Edited — not saved yet."}
         : undefined
 
-    // Shared props for the tool picker, so the in-body popover and the header quick-add trigger
-    // drive the same add flow.
-    const toolSelectorProps = {
-        onAddTool: handleAddTool,
-        onRemoveTool: handleRemoveToolByName,
-        onRemoveBuiltinTool: handleRemoveBuiltinTool,
-        selectedToolNames,
-        selectedTools: tools as ToolObj[],
-        existingToolCount: tools.length,
-        gatewayTools,
-        onReferenceWorkflow: workflowReference?.enabled
-            ? () => {
-                  // Opening the picker is the point the workflow list is actually needed — activate
-                  // the (lazy) bridge so it resolves now instead of on every playground load.
-                  workflowReference.activate?.()
-                  setReferenceSelectorOpen(true)
-              }
-            : undefined,
-        // Route the integration row to the agent-scoped drawer instead of the shared global catalog.
-        onOpenIntegration: gatewayTools?.enabled ? openIntegration : undefined,
-    }
+    // Opening the picker is where the workflow list is needed, so activate the lazy bridge here.
+    const openSubagentSelector = workflowReference?.enabled
+        ? () => {
+              workflowReference.activate?.()
+              setReferenceSelectorOpen(true)
+          }
+        : undefined
+    // The Integrations add button. Routes to the agent-scoped drawer, not the shared global catalog.
+    const openIntegrationDrawer = gatewayTools?.enabled ? openIntegration : undefined
 
     // Compact "+" for a section header's `extra` slot. The header keeps a uniform height regardless
     // of this button — ConfigAccordionSection collapses the extra slot's vertical footprint (see its
@@ -765,40 +1072,19 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         <SectionAddButton label={label} onClick={onClick} />
     )
 
-    // The inline "what changed" bodies for the two drawer-backed sections. Null when the section is
-    // clean (or the variant is off), which is what keeps it a plain drawer-opening row.
-    const modelChangeBody = changeBodyFor("model-harness")
-    const advancedChangeBody = changeBodyFor("advanced")
-
-    /**
-     * Only a BLOCKING problem opens a section by itself. "Can't run without a provider key" is a
-     * demand and earns the interruption; "you changed something" is an answer to a question the
-     * reader may not be asking — the header indicator already says a change is there, and expanding
-     * every changed section on mount would greet them with an unfolded panel every edit. So the
-     * change body is what the section shows WHEN OPENED, not a reason to open it.
-     */
-    const needsProviderKeyInline = Boolean(mh.needsProviderKey && mh.providerCredentialsInline)
-
-    // Graceful exit: when the key lands, `needsProviderKeyInline` flips false and the section would
-    // swap straight to its resolved (drawer-opening) row — the inline pane vanishing in one frame.
-    // Hold the inline branch mounted for one collapse cycle so the pane can animate closed instead.
-    // The transition is detected during render (not in an effect) so there's never an un-held frame
-    // where the pane has already been replaced by the resolved row.
-    const KEY_PANE_EXIT_MS = 320
-    const prevNeedsKeyInlineRef = useRef(needsProviderKeyInline)
-    const [keyPaneExiting, setKeyPaneExiting] = useState(false)
-    if (prevNeedsKeyInlineRef.current !== needsProviderKeyInline) {
-        if (prevNeedsKeyInlineRef.current && !needsProviderKeyInline) setKeyPaneExiting(true)
-        prevNeedsKeyInlineRef.current = needsProviderKeyInline
+    // Shared by both subagent-list branches, which differ only by wrapper.
+    const subagentListProps = {
+        entries: subagentTools,
+        openEdit,
+        removeItem,
+        closeEditor,
+        disabled,
+        statusFor: toolStatusFor,
     }
-    useEffect(() => {
-        if (!keyPaneExiting) return
-        const t = window.setTimeout(() => setKeyPaneExiting(false), KEY_PANE_EXIT_MS)
-        return () => window.clearTimeout(t)
-    }, [keyPaneExiting])
-    // Show (and keep mounting) the inline pane while it's needed OR animating out.
-    const showKeyPane =
-        (needsProviderKeyInline || keyPaneExiting) && Boolean(mh.providerCredentialsInline)
+
+    // The inline "what changed" body for the drawer-backed Advanced section. Null when the section
+    // is clean, which is what keeps it a plain drawer-opening row.
+    const advancedChangeBody = changeBodyFor("advanced")
 
     // Each config section as a descriptor, so it can be rendered in any layout (accordion /
     // tabs / cards) without duplicating the content. Schema-gated, like before.
@@ -806,57 +1092,36 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         mh.hasModelOrHarness && {
             key: "model-harness",
             icon: <Cpu size={16} />,
-            title: "Model & harness",
+            title: "Model",
             titleBadge: modelHarnessBadge,
             summary: mh.modelSummary,
             indicator: sectionIndicator("model-harness"),
-            defaultOpen: needsProviderKeyInline,
-            // What the section surfaces inline, in precedence order. Dropping `onOpen` is what makes
-            // a section expand inline instead of routing to the drawer.
-            //   1. Required info missing (no provider key) — BLOCKING, so it wins: the same key field
-            //      the drawer uses, right here.
-            //   2. Uncommitted changes — informational: what changed (see `changeBodyFor`).
-            //   3. Neither — the plain drawer row it has always been.
-            ...(showKeyPane
-                ? {
-                      // The body owns its padding (inside the collapse) so it can collapse to zero
-                      // height with no residual — the section body wrapper adds none.
-                      bodyClassName: "",
-                      content: (
-                          <HeightCollapse open={needsProviderKeyInline} fade>
-                              <div className="flex flex-col gap-3 pb-4 pt-1">
-                                  <SectionQuickAction
-                                      onOpenDetails={() => openSectionDrawer("model-harness")}
-                                      disabled={disabled}
-                                  >
-                                      {mh.providerCredentialsInline}
-                                  </SectionQuickAction>
-                              </div>
-                          </HeightCollapse>
-                      ),
-                  }
-                : modelChangeBody
-                  ? {content: modelChangeBody}
-                  : {
-                        onOpen: () => openSectionDrawer("model-harness"),
-                        content: mh.modelHarnessDrawerBody,
-                    }),
+            // A model still to connect is the one thing that opens the section by itself — the list
+            // holds the affordance that fixes it.
+            defaultOpen: Boolean(mh.needsProviderKey),
+            // The section EXPANDS (it carries no `onOpen`, which is what routes a header to a drawer
+            // instead): the connection list renders right here. The drawer survives for the chat's
+            // "connect a model" banner and for the Advanced section; it is just no longer where this
+            // header leads.
+            content: (
+                <ChangedPathsProvider changes={panelChangedPaths}>
+                    <ModelHarnessSectionBody
+                        section="model-harness"
+                        schema={schema}
+                        config={config}
+                        onChange={onChange}
+                        disabled={disabled}
+                        withTooltip={withTooltip}
+                        revisionId={revisionId}
+                    />
+                </ChangedPathsProvider>
+            ),
         },
         hasInstructions && {
             key: "instructions",
             icon: <FileText size={16} />,
             title: fieldTitle("instructions", "Instructions"),
-            summary: countSummary(1, "file"),
             indicator: sectionIndicator("instructions"),
-            // The + is inert until the backend stores multiple instruction files; the section is
-            // already a list so it lights up with no rework when that lands.
-            extra: !disabled ? (
-                <SectionAddButton
-                    label="Add instruction file"
-                    tooltip="Multiple instruction files coming soon"
-                    disabled
-                />
-            ) : undefined,
             defaultOpen: true,
             content: (
                 <div className="flex flex-col gap-2">
@@ -869,57 +1134,84 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                 </div>
             ),
         },
-        hasTools && {
-            key: "tools",
-            icon: <Wrench size={16} />,
-            title: fieldTitle("tools", "Tools"),
-            summary: countSummary(visibleToolCount, "tool"),
-            indicator: sectionIndicator("tools"),
-            extra: !disabled ? (
-                <AgentToolSelectorPopover
-                    {...toolSelectorProps}
-                    trigger={<SectionAddButton label="Add tool" disabled={disabled} />}
-                />
-            ) : undefined,
-            defaultOpen: visibleToolCount > 0,
-            content: (
-                <ToolManagementList
-                    tools={tools}
-                    entityId={revisionId}
-                    openEdit={openEdit}
-                    removeItem={removeItem}
-                    closeEditor={closeEditor}
-                    disabled={disabled}
-                    statusFor={toolStatusFor}
-                    onOpenIntegration={gatewayTools?.enabled ? openIntegration : undefined}
-                    // The empty-state add is the same popover as the header +.
-                    emptyAdd={
-                        <AgentToolSelectorPopover
-                            {...toolSelectorProps}
-                            trigger={<AddTextLink label="add a tool" />}
+        // Connected apps. Shares the `tools` indicator key with Subagents.
+        hasTools &&
+            (Boolean(openIntegrationDrawer) || integrationCount > 0) && {
+                key: "tools",
+                icon: <Wrench size={16} />,
+                title: "Integrations",
+                summary: countSummary(integrationCount, "integration"),
+                indicator: sectionIndicator("tools"),
+                // "Create with AI" beside the drawer that adds one by hand.
+                extra:
+                    !disabled && openIntegrationDrawer ? (
+                        <CreateWithAIAddMenu
+                            label="Add integration"
+                            starterPrompt="I want to connect"
+                            onManual={openIntegrationDrawer}
+                            manualTitle="Browse integrations"
+                            manualHint="Pick an app and its actions"
+                            manualIcon={<Wrench size={16} />}
                         />
-                    }
-                />
-            ),
-        },
+                    ) : undefined,
+                defaultOpen: integrationCount > 0,
+                content: (
+                    <ToolManagementList
+                        tools={tools}
+                        integrationRows={integrationRows}
+                        disabled={disabled}
+                        statusFor={toolStatusFor}
+                        onOpenIntegration={
+                            gatewayTools?.enabled ? openIntegrationPermissions : undefined
+                        }
+                        onRemoveIntegration={(row) => {
+                            removeIntegration(row)
+                            closeEditor()
+                        }}
+                    />
+                ),
+            },
+        // The agents this agent can call, saved as `{type: "reference"}` in the same `tools` array.
+        hasTools &&
+            (Boolean(openSubagentSelector) || subagentCount > 0) && {
+                key: "subagents",
+                icon: <Robot size={16} />,
+                title: "Subagents",
+                summary: countSummary(subagentCount, "subagent"),
+                indicator: sectionIndicator("subagents"),
+                extra:
+                    !disabled && openSubagentSelector
+                        ? headerAddButton("Add subagent", openSubagentSelector)
+                        : undefined,
+                defaultOpen: subagentCount > 0,
+                // Only the connected list can resolve a reference's type and mark a non-agent.
+                content: workflowReference?.enabled ? (
+                    <ConnectedSubagentList bridge={workflowReference} {...subagentListProps} />
+                ) : (
+                    <SubagentList {...subagentListProps} />
+                ),
+            },
         hasMcp && {
             key: "mcp",
             icon: <Plugs size={16} />,
-            title: fieldTitle("mcps", "MCPs"),
+            title: fieldTitle("mcps", "MCP servers"),
             summary: countSummary(mcpServers.length, "server"),
             indicator: sectionIndicator("mcp"),
             extra: !disabled ? headerAddButton("Add MCP server", handleAddMcpServer) : undefined,
             defaultOpen: mcpServers.length > 0,
             content: (
-                <ConfigItemList
-                    kind="mcp"
+                <McpServersSectionBody
                     items={mcpServers}
-                    openEdit={openEdit}
-                    removeItem={removeItem}
-                    closeEditor={closeEditor}
                     disabled={disabled}
+                    agentPolicy={agentPermissionPolicy}
+                    onChangeItems={(next: unknown[]) => setAgentField("mcps", next)}
+                    openForm={(index: number, item: unknown) => openEdit("mcp", index, item)}
+                    removeItem={(index: number) => removeItem("mcp", index)}
+                    closeEditor={closeEditor}
                     statusFor={mcpStatusFor}
-                    emptyAdd={<AddTextLink label="add a server" onClick={handleAddMcpServer} />}
+                    addOpen={addMcpOpen}
+                    onAddClose={() => setAddMcpOpen(false)}
+                    onAddOpen={() => setAddMcpOpen(true)}
                 />
             ),
         },
@@ -929,19 +1221,55 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             title: fieldTitle("skills", "Skills"),
             summary: countSummary(skills.length, "skill"),
             indicator: sectionIndicator("skills"),
-            extra: !disabled ? headerAddButton("Add skill", handleAddSkill) : undefined,
+            extra: !disabled ? (
+                <CreateWithAIAddMenu
+                    label="Add skill"
+                    starterPrompt="I want a skill that"
+                    onManual={handleAddSkill}
+                    manualTitle="Add manually"
+                    manualHint="From your library, or write one"
+                    manualIcon={<GraduationCap size={16} />}
+                />
+            ) : undefined,
             defaultOpen: skills.length > 0,
             content: (
-                <ConfigItemList
-                    kind="skill"
-                    items={skills}
-                    openEdit={openEdit}
-                    removeItem={removeItem}
-                    closeEditor={closeEditor}
-                    disabled={disabled}
-                    statusFor={skillStatusFor}
-                    emptyAdd={<AddTextLink label="add a skill" onClick={handleAddSkill} />}
-                />
+                <>
+                    {publishSkillError ? (
+                        <span className="mb-2 block text-xs text-colorError">
+                            {publishSkillError}
+                        </span>
+                    ) : null}
+                    <ConfigItemList
+                        kind="skill"
+                        items={skills}
+                        openEdit={openSkillItem}
+                        removeItem={removeItem}
+                        closeEditor={closeEditor}
+                        disabled={disabled}
+                        statusFor={skillStatusFor}
+                    />
+                </>
+            ),
+        },
+        mh.hasPermissions && {
+            key: "permissions",
+            icon: <ShieldCheck size={16} />,
+            title: "Permissions",
+            summary: mh.runnerPermissionSummary,
+            indicator: sectionIndicator("permissions"),
+            defaultOpen: true,
+            content: (
+                <ChangedPathsProvider changes={panelChangedPaths}>
+                    <ModelHarnessSectionBody
+                        section="permissions"
+                        schema={schema}
+                        config={config}
+                        onChange={onChange}
+                        disabled={disabled}
+                        withTooltip={withTooltip}
+                        revisionId={revisionId}
+                    />
+                </ChangedPathsProvider>
             ),
         },
         mh.hasAdvanced && {
@@ -969,6 +1297,14 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const lastEditingRef = useRef(editing)
     if (editing) lastEditingRef.current = editing
     const shownEditing = editing ?? lastEditingRef.current
+
+    // Resolved in children, which mount only when the host supplies a bridge: a hook reached
+    // through an optional member cannot be called from here without breaking hook order.
+    const editingSubagentSlug =
+        shownEditing?.kind === "tool" ? (toolReferenceSlug(draft) ?? "") : ""
+    const subagentHeaderAction = workflowReference ? (
+        <SubagentOpenAgentButton bridge={workflowReference} slug={editingSubagentSlug} />
+    ) : undefined
     const lastInstructionRef = useRef(editingInstruction)
     if (editingInstruction) lastInstructionRef.current = editingInstruction
     const shownInstruction = editingInstruction ?? lastInstructionRef.current
@@ -991,30 +1327,114 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                       const readOnly = disabled || def.isReadOnly(draft)
                       const Form = def.FormView
                       const itemKey = `${shownEditing.kind}-${shownEditing.mode}-${shownEditing.index}`
+                      // Skills state their identity in their own form, and an MCP server's title
+                      // already says what it is; both drawers drop the badge and subtitle.
+                      const bareChrome =
+                          shownEditing.kind === "skill" || shownEditing.kind === "mcp"
+                      const isSubagent = Boolean(def.statesOwnIdentity?.(draft))
+                      // An inline skill's way into the registry, from the drawer's footer: the
+                      // draft is what gets published, and the row it came from is what gets
+                      // swapped for the reference.
+                      const inlineSkillItem =
+                          shownEditing.kind === "skill" && shownEditing.mode === "edit"
+                              ? skills[shownEditing.index]
+                              : undefined
+                      const canPublish =
+                          inlineSkillItem !== undefined &&
+                          Boolean(skillsBridge?.publishInlineSkill) &&
+                          !isEmbedRefSkill(inlineSkillItem) &&
+                          !readOnly &&
+                          !draftInvalid
+                      const publishing = publishingSkillIndex !== null
+                      // The publish sends the draft as it was pressed; an edit made meanwhile
+                      // would be thrown away when the row is swapped for the reference.
+                      const editorDisabled = readOnly || publishing
+                      const publishAction = canPublish ? (
+                          <TooltipProvider>
+                              <Tooltip>
+                                  <TooltipTrigger asChild>
+                                      <Button
+                                          variant="outline"
+                                          disabled={publishing}
+                                          onClick={() =>
+                                              void publishInlineSkill(
+                                                  inlineSkillItem,
+                                                  shownEditing.index,
+                                                  draft,
+                                              )
+                                          }
+                                      >
+                                          {publishing ? (
+                                              <Spinner size="small" />
+                                          ) : (
+                                              <UploadSimple size={14} />
+                                          )}
+                                          {publishing ? "Publishing…" : "Publish to registry"}
+                                      </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top">
+                                      Move this inline skill to the registry; the agent will
+                                      reference it (following the latest version).
+                                  </TooltipContent>
+                              </Tooltip>
+                          </TooltipProvider>
+                      ) : undefined
                       return (
                           <ConfigItemDrawer
                               open={!!editing}
                               mode={shownEditing.mode}
-                              icon={def.icon}
-                              title={def.drawerTitle(draft)}
-                              badge={{text: desc.typeLabel, color: desc.typeColor}}
-                              subtitle={desc.subtitle}
-                              footerNote="Changes apply to this agent configuration"
-                              width={def.drawerWidth}
-                              contentFlush={def.formFlush}
-                              view={drawerView}
-                              onViewChange={setDrawerView}
+                              title={
+                                  isSubagent && workflowReference ? (
+                                      <SubagentHeaderTitle
+                                          bridge={workflowReference}
+                                          slug={editingSubagentSlug}
+                                          fallback={def.drawerTitle(draft)}
+                                      />
+                                  ) : (
+                                      def.drawerTitle(draft)
+                                  )
+                              }
+                              badge={
+                                  bareChrome || isSubagent
+                                      ? undefined
+                                      : {text: desc.typeLabel, color: desc.typeColor}
+                              }
+                              subtitle={
+                                  bareChrome ? undefined : isSubagent ? "Subagent" : desc.subtitle
+                              }
+                              // A skill's footer-left is its Publish action; the MCP drawer has
+                              // no note; every other kind keeps it.
+                              footerNote={
+                                  shownEditing.kind === "skill"
+                                      ? publishAction
+                                      : shownEditing.kind === "mcp"
+                                        ? undefined
+                                        : "Changes apply to this agent configuration"
+                              }
+                              error={commitError}
+                              saving={committing}
+                              width={def.drawerWidth?.(draft)}
+                              contentFlush={Boolean(def.formFlush?.(draft))}
                               onCancel={closeEditor}
                               onSave={commitDraft}
-                              saveDisabled={draftInvalid || (drawerView === "json" && jsonInvalid)}
+                              saveDisabled={
+                                  draftInvalid ||
+                                  draftUnchanged ||
+                                  (def.jsonOnly(draft) && jsonInvalid)
+                              }
                               jsonOnly={def.jsonOnly(draft)}
-                              disabled={readOnly}
+                              headerExtra={isSubagent ? subagentHeaderAction : undefined}
+                              disabled={editorDisabled}
                               form={
                                   <Form
                                       key={`form-${itemKey}`}
                                       value={draft}
                                       onChange={(v) => setDraft(v)}
-                                      disabled={readOnly}
+                                      disabled={editorDisabled}
+                                      // Save is inert while the draft is invalid, so there is
+                                      // no press to wait for: an edited draft that is missing
+                                      // a required field says so in the fields.
+                                      showMissing={!draftUnchanged && draftInvalid}
                                   />
                               }
                               json={
@@ -1023,7 +1443,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                                       value={draft}
                                       onChange={(v) => setDraft(v as Record<string, unknown>)}
                                       onValidityChange={(valid) => setJsonInvalid(!valid)}
-                                      disabled={readOnly}
+                                      disabled={editorDisabled}
                                   />
                               }
                           />
@@ -1046,12 +1466,13 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         setEditingInstruction(null)
                     }}
                     disabled={disabled}
+                    dirty={instructionDirty}
                 />
             )}
 
             <SectionDrawer
                 open={openSection === "model-harness"}
-                title="Model & harness"
+                title="Model"
                 icon={<Cpu size={16} />}
                 onCancel={cancelSection}
                 onSave={saveSection}
@@ -1072,9 +1493,8 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         onChange={applyDraftConfig}
                         disabled={disabled}
                         withTooltip={withTooltip}
-                        revisionId={revisionId}
-                        buildKitEnabledOverride={draftBuildKitOverride}
-                        savedHarnessValue={savedHarnessValue}
+                        revisionId={sectionRevision ?? revisionId}
+                        buildKitOverride={draftBuildKitOverride}
                     />
                 </ChangedPathsProvider>
             </SectionDrawer>
@@ -1082,12 +1502,13 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             <SectionDrawer
                 open={openSection === "advanced"}
                 title="Advanced"
-                icon={<SlidersHorizontal size={16} />}
                 onCancel={cancelSection}
                 onSave={saveSection}
                 disabled={disabled || !sectionDirty}
                 dirty={sectionDirty}
-                width={880}
+                width={mh.advancedDrawerWidth}
+                // No top or bottom gutter: the rail and its divider run header to footer.
+                bodyPadding="0 12px"
             >
                 <ChangedPathsProvider changes={drawerChangedPaths}>
                     <ModelHarnessSectionBody
@@ -1097,22 +1518,42 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                         onChange={applyDraftConfig}
                         disabled={disabled}
                         withTooltip={withTooltip}
-                        revisionId={revisionId}
-                        buildKitEnabledOverride={draftBuildKitOverride}
-                        savedHarnessValue={savedHarnessValue}
+                        revisionId={sectionRevision ?? revisionId}
+                        buildKitOverride={draftBuildKitOverride}
+                        credentialOperationsBlocked={sectionDirty}
+                        onCredentialRevisionCommitted={rebaseSectionOnCredentialCommit}
                     />
                 </ChangedPathsProvider>
             </SectionDrawer>
 
+            {skillsBridge?.enabled ? (
+                <skillsBridge.PickerHost
+                    open={skillPickerOpen}
+                    onClose={() => setSkillPickerOpen(false)}
+                    added={addedSkillRefs}
+                    onAdd={handleAddSkillEmbeds}
+                    onRemove={handleRemoveSkillEmbeds}
+                />
+            ) : null}
+            {skillsBridge?.DetailHost ? (
+                <skillsBridge.DetailHost
+                    open={skillDetailSlug !== null}
+                    onClose={() => setSkillDetailSlug(null)}
+                    slug={skillDetailSlug}
+                />
+            ) : null}
+
             {workflowReference?.enabled && (
-                <WorkflowReferenceSelector
+                <SubagentDrawerContainer
                     open={referenceSelectorOpen}
                     onClose={() => setReferenceSelectorOpen(false)}
-                    workflows={referenceableWorkflows}
                     bridge={workflowReference}
-                    onSelect={(payload) => {
-                        void handleAddWorkflowReference(payload)
-                        setReferenceSelectorOpen(false)
+                    revisionId={revisionId}
+                    savedSlugs={savedSubagentSlugs}
+                    onAdd={handleAddWorkflowReference}
+                    onRemoveSlug={(slug) => {
+                        handleRemoveReferenceBySlug(slug)
+                        closeEditor()
                     }}
                 />
             )}
@@ -1120,14 +1561,29 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
             {gatewayTools?.enabled && (
                 <AgentIntegrationDrawer
                     open={integrationDrawerOpen}
-                    onClose={() => {
-                        setIntegrationDrawerOpen(false)
-                        setIntegrationDefaultKey(undefined)
-                    }}
-                    onAddTool={handleAddTool}
-                    onRemoveToolByIdentity={removeGatewayToolByIdentity}
-                    selectedGatewayIds={selectedGatewayIds}
-                    defaultIntegrationKey={integrationDefaultKey}
+                    onClose={() => setIntegrationDrawerOpen(false)}
+                    integrationRows={integrationRows}
+                    onAddIntegration={setIntegrationConnection}
+                />
+            )}
+
+            {gatewayTools?.enabled && permissionTarget && (
+                <IntegrationPermissionDrawer
+                    open
+                    onClose={() => setPermissionTarget(null)}
+                    target={permissionTarget}
+                    connectionSlug={
+                        permissionRow ? (integrationRowConnection(permissionRow) ?? "") : ""
+                    }
+                    permissions={permissionRow?.entry?.permissions ?? null}
+                    onChangePermissions={(next) =>
+                        setIntegrationPermissions(permissionTarget, next)
+                    }
+                    onChangeToolPermission={(toolKey, permission) =>
+                        setIntegrationToolPermission(permissionTarget, toolKey, permission)
+                    }
+                    agentPolicy={agentPermissionPolicy}
+                    disabled={disabled}
                 />
             )}
         </div>

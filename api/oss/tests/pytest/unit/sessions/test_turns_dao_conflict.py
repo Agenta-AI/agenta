@@ -15,10 +15,8 @@ class _FakeSession:
     def __init__(self):
         self.rollback_count = 0
 
-    def add(self, _dbe):
-        pass
-
-    async def commit(self):
+    async def execute(self, _statement):
+        # The insert is one statement: the unique index refuses it there.
         raise IntegrityError(
             "INSERT INTO session_turns ...",
             {},
@@ -28,8 +26,8 @@ class _FakeSession:
             ),
         )
 
-    async def refresh(self, _dbe):
-        raise AssertionError("a failed insert must not refresh")
+    async def commit(self):
+        raise AssertionError("a failed insert must not commit")
 
     async def rollback(self):
         self.rollback_count += 1

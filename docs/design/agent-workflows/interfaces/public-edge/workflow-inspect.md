@@ -14,7 +14,7 @@ workflow provides it:
 ```jsonc
 {
   "version": "2025.07.14",
-  "meta": { "harness_capabilities": { /* per-harness providers, deployments, connection_modes, model_selection, models */ } },
+  "meta": { "harness_capabilities": { /* per-harness providers, deployments, connection_modes, model_selection, models, default_models */ } },
   "data": {
     "revision": {
       "data": {
@@ -39,7 +39,9 @@ table the service uses server-side to reject unreachable provider and deployment
 the form can filter stored connections before the user submits when that metadata is present.
 
 Per harness, the block carries `providers`, `deployments`, `connection_modes`, `model_selection`,
-and `models`. `models` is a provider-keyed map of the selectable models the harness can reach: Pi
+`models`, and `default_models`. `default_models` is a provider-keyed map of the model ids applied
+when a connection saves no explicit list of its own, published in the same spelling as `models`.
+`models` is a provider-keyed map of the selectable models the harness can reach: Pi
 publishes each vault provider's catalog ids; Claude publishes its alias set (`default`/`sonnet`/
 `opus`/`haiku` and their `[1m]` variants) under `anthropic`. The agent playground renders its
 harness-filtered provider + model picker straight from this map instead of the full shared

@@ -8,7 +8,6 @@ import {shortPoll} from "@agenta/shared/utils"
 import Session from "supertokens-auth-react/recipe/session"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
-import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
 import {getProjectValues} from "@/oss/state/project"
 
 //Prefix convention:
@@ -47,12 +46,6 @@ export const getJWT = async () => {
     }
 
     return undefined
-}
-
-export const fetchProfile = async (ignoreAxiosError = false) => {
-    return axios.get(`${getAgentaApiUrl()}/profile`, {
-        _ignoreError: ignoreAxiosError,
-    } as any)
 }
 
 export const fetchData = async (url: string): Promise<any> => {

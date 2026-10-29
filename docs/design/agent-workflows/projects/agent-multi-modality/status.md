@@ -7,8 +7,9 @@ This file records the project's current state.
 The design is complete. Every decision, D1 through D14, is taken; the last four (D11 durable agent
 input from day one, D12 mention-first cold replay, D13 two upload surfaces, D14 first-release audio
 is browser dictation only) were decided on 2026-07-31. What remains open are implementation-time
-questions, not product questions; see [decisions.md](decisions.md) for the list. The next step is
-implementation, starting with Stage 0 or Stage 1 of [plan.md](plan.md).
+questions, not product questions; see [decisions.md](decisions.md) for the list. Implementation is
+under way: Stages 0 and 1 are in review, and Stage 2 has started with the voice half. See the stage
+tracker below.
 
 The one-line problem: agent workflows are text-only at the model. A file travels intact from the
 chat box to the runner and is dropped at the one call that hands a turn to the harness
@@ -23,7 +24,10 @@ The front-end surface is already merged dark (PRs #5458 and #5459, merged 2026-0
 attach UI, the attachment chips and preview, the per-kind limits object, the upload lifecycle hook
 with its unwired transport seam, the voice capture UI, and the drive-upload surfaces, behind
 `NEXT_PUBLIC_AGENT_FILE_UPLOADS` and `NEXT_PUBLIC_AGENT_VOICE_INPUT` (both off by default). Paste
-and drag-to-attach predate the flags and are live ungated, which is the Stage 0 gap. The backend
+and drag-to-attach predate the flags and are live ungated, which is the Stage 0 gap.
+`NEXT_PUBLIC_AGENT_VOICE_INPUT` and its per-user Settings toggle are now gone: dictation is
+unconditional, and the voice-message mode is hidden behind the `VOICE_MESSAGE_MODE_ENABLED`
+constant in `@agenta/chat`'s `VoiceInputButton` until its workspace-only delivery path lands. The backend
 (upload route, attachment resource, record schema, runner delivery) has not started; see "What is
 already built (merged dark)" in [plan.md](plan.md).
 
@@ -40,7 +44,7 @@ See [README.md](README.md). In short: [context.md](context.md) for the plain sto
 | --- | --- | --- |
 | 0 | Close the silent-failure gap: gate the ungated paste and drag path on `NEXT_PUBLIC_AGENT_FILE_UPLOADS` | in review (PR #5604) |
 | 1 | First user-visible release: the attachment resource and storage, the record-schema extension, the runner's resolve-materialize-and-deliver seam for images, structured capability errors, the minimum security and limits work (per the settled matrix in [design.md](design.md), including the gateway raise to 32 MB), and the front-end transport and reference wiring | in review as four stacked PRs (#5607 API, #5615 runner, #5617 SDK, #5619 front end), end-to-end QA green on the dev stack; the trail is in [protocols/stage-1.md](protocols/stage-1.md) |
-| 2 | The audio release: turn on the voice UI, dictation as the only audio-to-text, recordings on the D6 workspace-only path (D14); the document plan (blocked on adapter work), the capability-alias rollout, derived front-end limits | not started (documents blocked on adapter work) |
+| 2 | The audio release: turn on the voice UI, dictation as the only audio-to-text, recordings on the D6 workspace-only path (D14); the document plan (blocked on adapter work), the capability-alias rollout, derived front-end limits | in progress — the voice UI is ungated and dictation ships with a push-to-talk chord (hold Ctrl+Option / Ctrl+Alt); recordings stay hidden behind `VOICE_MESSAGE_MODE_ENABLED` pending the D6 workspace-only path (documents blocked on adapter work) |
 | 3 | Findability polish and cleanup: "Shared by you" origin, reference-counting cleanup refinement, read-only credential scope, verify the edit-then-find flow | not started |
 
 ## Decisions taken
@@ -78,7 +82,9 @@ in [plan.md](plan.md) Stage 2.
 - Follow-ups recorded in [protocols/stage-1.md](protocols/stage-1.md): the CI report glob line
   (needs a workflow-scoped push), the Fern client regeneration, and the zip-container
   classifier refinement.
-- Then Stage 2 of [plan.md](plan.md).
+- Finish Stage 2 of [plan.md](plan.md): its voice half has landed, so what remains is the
+  recording delivery on the D6 workspace-only path, plus the capability-alias rollout and the
+  derived front-end limits.
 
 ## Artifacts
 

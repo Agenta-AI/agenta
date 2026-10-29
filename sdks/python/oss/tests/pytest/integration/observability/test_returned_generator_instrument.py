@@ -16,9 +16,14 @@ content in its finally — the same contract a `yield`-based handler gets. Both 
 These tests are RED before the fix, GREEN after. Uses the in-memory exporter (no backend).
 """
 
-import pytest
+import asyncio
 
+import pytest
+from opentelemetry import trace as otel_trace
+
+from agenta.sdk.agents.fold import assistant_text
 from agenta.sdk.decorators.running import workflow
+from agenta.sdk.decorators.tracing import instrument
 from agenta.sdk.models.workflows import WorkflowServiceStreamResponse
 
 from oss.tests.pytest.integration.observability.test_workflow_instrument_programmatic import (  # noqa: E501
@@ -84,6 +89,72 @@ async def test_async_def_returning_event_gen_records_event_list(in_memory_tracin
     assert isinstance(captured, list), f"expected drained list, got {captured!r}"
     assert captured[0]["type"] == "message_start"
     assert captured[-1]["type"] == "done"
+
+
+@pytest.mark.asyncio
+async def test_returned_agent_event_stream_records_assistant_text(in_memory_tracing):
+    async def _events():
+        yield {"type": "thought_delta", "data": {"id": "r1", "delta": "private"}}
+        yield {"type": "message_start", "data": {"id": "m1"}}
+        yield {"type": "message_delta", "data": {"id": "m1", "delta": "Hello"}}
+        yield {"type": "message_delta", "data": {"id": "m1", "delta": " world"}}
+        yield {"type": "message_end", "data": {"id": "m1"}}
+        yield {"type": "usage", "data": {"total": 42}}
+        yield {"type": "done", "data": {"stopReason": "end_turn"}}
+
+    @workflow()
+    @instrument(stream_output=assistant_text)
+    async def wf(value: str):
+        return _events()
+
+    response = await wf.invoke(request=_request())
+    items = await _collect(response)
+    assert [event["type"] for event in items] == [
+        "thought_delta",
+        "message_start",
+        "message_delta",
+        "message_delta",
+        "message_end",
+        "usage",
+        "done",
+    ]
+
+    root = _roots(in_memory_tracing.finished_spans())[0]
+    assert _attr(root, "ag.data.outputs.__default__") == "Hello world"
+
+
+@pytest.mark.asyncio
+async def test_returned_async_gen_reactivates_span_for_each_consumer_context(
+    in_memory_tracing,
+):
+    """Mirror ASGI requesting consecutive stream steps from different contexts."""
+
+    async def _events():
+        try:
+            yield "one"
+            yield "two"
+        finally:
+            otel_trace.get_current_span().set_attribute(
+                "test.stream_finalizer_span_active", True
+            )
+
+    @workflow()
+    async def wf(value: str):
+        return _events()
+
+    response = await wf.invoke(request=_request("a"))
+    stream = response.iterator()
+    items = []
+    while True:
+        try:
+            # A fresh task carries a fresh Context frame, as StreamingResponse may.
+            items.append(await asyncio.create_task(anext(stream)))
+        except StopAsyncIteration:
+            break
+
+    assert items == ["one", "two"]
+    root = _roots(in_memory_tracing.finished_spans())[0]
+    assert _attr(root, "test.stream_finalizer_span_active") is True
 
 
 # --------------------------------------------------------------------------- #

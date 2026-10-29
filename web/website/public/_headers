@@ -1,0 +1,75 @@
+# Cloudflare Workers Static Assets edge response headers.
+# https://developers.cloudflare.com/workers/static-assets/headers/
+#
+# A request that matches several rules INHERITS all of their headers, and a
+# header set by more than one matching rule is joined with a comma. Since every
+# path below also matches the `/*` page rule at the bottom, each asset block
+# first clears the inherited `Cache-Control` (`! Cache-Control`) before setting
+# its own — otherwise assets would ship a malformed, dual-`max-age` header.
+# Astro build emits content-hashed filenames under /_astro/; those can be
+# cached forever. Font files under /fonts/ are also content-stable once
+# uploaded to R2 and baked into dist.
+
+# Hashed build assets — cache forever, immutable.
+/_astro/*
+  ! Cache-Control
+  Cache-Control: public, max-age=31536000, immutable
+
+# Licensed + open font files — cache forever, immutable.
+/fonts/*
+  ! Cache-Control
+  Cache-Control: public, max-age=31536000, immutable
+
+# OG images and other public static assets — 1 week, revalidate.
+/og/*
+  ! Cache-Control
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+
+/icons/*
+  ! Cache-Control
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+
+/logos/*
+  ! Cache-Control
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+
+# Blog + author images live at /blog/<slug>/<file> and /authors/<file>. The
+# generated post/author HTML routes share the /blog/ and /authors/ prefixes
+# (/blog/<slug>/, /blog/, /authors/<slug>/, /authors/), so a bare /blog/* /
+# /authors/* rule would wrongly give that HTML the week-long image TTL. Match the
+# images by their exact segment depth instead (a Cloudflare :placeholder matches
+# one path segment and must consume the whole path — no trailing wildcard), so the
+# HTML routes fall through to the short-TTL /* rule and keep exactly one policy.
+/blog/:slug/:file
+  ! Cache-Control
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+
+/authors/:file
+  ! Cache-Control
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+
+# Markdown twins of the HTML pages (/pricing.md, /blog/<slug>.md ...). They are
+# alternate representations, not pages: the HTML page is canonical and the only
+# thing that should be indexed. A static Astro endpoint cannot set this header
+# itself (the build keeps the body, not the Response headers), so it lives here.
+/*.md
+  X-Robots-Tag: noindex
+
+# Published API specification — agents fetch it cross-origin from browser-based
+# tools, so it needs CORS. One day TTL: it only changes when the API does.
+/openapi.json
+  ! Cache-Control
+  Cache-Control: public, max-age=86400, stale-while-revalidate=86400
+  Access-Control-Allow-Origin: *
+
+# HTML pages — short TTL; stale-while-revalidate so users see fresh content.
+#
+# NOTE: Cloudflare does NOT apply this file to responses served by worker code.
+# The HTML routes in wrangler.jsonc's `run_worker_first` allowlist are answered
+# by worker/index.ts, which re-applies the policy below from its own HEADERS
+# constant (worker/negotiate.ts). Edit both together.
+/*
+  Cache-Control: public, max-age=60, stale-while-revalidate=3600
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: SAMEORIGIN
+  Referrer-Policy: strict-origin-when-cross-origin

@@ -1,55 +1,46 @@
 /**
- * Audit Log — Settings Tab
+ * Audit Log — EE binding.
  *
- * Lists platform events from `POST /events/query` in a paginated table with a
- * right-side detail drawer.
- *
- * Two-gate access model:
- *   - Tab VISIBILITY is a permission check (`view_events`), handled by the
- *     settings sidebar / page (`canViewEvents`).
- *   - Page CONTENT is gated by the `Flag.AUDIT` entitlement: with it, the table
- *     renders; without it, an UpgradePrompt CTA is shown instead.
- *
- * This component lives in EE because audit event querying is an EE feature.
+ * The page itself is `@agenta/settings-ui`'s. This file supplies the three things that are
+ * this host's: the audit entitlement, the desktop's date-range picker, and the upgrade link.
  */
 
-import {Spin} from "antd"
+import {AuditLogPage} from "@agenta/settings-ui"
+import {isBillingEnabled} from "@agenta/shared/api"
+import {useAtomValue} from "jotai"
+import Link from "next/link"
 
-import {UpgradePrompt} from "@/oss/components/pages/settings/Organization/UpgradePrompt"
+import QuickDateRangePicker from "@/oss/components/EvaluationRunsTablePOC/components/filters/QuickDateRangePicker"
 import {useEntitlements} from "@/oss/lib/helpers/useEntitlements"
+import {appIdentifiersAtom} from "@/oss/state/appState/atoms"
 
-import AuditEventDrawer from "./components/AuditEventDrawer"
-import AuditLogTable from "./components/AuditLogTable"
+const UpgradeLink = () => {
+    const {workspaceId, projectId} = useAtomValue(appIdentifiersAtom)
+    if (!isBillingEnabled() || !workspaceId || !projectId) return null
 
-const AuditLogContent = () => (
-    <div className="flex flex-1 min-h-0 flex-col">
-        <AuditLogTable />
-        <AuditEventDrawer />
-    </div>
-)
-
-const NotEntitled = () => (
-    <UpgradePrompt
-        title="Audit Log is not available on your plan"
-        description="Query the full history of platform events — who did what, and when — across your organization."
-    />
-)
-
-/** EE wrapper — defers rendering until entitlements resolve to avoid a flash. */
-const AuditLogGated = () => {
-    const {hasAudit, isLoading} = useEntitlements()
-
-    if (isLoading) {
-        return (
-            <div className="flex flex-1 min-h-0 items-center justify-center">
-                <Spin />
-            </div>
-        )
-    }
-
-    return hasAudit ? <AuditLogContent /> : <NotEntitled />
+    return (
+        <Link
+            href={`/w/${workspaceId}/p/${projectId}/settings?tab=billing&upgrade=true`}
+            className="font-medium"
+        >
+            Upgrade plan →
+        </Link>
+    )
 }
 
-const AuditLog = () => <AuditLogGated />
+const AuditLog = () => {
+    const {hasAudit, isLoading} = useEntitlements()
+
+    return (
+        <AuditLogPage
+            hasAudit={hasAudit}
+            entitlementsLoading={isLoading}
+            renderDateRange={({value, onChange}) => (
+                <QuickDateRangePicker value={value} onChange={onChange} />
+            )}
+            upgradeAction={<UpgradeLink />}
+        />
+    )
+}
 
 export default AuditLog

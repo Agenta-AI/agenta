@@ -215,7 +215,7 @@ function CatalogItemList<I, T, C>({
                                     <span className="min-w-0 flex-1">
                                         <span className="flex items-center gap-1.5">
                                             <span
-                                                className={`min-w-0 truncate text-[12.5px] font-medium ${
+                                                className={`min-w-0 truncate text-xs font-medium ${
                                                     deprecated
                                                         ? "text-[var(--ag-colorTextTertiary)]"
                                                         : "text-[var(--ag-colorText)]"
@@ -235,7 +235,7 @@ function CatalogItemList<I, T, C>({
                                             ) : null}
                                         </span>
                                         {description ? (
-                                            <span className="mt-1 line-clamp-2 text-[11px] leading-snug text-[var(--ag-colorTextTertiary)]">
+                                            <span className="mt-1 line-clamp-2 text-xs leading-snug text-[var(--ag-colorTextTertiary)]">
                                                 {description}
                                             </span>
                                         ) : null}
@@ -244,7 +244,7 @@ function CatalogItemList<I, T, C>({
                                                 {categories.slice(0, 3).map((c) => (
                                                     <span
                                                         key={c}
-                                                        className="ag-drawer-tag rounded bg-[var(--ag-colorFillSecondary)] px-1.5 py-0.5 text-[10px] leading-none text-[var(--ag-colorTextTertiary)]"
+                                                        className="ag-drawer-tag rounded bg-[var(--ag-colorFillSecondary)] px-1.5 py-0.5 text-[12px] leading-none text-[var(--ag-colorTextTertiary)]"
                                                     >
                                                         {c}
                                                     </span>
@@ -301,13 +301,13 @@ function ConnectionDetail<I, T, C>({
                         ? props.integration.name(integration)
                         : props.connection.integrationKey(connection)}
                 </div>
-                <div className="truncate text-[11px] text-[var(--ag-colorTextTertiary)]">
+                <div className="truncate text-xs text-[var(--ag-colorTextTertiary)]">
                     {account || props.connection.integrationKey(connection)}
                     {connectedAt ? ` · connected ${connectedAt}` : ""}
                 </div>
             </div>
             <span
-                className={`inline-flex shrink-0 items-center gap-1 text-[11px] ${
+                className={`inline-flex shrink-0 items-center gap-1 text-xs ${
                     ready ? "text-[var(--ag-colorSuccess)]" : "text-[var(--ag-colorWarningText)]"
                 }`}
             >
@@ -355,11 +355,11 @@ function ConnectionSwitcher<I, T, C>({
                 <span className="min-w-0 flex-1 truncate text-xs font-medium">
                     {integrationName}
                 </span>
-                <span className="shrink-0 text-[11px] text-[var(--ag-colorTextTertiary)]">
+                <span className="shrink-0 text-xs text-[var(--ag-colorTextTertiary)]">
                     {connections.length} accounts
                 </span>
             </div>
-            <div className="grid gap-1.5 [grid-template-columns:repeat(auto-fill,minmax(150px,1fr))]">
+            <div className="grid gap-1.5 [grid-template-columns:repeat(auto-fill,minmax(min(150px,100%),1fr))]">
                 {connections.map((c) => {
                     const id = props.connection.id(c)
                     const name = props.connection.name(c)?.trim()
@@ -393,7 +393,7 @@ function ConnectionSwitcher<I, T, C>({
                             />
                             <span className="min-w-0 flex-1">
                                 <span
-                                    className={`block truncate text-[11px] font-medium ${
+                                    className={`block truncate text-xs font-medium ${
                                         isCurrent
                                             ? "text-[var(--ag-colorPrimary)]"
                                             : "text-[var(--ag-colorText)]"
@@ -402,7 +402,7 @@ function ConnectionSwitcher<I, T, C>({
                                     {primary}
                                 </span>
                                 {(secondary || connectedAt) && (
-                                    <span className="block truncate text-[10px] text-[var(--ag-colorTextTertiary)]">
+                                    <span className="block truncate text-[12px] text-[var(--ag-colorTextTertiary)]">
                                         {secondary}
                                         {secondary && connectedAt ? " · " : ""}
                                         {connectedAt ? `connected ${connectedAt}` : ""}
@@ -461,7 +461,7 @@ function AppRailItem({
                     {name}
                 </span>
                 {sub && (
-                    <span className="block truncate text-[10px] text-[var(--ag-colorTextTertiary)]">
+                    <span className="block truncate text-[12px] text-[var(--ag-colorTextTertiary)]">
                         {sub}
                     </span>
                 )}
@@ -505,7 +505,7 @@ function ConnectInvite<I, T, C>({
             />
             <div className="text-xs font-medium">{name ?? "This app"}</div>
             {description && (
-                <div className="max-w-[280px] text-[11px] leading-snug text-[var(--ag-colorTextTertiary)]">
+                <div className="max-w-[280px] text-xs leading-snug text-[var(--ag-colorTextTertiary)]">
                     {description}
                 </div>
             )}
@@ -686,12 +686,17 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
         setCategoryState(null)
         setCategory?.(null)
     }
+    // Phone: one pane at a time. The apps grid opens and the rail is a tap back, since browsing
+    // apps is what this page is for — side by side, the 150px rail left the grid a sliver.
+    const [mobileView, setMobileView] = useState<"rail" | "content">("content")
     const pickAll = () => {
+        setMobileView("content")
         setSelected(null)
         clearCategory()
         clearSearch()
     }
     const pickCategory = (cat: {id: string; name: string}) => {
+        setMobileView("content")
         setSelected(null)
         setCategoryState(cat)
         setCategory?.(cat.id)
@@ -701,6 +706,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
     // leaving the category active would filter the browse query behind the detail view and, on
     // Back, restore a stale category the user didn't re-pick.
     const pickConn = (id: string) => {
+        setMobileView("content")
         setSelected({kind: "conn", id})
         clearCategory()
         clearSearch()
@@ -713,19 +719,19 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
         <div className={`flex h-full min-h-[260px] ${fullBleedRail ? "" : "gap-3"}`}>
             {railPresent && (
                 <div
-                    className={`ag-drawer-rail flex min-h-0 w-[220px] shrink-0 flex-col ${
+                    className={`ag-drawer-rail min-h-0 flex-col sm:flex sm:w-[220px] sm:shrink-0 ${
                         fullBleedRail ? "py-4 pl-3 pr-1" : "py-1"
-                    }`}
+                    } ${mobileView === "rail" ? "flex w-full" : "hidden"}`}
                 >
                     {hasConnections && (
                         // Connections stay pinned at the top — the category list below scrolls on its
                         // own so scrolling categories never scrolls the connections away.
                         <div className="flex shrink-0 flex-col gap-0.5">
                             <div className="flex items-center justify-between px-2 pb-1.5 pt-0.5">
-                                <span className="text-[10px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                                <span className="text-[12px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
                                     Your connections
                                 </span>
-                                <span className="shrink-0 text-[10px] text-[var(--ag-colorTextTertiary)]">
+                                <span className="shrink-0 text-[12px] text-[var(--ag-colorTextTertiary)]">
                                     {connections.length}
                                 </span>
                             </div>
@@ -756,7 +762,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                                 <button
                                     type="button"
                                     onClick={() => setShowAllConns((v) => !v)}
-                                    className="ml-2 mt-0.5 cursor-pointer self-start border-0 bg-transparent p-0 text-[11px] text-[var(--ag-colorPrimary)] hover:underline"
+                                    className="ml-2 mt-0.5 cursor-pointer self-start border-0 bg-transparent p-0 text-xs text-[var(--ag-colorPrimary)] hover:underline"
                                 >
                                     {showAllConns ? "Show less" : `Show all ${connections.length}`}
                                 </button>
@@ -769,7 +775,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                             {hasConnections && (
                                 <div className="mx-2 my-2 shrink-0 border-0 border-t border-solid border-[var(--ag-colorBorderSecondary)]" />
                             )}
-                            <div className="shrink-0 px-2 pb-1.5 text-[10px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                            <div className="shrink-0 px-2 pb-1.5 text-[12px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
                                 Browse by category
                             </div>
                             <div className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto pr-1">
@@ -799,22 +805,29 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
             )}
 
             <div
-                className={`flex min-h-0 min-w-0 flex-1 flex-col ${
-                    fullBleedRail ? "py-4 pr-6" : ""
-                } ${
+                className={`min-h-0 min-w-0 flex-1 flex-col ${fullBleedRail ? "py-4 pr-6" : ""} ${
                     railPresent
-                        ? `border-0 border-l border-solid border-[var(--ag-colorBorderSecondary)] ${
-                              fullBleedRail ? "pl-5" : "pl-3"
+                        ? `border-0 border-solid border-[var(--ag-colorBorderSecondary)] sm:border-l ${
+                              fullBleedRail ? "sm:pl-5" : "sm:pl-3"
                           }`
                         : ""
-                }`}
+                } ${!railPresent || mobileView === "content" ? "flex" : "hidden sm:flex"}`}
             >
+                {railPresent && !selected ? (
+                    <button
+                        type="button"
+                        onClick={() => setMobileView("rail")}
+                        className="mb-3 flex shrink-0 cursor-pointer items-center gap-1 self-start border-0 bg-transparent p-0 text-xs text-[var(--ag-colorTextSecondary)] hover:text-[var(--ag-colorText)] sm:hidden"
+                    >
+                        <ArrowLeft size={13} /> {hasConnections ? "Connections" : "Categories"}
+                    </button>
+                ) : null}
                 {selected ? (
                     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                         <button
                             type="button"
                             onClick={() => setSelected(null)}
-                            className="mb-3 flex shrink-0 cursor-pointer items-center gap-1 self-start border-0 bg-transparent p-0 text-[11px] text-[var(--ag-colorTextSecondary)] hover:text-[var(--ag-colorText)]"
+                            className="mb-3 flex shrink-0 cursor-pointer items-center gap-1 self-start border-0 bg-transparent p-0 text-xs text-[var(--ag-colorTextSecondary)] hover:text-[var(--ag-colorText)]"
                         >
                             <ArrowLeft size={13} /> Back
                         </button>
@@ -850,11 +863,11 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                                                     }
                                                     className="mt-2 flex w-full items-center justify-between gap-2 rounded-md border border-solid border-[var(--ag-colorWarningBorder)] bg-[var(--ag-colorWarningBg)] px-3 py-2 text-left disabled:cursor-wait"
                                                 >
-                                                    <span className="text-[11px] text-[var(--ag-colorWarningText)]">
+                                                    <span className="text-xs text-[var(--ag-colorWarningText)]">
                                                         Authentication is still pending for this
                                                         connection.
                                                     </span>
-                                                    <span className="flex shrink-0 items-center gap-1 text-[11px] font-medium text-[var(--ag-colorPrimary)]">
+                                                    <span className="flex shrink-0 items-center gap-1 text-xs font-medium text-[var(--ag-colorPrimary)]">
                                                         {busy ? (
                                                             <Spinner size="small" />
                                                         ) : (
@@ -866,7 +879,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                                             )
                                         })()}
                                     <div className="mb-2 mt-4 flex items-center justify-between gap-2">
-                                        <span className="text-[10px] uppercase tracking-wide text-[var(--ag-colorTextDescription)]">
+                                        <span className="text-[12px] uppercase tracking-wide text-[var(--ag-colorTextDescription)]">
                                             {props.itemsLabel}
                                         </span>
                                         {selectedIntegration && (
@@ -875,7 +888,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                                                 onClick={() =>
                                                     setConnectIntegration(selectedIntegration)
                                                 }
-                                                className="cursor-pointer border-0 bg-transparent p-0 text-[11px] text-[var(--ag-colorPrimary)] hover:underline"
+                                                className="cursor-pointer border-0 bg-transparent p-0 text-xs text-[var(--ag-colorPrimary)] hover:underline"
                                             >
                                                 + Connect another account
                                             </button>
@@ -922,11 +935,11 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                             }}
                         />
                         <div className="mb-1 mt-2 flex items-center justify-between gap-2 px-0.5">
-                            <span className="text-[10px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+                            <span className="text-[12px] uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
                                 {searching ? "Results" : category ? category.name : "All apps"}
                             </span>
                             {integrations.length > 0 && (
-                                <span className="shrink-0 text-[10px] text-[var(--ag-colorTextTertiary)]">
+                                <span className="shrink-0 text-[12px] text-[var(--ag-colorTextTertiary)]">
                                     {typeof total === "number" && total > integrations.length
                                         ? `${integrations.length} of ${total}`
                                         : integrations.length}
@@ -935,13 +948,13 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                         </div>
                         <div
                             ref={setGridEl}
-                            className="grid min-h-0 flex-1 auto-rows-min gap-2 overflow-y-auto [grid-template-columns:repeat(auto-fill,minmax(220px,1fr))]"
+                            className="grid min-h-0 flex-1 auto-rows-min gap-2 overflow-y-auto [grid-template-columns:repeat(auto-fill,minmax(min(220px,100%),1fr))]"
                         >
                             {isLoading && integrations.length === 0 ? (
                                 <CatalogGridSkeleton />
                             ) : integrationsError && integrations.length === 0 ? (
                                 <div className="col-span-full flex flex-col items-center gap-2 py-8 text-center">
-                                    <span className="text-[11px] text-[var(--ag-colorTextTertiary)]">
+                                    <span className="text-xs text-[var(--ag-colorTextTertiary)]">
                                         Couldn&apos;t load apps.
                                     </span>
                                     {refetchIntegrations && (
@@ -954,7 +967,7 @@ export function CatalogChooser<I, T, C>(props: CatalogChooserProps<I, T, C>) {
                                     )}
                                 </div>
                             ) : integrations.length === 0 ? (
-                                <div className="col-span-full flex flex-col items-center gap-2 py-8 text-center text-[11px] text-[var(--ag-colorTextTertiary)]">
+                                <div className="col-span-full flex flex-col items-center gap-2 py-8 text-center text-xs text-[var(--ag-colorTextTertiary)]">
                                     {searching ? (
                                         <>
                                             <span>No apps match “{searchInput.trim()}”.</span>

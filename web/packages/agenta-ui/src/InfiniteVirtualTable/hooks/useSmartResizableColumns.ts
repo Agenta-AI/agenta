@@ -1,29 +1,29 @@
 import {useCallback, useMemo, useRef, useState} from "react"
 
-import type {ColumnsType, ColumnType} from "antd/es/table"
 import {useAtom} from "jotai"
 
 import {getColumnWidthsAtom} from "../atoms/columnWidths"
+import type {ColumnDef, ColumnDefs} from "../columnDef"
 import {ResizableTitle, type ResizableTitleProps} from "../components/common/ResizableTitle"
 
 const DEFAULT_MIN_WIDTH = 150
 const DEFAULT_COLUMN_WIDTH = 200
 
-type ColumnEntry<RowType> = ColumnsType<RowType>[number]
-type ColumnWithChildren<RowType> = ColumnType<RowType> & {children?: ColumnsType<RowType>}
+type ColumnEntry<RowType> = ColumnDefs<RowType>[number]
+type ColumnWithChildren<RowType> = ColumnDef<RowType> & {children?: ColumnDefs<RowType>}
 
 const getColumnChildren = <RowType>(column: ColumnEntry<RowType>) =>
     (column as ColumnWithChildren<RowType>).children
 
-const collectLeafColumns = <RowType>(columns: ColumnsType<RowType>): ColumnType<RowType>[] => {
-    const result: ColumnType<RowType>[] = []
-    const visit = (cols: ColumnsType<RowType>) => {
+const collectLeafColumns = <RowType>(columns: ColumnDefs<RowType>): ColumnDef<RowType>[] => {
+    const result: ColumnDef<RowType>[] = []
+    const visit = (cols: ColumnDefs<RowType>) => {
         cols.forEach((col) => {
             const children = getColumnChildren(col)
             if (children && children.length) {
                 visit(children)
             } else {
-                result.push(col as ColumnType<RowType>)
+                result.push(col as ColumnDef<RowType>)
             }
         })
     }
@@ -41,7 +41,7 @@ interface ColumnMeta {
 }
 
 export interface UseSmartResizableColumnsArgs<RowType> {
-    columns: ColumnsType<RowType>
+    columns: ColumnDefs<RowType>
     enabled?: boolean
     minWidth?: number
     scopeId?: string | null
@@ -50,11 +50,11 @@ export interface UseSmartResizableColumnsArgs<RowType> {
 }
 
 export interface UseSmartResizableColumnsResult<RowType> {
-    columns: ColumnsType<RowType>
+    columns: ColumnDefs<RowType>
     headerComponents: {
         cell: typeof ResizableTitle
     } | null
-    getTotalWidth: (cols?: ColumnsType<RowType>) => number
+    getTotalWidth: (cols?: ColumnDefs<RowType>) => number
     isResizing: boolean
     /** Whether any column has been manually resized by the user */
     hasUserResizedAny: boolean
@@ -91,7 +91,7 @@ export const useSmartResizableColumns = <RowType>({
 
     // Extract column metadata
     const analyzeColumns = useCallback(
-        (cols: ColumnsType<RowType>): ColumnMeta[] => {
+        (cols: ColumnDefs<RowType>): ColumnMeta[] => {
             const leafColumns = collectLeafColumns(cols)
             return leafColumns.map((col) => {
                 const key = (col?.key ?? col?.dataIndex ?? "") as string
@@ -364,13 +364,10 @@ export const useSmartResizableColumns = <RowType>({
     )
 
     const makeColumnsResizable = useCallback(
-        (
-            cols: ColumnsType<RowType>,
-            computedWidths: Record<string, number>,
-        ): ColumnsType<RowType> =>
+        (cols: ColumnDefs<RowType>, computedWidths: Record<string, number>): ColumnDefs<RowType> =>
             cols.map((colEntry) => {
-                const column = colEntry as ColumnType<RowType> & {
-                    children?: ColumnsType<RowType>
+                const column = colEntry as ColumnDef<RowType> & {
+                    children?: ColumnDefs<RowType>
                 }
 
                 const colKey = (column.key ??
@@ -384,16 +381,14 @@ export const useSmartResizableColumns = <RowType>({
 
                 if (hasChildren) {
                     const nextChildren = makeColumnsResizable(
-                        column.children as ColumnsType<RowType>,
+                        column.children as ColumnDefs<RowType>,
                         computedWidths,
                     )
 
                     // Wire a resize handle on the group header. The drag delta
                     // is distributed proportionally across every leaf so the
                     // group expands uniformly.
-                    const leafDescendants = collectLeafColumns(
-                        nextChildren,
-                    ) as ColumnType<RowType>[]
+                    const leafDescendants = collectLeafColumns(nextChildren) as ColumnDef<RowType>[]
                     const childSnapshots = leafDescendants
                         .map((leaf) => {
                             const leafKey = (leaf?.key ?? "") as string
@@ -477,7 +472,7 @@ export const useSmartResizableColumns = <RowType>({
     }, [columns, enabled, analyzeColumns, computeSmartWidths, makeColumnsResizable])
 
     const getTotalWidth = useCallback(
-        (cols: ColumnsType<RowType> = resizableColumns) => {
+        (cols: ColumnDefs<RowType> = resizableColumns) => {
             const leafColumns = collectLeafColumns(cols)
             return leafColumns.reduce((sum, col) => {
                 const width = typeof col.width === "number" ? col.width : minWidth

@@ -146,5 +146,20 @@
       "trace_id": "0af7651916cd43dd8448eb211c80319c",
       "span_id": "b7ad6b7169203331"
     }
-  }
+  },
+  "effectiveParameters": {
+    "agent": {
+      "instructions": "You are a helpful assistant.",
+      "llm": {
+        "model": "openai-codex/gpt-5.5",
+        "provider": "openai"
+      },
+      "runner": {
+        "permissions": {
+          "default": "allow_reads"
+        }
+      }
+    }
+  },
+  "turnContext": "## This session\n\nThis session is named \"Q3 notes\"."
 }

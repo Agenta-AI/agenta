@@ -18,6 +18,7 @@ from agenta.sdk.engines.running.utils import (
 )
 from agenta.sdk.engines.running.handlers import remote_forward_v0
 from agenta.sdk.engines.running.errors import (
+    ArchivedReferenceV0Error,
     InvalidInterfaceURIV0Error,
     MissingConfigurationParameterV0Error,
 )
@@ -52,6 +53,16 @@ def _raise_bad_request(message: str) -> None:
     error = ValueError(message)
     error.status_code = 400  # type: ignore[attr-defined]
     raise error
+
+
+def _raise_api_refusal(error: httpx.HTTPStatusError) -> None:
+    try:
+        detail = error.response.json().get("detail")
+    except Exception:
+        detail = None
+    refusal = ValueError(detail if isinstance(detail, str) and detail else str(error))
+    refusal.status_code = error.response.status_code  # type: ignore[attr-defined]
+    raise refusal from error
 
 
 def _has_reference_identity(ref: Any) -> bool:
@@ -272,7 +283,8 @@ async def resolve_references_with_info(
         if request.selector and request.selector.key:
             key = request.selector.key
 
-        body: Dict[str, Any] = {"resolve": True}
+        # Never resolve an archived workflow, variant, or revision into a live invoke.
+        body: Dict[str, Any] = {"resolve": True, "include_archived": False}
 
         application_mapping = [
             ("application_ref", "application"),
@@ -346,6 +358,24 @@ async def resolve_references_with_info(
                 retrieval_selector,
             )
 
+        async def _raise_if_archived(
+            *,
+            url: str,
+            req_body: Dict[str, Any],
+            resp_key: str,
+        ) -> None:
+            """On a total miss, probe with archived entities included: distinguishes
+            an archived target from a genuinely nonexistent one."""
+            probe_response = await client.post(
+                url,
+                headers=headers,
+                json={**req_body, "include_archived": True},
+                timeout=30.0,
+            )
+            probe_response.raise_for_status()
+            if probe_response.json().get(resp_key):
+                raise ArchivedReferenceV0Error(refs=_request_retrieval_references())
+
         environment_backed_application_lookup = (
             has_application_refs
             and has_environment_refs
@@ -402,7 +432,10 @@ async def resolve_references_with_info(
             if has_application_refs:
                 # Compatibility fallback for deployments where application retrieve
                 # does not resolve but equivalent workflow retrieve does.
-                fallback_body: Dict[str, Any] = {"resolve": True}
+                fallback_body: Dict[str, Any] = {
+                    "resolve": True,
+                    "include_archived": False,
+                }
                 application_to_workflow_mapping = [
                     ("workflow_ref", "application"),
                     ("workflow_variant_ref", "application_variant"),
@@ -434,7 +467,7 @@ async def resolve_references_with_info(
             if has_evaluator_refs:
                 # Compatibility fallback for deployments where evaluator retrieve
                 # does not resolve but equivalent workflow retrieve does.
-                fallback_body = {"resolve": True}
+                fallback_body = {"resolve": True, "include_archived": False}
                 evaluator_to_workflow_mapping = [
                     ("workflow_ref", "evaluator"),
                     ("workflow_variant_ref", "evaluator_variant"),
@@ -463,6 +496,12 @@ async def resolve_references_with_info(
                 )
                 if revision:
                     return revision, retrieval_references, retrieval_selector
+
+            await _raise_if_archived(
+                url=retrieve_url,
+                req_body=body,
+                resp_key=response_key,
+            )
 
         return None, None, None
 
@@ -531,7 +570,14 @@ async def resolve_embeds(
                 timeout=30.0,
             )
 
-            response.raise_for_status()
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as error:
+                # A 4xx is the API refusing an embed in the caller's configuration: keep its
+                # status and its detail, so the invoke does not answer 500 for it.
+                if error.response.is_client_error:
+                    _raise_api_refusal(error)
+                raise
             result = response.json()
 
             revision = result.get("workflow_revision")
@@ -544,6 +590,24 @@ async def resolve_embeds(
         if error_policy == "exception":
             raise
         return parameters
+
+
+def _caller_supplied_configuration(request: WorkflowInvokeRequest) -> bool:
+    """Whether the CALLER sent its own configuration on the invoke request.
+
+    Only `data.parameters` (an inline config, e.g. the playground running an unsaved
+    draft) and `data.revision` (a fully materialised revision) count. Deliberately does
+    NOT consider the revision returned by `resolve_revision`: that falls back to
+    `RunningContext.revision`, which the decorator pre-seeds with the service's
+    REGISTERED DEFAULT configuration. Treating the default as caller intent makes a
+    references-only invoke look "already configured", so its references are never
+    hydrated and it silently runs the service default instead of the referenced
+    revision's configuration.
+    """
+    if not request.data:
+        return False
+
+    return bool(request.data.parameters or request.data.revision)
 
 
 class ResolverMiddleware:
@@ -568,15 +632,13 @@ class ResolverMiddleware:
         call_next: Callable[[WorkflowInvokeRequest], Any],
     ):
         ctx = RunningContext.get()
-        revision = seed_empty_parameters_from_configuration(
-            await resolve_revision(request=request)
-        )
+        revision = await resolve_revision(request=request)
 
-        request_has_parameters = bool(request.data and request.data.parameters)
+        # Hydration intent is decided purely by what the CALLER sent. `revision` cannot
+        # take part in this decision: it falls back to the decorator's registered default
+        # configuration, which would make every references-only invoke look configured.
         needs_reference_hydration = bool(
-            request.references
-            and not request_has_parameters
-            and (revision is None or not revision.parameters)
+            request.references and not _caller_supplied_configuration(request)
         )
 
         # Resolve references (env/workflow/application refs → revision) when needed
@@ -593,7 +655,11 @@ class ResolverMiddleware:
             _merge_tracing_references(retrieval_references)
             _merge_tracing_selector(retrieval_selector)
             revision = hydrated_revision or existing_revision
-            revision = seed_empty_parameters_from_configuration(revision)
+
+        # Seed from the URI's registered default configuration LAST, so the default only
+        # fills a revision that is still unconfigured — after a hydration attempt has been
+        # made and come back empty (or failed).
+        revision = seed_empty_parameters_from_configuration(revision)
 
         if not request.data:
             request.data = WorkflowRequestData()

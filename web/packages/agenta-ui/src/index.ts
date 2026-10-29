@@ -201,7 +201,6 @@ export {
     useLexicalComposerContext,
     ON_HYDRATE_FROM_REMOTE_CONTENT,
     // State
-    EditorStateProvider,
     editorStateAtom,
     markdownViewAtom,
     // Code editor utilities

@@ -1,5 +1,5 @@
 /**
- * Regression: the Agenta Pi extension registers custom tools from AGENTA_AGENT_TOOLS_PUBLIC_SPECS.
+ * The Agenta Pi extension registers custom tools from AGENTA_AGENT_TOOLS_PUBLIC_SPECS.
  *
  * Guards QA finding F-005 (docs/design/agent-workflows/qa/findings.md): a build where the
  * extension stopped reading AGENTA_AGENT_TOOLS_PUBLIC_SPECS shipped custom tools that the model never
@@ -23,20 +23,27 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import factory, {
-  readOtlpAuthFile,
+  createAgentaExtension,
+  readPiTurnTraceControl,
   replaceActiveBuiltinTools,
 } from "../../src/extensions/agenta.ts";
-import { PI_MODEL_PROVIDER_OVERRIDE_ENV } from "../../src/extensions/model-provider-override.ts";
+import {
+  PI_TRACE_CONTROL_ENV,
+  PI_TRACE_CONTROL_VERSION,
+} from "../../src/tracing/pi-spool-protocol.ts";
+import {
+  PI_MODEL_PROVIDER_OVERRIDE_ENV,
+  validatePiModelProviderOverride,
+} from "../../src/extensions/model-provider-override.ts";
 import { refusedAtGateText } from "../../src/tools/denial-text.ts";
+import { PUBLIC_SPECS_FILE_ENV } from "../../src/tools/tool-mcp-env.ts";
 
 const TOOL_ENV = [
   "AGENTA_AGENT_TOOLS_PUBLIC_SPECS",
+  PUBLIC_SPECS_FILE_ENV,
   "AGENTA_AGENT_TOOLS_RELAY_DIR",
-  "TRACEPARENT",
-  "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
-  "AGENTA_AGENT_OTLP_AUTH_FILE",
+  PI_TRACE_CONTROL_ENV,
   "AGENTA_AGENT_USAGE_CAPTURE_PATH",
-  "AGENTA_AGENT_CONTENT_CAPTURE_ENABLED",
   "AGENTA_AGENT_BUILTIN_ACTIVATION",
   "AGENTA_AGENT_BUILTIN_GATING",
   PI_MODEL_PROVIDER_OVERRIDE_ENV,
@@ -97,6 +104,22 @@ function clearEnv() {
 afterEach(clearEnv);
 
 describe("agenta extension model provider override", () => {
+  it("rejects header-injection characters in override headers", () => {
+    for (const headers of [
+      { "X-AG-Credentials: injected": "ApiKey value" },
+      { "X-AG-Credentials\r\nX-Injected": "ApiKey value" },
+      { "X-AG-Credentials": "ApiKey value\nX-Injected: yes" },
+    ]) {
+      assert.throws(() =>
+        validatePiModelProviderOverride({
+          provider: "anthropic",
+          baseUrl: "https://gateway.example.test",
+          headers,
+        }),
+      );
+    }
+  });
+
   it("overrides the built-in provider during extension initialization", () => {
     clearEnv();
     process.env[PI_MODEL_PROVIDER_OVERRIDE_ENV] = JSON.stringify({
@@ -117,6 +140,47 @@ describe("agenta extension model provider override", () => {
     assert.deepEqual(pi.handlers, {});
   });
 
+  it("carries OUR gateway credential and a placeholder apiKey onto the built-in provider override (WP13 reopen)", () => {
+    // A gateway-routed connection whose original deployment is "direct" (a plain provider_key
+    // connection) never goes through the custom-provider models.json path
+    // (isPiModelConfigApplicable requires a NAMED custom-agenta connection) -- this extension
+    // override is the ONLY place it can carry the header, or the run reaches the real provider
+    // with no credential and no visible failure.
+    clearEnv();
+    process.env[PI_MODEL_PROVIDER_OVERRIDE_ENV] = JSON.stringify({
+      provider: "anthropic",
+      baseUrl: "https://gateway.example.com/gateways/llms/standard/anthropic",
+      headers: { "X-AG-Credentials": "ApiKey mock-gateway-credentials" },
+      apiKey: "agenta-gateway",
+    });
+    const pi = fakePi();
+
+    factory(pi as any);
+
+    assert.deepEqual(pi.registeredProviders, [
+      {
+        name: "anthropic",
+        config: {
+          baseUrl:
+            "https://gateway.example.com/gateways/llms/standard/anthropic",
+          headers: { "X-AG-Credentials": "ApiKey mock-gateway-credentials" },
+          apiKey: "agenta-gateway",
+        },
+      },
+    ]);
+  });
+
+  it("permits a local HTTP route only when it carries the gateway credential", () => {
+    assert.equal(
+      validatePiModelProviderOverride({
+        provider: "openai",
+        baseUrl: "http://api:8000/gateways/llms/builtin/mock/v1",
+        headers: { "X-AG-Credentials": "ApiKey gateway-credential" },
+      }).baseUrl,
+      "http://api:8000/gateways/llms/builtin/mock/v1",
+    );
+  });
+
   it("rejects malformed public override config before registration", () => {
     clearEnv();
     process.env[PI_MODEL_PROVIDER_OVERRIDE_ENV] = JSON.stringify({
@@ -125,7 +189,7 @@ describe("agenta extension model provider override", () => {
     });
     const pi = fakePi();
 
-    assert.throws(() => factory(pi as any), /must be an HTTPS URL/);
+    assert.throws(() => factory(pi as any), /must be HTTPS/);
     assert.deepEqual(pi.registeredProviders, []);
 
     process.env[PI_MODEL_PROVIDER_OVERRIDE_ENV] = "";
@@ -355,22 +419,229 @@ describe("agenta extension tool registration", () => {
   });
 });
 
-describe("readOtlpAuthFile", () => {
-  it("reads the bearer once, then deletes the file so it cannot be re-read", () => {
-    const dir = mkdtempSync(join(tmpdir(), "agenta-otlp-auth-test-"));
-    const path = join(dir, "otlp-auth");
-    writeFileSync(path, "Bearer trace-token", "utf-8");
+/**
+ * Tool specs arrive in a file named by AGENTA_AGENT_TOOLS_PUBLIC_SPECS_FILE.
+ */
+describe("agenta extension tool specs delivery", () => {
+  const specsDirs: string[] = [];
 
-    const value = readOtlpAuthFile(path);
+  function specsFile(contents: string): string {
+    const dir = mkdtempSync(join(tmpdir(), "agenta-ext-specs-"));
+    specsDirs.push(dir);
+    const path = join(dir, "relay.tool-specs.json");
+    writeFileSync(path, contents, "utf-8");
+    return path;
+  }
 
-    assert.equal(value, "Bearer trace-token");
+  afterEach(() => {
+    for (const dir of specsDirs.splice(0))
+      rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("registers tools from the specs file the runner wrote", () => {
+    clearEnv();
+    process.env[PUBLIC_SPECS_FILE_ENV] = specsFile(
+      JSON.stringify([
+        { name: "from_file_one", description: "one" },
+        { name: "from_file_two", description: "two" },
+      ]),
+    );
+    process.env.AGENTA_AGENT_TOOLS_RELAY_DIR = "/tmp/agenta-relay-test";
+
+    const pi = fakePi();
+    factory(pi as any);
+
+    assert.deepEqual(
+      pi.registered.map((t) => t.name),
+      ["from_file_one", "from_file_two"],
+    );
+  });
+
+  it("carries a tool set far larger than a single env string can hold", () => {
+    clearEnv();
+    const specs = Array.from({ length: 44 }, (_, i) => ({
+      name: `composio_tool_${i}`,
+      description: `Tool ${i}. ${"description text ".repeat(60)}`,
+      inputSchema: {
+        type: "object",
+        properties: Object.fromEntries(
+          Array.from({ length: 40 }, (_, f) => [
+            `field_${f}`,
+            {
+              type: "string",
+              description: `Field ${f}. ${"prose ".repeat(20)}`,
+            },
+          ]),
+        ),
+      },
+    }));
+    const json = JSON.stringify(specs);
+    assert.ok(Buffer.byteLength(json, "utf-8") > 300_000);
+    process.env[PUBLIC_SPECS_FILE_ENV] = specsFile(json);
+    process.env.AGENTA_AGENT_TOOLS_RELAY_DIR = "/tmp/agenta-relay-test";
+
+    const pi = fakePi();
+    factory(pi as any);
+
+    assert.equal(pi.registered.length, 44);
+  });
+
+  it("prefers the file over the pre-file inline env var", () => {
+    clearEnv();
+    process.env[PUBLIC_SPECS_FILE_ENV] = specsFile(
+      JSON.stringify([{ name: "from_file", description: "file" }]),
+    );
+    process.env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS = JSON.stringify([
+      { name: "from_env", description: "stale inline copy" },
+    ]);
+    process.env.AGENTA_AGENT_TOOLS_RELAY_DIR = "/tmp/agenta-relay-test";
+
+    const pi = fakePi();
+    factory(pi as any);
+
+    assert.deepEqual(
+      pi.registered.map((t) => t.name),
+      ["from_file"],
+    );
+  });
+
+  it("still reads the inline env var when no file is named (one-release fallback)", () => {
+    clearEnv();
+    process.env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS = JSON.stringify([
+      { name: "from_env", description: "inline" },
+    ]);
+    process.env.AGENTA_AGENT_TOOLS_RELAY_DIR = "/tmp/agenta-relay-test";
+
+    const pi = fakePi();
+    factory(pi as any);
+
+    assert.deepEqual(
+      pi.registered.map((t) => t.name),
+      ["from_env"],
+    );
+  });
+
+  it("registers nothing when the named file is unreadable or malformed", () => {
+    clearEnv();
+    process.env.AGENTA_AGENT_TOOLS_RELAY_DIR = "/tmp/agenta-relay-test";
+
+    process.env[PUBLIC_SPECS_FILE_ENV] = join(
+      tmpdir(),
+      "agenta-ext-specs-absent",
+      "relay.tool-specs.json",
+    );
+    const missing = fakePi();
+    factory(missing as any);
+    assert.equal(missing.registered.length, 0);
+
+    process.env[PUBLIC_SPECS_FILE_ENV] = specsFile("{not json");
+    const malformed = fakePi();
+    factory(malformed as any);
+    assert.equal(malformed.registered.length, 0);
+
+    process.env[PUBLIC_SPECS_FILE_ENV] = specsFile('{"name":"not-an-array"}');
+    const notArray = fakePi();
+    factory(notArray as any);
+    assert.equal(notArray.registered.length, 0);
+  });
+});
+
+describe("readPiTurnTraceControl", () => {
+  it("reads one bounded turn control, then deletes it", () => {
+    const dir = mkdtempSync(join(tmpdir(), "agenta-trace-control-test-"));
+    const path = join(dir, "current.control.json");
+    const control = {
+      version: PI_TRACE_CONTROL_VERSION,
+      channelId: "a".repeat(32),
+      capture: { content: true },
+      skills: ["weather"],
+      redaction: { knownValues: ["mount-secret"] },
+    };
+    writeFileSync(path, JSON.stringify(control), "utf-8");
+
+    // A control written without skillsDropped still parses; the list defaults to empty.
+    assert.deepEqual(readPiTurnTraceControl(path), {
+      ...control,
+      skillsDropped: [],
+      turnId: undefined,
+      sessionId: undefined,
+      propagation: undefined,
+    });
     assert.equal(existsSync(path), false);
     rmSync(dir, { recursive: true, force: true });
   });
 
   it("returns undefined for a missing path without throwing", () => {
-    assert.equal(readOtlpAuthFile(undefined), undefined);
-    assert.equal(readOtlpAuthFile("/nonexistent/agenta-otlp-auth"), undefined);
+    assert.equal(readPiTurnTraceControl(undefined), undefined);
+    assert.equal(
+      readPiTurnTraceControl("/nonexistent/agenta-trace-control"),
+      undefined,
+    );
+  });
+});
+
+describe("agenta extension usage publication", () => {
+  it("writes usage before waiting for the native trace flush", async () => {
+    clearEnv();
+    const dir = mkdtempSync(join(tmpdir(), "agenta-usage-order-test-"));
+    const controlPath = join(dir, "current.control.json");
+    const usagePath = join(dir, "usage.json");
+    writeFileSync(
+      controlPath,
+      JSON.stringify({
+        version: PI_TRACE_CONTROL_VERSION,
+        channelId: "a".repeat(32),
+        capture: { content: true },
+        skills: [],
+        redaction: { knownValues: [] },
+      }),
+      "utf-8",
+    );
+    process.env[PI_TRACE_CONTROL_ENV] = controlPath;
+    process.env.AGENTA_AGENT_USAGE_CAPTURE_PATH = usagePath;
+
+    const pi = fakePi();
+    factory(pi as any);
+
+    for (const handler of pi.handlers.before_agent_start)
+      await handler({ prompt: "hello" });
+    for (const handler of pi.handlers.agent_start) await handler({});
+    for (const handler of pi.handlers.message_end) {
+      await handler({
+        message: {
+          role: "assistant",
+          content: [{ type: "text", text: "hello" }],
+          usage: {
+            input: 3,
+            output: 2,
+            totalTokens: 5,
+            cost: { total: 0.01 },
+          },
+        },
+      });
+    }
+
+    await pi.handlers.agent_end[0]({
+      messages: [{ role: "assistant", content: "hello" }],
+    });
+    assert.equal(existsSync(usagePath), false, "an attempt must not publish final usage");
+    await pi.handlers.agent_settled[0]({});
+    const flush = pi.handlers.agent_settled[1]({});
+
+    assert.equal(
+      existsSync(usagePath),
+      true,
+      "the usage sidecar is visible before trace flush yields",
+    );
+    assert.deepEqual(JSON.parse(readFileSync(usagePath, "utf-8")), {
+      input: 3,
+      output: 2,
+      total: 5,
+      cost: 0.01,
+    });
+
+    await flush;
+    rmSync(dir, { recursive: true, force: true });
   });
 });
 
@@ -537,5 +808,67 @@ describe("agenta extension: Pi dialog gate (approval parking)", () => {
       "it took the relay path",
     );
     rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("WP26: request_connection's prompt guidance covers both the integration and the gateway-target call shapes", () => {
+    clearEnv();
+    process.env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS = JSON.stringify([
+      { name: "request_connection", description: "connect", kind: "client" },
+    ]);
+    process.env.AGENTA_AGENT_TOOLS_RELAY_DIR = "/tmp/agenta-relay-unused";
+
+    const pi = fakePi();
+    factory(pi as any);
+    const tool = pi.registered[0];
+
+    assert.ok(
+      tool.promptGuidelines.some(
+        (line: string) => line.includes("integration") && line.includes("mode"),
+      ),
+      "still guides the existing external-integration call shape",
+    );
+    assert.ok(
+      tool.promptGuidelines.some(
+        (line: string) =>
+          line.includes("target:") &&
+          line.includes("plane") &&
+          line.includes("not registered"),
+      ),
+      "also guides the new gateway-target call shape",
+    );
+  });
+});
+
+describe("agenta extension: Pi's own shell commands stop at the tool-call limit (EU 2026-10-06)", () => {
+  // Pi's shell tool runs in the sandbox, where the runner cannot stop a command. Without a timeout
+  // a slow command ran until the run-wide watchdog ended the whole turn; with one, Pi stops it and
+  // the model reads "Command timed out", so the turn goes on.
+  const event = (toolName: string, input: Record<string, unknown>) => ({ type: "tool_call", toolName, toolCallId: "tc-t", input });
+
+  async function capped(input: Record<string, unknown>, toolName = "bash") {
+    const pi = fakePi();
+    createAgentaExtension({ AGENTA_AGENT_COMMAND_TIMEOUT_SECONDS: "300" })(pi as any);
+    const e = event(toolName, input);
+    for (const hook of pi.handlers.tool_call ?? []) assert.equal(await hook(e, undefined), undefined);
+    return e.input;
+  }
+
+  it("gives a command with no timeout the limit, and lowers a longer one to it", async () => {
+    assert.deepEqual(await capped({ command: "find /" }), { command: "find /", timeout: 300 });
+    assert.deepEqual(await capped({ command: "find /", timeout: 3600 }), { command: "find /", timeout: 300 });
+  });
+
+  it("keeps a shorter timeout the model asked for, and leaves other tools alone", async () => {
+    assert.deepEqual(await capped({ command: "sleep 1", timeout: 20 }), { command: "sleep 1", timeout: 20 });
+    assert.deepEqual(await capped({ path: "a.txt" }, "read"), { path: "a.txt" });
+  });
+
+  it("sets the timeout before the approval gate, so the person approves the command that will run", async () => {
+    const pi = fakePi();
+    createAgentaExtension({ AGENTA_AGENT_COMMAND_TIMEOUT_SECONDS: "300", AGENTA_AGENT_BUILTIN_GATING: "1" })(pi as any);
+    const { calls, ctx } = fakeDialogCtx(true);
+    const e = event("bash", { command: "ls" });
+    for (const hook of pi.handlers.tool_call!) await hook(e, ctx);
+    assert.deepEqual(JSON.parse(calls[0]!.message).input, { command: "ls", timeout: 300 });
   });
 });

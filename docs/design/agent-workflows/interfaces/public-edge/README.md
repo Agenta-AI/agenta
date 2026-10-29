@@ -15,4 +15,5 @@ a reason not to.
 - [Workflow inspect](workflow-inspect.md): the schema the playground reads to build the
   config form.
 - [Agent config schema](agent-config-schema.md): the full editable config that ships out on
-  inspect and comes back in on every run.
+  inspect and comes back in on every run, including creation versus omitted-value defaults,
+  shared settings visibility, and build-kit policy checks.

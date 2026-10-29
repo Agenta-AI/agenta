@@ -3,9 +3,10 @@ from typing import Optional, Dict, Any, List
 from uuid import UUID
 
 from agenta.sdk.utils.client import authed_async_api
+from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.models.evaluations import EvaluationScenario
 
-# TODO: ADD TYPES
+log = get_module_logger(__file__)
 
 
 async def aadd(
@@ -35,8 +36,12 @@ async def aadd(
 
     try:
         response.raise_for_status()
-    except:
-        print(response.text)
+    except Exception:
+        log.error(
+            "API request failed",
+            endpoint=f"/simple/evaluations/{run_id}/scenarios/add",
+            response_text=response.text,
+        )
         raise
 
     response = response.json()
@@ -74,8 +79,12 @@ async def acreate(
 
     try:
         response.raise_for_status()
-    except:
-        print(response.text)
+    except Exception:
+        log.error(
+            "API request failed",
+            endpoint="/evaluations/scenarios/",
+            response_text=response.text,
+        )
         raise
 
     response = response.json()
@@ -142,7 +151,11 @@ async def aedit_scenario(
     try:
         response.raise_for_status()
     except Exception:
-        print(response.text)
+        log.error(
+            "API request failed",
+            endpoint=f"/evaluations/scenarios/{scenario_id}",
+            response_text=response.text,
+        )
         raise
 
     response = response.json()

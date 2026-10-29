@@ -1,5 +1,6 @@
 import {useEffect, useMemo, useState} from "react"
 
+import {observabilityTabAtom} from "@agenta/observability"
 import {PageLayout} from "@agenta/ui"
 import {Chats, TreeStructure} from "@phosphor-icons/react"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
@@ -13,7 +14,6 @@ import {
     setOnboardingWidgetActivationAtom,
 } from "@/oss/lib/onboarding"
 import {useQueryParamState} from "@/oss/state/appState"
-import {observabilityTabAtom} from "@/oss/state/newObservability/atoms/controls"
 import {currentWorkflowContextAtom} from "@/oss/state/workflow"
 
 import ObservabilityTable from "./components/ObservabilityTable"

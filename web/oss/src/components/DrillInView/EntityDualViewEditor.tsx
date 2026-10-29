@@ -1,11 +1,10 @@
 import {memo, useCallback, useMemo, useState, type ReactNode} from "react"
 
+import type {EntityAPI, EntityDrillIn} from "@agenta/entities/shared"
 import type {DataType} from "@agenta/ui/drill-in"
 import {ArrowCounterClockwise, Code, Trash, TreeStructure} from "@phosphor-icons/react"
 import {Button, Segmented, Select, Tooltip} from "antd"
 import {useAtomValue, useSetAtom} from "jotai"
-
-import type {EntityAPI, EntityDrillIn} from "@/oss/state/entities/shared"
 
 import type {DrillInContentProps} from "./DrillInContent"
 import {type PropertyType} from "./DrillInControls"
@@ -219,7 +218,7 @@ function EntityDualViewEditorInner<TEntity>({
                 <div className="flex items-center gap-2">
                     {headerContent}
                     {showDirtyBadge && isDirty && (
-                        <span className="text-[10px] bg-blue-100 text-blue-700 dark:bg-[var(--ant-blue-2)] dark:text-[var(--ant-blue-8)] px-1.5 py-0.5 rounded font-medium">
+                        <span className="text-[12px] bg-blue-100 text-blue-700 dark:bg-[var(--ant-blue-2)] dark:text-[var(--ant-blue-8)] px-1.5 py-0.5 rounded font-medium">
                             edited
                         </span>
                     )}

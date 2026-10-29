@@ -13,8 +13,8 @@ from oss.src.core.shared.dtos import (
 
 
 class MountData(BaseModel):
-    # Storage location is derived server-side (bucket from env, key = project_id/mount_id),
-    # never caller-supplied. Kept as an (empty) model for forward-compatible mount metadata.
+    # The storage location is the row's `storage_prefix`, written by the server, never
+    # caller-supplied. Kept as an (empty) model for forward-compatible mount metadata.
     pass
 
 
@@ -24,6 +24,8 @@ class MountFlags(BaseModel):
 
 class Mount(Identifier, Slug, Header, Lifecycle):
     project_id: UUID
+    # Namespace-relative object-key prefix, written once at insert. Internal: not serialized.
+    storage_prefix: str = Field(exclude=True)
     session_id: Optional[str] = None
     agent_id: Optional[str] = None
     purpose: Optional[str] = None
@@ -51,6 +53,14 @@ class MountEdit(Identifier, Header):
     meta: Optional[Dict[str, Any]] = None
 
 
+class MountScope(BaseModel):
+    """What a mount belongs to: a session, an agent (artifact id), or neither (a
+    project mount). Set at creation and never changed."""
+
+    session_id: Optional[str] = None
+    agent_id: Optional[str] = None
+
+
 class MountQuery(BaseModel):
     session_id: Optional[str] = None
     agent_id: Optional[str] = None
@@ -72,6 +82,9 @@ class MountFile(BaseModel):
     # freshly-written directory (e.g. a `git clone`) up into ONE folder row instead of flooding the
     # "recent files" list with its leaves. None for real files.
     item_count: Optional[int] = None
+    # The object's unquoted store ETag — the `If-Match` token for a conditional write/delete.
+    # None for folder entries.
+    etag: Optional[str] = None
 
 
 class MountFileList(BaseModel):
@@ -99,11 +112,24 @@ class MountArchiveSource(BaseModel):
 class MountFileContent(BaseModel):
     path: str
     content: str
+    etag: Optional[str] = None
+
+
+class MountFileSeed(BaseModel):
+    path: str
+    content: bytes
+
+
+class MaterializeEntriesResult(BaseModel):
+    mount_id: UUID
+    created: List[str] = Field(default_factory=list)
+    preserved: List[str] = Field(default_factory=list)
 
 
 class MountFileWritten(BaseModel):
     path: str
     size: int = 0
+    etag: Optional[str] = None
 
 
 class MountFolderCreated(BaseModel):
@@ -122,14 +148,14 @@ class MountCredentials(BaseModel):
     """Short-lived, prefix-scoped credentials for a single mount.
 
     Signed API-side from the store's STS endpoint; the master key never leaves the
-    API. Scoped to `<bucket>/<project_id>/<mount_id>/*` and expires within minutes,
+    API. Scoped to `[<namespace>/]<storage_prefix>/*` and expires within minutes,
     so a leak grants only this mount's prefix for a short window.
     """
 
     endpoint: Optional[str] = None
     region: str = "us-east-1"
     bucket: str
-    # geesefs key suffix: `<project_id>/<mount_id>` (mount prefix, slug-independent).
+    # geesefs key suffix: `[<namespace>/]<storage_prefix>` (slug-independent).
     prefix: str
     access_key: str
     secret_key: str

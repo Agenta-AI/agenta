@@ -1,5 +1,5 @@
 import {fetchWorkflowRevisionById} from "@agenta/entities/workflow"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {effectiveProjectIdAtom} from "./run"

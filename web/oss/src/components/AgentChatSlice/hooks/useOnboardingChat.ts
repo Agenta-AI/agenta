@@ -1,24 +1,18 @@
 import {type RefObject, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {type AgentSetupSelection, type AgentStarterTemplate} from "@agenta/entities/workflow"
+import {captureFirstAgentIntent, classifyAgentIntent} from "@agenta/shared/analytics"
 import {generateId} from "@agenta/shared/utils"
 import {type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {type UIMessage} from "ai"
-import {App} from "antd"
 import {useAtomValue} from "jotai"
 
 import {
     IDE_INSTALL_COMMAND,
     TEMPLATE_STRIP_MODE,
 } from "@/oss/components/pages/agent-home/assets/constants"
-import {
-    captureFirstAgentIntent,
-    classifyAgentIntent,
-    truncateForCapture,
-} from "@/oss/components/pages/agent-home/assets/onboardingAnalytics"
-import {type AgentTemplate} from "@/oss/components/pages/agent-home/assets/templates"
 import {useOptionalOnboardingContext} from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingContext"
-import {buildCodingAgentClipboard} from "@/oss/components/TemplateStrip/assets/codingAgentClipboard"
 import {useTemplateProvenance} from "@/oss/components/TemplateStrip/hooks/useTemplateProvenance"
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 
@@ -52,7 +46,6 @@ export const useOnboardingChat = ({
     // eases in a beat later (see `chromeRevealed`) so it doesn't move the composer during the send.
     const chromeHidden = !!onboarding && !onboarding.chromeRevealed
     const onboardingPosthog = usePostHogAg()
-    const {message: appMessage} = App.useApp()
 
     // ── Template strip (TEMPLATE_STRIP_MODE) ─────────────────────────────────
     // One provenance instance per panel, shared by the onboarding hero strip (S5) and the
@@ -76,9 +69,8 @@ export const useOnboardingChat = ({
     const revisionVersion = revisionQuery.data?.version
     const isFreshAgentRevision =
         !revisionQuery.isPending && typeof revisionVersion === "number" && revisionVersion <= 1
-    const [copiedToastOpen, setCopiedToastOpen] = useState(false)
     const handleStripPick = useCallback(
-        (template: AgentTemplate) => {
+        (template: AgentStarterTemplate) => {
             stripProvenance.pick(template)
             captureFirstAgentIntent(onboardingPosthog, {
                 source: "template",
@@ -94,20 +86,6 @@ export const useOnboardingChat = ({
         },
         [stripProvenance.pick, onboardingPosthog, onboardingActive],
     )
-    const handleCodingAgentCopy = useCallback(async () => {
-        const text = richInputRef.current?.getMarkdown().trim() ?? ""
-        try {
-            await navigator.clipboard.writeText(buildCodingAgentClipboard(text))
-            setCopiedToastOpen(true)
-        } catch {
-            appMessage.error("Couldn't copy — copy it manually")
-            return
-        }
-        captureFirstAgentIntent(onboardingPosthog, {
-            source: "composer",
-            properties: {action: "coding_agent_copy", message: truncateForCapture(text)},
-        })
-    }, [appMessage, onboardingPosthog])
 
     // Optimistic first turn: the description the user submitted with "Create agent", shown as a sent
     // user message + assistant loading placeholder DURING commit + until the real conversation takes
@@ -120,21 +98,44 @@ export const useOnboardingChat = ({
         // Resolve BEFORE clearing the composer below — `resolveTemplateName` compares against the
         // live text, so reading it after the clear would always see "" and never match the seed.
         const templateName = stripProvenance.resolveTemplateName(text)
-        setPendingFirstTurn(text || null)
-        // The text becomes the sent first turn — clear the composer so it doesn't linger into the chat.
-        richInputRef.current?.setMarkdown("")
-        // Free-text submit (never a template — those go straight through `onboarding.commit` from the
-        // template pickers below, source "template"), so no double-fire with those call sites.
+        // Preserve the selected package when submitting a composer-seeded template.
+        // Resolving its display name alone would send this through ordinary blank creation.
         if (text) {
             captureFirstAgentIntent(onboardingPosthog, {
                 source: "composer",
-                properties: {message: truncateForCapture(text)},
                 intentValue: classifyAgentIntent(text),
             })
         }
-        onboarding.commit(text, templateName)
-        if (TEMPLATE_STRIP_MODE) stripProvenance.clear()
-    }, [onboarding, onboardingPosthog, stripProvenance.clear, stripProvenance.resolveTemplateName])
+        // Connect step (#6043): this click opens the step, it does not send. Leave the composer
+        // alone — the description stays visible and editable above the card, and nothing may look
+        // sent until the step's own Create actually commits (which the `committingSeed` effect
+        // below then picks up, exactly as it does for a template click).
+        onboarding.commit(text, templateName, stripProvenance.selectedTemplate ?? undefined)
+    }, [
+        onboarding,
+        onboardingPosthog,
+        stripProvenance.resolveTemplateName,
+        stripProvenance.selectedTemplate,
+    ])
+
+    // The step's "Create agent". The composer stayed editable behind the card, so the description
+    // is re-read here — the draft the step opened with is one edit out of date.
+    const handleCreateWithSetup = useCallback(
+        (selection: AgentSetupSelection) => {
+            if (!onboarding || onboarding.committing) return
+            const live = richInputRef.current?.getMarkdown()
+            if (live === undefined) {
+                onboarding.commitWithSetup(selection)
+                return
+            }
+            const text = live.trim()
+            onboarding.commitWithSetup(selection, {
+                seedMessage: text,
+                name: stripProvenance.resolveTemplateName(text),
+            })
+        },
+        [onboarding, richInputRef, stripProvenance.resolveTemplateName],
+    )
 
     // Also cover the template-click commit path (which goes straight through `commit()`, not the
     // Create button): whenever a commit is in flight, show its seed as the optimistic turn and clear
@@ -264,12 +265,10 @@ export const useOnboardingChat = ({
         selectedTemplateKey: stripProvenance.selectedTemplateKey,
         handleStripPick,
         isFreshAgentRevision,
-        copiedToastOpen,
-        setCopiedToastOpen,
-        handleCodingAgentCopy,
         pendingFirstTurn,
         pendingFirstMessage,
         handleCreateAgent,
+        handleCreateWithSetup,
         streamIdeBubble,
         ideHandoffActive,
         handleStartOver,

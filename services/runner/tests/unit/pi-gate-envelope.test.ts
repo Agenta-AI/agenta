@@ -163,6 +163,51 @@ describe("parsePiGateEnvelope classification", () => {
   });
 });
 
+describe("parsePiGateEnvelope (pi-mcp-tool identity)", () => {
+  function request(message: unknown) {
+    return { toolCall: { title: PI_GATE_DIALOG_TITLE, rawInput: { message } } };
+  }
+
+  it("keeps both identity halves", () => {
+    const result = parsePiGateEnvelope(
+      request(
+        JSON.stringify({
+          v: 1,
+          kind: "agenta.gate",
+          gate: "pi-mcp-tool",
+          toolName: "mcp__acme_prod__echo",
+          toolCallId: "c",
+          input: {},
+          mcpServer: "acme-prod",
+          mcpTool: "echo",
+        }),
+      ),
+    );
+    assert.equal(result.matched, true);
+    assert.equal(result.envelope?.mcpServer, "acme-prod");
+    assert.equal(result.envelope?.mcpTool, "echo");
+  });
+
+  it("rejects an MCP gate missing either half, so the caller fails closed", () => {
+    for (const missing of ["mcpServer", "mcpTool"]) {
+      const payload: Record<string, unknown> = {
+        v: 1,
+        kind: "agenta.gate",
+        gate: "pi-mcp-tool",
+        toolName: "mcp__acme_prod__echo",
+        toolCallId: "c",
+        input: {},
+        mcpServer: "acme-prod",
+        mcpTool: "echo",
+      };
+      delete payload[missing];
+      const result = parsePiGateEnvelope(request(JSON.stringify(payload)));
+      assert.equal(result.matched, true);
+      assert.equal((result as { envelope?: unknown }).envelope, undefined);
+    }
+  });
+});
+
 describe("buildPiGateDescriptor (runner-side metadata recovery)", () => {
   it("pi-builtin -> harness executor with the builtin's rule name and read-only hint", () => {
     const readGate = buildPiGateDescriptor(
@@ -316,5 +361,68 @@ describe("buildPiGateDescriptor (runner-side metadata recovery)", () => {
       new Map([["park_probe", {}]]),
     );
     assert.equal(unknownCustomTool, undefined);
+  });
+});
+
+describe("buildPiGateDescriptor (pi-mcp-tool)", () => {
+  function envelope(overrides: Record<string, unknown> = {}) {
+    return {
+      v: 1 as const,
+      kind: "agenta.gate" as const,
+      gate: "pi-mcp-tool" as const,
+      toolName: "mcp__acme_prod__echo",
+      toolCallId: "c",
+      input: { marker: "x" },
+      mcpServer: "acme-prod",
+      mcpTool: "echo",
+      ...overrides,
+    };
+  }
+
+  it("reads the policy from the run rather than from the sandbox's envelope", () => {
+    // The envelope states identity. If it could state policy, a compromised sandbox would simply
+    // declare every call `allow`.
+    const gate = buildPiGateDescriptor(
+      envelope(),
+      undefined,
+      new Map([
+        [
+          "acme-prod",
+          {
+            server: "deny" as const,
+            tools: new Map([["echo", "ask" as const]]),
+            newTool: "deny" as const,
+          },
+        ],
+      ]),
+    );
+    assert.equal(gate!.executor, "harness");
+    assert.equal(gate!.toolName, "mcp__acme_prod__echo");
+    assert.equal(gate!.serverPermission, "ask");
+  });
+
+  it("resolves a server name the Pi tool name cannot spell (OR80)", () => {
+    // `acme-prod` renders as `acme_prod`, so recovering the key from the rendered name misses.
+    const gate = buildPiGateDescriptor(
+      envelope(),
+      undefined,
+      new Map([["acme-prod", { server: "allow" as const, tools: new Map() }]]),
+    );
+    assert.equal(gate!.serverPermission, "allow");
+  });
+
+  it("fails closed for a server the run did not configure", () => {
+    // Sandbox-origin identity: a fabricated server name must not reach the run's default
+    // permission, which for a non-read tool would be `ask` and for `default: allow` would run it.
+    const gate = buildPiGateDescriptor(
+      envelope({ mcpServer: "not-configured" }),
+      undefined,
+      new Map([["acme-prod", { server: "allow" as const, tools: new Map() }]]),
+    );
+    assert.equal(gate, undefined);
+  });
+
+  it("fails closed when no MCP table was supplied at all", () => {
+    assert.equal(buildPiGateDescriptor(envelope(), undefined), undefined);
   });
 });

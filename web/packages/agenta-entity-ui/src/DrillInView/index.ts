@@ -115,15 +115,21 @@ export type {
     DrillInUIComponents,
     DrillInUIProviderProps,
     GatewayToolsBridge,
+    SkillsBridge,
+    SkillsPickerHostProps,
     WorkflowReferenceBridge,
     WorkflowReferenceUI,
     WorkflowReferenceType,
-    WorkflowRevisionUI,
-    WorkflowEnvironmentUI,
     WorkflowReferencePayload,
     WorkflowConfigPart,
     WorkflowConfigPayload,
 } from "@agenta/ui/drill-in"
+
+// The workflow-as-tool reference bridge every host feeds into its own DrillInUIProvider.
+export {useWorkflowReferenceBridge} from "./bridges/useWorkflowReferenceBridge"
+
+// The gateway-tools bridge, mounted inside a DrillInUIProvider by every host that has tools.
+export {GatewayToolsBridgeProvider} from "./bridges/GatewayToolsBridgeProvider"
 
 // Core Types
 export type {
@@ -196,19 +202,13 @@ export {
     TextField,
     // Field utilities
     getNestedValue,
-    getArrayItemValue,
     canExpandValue,
     canExpandAsArray,
-    canExpand,
     isChatMessageObject,
     isMessagesArray,
     parseMessages,
-    canShowTextMode,
     getTextModeValue,
     textModeToStorageValue,
-    formatForJsonDisplay,
-    parseFromJsonDisplay,
-    MAX_NESTED_DEPTH,
 } from "@agenta/ui/drill-in"
 
 // NOTE: For tryParseAsObject, tryParseAsArray, SimpleChatMessage, import from @agenta/shared
@@ -275,8 +275,60 @@ export {
     readHarnessAllowList,
     findGrantableHarnessTool,
     withHarnessToolAllow,
+    PLATFORM_OPS,
+    // Model / harness write-through + row presentation, shared with the chat composer's `/` palette.
+    withModel,
+    withHarnessKind,
+    withRunnerPermission,
+    readModelId,
+    readModelConnectionSlug,
+    readModelConnection,
+    readHarnessKind,
+    readRunnerPermission,
+    readAgentItems,
+    DEFAULT_PERMISSION_POLICY,
+    isPermissionPolicy,
+    PERMISSION_POLICY_OPTIONS,
+    permissionPolicyLabel,
+    permissionPolicyOptionsForEnum,
+    permissionPolicyOptionsForSchema,
+    permissionPolicySchema,
+    allowedDeployments,
+    allowedProviders,
+    buildModelOptionGroups,
+    harnessAllowsModel,
+    bareConnectionModelId,
+    modelDisplayName,
+    modelLabel,
+    providerForModel,
+    vaultModelGroups,
+    vaultPickedProviderFamily,
+    buildConnectionPickerRows,
+    selectedModelRowKey,
+    firstPickerSelectionForConnection,
+    pickerSelectionFrom,
+    pickerSelectionAfterProviderSave,
+    pickerSelectionIsRunnable,
+    resolvePickerSelection,
+    selectionFromModelRow,
+    describeMcp,
+    describeSkill,
+    describeTool,
+    skillCommandName,
+    staticEmbedSlug,
+    toolName,
+    HARNESS_META,
+    harnessMetaFor,
+    selectableHarnesses,
     type OptionGroup,
 } from "./SchemaControls"
+
+// The flyout's harness split, kept beside the rows it groups.
+export {
+    buildPickerGroupsWithSections,
+    harnessSections,
+    SUBSCRIPTION_TAG,
+} from "./SchemaControls/pickerSections"
 
 export type {
     NumberSliderControlProps,
@@ -304,12 +356,23 @@ export type {
     GrantableTool,
     ToolPermission,
     GrantableHarnessTool,
+    ModelPatch,
+    ModelOptionGroup,
+    VaultModelSource,
+    PickerConnectionRow,
+    PickerModelRow,
+    PickerSelection,
+    ItemDescriptor,
+    HarnessMeta,
+    PermissionPolicy,
+    PermissionPolicyOption,
 } from "./SchemaControls"
 
 // Operational panel regions (Triggers, Mounts) — siblings of the Configuration section.
 export {
     AgentOperationsSections,
     AgentOperationsSkeleton,
+    AgentRegionHeaderBar,
 } from "./SchemaControls/AgentOperationsSections"
 
 // Triggers section internals — surfaced so the Storybook component inventory can render
@@ -318,10 +381,12 @@ export {
     TriggerManagementSection,
     AddTriggerDropdown,
 } from "./SchemaControls/TriggerManagementSection"
-export type {TriggerManagementSectionProps} from "./SchemaControls/TriggerManagementSection"
+export type {
+    TriggerManagementSectionProps,
+    TriggerOwnerRef,
+} from "./SchemaControls/TriggerManagementSection"
 export {TriggerRow} from "./SchemaControls/triggerManagement/TriggerRow"
 export {SubscriptionChildRow} from "./SchemaControls/triggerManagement/SubscriptionChildRow"
-export {SubscriptionRunPopover} from "./SchemaControls/triggerManagement/SubscriptionRunPopover"
 export {TriggerActionsMenu} from "./SchemaControls/triggerManagement/TriggerActionsMenu"
 
 // Configure-popover panels (model / fallback / retry / advanced). Presentational and
@@ -371,6 +436,19 @@ export type {SkillTemplateControlProps} from "./SchemaControls/SkillTemplateCont
 export {ToolFormView} from "./SchemaControls/ToolFormView"
 export type {ToolFormViewProps} from "./SchemaControls/ToolFormView"
 export {ReferenceToolFormView} from "./SchemaControls/ReferenceToolFormView"
+export {
+    SubagentList,
+    ToolManagementList,
+    selectSubagentTools,
+} from "./SchemaControls/agentTemplate/ToolManagementList"
+export {CatalogListRow} from "./SchemaControls/agentTemplate/CatalogListRow"
+export type {CatalogListRowProps} from "./SchemaControls/agentTemplate/CatalogListRow"
+export {AddSubagentDrawer} from "./SchemaControls/agentTemplate/AddSubagentDrawer"
+export type {
+    SubagentOption,
+    SubagentIntegration,
+} from "./SchemaControls/agentTemplate/AddSubagentDrawer"
+export type {SubagentListProps} from "./SchemaControls/agentTemplate/ToolManagementList"
 export type {ReferenceToolFormViewProps} from "./SchemaControls/ReferenceToolFormView"
 export {McpServerFormView} from "./SchemaControls/McpServerFormView"
 export type {McpServerFormViewProps} from "./SchemaControls/McpServerFormView"
@@ -378,6 +456,8 @@ export {SkillFormView} from "./SchemaControls/SkillFormView"
 export type {SkillFormViewProps} from "./SchemaControls/SkillFormView"
 export {SkillUploadZone} from "./SchemaControls/SkillUploadZone"
 export type {SkillUploadZoneProps} from "./SchemaControls/SkillUploadZone"
+export {scanSkillFromDataTransfer, scanSkillFromFileList} from "./SchemaControls/skillUpload"
+export type {ParsedSkill, SkillScanCandidate, SkillUploadScan} from "./SchemaControls/skillUpload"
 
 // Agent config panel — presentational siblings of the AgentTemplateControl container (the
 // control itself stays code-split behind SchemaPropertyRenderer's lazy import). Prop-driven,
@@ -389,8 +469,15 @@ export type {
 } from "./SchemaControls/agentTemplate/AgentTemplateSectionList"
 export {SectionAddButton} from "./SchemaControls/agentTemplate/SectionAddButton"
 export type {SectionAddButtonProps} from "./SchemaControls/agentTemplate/SectionAddButton"
+// Writes the composer-prefill request atom from @agenta/shared/state: its one atom dependency.
+export {CreateWithAIAddMenu} from "./SchemaControls/agentTemplate/CreateWithAIAddMenu"
+export type {CreateWithAIAddMenuProps} from "./SchemaControls/agentTemplate/CreateWithAIAddMenu"
 export {SectionTitleBadge} from "./SchemaControls/agentTemplate/SectionTitleBadge"
 export type {
     SectionTitleBadgeProps,
     SectionTitleBadgeTone,
 } from "./SchemaControls/agentTemplate/SectionTitleBadge"
+
+// The panel's instructions file row, reused read-only by surfaces that show an agent's brief
+// without editing it (the agent overview).
+export {InstructionsFileRow, ItemRow} from "./SchemaControls/agentTemplate/ItemRow"

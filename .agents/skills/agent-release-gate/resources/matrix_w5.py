@@ -34,6 +34,7 @@ from qa_matrix_lib import (  # noqa: E402
     LIVE_TOOLS,
     agent_config,
     archive,
+    check_no_silent_turn,
     create_workflow,
     invoke,
     latest_revision,
@@ -99,8 +100,14 @@ def w5():
             session_id, [user_msg(commit_prompt)], live_params, references
         )
 
-        post_interrupt_works = status_c["settled"] and not any(
-            t.errors for t in turns_c
+        # `turn1` is deliberately interrupted, so it legitimately ends bare and is excluded.
+        # The post-interrupt turns were meant to answer: a silent one there would read as
+        # "settled with no errors" and hide a swallowed failure (ASD-EST100).
+        silent = check_no_silent_turn(turns_c)
+        post_interrupt_works = (
+            status_c["settled"]
+            and not any(t.errors for t in turns_c)
+            and not silent["violations"]
         )
         time.sleep(1.0)
         newest = latest_revision(wf)
@@ -120,6 +127,7 @@ def w5():
             "why": (
                 f"steer_ok={steer_ok} (turn1 was interrupted, steer turn replied cleanly), "
                 f"post_interrupt_works={post_interrupt_works} (new turn on same session settled "
+                f"| silent_turns={silent['violations']} "
                 f"without wire errors), commit_landed={commit_landed}"
             ),
             "workflow_id": wf,

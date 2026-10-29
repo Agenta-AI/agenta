@@ -68,12 +68,18 @@ sdks/python/ee/tests/results/
 services/oss/tests/results/
 services/ee/tests/results/
 services/runner/tests/results/
+clients/python/tests/results/
 .*
 !**/.gitkeep
 !.github/
 !.github/**
 !.husky/
 !.husky/**
+!.coderabbit.yaml
+
+# QA gate run outputs: machine artifacts with per-run probe tokens that trip secret
+# scanners (and once rode a blanket commit onto a public branch). Never tracked.
+.agents/skills/agent-release-gate/qa-gate-runs/
 !.dockerignore
 !api/.dockerignore
 !services/.dockerignore
@@ -89,6 +95,7 @@ services/runner/tests/results/
 !.agents/skills/agent-release-gate/
 !.agents/skills/agenta-package-practices/
 !.agents/skills/create-changelog-announcement/
+!.agents/skills/gitbutler-stacks/
 !.agents/skills/implement-feature/
 !.agents/skills/plan-feature/
 !.agents/skills/style-editing/
@@ -100,6 +107,9 @@ services/runner/tests/results/
 !.agents/skills/write-pr-description/
 !.agents/skills/write-social-announcement/
 !.agents/skills/write-template-playbooks/
+!.agents/skills/mobile-app-structure/
+!.agents/skills/mobile-shadcn-conventions/
+!.agents/skills/mobile-motion-patterns/
 !.claude/
 .claude/*
 !.claude/skills/
@@ -124,6 +134,37 @@ services/runner/tests/results/
 !.claude/skills/resolve-findings
 !.claude/skills/sync-findings
 !.claude/skills/test-codebase
+!.claude/skills/mobile-app-structure
+!.claude/skills/mobile-shadcn-conventions
+!.claude/skills/mobile-motion-patterns
+!.claude/skills/gitbutler-stacks
+!.claude/settings.json
+
+# Entire (entire.com) shared config and agent hooks; each hook is a no-op
+# without the entire CLI. .entire/.gitignore keeps local state out.
+!.entire/
+!.entire/**
+.entire/current_session
+!.agents/hooks.json
+!.codex/
+.codex/*
+!.codex/hooks.json
+!.cursor/
+.cursor/*
+!.cursor/hooks.json
+!.factory/
+.factory/*
+!.factory/settings.json
+!.opencode/
+.opencode/*
+!.opencode/plugins/
+.opencode/plugins/*
+!.opencode/plugins/entire.ts
+!.pi/
+.pi/*
+!.pi/extensions/
+.pi/extensions/*
+!.pi/extensions/entire/
 
 # Temporary SDK copies created by run.sh --local
 api/sdks
@@ -152,3 +193,22 @@ skills-lock.json
 # Storybook config is real source — carve it out of the dotfile ignore above.
 !web/storybook/.storybook/
 !web/storybook/.storybook/**
+
+# Storybook build output and the VRT's diff PNGs.
+web/storybook/storybook-static/
+web/storybook/parity/__vrt__/
+
+# Test artifacts in any workspace (vitest/playwright write a junit report on every run).
+test-results/
+junit.xml
+
+# QA parity harness (docs/design/sessions-ux-stack/qa112): the scripts and their measured strip
+# boxes ARE committed - two earlier copies lived in a session scratchpad and were wiped. Its venv
+# and captures are not; a full sweep leaves ~370 PNGs behind.
+docs/design/sessions-ux-stack/qa112/venv/
+docs/design/sessions-ux-stack/qa112/shots/
+docs/design/sessions-ux-stack/qa112/.tabpin.*
+
+# Marketing package configuration after joining the web workspace.
+!web/website/.gitignore
+!web/website/.prettierrc.json

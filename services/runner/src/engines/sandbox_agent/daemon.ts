@@ -74,7 +74,7 @@ function ensureExecutable(path: string): string {
  * `_CLOUD_SECRET_ENV_BY_DEPLOYMENT`.
  */
 export const KNOWN_PROVIDER_ENV_VARS = [
-  // Direct provider api keys (the eight vault-mapped Pi providers + the legacy aliases).
+  // Direct provider api keys (the nine vault-mapped Pi providers + the legacy aliases).
   "OPENAI_API_KEY",
   "ANTHROPIC_API_KEY",
   "GEMINI_API_KEY",
@@ -84,6 +84,7 @@ export const KNOWN_PROVIDER_ENV_VARS = [
   "TOGETHERAI_API_KEY",
   "TOGETHER_API_KEY",
   "OPENROUTER_API_KEY",
+  "XAI_API_KEY",
   // Anthropic / Claude auth tokens and OAuth.
   "ANTHROPIC_AUTH_TOKEN",
   "ANTHROPIC_OAUTH_TOKEN",
@@ -147,6 +148,7 @@ const PROVIDER_ENV_VAR_GROUPS: Record<string, readonly string[]> = {
   groq: ["GROQ_API_KEY"],
   together_ai: ["TOGETHER_API_KEY", "TOGETHERAI_API_KEY"],
   openrouter: ["OPENROUTER_API_KEY"],
+  xai: ["XAI_API_KEY"],
   // Pi's ChatGPT/Codex subscription authenticates via its own OAuth file, not an env key.
   "openai-codex": [],
 };
@@ -218,6 +220,16 @@ export interface BuildDaemonEnvOptions {
    * for a harness that resolves a model outside its declared provider.
    */
   inheritAllProviderEnv?: boolean;
+  /**
+   * The Pi agent dir this run owns, overriding the operator's inherited `PI_CODING_AGENT_DIR`.
+   *
+   * Set for a HOSTED subscription run, whose login lives in a per-connection dir the runner
+   * materialized rather than on the operator's mount. Passing it here rather than relying on
+   * `prepareLocalPiAssets` overwriting the key later keeps the operator's path out of the daemon
+   * environment entirely, so an ordering change downstream cannot quietly hand a project's run the
+   * operator's own login.
+   */
+  piAgentDir?: string;
 }
 
 const INHERIT_ALL_PROVIDER_KEYS_ENV = "AGENTA_RUNNER_INHERIT_ALL_PROVIDER_KEYS";
@@ -251,6 +263,7 @@ export function buildDaemonEnv(
     provider,
     deployment,
     inheritAllProviderEnv = inheritAllProviderKeys(),
+    piAgentDir: planPiAgentDir,
   }: BuildDaemonEnvOptions = {},
 ): Record<string, string> {
   const env: Record<string, string> = {};
@@ -262,7 +275,8 @@ export function buildDaemonEnv(
 
   env.PI_ACP_PI_COMMAND =
     process.env.SANDBOX_AGENT_PI_COMMAND ?? join(ADAPTER_BIN_DIR, "pi");
-  const piAgentDir = process.env.PI_CODING_AGENT_DIR;
+  // The run's own dir wins over the operator's mount; see `piAgentDir` above.
+  const piAgentDir = planPiAgentDir || process.env.PI_CODING_AGENT_DIR;
   if (piAgentDir) env.PI_CODING_AGENT_DIR = piAgentDir;
   // CLAUDE_CONFIG_DIR is a config path, not a credential; it is safe to inherit on every run so
   // a self-managed Claude login keeps pointing at its config dir.

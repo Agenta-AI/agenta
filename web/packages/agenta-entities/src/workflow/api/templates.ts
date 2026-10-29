@@ -74,21 +74,6 @@ export interface EvaluatorCatalogPresetsResponse {
 }
 
 // ============================================================================
-// BACKWARD-COMPAT RE-EXPORT
-// ============================================================================
-
-/**
- * @deprecated Use `EvaluatorCatalogTemplate` instead.
- * Kept temporarily so downstream imports don't break during migration.
- */
-export type EvaluatorTemplate = EvaluatorCatalogTemplate
-
-/**
- * @deprecated Use `EvaluatorCatalogTemplatesResponse` instead.
- */
-export type EvaluatorTemplatesResponse = EvaluatorCatalogTemplatesResponse
-
-// ============================================================================
 // API FUNCTIONS
 // ============================================================================
 

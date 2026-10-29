@@ -20,7 +20,9 @@ import {cn} from "./utils"
  *
  * Accessibility: the label associates with its control via `htmlFor`. If no `htmlFor` is given
  * and the single child has no `id`, Field generates one (`useId`) and injects it into the
- * child, so the association is automatic and axe stays clean.
+ * child, so the association is automatic and axe stays clean. The description and error lines
+ * are announced the same way — injected as `aria-describedby`, with `aria-invalid` on an
+ * errored control — so a field that refuses an entry says so to more than the eye.
  *
  * Parity target is the current `LabeledField` rendering: label `font-medium` + `text-foreground`
  * (colorText), 12px at the default size, 4px gap to the control; asterisk `text-error`
@@ -60,6 +62,11 @@ export interface FieldProps extends VariantProps<typeof fieldLabelVariants> {
     description?: React.ReactNode
     /** Error / help line under the control, in `colorError`. */
     error?: React.ReactNode
+    /**
+     * Marks the field invalid without a message: reddens the label, pairing with the control's own
+     * `aria-invalid` border. For "this is missing" states where a text error would just be noise.
+     */
+    invalid?: boolean
     /** Layout direction. `vertical` (default) stacks; `horizontal` puts the label beside the control. */
     direction?: "vertical" | "horizontal"
     /**
@@ -86,6 +93,7 @@ function Field({
     tooltipPlacement = "right",
     description,
     error,
+    invalid = false,
     direction = "vertical",
     gap = "xs",
     size,
@@ -96,14 +104,50 @@ function Field({
     className,
 }: FieldProps) {
     const autoId = React.useId()
-    const child = React.isValidElement<{id?: string}>(children) ? children : null
+    const child = React.isValidElement<{
+        id?: string
+        "aria-describedby"?: string
+        "aria-invalid"?: boolean
+    }>(children)
+        ? children
+        : null
     const childId = child?.props.id
     // Only claim an id we can guarantee exists on a control, so `htmlFor` is never dangling.
     const controlId = htmlFor ?? childId ?? (child ? autoId : undefined)
+
+    // The description and the error are ANNOUNCED, not just painted. Without this a screen
+    // reader met a control that silently stopped working — the MCP connect dialog's Continue
+    // button went dead on a duplicate name with no announced reason, reported unchanged in
+    // three QA rounds (round 4, D4). Every Field with an error had the same gap, so it is
+    // closed here rather than at one call site.
+    const descriptionId = description != null && controlId ? `${controlId}-description` : undefined
+    const errorId = error != null && controlId ? `${controlId}-error` : undefined
+    const describedBy = [descriptionId, errorId].filter(Boolean).join(" ") || undefined
+
+    const controlProps: {
+        id?: string
+        "aria-invalid"?: true
+        "aria-describedby"?: string
+    } = {}
+    if (child && !htmlFor && !childId) controlProps.id = controlId
+    if (child && (invalid || error != null)) controlProps["aria-invalid"] = true
+    if (child && describedBy) {
+        // A control that already names its own description keeps it; this only adds to it.
+        const own = child.props["aria-describedby"]
+        controlProps["aria-describedby"] = own ? `${own} ${describedBy}` : describedBy
+    }
     const control =
-        child && !htmlFor && !childId ? React.cloneElement(child, {id: controlId}) : children
+        child && Object.keys(controlProps).length > 0
+            ? React.cloneElement(child, controlProps)
+            : children
 
     const isHorizontal = direction === "horizontal"
+
+    const errorLine = error != null && (
+        <span id={errorId} data-slot="field-error" className="text-xs text-error">
+            {error}
+        </span>
+    )
 
     const header = (label != null || description != null) && (
         <div data-slot="field-header" className="flex flex-col gap-0.5">
@@ -112,7 +156,11 @@ function Field({
                     <Label
                         htmlFor={controlId}
                         data-slot="field-label"
-                        className={cn(fieldLabelVariants({size}), isHorizontal && "flex-shrink-0")}
+                        className={cn(
+                            fieldLabelVariants({size}),
+                            isHorizontal && "flex-shrink-0",
+                            invalid && "text-error",
+                        )}
                     >
                         <span data-slot="field-label-text">
                             {label}
@@ -147,17 +195,15 @@ function Field({
                 </div>
             )}
             {description != null && (
-                <span data-slot="field-description" className="text-xs text-colorTextDescription">
+                <span
+                    id={descriptionId}
+                    data-slot="field-description"
+                    className="text-xs text-colorTextDescription"
+                >
                     {description}
                 </span>
             )}
         </div>
-    )
-
-    const errorLine = error != null && (
-        <span data-slot="field-error" className="text-xs text-error">
-            {error}
-        </span>
     )
 
     if (isHorizontal) {

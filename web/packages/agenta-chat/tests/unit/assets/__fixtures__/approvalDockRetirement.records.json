@@ -1,0 +1,231 @@
+[
+    {
+        "id": "df76c981-7098-49b9-92ad-d5f2fc759580",
+        "session_id": "973bfdbd-0226-477d-865a-479f4c3e3db1",
+        "project_id": "01a06d32-a122-79f2-8d44-161f16791461",
+        "event_index": 0,
+        "sender": "user",
+        "session_update": "message",
+        "payload": {
+            "text": "Run the shell command: echo inc6-r8-dock. Report its exact output.",
+            "type": "message",
+            "attachments": []
+        },
+        "turn_id": "9ad2aa67-77bf-41a1-b2a6-90eadda1a3d7",
+        "created_at": "2026-09-04 20:31:43.438+00"
+    },
+    {
+        "id": "09dd3c78-7e32-4ee9-b084-4d30d3117505",
+        "session_id": "973bfdbd-0226-477d-865a-479f4c3e3db1",
+        "project_id": "01a06d32-a122-79f2-8d44-161f16791461",
+        "event_index": 1,
+        "sender": "agent",
+        "session_update": "thought",
+        "payload": {
+            "text": "The user wants me to run a simple shell command and report its output.",
+            "type": "thought"
+        },
+        "turn_id": "9ad2aa67-77bf-41a1-b2a6-90eadda1a3d7",
+        "created_at": "2026-09-04 20:31:51.665+00"
+    },
+    {
+        "id": "a5d965ef-3703-5097-bdaf-49a68f733a7d",
+        "session_id": "973bfdbd-0226-477d-865a-479f4c3e3db1",
+        "project_id": "01a06d32-a122-79f2-8d44-161f16791461",
+        "event_index": 2,
+        "sender": "agent",
+        "session_update": "tool_call",
+        "payload": {
+            "id": "call_616b5f199712455793b6d76e",
+            "name": "bash",
+            "type": "tool_call",
+            "input": {
+                "command": "echo inc6-r8-dock"
+            }
+        },
+        "turn_id": "9ad2aa67-77bf-41a1-b2a6-90eadda1a3d7",
+        "created_at": "2026-09-04 20:31:51.846+00"
+    },
+    {
+        "id": "ea6333e4-cab3-542f-8842-d61996291ada",
+        "session_id": "973bfdbd-0226-477d-865a-479f4c3e3db1",
+        "project_id": "01a06d32-a122-79f2-8d44-161f16791461",
+        "event_index": 3,
+        "sender": "agent",
+        "session_update": "interaction_request",
+        "payload": {
+            "id": "995951ee-bfec-4ef3-bd82-ea8bd0bbe313",
+            "kind": "user_approval",
+            "type": "interaction_request",
+            "payload": {
+                "options": [
+                    {
+                        "kind": "allow_once",
+                        "name": "Yes",
+                        "optionId": "yes"
+                    },
+                    {
+                        "kind": "reject_once",
+                        "name": "No",
+                        "optionId": "no"
+                    }
+                ],
+                "toolCall": {
+                    "kind": "other",
+                    "title": "agenta-approval",
+                    "status": "pending",
+                    "rawInput": {
+                        "command": "echo inc6-r8-dock"
+                    },
+                    "toolCallId": "call_616b5f199712455793b6d76e",
+                    "resolvedName": "Bash"
+                },
+                "toolCallId": "call_616b5f199712455793b6d76e",
+                "availableReplies": ["once", "reject"]
+            }
+        },
+        "turn_id": "9ad2aa67-77bf-41a1-b2a6-90eadda1a3d7",
+        "created_at": "2026-09-04 20:31:51.86+00"
+    },
+    {
+        "id": "663d522e-c1c6-40e8-8363-6bd3dcab9cc7",
+        "session_id": "973bfdbd-0226-477d-865a-479f4c3e3db1",
+        "project_id": "01a06d32-a122-79f2-8d44-161f16791461",
+        "event_index": 4,
+        "sender": "agent",
+        "session_update": "done",
+        "payload": {
+            "type": "done",
+            "traceId": "27ec280560f31d2d40fc235c58c9f33e",
+            "stopReason": "paused"
+        },
+        "turn_id": "9ad2aa67-77bf-41a1-b2a6-90eadda1a3d7",
+        "created_at": "2026-09-04 20:31:51.87+00"
+    },
+    {
+        "id": "43b9b722-287b-43d1-98d3-176358c34397",
+        "session_id": "973bfdbd-0226-477d-865a-479f4c3e3db1",
+        "project_id": "01a06d32-a122-79f2-8d44-161f16791461",
+        "event_index": 0,
+        "sender": "agent",
+        "session_update": "thought",
+        "payload": {
+            "text": "The user approved the bash command and wants me to execute it now.",
+            "type": "thought"
+        },
+        "turn_id": "3c40c8ce-7e4a-49c7-909d-0aac09346291",
+        "created_at": "2026-09-04 20:31:59.872+00"
+    },
+    {
+        "id": "38dc3726-352c-5298-be69-dee73acc5be4",
+        "session_id": "973bfdbd-0226-477d-865a-479f4c3e3db1",
+        "project_id": "01a06d32-a122-79f2-8d44-161f16791461",
+        "event_index": 1,
+        "sender": "agent",
+        "session_update": "tool_call",
+        "payload": {
+            "id": "call_730a4e6cf1ba4acfa98d3fbc",
+            "name": "bash",
+            "type": "tool_call",
+            "input": {
+                "command": "echo inc6-r8-dock"
+            }
+        },
+        "turn_id": "3c40c8ce-7e4a-49c7-909d-0aac09346291",
+        "created_at": "2026-09-04 20:32:00.899+00"
+    },
+    {
+        "id": "eeb0ad94-215f-58a6-b2d3-840f47e9c751",
+        "session_id": "973bfdbd-0226-477d-865a-479f4c3e3db1",
+        "project_id": "01a06d32-a122-79f2-8d44-161f16791461",
+        "event_index": 2,
+        "sender": "agent",
+        "session_update": "interaction_response",
+        "payload": {
+            "id": "995951ee-bfec-4ef3-bd82-ea8bd0bbe313",
+            "kind": "user_approval",
+            "type": "interaction_response",
+            "payload": {
+                "approved": true,
+                "toolCallId": "call_730a4e6cf1ba4acfa98d3fbc"
+            }
+        },
+        "turn_id": "3c40c8ce-7e4a-49c7-909d-0aac09346291",
+        "created_at": "2026-09-04 20:32:00.908+00"
+    },
+    {
+        "id": "73df09a2-7a8f-5075-80a4-09e40955deea",
+        "session_id": "973bfdbd-0226-477d-865a-479f4c3e3db1",
+        "project_id": "01a06d32-a122-79f2-8d44-161f16791461",
+        "event_index": 3,
+        "sender": "agent",
+        "session_update": "tool_result",
+        "payload": {
+            "id": "call_730a4e6cf1ba4acfa98d3fbc",
+            "type": "tool_result",
+            "output": "inc6-r8-dock\n",
+            "isError": false
+        },
+        "turn_id": "3c40c8ce-7e4a-49c7-909d-0aac09346291",
+        "created_at": "2026-09-04 20:32:00.916+00"
+    },
+    {
+        "id": "393b1fdb-131d-48aa-9149-73628a51c063",
+        "session_id": "973bfdbd-0226-477d-865a-479f4c3e3db1",
+        "project_id": "01a06d32-a122-79f2-8d44-161f16791461",
+        "event_index": 4,
+        "sender": "agent",
+        "session_update": "thought",
+        "payload": {
+            "text": "The command executed successfully. The exact output is \"inc6-r8-dock\".",
+            "type": "thought"
+        },
+        "turn_id": "3c40c8ce-7e4a-49c7-909d-0aac09346291",
+        "created_at": "2026-09-04 20:32:04.304+00"
+    },
+    {
+        "id": "8ab873ee-67ba-44ad-b1d7-e37b33c2856e",
+        "session_id": "973bfdbd-0226-477d-865a-479f4c3e3db1",
+        "project_id": "01a06d32-a122-79f2-8d44-161f16791461",
+        "event_index": 5,
+        "sender": "agent",
+        "session_update": "usage",
+        "payload": {
+            "cost": 0.000369396,
+            "type": "usage",
+            "input": 3296,
+            "total": 6465,
+            "output": 97
+        },
+        "turn_id": "3c40c8ce-7e4a-49c7-909d-0aac09346291",
+        "created_at": "2026-09-04 20:32:05.333+00"
+    },
+    {
+        "id": "5c35ae31-eae1-48cd-986a-e540be258889",
+        "session_id": "973bfdbd-0226-477d-865a-479f4c3e3db1",
+        "project_id": "01a06d32-a122-79f2-8d44-161f16791461",
+        "event_index": 6,
+        "sender": "agent",
+        "session_update": "message",
+        "payload": {
+            "text": "The exact output is:\n\n```\ninc6-r8-dock\n```",
+            "type": "message"
+        },
+        "turn_id": "3c40c8ce-7e4a-49c7-909d-0aac09346291",
+        "created_at": "2026-09-04 20:32:05.344+00"
+    },
+    {
+        "id": "2036b6a3-f853-42f4-9beb-e2c7b31673e1",
+        "session_id": "973bfdbd-0226-477d-865a-479f4c3e3db1",
+        "project_id": "01a06d32-a122-79f2-8d44-161f16791461",
+        "event_index": 7,
+        "sender": "agent",
+        "session_update": "done",
+        "payload": {
+            "type": "done",
+            "traceId": "114dca2ee59c63cf28c8a8dd83bb31ad"
+        },
+        "turn_id": "3c40c8ce-7e4a-49c7-909d-0aac09346291",
+        "created_at": "2026-09-04 20:32:05.349+00"
+    }
+]

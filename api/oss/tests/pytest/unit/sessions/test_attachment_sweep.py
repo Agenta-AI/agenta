@@ -305,3 +305,120 @@ async def test_loop_sleeps_at_configured_cadence_and_cancels(
 
     assert passes == 1
     assert sleeps == [17]
+
+
+class _RecordingLog:
+    def __init__(self):
+        self.warnings = []
+        self.errors = []
+
+    def warning(self, message, *args, **_kwargs):
+        self.warnings.append(message % args)
+
+    def error(self, message, *args, **kwargs):
+        self.errors.append((message % args, kwargs.get("exc_info")))
+
+
+async def _run_loop_until_sleeps(monkeypatch, *, outcomes, sleeps_before_cancel):
+    log = _RecordingLog()
+    sleeps = []
+    remaining = list(outcomes)
+
+    async def fake_pass(**_kwargs):
+        outcome = remaining.pop(0)
+        if outcome is not None:
+            raise outcome
+
+    async def record_sleep(seconds):
+        sleeps.append(seconds)
+        if len(sleeps) == sleeps_before_cancel:
+            raise asyncio.CancelledError
+
+    monkeypatch.setattr(attachment_sweep, "log", log)
+    monkeypatch.setattr(attachment_sweep, "run_attachment_sweep", fake_pass)
+    monkeypatch.setattr(attachment_sweep.asyncio, "sleep", record_sleep)
+
+    with pytest.raises(asyncio.CancelledError):
+        await attachment_sweep.attachment_sweep_loop(
+            attachments_dao=_FakeAttachmentsDAO([]),
+            original_store=_FakeOriginalStore(),
+            lock_engine=_FakeLockEngine(),
+            pending_ttl_seconds=900,
+            unreferenced_ttl_seconds=86_400,
+            sweep_interval_seconds=3_600,
+        )
+    return log, sleeps
+
+
+@pytest.mark.anyio
+async def test_transient_redis_failure_warns_and_retries_soon(
+    anyio_backend,
+    monkeypatch,
+):
+    assert anyio_backend == "asyncio"
+    log, sleeps = await _run_loop_until_sleeps(
+        monkeypatch,
+        outcomes=[
+            attachment_sweep.RedisTimeoutError("Timeout connecting to server"),
+            attachment_sweep.RedisConnectionError("Connection refused"),
+            None,
+        ],
+        sleeps_before_cancel=3,
+    )
+
+    assert sleeps == [5, 10, 3_600]
+    assert len(log.warnings) == 2
+    assert log.errors == []
+
+
+@pytest.mark.anyio
+async def test_redis_down_for_repeated_passes_escalates_to_error(
+    anyio_backend,
+    monkeypatch,
+):
+    assert anyio_backend == "asyncio"
+    log, sleeps = await _run_loop_until_sleeps(
+        monkeypatch,
+        outcomes=[attachment_sweep.RedisTimeoutError("timeout")] * 6,
+        sleeps_before_cancel=6,
+    )
+
+    assert sleeps == [5, 10, 20, 40, 60, 60]
+    assert len(log.warnings) == 2
+    assert len(log.errors) == 4
+    assert all(exc_info for _, exc_info in log.errors)
+
+
+@pytest.mark.anyio
+async def test_redis_failure_count_resets_after_a_good_pass(
+    anyio_backend,
+    monkeypatch,
+):
+    assert anyio_backend == "asyncio"
+    timeout = attachment_sweep.RedisTimeoutError("timeout")
+    log, sleeps = await _run_loop_until_sleeps(
+        monkeypatch,
+        outcomes=[timeout, timeout, None, timeout],
+        sleeps_before_cancel=4,
+    )
+
+    assert sleeps == [5, 10, 3_600, 5]
+    assert len(log.warnings) == 3
+    assert log.errors == []
+
+
+@pytest.mark.anyio
+async def test_other_errors_still_log_error_and_wait_the_interval(
+    anyio_backend,
+    monkeypatch,
+):
+    assert anyio_backend == "asyncio"
+    log, sleeps = await _run_loop_until_sleeps(
+        monkeypatch,
+        outcomes=[RuntimeError("database down")],
+        sleeps_before_cancel=1,
+    )
+
+    assert sleeps == [3_600]
+    assert log.warnings == []
+    assert len(log.errors) == 1

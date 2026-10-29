@@ -90,7 +90,7 @@ const ImagePreview = ({
                     alt={alt}
                     className="w-full h-full object-cover group-hover:opacity-80 transition duration-200"
                 />
-                <div className="absolute inset-0 bg-black bg-opacity-10 group-hover:bg-opacity-20 transition duration-200" />
+                <div className="absolute inset-0 bg-black/10 group-hover:bg-black/20 transition duration-200" />
                 <div className="absolute inset-0 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition duration-200">
                     <MagnifyingGlassPlus size={16} weight="bold" />
                 </div>

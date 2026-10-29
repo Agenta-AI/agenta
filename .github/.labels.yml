@@ -40,6 +40,9 @@
 - name: help wanted
   description: Extra help is welcome
   color: 008672
+- name: migration:destructive-approved
+  description: A reviewer accepted the rollout risk of a destructive Alembic revision
+  color: b60205
 - name: provider/local
   description: Local infrastructure or developer machine setup
   color: 0052cc

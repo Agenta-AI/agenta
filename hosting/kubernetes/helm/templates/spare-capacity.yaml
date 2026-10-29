@@ -1,0 +1,100 @@
+{{- /* ================================================================
+   Spare capacity, as placeholder pods that hold room on the nodes.
+
+   Off by default (`spareCapacity.enabled: false`).
+
+   A pod that cannot fit on any node can preempt a pod with a lower priority.
+   Every pod of this chart runs at priority 0 unless `<workload>.priorityClassName`
+   says otherwise, and system pods run at up to 2000001000, a value a
+   user-defined PriorityClass cannot reach (the limit is 1000000000). So on a
+   full node, a new system pod can evict one of these workloads, and a priority
+   on the workload alone cannot stop it.
+
+   The placeholder pods run `pause` at a negative priority, so the scheduler
+   evicts them first: system pods and this chart's own pods take their room at
+   once. The evicted placeholder goes back to Pending and asks the cluster
+   autoscaler for a new node in the background.
+
+   The value must stay at -10 or above. On GKE a pod below -10 does not trigger
+   a scale-up, so an evicted placeholder would stay Pending and the room would
+   not come back. `preemptionPolicy: Never` keeps a placeholder from ever
+   evicting a real pod.
+
+   The PriorityClass is cluster-scoped. Its default name carries the release
+   namespace and name, so two releases in one cluster do not fight over it.
+
+   The placeholder pods use real requests, so they cost what any pod with the
+   same requests costs. On a cluster billed per pod request, such as GKE
+   Autopilot, you pay for them while they run.
+   ================================================================ */}}
+{{- $values := include "agenta.values" . | fromYaml -}}
+{{- $spare := default dict $values.spareCapacity -}}
+{{- if $spare.enabled }}
+{{- $priorityClass := default dict $spare.priorityClass -}}
+{{- $priorityClassName := default (printf "%s-%s-spare-capacity" .Release.Namespace (include "agenta.fullname" .)) $priorityClass.name -}}
+{{- $priorityValue := hasKey $priorityClass "value" | ternary $priorityClass.value -10 -}}
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: {{ $priorityClassName }}
+  labels:
+    {{- include "agenta.labels" . | nindent 4 }}
+    app.kubernetes.io/component: spare-capacity
+value: {{ int $priorityValue }}
+preemptionPolicy: Never
+globalDefault: false
+description: "Placeholder pods that hold spare room for {{ .Release.Namespace }}/{{ .Release.Name }}. Any other pod may evict them."
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agenta.fullname" . }}-spare-capacity
+  labels:
+    {{- include "agenta.labels" . | nindent 4 }}
+    app.kubernetes.io/component: spare-capacity
+spec:
+  replicas: {{ hasKey $spare "replicas" | ternary $spare.replicas 1 }}
+  selector:
+    matchLabels:
+      {{- include "agenta.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: spare-capacity
+  template:
+    metadata:
+      labels:
+        {{- include "agenta.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: spare-capacity
+    spec:
+      priorityClassName: {{ $priorityClassName }}
+      {{- /* Nothing to drain: the pod holds room and does no work. */}}
+      terminationGracePeriodSeconds: 0
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65535
+        runAsGroup: 65535
+        seccompProfile:
+          type: RuntimeDefault
+      {{- include "agenta.imagePullSecrets" . | nindent 6 }}
+      containers:
+        - name: pause
+          image: {{ default "registry.k8s.io/pause:3.10" $spare.image | quote }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          resources:
+            {{- toYaml (default (dict "requests" (dict "cpu" "500m" "memory" "512Mi")) $spare.resources) | nindent 12 }}
+      {{- with $spare.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $spare.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $spare.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

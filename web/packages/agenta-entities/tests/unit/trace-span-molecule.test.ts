@@ -18,11 +18,11 @@
  *   • Lifecycle           — isActive tracks first access; cleanup.remove clears it
  */
 
-import {describe, it, expect} from "vitest"
 import {createStore} from "jotai"
+import {describe, it, expect} from "vitest"
 
-import {traceSpanMolecule} from "../../src/trace/state/molecule"
 import type {TraceSpan} from "../../src/trace/core"
+import {traceSpanMolecule} from "../../src/trace/state/molecule"
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 

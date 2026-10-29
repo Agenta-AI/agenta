@@ -1,4 +1,6 @@
 import { InMemorySessionPersistDriver, SandboxAgent } from "sandbox-agent";
+import type { SeededDecision } from "../../sessions/interactions.ts";
+import type { AgentToolsSetupExec, AgentToolsSetupResult } from "./agent-tools-setup.ts";
 
 import {
   type AgentRunRequest,
@@ -13,10 +15,12 @@ import {
   startToolRelay,
 } from "../../tools/relay.ts";
 import { createSandboxAgentOtel } from "../../tracing/otel.ts";
+import type { PiTraceTurnExport } from "../../tracing/pi-trace-turn-export.ts";
 import { createAcpFetch } from "./acp-fetch.ts";
 import { type ParkedApprovalGateType } from "./acp-interactions.ts";
 import { signAgentMountCredentials } from "./agent-mount.ts";
 import { probeCapabilities } from "./capabilities.ts";
+import { awaitCredentialSubstitution } from "./credential-preflight.ts";
 import { createToolCallCorrelationIndex } from "./client-tools.ts";
 import { buildDaemonEnv, resolveDaemonBinary } from "./daemon.ts";
 import { createCookieFetch, prepareDaytonaPiAssets } from "./daytona.ts";
@@ -50,8 +54,79 @@ import { prepareWorkspace } from "./workspace.ts";
 
 type Log = (message: string) => void;
 
+/**
+ * What a harness that runs inside this runner process needs to know about the run: the facts a
+ * daemon would have read from its own environment and files.
+ */
+export interface InRunnerRunFacts {
+  /** The durable conversation id; undefined for a throwaway run. */
+  conversationId: string | undefined;
+  projectId: string | undefined;
+  credentialMode: string | undefined;
+  systemPrompt: string | undefined;
+  appendSystemPrompt: string | undefined;
+  /** The run's custom sandbox credentials, by environment variable name. */
+  sandboxEnvironment: Record<string, string>;
+  /** The run's network policy for its shell commands. */
+  network: { networkBlockAll: boolean; networkAllowList?: string };
+  /** The run's skills on the runner's own disk, where their file modes are intact. */
+  skillSources: Array<{ name: string; dir: string }>;
+  /** The object store behind each durable root, with the mount's current credentials. */
+  drives: Array<{ root: string; credentials: () => MountCredentials | null }>;
+  /**
+   * Signs the session's own prefix for the harness's conversation file (`pi-sessions`), apart from
+   * the session folder. Absent without a session or a run credential.
+   */
+  signTranscriptMount?: () => Promise<MountCredentials | null>;
+  /** The harness environment the runner built (agent, session and skill dirs). */
+  harnessEnv: Record<string, string>;
+  /** The Agenta extension's settings. */
+  extensionEnv: Record<string, string>;
+  /** Model credentials by environment variable name. */
+  modelEnvironment: Record<string, string>;
+  /** A custom provider the run registered through models.json, and where its key is. */
+  customProvider?: { providerId: string; keyEnv: string };
+  /** Whether the run reaches its model through the Agenta LLM gateway. */
+  throughGateway?: boolean;
+  /** Who the command sandbox's running seconds are reported for; absent without a platform credential. */
+  usage?: import("../../metering/sandbox-usage.ts").SandboxUsageContext;
+}
+
+export interface InRunnerHarnessStart {
+  facts: InRunnerRunFacts;
+  persist: InMemorySessionPersistDriver;
+}
+
+/**
+ * A harness that runs inside this runner process instead of behind a sandbox-agent daemon. When
+ * set, `acquireEnvironment` starts it in place of `SandboxAgent.start` and builds no provider.
+ */
+export interface InRunnerHarness {
+  start(input: InRunnerHarnessStart): Promise<unknown>;
+}
+
+/**
+ * What shared code calls on a harness that runs in this process (`plan.harnessInRunner`): the
+ * environment's `sandbox` handle and its `session`.
+ */
+export interface InRunnerSandboxHandle {
+  /** The start of a turn: the sandbox's view of the drive is refreshed before its next tool call. */
+  startTurn(): void;
+  /** Owner setup to run in the command sandbox before its first command. */
+  onFirstCommand(setup: (exec: AgentToolsSetupExec, signal?: AbortSignal) => Promise<AgentToolsSetupResult>): void;
+}
+
+export interface InRunnerSessionHandle {
+  /** Drop what the failed turn's agent did from the transcript, keeping the person's message; true when it did. */
+  rollbackFailedTurn(): Promise<boolean>;
+  /** False when the latest turn may be missing from the saved native transcript: not a resume point. */
+  nativeHistorySaved(): boolean;
+}
+
 export interface SandboxAgentDeps extends BuildRunPlanDeps {
   startSandboxAgent?: typeof SandboxAgent.start;
+  inRunnerHarness?: InRunnerHarness;
+  startSandboxMeter?: typeof import("../../metering/sandbox-usage.ts").startSandboxMeter;
   createPersist?: () => InMemorySessionPersistDriver;
   createOtel?: typeof createSandboxAgentOtel;
   buildDaemonEnv?: typeof buildDaemonEnv;
@@ -63,6 +138,7 @@ export interface SandboxAgentDeps extends BuildRunPlanDeps {
   prepareDaytonaPiAssets?: typeof prepareDaytonaPiAssets;
   uploadToolMcpAssets?: typeof uploadToolMcpAssets;
   probeCapabilities?: typeof probeCapabilities;
+  awaitCredentialSubstitution?: typeof awaitCredentialSubstitution;
   applyModel?: typeof applyModel;
   applyCodexMode?: typeof applyCodexMode;
   startToolRelay?: typeof startToolRelay;
@@ -87,17 +163,6 @@ export interface SandboxAgentDeps extends BuildRunPlanDeps {
   /** Durable read of the sandbox pointer (the latest turn's sandbox_id), for the remote
    * reconnect ladder. The write side is folded into `appendSessionTurn`. */
   readStoredSandboxPointer?: typeof readStoredSandboxPointer;
-  /**
-   * Resolve `{replicaId, ownerReplicaId}` for a session-owned local-sandbox run, so
-   * `acquireEnvironment` can fail loudly instead of silently cold-starting on a non-owner
-   * replica. The default claims the `owner` affinity key via the coordination plane and reads
-   * back the actual owner (`claimSessionOwnership`); tests inject their own. `authorization` is
-   * the run credential (the claim authenticates as the invoke caller).
-   */
-  resolveLocalRunnerOwner?: (
-    sessionId: string,
-    authorization: string,
-  ) => Promise<{ replicaId: string; ownerReplicaId: string | undefined }>;
   log?: Log;
 }
 
@@ -123,6 +188,8 @@ export interface CurrentTurn {
   handleUpdate: (update: unknown) => void;
   /** Route a permission reverse-RPC for the active turn (built by attachPermissionResponder). */
   onPermissionRequest?: (req: unknown) => void;
+  /** The turn handed its final usage to the tracer; a later cost reading no longer belongs to it. */
+  usageSettled?: boolean;
 }
 
 /**
@@ -176,16 +243,28 @@ export interface ParkedApprovedExecution {
 export interface RunTurnOptions {
   /** Latest session credential accessor; long turns may refresh the value between API calls. */
   credential?: () => string;
+  /**
+   * Durable approval decisions this session already holds, read and CLAIMED by the caller via
+   * `loadDurableDecisions`. Passed in rather than read here because that read is I/O and
+   * `runTurn` must not suspend before its permission responder is attached.
+   */
+  seededDecisions?: readonly SeededDecision[];
   /** A live continuation: send only the new user text instead of the full cold transcript. */
   continuation?: boolean;
   /**
    * The session was rehydrated via `session/load` (the patched `resumeSession`), so the harness
-   * already holds the prior turns natively. Like `continuation`, the prompt is only the new user
-   * text; `buildTurnText` must not run. Distinct field from `continuation` because the two arrive
-   * through different acquire paths (live pool checkout vs a fresh cold acquire that loaded an
-   * old session) — `runTurn` treats them identically for the text-selection decision.
+   * accepted the prior native session id. This is deliberately weaker than proof that prior turns
+   * were replayed; `nativeHistoryVerified` supplies that proof. Distinct from `continuation`
+   * because the two arrive through different acquire paths (live pool checkout vs a fresh cold
+   * acquire that attempted to load an old session).
    */
   loaded?: boolean;
+  /**
+   * The native load produced observable prior-message events. `loaded` alone only proves the
+   * adapter accepted the requested id; without this proof the reconstructed transcript remains
+   * authoritative and must be replayed.
+   */
+  nativeHistoryVerified?: boolean;
   /**
    * Keep-alive approval park mode: on a parkable ACP permission gate the pause keeps the session
    * alive (no settle/abort/destroy) so a later resume can answer it. A non-parkable pause (Pi
@@ -201,15 +280,25 @@ export interface RunTurnOptions {
     decisions: ResumeApprovalInput[];
     carriedForward: ParkedApproval[];
   };
+  /**
+   * Settle the parked gate first, then send this request's fresh user tail as a normal prompt on
+   * the same warm session. Unlike `resume`, this does not make the old prompt the request's turn:
+   * its decision is context for the new prompt rather than the turn's terminal interaction.
+   */
+  settleApprovalsThenPrompt?: {
+    decisions: ResumeApprovalInput[];
+  };
 }
 
 /**
  * Send only the new user text (not the full cold transcript) when the harness already holds the
- * prior turns: a live continuation, or a session rehydrated via `session/load`. `runTurn` calls
- * this, so a test that pins it pins the shipped decision.
+ * prior turns: a live continuation, or a `session/load` that emitted observable prior-message
+ * events. `runTurn` calls this, so a test that pins it pins the shipped decision.
  */
 export function sendLastMessageOnly(opts: RunTurnOptions): boolean {
-  return Boolean(opts.continuation || opts.loaded);
+  return Boolean(
+    opts.continuation || (opts.loaded && opts.nativeHistoryVerified),
+  );
 }
 
 /**
@@ -265,10 +354,18 @@ export interface SessionEnvironment {
   commitApplied: (result: {
     configFingerprint: string;
     facets: FacetDigests;
+    fieldDigests: Record<string, string>;
   }) => void;
   plan: RunPlan;
   logger: Log;
   deps: SandboxAgentDeps;
+  /**
+   * Set once this environment's sandbox is known to be gone, by the ACP transport that talks to
+   * it. A remote provider answers for a deleted sandbox instead of refusing the socket, so this
+   * report is often the only evidence of the death that arrives at all. `run-turn.ts` hands the
+   * latch to the liveness probe, which is what ends the turn. See `sandbox-gone.ts`.
+   */
+  sandboxGone?: import("./sandbox-gone.ts").SandboxGoneLatch;
   sandbox: any;
   session: any;
   sessionId: string;
@@ -281,8 +378,23 @@ export interface SessionEnvironment {
   /** The current turn's executable-tool gate, read by the loopback MCP server. */
   executableToolGateRef: { current?: ExecutableToolGate };
   mcpAbort: AbortController;
+  /**
+   * The MCP servers that did not join this session, settled once at acquire.
+   *
+   * It lives on the ENVIRONMENT because the handshake happens at session creation and the
+   * session outlives its cold turn: a pooled warm turn runs without those servers too, and the
+   * person driving it never saw the acquire. `run-turn.ts` replays the list as a notice on every
+   * turn so the answer to "why did nothing use my server" does not expire with the first one.
+   * Empty (not undefined) when every configured server connected.
+   */
+  mcpHandshakeFailures: import("./mcp-handshake.ts").McpHandshakeFailure[];
   runAgentDir: string | undefined;
-  otlpAuthFilePath: string | undefined;
+  /**
+   * The per-run dir holding this run's Pi system-prompt files, on a local subscription run whose
+   * agent dir is shared with every other session on the connection. Removed at teardown.
+   * Undefined for every other run. See `preparePiPromptChannel`.
+   */
+  piPromptDir: string | undefined;
   /**
    * The local off-mount directory this run pointed CODEX_SQLITE_HOME at (Codex's SQLite state,
    * which cannot live on the geesefs cwd mount). Removed best-effort by `destroy`; the state is
@@ -290,6 +402,29 @@ export interface SessionEnvironment {
    * SQLite. Undefined when not a local managed Codex run.
    */
   codexSqliteHome: string | undefined;
+  /**
+   * Which hosted subscription login this session runs on, and which one the API has acknowledged.
+   *
+   * It lives on the ENVIRONMENT rather than in a module map so two sessions on one runner cannot
+   * suppress each other's publication. Undefined for every run that carries no subscription.
+   */
+  subscriptionPublish?: import("./subscription-login/publisher.ts").SubscriptionPublishState;
+  /**
+   * The one operation that publishes this session's login, drained at teardown.
+   *
+   * IT BELONGS TO THE SESSION, NOT THE TURN. Owned by a turn it would stop between turns, through
+   * a park, and from the last turn until eviction, and Pi persists a refreshed token around the
+   * moment a turn ends.
+   */
+  subscriptionPublisher?: import("./subscription-login/publisher.ts").SubscriptionPublisher;
+  /** Gives back this session's hold on its runner-host login folder (`subscription-login/retention.ts`). */
+  releaseSubscriptionHome?: () => void;
+  /**
+   * Reports this environment's Daytona sandbox seconds to the wallet, from acquire until the
+   * sandbox is parked or deleted, while one of its session's turns runs: warm time between turns
+   * is not billed (`beginMeteredTurn`).
+   */
+  sandboxMeter?: import("../../metering/sandbox-usage.ts").SandboxMeter;
   mountCreds: MountCredentials | null;
   agentMountCreds?: MountCredentials | null;
   /** The mount's owning project id (keep-alive pool key FALLBACK scope, preferred is
@@ -301,8 +436,22 @@ export interface SessionEnvironment {
   projectScopeId?: string;
   /** This acquire resumed the harness's native session via `session/load` (not cold). */
   loadedFromContinuity: boolean;
+  /** The load emitted at least one prior conversation event, proving native history is present. */
+  nativeHistoryVerified: boolean;
+  /** The native transcript path survives this environment's teardown and a later cold rebuild. */
+  nativeHistoryDurable: boolean;
   /** A remote, session-owned run whose sandbox can be parked (warm) rather than deleted at end. */
   resumable: boolean;
+  /**
+   * When this sandbox's MODEL credential was delivered as a Daytona Secret (epoch millis), set
+   * only on a fresh create. Undefined for a plaintext-env run, a reconnect, and every local run.
+   *
+   * Read by the 401 classifier: Daytona applies a new Secret's substitution rule asynchronously,
+   * so a refusal shortly after delivery is the propagation race rather than a bad key. The
+   * timestamp is what keeps that reading honest — a warm sandbox's turn an hour later gets the
+   * ordinary auth advice, because by then the placeholder explanation is no longer available.
+   */
+  modelSecretDeliveredAt?: number;
   /** The conversation turn index this acquire's continuity record was read/written at. */
   continuityTurnIndex: number | undefined;
   // Mutable teardown/turn state shared across acquire, runTurn, and destroy.
@@ -324,6 +473,8 @@ export interface SessionEnvironment {
   runtimeRemount: Promise<boolean> | undefined;
   closeToolMcp: (() => Promise<void>) | undefined;
   currentTurn?: CurrentTurn;
+  /** Pi's native span spool for the original prompt; survives approval park/resume. */
+  piTraceExport?: PiTraceTurnExport;
   /**
    * The unique ACP tool-call ids the LAST completed turn emitted (reset at each turn start).
    * The keep-alive dispatch folds them into the expected next-history fingerprint at park time,
@@ -352,6 +503,12 @@ export interface SessionEnvironment {
    */
   parkedApproval?: ParkedApproval;
   /**
+   * The turn whose gates are parked, set when the dispatch parks the environment awaiting an
+   * approval. A Stop compares its target turn with this, so a delayed Stop for an older turn
+   * cannot end a newer parked approval.
+   */
+  parkedTurnId?: string;
+  /**
    * Approved Pi calls settled with the non-retry unknown-result sentinel while a sibling gate was
    * parked. Consumed and re-seeded on the next live resume; empty outside that internal carry.
    */
@@ -362,6 +519,11 @@ export interface SessionEnvironment {
    * count means a gate lacked an id and cannot be resumed live, so the dispatch stays cold.
    */
   approvalGateCount: number;
+  /**
+   * The last session-wide running cost total the harness reported (Claude Code's
+   * `total_cost_usd`), so the next turn on this live session can report only its own share.
+   */
+  harnessCostReading?: number;
   /**
    * How many NON-parkable pauses happened this turn (a client-tool ACP gate or a browser-fulfilled
    * relay/MCP client tool), reset at turn start. Non-zero means the turn mixes an unanswerable
@@ -378,4 +540,16 @@ export interface SessionEnvironment {
 
 export type AcquireEnvironmentResult =
   | { ok: true; env: SessionEnvironment }
-  | { ok: false; error: string };
+  | {
+      ok: false;
+      error: string;
+      /**
+       * The preflight proved this sandbox never got its Secret substitution wiring (the fault
+       * is binary per sandbox and permanent — see credential-preflight.ts). The environment is
+       * already destroyed; the acquire wrapper rebuilds a fresh sandbox on the SAME Secret,
+       * which is the case Daytona support confirmed works. The Secret lease that makes the
+       * rebuild possible never reaches this type: it is internal to the acquire loop, which
+       * owns it for the whole run and releases it before returning. See `AcquireAttemptResult`.
+       */
+      stuckSubstitution?: boolean;
+    };

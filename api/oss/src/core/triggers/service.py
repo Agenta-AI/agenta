@@ -1,12 +1,18 @@
 import asyncio
+import base64
 import hashlib
 import hmac
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Mapping, Optional, Set, Tuple
 from uuid import UUID
 
 from croniter import croniter
 
+from oss.src.core.access.dtos import PrincipalRef, RunOrigin
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.principals import stored_work_envelope
+from oss.src.core.access.service import get_access_service
+from oss.src.core.access.types import AccessDenied, MissingPrincipal
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.env import env
 from oss.src.utils.caching import get_cache, set_cache
@@ -14,6 +20,7 @@ from oss.src.dbs.redis.shared.engine import get_cache_engine
 
 from oss.src.core.gateway.catalog.service import CatalogService
 from oss.src.core.gateway.connections.service import ConnectionsService
+from oss.src.core.git.types import RetrieveRefsInconsistent, RetrieveRefsInsufficient
 from oss.src.core.triggers.dtos import (
     DiscoveredTriggerAlternative,
     DiscoveredTriggerEvent,
@@ -292,6 +299,45 @@ def _has_primary_evidence(
         integration=integration,
     )
     return exact_phrase or matched_terms >= _DISCOVERY_MIN_PRIMARY_TERMS
+
+
+async def recheck_trigger_principal(
+    *, project_id: UUID, trigger, origin: RunOrigin
+) -> None:
+    """A trigger that is started again must still have a principal that may run it.
+    Raises `MissingPrincipal` or `AccessDenied`, so a resume of a trigger whose key or
+    creator is gone is refused at once instead of at its next tick."""
+
+    if trigger.principal is None:
+        raise MissingPrincipal()
+    access = get_access_service()
+    organization_id = await access.project_organization_id(project_id=project_id)
+    if organization_id is None:
+        raise MissingPrincipal("The trigger's project has no organization")
+    try:
+        await access.require(
+            envelope=stored_work_envelope(
+                principal=trigger.principal,
+                organization_id=organization_id,
+                project_id=project_id,
+                origin=origin,
+                origin_id=str(trigger.id),
+                created_by_id=trigger.created_by_id,
+            ),
+            action=Permission.RUN_WORKFLOWS,
+        )
+    except AccessDenied as denied:
+        # The router names the principal kind in the refusal.
+        denied.principal_kind = trigger.principal.kind
+        raise
+
+
+def _resumed_meta(meta):
+    """The trigger's meta without the reason of its last automatic pause."""
+
+    if not meta or "paused_reason" not in meta:
+        return meta
+    return {key: value for key, value in dict(meta).items() if key != "paused_reason"}
 
 
 class TriggersService:
@@ -848,8 +894,11 @@ class TriggersService:
         *,
         project_id: UUID,
         references: Optional[dict],
-    ) -> None:
+    ) -> Optional[UUID]:
         """Assert the bound reference family resolves — without pinning it.
+
+        Returns the target agent (the artifact id) of a direct reference, and None for
+        an environment reference, whose target is resolved at each dispatch.
 
         The FE sends a partial family under the proper prefix (``application`` /
         ``evaluator``, or ``environment`` + ``application``). We delegate to
@@ -863,7 +912,7 @@ class TriggersService:
         ``_ensure_request_revision``), so latest-tracking is preserved.
         """
         if not references or not self.workflows_service:
-            return
+            return None
 
         def _ref(value):
             if value is None:
@@ -880,7 +929,7 @@ class TriggersService:
         )
         environment_ref = _ref(references.get("environment"))
         if prefix is None and environment_ref is None:
-            return
+            return None
 
         key = None
         if environment_ref is not None:
@@ -888,22 +937,32 @@ class TriggersService:
             artifact_slug = getattr(artifact, "slug", None)
             key = f"{artifact_slug}.revision" if artifact_slug else None
 
-        revision, _, _ = await self.workflows_service.retrieve_workflow_revision(
-            project_id=project_id,
-            environment_ref=environment_ref,
-            key=key,
-            workflow_ref=_ref(references.get(prefix)) if prefix else None,
-            workflow_variant_ref=(
-                _ref(references.get(f"{prefix}_variant")) if prefix else None
-            ),
-            workflow_revision_ref=(
-                _ref(references.get(f"{prefix}_revision")) if prefix else None
-            ),
-        )
+        # The refs come from the client, so refs that disagree with each other or
+        # do not name one revision are a bad request, not a server error.
+        try:
+            revision, _, _ = await self.workflows_service.retrieve_workflow_revision(
+                project_id=project_id,
+                environment_ref=environment_ref,
+                key=key,
+                workflow_ref=_ref(references.get(prefix)) if prefix else None,
+                workflow_variant_ref=(
+                    _ref(references.get(f"{prefix}_variant")) if prefix else None
+                ),
+                workflow_revision_ref=(
+                    _ref(references.get(f"{prefix}_revision")) if prefix else None
+                ),
+            )
+        except (RetrieveRefsInconsistent, RetrieveRefsInsufficient) as e:
+            raise TriggerReferenceInvalid(e.message) from e
         if revision is None:
             raise TriggerReferenceInvalid(
                 "Bound workflow reference could not be resolved to a runnable revision."
             )
+        if environment_ref is not None or any(
+            key.startswith("environment") for key in references
+        ):
+            return None
+        return revision.workflow_id or revision.artifact_id
 
     async def create_subscription(
         self,
@@ -912,14 +971,18 @@ class TriggersService:
         user_id: UUID,
         #
         subscription: TriggerSubscriptionCreate,
+        principal: PrincipalRef,
     ) -> TriggerSubscription:
-        """Mint the provider-side ``ti_*`` on a shared connection, then persist."""
+        """Mint the provider-side ``ti_*`` on a shared connection, then persist.
+
+        `principal` is the creating request's principal: the subscription runs as it."""
         # A test subscription captures events without a bound workflow, so the
         # reference requirement is relaxed; it is also always "on".
+        artifact_id = None
         if subscription.flags.is_test:
             subscription.flags.is_active = True
         else:
-            await self._validate_references(
+            artifact_id = await self._validate_references(
                 project_id=project_id,
                 references=subscription.data.references,
             )
@@ -966,6 +1029,8 @@ class TriggersService:
             subscription=subscription,
             #
             trigger_id=trigger_id,
+            principal=principal,
+            artifact_id=artifact_id,
         )
 
     async def fetch_subscription(
@@ -976,6 +1041,18 @@ class TriggersService:
         subscription_id: UUID,
     ) -> Optional[TriggerSubscription]:
         return await self.dao.fetch_subscription(
+            project_id=project_id,
+            subscription_id=subscription_id,
+        )
+
+    async def fetch_subscription_including_deleted(
+        self,
+        *,
+        project_id: UUID,
+        #
+        subscription_id: UUID,
+    ) -> Optional[TriggerSubscription]:
+        return await self.dao.fetch_subscription_including_deleted(
             project_id=project_id,
             subscription_id=subscription_id,
         )
@@ -1023,6 +1100,48 @@ class TriggersService:
             enabled=is_active and is_valid,
         )
 
+    async def _upsert_provider_trigger(
+        self,
+        *,
+        project_id: UUID,
+        subscription: TriggerSubscriptionEdit,
+    ) -> str:
+        """Upsert the edited connection, event and filters; return the ``ti_*`` id.
+
+        Composio's upsert may update the stored instance or mint a new one.
+        """
+        connection = await self._require_connection(
+            project_id=project_id,
+            connection_id=subscription.connection_id,
+        )
+        adapter = self.adapter_registry.get(connection.provider_key.value)
+        trigger_id = await adapter.create_subscription(
+            project_id=project_id,
+            event_key=subscription.data.event_key,
+            connected_account_id=connection.provider_connection_id,
+            trigger_config=subscription.data.trigger_config or {},
+        )
+        return trigger_id
+
+    async def _discard_provider_trigger(
+        self,
+        *,
+        project_id: UUID,
+        subscription: TriggerSubscription,
+    ) -> None:
+        try:
+            await self._delete_provider_subscription(
+                project_id=project_id,
+                subscription=subscription,
+            )
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            log.warning(
+                "Failed to delete provider trigger %s for subscription %s: %s",
+                subscription.trigger_id,
+                subscription.id,
+                e,
+            )
+
     async def edit_subscription(
         self,
         *,
@@ -1031,7 +1150,8 @@ class TriggersService:
         #
         subscription: TriggerSubscriptionEdit,
     ) -> Optional[TriggerSubscription]:
-        """Full-PUT edit. Reflects the combined is_active/is_valid onto ``ti_*``."""
+        """Full-PUT edit. Reflects the connection, event, trigger_config and the
+        combined is_active/is_valid onto the provider ``ti_*``."""
         existing = await self.dao.fetch_subscription(
             project_id=project_id,
             subscription_id=subscription.id,
@@ -1042,39 +1162,123 @@ class TriggersService:
         # Test subscriptions skip the bound-workflow requirement and stay "on".
         # Turning test OFF (test → prod) re-imposes it: references must resolve,
         # else the edit is rejected and the user must supply a valid binding.
+        artifact_id = None
         if subscription.flags.is_test:
             subscription.flags.is_active = True
         else:
-            await self._validate_references(
+            artifact_id = await self._validate_references(
                 project_id=project_id,
                 references=subscription.data.references,
             )
 
-        if subscription.flags.is_active != existing.flags.is_active:
+        target_changed = (
+            subscription.connection_id != existing.connection_id
+            or subscription.data.event_key != existing.data.event_key
+        )
+        config_changed = (subscription.data.trigger_config or {}) != (
+            existing.data.trigger_config or {}
+        )
+
+        if existing.trigger_id is None or not (target_changed or config_changed):
+            if subscription.flags.is_active != existing.flags.is_active:
+                await self._sync_provider_enabled(
+                    project_id=project_id,
+                    subscription=existing,
+                    is_active=subscription.flags.is_active,
+                    is_valid=existing.flags.is_valid,
+                )
+
+            # The principal stays; the target agent follows the edited references.
+            return await self.dao.edit_subscription(
+                project_id=project_id,
+                user_id=user_id,
+                subscription=subscription,
+                artifact_id=artifact_id,
+            )
+
+        if target_changed:
+            # The upsert would return another subscription's ti_* for its
+            # (connection, event); conflict locally before touching the provider.
+            others = await self.dao.query_subscriptions(
+                project_id=project_id,
+                subscription=TriggerSubscriptionQuery(
+                    connection_id=subscription.connection_id,
+                    event_key=subscription.data.event_key,
+                ),
+                windowing=Windowing(limit=1),
+            )
+            if others and others[0].id != existing.id:
+                raise EntityCreationConflict(
+                    entity="Trigger subscription",
+                    message="A subscription for this connection and event already exists.",
+                    conflict={
+                        "subscription_id": str(others[0].id),
+                        "trigger_id": others[0].trigger_id,
+                    },
+                )
+
+        trigger_id = await self._upsert_provider_trigger(
+            project_id=project_id,
+            subscription=subscription,
+        )
+        target = existing.model_copy(
+            update={
+                "trigger_id": trigger_id,
+                "connection_id": subscription.connection_id,
+            }
+        )
+        replacement = target if trigger_id != existing.trigger_id else None
+
+        try:
+            # The upsert re-enables a disabled instance, so re-apply the desired state.
             await self._sync_provider_enabled(
                 project_id=project_id,
-                subscription=existing,
+                subscription=target,
                 is_active=subscription.flags.is_active,
                 is_valid=existing.flags.is_valid,
             )
+            edited = await self.dao.edit_subscription(
+                project_id=project_id,
+                user_id=user_id,
+                subscription=subscription,
+                artifact_id=artifact_id,
+                trigger_id=trigger_id,
+            )
+        except Exception:
+            if replacement is not None:
+                await self._discard_provider_trigger(
+                    project_id=project_id,
+                    subscription=replacement,
+                )
+            raise
 
-        return await self.dao.edit_subscription(
-            project_id=project_id,
-            user_id=user_id,
-            subscription=subscription,
-        )
+        if replacement is not None:
+            # A row deleted mid-edit keeps nothing; otherwise the old ti_* is stale.
+            await self._discard_provider_trigger(
+                project_id=project_id,
+                subscription=existing if edited is not None else replacement,
+            )
+        return edited
 
     async def delete_subscription(
         self,
         *,
         project_id: UUID,
+        user_id: UUID,
         #
         subscription_id: UUID,
     ) -> bool:
-        """Delete the local row and the provider ``ti_*``.
+        """Soft-delete the local row first, then best-effort delete the provider ``ti_*``.
+
+        Local state must land before the provider call: a degraded provider (a
+        rotated key, a timeout, a 5xx) must never leave a user unable to delete a
+        firing automation (P0-2) — mirrors `delete_connection`'s existing
+        tolerance in the connections domain. A provider failure is logged and
+        recorded as a `needs_provider_cleanup` marker for reconciliation instead
+        of raised.
 
         Deleting a subscription must NOT revoke the shared connection (C7): the
-        adapter call below targets only the trigger instance, never the ``ca_*``.
+        provider call targets only the trigger instance, never the ``ca_*``.
         """
         existing = await self.dao.fetch_subscription(
             project_id=project_id,
@@ -1083,25 +1287,82 @@ class TriggersService:
         if existing is None:
             return False
 
-        trigger_id = existing.trigger_id
-        if trigger_id is not None:
-            connection = await self.connections_service.get_connection(
-                project_id=project_id,
-                connection_id=existing.connection_id,
-            )
-            if connection is not None:
-                adapter = self.adapter_registry.get(connection.provider_key.value)
-                try:
-                    await adapter.delete_subscription(trigger_id=trigger_id)
-                except AdapterError:
-                    # Provider-side trigger may already be gone; local delete is
-                    # the source of truth. Unexpected errors are left to surface.
-                    log.warning(
-                        "Failed to delete provider trigger %s; proceeding with local delete",
-                        trigger_id,
-                    )
+        deleted = await self.dao.delete_subscription(
+            project_id=project_id,
+            user_id=user_id,
+            subscription_id=subscription_id,
+        )
 
-        return await self.dao.delete_subscription(
+        try:
+            await self._delete_provider_subscription(
+                project_id=project_id,
+                subscription=existing,
+            )
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            log.warning(
+                "Failed to delete provider trigger for subscription %s, "
+                "local delete already applied: %s",
+                subscription_id,
+                e,
+            )
+            await self.dao.mark_subscription_needs_provider_cleanup(
+                project_id=project_id,
+                subscription_id=subscription_id,
+            )
+
+        return deleted
+
+    async def _delete_provider_subscription(
+        self,
+        *,
+        project_id: UUID,
+        subscription: TriggerSubscription,
+    ) -> None:
+        trigger_id = subscription.trigger_id
+        if trigger_id is None:
+            return
+        # The provider delete needs only `trigger_id` — look up the connection just
+        # for its provider_key, and fall back to the default provider when the
+        # connection row is already gone (P2-5: a soft-deleted subscription whose
+        # connection was deleted must still attempt cleanup, or the upstream
+        # `ti_*` fires into a 200-ACK void forever).
+        connection = await self.connections_service.get_connection(
+            project_id=project_id,
+            connection_id=subscription.connection_id,
+        )
+        provider_key = (
+            connection.provider_key.value
+            if connection is not None
+            else TriggerProviderKind.COMPOSIO.value
+        )
+        adapter = self.adapter_registry.get(provider_key)
+        await adapter.delete_subscription(trigger_id=trigger_id)
+
+    async def cleanup_test_subscription(
+        self,
+        *,
+        project_id: UUID,
+        subscription_id: UUID,
+    ) -> bool:
+        """Remove a temporary provider trigger and physically purge its local history."""
+        existing = await self.dao.fetch_subscription(
+            project_id=project_id,
+            subscription_id=subscription_id,
+        )
+        if existing is None:
+            return False
+
+        if not existing.flags.is_test:
+            # This is a physical, unrecoverable purge — refuse anything that
+            # isn't a short-lived test subscription so a wrong subscription_id
+            # can't destroy real automation history.
+            raise ValueError("cleanup_test_subscription only purges test subscriptions")
+
+        await self._delete_provider_subscription(
+            project_id=project_id,
+            subscription=existing,
+        )
+        return await self.dao.purge_subscription(
             project_id=project_id,
             subscription_id=subscription_id,
         )
@@ -1155,6 +1416,12 @@ class TriggersService:
         """Full-PUT play/pause toggle; touches only local is_active (never is_valid).
 
         Distinct from /revoke, which drives the provider ti_* / is_valid axis.
+
+        Stopping (``is_active=False``) writes local state first, then attempts the
+        provider sync best-effort: a degraded provider must never block a user
+        from stopping a firing automation (P0-2), mirroring `delete_subscription`.
+        Starting keeps the provider-first order — the enable call must actually
+        succeed before the subscription can be trusted to run again.
         """
         existing = await self.dao.fetch_subscription(
             project_id=project_id,
@@ -1163,12 +1430,10 @@ class TriggersService:
         if existing is None:
             raise SubscriptionNotFoundError(subscription_id=str(subscription_id))
 
-        await self._sync_provider_enabled(
-            project_id=project_id,
-            subscription=existing,
-            is_active=is_active,
-            is_valid=existing.flags.is_valid,
-        )
+        if is_active:
+            await recheck_trigger_principal(
+                project_id=project_id, trigger=existing, origin=RunOrigin.SUBSCRIPTION
+            )
 
         edit = TriggerSubscriptionEdit(
             id=existing.id,
@@ -1176,18 +1441,50 @@ class TriggersService:
             name=existing.name,
             description=existing.description,
             tags=existing.tags,
-            meta=existing.meta,
+            meta=_resumed_meta(existing.meta) if is_active else existing.meta,
             data=existing.data,
             flags=existing.flags.model_copy(update={"is_active": is_active}),
         )
 
-        updated = await self.dao.edit_subscription(
-            project_id=project_id,
-            user_id=user_id,
-            subscription=edit,
-        )
-
-        return updated or existing
+        if is_active:
+            await self._sync_provider_enabled(
+                project_id=project_id,
+                subscription=existing,
+                is_active=is_active,
+                is_valid=existing.flags.is_valid,
+            )
+            updated = await self.dao.edit_subscription(
+                project_id=project_id,
+                user_id=user_id,
+                subscription=edit,
+            )
+        else:
+            updated = await self.dao.edit_subscription(
+                project_id=project_id,
+                user_id=user_id,
+                subscription=edit,
+            )
+            try:
+                await self._sync_provider_enabled(
+                    project_id=project_id,
+                    subscription=existing,
+                    is_active=is_active,
+                    is_valid=existing.flags.is_valid,
+                )
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                log.warning(
+                    "Failed to sync provider disable for subscription %s, "
+                    "local stop already applied: %s",
+                    subscription_id,
+                    e,
+                )
+                await self.dao.mark_subscription_needs_provider_cleanup(
+                    project_id=project_id,
+                    subscription_id=subscription_id,
+                )
+        if updated is None:
+            raise SubscriptionNotFoundError(subscription_id=str(subscription_id))
+        return updated
 
     async def test_subscription(
         self,
@@ -1196,6 +1493,7 @@ class TriggersService:
         user_id: UUID,
         #
         subscription: TriggerSubscriptionCreate,
+        principal: PrincipalRef,
     ) -> Optional[TriggerDelivery]:
         """One-shot test: capture the first delivery for this (connection, event),
         then tear down.
@@ -1213,6 +1511,7 @@ class TriggersService:
                 project_id=project_id,
                 user_id=user_id,
                 subscription=subscription,
+                principal=principal,
             )
         except EntityCreationConflict as err:
             # Capture against the exact colliding subscription (project-scoped, non-deleted),
@@ -1252,10 +1551,20 @@ class TriggersService:
             )
         finally:
             if owns_created:
-                await self.delete_subscription(
-                    project_id=project_id,
-                    subscription_id=created.id,
-                )
+                # A transient provider failure during teardown must not mask a
+                # captured result (or a real error from the `try` block) with an
+                # unrelated AdapterError raised from `finally`.
+                try:
+                    await self.cleanup_test_subscription(
+                        project_id=project_id,
+                        subscription_id=created.id,
+                    )
+                except AdapterError as e:
+                    log.warning(
+                        "Failed to clean up test subscription %s: %s",
+                        created.id,
+                        e,
+                    )
 
     async def _set_valid(
         self,
@@ -1295,8 +1604,9 @@ class TriggersService:
             user_id=user_id,
             subscription=edit,
         )
-
-        return updated or existing
+        if updated is None:
+            raise SubscriptionNotFoundError(subscription_id=str(subscription_id))
+        return updated
 
     # -----------------------------------------------------------------------
     # Schedules
@@ -1304,7 +1614,8 @@ class TriggersService:
 
     @staticmethod
     def _validate_schedule(expr: str) -> None:
-        """Reject anything that is not a valid 5-field cron expression (UTC)."""
+        """Reject anything that is not a valid 5-field cron expression (UTC), or
+        that fires more often than ``env.triggers.schedule_min_interval_minutes``."""
         if not isinstance(expr, str) or len(expr.split()) != 5:
             raise TriggerScheduleInvalid(
                 schedule=expr if isinstance(expr, str) else None,
@@ -1315,6 +1626,73 @@ class TriggersService:
                 schedule=expr,
                 reason="cron expression is not parseable",
             )
+
+        floor = env.triggers.schedule_min_interval_minutes
+        gap = TriggersService._smallest_gap_minutes(expr, stop_below=floor)
+        if gap is not None and gap < floor:
+            raise TriggerScheduleInvalid(
+                f"Schedule may run at most once every {floor} minutes, "
+                f"but this one runs every {TriggersService._humanize_gap(gap)}.",
+                schedule=expr,
+                reason=f"fires every {TriggersService._humanize_gap(gap)}, "
+                f"below the {floor}-minute minimum",
+            )
+
+    # A cron's tightest gap always appears within two days of its FIRST fire: a
+    # sub-daily gap needs a multi-valued minute or hour field, and those repeat on
+    # every day the day-fields admit. Anchoring on the first fire rather than on the
+    # scan's base keeps that true for day-restricted expressions such as
+    # "0,1 0 31 1 *", whose only fires sit a month out.
+    _SCHEDULE_SCAN_WINDOW_MINUTES = 2 * 24 * 60
+    # Backstop against a pathological expression. Two days of every-minute fires is
+    # 2880 samples, and the loop exits early the moment it finds a violating gap.
+    _SCHEDULE_SCAN_MAX_SAMPLES = 5000
+
+    @staticmethod
+    def _smallest_gap_minutes(expr: str, *, stop_below: int) -> Optional[float]:
+        """Smallest gap in minutes between two consecutive fires of ``expr``.
+
+        Returns ``None`` when the expression fires at most once inside the scan
+        window, which means it is sparser than the window and clears any floor.
+        Stops as soon as a gap below ``stop_below`` is found, so a runaway
+        expression costs two samples rather than the full window.
+        """
+        try:
+            iterator = croniter(expr, datetime(2024, 1, 1, tzinfo=timezone.utc))
+            previous = iterator.get_next(datetime)
+        except Exception:  # pylint: disable=broad-exception-caught
+            # croniter validated the expression above; a date it cannot resolve
+            # (e.g. "0 0 30 2 *") never fires, so there is no cadence to police.
+            return None
+
+        horizon = previous + timedelta(
+            minutes=TriggersService._SCHEDULE_SCAN_WINDOW_MINUTES
+        )
+        smallest: Optional[float] = None
+
+        for _ in range(TriggersService._SCHEDULE_SCAN_MAX_SAMPLES):
+            try:
+                current = iterator.get_next(datetime)
+            except Exception:  # pylint: disable=broad-exception-caught
+                break
+            if current > horizon:
+                break
+            gap = (current - previous).total_seconds() / 60
+            smallest = gap if smallest is None else min(smallest, gap)
+            if smallest < stop_below:
+                break
+            previous = current
+
+        return smallest
+
+    @staticmethod
+    def _humanize_gap(minutes: float) -> str:
+        """Render a gap for an error message: "1 minute", "5 minutes", "2 hours"."""
+        if minutes >= 60 and minutes % 60 == 0:
+            hours = int(minutes // 60)
+            return f"{hours} hour" if hours == 1 else f"{hours} hours"
+        rounded = int(minutes) if float(minutes).is_integer() else round(minutes, 1)
+        return f"{rounded} minute" if rounded == 1 else f"{rounded} minutes"
 
     @staticmethod
     def _align_to_minute_utc(dt: Optional[datetime]) -> Optional[datetime]:
@@ -1346,11 +1724,13 @@ class TriggersService:
         user_id: UUID,
         #
         schedule: TriggerScheduleCreate,
+        principal: PrincipalRef,
     ) -> TriggerSchedule:
+        """`principal` is the creating request's principal: the schedule runs as it."""
         self._validate_schedule(schedule.data.schedule)
         self._normalize_window(schedule.data)
 
-        await self._validate_references(
+        artifact_id = await self._validate_references(
             project_id=project_id,
             references=schedule.data.references,
         )
@@ -1360,6 +1740,8 @@ class TriggersService:
             user_id=user_id,
             #
             schedule=schedule,
+            principal=principal,
+            artifact_id=artifact_id,
         )
 
     async def fetch_schedule(
@@ -1370,6 +1752,18 @@ class TriggersService:
         schedule_id: UUID,
     ) -> Optional[TriggerSchedule]:
         return await self.dao.fetch_schedule(
+            project_id=project_id,
+            schedule_id=schedule_id,
+        )
+
+    async def fetch_schedule_including_deleted(
+        self,
+        *,
+        project_id: UUID,
+        #
+        schedule_id: UUID,
+    ) -> Optional[TriggerSchedule]:
+        return await self.dao.fetch_schedule_including_deleted(
             project_id=project_id,
             schedule_id=schedule_id,
         )
@@ -1408,26 +1802,30 @@ class TriggersService:
         self._validate_schedule(schedule.data.schedule)
         self._normalize_window(schedule.data)
 
-        await self._validate_references(
+        artifact_id = await self._validate_references(
             project_id=project_id,
             references=schedule.data.references,
         )
 
+        # The principal stays; the target agent follows the edited references.
         return await self.dao.edit_schedule(
             project_id=project_id,
             user_id=user_id,
             schedule=schedule,
+            artifact_id=artifact_id,
         )
 
     async def delete_schedule(
         self,
         *,
         project_id: UUID,
+        user_id: UUID,
         #
         schedule_id: UUID,
     ) -> bool:
         return await self.dao.delete_schedule(
             project_id=project_id,
+            user_id=user_id,
             schedule_id=schedule_id,
         )
 
@@ -1456,12 +1854,17 @@ class TriggersService:
                 reason="window ended",
             )
 
+        if is_active:
+            await recheck_trigger_principal(
+                project_id=project_id, trigger=existing, origin=RunOrigin.SCHEDULE
+            )
+
         edit = TriggerScheduleEdit(
             id=existing.id,
             name=existing.name,
             description=existing.description,
             tags=existing.tags,
-            meta=existing.meta,
+            meta=_resumed_meta(existing.meta) if is_active else existing.meta,
             data=existing.data,
             flags=existing.flags.model_copy(update={"is_active": is_active}),
         )
@@ -1471,8 +1874,9 @@ class TriggersService:
             user_id=user_id,
             schedule=edit,
         )
-
-        return updated or existing
+        if updated is None:
+            raise ScheduleNotFoundError(schedule_id=str(schedule_id))
+        return updated
 
     async def refresh_schedules(
         self,
@@ -1555,7 +1959,7 @@ class TriggersService:
                         project_id=str(project_id),
                         event_id=event_id,
                         event=event,
-                        schedule=schedule.model_dump(mode="json"),
+                        schedule_id=str(schedule.id),
                     ),
                     timeout=_ENQUEUE_TIMEOUT_SECONDS,
                 )
@@ -1615,7 +2019,21 @@ class TriggersService:
         user_id: Optional[UUID] = None,
         #
         delivery: TriggerDeliveryCreate,
-    ) -> TriggerDelivery:
+    ) -> Optional[TriggerDelivery]:
+        """Write a delivery row.
+
+        A subscription-scoped delivery routes through the liveness-gated DAO path
+        (`write_subscription_delivery_if_live`) — this public service method must
+        not reopen the hole that one was added to close (P3-6). No production
+        caller today; a schedule-scoped delivery has no equivalent gate to bypass,
+        so it still goes straight to `write_delivery`.
+        """
+        if delivery.subscription_id is not None and delivery.schedule_id is None:
+            return await self.dao.write_subscription_delivery_if_live(
+                project_id=project_id,
+                user_id=user_id,
+                delivery=delivery,
+            )
         return await self.dao.write_delivery(
             project_id=project_id,
             user_id=user_id,
@@ -1629,6 +2047,7 @@ class TriggersService:
     async def ensure_webhook_registered(self) -> None:
         """Ensure Composio's delivery webhook exists (startup, herd-safe)."""
         await self.webhook_secret_resolver.resolve()
+        await self.webhook_secret_resolver.report_webhook_url()
 
     @staticmethod
     def _is_fresh(timestamp: str) -> bool:
@@ -1654,7 +2073,9 @@ class TriggersService:
     ) -> bool:
         """Verify Composio's HMAC over ``{webhook-id}.{webhook-timestamp}.{body}``.
 
-        Confirmed against live events: Composio sends a lowercase hex digest.
+        Composio follows Standard Webhooks: ``webhook-signature`` holds one or
+        more space-separated ``v1,<base64 digest>`` entries, as its SDK's
+        ``verify_webhook`` expects.
 
         On mismatch, refresh the secret once (it rotates if the subscription is
         recreated) and retry before rejecting. Beyond the signature, rejects a
@@ -1681,7 +2102,14 @@ class TriggersService:
 
         # Byte-exact signing input: avoids the lossy utf-8 decode for non-utf-8 bodies.
         signed_bytes = f"{webhook_id}.{timestamp}.".encode("utf-8") + body
-        provided = signature.split(",")[-1].strip()
+        provided = [
+            part[len("v1,") :] for part in signature.split() if part.startswith("v1,")
+        ]
+        if not provided:
+            log.warning(
+                "[TRIGGER SIGNATURE] no v1 signature webhook_id=%r", safe_webhook_id
+            )
+            return False
 
         verified = False
         for force_refresh in (False, True):
@@ -1690,11 +2118,11 @@ class TriggersService:
             )
             if not secret:
                 return False
-            expected = hmac.new(
-                secret.encode("utf-8"), signed_bytes, hashlib.sha256
-            ).hexdigest()
+            expected = base64.b64encode(
+                hmac.new(secret.encode("utf-8"), signed_bytes, hashlib.sha256).digest()
+            ).decode("ascii")
 
-            if hmac.compare_digest(expected, provided):
+            if any(hmac.compare_digest(expected, sig) for sig in provided):
                 verified = True
                 break
 

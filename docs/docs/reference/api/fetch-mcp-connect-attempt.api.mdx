@@ -1,0 +1,73 @@
+---
+id: fetch-mcp-connect-attempt
+title: "Fetch Connect Attempt"
+description: "How one consent attempt stands."
+sidebar_label: "Fetch Connect Attempt"
+hide_title: true
+hide_table_of_contents: true
+api: eJzlVk1vGzcQ/SsETy2wkNwgpz1VcNPESIMYjdsebMEecUdaxlySIWejqML+92JIrryy7PQDaC89aUUOZ8g37z1yLwk2UdbX8jUQbmFXi3fnl3JZyQajCtqTdlbW8o3bCmdRKGcjWhJAhJ0nEQlsE2c39sZetShii0gC4n0U2xatoBaFd773QhkXMQoX0tgWNInQ2yhcT2KrqeVfEB3GCBsU6+C6G8uRCoxZgboXHjZYiW2rVSt0FK3bChABY29IeBcJG0FOgBXOo0UuA8SBG2exSnXdjeXpoDc67wy85wjrSDhbiUjaGBEQVIsxbx1DdHYmK+k8BmAsLhpZyzWSam875W+VsxYV3RY8ZCU9BOiQMDCqe2mhQ1lLtI132tKtbmQlNUPqgVpZyYCfeh2wkTWFHisZVYsdyHovaed5aaSg7UZWcu1CByRr2fcpC2kyHPCq5BYXjRyG6lCz7OnfKLko7U8Vl5wxemZG5CQvzs7455hAH3qlMMZ1b8TPJVhWUjlLaInDwXujVcJ4/jHymv1kYz5wB0jnCsr1eVHZr7aEGwyTDZ6nCGbxGnpDsj4bqhGQVM3u3q9Tg44z6+bvwMDHr2QkoD4+tQ5t37G2PNomjygDusMmH52Zk77XoE0eBKvQ8Pfyocq788v3i57aAvqHXO6xQn9rMWDS6BPavCt175jvzOzOdSzjFdIWi04PSiO413aTFVJSgW2EJrENmngK7I11PSnXZUkazBlcg1wAv6gW7AabmWBTWAW3jRhYWU3kNBCL1gouM0YRQ3DhuDXHcDKzy4jtjZHDBKJXafEwVGOEW31ERUdcv5apd6Vbz+P7Ph/sCYCB0jHH8zCUzjQCVmxeU+R1Aj8QNo/QzxBAFHfl6HdVwhZGKA4pPETOw2B6HXZpzYEdd3U2x3EnzpqdsIgN70jcW7dl+6WWbdCJe0SfHFfbTS7H5qlJoG2wmT0B7FNATtA6z9QteB3kPAy87uXZy1P1X024VBx37XqbisuXL16crvgVjG6SG4jc3H9sFg0SaJPETdjF0wDj1NHsXyDgaDjD8gEpCAF2E6B+cnmDfMQubp7yhwOm+dqTh2TPhyYwxBXPDuzqvs9GODpSGhgqqejLJM1JF88Zyy/0p5JhbPL2S9xENw8tKvJ7Foofcgu+Rqs3V1eXJwkzozqk1vG1u8F8wVIraznf5AdLnHfKx/l4wcb5fnLXDvNis/PCvjjfP1yLA9sBhs/jXd0Hw4nB69Tr/Lcl8rGez7GfKeP6ZgYbtAQz0DlwyTlUHzTtUpLF5cVb3L1BaDDI+no5DfjAFM2kOw47NAq8fosMXbnD2Zdc0L9nJpVrvM2rhkSAtZv2f5E2JxaXFyf+dTTFWgKVqDNWStOyenTsh9PyfdYlJUlC6L4/zHDjGcNc5mz23eyMh/hR1oGdlPiRn02iuIdYHJ5MR/vcP+j8f//qLKRgpc69AZ28JPVnX2RwLUcZsEyVj+nVUaQgK1kfPzyLGuThLZRiJg/FZSVbF4kT7/criPhLMMPAw596DMzwZSU/Q9CwYr5d72WjI383sl6DifiVbn7zczGWb8VzZxtVYFkCn8H0/E9W8h53jx7RLND/sPQEouT57ajvfQlYKIWJzOPSkyuKjeBgZa9fXclh+ANRGax3
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Fetch Connect Attempt"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/gateways/mcps/endpoints/{endpoint_id}/connect/attempts/{attempt_id}"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+How one consent attempt stands.
+
+The sheet asks when the popup closes or the wait runs out without a message from
+the callback page, which is how a result posted to an opener that is gone, or to
+an origin the app is not on, still reaches the person.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./fetch-mcp-connect-attempt.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./fetch-mcp-connect-attempt.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./fetch-mcp-connect-attempt.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

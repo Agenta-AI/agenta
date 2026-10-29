@@ -1,4 +1,6 @@
-import type * as React from "react"
+import * as React from "react"
+
+import {toast} from "sonner"
 
 import type {
     ArgsProps,
@@ -31,8 +33,9 @@ import type {
  * renderer is absent entirely (SSR, unit tests): the records simply accumulate and expire.
  */
 
-// Exit transition length. MUST match the `duration-200` on Toast / Notification and the
-// 0.2s `animate-dialog-out` / `animate-overlay-out` on AlertDialogContent.
+// Exit transition length. MUST match the `duration-200` on Notification and the 0.2s
+// `animate-dialog-out` / `animate-overlay-out` on AlertDialogContent. (Toasts are Sonner's
+// and animate themselves.)
 const EXIT_MS = 200
 
 // antd `message` DEFAULT_DURATION. Applies to every type INCLUDING `loading` — antd does
@@ -87,132 +90,117 @@ const nextId = () => (uid += 1)
 // message
 // ---------------------------------------------------------------------------
 
-export interface ToastRecord {
-    id: number
-    key: React.Key
-    type: NoticeType
-    content: React.ReactNode
-    icon?: React.ReactNode
-    className?: string
-    style?: React.CSSProperties
-    onClick?: (e: React.MouseEvent<HTMLDivElement>) => void
-    /** `false` once the leave transition has started. */
-    open: boolean
+/**
+ * `openMessage` maps antd's message args onto Sonner's `toast()`; a handle per toast keeps the
+ * antd contract (call to close, await for close, `onClose` once) that Sonner does not model.
+ */
+interface ToastHandle {
+    settled: boolean
     onClose?: () => void
     resolve: (value: boolean) => void
+    /** Our own auto-close for `loading`, which Sonner never times out. */
     timer: ReturnType<typeof setTimeout> | null
 }
 
-const toastStore = createStore<ToastRecord>()
-export const messageStore: Store<ToastRecord> = toastStore
+/** Sonner ids; antd's `React.Key` also admits bigint, which nothing passes. */
+type ToastKey = string | number
 
-function clearToastTimer(record: ToastRecord) {
-    if (record.timer !== null) {
-        clearTimeout(record.timer)
-        record.timer = null
+const toastHandles = new Map<ToastKey, ToastHandle>()
+
+/** Fires `onClose` and settles the promise exactly once, however the toast went away. */
+function settleToast(key: ToastKey, handle: ToastHandle, withOnClose: boolean) {
+    if (handle.settled) return
+    handle.settled = true
+    if (handle.timer) clearTimeout(handle.timer)
+    if (toastHandles.get(key) === handle) toastHandles.delete(key)
+    try {
+        if (withOnClose) handle.onClose?.()
+    } finally {
+        handle.resolve(true)
     }
 }
 
-function removeToast(id: number) {
-    const record = toastStore.read().find((item) => item.id === id)
-    if (!record) return
-    toastStore.write(toastStore.read().filter((item) => item.id !== id))
-    record.onClose?.()
-    record.resolve(true)
-}
-
-/** Starts the leave transition, then drops the record once it has played. */
-function closeToastById(id: number) {
-    const record = toastStore.read().find((item) => item.id === id)
-    if (!record || !record.open) return
-    clearToastTimer(record)
-    toastStore.write(
-        toastStore.read().map((item) => (item.id === id ? {...item, open: false} : item)),
-    )
-    setTimeout(() => removeToast(id), EXIT_MS)
-}
-
-function scheduleToast(record: ToastRecord, duration: number) {
-    clearToastTimer(record)
-    // antd: `duration: 0` (and anything <= 0) never auto-dismisses.
-    if (duration > 0) {
-        record.timer = setTimeout(() => closeToastById(record.id), duration * 1000)
-    }
+const toastByType: Record<NoticeType, typeof toast.info> = {
+    info: toast.info,
+    success: toast.success,
+    error: toast.error,
+    warning: toast.warning,
+    loading: toast.loading,
 }
 
 function openMessage(args: ArgsProps): MessageType {
-    const key = args.key ?? `ag-message-${nextId()}`
+    const key: ToastKey = args.key ?? `ag-message-${nextId()}`
     const duration = args.duration ?? MESSAGE_DEFAULT_DURATION
+
+    // Re-using a key updates the toast in place (Sonner does this by id). antd settles the
+    // superseded handle without firing its `onClose`, and so do we.
+    const superseded = toastHandles.get(key)
+    if (superseded) settleToast(key, superseded, false)
 
     let resolveFn: (value: boolean) => void = () => undefined
     const promise = new Promise<boolean>((resolve) => {
         resolveFn = resolve
     })
-
-    const items = toastStore.read()
-    const existing = items.find((item) => item.key === key)
-
-    // A key collision with a toast that is already LEAVING can't be an in-place update —
-    // drop the outgoing one immediately so the new one lands cleanly. (This is the path
-    // `notification.destroy(key)` + immediate re-open takes, and message keys behave the
-    // same way.)
-    if (existing && !existing.open) {
-        clearToastTimer(existing)
-        toastStore.write(items.filter((item) => item.id !== existing.id))
-    }
-
-    const target = existing && existing.open ? existing : undefined
-
-    const record: ToastRecord = {
-        id: target ? target.id : nextId(),
-        key,
-        type: args.type ?? "info",
-        content: args.content,
-        icon: args.icon,
-        className: args.className,
-        style: args.style,
-        onClick: args.onClick,
-        open: true,
+    const handle: ToastHandle = {
+        settled: false,
         onClose: args.onClose,
         resolve: resolveFn,
         timer: null,
     }
+    toastHandles.set(key, handle)
 
-    if (target) {
-        // In-place update: keep the id (so React reuses the node and the toast does not
-        // replay its entrance) and settle the superseded handle's promise. antd does not
-        // fire the superseded `onClose` on a key update, and neither do we.
-        clearToastTimer(target)
-        target.resolve(true)
-        toastStore.write(toastStore.read().map((item) => (item.id === record.id ? record : item)))
-    } else {
-        toastStore.write([...toastStore.read(), record])
+    // Sonner has no `onClick` on a toast; the content carries it instead.
+    const content = args.onClick
+        ? React.createElement(
+              "span",
+              {onClick: args.onClick as React.MouseEventHandler<HTMLSpanElement>},
+              args.content,
+          )
+        : args.content
+
+    toastByType[args.type ?? "info"](content, {
+        id: key,
+        // antd counts seconds and `0` means sticky; Sonner counts ms and `Infinity` is sticky.
+        duration: duration > 0 ? duration * 1000 : Infinity,
+        icon: args.icon ?? undefined,
+        action: args.action,
+        className: args.className,
+        style: args.style,
+        onDismiss: () => settleToast(key, handle, true),
+        onAutoClose: () => settleToast(key, handle, true),
+    })
+
+    const close = () => {
+        toast.dismiss(key)
+        settleToast(key, handle, true)
     }
-
-    scheduleToast(record, duration)
-
-    const close = () => closeToastById(record.id)
-    const handle = (() => close()) as MessageType
-    handle.then = <TResult1 = boolean, TResult2 = never>(
+    // Sonner skips auto-close for loading toasts; antd times them out like any other.
+    if (args.type === "loading" && duration > 0) {
+        handle.timer = setTimeout(close, duration * 1000)
+    }
+    const messageHandle = (() => close()) as MessageType
+    messageHandle.then = <TResult1 = boolean, TResult2 = never>(
         onfulfilled?: ((value: boolean) => TResult1 | PromiseLike<TResult1>) | null,
         onrejected?: ((reason: unknown) => TResult2 | PromiseLike<TResult2>) | null,
     ) => promise.then(onfulfilled, onrejected)
-    return handle
+    return messageHandle
 }
 
 function destroyMessage(key?: React.Key) {
     if (key === undefined) {
-        toastStore.read().forEach((item) => closeToastById(item.id))
+        toast.dismiss()
+        Array.from(toastHandles.entries()).forEach(([id, handle]) => settleToast(id, handle, true))
         return
     }
-    const record = toastStore.read().find((item) => item.key === key)
-    if (record) closeToastById(record.id)
+    const id = key as ToastKey
+    const handle = toastHandles.get(id)
+    toast.dismiss(id)
+    if (handle) settleToast(id, handle, true)
 }
 
 export const messageService = {
     open: openMessage,
     destroy: destroyMessage,
-    close: closeToastById,
 }
 
 // ---------------------------------------------------------------------------

@@ -16,6 +16,7 @@ from oss.src.core.tools.dtos import (
 from oss.src.core.tools.interfaces import ToolsGatewayInterface
 from oss.src.core.tools.exceptions import AdapterError
 from oss.src.core.tools.providers.composio.catalog import (
+    COMPOSIO_TOOLKIT_VERSION,
     ComposioCatalogClient,
     _derive_read_only,
 )
@@ -117,16 +118,17 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
     async def get_action(
         self,
         *,
-        integration_key: str,
         action_key: str,
+        provider_action_id: str,
+        toolkit_version: Optional[str] = None,
     ) -> Optional[ToolCatalogActionDetails]:
-        composio_slug = self._to_composio_slug(
-            integration_key=integration_key,
-            action_key=action_key,
-        )
-
         try:
-            item = await self._get(f"/tools/{composio_slug}")
+            # `version`, not `toolkit_versions`: this endpoint takes the singular name, and
+            # without it a slug that exists only in the latest toolkit version 404s.
+            item = await self._get(
+                f"/tools/{provider_action_id}",
+                params={"version": toolkit_version or COMPOSIO_TOOLKIT_VERSION},
+            )
         except httpx.HTTPStatusError as e:
             if e.response.status_code == 404:
                 return None
@@ -147,6 +149,7 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
 
         return ToolCatalogActionDetails(
             key=action_key,
+            provider_action_id=provider_action_id,
             name=item.get("name", ""),
             description=item.get("description"),
             schemas=JsonSchemas(
@@ -168,12 +171,16 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
         *,
         request: ToolExecutionRequest,
     ) -> ToolExecutionResponse:
-        composio_slug = self._to_composio_slug(
-            integration_key=request.integration_key,
-            action_key=request.action_key,
-        )
+        composio_slug = request.provider_action_id
 
-        payload: Dict[str, Any] = {"arguments": request.arguments}
+        # In the BODY. The query form of this parameter is accepted and ignored, so a
+        # latest-only slug still 404s — verified live. Execute must resolve the same
+        # toolkit version the catalog listed, or the schema the model was given does not
+        # match the tool that runs.
+        payload: Dict[str, Any] = {
+            "arguments": request.arguments,
+            "version": request.toolkit_version,
+        }
         # No-auth toolkits run without a connected account; only send the id when set.
         if request.provider_connection_id:
             payload["connected_account_id"] = request.provider_connection_id
@@ -227,6 +234,7 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
         *,
         use_cases: List[str],
         user_id: str,
+        toolkits: Optional[List[str]] = None,
     ) -> ComposioSearchResult:
         """Semantic tool search via the COMPOSIO_SEARCH_TOOLS meta-tool.
 
@@ -234,16 +242,30 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
         pitfalls + per-user connection state. ``user_id`` is the Composio user the
         connection state is read for; Agenta passes ``str(project_id)`` so the
         result reflects the calling project's connections.
+
+        ``toolkits`` biases every query towards those integrations. It is a ranking
+        hint, not a filter: measured on 2026-08-27, a search scoped to ``slack`` still
+        answers with ``MSG91_SEND_SMS``, and the neighbouring toolkits vary between two
+        identical calls. The caller must drop what it did not ask for. Sending the hint
+        costs nothing over an unscoped search, so the query text is never enriched to
+        imitate a filter.
         """
+        query: Dict[str, Any] = {}
+        if toolkits:
+            query["toolkits"] = list(toolkits)
+
         payload: Dict[str, Any] = {
             "user_id": user_id,
             "arguments": {
-                "queries": [{"use_case": use_case} for use_case in use_cases],
+                "queries": [{"use_case": use_case, **query} for use_case in use_cases],
                 "session": {"generate_id": True},
             },
         }
 
         try:
+            # `version` here would pin the SEARCH meta-tool itself, not the toolkits it ranks.
+            # Runtime search identities are checked against the run's pinned catalog and its
+            # inline schemas are replaced with schemas from that catalog.
             result = await self._post(
                 "/tools/execute/COMPOSIO_SEARCH_TOOLS",
                 json=payload,
@@ -296,28 +318,3 @@ class ComposioToolsAdapter(ComposioCatalogClient, ToolsGatewayInterface):
                 operation="search_capabilities",
                 detail=f"malformed tool search response: {e}",
             ) from e
-
-    # -----------------------------------------------------------------------
-    # Slug mapping helpers
-    # -----------------------------------------------------------------------
-
-    @staticmethod
-    def _to_composio_slug(
-        *,
-        integration_key: str,
-        action_key: str,
-    ) -> str:
-        """Agenta → Composio: gmail + SEND_EMAIL → GMAIL_SEND_EMAIL"""
-        return f"{integration_key.upper()}_{action_key}"
-
-    @staticmethod
-    def _extract_action_key(
-        *,
-        composio_slug: str,
-        integration_key: str,
-    ) -> str:
-        """Composio → Agenta: GMAIL_SEND_EMAIL → SEND_EMAIL"""
-        prefix = f"{integration_key.upper()}_"
-        if composio_slug.startswith(prefix):
-            return composio_slug[len(prefix) :]
-        return composio_slug

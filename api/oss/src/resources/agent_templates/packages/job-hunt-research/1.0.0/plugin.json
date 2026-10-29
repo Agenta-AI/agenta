@@ -1,0 +1,12 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "job-hunt-research",
+  "version": "1.0.0",
+  "description": "Finds relevant job openings and builds evidence-backed company and application research.",
+  "keywords": ["career", "job-search", "research", "agent-template"],
+  "extensions": {
+    "ai.agenta": {
+      "manifest": "./ai.agenta/agents.json"
+    }
+  }
+}

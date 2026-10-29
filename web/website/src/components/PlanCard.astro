@@ -1,0 +1,182 @@
+---
+// One pricing plan card. All content comes from the plan prop (src/data/pricing.json);
+// this component owns only the card chrome. Chrome is uniform across every plan.
+//
+// Alignment invariant: the card is a subgrid child spanning four row tracks defined by
+// the parent `.plan-grid`. Rows 1-3 (name+tagline, price, CTA) size to the tallest card
+// in the row, so the divider that opens row 4 lands at the same Y across every card —
+// structurally, with no per-card heights to tune when content in pricing.json changes.
+// The chip is absolutely positioned (out of flow), so it never consumes a row track.
+//
+// Feature strings pass through `linkify` so tokens declared in pricing.json `links`
+// (e.g. "GitHub Issues") render as anchors — the link text still comes from the data.
+import { linkify, type PricingLink } from "../lib/pricingLinks";
+
+interface Plan {
+  id: string;
+  name: string;
+  tagline: string;
+  price: string;
+  unit: string;
+  chip: string | null;
+  cta: { label: string; href: string; style: "primary" | "outline" };
+  includesLabel: string;
+  features: string[];
+}
+const { plan, links = [] } = Astro.props as {
+  plan: Plan;
+  links?: PricingLink[];
+};
+
+const linkStyle =
+  "color:var(--pc-link);text-decoration:underline;text-underline-offset:2px;";
+
+// Colors resolve through the --pc-* vars in the style block below: light theme
+// per the light-theme spec, dark theme = the previous hard-coded literals.
+// Enterprise cards keep the dark surface + interior in the light theme too.
+const card =
+  "position:relative;display:grid;grid-row:span 4;grid-template-rows:subgrid;row-gap:16px;padding:28px 26px;border-radius:14px;box-sizing:border-box;background:var(--pc-bg);box-shadow:var(--pc-ring);";
+
+// The plan CTAs use the site's one button definition (.ag-btn in global.css),
+// stretched to the card width. The Enterprise card sits on a dark surface in
+// both themes, so only there the outline colours are overridden (--pc-ghost-*).
+const ctaYellow = "ag-btn ag-btn--primary ag-btn--block";
+const ctaOutline = "ag-btn ag-btn--outline ag-btn--block pc-cta-outline";
+---
+
+<div
+  class={plan.id.startsWith("enterprise") ? "plan-card plan-ent" : "plan-card"}
+  style={card}
+>
+  {
+    plan.chip && (
+      <span style="position:absolute;top:-11px;left:50%;transform:translateX(-50%);z-index:1;display:inline-flex;align-items:center;height:22px;padding:0 12px;border-radius:999px;white-space:nowrap;background:var(--pc-chip-bg);box-shadow:var(--pc-chip-shadow);font:var(--text-caption);letter-spacing:0.02em;color:var(--pc-chip-text);">
+        {plan.chip}
+      </span>
+    )
+  }
+
+  <div style="display:flex;flex-direction:column;gap:6px;">
+    <span style="font:300 22px/1.1 var(--font-display,'GT Alpina',serif);color:var(--pc-hi);">
+      {plan.name}
+    </span>
+    <span style="font:var(--text-body-sm);color:var(--pc-tagline);text-wrap:pretty;">
+      {plan.tagline}
+    </span>
+  </div>
+
+  <div style="display:flex;align-items:baseline;gap:7px;">
+    <span style="font:300 44px/1 var(--font-display,'GT Alpina',serif);color:var(--pc-hi);">
+      {plan.price}
+    </span>
+    {
+      plan.unit && (
+        <span style="font:var(--text-body-sm);color:var(--pc-unit);">
+          {plan.unit}
+        </span>
+      )
+    }
+  </div>
+
+  <a
+    href={plan.cta.href}
+    target="_blank"
+    rel="noopener"
+    class={plan.cta.style === "primary" ? ctaYellow : ctaOutline}
+  >
+    {plan.cta.label}
+  </a>
+
+  <div style="display:flex;flex-direction:column;gap:16px;">
+    <div style="height:1px;background:var(--pc-div);"></div>
+    <span style="font:var(--text-caption);letter-spacing:0.04em;color:var(--pc-inc);">
+      {plan.includesLabel}
+    </span>
+    <div style="display:flex;flex-direction:column;gap:11px;">
+      {
+        plan.features.map((f) => (
+          <div style="display:flex;align-items:flex-start;gap:10px;">
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 18 18"
+              fill="none"
+              style="margin-top:1px;flex:0 0 auto;"
+            >
+              <circle cx="9" cy="9" r="9" fill="var(--yellow-400)" />
+              <path
+                d="M5 9.2 7.6 11.8 13 6.4"
+                stroke="var(--ink-900)"
+                stroke-width="1.7"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+            </svg>
+            <span style="font:var(--text-body-sm);color:var(--pc-feat);">
+              {linkify(f, links).map((part) => (part.href ? <a href={part.href} target={part.href.startsWith("mailto:") ? undefined : "_blank"} rel={part.href.startsWith("mailto:") ? undefined : "noopener"} style={linkStyle}>{part.text}</a> : <Fragment>{part.text}</Fragment>))}
+            </span>
+          </div>
+        ))
+      }
+    </div>
+  </div>
+</div>
+
+<style is:global>
+  /* The plan CTAs use the shared .ag-btn definition. The outline one overrides
+     only its colours, because the Enterprise card is dark in both themes. */
+  .plan-ent .pc-cta-outline {
+    background: var(--pc-ghost-bg);
+    box-shadow: var(--pc-ghost-shadow);
+    color: var(--pc-ghost-text);
+    border-color: transparent;
+  }
+
+  /* Light values per the light-theme spec (plain card = white + shadow-ring). */
+  .plan-card {
+    --pc-bg: var(--paper-0);
+    --pc-ring: var(--shadow-ring);
+    --pc-hi: var(--ink-900);
+    --pc-tagline: var(--ink-600);
+    --pc-unit: var(--ink-500);
+    --pc-inc: var(--ink-500);
+    --pc-div: var(--paper-150);
+    --pc-feat: var(--ink-600);
+    --pc-link: var(--th-link);
+    --pc-chip-bg: var(--ink-900);
+    --pc-chip-shadow: none;
+    --pc-chip-text: #ffffff;
+  }
+  /* Enterprise stays a dark card in the light theme: carbon surface, and the
+     interior keeps the exact dark-site literals (white text, yellow links). */
+  .plan-ent {
+    --pc-bg: var(--carbon-900);
+    --pc-ring: 0 0 0 1px rgba(36, 36, 36, 0.2);
+    --pc-hi: #f7f6f4;
+    --pc-tagline: rgba(255, 255, 255, 0.55);
+    --pc-unit: rgba(255, 255, 255, 0.5);
+    --pc-inc: rgba(255, 255, 255, 0.45);
+    --pc-div: rgba(255, 255, 255, 0.08);
+    --pc-feat: rgba(255, 255, 255, 0.72);
+    --pc-link: var(--yellow-400);
+    --pc-ghost-bg: rgba(255, 255, 255, 0.04);
+    --pc-ghost-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+    --pc-ghost-text: #ffffff;
+  }
+  /* Dark theme: every card keeps the previous hard-coded dark chrome verbatim
+     (uniform across plans, Enterprise included). */
+  [data-theme="dark"] .plan-card {
+    --pc-bg: rgba(255, 255, 255, 0.025);
+    --pc-ring: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    --pc-hi: #f7f6f4;
+    --pc-tagline: rgba(255, 255, 255, 0.55);
+    --pc-unit: rgba(255, 255, 255, 0.5);
+    --pc-inc: rgba(255, 255, 255, 0.45);
+    --pc-div: rgba(255, 255, 255, 0.08);
+    --pc-feat: rgba(255, 255, 255, 0.72);
+    --pc-link: var(--yellow-400);
+    --pc-chip-bg: #161417;
+    --pc-chip-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+    --pc-chip-text: rgba(255, 255, 255, 0.78);
+  }
+</style>

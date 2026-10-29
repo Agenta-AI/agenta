@@ -39,7 +39,7 @@ function ErrorTooltip({errors}: {errors: ErrorInfo[]}) {
 
     return (
         <div className="bg-gray-900 text-white text-xs rounded-lg shadow-lg p-3 max-w-sm">
-            <div className="font-semibold mb-2 text-[10px]">
+            <div className="font-semibold mb-2 text-[12px]">
                 {uniqueErrors.length} Error{uniqueErrors.length !== 1 ? "s" : ""}
             </div>
             <div className="space-y-2 max-h-48 overflow-y-auto">
@@ -58,14 +58,14 @@ function ErrorTooltip({errors}: {errors: ErrorInfo[]}) {
                             className="border-0 border-l-2 border-solid border-red-400 pl-2"
                         >
                             <div className="flex items-center justify-between">
-                                <span className="text-red-300 font-medium capitalize text-[10px]">
+                                <span className="text-red-300 font-medium capitalize text-[12px]">
                                     {error.type}
                                 </span>
                                 {lineDisplay && (
                                     <span className="text-gray-400 text-[9px]">{lineDisplay}</span>
                                 )}
                             </div>
-                            <div className="mt-1 text-gray-200 text-[10px]">{error.message}</div>
+                            <div className="mt-1 text-gray-200 text-[12px]">{error.message}</div>
                         </div>
                     )
                 })}

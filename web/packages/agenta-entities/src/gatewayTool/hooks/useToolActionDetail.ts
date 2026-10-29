@@ -1,7 +1,7 @@
 import {catalogPersister} from "@agenta/shared/api/persist"
 import type {QueryKey} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import {fetchToolActionDetail} from "../api"

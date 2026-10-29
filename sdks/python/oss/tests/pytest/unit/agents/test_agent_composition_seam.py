@@ -8,20 +8,40 @@ now carries the safe behavior, and that a composition can still override it.
 
 from __future__ import annotations
 
+import asyncio
+import time
 from typing import Any, AsyncIterator, Dict, List, Optional
 
 import pytest
 
-from agenta.sdk.agents import AgentResult, HarnessKind
+from agenta.sdk.agents import (
+    AgentResult,
+    HarnessKind,
+    InvalidHarnessKindError,
+    Message,
+)
 from agenta.sdk.agents.connections import (
     ConnectionResolutionError,
     ResolvedConnection,
     UnsupportedDeploymentError,
     UnsupportedProviderError,
 )
+from agenta.sdk.agents.dtos import (
+    RunContext,
+    RunContextReference,
+    RunContextWorkflow,
+    SessionContext,
+)
 from agenta.sdk.agents.handler import AgentComposition, make_agent_handler
 from agenta.sdk.agents.interfaces import Backend, Sandbox, Session
 from agenta.sdk.agents.streaming import AgentStream
+from agenta.sdk.agents.tools import (
+    CompiledTool,
+    ResolvedGatewayIntegration,
+    ResolvedGatewayPolicy,
+    ResolvedToolSet,
+)
+from agenta.sdk.agents.utils.wire import request_to_wire
 from agenta.sdk.models.workflows import WorkflowServiceRequest
 
 
@@ -77,12 +97,23 @@ class _FakeSession(Session):
 
 class _FakeBackend(Backend):
     supported_harnesses = frozenset(
-        {HarnessKind.PI, HarnessKind.CLAUDE, HarnessKind.AGENTA}
+        {HarnessKind.PI, HarnessKind.CLAUDE, HarnessKind.CODEX, HarnessKind.MOCK}
     )
 
     def __init__(self, *, output: str = "hi") -> None:
         self._output = output
         self.created_run_contexts: List[Any] = []
+        self.created_effective_parameters: List[Any] = []
+        self.created_gateway_policies: List[Any] = []
+        self.created_detached: List[bool] = []
+        self.created_coordination: List[Any] = []
+        # The per-harness config the adapter built. Capturing it alongside neutral backend
+        # arguments checks both sides of the composition boundary rather than one hop.
+        self.created_configs: List[Any] = []
+        # The service-supplied naming facts, as they reach the backend.
+        self.created_turn_contexts: List[Any] = []
+        self.created_runner_addresses: List[Any] = []
+        self.created_runner_replica_ids: List[Any] = []
 
     async def create_sandbox(self) -> _FakeSandbox:
         return _FakeSandbox()
@@ -96,9 +127,28 @@ class _FakeBackend(Backend):
         secrets=None,
         trace=None,
         run_context=None,
+        turn_context=None,
         session_id=None,
+        detached=False,
+        turn_id=None,
+        project_id=None,
+        control_command_id=None,
+        effective_parameters=None,
+        gateway_policy=None,
+        runner_address=None,
+        runner_replica_id=None,
     ) -> _FakeSession:
+        self.created_runner_addresses.append(runner_address)
+        self.created_runner_replica_ids.append(runner_replica_id)
         self.created_run_contexts.append(run_context)
+        self.created_effective_parameters.append(effective_parameters)
+        self.created_gateway_policies.append(gateway_policy)
+        self.created_detached.append(detached)
+        self.created_coordination.append(
+            (session_id, turn_id, project_id, control_command_id)
+        )
+        self.created_configs.append(config)
+        self.created_turn_contexts.append(turn_context)
         return _FakeSession(AgentResult(output=self._output, events=[], usage={}))
 
 
@@ -121,6 +171,30 @@ def _params(harness="pi_core", *, model=None):
     if model is not None:
         template["llm"] = model
     return {"agent": template}
+
+
+@pytest.mark.parametrize(
+    "flag, expected", [(True, True), (False, False), (None, False)]
+)
+async def test_invoke_detached_flag_reaches_the_backend_only_when_enabled(
+    flag, expected
+):
+    backend = _FakeBackend()
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+        )
+    )
+    flags = {} if flag is None else {"detached": flag}
+
+    await handler(
+        request=WorkflowServiceRequest(flags=flags, session_id="session-1"),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(),
+    )
+
+    assert backend.created_detached == [expected]
 
 
 # --------------------------------------------------------------------------- #
@@ -166,6 +240,58 @@ async def test_absent_run_kind_leaves_composition_run_context_untouched():
     ctx = backend.created_run_contexts[0]
     assert ctx is base
     assert ctx.to_wire() == {"trace": {"trace_id": "trace-1"}}
+
+
+async def test_detached_coordination_meta_reaches_the_backend_session():
+    backend = _FakeBackend()
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+        )
+    )
+
+    await handler(
+        request=WorkflowServiceRequest(
+            session_id="session-1",
+            meta={
+                "run_id": "turn-continuation-1",
+                "project_id": "project-1",
+                "control_command_id": "command-1",
+            },
+        ),
+        messages=[{"role": "user", "content": "approved"}],
+        parameters=_params(),
+    )
+
+    assert backend.created_coordination == [
+        ("session-1", "turn-continuation-1", "project-1", "command-1")
+    ]
+
+
+async def test_handler_carries_the_effective_config_onto_the_session():
+    """The config the handler RAN with reaches the session, verbatim.
+
+    The normalizer hands the handler ``request.data.parameters`` after the resolver has
+    hydrated references (or kept the caller's inline draft), so this is the config a HITL gate
+    parked by this turn must be resumable under (effective-turn-config plan, T1). The wire
+    gates emission on ``session_id``; the handler always carries it.
+    """
+    backend = _FakeBackend()
+    comp = AgentComposition(
+        select_backend=lambda template: backend,
+        resolve_connection=_no_connection,
+    )
+    handler = make_agent_handler(comp)
+    params = _params(model={"model": "anthropic/claude-sonnet-4-5"})
+
+    await handler(
+        request=_request(),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=params,
+    )
+
+    assert backend.created_effective_parameters[0] == params
 
 
 # --------------------------------------------------------------------------- #
@@ -341,6 +467,66 @@ async def test_default_composition_fails_closed_on_connection_resolution_failure
                 "pi_core", model={"provider": "openai", "model": "gpt-5.5"}
             ),
         )
+
+
+async def test_a_config_persisted_with_an_unreadable_harness_is_refused_with_a_shape():
+    """F4: a config stored before the commit boundary existed must still fail with a code.
+
+    The gate's H1 cell persisted `harness.kind` as `12345` and the invoke that followed died on
+    the enum's bare `ValueError`, which the remap turned into a 500 whose body was the Python
+    repr. The refusal now happens where the handler reads the template, before it selects a
+    backend or resolves anything, and it carries the field, the value, and the harnesses that
+    exist.
+    """
+    backend = _FakeBackend()
+
+    async def _must_not_run(*, model, context):
+        raise AssertionError("resolution must not run on an unreadable harness")
+
+    comp = AgentComposition(
+        select_backend=lambda template: backend,
+        resolve_connection=_must_not_run,
+    )
+    handler = make_agent_handler(comp)
+
+    with pytest.raises(InvalidHarnessKindError) as caught:
+        await handler(
+            request=_request(),
+            messages=[{"role": "user", "content": "hi"}],
+            parameters=_params(12345, model={"provider": "openai", "model": "gpt-5.5"}),
+        )
+
+    assert caught.value.code == 400
+    assert "harness.kind" in caught.value.message
+    # Nothing ran: no session was created, so no turn can be stored for a config that cannot run.
+    assert backend.created_configs == []
+
+
+async def test_a_run_configured_with_the_harness_enum_itself_actually_runs():
+    """The SDK's own `HarnessKind` member must be usable as input, end to end.
+
+    `HarnessKind` is a `str` Enum, so `str(member)` is "HarnessKind.CLAUDE". Stringifying the
+    caller's value lower-cased that to "harnesskind.claude", which `make_harness` then refused —
+    valid input, rejected by the parser that was supposed to accept it.
+    """
+    backend = _FakeBackend(output="hi")
+    comp = AgentComposition(
+        select_backend=lambda template: backend,
+        resolve_connection=_no_connection,
+    )
+    handler = make_agent_handler(comp)
+
+    await handler(
+        request=_request(),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(HarnessKind.CLAUDE),
+    )
+
+    # It reached the backend, which is what a mangled value never did.
+    assert len(backend.created_configs) == 1
+    assert backend.created_effective_parameters[0]["agent"]["harness"]["kind"] == (
+        HarnessKind.CLAUDE
+    )
 
 
 async def test_composition_override_replaces_default_gating():
@@ -543,5 +729,762 @@ async def test_backend_gate_fires_before_tool_mcp_and_vault_resolution():
     assert ran == []
 
 
+# --------------------------------------------------------------------------- #
+# The gateway connection propagation path: resolver -> SessionConfig -> backend -> wire
+# --------------------------------------------------------------------------- #
+def _gateway_policy() -> ResolvedGatewayPolicy:
+    return ResolvedGatewayPolicy(
+        integrations={
+            "github": ResolvedGatewayIntegration(
+                provider="composio",
+                connection="github-work",
+                toolkit_version="20250827_00",
+                tools={"GET_ISSUE": CompiledTool(permission="allow", read_only=True)},
+            )
+        }
+    )
+
+
+async def test_gateway_policy_and_mode_cross_from_the_resolver_to_the_run_request():
+    """Both propagation lines in the handler, checked end to end on the real wire payload.
+
+    The two are easy to drop and each fails SILENTLY rather than loudly:
+
+    - the agent-wide mode reaches the permission compiler only through the ``resolve_tools``
+      call, so losing it compiles the wrong policy while every unit test of the compiler
+      still passes;
+    - the compiled policy reaches the wire only through ``SessionConfig``, and the runner
+      reads an ABSENT policy as deny, so losing it looks like an agent whose tools quietly
+      stopped working.
+
+    Asserting on ``request_to_wire`` output rather than on an intermediate object is what
+    makes deleting either line fail here: the whole path is exercised, not one hop of it.
+    """
+    policy = _gateway_policy()
+    seen_modes: List[Any] = []
+    backend = _FakeBackend()
+
+    async def _tools_with_policy(tools, **kwargs):
+        seen_modes.append(kwargs.get("permission_default"))
+        return ResolvedToolSet(gateway_policy=policy)
+
+    comp = AgentComposition(
+        select_backend=lambda template: backend,
+        resolve_connection=_no_connection,
+        resolve_tools=_tools_with_policy,
+    )
+    handler = make_agent_handler(comp)
+    params = _params()
+    # NOT the ``allow_reads`` default: a dropped kwarg would otherwise still read as "deny".
+    params["agent"]["runner"] = {"permissions": {"default": "deny"}}
+
+    await handler(
+        request=_request(),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=params,
+    )
+
+    # Line 1: the agent-wide mode reached the resolver, which hands it to the compiler.
+    assert seen_modes == ["deny"]
+
+    # Line 2: the compiled policy bypassed the harness config and reached the run request.
+    config = backend.created_configs[0]
+    assert not hasattr(config, "gateway_policy")
+    assert backend.created_gateway_policies == [policy]
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+        gateway_policy=backend.created_gateway_policies[0],
+    )
+    assert payload["gatewayPolicy"] == policy.to_wire()
+    # The same mode also rides the coarse permission plan the harness gate reads.
+    assert payload["permissions"]["default"] == "deny"
+
+
+async def test_no_gateway_policy_leaves_the_run_request_field_absent():
+    """The other half: a resolver that reports no policy emits no field at all."""
+    backend = _FakeBackend()
+    comp = AgentComposition(
+        select_backend=lambda template: backend,
+        resolve_connection=_no_connection,
+    )
+    handler = make_agent_handler(comp)
+
+    await handler(
+        request=_request(),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(),
+    )
+
+    config = backend.created_configs[0]
+    assert not hasattr(config, "gateway_policy")
+    assert backend.created_gateway_policies == [None]
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+        gateway_policy=backend.created_gateway_policies[0],
+    )
+    assert "gatewayPolicy" not in payload
+
+
+# --------------------------------------------------------------------------- #
+# mock harness: selecting it must reach MockHarness end to end, and a model set on
+# the run must not be rejected by the pre/post-resolve capability gate.
+# --------------------------------------------------------------------------- #
+async def test_mock_harness_reaches_mock_agent_template_through_the_handler():
+    backend = _FakeBackend()
+
+    async def _resolve(*, model, context):
+        return ResolvedConnection(
+            provider="mock",
+            model="mock-1",
+            deployment="direct",
+            credential_mode="runtime_provided",
+        )
+
+    comp = AgentComposition(
+        select_backend=lambda template: backend,
+        resolve_connection=_resolve,
+    )
+    handler = make_agent_handler(comp)
+
+    await handler(
+        request=_request(),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters={
+            "agent": {
+                "harness": {
+                    "kind": "mock",
+                    "extras": {"behavior": "echo", "kwargs": {"text": "hi"}},
+                },
+                "llm": "mock-1",
+            }
+        },
+    )
+
+    from agenta.sdk.agents.dtos import MockAgentTemplate
+
+    config = backend.created_configs[0]
+    assert isinstance(config, MockAgentTemplate)
+    assert config.behavior == "echo"
+    assert config.behavior_kwargs == {"text": "hi"}
+    assert config.wire_tools() == {}
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-q"])
+
+
+def _session_context(**fields):
+    """A stub `resolve_session_context` that answers with fixed facts."""
+
+    async def resolve(*, session_id, workflow_id):
+        return SessionContext(**fields)
+
+    return resolve
+
+
+@pytest.mark.parametrize("harness", ["pi_core", "claude", "codex"])
+async def test_resolved_session_context_reaches_the_backend_as_turn_text(harness):
+    """Facts render once as turn text, even when this run has no rename tools."""
+    backend = _FakeBackend()
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+            resolve_session_context=_session_context(
+                agent_name="New agent",
+                session_name=None,
+                first_turn=True,
+            ),
+        )
+    )
+
+    await handler(
+        request=WorkflowServiceRequest(session_id="session-1"),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(harness),
+    )
+
+    context = backend.created_turn_contexts[0]
+    assert isinstance(context, str)
+    assert 'Your name is "New agent"' in context
+    assert "This session has no name yet" in context
+    assert "This is the first turn" in context
+    assert "rename_agent" not in context
+    assert "rename_session" not in context
+    assert "## This session" not in backend.created_configs[0].platform_instructions
+
+
+@pytest.mark.parametrize("family", ["workflow", "application", "evaluator"])
+async def test_the_resolver_receives_the_session_and_artifact_ids(family):
+    """The two ids the facts are keyed by come off the request, not off `meta`.
+
+    A playground turn labels the artifact `application`, not `workflow`. Reading only
+    `workflow` would report no agent name for every playground turn.
+    """
+    backend = _FakeBackend()
+    seen: Dict[str, Any] = {}
+
+    async def resolve(*, session_id, workflow_id):
+        seen["session_id"] = session_id
+        seen["workflow_id"] = workflow_id
+        return None
+
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+            resolve_session_context=resolve,
+        )
+    )
+
+    await handler(
+        request=WorkflowServiceRequest(
+            session_id="session-1",
+            references={family: {"id": "0199e0d0-0000-7000-8000-00000000abcd"}},
+        ),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(),
+    )
+
+    assert seen == {
+        "session_id": "session-1",
+        "workflow_id": "0199e0d0-0000-7000-8000-00000000abcd",
+    }
+
+
+async def test_the_run_context_artifact_wins_over_the_raw_reference():
+    """The run context holds the RESOLVED identity, so it decides when both are present."""
+    backend = _FakeBackend()
+    seen: Dict[str, Any] = {}
+
+    async def resolve(*, session_id, workflow_id):
+        seen["workflow_id"] = workflow_id
+        return None
+
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+            resolve_session_context=resolve,
+            run_context=lambda: RunContext(
+                workflow=RunContextWorkflow(
+                    artifact=RunContextReference(id="resolved-artifact")
+                )
+            ),
+        )
+    )
+
+    await handler(
+        request=WorkflowServiceRequest(
+            session_id="session-1",
+            references={"application": {"id": "0199e0d0-0000-7000-8000-00000000abcd"}},
+        ),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(),
+    )
+
+    assert seen["workflow_id"] == "resolved-artifact"
+
+
+async def test_a_client_supplied_session_context_is_ignored():
+    """`meta` is request body, and this service's `/invoke` is reachable by a browser.
+
+    A client that forges the facts must not be able to tell the agent it is already named,
+    which would suppress the naming rule. The resolved facts are the only ones rendered.
+    """
+    backend = _FakeBackend()
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+            resolve_session_context=_session_context(
+                agent_name="New agent",
+                session_name=None,
+                first_turn=True,
+            ),
+        )
+    )
+
+    await handler(
+        request=WorkflowServiceRequest(
+            session_id="session-1",
+            meta={
+                "session_context": {
+                    "agent_name": "Forged",
+                    "session_name": "Already named",
+                    "first_turn": False,
+                }
+            },
+        ),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(),
+    )
+
+    context = backend.created_turn_contexts[0]
+    assert "Forged" not in context
+    assert "Already named" not in context
+    assert 'Your name is "New agent"' in context
+    assert "This session has no name yet" in context
+
+
+async def test_a_client_supplied_session_context_cannot_survive_a_failed_resolve():
+    """A resolve that reads nothing renders nothing, never the client's version."""
+    backend = _FakeBackend()
+
+    async def resolve(*, session_id, workflow_id):
+        return None
+
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+            resolve_session_context=resolve,
+        )
+    )
+
+    await handler(
+        request=WorkflowServiceRequest(
+            session_id="session-1",
+            meta={"session_context": {"session_name": "Already named"}},
+        ),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(),
+    )
+
+    assert backend.created_turn_contexts == [None]
+
+
+_FORGED_ROUTING_META = {
+    "runner_address": "http://attacker.example:8765",
+    "runner_replica_id": "attacker",
+    "runner_url": "http://attacker.example:8765",
+    "session_context": {
+        "runner_address": "http://attacker.example:8765",
+        "runner_replica_id": "attacker",
+    },
+}
+
+
+async def test_the_resolved_runner_address_reaches_the_backend_and_never_the_prompt():
+    """The `/run` body carries credentials, so its target comes only from the api read."""
+    backend = _FakeBackend()
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+            resolve_session_context=_session_context(
+                session_name="Sapphire Ledger",
+                first_turn=False,
+                runner_address="http://10.8.2.17:8765",
+                runner_replica_id="agenta-runner-6f9c7d5b8-aaaaa",
+            ),
+        )
+    )
+
+    await handler(
+        request=WorkflowServiceRequest(
+            session_id="session-1", meta=_FORGED_ROUTING_META
+        ),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(),
+    )
+
+    assert backend.created_runner_addresses == ["http://10.8.2.17:8765"]
+    assert backend.created_runner_replica_ids == ["agenta-runner-6f9c7d5b8-aaaaa"]
+    assert "10.8.2.17" not in backend.created_turn_contexts[0]
+    assert "agenta-runner-6f9c7d5b8-aaaaa" not in backend.created_turn_contexts[0]
+
+
+async def test_a_client_cannot_route_a_turn_when_the_read_names_no_pod():
+    backend = _FakeBackend()
+
+    async def resolve(*, session_id, workflow_id):
+        return None
+
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+            resolve_session_context=resolve,
+        )
+    )
+
+    await handler(
+        request=WorkflowServiceRequest(
+            session_id="session-1", meta=_FORGED_ROUTING_META
+        ),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(),
+    )
+
+    assert backend.created_runner_addresses == [None]
+    assert backend.created_runner_replica_ids == [None]
+
+
+async def test_competing_artifact_families_report_no_agent_name():
+    """Two families naming different artifacts is an ambiguous identity, so report neither.
+
+    An inline-config run bypasses reference hydration, so the family validator that would
+    reject this never runs. Preferring one silently would put a name in the prompt that the
+    run may not belong to.
+    """
+    backend = _FakeBackend()
+    seen: Dict[str, Any] = {}
+
+    async def resolve(*, session_id, workflow_id):
+        seen["workflow_id"] = workflow_id
+        return None
+
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+            resolve_session_context=resolve,
+        )
+    )
+
+    await handler(
+        request=WorkflowServiceRequest(
+            session_id="session-1",
+            references={
+                "application": {"id": "0199e0d0-0000-7000-8000-0000000000aa"},
+                "workflow": {"id": "0199e0d0-0000-7000-8000-0000000000bb"},
+            },
+        ),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(),
+    )
+
+    assert seen["workflow_id"] is None
+
+
+async def test_two_families_naming_the_same_artifact_still_resolve():
+    """The families overlap by design. Agreement is not ambiguity."""
+    backend = _FakeBackend()
+    seen: Dict[str, Any] = {}
+
+    async def resolve(*, session_id, workflow_id):
+        seen["workflow_id"] = workflow_id
+        return None
+
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+            resolve_session_context=resolve,
+        )
+    )
+
+    same = "0199e0d0-0000-7000-8000-0000000000aa"
+    await handler(
+        request=WorkflowServiceRequest(
+            session_id="session-1",
+            references={"application": {"id": same}, "workflow": {"id": same}},
+        ),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(),
+    )
+
+    assert seen["workflow_id"] == same
+
+
+async def test_a_slow_injected_resolver_cannot_delay_the_turn(monkeypatch):
+    """An injected resolver has no budget of its own, so the handler gives it one."""
+    monkeypatch.setenv("AGENTA_AGENT_SESSION_CONTEXT_TIMEOUT", "0.1")
+    backend = _FakeBackend()
+    cancelled: List[str] = []
+
+    async def resolve(*, session_id, workflow_id):
+        try:
+            await asyncio.sleep(30.0)
+        except asyncio.CancelledError:
+            cancelled.append("resolver")
+            raise
+        return SessionContext(session_name="never")
+
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+            resolve_session_context=resolve,
+        )
+    )
+
+    started = time.monotonic()
+    await handler(
+        request=WorkflowServiceRequest(session_id="session-1"),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(),
+    )
+    elapsed = time.monotonic() - started
+
+    assert elapsed < 5.0
+    assert cancelled
+    assert backend.created_turn_contexts == [None]
+
+
+async def test_an_injected_resolver_that_raises_costs_only_the_prompt_section():
+    backend = _FakeBackend()
+
+    async def resolve(*, session_id, workflow_id):
+        raise RuntimeError("resolver is broken")
+
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+            resolve_session_context=resolve,
+        )
+    )
+
+    result = await handler(
+        request=WorkflowServiceRequest(session_id="session-1"),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(),
+    )
+
+    assert result is not None
+    assert backend.created_turn_contexts == [None]
+
+
+async def test_a_run_context_does_not_rescue_competing_families():
+    """The case that hid the bug: the ambiguity check must run BEFORE the run context.
+
+    The run context is built from these same references and prefers the `workflow` family, so
+    an ambiguous request produces a run context holding one of the two. Consulting it first
+    hands back exactly the silent preference the check exists to refuse, and a bare-handler
+    test cannot see that, because it has no ambient run context.
+    """
+    backend = _FakeBackend()
+    seen: Dict[str, Any] = {}
+
+    async def resolve(*, session_id, workflow_id):
+        seen["workflow_id"] = workflow_id
+        return None
+
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+            resolve_session_context=resolve,
+            run_context=lambda: RunContext(
+                workflow=RunContextWorkflow(
+                    artifact=RunContextReference(
+                        id="0199e0d0-0000-7000-8000-0000000000bb"
+                    )
+                )
+            ),
+        )
+    )
+
+    await handler(
+        request=WorkflowServiceRequest(
+            session_id="session-1",
+            references={
+                "application": {"id": "0199e0d0-0000-7000-8000-0000000000aa"},
+                "workflow": {"id": "0199e0d0-0000-7000-8000-0000000000bb"},
+            },
+        ),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(),
+    )
+
+    assert seen["workflow_id"] is None
+
+
+async def test_the_same_artifact_spelled_two_ways_is_not_ambiguous():
+    """Agreement is not a disagreement, whatever spelling each family used."""
+    backend = _FakeBackend()
+    seen: Dict[str, Any] = {}
+
+    async def resolve(*, session_id, workflow_id):
+        seen["workflow_id"] = workflow_id
+        return None
+
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+            resolve_session_context=resolve,
+        )
+    )
+
+    await handler(
+        request=WorkflowServiceRequest(
+            session_id="session-1",
+            references={
+                "application": {"id": "0199E0D0-0000-7000-8000-0000000000AA"},
+                "workflow": {"id": "0199e0d0-0000-7000-8000-0000000000aa"},
+            },
+        ),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(),
+    )
+
+    assert seen["workflow_id"] == "0199e0d0-0000-7000-8000-0000000000aa"
+
+
+async def test_a_resolver_that_raises_synchronously_cannot_break_the_turn():
+    """The composition field is typed `Callable[..., Awaitable[...]]`, which admits a factory.
+
+    A factory that raises before it returns its coroutine escapes a boundary that evaluates
+    the call first, and then optional prompt text breaks the turn. That is the one thing this
+    seam promises will never happen.
+    """
+    backend = _FakeBackend()
+
+    def explodes(*, session_id, workflow_id):
+        raise RuntimeError("factory exploded before returning a coroutine")
+
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+            resolve_session_context=explodes,
+        )
+    )
+
+    result = await handler(
+        request=WorkflowServiceRequest(session_id="session-1"),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(),
+    )
+
+    assert result is not None
+    assert backend.created_turn_contexts == [None]
+
+
+async def test_only_one_deadline_owns_a_turn(monkeypatch):
+    """The default path must not nest two bounds.
+
+    A nested pair leaves the outer grace period watching an inner wrapper unwind instead of
+    the client that holds the connections, so the mechanism guards the wrong object.
+    """
+    from agenta.sdk.agents import handler as handler_module
+    from agenta.sdk.agents.platform import session_context as session_context_module
+
+    owners: List[str] = []
+    real_run_optional = session_context_module.run_optional
+
+    async def _recording(start, *, budget, label):
+        owners.append(label)
+        return await real_run_optional(start, budget=budget, label=label)
+
+    monkeypatch.setattr(handler_module, "run_optional", _recording)
+    monkeypatch.setattr(session_context_module, "run_optional", _recording)
+
+    backend = _FakeBackend()
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+        )
+    )
+
+    await handler(
+        request=WorkflowServiceRequest(session_id="session-1"),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(),
+    )
+
+    # One owner per optional read, never two around the same read. The two reads run
+    # together, so their start order is not part of the contract.
+    assert sorted(owners) == ["channel tools resolver", "session context resolver"]
+
+
+# --------------------------------------------------------------------------- #
+# Turn start: the independent lookups share one wait
+# --------------------------------------------------------------------------- #
+async def test_tools_connection_and_session_context_resolve_together():
+    """The tool chain blocks until the connection and the session facts are in flight.
+
+    Run one after another, the tool resolve would wait for lookups that start only after it.
+    """
+    backend = _FakeBackend()
+    connection_started = asyncio.Event()
+    session_started = asyncio.Event()
+
+    async def _tools(tools, **kwargs):
+        await asyncio.wait_for(connection_started.wait(), timeout=1)
+        await asyncio.wait_for(session_started.wait(), timeout=1)
+        return ResolvedToolSet()
+
+    async def _connection(*, model, context):
+        connection_started.set()
+        return _no_connection_result()
+
+    async def _session_context(*, session_id, workflow_id):
+        session_started.set()
+        return SessionContext(session_name="named")
+
+    comp = AgentComposition(
+        select_backend=lambda template: backend,
+        resolve_tools=_tools,
+        resolve_connection=_connection,
+        resolve_session_context=_session_context,
+    )
+    await make_agent_handler(comp)(
+        request=_request(),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=_params(model={"provider": "openai", "model": "gpt-5.5"}),
+    )
+
+    assert backend.created_turn_contexts[0] is not None
+
+
+async def test_a_tool_failure_wins_over_a_connection_failure_that_came_first():
+    """The error a caller sees is the one a serial run would raise: tools come first."""
+
+    async def _tools(tools, **kwargs):
+        await asyncio.sleep(0.05)
+        raise RuntimeError("tools down")
+
+    async def _connection(*, model, context):
+        raise ConnectionResolutionError("vault down")
+
+    comp = AgentComposition(
+        select_backend=lambda template: _FakeBackend(),
+        resolve_tools=_tools,
+        resolve_connection=_connection,
+    )
+    with pytest.raises(RuntimeError, match="tools down"):
+        await make_agent_handler(comp)(
+            request=_request(),
+            messages=[{"role": "user", "content": "hi"}],
+            parameters=_params(model={"provider": "openai", "model": "gpt-5.5"}),
+        )
+
+
+async def test_a_tool_failure_cancels_the_connection_resolve_in_flight():
+    cancelled = asyncio.Event()
+
+    async def _tools(tools, **kwargs):
+        await asyncio.sleep(0.05)
+        raise RuntimeError("tools down")
+
+    async def _connection(*, model, context):
+        try:
+            await asyncio.sleep(10)
+        except asyncio.CancelledError:
+            cancelled.set()
+            raise
+        return _no_connection_result()
+
+    comp = AgentComposition(
+        select_backend=lambda template: _FakeBackend(),
+        resolve_tools=_tools,
+        resolve_connection=_connection,
+    )
+    with pytest.raises(RuntimeError, match="tools down"):
+        await make_agent_handler(comp)(
+            request=_request(),
+            messages=[{"role": "user", "content": "hi"}],
+            parameters=_params(model={"provider": "openai", "model": "gpt-5.5"}),
+        )
+    assert cancelled.is_set()

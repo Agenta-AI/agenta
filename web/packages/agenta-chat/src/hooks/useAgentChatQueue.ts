@@ -1,0 +1,802 @@
+// Canonical since the desktop re-plumb: the OSS copy is deleted and both apps import this.
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+
+import type {PendingInputWriteOutcome} from "@agenta/entities/session"
+import {
+    approvalContinuationSettled,
+    hasRunningApprovalContinuation,
+    isHitlPending,
+} from "@agenta/playground/agent-chat"
+import {generateId} from "@agenta/shared/utils"
+import type {FileUIPart, UIMessage} from "ai"
+
+import {countUserMessages, durableUserTurnIds} from "../assets/pendingSendEchoes"
+import {
+    applyQueueOps,
+    pruneQueueOps,
+    pruneQueueRowErrors,
+    type QueueOpBody,
+    type QueueOps,
+    type QueueRowError,
+    type QueueRowErrors,
+} from "../assets/queueOverlay"
+import {getPendingConnectInteractions} from "../clientTools/connectInteractions"
+import {getPendingElicitationInteractions} from "../clientTools/elicitationInteractions"
+
+import type {ComposerAttachment} from "./useComposerAttachments"
+import {usePendingSendEchoes} from "./usePendingSendEchoes"
+
+export interface QueuedMessage {
+    id: string
+    text: string
+    executionText?: string
+    fileParts?: FileUIPart[]
+    stagedFiles?: ComposerAttachment[]
+    attachmentCount?: number
+    policy?: "queue" | "steer"
+    source?: "local" | "server"
+    editable?: boolean
+    /** The send this server row came from (its `Idempotency-Key`), so its echo can step aside. */
+    clientId?: string | null
+    removable?: boolean
+    error?: string
+    /** An edit that did not save; the pencil reopens it instead of the saved text. */
+    unsavedEdit?: {text: string; fileParts?: FileUIPart[]}
+    promotedExecutionId?: string | null
+    /** An edit of this row is still saving. */
+    saving?: boolean
+}
+
+/** `settledSeq`: a snapshot read with a higher sequence reflects this write. */
+export interface ServerQueueWriteResult {
+    outcome: PendingInputWriteOutcome
+    settledSeq: number
+}
+
+export interface ServerQueueAdapter {
+    busy: boolean
+    queued: QueuedMessage[]
+    viewSeq: number
+    /**
+     * Admits one input. `watcher` reports what happened to THIS send: the turn it started, the
+     * durable input it was parked as, or its failure.
+     */
+    submit: (
+        message: QueuedMessage,
+        policy: "queue" | "steer",
+        watcher?: {
+            onAccepted?: (executionId: string) => void
+            onParked?: (inputId: string) => void
+            onFailed?: () => void
+            onSettled?: () => void
+            opensTurn?: boolean
+            onTurnNamed?: () => void
+        },
+    ) => Promise<"queued" | "running">
+    remove: (id: string) => Promise<ServerQueueWriteResult>
+    /** `executionId` is set only when the server promoted the input on the spot. */
+    sendNow?: (id: string) => Promise<ServerQueueWriteResult & {executionId: string | null}>
+    edit?: (
+        id: string,
+        item: {text: string; fileParts?: FileUIPart[]},
+    ) => Promise<ServerQueueWriteResult>
+    /** Resolves with the sequence of the read it made, or null when that read failed. */
+    refresh?: (options?: {fresh?: boolean}) => Promise<number | null>
+}
+
+const REMOVE_FAILED = "Couldn't remove this message. Try again."
+const REMOVE_ABOUT_TO_RUN = "This message is about to run and can't be removed."
+const NOT_QUEUED = "This message is no longer queued."
+const SEND_NOW_FAILED = "Couldn't send this message now. Try again."
+const SEND_NOW_BUSY = "Another message is being sent first. Try again once it starts."
+const EDIT_FAILED = "Your edit wasn't saved. Edit to try again."
+const EDIT_ABOUT_TO_RUN = "This message is about to run and can't be edited."
+
+interface UseAgentChatQueueArgs {
+    messages: UIMessage[]
+    /** The last turn was user-stopped (cancelled). A stop voids any pending approval, so the
+     * aborted turn's tool parts still reading as mid-HITL are not reported as awaiting. */
+    stopped: boolean
+    /**
+     * Execution id of the durable approval continuation this mount just started, read from the
+     * respond body (`execution.id`). Non-null means the server owns the next turn: nothing may
+     * release until that execution's own terminal record lands in the transcript.
+     *
+     * It exists because the transcript-derived hold cannot cover the whole window. The
+     * `approvalContinuation` metadata only appears once the continuation's FIRST record is
+     * persisted — measured at 8 seconds after the answer on a local sandbox — and a transcript
+     * adopted inside that gap shows a paused turn with an answered gate, which every release path
+     * reads as settled.
+     */
+    continuationExecutionId?: string | null
+    /**
+     * Hand a refused send back to the composer. Reports whether the composer took it: if it did,
+     * the message lives there and its echo row goes; if it could not (no mounted editor), the row
+     * stays as the one place the text survives.
+     *
+     * May answer later than the call. A rich text editor commits a write on a following tick, so a
+     * host that reads its own composer back cannot always answer in this one.
+     */
+    restoreRefusedSend?: (message: QueuedMessage) => boolean | Promise<boolean>
+    /** A durable send was admitted: the turn it started, or `null` for a parked input. */
+    onSendAccepted?: (message: QueuedMessage, executionId: string | null) => void
+    /** A durable send will never become a turn: rejected before it left (with the error that
+     * rejected it), or refused after. */
+    onSendFailed?: (message: QueuedMessage, error?: unknown) => void
+    /** The durable session queue. Every send is admitted through it. */
+    server: ServerQueueAdapter
+    /** This tab's own run is going, which the server snapshot reports a poll late. */
+    runActive?: boolean
+}
+
+/**
+ * Ceiling on the id-keyed continuation hold.
+ *
+ * A continuation that is never delivered writes no records at all (observed twice in nine
+ * approvals), so its terminal record never arrives and an unbounded hold would freeze the queue
+ * with no dock to unblock it — the AGE-3937 trap this file already carries scars from. After the
+ * ceiling the hold falls back to the transcript-derived one, which is self-clearing: a
+ * continuation that produced records always produces a terminal record too. Well past the
+ * 8-to-11 seconds a local sandbox needs to write the continuation's first record.
+ */
+export const CONTINUATION_HOLD_MAX_MS = 45_000
+
+/** Longest the next send waits for this one's turn to be named before it is admitted anyway. */
+const ADMISSION_NAME_MAX_MS = 10_000
+
+/** Longest a started row stays in the dock while its user row is on its way. */
+const RELEASE_HOLD_MAX_MS = 2_000
+
+/**
+ * Admits every composer send through the durable session queue, keeps an echo row for each send
+ * until the transcript or the dock owns it, and edits the server-held queue.
+ *
+ * The server decides whether a send starts a turn or parks behind the running one, so nothing is
+ * held in the browser.
+ */
+export const useAgentChatQueue = ({
+    messages,
+    stopped,
+    continuationExecutionId = null,
+    restoreRefusedSend,
+    onSendAccepted,
+    onSendFailed,
+    server,
+    runActive = false,
+}: UseAgentChatQueueArgs) => {
+    const serverBusyRef = useRef(server.busy)
+    serverBusyRef.current = server.busy
+    const runActiveRef = useRef(runActive)
+    runActiveRef.current = runActive
+
+    // ── The durable-continuation hold ─────────────────────────────────────────────────────────
+    // A server-owned continuation is a TURN. The tab that answered the approval owns it until
+    // that execution's own terminal record lands.
+    const [, forceHoldRecheck] = useState(0)
+    const holdStartedAtRef = useRef<{id: string; at: number} | null>(null)
+    if (continuationExecutionId) {
+        if (holdStartedAtRef.current?.id !== continuationExecutionId) {
+            holdStartedAtRef.current = {id: continuationExecutionId, at: Date.now()}
+        }
+    } else {
+        holdStartedAtRef.current = null
+    }
+    const holdStartedAt = holdStartedAtRef.current
+    const idHoldExpired =
+        !!holdStartedAt && Date.now() - holdStartedAt.at >= CONTINUATION_HOLD_MAX_MS
+    const idHold =
+        !!continuationExecutionId &&
+        !idHoldExpired &&
+        !approvalContinuationSettled(messages, continuationExecutionId)
+    // The ceiling needs a render to take effect; nothing else re-renders a hold that is waiting.
+    useEffect(() => {
+        if (!holdStartedAt || idHoldExpired) return
+        const remaining = holdStartedAt.at + CONTINUATION_HOLD_MAX_MS - Date.now()
+        const timer = setTimeout(() => forceHoldRecheck((n) => n + 1), Math.max(remaining, 0))
+        return () => clearTimeout(timer)
+    }, [holdStartedAt, idHoldExpired])
+
+    // Ownership is scoped by the respond body's execution id, so an observer rendering the same
+    // continuation records never claims it. Keep ownership past the gap ceiling once that exact
+    // execution is visibly running; the ceiling only protects a continuation that wrote nothing.
+    const ownsContinuation =
+        idHold ||
+        (!!continuationExecutionId &&
+            hasRunningApprovalContinuation(messages) &&
+            !approvalContinuationSettled(messages, continuationExecutionId))
+
+    // A stop voids the approval gate, so the aborted turn's lingering `approval-requested` part
+    // must not read as "awaiting".
+    const hitlPending = !stopped && isHitlPending(messages)
+    // Parked CLIENT TOOLS only, not approvals. The steer guard below reads this, and an approval
+    // gate must keep sending a typed message to the queue: answering it is what the dock's buttons
+    // are for, and a message is as likely to be consent as a redirect.
+    const parkedClientTools =
+        !stopped &&
+        (getPendingElicitationInteractions(messages).length > 0 ||
+            getPendingConnectInteractions(messages).length > 0)
+    const parkedClientToolsRef = useRef(parkedClientTools)
+    parkedClientToolsRef.current = parkedClientTools
+
+    const restoreRefusedSendRef = useRef(restoreRefusedSend)
+    restoreRefusedSendRef.current = restoreRefusedSend
+    const onSendAcceptedRef = useRef(onSendAccepted)
+    onSendAcceptedRef.current = onSendAccepted
+    const onSendFailedRef = useRef(onSendFailed)
+    onSendFailedRef.current = onSendFailed
+
+    // Echo rows for durable sends, which the AI SDK chat never receives. Owned by its own hook so
+    // this one keeps to admission and editing.
+    //
+    // Retirement reads EVERY durable row, including the ones the dock hides below: a queued send's
+    // echo retires precisely because its row is now in the snapshot, so filtering here would leave
+    // it waiting forever.
+    const dockedInputIds = useMemo(
+        () => new Set(server.queued.map((item) => item.id)),
+        [server.queued],
+    )
+    const echoes = usePendingSendEchoes({messages, dockedInputIds})
+
+    const [editingId, setEditingId] = useState<string | null>(null)
+    const stashRef = useRef("")
+    const editSessionRef = useRef<{id: string; server: boolean} | null>(null)
+    const serverQueuedRef = useRef(server.queued)
+    serverQueuedRef.current = server.queued
+
+    // Optimistic queue writes: undone on failure, dropped once a later snapshot reflects them.
+    const [ops, setOps] = useState<QueueOps>({})
+    const [rowErrors, setRowErrors] = useState<QueueRowErrors>({})
+    // Client ids of just-sent rows removed before the server named their input.
+    const [deferredRemovals, setDeferredRemovals] = useState<ReadonlySet<string>>(() => new Set())
+    const deferredRemovalsRef = useRef(new Set<string>())
+    const admissionChainRef = useRef<Promise<void>>(Promise.resolve())
+    const admittingRef = useRef(0)
+
+    const opsRef = useRef(ops)
+    opsRef.current = ops
+    const opTokenRef = useRef(0)
+    const opOwnersRef = useRef(new Map<string, number>())
+    const setOp = useCallback((id: string, body: QueueOpBody) => {
+        const token = ++opTokenRef.current
+        opOwnersRef.current.set(id, token)
+        setOps((current) => ({...current, [id]: {...body, token}}))
+        return token
+    }, [])
+    // A later write on the same row owns its overlay; an earlier one's outcome must not touch it.
+    const dropOp = useCallback((id: string, token: number) => {
+        if (opOwnersRef.current.get(id) !== token) return false
+        opOwnersRef.current.delete(id)
+        setOps((current) => {
+            if (current[id]?.token !== token) return current
+            const next = {...current}
+            delete next[id]
+            return next
+        })
+        return true
+    }, [])
+    const settleOp = useCallback((id: string, token: number, settledSeq: number) => {
+        setOps((current) =>
+            current[id]?.token === token
+                ? {...current, [id]: {...current[id], settledSeq}}
+                : current,
+        )
+    }, [])
+    const setRowError = useCallback((id: string, error: QueueRowError | null) => {
+        setRowErrors((current) => {
+            if (error) return {...current, [id]: error}
+            if (!(id in current)) return current
+            const next = {...current}
+            delete next[id]
+            return next
+        })
+    }, [])
+    const forgetDeferredRemoval = useCallback((id: string) => {
+        if (!deferredRemovalsRef.current.delete(id)) return false
+        setDeferredRemovals(new Set(deferredRemovalsRef.current))
+        return true
+    }, [])
+
+    // `ops` too: a write can settle after the read that reflects it has already landed.
+    useEffect(() => {
+        setOps((current) => pruneQueueOps(current, server.queued, server.viewSeq))
+    }, [ops, server.queued, server.viewSeq])
+    useEffect(() => {
+        setRowErrors((current) => pruneQueueRowErrors(current, server.queued))
+    }, [server.queued])
+
+    // A new user row may be a started input: re-read once, hiding its echo's input until then.
+    const transcriptTurnIds = useMemo(() => durableUserTurnIds(messages), [messages])
+    const userCount = countUserMessages(messages)
+    const lastUserCountRef = useRef(userCount)
+    const retiredParkedIdsRef = useRef(echoes.retiredParkedIds)
+    retiredParkedIdsRef.current = echoes.retiredParkedIds
+    const [handoff, setHandoff] = useState<{
+        ids: ReadonlySet<string>
+        untilSeq: number | null
+    } | null>(null)
+    const refreshQueue = server.refresh
+    useEffect(() => {
+        const grew = userCount > lastUserCountRef.current
+        lastUserCountRef.current = userCount
+        if (!grew) return
+        const ids = retiredParkedIdsRef.current
+        const settle = (untilSeq: number) =>
+            setHandoff((current) => (current?.ids === ids ? {ids, untilSeq} : current))
+        setHandoff({ids, untilSeq: null})
+        if (!refreshQueue) {
+            settle(-1)
+            return
+        }
+        void refreshQueue({fresh: true}).then(
+            (seq) => settle(seq ?? -1),
+            () => settle(-1),
+        )
+    }, [userCount, refreshQueue])
+    useEffect(() => {
+        if (handoff?.untilSeq != null && server.viewSeq >= handoff.untilSeq) setHandoff(null)
+    }, [handoff, server.viewSeq])
+
+    // A promoted row the server stops listing stays, button-less, until its turn's user row lands.
+    const [held, setHeld] = useState<{row: QueuedMessage; turnId: string; until: number}[]>([])
+    const queuedKey = server.queued
+        .map((row) => `${row.id}:${row.promotedExecutionId ?? ""}`)
+        .join()
+    const [lastQueued, setLastQueued] = useState({key: queuedKey, rows: server.queued})
+    if (lastQueued.key !== queuedKey) {
+        setLastQueued({key: queuedKey, rows: server.queued})
+        const listed = new Set(server.queued.map((item) => item.id))
+        const until = Date.now() + RELEASE_HOLD_MAX_MS
+        const started = lastQueued.rows.flatMap((row) => {
+            const turnId = row.promotedExecutionId
+            if (!turnId || transcriptTurnIds.has(turnId) || listed.has(row.id)) return []
+            if (row.policy === "steer" || row.id === editingId || ops[row.id]) return []
+            return [{row: {...row, source: "local" as const, editable: false}, turnId, until}]
+        })
+        if (started.length) {
+            const ids = new Set(started.map((item) => item.row.id))
+            setHeld((current) => [...current.filter((item) => !ids.has(item.row.id)), ...started])
+        }
+    }
+    const heldRows = useMemo(() => {
+        const listed = new Set(server.queued.map((item) => item.id))
+        return held
+            .filter(
+                (item) =>
+                    Date.now() < item.until &&
+                    !transcriptTurnIds.has(item.turnId) &&
+                    !listed.has(item.row.id),
+            )
+            .map((item) => item.row)
+    }, [held, server.queued, transcriptTurnIds])
+    // The time limit needs a render of its own once nothing else changes.
+    useEffect(() => {
+        if (!held.length) return
+        const next = Math.min(...held.map((item) => item.until)) - Date.now()
+        const timer = setTimeout(
+            () => setHeld((current) => current.filter((item) => Date.now() < item.until)),
+            Math.max(next, 0),
+        )
+        return () => clearTimeout(timer)
+    }, [held])
+
+    // A steer this tab sent is on its way INTO the running turn, not held behind it, so while its
+    // echo is on screen the dock leaves the row out rather than showing the same message twice.
+    // Derived from the live echoes, so the row comes back the moment the echo stops covering it —
+    // an input the turn ended without consuming is visible again, and removable.
+    // A docked echo steps aside the moment the server lists the input it became.
+    const dockedServerQueued = useMemo(() => {
+        const listedClientIds = new Set(server.queued.map((item) => item.clientId))
+        const removing = (clientId?: string | null) => !!clientId && deferredRemovals.has(clientId)
+        // The transcript already shows it: its promoted turn landed, or its echo just retired.
+        const inTranscript = (item: QueuedMessage) =>
+            (!!item.promotedExecutionId && transcriptTurnIds.has(item.promotedExecutionId)) ||
+            echoes.retiredParkedIds.has(item.id) ||
+            !!handoff?.ids.has(item.id)
+        return [
+            ...heldRows,
+            ...applyQueueOps(server.queued, ops, rowErrors).filter(
+                (item) =>
+                    !echoes.dockCoveredIds.has(item.id) &&
+                    !removing(item.clientId) &&
+                    !inTranscript(item),
+            ),
+            ...echoes.dockRows
+                .filter((item) => !listedClientIds.has(item.id) && !removing(item.id))
+                .map((item) => ({...item, removable: true})),
+        ]
+    }, [
+        heldRows,
+        server.queued,
+        ops,
+        rowErrors,
+        echoes.dockCoveredIds,
+        echoes.dockRows,
+        echoes.retiredParkedIds,
+        deferredRemovals,
+        transcriptTurnIds,
+        handoff,
+    ])
+
+    const startRemove = useCallback(
+        (id: string) => {
+            setRowError(id, null)
+            const token = setOp(id, {kind: "remove", settledSeq: null})
+            const fail = (message: string) => {
+                if (dropOp(id, token)) setRowError(id, {message})
+            }
+            void server
+                .remove(id)
+                .then(({outcome, settledSeq}) => {
+                    // Gone already is the end state the user asked for.
+                    if (outcome === "applied" || outcome === "not_found") {
+                        settleOp(id, token, settledSeq)
+                    }
+                    // 409: promoted, or bound to a pending stop.
+                    else fail(outcome === "conflict" ? REMOVE_ABOUT_TO_RUN : REMOVE_FAILED)
+                })
+                .catch(() => fail(REMOVE_FAILED))
+        },
+        [dropOp, server, setOp, setRowError, settleOp],
+    )
+
+    // One durable admission for both policies, so a steer gets the same echo and refusal
+    // recovery a queued send has.
+    const submitDurable = useCallback(
+        (message: QueuedMessage, policy: "queue" | "steer"): Promise<void> => {
+            // Show it before the request leaves. Every exit is driven by evidence about this
+            // send: the turn it started, the dock row (queue) or parked input (steer) it
+            // became, or its failure.
+            // A queued send while a run is busy, or behind a send still being admitted, parks.
+            const busy =
+                serverBusyRef.current ||
+                runActiveRef.current ||
+                echoes.inFlight ||
+                admittingRef.current > 0
+            echoes.add({...message, policy, docked: policy === "queue" && busy})
+            const waiting = admittingRef.current > 0
+            admittingRef.current += 1
+            // Until the runner names this turn, the API reads the session as idle and runs both.
+            let nameTurn = () => {}
+            const named = new Promise<void>((resolve) => (nameTurn = resolve))
+            const cap = setTimeout(nameTurn, ADMISSION_NAME_MAX_MS)
+            const release = () => {
+                clearTimeout(cap)
+                admittingRef.current -= 1
+            }
+            const admit = () =>
+                server.submit(message, policy, {
+                    opensTurn: policy === "queue" && !busy,
+                    onTurnNamed: nameTurn,
+                    onAccepted: (executionId) => {
+                        forgetDeferredRemoval(message.id)
+                        echoes.markAccepted(message.id, executionId)
+                        onSendAcceptedRef.current?.(message, executionId)
+                    },
+                    onParked: (inputId) => {
+                        onSendAcceptedRef.current?.(message, null)
+                        if (forgetDeferredRemoval(message.id)) {
+                            echoes.drop(message.id)
+                            startRemove(inputId)
+                            return
+                        }
+                        echoes.markParked(message.id, inputId)
+                    },
+                    // One event, one recovery. A refusal that arrives after the promise resolved
+                    // goes back to the composer exactly like one that rejected it, so there is a
+                    // single place the message lives and a single wording for it. The row is the
+                    // fallback only when no composer can take the text.
+                    onFailed: () => {
+                        nameTurn()
+                        // Removed by the user: nothing to give back.
+                        if (forgetDeferredRemoval(message.id)) {
+                            echoes.drop(message.id)
+                            onSendFailedRef.current?.(message)
+                            return
+                        }
+                        // The row goes up FIRST and comes down only once the composer confirms it
+                        // took the text. It is the safe side to fail to: the message must never be
+                        // in neither place, and a host cannot always answer in this tick, because
+                        // its editor commits a write on a following one. Deciding on a same-tick
+                        // answer left a refused message in the transcript AND the composer, where
+                        // it could be sent twice (staging, `66ed5a6c57`).
+                        //
+                        // Passing the message re-creates the row when the count rule has already
+                        // retired it, so a late refusal always has somewhere to be.
+                        echoes.markFailed(message.id, message)
+                        onSendFailedRef.current?.(message)
+                        const restoring = restoreRefusedSendRef.current?.(message)
+                        if (!restoring) return
+                        void Promise.resolve(restoring).then((taken) => {
+                            if (taken) echoes.drop(message.id)
+                        })
+                    },
+                    // The turn ended and its records were re-read. An echo still on screen is one
+                    // whose row was never persisted, so it stops waiting silently; a row that
+                    // arrives later still retires it.
+                    // Settlement never touches the composer. It only marks an echo that is STILL
+                    // waiting, and marking one that has already retired is a no-op. Restoring
+                    // here would write a delivered message back into the input under "wasn't
+                    // sent", which is the normal accepted path: row adopted, echo retired, stream
+                    // ends.
+                    onSettled: () => {
+                        nameTurn()
+                        echoes.markFailed(message.id)
+                    },
+                })
+            const admitted = waiting ? admissionChainRef.current.then(admit) : admit()
+            admissionChainRef.current = admitted
+                .then(
+                    (admission) => (admission === "running" ? named : undefined),
+                    () => undefined,
+                )
+                .then(release)
+            return admitted.then(
+                (admission) => {
+                    if (admission !== "running") return
+                    forgetDeferredRemoval(message.id)
+                    echoes.markStarted(message.id)
+                },
+                (error: unknown) => {
+                    echoes.drop(message.id)
+                    onSendFailedRef.current?.(message, error)
+                    if (forgetDeferredRemoval(message.id)) return
+                    throw error
+                },
+            )
+        },
+        [echoes, forgetDeferredRemoval, server, startRemove],
+    )
+
+    const submit = useCallback(
+        (item: {
+            text: string
+            executionText?: string
+            fileParts?: FileUIPart[]
+            stagedFiles?: ComposerAttachment[]
+        }) => {
+            const message: QueuedMessage = {
+                ...item,
+                id: generateId(),
+                ...(item.executionText !== undefined ? {editable: false} : {}),
+            }
+            return submitDurable(message, "queue")
+        },
+        [submitDurable],
+    )
+
+    const removeQueued = useCallback(
+        (id: string) => {
+            if (server.queued.some((message) => message.id === id)) {
+                // A saving edit owns the row; removing now would lose its recovery text.
+                const op = opsRef.current[id]
+                if (op?.kind === "edit" && op.settledSeq === null) return
+                startRemove(id)
+                return
+            }
+            // Not listed yet: hidden now, removed once the server names its input.
+            if (echoes.dockRows.some((message) => message.id === id)) {
+                deferredRemovalsRef.current.add(id)
+                setDeferredRemovals(new Set(deferredRemovalsRef.current))
+            }
+        },
+        [echoes.dockRows, server.queued, startRemove],
+    )
+
+    const sendQueuedNow = useCallback(
+        (id: string) => {
+            const row = server.queued.find((message) => message.id === id)
+            const sendNow = server.sendNow
+            const op = opsRef.current[id]
+            if (!row || !sendNow || (op?.kind === "edit" && op.settledSeq === null)) return
+            // A saved edit the snapshot has not caught up with is the text that runs.
+            const sent =
+                op?.kind === "edit"
+                    ? {text: op.text, fileParts: op.fileParts ?? row.fileParts}
+                    : row
+            const echoId = `send-now-${id}`
+            setRowError(id, null)
+            const token = setOp(id, {kind: "sendNow", settledSeq: null})
+            echoes.add({id: echoId, text: sent.text, fileParts: sent.fileParts})
+            const fail = (message: string) => {
+                echoes.drop(echoId)
+                if (dropOp(id, token)) setRowError(id, {message})
+            }
+            void sendNow(id)
+                .then(({outcome, settledSeq, executionId}) => {
+                    if (outcome !== "applied") {
+                        fail(
+                            outcome === "busy"
+                                ? SEND_NOW_BUSY
+                                : outcome === "failed"
+                                  ? SEND_NOW_FAILED
+                                  : NOT_QUEUED,
+                        )
+                        return
+                    }
+                    settleOp(id, token, settledSeq)
+                    if (executionId) echoes.markAccepted(echoId, executionId)
+                })
+                .catch(() => fail(SEND_NOW_FAILED))
+        },
+        [dropOp, echoes, server, setOp, setRowError, settleOp],
+    )
+
+    // The API binds one input to a pending stop, so a second Send Now waits for it.
+    const sendNowPending = useMemo(
+        () =>
+            Object.values(ops).some((op) => op.kind === "sendNow") ||
+            server.queued.some((row) => row.policy === "steer" && !row.promotedExecutionId),
+        [ops, server.queued],
+    )
+
+    const steer = useCallback(
+        async (item: {
+            text: string
+            executionText?: string
+            fileParts?: FileUIPart[]
+            stagedFiles?: ComposerAttachment[]
+        }) => {
+            // A run parked on a client tool counts as busy. Its heartbeat is not in the snapshot
+            // (a parked run reads `idle`), but the turn is still open server-side: the host's
+            // dismiss-then-steer over a parked question or connection resumes it, and the steer
+            // lands in the resumed turn. Read through a ref, not the transcript: the call comes
+            // straight after the dismiss write, before anything has re-rendered. Approvals are
+            // deliberately excluded — see `parkedClientTools`.
+            if (!(serverBusyRef.current || parkedClientToolsRef.current)) {
+                throw new Error("The session is not ready to accept a Steer input.")
+            }
+            const message: QueuedMessage = {
+                ...item,
+                id: generateId(),
+                ...(item.executionText !== undefined ? {editable: false} : {}),
+            }
+            await submitDurable(message, "steer")
+        },
+        [submitDurable],
+    )
+
+    // ── Editing a held message ────────────────────────────────────────────────────────────────
+    // An edit session BORROWS the composer: the target's text goes in, and whatever the user had
+    // already typed is stashed and handed back when the session ends (either way). Without that,
+    // clicking edit on a half-written message would silently destroy it.
+
+    /** Open a session on `id`, stashing the composer's current draft. */
+    const beginEdit = useCallback(
+        (id: string, draft = "") => {
+            const op = opsRef.current[id]
+            if (op?.kind === "edit" && op.settledSeq === null) return
+            editSessionRef.current = {
+                id,
+                server: server.queued.some((message) => message.id === id),
+            }
+            stashRef.current = draft
+            setRowError(id, null)
+            setEditingId(id)
+        },
+        [server, setRowError],
+    )
+
+    /** Take the stashed draft back, once. Both ends of a session hand the composer back. */
+    const takeStash = useCallback(() => {
+        const draft = stashRef.current
+        stashRef.current = ""
+        return draft
+    }, [])
+
+    // A refused send the composer cannot take back (a newer draft is there) stays as a flagged row.
+    const {markFailed} = echoes
+    const keepRefusedSend = useCallback(
+        (item: {text: string; fileParts?: FileUIPart[]}) => {
+            const id = generateId()
+            markFailed(id, {id, ...item})
+        },
+        [markFailed],
+    )
+
+    /** Close the session without touching the message. Returns the draft to restore. */
+    const cancelEdit = useCallback(() => {
+        editSessionRef.current = null
+        setEditingId(null)
+        return takeStash()
+    }, [takeStash])
+
+    // A refused edit stays on a row that is still queued; only a row that is gone hands it back.
+    const saveEdit = useCallback(
+        (
+            id: string,
+            item: {text: string; fileParts?: FileUIPart[]; stagedFiles?: ComposerAttachment[]},
+            save: NonNullable<ServerQueueAdapter["edit"]>,
+        ) => {
+            const token = setOp(id, {
+                kind: "edit",
+                text: item.text,
+                fileParts: item.fileParts,
+                settledSeq: null,
+            })
+            const fail = (outcome: PendingInputWriteOutcome) => {
+                if (!dropOp(id, token)) return
+                if (serverQueuedRef.current.some((message) => message.id === id)) {
+                    setRowError(id, {
+                        message: outcome === "conflict" ? EDIT_ABOUT_TO_RUN : EDIT_FAILED,
+                        unsavedEdit: {text: item.text, fileParts: item.fileParts},
+                    })
+                    return
+                }
+                const recovery: QueuedMessage = {...item, id: `edit-${id}`}
+                void Promise.resolve(restoreRefusedSendRef.current?.(recovery)).then((taken) => {
+                    if (!taken) echoes.markFailed(recovery.id, recovery)
+                })
+            }
+            void save(id, {text: item.text, fileParts: item.fileParts})
+                .then(({outcome, settledSeq}) =>
+                    outcome === "applied" ? settleOp(id, token, settledSeq) : fail(outcome),
+                )
+                .catch(() => fail("failed"))
+        },
+        [dropOp, echoes, setOp, setRowError, settleOp],
+    )
+
+    /**
+     * Apply the composer's content to the message under edit. Deliberately NOT a branch inside
+     * `submit`: that one is also called by the steer-on-denial and pending-run paths, which would
+     * otherwise overwrite whatever the user happened to be editing.
+     *
+     * A durable edit closes at once and saves in the background; a target no longer held
+     * becomes a new message.
+     *
+     * Returns the stashed draft, exactly as `cancelEdit` does: committing consumes the composer,
+     * so the text the session displaced has to come back here too or it is lost for good.
+     */
+    const commitEdit = useCallback(
+        (item: {
+            text: string
+            executionText?: string
+            fileParts?: FileUIPart[]
+            stagedFiles?: ComposerAttachment[]
+        }) => {
+            const id = editingId
+            const editSession = editSessionRef.current
+            const serverOwnsInput =
+                editSession?.server || server.queued.some((message) => message.id === id)
+            if (id && serverOwnsInput) {
+                const save = server.edit
+                if (!save) return Promise.reject(new Error("This queued message cannot be edited."))
+                saveEdit(id, item, save)
+                editSessionRef.current = null
+                setEditingId(null)
+                return Promise.resolve(takeStash())
+            }
+            return submit(item).then(() => {
+                setEditingId(null)
+                return takeStash()
+            })
+        },
+        [editingId, saveEdit, server, submit, takeStash],
+    )
+
+    return {
+        queued: dockedServerQueued,
+        /** Sent-but-not-yet-saved user rows; merge with `mergePendingSendEchoRows`. */
+        pendingSendRows: echoes.rows,
+        /** A send of this mount is on its way: admitted, not yet named by the runner or refused.
+         * The server-owned path never moves `useChat`'s `status` off "ready", so this is the only
+         * local evidence a turn was just submitted. */
+        sendInFlight: echoes.inFlight,
+        submit,
+        steer,
+        removeQueued,
+        sendQueuedNow: server.sendNow ? sendQueuedNow : undefined,
+        sendNowPending,
+        /** This tab received the durable respond body for this still-running execution. */
+        ownsContinuation,
+        serverBusy: server.busy,
+        /** The conversation is paused on a HITL approval — typed messages should queue, not send. */
+        hitlPending,
+        /** Id of the held message the composer is currently editing, or null. */
+        editingId,
+        beginEdit,
+        cancelEdit,
+        commitEdit,
+        keepRefusedSend,
+    }
+}

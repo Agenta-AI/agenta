@@ -1,10 +1,9 @@
 export * from "./selectors/project"
 export * from "./hooks"
 
+import {ProjectsResponse} from "@agenta/entities/project"
 import {getDefaultStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
-
-import {ProjectsResponse} from "@/oss/services/project/types"
 
 import {getOrgValues} from "../org"
 

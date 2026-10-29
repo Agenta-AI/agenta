@@ -12,10 +12,13 @@ import {
     YAxis,
 } from "recharts"
 
+import {useChartSeries} from "@/oss/lib/hooks/useChartSeries"
+
 interface CustomAreaChartProps {
     data: any[]
     categories: string[]
     index: string
+    /** Explicit series colors (real CSS colors). Omit to take the brand categorical order. */
     colors?: string[]
     valueFormatter?: (value: number) => string
     tickCount?: number
@@ -23,34 +26,28 @@ interface CustomAreaChartProps {
     className?: string
 }
 
-// Map Tremor-like color names to hex values (simplified for this specific use case)
-// You might want to expand this or import from a central theme file if available
-const colorMap: Record<string, string> = {
-    "cyan-600": "#0891b2",
-    rose: "#e11d48",
-    gray: "#6b7280",
-}
-
 const CustomAreaChart: React.FC<CustomAreaChartProps> = ({
     data,
     categories,
     index,
-    colors = ["cyan-600"],
+    colors,
     valueFormatter = (value: number) => formatCompactNumber(value),
     tickCount = 5,
     allowDecimals = false,
     className,
 }) => {
     const {token} = theme.useToken()
+    // Series take the brand categorical order (theme-aware) unless the caller names colors.
+    const series = useChartSeries()
+    const resolveColor = (idx: number) => colors?.[idx] ?? series[idx % series.length]
 
     return (
         <div className={`w-full ${className}`}>
             <ResponsiveContainer width="100%" height="100%">
-                <ReAreaChart data={data} margin={{top: 5, right: 5, left: -20, bottom: 0}}>
+                <ReAreaChart data={data} margin={{top: 5, right: 5, left: 0, bottom: 0}}>
                     <defs>
                         {categories.map((category, idx) => {
-                            const colorKey = colors[idx % colors.length]
-                            const color = colorMap[colorKey] || colorKey
+                            const color = resolveColor(idx)
                             return (
                                 <linearGradient
                                     key={category}
@@ -102,8 +99,7 @@ const CustomAreaChart: React.FC<CustomAreaChartProps> = ({
                         formatter={(value) => [valueFormatter(value as number), ""]}
                     />
                     {categories.map((category, idx) => {
-                        const colorKey = colors[idx % colors.length]
-                        const color = colorMap[colorKey] || colorKey
+                        const color = resolveColor(idx)
                         return (
                             <Area
                                 key={category}

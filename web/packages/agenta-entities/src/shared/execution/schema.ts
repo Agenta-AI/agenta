@@ -16,27 +16,6 @@ export interface Base {
 }
 
 // ============================================================================
-// OPTIONS
-// ============================================================================
-
-interface OptionRoot {
-    label: string
-}
-
-interface CommonOption extends OptionRoot {
-    value: string
-}
-
-/** Compound option for const-discriminated unions */
-export interface CompoundOption extends CommonOption {
-    config: {
-        type: string
-        schema?: Record<string, unknown>
-        [key: string]: unknown
-    }
-}
-
-// ============================================================================
 // SCHEMA TYPES
 // ============================================================================
 
@@ -105,14 +84,6 @@ export type SchemaProperty =
 // Single ObjectSchema definition that covers all cases
 export type ObjectSchema = Extract<SchemaProperty, {type: "object"}>
 
-// Convenience interfaces that extend from the union type
-export interface PrimitiveSchema extends Extract<
-    SchemaProperty,
-    {type: Exclude<SchemaType, "object" | "array" | "compound">}
-> {}
-export interface ArraySchema extends Extract<SchemaProperty, {type: "array"}> {}
-export interface AnyOfSchema extends Extract<SchemaProperty, {anyOf: SchemaProperty[]}> {}
-
 interface StringPropertyType {
     type: "string"
     const: string
@@ -128,43 +99,9 @@ export interface ObjectWithConstSchema extends BaseSchemaProperties {
     }
 }
 
-// Specialized schema for discriminated const objects
-export interface ConstDiscriminatedSchema extends ObjectWithConstSchema {
-    properties: {
-        type: StringPropertyType & SchemaProperty
-        [key: string]: SchemaProperty
-    }
-}
-
-export type PrimitiveSchemaType = Exclude<SchemaType, "object" | "array" | "compound">
-
-export interface ExtractedSchema {
-    schema: SchemaProperty
-    parentTitle?: string
-    parentDescription?: string
-    isNullable: boolean
-}
-
 // ============================================================================
 // OPENAPI SPEC (strongly typed version)
 // ============================================================================
-
-export interface OpenAPISpecStrict {
-    paths: Record<
-        string,
-        {
-            post: {
-                requestBody: {
-                    content: {
-                        "application/json": {
-                            schema: ObjectSchema
-                        }
-                    }
-                }
-            }
-        }
-    >
-}
 
 // Re-export Merge here since schema.d.ts depends on it
 export type {Merge}

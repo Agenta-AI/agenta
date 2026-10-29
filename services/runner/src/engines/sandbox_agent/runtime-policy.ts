@@ -1,9 +1,30 @@
+import { type AgentRunRequest, type ToolPermission } from "../../protocol.ts";
 import {
-  type AgentRunRequest,
-  type ToolPermission,
-} from "../../protocol.ts";
-import { claimSessionOwnership, REPLICA_ID } from "../../sessions/alive.ts";
+  normalizeMcpServerPermissions,
+  type McpPermissionTable,
+  type McpServerPermissions,
+} from "../../mcp-permission.ts";
+// Re-exported so the gate call sites keep importing their MCP permission vocabulary from the
+// runtime-policy module they already depend on, while the rules themselves stay in one
+// dependency-free file the Pi extension bundle can import too.
+export {
+  mcpToolPermission,
+  type McpPermissionTable,
+  type McpServerPermissions,
+} from "../../mcp-permission.ts";
+import { materializeGatewayHeaders } from "./run-plan.ts";
+import { commandTimeoutSeconds } from "./run-limits.ts";
+import {
+  configuredIngestBases,
+  isAgentaIngest,
+  platformAuthorizationProvider,
+  publicApiBaseConfigured,
+  resolveOtlpTraceEndpoint,
+  type AuthorizationProvider,
+} from "../../tracing/otel.ts";
+import { endpointHost } from "../../tracing/export-diagnostics.ts";
 import { PendingApprovalPauseController } from "./pause.ts";
+import { GATEWAY_PLACEHOLDER_API_KEY } from "../../extensions/model-provider-override.ts";
 
 type Log = (message: string) => void;
 
@@ -16,16 +37,153 @@ export function runCredential(request: AgentRunRequest): string {
   return (headers["authorization"] ?? headers["Authorization"] ?? "").trim();
 }
 
-export function serverPermissionsFromRequest(
+/** Endpoints already warned about, so a per-turn read warns once instead of every run. */
+const warnedEndpoints = new Set<string>();
+
+/** Test-only: forget which endpoints have warned, so a case can assert on its own warning. */
+export function resetPlatformCredentialWarnings(): void {
+  warnedEndpoints.clear();
+}
+
+/**
+ * The legacy wire has one authorization header for two possible owners. Treat it as an Agenta
+ * platform credential only when the configured destination is Agenta ingest; for an external
+ * collector it belongs exclusively to that collector and must never enter platform calls.
+ *
+ * That attribution is only decidable once the runner knows its platform's PUBLIC api base
+ * (`AGENTA_API_URL`), because the public form is what a dispatched run carries: the API hands the
+ * SDK `https://<host>/api`, while the runner's own hop is usually the internal `http://api:8000`.
+ * A runner told ONLY its internal hop cannot tell its own API under its public name from a
+ * third-party collector. Refusing there fails closed on the wrong axis — it silently strips the
+ * credential from every run in an otherwise healthy self-hosted deployment, and the damage
+ * surfaces far away as a 401 on session persistence. So the strict check arms itself only when
+ * the operator has supplied the base that makes it decidable, and otherwise keeps the credential
+ * and says loudly what to configure.
+ */
+export function platformCredentialForRequest(
   request: AgentRunRequest,
-): ReadonlyMap<string, ToolPermission> {
-  const permissions = new Map<string, ToolPermission>();
-  for (const server of request.mcpServers ?? []) {
-    if (server.policy?.permission !== undefined) {
-      permissions.set(server.name, server.policy.permission);
+  log: Log = (message) => process.stderr.write(`${message}\n`),
+): string {
+  const endpoint = resolveOtlpTraceEndpoint(
+    request.telemetry?.exporters?.otlp?.endpoint,
+  );
+  if (isAgentaIngest(endpoint)) return runCredential(request);
+
+  const credential = runCredential(request);
+  if (!credential) return "";
+
+  if (!publicApiBaseConfigured()) {
+    if (!warnedEndpoints.has(endpoint)) {
+      warnedEndpoints.add(endpoint);
+      log(
+        `[sessions] WARNING: trace endpoint host ${endpointHost(endpoint)} matches no configured ` +
+          `Agenta ingest host (${configuredIngestBases().map(endpointHost).join(", ")}), and AGENTA_API_URL is not set, so the ` +
+          `run credential cannot be attributed. Using it for platform calls anyway. Set ` +
+          `AGENTA_API_URL to this deployment's public api base (e.g. https://<host>/api) to ` +
+          `attribute it properly and to keep third-party collector credentials out of platform calls.`,
+      );
     }
+    return credential;
   }
-  return permissions;
+
+  if (!warnedEndpoints.has(endpoint)) {
+    warnedEndpoints.add(endpoint);
+    log(
+      `[sessions] trace endpoint host ${endpointHost(endpoint)} is not Agenta ingest ` +
+        `(${configuredIngestBases().map(endpointHost).join(", ")}); dropping the run credential from platform ` +
+        `calls. Session persistence and history rebuild will fail with HTTP 401 if this ` +
+        `endpoint IS this deployment's api base.`,
+    );
+  }
+  return "";
+}
+
+export interface RunOtlpTarget {
+  endpoint: string;
+  authorization: AuthorizationProvider;
+  authorizationSource: "platform" | "exporter";
+}
+
+/**
+ * Bind one run to its trusted OTLP destination and the credential that belongs to it.
+ * Agenta ingest follows the renewable platform credential; an external collector keeps the
+ * exporter header from the original request and never receives a refreshed platform token.
+ */
+export function resolveRunOtlpTarget(
+  request: AgentRunRequest,
+  platformAuthorization: AuthorizationProvider,
+): RunOtlpTarget {
+  const endpoint = resolveOtlpTraceEndpoint(
+    request.telemetry?.exporters?.otlp?.endpoint,
+  );
+  if (isAgentaIngest(endpoint)) {
+    return {
+      endpoint,
+      authorization: platformAuthorizationProvider(platformAuthorization),
+      authorizationSource: "platform",
+    };
+  }
+  const exporterAuthorization = runCredential(request) || undefined;
+  return {
+    endpoint,
+    authorization: () => exporterAuthorization,
+    authorizationSource: "exporter",
+  };
+}
+
+/**
+ * Build the run's MCP permission table: one entry per configured server, keyed on the server name
+ * as it arrives on the wire.
+ *
+ * The name is a label, not identity. It was both once — the gateway route for an author-supplied
+ * server was `custom/{name}` — and the independent-connection work separated them: the SDK builds
+ * the route from `connection.slug` whenever a connection reference is present
+ * (`sdks/python/agenta/sdk/agents/mcp/resolver.py`), and falls back to the name only for agent
+ * revisions committed before that reference existed, which are immutable and still arrive here.
+ *
+ * The table is still keyed on the wire name, because that is what a harness renders into a tool
+ * name and therefore what the gate has to look up. Two connections may carry one display name, so
+ * that key is not unique: such a name is marked ambiguous here and every call under it is refused
+ * (D10). When the connection slug reaches this call site the table gains a second key and nothing
+ * downstream moves.
+ *
+ * The per-server rules live in `src/mcp-permission.ts`, which the in-sandbox Pi extension imports
+ * too, so the two harness families cannot disagree about what a policy means.
+ */
+export function mcpPermissionsFromRequest(
+  request: AgentRunRequest,
+  log?: Log,
+): McpPermissionTable {
+  const table = new Map<string, McpServerPermissions>();
+  const colliding = new Set<string>();
+  for (const server of request.mcpServers ?? []) {
+    const name = typeof server?.name === "string" ? server.name : "";
+    if (!name) continue;
+    if (table.has(name)) {
+      // Two configured servers under one wire name. This used to overwrite, so the last one
+      // declared answered for both and every call under that name resolved to one
+      // connection's policy whichever connection the model meant (D10).
+      //
+      // The entry is marked ambiguous rather than merged, and `mcpToolPermission` refuses
+      // it — the same verdict the ACP gate gives a rendered name more than one server could
+      // claim (D2), because it is the same situation: a call that cannot be attributed to a
+      // connection. Marking rather than merging is what keeps it one rule; a merged verdict
+      // would be a second, quieter policy nobody configured.
+      colliding.add(name);
+      table.set(name, { tools: new Map(), ambiguous: true });
+      continue;
+    }
+    table.set(name, normalizeMcpServerPermissions(server.policy));
+  }
+  for (const name of colliding) {
+    // Once per name, at intake. D2's refusal is per call and says nothing about why two
+    // servers share a name; this is the line that tells an operator which name to fix.
+    log?.(
+      `[mcp] error: more than one configured server is named '${name}', so no ` +
+        `'mcp__${name}__*' call can be attributed to one of them; every such call is refused`,
+    );
+  }
+  return table;
 }
 
 export function shouldSuppressPausedToolCallUpdate(
@@ -62,6 +220,24 @@ const CLAUDE_STRICT_DEPLOYMENTS = new Set([
   "vertex_ai",
 ]);
 
+/**
+ * Codex validates the provider block's ``env_key`` before it sends an HTTP request. Gateway
+ * routes authenticate with ``X-AG-Credentials`` instead, so provide only a fixed, non-secret
+ * selector value—not a provider credential.
+ */
+export function applyCodexGatewayConnectionEnv(
+  env: Record<string, string>,
+  request: AgentRunRequest,
+  acpAgent: string,
+): void {
+  if (
+    acpAgent !== "codex" ||
+    !request.modelConnection?.gatewayCredentials?.value
+  )
+    return;
+  env.OPENAI_API_KEY = GATEWAY_PLACEHOLDER_API_KEY;
+}
+
 export function applyClaudeConnectionEnv(
   env: Record<string, string>,
   request: AgentRunRequest,
@@ -70,6 +246,10 @@ export function applyClaudeConnectionEnv(
 ): void {
   if (acpAgent !== "claude") return;
 
+  // Claude Code discovers the gateway's current stateless MCP interface.
+  env.MCP_PROTOCOL_NEGOTIATION = "auto";
+  logger("claude MCP protocol negotiation: auto");
+
   // Disable the Claude Agent SDK's Tool-Search feature for every Claude run. The bundled
   // SDK defaults Tool-Search ON, which makes Claude DEFER the `agenta-tools` MCP tools and
   // call them before their `inputSchema` is loaded — so it emits an empty `input: {}` and
@@ -77,8 +257,17 @@ export function applyClaudeConnectionEnv(
   // Our tool count is small, so deferral buys nothing and only strips the schema. The SDK
   // treats only `false`/`0`/`no`/`off` as off, so the string must be "false" (not "0"/"100").
   // This is applied after `buildDaemonEnv`'s clear and is not in `KNOWN_PROVIDER_ENV_VARS`,
-  // so it is never stripped, and it reaches the Daytona sandbox like `ANTHROPIC_BASE_URL`.
+  // so it is never stripped. `buildRuntimeEnvironment` writes it to the Daytona env on Daytona.
   env.ENABLE_TOOL_SEARCH = "false";
+
+  // Claude Code runs its own Bash tool, so the runner cannot stop a command; it can only bound the
+  // timeout Claude Code allows. At that timeout Claude Code stops the command or moves it to the
+  // background; either way the tool call returns and the turn continues. A timeout allowed past the
+  // per-tool-call limit would trip the run-wide watchdog and end the turn instead. Claude Code's own
+  // defaults are 2 and 10 minutes.
+  const commandMs = commandTimeoutSeconds(undefined) * 1000;
+  env.BASH_MAX_TIMEOUT_MS = String(commandMs);
+  env.BASH_DEFAULT_TIMEOUT_MS = String(Math.min(120_000, commandMs));
 
   const deployment = request.modelConnection?.deployment;
   const selectedModel = request.model;
@@ -88,7 +277,31 @@ export function applyClaudeConnectionEnv(
     logger(`claude base_url: ${baseUrl}`);
   }
 
-  if (deployment === "bedrock") {
+  // Gateway credentials use one `Name: Value` pair per ANTHROPIC_CUSTOM_HEADERS line.
+  const gatewayHeaders = materializeGatewayHeaders(request);
+  const headerLines = Object.entries(gatewayHeaders)
+    .map(([name, value]) => `${name}: ${value}`)
+    .join("\n");
+  if (headerLines) {
+    env.ANTHROPIC_CUSTOM_HEADERS = headerLines;
+    // The Anthropic SDK refuses to initialize without a key-shaped value, even when a custom
+    // base URL and headers authenticate the request. This is only a fixed selector; the gateway
+    // alone reads the real credential carried in ANTHROPIC_CUSTOM_HEADERS.
+    env.ANTHROPIC_API_KEY = GATEWAY_PLACEHOLDER_API_KEY;
+    logger(
+      `claude gateway credentials header: ${request.modelConnection?.gatewayCredentials?.header}`,
+    );
+  }
+
+  if (deployment === "bedrock" && headerLines) {
+    // Bedrock through the gateway: Claude Code speaks Anthropic Messages to the gateway base
+    // URL, and the gateway relays to Bedrock's Messages endpoint. CLAUDE_CODE_USE_BEDROCK
+    // would make it ignore that URL and call Bedrock itself. Bedrock refuses the newest
+    // `anthropic-beta` values Claude Code sends, so its own switch drops them. "0", not
+    // absent: a local run inherits the runner's own environment, which may set it.
+    env.CLAUDE_CODE_USE_BEDROCK = "0";
+    env.CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS = "1";
+  } else if (deployment === "bedrock") {
     env.CLAUDE_CODE_USE_BEDROCK = "1";
     const region = request.modelConnection?.endpoint?.region;
     if (region) {
@@ -120,17 +333,6 @@ export function applyClaudeConnectionEnv(
  */
 export function modelResolutionStrict(): boolean {
   return process.env.AGENTA_AGENT_MODEL_STRICT !== "false";
-}
-
-export async function defaultResolveLocalRunnerOwner(
-  sessionId: string,
-  authorization: string,
-): Promise<{ replicaId: string; ownerReplicaId: string | undefined }> {
-  // No credential ⇒ the claim would 401; treat as "no known owner" (pass), never worse than today.
-  if (!authorization) {
-    return { replicaId: REPLICA_ID, ownerReplicaId: undefined };
-  }
-  return claimSessionOwnership(sessionId, authorization);
 }
 
 export function isTransportEndpointDisconnected(err: unknown): boolean {

@@ -134,10 +134,10 @@ class _Scope:
     """Resolved scope for event publication.
 
     Carries the fullest scope available at emit time so downstream
-    consumers (L1 / L2 entitlements, retention flush, future workspace-
-    granularity reporting) never have to re-resolve identity from a
-    `project_id`. `AuthScope` always populates all four UUIDs when set,
-    and `request.state` populates them on authenticated requests.
+    consumers (L1 / L2 entitlements, retention flush) never have to
+    re-resolve identity from a `project_id`. `AuthScope` always populates
+    the three UUIDs (organization, project, user) when set, and
+    `request.state` populates them on authenticated requests.
 
     `enabled` is True only when the scope carries at minimum a usable
     `project_id` and `user_id`. Callers should pass scope to a publish
@@ -146,7 +146,6 @@ class _Scope:
 
     __slots__ = (
         "organization_id",
-        "workspace_id",
         "project_id",
         "user_id",
         "enabled",
@@ -156,12 +155,10 @@ class _Scope:
         self,
         *,
         organization_id: Optional[UUID],
-        workspace_id: Optional[UUID] = None,
         project_id: Optional[UUID],
         user_id: Optional[UUID],
     ) -> None:
         self.organization_id = organization_id
-        self.workspace_id = workspace_id
         self.project_id = project_id
         self.user_id = user_id
         self.enabled = project_id is not None and user_id is not None
@@ -183,8 +180,8 @@ def _scope_from_auth_context() -> Optional[_Scope]:
 
     Returns `None` when no auth context is set (admin/Access endpoints,
     public endpoints, background tasks without explicit setup). Returns
-    a populated `_Scope` otherwise — `AuthScope` always carries all four
-    UUIDs (organization, workspace, project, user) when present.
+    a populated `_Scope` otherwise — `AuthScope` always carries the three
+    UUIDs (organization, project, user) when present.
     """
     try:
         auth_scope = get_auth_scope()
@@ -192,7 +189,6 @@ def _scope_from_auth_context() -> Optional[_Scope]:
         return None
     return _Scope(
         organization_id=auth_scope.organization_id,
-        workspace_id=auth_scope.workspace_id,
         project_id=auth_scope.project_id,
         user_id=auth_scope.user_id,
     )
@@ -221,7 +217,6 @@ def request_scope(request: Any) -> _Scope:
 
     return _Scope(
         organization_id=_parse_uuid(getattr(state, "organization_id", None)),
-        workspace_id=_parse_uuid(getattr(state, "workspace_id", None)),
         project_id=_parse_uuid(getattr(state, "project_id", None)),
         user_id=_parse_uuid(getattr(state, "user_id", None)),
     )

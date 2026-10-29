@@ -15,7 +15,7 @@
  */
 import type {TraceSpanNode} from "@agenta/entities/trace"
 import {retrieveWorkflowRevision} from "@agenta/entities/workflow"
-import {queryClient} from "@agenta/shared/api"
+import {getHostQueryClient} from "@agenta/shared/api"
 
 // ── Types ────────────────────────────────────────────────────────────────
 
@@ -192,7 +192,7 @@ class TraceRefResolverFailure extends Error {}
 
 /** Test-only: drop all cached entries. Not exported from package barrel. */
 export function __resetTraceRefResolutionCache(): void {
-    queryClient.removeQueries({queryKey: [TRACE_REF_RESOLUTION_QUERY_KEY]})
+    getHostQueryClient().removeQueries({queryKey: [TRACE_REF_RESOLUTION_QUERY_KEY]})
 }
 
 /**
@@ -245,6 +245,8 @@ export async function resolveTraceRefs(
         variantRef,
         revisionRef,
     ]
+
+    const queryClient = getHostQueryClient()
 
     try {
         return await queryClient.fetchQuery({

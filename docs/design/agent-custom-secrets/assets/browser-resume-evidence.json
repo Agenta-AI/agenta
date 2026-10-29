@@ -1,0 +1,79 @@
+{
+  "commits": 1,
+  "invokes": [
+    {
+      "at": 1788619035581,
+      "session_id": "3b666c5c-a8e0-43a1-b0b6-4b441530864b",
+      "references": {
+        "application": {
+          "id": "01a071e5-0c43-7e71-951b-ded6d453b7e2",
+          "slug": "qa-secret-ui-8nj0m219"
+        },
+        "application_variant": {
+          "id": "01a071e5-0c5f-78f3-8852-0d52fb0efdeb",
+          "slug": "qa-secret-ui-8nj0m219-default"
+        },
+        "application_revision": {
+          "id": "01a07200-9347-7121-a6ea-d18b0d63856c",
+          "slug": "02f70d56d997",
+          "version": "1"
+        }
+      },
+      "bindings": [
+        {
+          "secret": {
+            "slug": "deployment-token"
+          },
+          "binding": {
+            "type": "env",
+            "name": "DEPLOY_TOKEN"
+          }
+        }
+      ],
+      "containsDummy": false
+    },
+    {
+      "at": 1788619047586,
+      "session_id": "3b666c5c-a8e0-43a1-b0b6-4b441530864b",
+      "references": {
+        "application": {
+          "id": "01a071e5-0c43-7e71-951b-ded6d453b7e2",
+          "slug": "qa-secret-ui-8nj0m219"
+        },
+        "application_variant": {
+          "id": "01a071e5-0c5f-78f3-8852-0d52fb0efdeb",
+          "slug": "qa-secret-ui-8nj0m219-default"
+        },
+        "application_revision": {
+          "id": "01a07200-9347-7121-a6ea-d18b0d63856c",
+          "slug": "02f70d56d997",
+          "version": "1"
+        }
+      },
+      "bindings": [
+        {
+          "secret": {
+            "slug": "deployment-token"
+          },
+          "binding": {
+            "type": "env",
+            "name": "DEPLOY_TOKEN"
+          }
+        }
+      ],
+      "containsDummy": false
+    }
+  ],
+  "committedRevision": "01a07200-9347-7121-a6ea-d18b0d63856c",
+  "committedAt": 1788619035502,
+  "session": "3b666c5c-a8e0-43a1-b0b6-4b441530864b",
+  "expectedDigest": "59a49bc8941e471c53fefb693c6442208cc5375049f5abf24509297cc09e1bdf",
+  "store": {
+    "status": 200,
+    "content": "59a49bc8941e471c53fefb693c6442208cc5375049f5abf24509297cc09e1bdf"
+  },
+  "digestMatches": true,
+  "sameSession": true,
+  "resumedWithCommittedRevision": true,
+  "notes": "The digest is SHA-256 of the explicitly approved fixed dummy. Vault-create response instrumentation did not match the canonical endpoint; no claim is made from those counters."
+}

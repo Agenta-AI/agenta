@@ -1,0 +1,67 @@
+name: "49 - railway lifecycle"
+
+on:
+  workflow_call:
+    inputs:
+      operation:
+        required: true
+        type: string
+      pr_number:
+        required: true
+        type: string
+      source_sha:
+        type: string
+        default: ""
+      image_tag:
+        type: string
+        default: ""
+    secrets:
+      RAILWAY_TOKEN:
+        required: true
+      AGENTA_TEST_OSS_AUTH_KEY:
+        required: false
+    outputs:
+      sha:
+        value: ${{ jobs.mutate.outputs.sha }}
+      preview_url:
+        value: ${{ jobs.mutate.outputs.preview_url }}
+
+permissions:
+  contents: read
+  pull-requests: write
+  actions: write
+
+jobs:
+  mutate:
+    runs-on: ubuntu-latest
+    # Shared by CI, comments, closure and the sweep. Never cancel a mutation.
+    concurrency:
+      group: railway-preview-state-${{ inputs.pr_number }}
+      cancel-in-progress: false
+    timeout-minutes: 245
+    outputs:
+      sha: ${{ steps.lifecycle.outputs.sha }}
+      preview_url: ${{ steps.lifecycle.outputs.preview_url }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # For issue_comment this is trusted default-branch workflow code,
+          # never the PR source revision passed separately to the image build.
+          ref: ${{ github.workflow_sha }}
+          persist-credentials: false
+      - name: Apply bounded lifecycle transition
+        id: lifecycle
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RAILWAY_API_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          AGENTA_AUTH_KEY: ${{ secrets.AGENTA_TEST_OSS_AUTH_KEY }}
+          RAILWAY_TEMPLATE_PROJECT: ${{ vars.RAILWAY_TEMPLATE_PROJECT || 'agenta-oss-clone-spike' }}
+          RAILWAY_TEMPLATE_ENV: ${{ vars.RAILWAY_TEMPLATE_ENV || 'pr-template' }}
+          RAILWAY_MANUAL_PREVIEW_MINUTES: ${{ vars.RAILWAY_MANUAL_PREVIEW_MINUTES || '60' }}
+          RAILWAY_PREVIEW_STARTUP_MINUTES: ${{ vars.RAILWAY_PREVIEW_STARTUP_MINUTES || '30' }}
+          RAILWAY_CI_PREVIEW_MAX_MINUTES: ${{ vars.RAILWAY_CI_PREVIEW_MAX_MINUTES || '120' }}
+          OPERATION: ${{ inputs.operation }}
+          PR_NUMBER: ${{ inputs.pr_number }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+        run: python3 hosting/railway/oss/scripts/preview_lifecycle.py "$OPERATION"

@@ -60,6 +60,9 @@ export {
     ConfigBlock,
     SectionSkeleton,
     ConfigAccordionSection,
+    CONFIG_REGION_BAR,
+    ConfigRowCaret,
+    ConfigRowTrailing,
     sectionIndicatorColor,
     useAccordionSectionOpen,
     useRecentFlag,
@@ -69,6 +72,7 @@ export {
     type ConfigBlockProps,
     type SectionSkeletonProps,
     type ConfigAccordionSectionProps,
+    type ConfigRowTrailingProps,
     type SectionIndicatorTone,
 } from "./section"
 
@@ -83,6 +87,9 @@ export {CopyButton, type CopyButtonProps} from "./CopyButton"
 // ============================================================================
 
 export {default as EnhancedButton, type EnhancedButtonProps} from "./EnhancedButton"
+export {default as EmptyPlaceholder, type EmptyPlaceholderProps} from "./EmptyPlaceholder"
+export {default as EmptyState, type EmptyStateProps} from "./EmptyState"
+export {LogoMarks, type LogoMark, type LogoMarksProps} from "./logo-marks"
 
 // ============================================================================
 // SELECT COMPONENTS
@@ -148,7 +155,16 @@ export {Tag, type TagProps, type SyncState} from "./tag"
 // ============================================================================
 
 export {
+    AgentActivityDots,
+    type AgentActivityDotsProps,
+    type AgentActivityFormat,
+} from "./activity-dots"
+
+export {
     environmentColors,
+    StatusIndicator,
+    type StatusIndicatorProps,
+    type StatusTone,
     type QueryStatus,
     type ExecutionStatus,
     type EnvironmentName,
@@ -197,13 +213,20 @@ export {LoadingSkeleton, type LoadingSkeletonProps} from "./skeleton"
 
 export {
     SplitPanelLayout,
+    FilterRailLayout,
     NumberedStep,
     PanelFooter,
     ModalContentLayout,
+    PanelSurface,
+    PanelScroll,
+    PanelSection,
+    PANEL_ACTION_CLASS,
     type SplitPanelLayoutProps,
+    type FilterRailLayoutProps,
     type NumberedStepProps,
     type PanelFooterProps,
     type ModalContentLayoutProps,
+    type PanelSectionProps,
 } from "./layout"
 
 // ============================================================================
@@ -218,11 +241,19 @@ export {
 } from "./table-states"
 
 // ============================================================================
+// SCREEN STATE COMPONENTS
+// ============================================================================
+
+export {LoadError, type LoadErrorProps} from "./states"
+
+// ============================================================================
 // METRICS COMPONENTS
 // ============================================================================
 
 export {
     ExecutionMetricsDisplay,
+    MetaSeparator,
+    TokenBreakdownList,
     type ExecutionMetricsDisplayProps,
     type ExecutionMetricsData,
 } from "./metrics"
@@ -264,3 +295,16 @@ export {
     type UseCollapseToggleOptions,
     type UseCollapseToggleReturn,
 } from "./buttons"
+export {HeightCollapse} from "../HeightCollapse"
+export {
+    ChatActionIconButton,
+    ChatBubble,
+    ChatBubbleAvatar,
+    ChatJumpToLatest,
+    ChatTypingDots,
+    turnRowClass,
+    turnToolbarClass,
+    turnToolbarRevealClass,
+    userBubbleContentClass,
+    type ChatBubbleProps,
+} from "./chat"

@@ -229,20 +229,6 @@ export interface EntityModalAdapter<TEntity = unknown> {
 // ============================================================================
 
 /**
- * Delete modal state
- */
-export interface DeleteModalState {
-    /** Whether modal is open */
-    isOpen: boolean
-    /** Entities to delete */
-    entities: EntityReference[]
-    /** Loading state */
-    isLoading: boolean
-    /** Error if any */
-    error: Error | null
-}
-
-/**
  * Props for EntityDeleteModal component
  */
 export interface EntityDeleteModalProps {
@@ -259,22 +245,6 @@ export interface EntityDeleteModalProps {
 // ============================================================================
 // COMMIT MODAL TYPES
 // ============================================================================
-
-/**
- * Commit modal state
- */
-export interface CommitModalState {
-    /** Whether modal is open */
-    isOpen: boolean
-    /** Entity to commit */
-    entity: EntityReference | null
-    /** Commit message */
-    message: string
-    /** Loading state */
-    isLoading: boolean
-    /** Error if any */
-    error: Error | null
-}
 
 export interface CommitModeOption {
     id: string
@@ -378,24 +348,6 @@ export interface EntityCommitModalProps {
 // ============================================================================
 // SAVE MODAL TYPES
 // ============================================================================
-
-/**
- * Save modal state
- */
-export interface SaveModalState {
-    /** Whether modal is open */
-    isOpen: boolean
-    /** Entity to save (null for new entity) */
-    entity: EntityReference | null
-    /** Entity name */
-    name: string
-    /** Whether saving as new */
-    saveAsNew: boolean
-    /** Loading state */
-    isLoading: boolean
-    /** Error if any */
-    error: Error | null
-}
 
 /**
  * Props for EntitySaveModal component

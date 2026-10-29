@@ -7,6 +7,7 @@ from uuid import uuid4
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from fastapi import HTTPException
 from pydantic import ValidationError
 
 from oss.src.apis.fastapi.triggers.models import TriggerDiscoveryQuery
@@ -19,7 +20,12 @@ from oss.src.core.triggers.dtos import (
     TriggerConnection,
     TriggerDiscoveryConnectionState,
 )
-from oss.src.core.triggers.exceptions import AdapterError
+from oss.src.core.triggers.exceptions import (
+    AdapterError,
+    ProviderNotConfiguredError,
+    ProviderNotFoundError,
+)
+from oss.src.core.triggers.registry import TriggersGatewayRegistry
 from oss.src.core.triggers.service import (
     TriggersService,
     _TRIGGER_DISCOVERY_NO_CONFIDENT_MATCH_NOTE,
@@ -201,6 +207,60 @@ async def test_discover_route_returns_trigger_capabilities(monkeypatch):
     assert captured["use_cases"] == ["new github issue opened"]
     assert captured["provider_key"] == "composio"
     assert captured["limit_alternatives"] == 2
+
+
+async def test_discover_route_maps_provider_not_configured_to_503(monkeypatch):
+    # Composio disabled (no COMPOSIO_API_KEY) -> the service raises
+    # ProviderNotConfiguredError, not the generic ProviderNotFoundError. A
+    # self-hoster must see a clear "not configured" status, not a bare 404.
+    async def _discover(**_kwargs):
+        raise ProviderNotConfiguredError("composio", env_var="COMPOSIO_API_KEY")
+
+    async def _allow(**_kwargs):
+        return True
+
+    monkeypatch.setattr(
+        "oss.src.apis.fastapi.triggers.router.check_action_access",
+        _allow,
+    )
+
+    with pytest.raises(HTTPException) as caught:
+        await _router_with_discover(_discover).discover_triggers(
+            _request(),
+            body=TriggerDiscoveryQuery(use_cases=["new github issue opened"]),
+        )
+
+    assert caught.value.status_code == 503
+    assert "COMPOSIO_API_KEY" in caught.value.detail
+    assert "composio" in caught.value.detail
+
+
+# ---------------------------------------------------------------------------
+# Registry: composio unset (unconfigured) vs a genuinely unknown provider
+# ---------------------------------------------------------------------------
+
+
+def test_registry_raises_not_configured_for_known_but_disabled_provider():
+    registry = TriggersGatewayRegistry(
+        adapters={},
+        unconfigured={"composio": "COMPOSIO_API_KEY"},
+    )
+
+    with pytest.raises(ProviderNotConfiguredError) as caught:
+        registry.get("composio")
+
+    assert caught.value.env_var == "COMPOSIO_API_KEY"
+    assert "COMPOSIO_API_KEY" in str(caught.value)
+
+
+def test_registry_raises_not_found_for_unknown_provider():
+    registry = TriggersGatewayRegistry(
+        adapters={},
+        unconfigured={"composio": "COMPOSIO_API_KEY"},
+    )
+
+    with pytest.raises(ProviderNotFoundError):
+        registry.get("some-other-provider")
 
 
 def test_discover_route_is_registered_at_expected_path():

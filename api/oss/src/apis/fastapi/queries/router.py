@@ -912,6 +912,8 @@ class QueriesRouter:
             #
             include_archived=query_revision_query_request.include_archived,
             #
+            grouping=query_revision_query_request.grouping,
+            #
             windowing=query_revision_query_request.windowing,
         )
 

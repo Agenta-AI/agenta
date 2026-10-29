@@ -3,19 +3,18 @@ export interface ColorPair {
     textColor: string
 }
 
+/**
+ * The categorical avatar set (recolor spec), assigned in fixed order — flat fills, no gradients.
+ * `light-dark()` resolves against the root's `color-scheme`, which the app keeps in sync with the
+ * theme, so one pair covers both modes without the package needing a theme context.
+ */
 const COLOR_PAIRS: ColorPair[] = [
-    {backgroundColor: "#BAE0FF", textColor: "#1677FF"},
-    {backgroundColor: "#D9F7BE", textColor: "#389E0D"},
-    {backgroundColor: "#efdbff", textColor: "#722ED1"},
-    {backgroundColor: "#fff1b8", textColor: "#AD6800"},
-    {backgroundColor: "#D1F5F1", textColor: "#13C2C2"},
-    {backgroundColor: "#ffd6e7", textColor: "#EB2F96"},
-    {backgroundColor: "#f7cfcf", textColor: "#D61010"},
-    {backgroundColor: "#eaeff5", textColor: "#758391"},
-    {backgroundColor: "#D1E4E8", textColor: "#5E7579"},
-    {backgroundColor: "#F5E6D3", textColor: "#825E31"},
-    {backgroundColor: "#F9F6C1", textColor: "#84803A"},
-    {backgroundColor: "#F4E6E4", textColor: "#9C706A"},
+    {backgroundColor: "light-dark(#5E5E08, #D1D151)", textColor: "light-dark(#FFFFFF, #141414)"},
+    {backgroundColor: "light-dark(#113955, #8CCFFF)", textColor: "light-dark(#FFFFFF, #113955)"},
+    {backgroundColor: "light-dark(#5E0908, #FF8E8C)", textColor: "light-dark(#FFFFFF, #5E0908)"},
+    {backgroundColor: "light-dark(#D97757, #EBC96A)", textColor: "light-dark(#FFFFFF, #5E3D00)"},
+    {backgroundColor: "light-dark(#54B5FA, #54B5FA)", textColor: "#113955"},
+    {backgroundColor: "light-dark(#616161, #BCBCBC)", textColor: "light-dark(#FFFFFF, #333333)"},
 ]
 
 function hashString(text: string): number {

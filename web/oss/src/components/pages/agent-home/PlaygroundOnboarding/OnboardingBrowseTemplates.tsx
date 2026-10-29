@@ -1,10 +1,10 @@
+import {templateBuilderMessage, type AgentStarterTemplate} from "@agenta/entities/workflow"
+import {captureFirstAgentIntent} from "@agenta/shared/analytics"
 import {ArrowLeft} from "@phosphor-icons/react"
 import {Button, Typography} from "antd"
 
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 
-import {captureFirstAgentIntent} from "../assets/onboardingAnalytics"
-import {templateBuilderMessage, type AgentTemplate} from "../assets/templates"
 import TemplatesSection from "../components/TemplatesSection"
 
 import {useOnboardingContext} from "./OnboardingContext"
@@ -20,7 +20,7 @@ const OnboardingBrowseTemplates = () => {
     const {commit, setBrowseAll} = useOnboardingContext()
     const posthog = usePostHogAg()
 
-    const selectTemplate = (template: AgentTemplate) => {
+    const selectTemplate = (template: AgentStarterTemplate) => {
         captureFirstAgentIntent(posthog, {
             source: "template",
             properties: {
@@ -31,7 +31,7 @@ const OnboardingBrowseTemplates = () => {
             },
             intentValue: template.category || template.name,
         })
-        commit(templateBuilderMessage(template), template.name)
+        commit(templateBuilderMessage(template), template.name, template)
     }
 
     return (

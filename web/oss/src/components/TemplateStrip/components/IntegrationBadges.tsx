@@ -1,6 +1,5 @@
+import {PROVIDERS} from "@agenta/entities/workflow"
 import Image from "next/image"
-
-import {PROVIDERS} from "@/oss/components/pages/agent-home/assets/templates"
 
 /**
  * Overlapping brand-logo badges for a template's integrations. Tiles stay WHITE in dark

@@ -13,10 +13,10 @@ import {memo} from "react"
 
 import type {TraceContentRendererProps} from "@agenta/annotation-ui"
 import {traceEntityAtomFamily, traceRootSpanAtomFamily} from "@agenta/entities/trace"
+import {OverviewTabItem} from "@agenta/observability-ui/traceDrawer"
 import {Skeleton, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
-import OverviewTabItem from "@/oss/components/SharedDrawers/TraceDrawer/components/TraceContent/components/OverviewTabItem"
 import type {TraceSpanNode} from "@/oss/services/tracing/types"
 
 const AnnotationTraceContent = memo(function AnnotationTraceContent({

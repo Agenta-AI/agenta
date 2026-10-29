@@ -1,4 +1,33 @@
 export type {
+    AgentConnectionMode,
+    AgentConnectionNamespace,
+    AgentModelCandidate,
+    AgentModelSelection,
+    BuildAgentModelCandidatesArgs,
+    BuiltinModelEndpoint,
+} from "./agentModelCandidates"
+export {
+    agentFamilyFromModelId,
+    agentModelSelectionIsRunnable,
+    agentModelSelectionMode,
+    agentVaultProviderFamily,
+    buildAgentModelCandidates,
+    connectionModelIds,
+    effectiveHarnesses,
+    firstAgentModelForConnection,
+    isAgentDeploymentProviderKind,
+    resolveAgentModelSelection,
+    connectionNamespaceFrom,
+    savedConnectionNamespace,
+    connectionScopeFrom,
+    explicitAgentConnection,
+    selectableAgentHarnesses,
+    HIDDEN_AGENT_HARNESSES,
+    subscriptionConnectionCandidates,
+} from "./agentModelCandidates"
+
+export type {
+    AgentSecretBinding,
     CreateSecretDto,
     CustomModelSettingsDto,
     CustomProviderDto,
@@ -9,7 +38,9 @@ export type {
     Header,
     LegacyLifecycleDto,
     NamedSecretRow,
+    ProviderVaultRow,
     SecretDto,
+    SecretOwnerScope,
     SecretResponseDto,
     StandardProviderDto,
     StandardProviderSettingsDto,
@@ -20,23 +51,159 @@ export type {
 export {
     CustomProviderKind,
     CustomSecretFormat,
+    LlmEndpointProtocol,
+    McpStandardProviderKind,
     PROVIDER_KINDS,
     PROVIDER_LABELS,
     STANDARD_PROVIDER_KINDS,
     SecretKind,
+    SecretManagementPolicy,
     StandardProviderKind,
+    VAULT_PERSIST_REDACTED,
 } from "./types"
 
 export {
+    hasStoredKey,
     transformSecret,
     transformCustomProviderPayloadData,
     transformCustomSecretPayloadData,
+    transformStandardProviderPayloadData,
+    toUpdateSecretPayload,
     getEnvNameMap,
 } from "./transforms"
 
-export type {ProviderFieldAttributes, ProviderFieldConfig} from "./providerFields"
+export {
+    activeModelsCount,
+    credentialStatusLine,
+    harnessSummary,
+    manualModelPlaceholderForKind,
+    MODEL_LIST_RENDER_CAP,
+    modelListView,
+    relativeFetchTime,
+    secretNoteForKind,
+} from "./cardCopy"
+
+export {LITELLM_MODEL_PREFIXES, fromLitellmModelId, toLitellmModelId} from "./litellmModelId"
+
+export type {ProviderCatalogEntry, CredentialValues} from "./providerCatalog"
+export {
+    PROVIDER_CATALOG,
+    carriedCredentialKeys,
+    catalogEntryForKind,
+    credentialFieldsForKind,
+    deploymentForProviderKind,
+    endpointProtocolFieldForKind,
+    providerTitleForKind,
+    secretKindForProviderKind,
+    toProviderCredentials,
+} from "./providerCatalog"
+
+export type {
+    ConnectionDraft,
+    CredentialStatus,
+    DoneState,
+    HarnessCapabilityMap,
+    HarnessModelCapabilities,
+    ModelOption,
+    ProviderConnection,
+} from "./connections"
+export {
+    bareModelId,
+    buildConnectionPayload,
+    customRouteFamily,
+    declaredEndpointProtocol,
+    initialEndpointProtocol,
+    soleAgentHarnessProviderFamily,
+    buildModelOptions,
+    modelDisplayOrder,
+    connectionPolicyForSave,
+    credentialSummary,
+    credentialValuesFor,
+    defaultModelsFor,
+    defaultNamePreview,
+    doneState,
+    harnessSupportsProviderKind,
+    hasRequiredCredential,
+    hostedSubscriptionFamilies,
+    isSubscriptionConnection,
+    isOrganizationConnection,
+    httpStatusOf,
+    probeFailureMessage,
+    probeRequestFor,
+    storedCredentialFields,
+    maskSecret,
+    nextConnectionName,
+    providerModelCatalog,
+    toProviderConnections,
+} from "./connections"
+
+export {activeModelsSummary, connectedRowSubtitle, connectionModelCount} from "./connectionSummary"
+
+export type {SubscriptionHarnessStatus, SubscriptionPair} from "./subscriptionPairs"
+
+export type {
+    SubscriptionAvailability,
+    SubscriptionConnectMethod,
+    SubscriptionLoginState,
+    SubscriptionRowFacts,
+} from "./subscriptionConnections"
+export {
+    DEFAULT_SUBSCRIPTION_HARNESSES,
+    SUBSCRIPTION_LOGIN_STATES,
+    SUBSCRIPTION_PROVIDER_KIND,
+    SUBSCRIPTION_SIGN_IN_HINT,
+    subscriptionAttemptErrorSentence,
+    subscriptionAvailability,
+    subscriptionConnectMethod,
+    subscriptionConnectionFor,
+    subscriptionHarnesses,
+    subscriptionIsReady,
+    subscriptionProviderFamily,
+    subscriptionProviderName,
+    subscriptionRunProvider,
+    subscriptionStatusLine,
+    subscriptionTokenErrorText,
+} from "./subscriptionConnections"
+export {
+    MOUNTED_SUBSCRIPTION_SOURCE,
+    mountedSubscriptionDisplayName,
+    mountedSubscriptionName,
+    subscriptionPairModels,
+    subscriptionPairsFrom,
+    subscriptionPlanName,
+} from "./subscriptionPairs"
+
+export type {
+    ProviderChoiceFieldConfig,
+    ProviderChoiceOption,
+    ProviderFieldAttributes,
+    ProviderFieldConfig,
+} from "./providerFields"
 export {
     CUSTOM_PROVIDER_KIND_FAMILIES,
+    DEFAULT_ENDPOINT_PROTOCOL,
+    ENDPOINT_PROTOCOL_FIELD,
     PROVIDER_AUTH_REQUIREMENTS,
+    fieldNoteForKind,
     PROVIDER_FIELDS,
 } from "./providerFields"
+
+export type {
+    BuildConnectionModelGroupsArgs,
+    PromptModelGroup,
+    PromptModelOption,
+} from "./promptModelGroups"
+export {
+    CURRENT_SELECTION_GROUP_CAPTION,
+    CURRENT_SELECTION_GROUP_KEY,
+    CURRENT_SELECTION_GROUP_LABEL,
+    CURRENT_SELECTION_OPTION_CAPTION,
+    buildConnectionModelGroups,
+    connectionSlugFor,
+    connectionSlugFromOption,
+    curatedModelName,
+    selectedOptionKey,
+    selectedOptionLabel,
+    withCurrentSelectionGroup,
+    withoutSlugBoundGroups,
+} from "./promptModelGroups"

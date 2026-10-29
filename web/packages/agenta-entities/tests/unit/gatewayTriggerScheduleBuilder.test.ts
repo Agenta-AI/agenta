@@ -13,7 +13,10 @@ import {
     builderToCron,
     cronToBuilder,
     defaultBuilderState,
-    describeBuilder,
+    describeCadence,
+    formatNextRun,
+    suggestScheduleName,
+    summarizeSchedule,
     timesFormCleanGrid,
     type ScheduleBuilderState,
 } from "../../src/gatewayTrigger/core/scheduleBuilder"
@@ -169,15 +172,60 @@ describe("timesFormCleanGrid", () => {
     })
 })
 
-describe("describeBuilder", () => {
-    it("summarizes each cadence in plain language", () => {
+describe("describeCadence", () => {
+    it("names each cadence without its run times", () => {
         expect(
-            describeBuilder(
-                state({cadence: "hourly", everyNHours: 1, times: [{hour: 0, minute: 0}]}),
+            describeCadence(
+                state({cadence: "hourly", everyNHours: 3, times: [{hour: 0, minute: 15}]}),
             ),
-        ).toBe("Every hour (UTC)")
+        ).toBe("Every 3h at :15")
+        expect(describeCadence(state({cadence: "daily"}))).toBe("Daily")
+        expect(describeCadence(state({cadence: "weekly", weekdays: [1, 3, 5]}))).toBe(
+            "Mon, Wed and Fri",
+        )
+        expect(describeCadence(state({cadence: "weekly", weekdays: [1, 2, 3, 4, 5]}))).toBe(
+            "Weekdays",
+        )
+        expect(describeCadence(state({cadence: "monthly", daysOfMonth: [1, 15]}))).toBe(
+            "Monthly on the 1st and 15th",
+        )
+        expect(describeCadence(state({cadence: "custom", cron: "*/5 * * * *"}))).toBe("*/5 * * * *")
+    })
+
+    // A monthly schedule can select all 31 days; spelling each one out grew the collapsed row
+    // until it truncated mid-word, so long lists keep the first few and count the rest.
+    it("caps a long list instead of growing without bound", () => {
         expect(
-            describeBuilder(
+            describeCadence(state({cadence: "monthly", daysOfMonth: [1, 11, 13, 17, 18, 19, 31]})),
+        ).toBe("Monthly on the 1st, 11th, 13th +4")
+        expect(describeCadence(state({cadence: "weekly", weekdays: [1, 2, 3, 4, 6]}))).toBe(
+            "Mon, Tue, Wed +2",
+        )
+    })
+
+    it("keeps the collapse shortcuts ahead of the cap", () => {
+        expect(describeCadence(state({cadence: "weekly", weekdays: [0, 1, 2, 3, 4, 5, 6]}))).toBe(
+            "Every day",
+        )
+        expect(describeCadence(state({cadence: "weekly", weekdays: [1, 2, 3, 4, 5]}))).toBe(
+            "Weekdays",
+        )
+    })
+})
+
+describe("summarizeSchedule", () => {
+    it("appends the run times and the UTC marker", () => {
+        expect(
+            summarizeSchedule(
+                state({
+                    cadence: "weekly",
+                    weekdays: [1, 2, 3, 4, 5],
+                    times: [{hour: 9, minute: 0}],
+                }),
+            ),
+        ).toBe("Weekdays at 09:00 UTC")
+        expect(
+            summarizeSchedule(
                 state({
                     cadence: "daily",
                     times: [
@@ -186,32 +234,69 @@ describe("describeBuilder", () => {
                     ],
                 }),
             ),
-        ).toBe("Every day at 09:00 and 21:00 (UTC)")
+        ).toBe("Daily at 09:00 and 21:00 UTC")
+    })
+
+    it("does not repeat a cadence that already carries its time", () => {
         expect(
-            describeBuilder(
-                state({
-                    cadence: "weekly",
-                    weekdays: [1, 3, 5],
-                    times: [
-                        {hour: 9, minute: 0},
-                        {hour: 21, minute: 0},
-                    ],
-                }),
+            summarizeSchedule(
+                state({cadence: "hourly", everyNHours: 6, times: [{hour: 0, minute: 30}]}),
             ),
-        ).toBe("Mon, Wed and Fri at 09:00 and 21:00 (UTC)")
+        ).toBe("Every 6h at :30 UTC")
+        expect(summarizeSchedule(state({cadence: "custom", cron: "0 9 * * 1-5"}))).toBe(
+            "0 9 * * 1-5",
+        )
+    })
+})
+
+describe("formatNextRun", () => {
+    // Fixed anchor so the relative phrase is deterministic: Mon 2026-08-10, 08:00 UTC.
+    const from = new Date("2026-08-10T08:00:00.000Z")
+
+    it("names the next fire time in UTC with a relative gap", () => {
+        expect(formatNextRun("0 9 * * *", undefined, from)).toBe(
+            "Next run Mon 10 Aug, 09:00 UTC · in 1 hour",
+        )
+        expect(formatNextRun("0 9 * * 3", undefined, from)).toBe(
+            "Next run Wed 12 Aug, 09:00 UTC · in 2 days",
+        )
+    })
+
+    it("adds the daily run count for an hourly cadence", () => {
+        const hourly = state({cadence: "hourly", everyNHours: 6, times: [{hour: 0, minute: 0}]})
+        expect(formatNextRun("0 */6 * * *", hourly, from)).toBe(
+            "Next run Mon 10 Aug, 12:00 UTC · in 4 hours · 4 runs a day",
+        )
+    })
+
+    it("returns empty when the expression has no computable next run", () => {
+        expect(formatNextRun("not a cron", undefined, from)).toBe("")
+    })
+})
+
+describe("suggestScheduleName", () => {
+    it("combines the cadence, the time, and the agent", () => {
         expect(
-            describeBuilder(
+            suggestScheduleName(
                 state({
                     cadence: "weekly",
                     weekdays: [1, 2, 3, 4, 5],
                     times: [{hour: 9, minute: 0}],
                 }),
+                "daily-update",
             ),
-        ).toBe("Every weekday at 09:00 (UTC)")
+        ).toBe("Weekdays 09:00 — daily-update")
+    })
+
+    it("skips the time when the cadence already carries one, and the dash with no agent", () => {
         expect(
-            describeBuilder(
-                state({cadence: "monthly", daysOfMonth: [1, 15], times: [{hour: 0, minute: 0}]}),
+            suggestScheduleName(
+                state({cadence: "hourly", everyNHours: 2, times: [{hour: 0, minute: 0}]}),
+                "daily-update",
             ),
-        ).toBe("Monthly on the 1st and 15th at 00:00 (UTC)")
+        ).toBe("Every 2h at :00 — daily-update")
+        expect(suggestScheduleName(state({cadence: "daily", times: [{hour: 9, minute: 0}]}))).toBe(
+            "Daily 09:00",
+        )
     })
 })

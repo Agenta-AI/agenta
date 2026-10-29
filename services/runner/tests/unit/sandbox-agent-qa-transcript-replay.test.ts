@@ -97,7 +97,7 @@ function fakeReplayHarness() {
     log: () => {},
     createLocalCwd: () => "/tmp/agenta-replay-cwd",
     createDaytonaCwd: () => "/home/sandbox/agenta-replay-cwd",
-    resolveSkillDirs: () => ({ skills: [], cleanup: () => {} }),
+    resolveSkillDirs: () => ({ skills: [], dropped: [], cleanup: () => {} }),
     buildDaemonEnv: () => ({}),
     resolveDaemonBinary: () => "/bin/sandbox-agent",
     buildSandboxProvider: () => ({ provider: true }) as any,

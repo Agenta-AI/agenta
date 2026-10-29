@@ -79,14 +79,25 @@ def _template_from_recording(rec: dict) -> AgentTemplate:
     return AgentTemplate.from_params(params)
 
 
+_GATEWAY_BASE = "https://gateway.example.com"
+_GATEWAY_CREDENTIALS = "Secret replay-token"
+
+
 async def _resolve_connection(template: AgentTemplate, rec: dict):
     """Resolve the connection over the recorded (redacted) vault secret, through the same
     ``_default_resolve_session_connection`` the handler calls -- only the live ``GET /secrets/``
-    fetch is swapped for a static list, which is the whole point of an offline replay."""
+    fetch is swapped for a static list, which is the whole point of an offline replay. The
+    gateway base URL and caller credentials stand in for what ``VaultConnectionResolver``
+    would derive from the live ``PlatformConnection`` (WP12: the connected path routes
+    through the gateway rather than injecting the vault's provider secret)."""
     model_ref = _agent_model_ref(template)
     assert model_ref is not None
     ctx = RuntimeAuthContext(harness=template.harness, backend=template.sandbox)
-    static = _StaticSecretsResolver(rec["request"]["vault_secrets"])
+    static = _StaticSecretsResolver(
+        rec["request"]["vault_secrets"],
+        gateway_base_url=_GATEWAY_BASE,
+        gateway_credentials_value=_GATEWAY_CREDENTIALS,
+    )
     return await _default_resolve_session_connection(
         model_ref, ctx, resolve_connection=static.resolve
     )
@@ -123,11 +134,16 @@ async def test_custom_openai_compatible_connection_replays(tmp_path):
     assert resolved.deployment == "custom"
     assert resolved.model == "openai/gpt-oss-20b:free"
     assert resolved.endpoint is not None
-    assert resolved.endpoint.base_url == "https://openrouter.ai/api/v1"
-    assert resolved.credential_mode == "env"
-    assert [credential.binding.name for credential in resolved.credentials] == [
-        "OPENAI_API_KEY"
-    ]
+    # The gateway holds the provider secret; the resolved route names the
+    # gateway's OpenAI-compatible `custom/{slug}/v1` target, not the vault record's own
+    # upstream URL.
+    assert resolved.endpoint.base_url == (
+        f"{_GATEWAY_BASE}/gateways/llms/custom/replay-compat/v1"
+    )
+    assert resolved.credential_mode == "none"
+    assert resolved.credentials == []
+    assert resolved.gateway_credentials is not None
+    assert resolved.gateway_credentials.value == _GATEWAY_CREDENTIALS
 
     # The resolved connection is the only credential channel; nothing rides beside it.
     session_config = SessionConfig(agent=template, resolved_connection=resolved)
@@ -149,19 +165,17 @@ async def test_custom_openai_compatible_connection_replays(tmp_path):
     connection = sent["modelConnection"]
     assert connection["deployment"] == "custom"
     assert connection["provider"] == "openai"
-    assert connection["endpoint"] == {"baseUrl": "https://openrouter.ai/api/v1"}
-    assert connection["credentialMode"] == "env"
-    # The provider key rides one typed credential naming its own binding; the value is the
-    # redacted placeholder, and no real key ever reaches the wire (the fixture carries only
-    # `sk-test`). `usage: opaque_http` marks it as a key the remote provider reads over HTTPS,
-    # which is what makes it substitutable by a Daytona Secret on a remote sandbox.
-    assert connection["credentials"] == [
-        {
-            "binding": {"kind": "environment", "name": "OPENAI_API_KEY"},
-            "value": "sk-test",
-            "usage": "opaque_http",
-        }
-    ]
+    assert connection["endpoint"] == {
+        "baseUrl": f"{_GATEWAY_BASE}/gateways/llms/custom/replay-compat/v1"
+    }
+    assert connection["credentialMode"] == "none"
+    # No provider secret reaches the wire: the gateway holds it. Our own
+    # credentials into the gateway ride the dedicated field, never `credentials`.
+    assert connection["credentials"] == []
+    assert connection["gatewayCredentials"] == {
+        "header": "X-AG-Credentials",
+        "value": _GATEWAY_CREDENTIALS,
+    }
 
     # 2) RESULT-parsing half: the recorded runner response folds back cleanly, no live LLM.
     assert result.output == rec["result"]["output"] == "REPLAY-COMPAT-OK"

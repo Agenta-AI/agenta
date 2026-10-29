@@ -10,7 +10,7 @@
  *   - loading: boolean
  *   - secrets: LlmProvider[]                  (standard provider configs)
  *   - customRowSecrets: LlmProvider[]         (custom provider configs)
- *   - mutate: () => void                      (manual cache refetch)
+ *   - mutate: () => Promise                   (manual cache refetch; resolves when fresh)
  *   - handleModifyVaultSecret(provider)       (create/update standard)
  *   - handleDeleteVaultSecret(provider)       (delete)
  *   - handleModifyCustomVaultSecret(provider) (create/update custom)
@@ -112,13 +112,14 @@ export const useVaultSecret = () => {
         [deleteSecret, vaultQuery],
     )
 
-    const mutate = useCallback(() => {
-        vaultQuery.refetch()
-    }, [vaultQuery])
+    const mutate = useCallback(() => vaultQuery.refetch(), [vaultQuery])
 
+    // "Not migrated yet" is not a loading state: the migration only moves legacy localStorage
+    // keys into the vault, and a failed or never-run migration must not hold every secret
+    // picker on "Loading" (#6733 follow-up). The server list is the source of truth.
     const loading = useMemo(() => {
-        return vaultQuery.isPending || migrationStatus.migrating || !migrationStatus.migrated
-    }, [vaultQuery.isPending, migrationStatus.migrating, migrationStatus.migrated])
+        return vaultQuery.isPending || migrationStatus.migrating
+    }, [vaultQuery.isPending, migrationStatus.migrating])
 
     return {
         loading,

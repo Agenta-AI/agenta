@@ -1,6 +1,6 @@
 import {useRef} from "react"
 
-import clsx from "clsx"
+import {SocialAuthButtons} from "@agenta/auth-ui"
 import {useRouter} from "next/router"
 import {getAuthorisationURLWithQueryParamsAndSetState} from "supertokens-auth-react/recipe/thirdparty"
 
@@ -8,6 +8,7 @@ import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 
 import {SocialAuthProps} from "../assets/types"
 
+/** OSS binding: the buttons come from the package; the redirect transport stays app-side. */
 const SocialAuth = ({
     authErrorMsg,
     isLoading,
@@ -16,7 +17,7 @@ const SocialAuth = ({
     providers,
     variant = "default",
     yellow = false,
-    lastUsed = false,
+    lastUsedProviderId,
 }: SocialAuthProps) => {
     const router = useRouter()
     const inFlight = useRef(false)
@@ -41,36 +42,16 @@ const SocialAuth = ({
         }
     }
 
-    if (providers.length === 0) {
-        return null
-    }
-
     return (
-        <div className="flex flex-col gap-[10px]">
-            {providers.map((provider) => (
-                <button
-                    key={provider.id}
-                    type="button"
-                    className={clsx(
-                        "relative",
-                        yellow
-                            ? "auth-btn-yellow"
-                            : clsx(
-                                  "auth-surface-btn",
-                                  variant === "promoted" && "auth-surface-btn-promoted",
-                              ),
-                    )}
-                    onClick={() => providerSignInClicked(provider.id)}
-                    disabled={disabled || isLoading}
-                >
-                    {provider.icon}
-                    <span>Continue with {provider.label}</span>
-                    {lastUsed && (
-                        <span className="auth-last-used-tag absolute right-3">Last used</span>
-                    )}
-                </button>
-            ))}
-        </div>
+        <SocialAuthButtons
+            providers={providers}
+            onSelect={(providerId) => void providerSignInClicked(providerId)}
+            isLoading={isLoading}
+            disabled={disabled}
+            variant={variant}
+            yellow={yellow}
+            lastUsedProviderId={lastUsedProviderId}
+        />
     )
 }
 

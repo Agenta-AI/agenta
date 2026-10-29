@@ -1,8 +1,8 @@
 import React from "react"
 
 import {ColumnVisibilityHeader, type ExtendedColumn as ExtendedColumnType} from "@agenta/ui/table"
+import type {ColumnDef, ColumnDefs} from "@agenta/ui/table"
 import {Tooltip} from "antd"
-import type {ColumnsType, ColumnType} from "antd/es/table"
 import clsx from "clsx"
 
 import type {
@@ -45,8 +45,9 @@ const wrapHeader = (columnKey: string, content: React.ReactNode, label?: string)
 
 const STATUS_STYLE_MAP: Record<string, {dotClass: string; textClass: string}> = {
     success: {
-        dotClass: "bg-emerald-500",
-        textClass: "text-emerald-700",
+        // The generated token already carries both modes, so no `dark:` variant.
+        dotClass: "bg-[var(--ag-status-success-text)]",
+        textClass: "text-[var(--ag-status-success-text)]",
     },
     failed: {
         dotClass: "bg-red-500",
@@ -109,13 +110,13 @@ export interface BuildPreviewColumnsArgs<RowType> {
         human: MetricColumnDefinition[]
     }
     evaluationType: "auto" | "human" | "online"
-    getRenderer?: (column: EvaluationTableColumn) => ColumnType<RowType>["render"] | undefined
+    getRenderer?: (column: EvaluationTableColumn) => ColumnDef<RowType>["render"] | undefined
     isSkeletonRow?: (record: RowType) => boolean
     renderSkeleton?: (context: SkeletonRenderContext<RowType>) => React.ReactNode
 }
 
 export interface BuildPreviewColumnsResult<RowType> {
-    columns: ColumnsType<RowType>
+    columns: ColumnDefs<RowType>
 }
 
 /** antd column extended with the visibility-menu label consumed by useColumnVisibility */
@@ -144,7 +145,7 @@ const createStaticMetricColumns = <RowType,>(
             metricType: metric.metricType,
         }
 
-        const baseRender: ColumnType<RowType>["render"] = (_value, record: any) => (
+        const baseRender: ColumnDef<RowType>["render"] = (_value, record: any) => (
             <PreviewEvaluationMetricCell
                 scenarioId={record.scenarioId ?? record.id}
                 runId={record.runId}
@@ -170,7 +171,7 @@ const createStaticMetricColumns = <RowType,>(
             }
         }
 
-        const render: ColumnType<RowType>["render"] = (value, record, index) => {
+        const render: ColumnDef<RowType>["render"] = (value, record, index) => {
             if (options.isSkeletonRow?.(record)) {
                 return options.getSkeletonContent({
                     type: "staticMetric",
@@ -226,8 +227,8 @@ export function buildPreviewColumns<RowType>({
 
     const wrapRender = (
         column: EvaluationTableColumn,
-        baseRender: ColumnType<RowType>["render"],
-    ): ColumnType<RowType>["render"] => {
+        baseRender: ColumnDef<RowType>["render"],
+    ): ColumnDef<RowType>["render"] => {
         if (!isSkeletonRow) {
             return baseRender
         }
@@ -286,7 +287,7 @@ export function buildPreviewColumns<RowType>({
             if (column.metaRole === "scenarioIndexStatus") {
                 const headerLabel = column.displayLabel ?? column.label
                 const titleNode = renderEllipsisTitle(headerLabel)
-                const baseRender: ColumnType<RowType>["render"] = (
+                const baseRender: ColumnDef<RowType>["render"] = (
                     value: number | string,
                     record: any,
                 ) => {
@@ -301,6 +302,7 @@ export function buildPreviewColumns<RowType>({
                             <Tooltip title={tooltipLabel} placement="topLeft">
                                 <span className="inline-flex items-center gap-2 text-xs font-medium">
                                     <span
+                                        data-status-dot={statusKey}
                                         className={clsx("h-2 w-2 rounded-full", style.dotClass)}
                                     />
                                     <span className={clsx(style.textClass)}>{displayValue}</span>
@@ -328,10 +330,7 @@ export function buildPreviewColumns<RowType>({
             if (column.metaRole === "timestamp") {
                 const headerLabel = column.displayLabel ?? column.label ?? "Timestamp"
                 const titleNode = renderEllipsisTitle(headerLabel)
-                const baseRender: ColumnType<RowType>["render"] = (
-                    _value: unknown,
-                    record: any,
-                ) => {
+                const baseRender: ColumnDef<RowType>["render"] = (_value: unknown, record: any) => {
                     const timestamp = record?.timestamp
                     if (!timestamp) {
                         return (
@@ -375,7 +374,7 @@ export function buildPreviewColumns<RowType>({
             if (column.metaRole === "action") {
                 const headerLabel = column.displayLabel ?? column.label
                 const titleNode = renderEllipsisTitle(headerLabel)
-                const baseRender: ColumnType<RowType>["render"] = (_: unknown, record: any) => (
+                const baseRender: ColumnDef<RowType>["render"] = (_: unknown, record: any) => (
                     <PreviewEvaluationActionCell
                         scenarioId={record.scenarioId ?? record.id}
                         runId={record.runId}
@@ -397,7 +396,7 @@ export function buildPreviewColumns<RowType>({
             }
         }
 
-        const fallbackRender: ColumnType<RowType>["render"] = () => (
+        const fallbackRender: ColumnDef<RowType>["render"] = () => (
             <span className="text-xs text-neutral-500">
                 {column.description || column.path || column.metricType || "—"}
             </span>
@@ -405,7 +404,7 @@ export function buildPreviewColumns<RowType>({
 
         const customRender = getRenderer?.(column)
 
-        const renderByStepType: ColumnType<RowType>["render"] | undefined = (() => {
+        const renderByStepType: ColumnDef<RowType>["render"] | undefined = (() => {
             if (column.stepType === "input") {
                 return (_: unknown, record: any) => (
                     <PreviewEvaluationInputCell
@@ -477,7 +476,7 @@ export function buildPreviewColumns<RowType>({
     })
 
     orderedGroups.forEach((group) => {
-        const children: ColumnType<RowType>[] = []
+        const children: ColumnDef<RowType>[] = []
 
         group.columnIds.forEach((columnId) => {
             const column = columnsMap.get(columnId)

@@ -1,8 +1,6 @@
 /**
  * Secret Entity — Jotai Atoms
  *
- * Ported verbatim from `web/oss/src/state/app/atoms/vault.ts`.
- *
  * Pattern: minimal molecule — query + mutation only. No draft semantics,
  * no isDirty, no imperative get/set scaffolding. Vault is not an artifact,
  * it has no revision lineage; the molecule shape would only contribute
@@ -38,15 +36,20 @@ import {
     removeEmptyFromObjects,
 } from "@agenta/shared/utils"
 import type {QueryKey} from "@tanstack/react-query"
-import {atom} from "jotai"
+import {atom, type Getter} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 import {atomWithMutation, atomWithQuery} from "jotai-tanstack-query"
+import {z} from "zod"
 
+import {safeParseWithLogging} from "../../shared/utils/zodSchema"
 import {createVaultSecret, deleteVaultSecret, fetchVaultSecret, updateVaultSecret} from "../api/api"
 import {
     getEnvNameMap,
+    projectRowsOnly,
     transformCustomProviderPayloadData,
     transformCustomSecretPayloadData,
+    transformStandardProviderPayloadData,
+    toUpdateSecretPayload,
 } from "../core/transforms"
 import {
     SecretKind,
@@ -65,10 +68,12 @@ interface UpdateMutationArgs {
     projectId: string
     secret_id: string
     payload: Parameters<typeof updateVaultSecret>[0]["payload"]
+    scope?: Parameters<typeof updateVaultSecret>[0]["scope"]
 }
 interface DeleteMutationArgs {
     projectId: string
     secret_id: string
+    scope?: Parameters<typeof deleteVaultSecret>[0]["scope"]
 }
 
 /**
@@ -101,7 +106,7 @@ export const providerKeySetupDoneAtom = atomWithStorage<boolean>(
  * fires one background refetch on restore, so real values only ever live in
  * memory.
  */
-export const vaultSecretsQueryAtom = atomWithQuery<LlmProvider[]>((get) => {
+const vaultSecretsQueryOptions = (get: Getter) => {
     const user = get(userAtom)
     // Read migration status to keep this atom subscribed to migration changes
     // (matches OSS behavior — migration completion can trigger a refetch).
@@ -124,7 +129,27 @@ export const vaultSecretsQueryAtom = atomWithQuery<LlmProvider[]>((get) => {
         enabled: !!user && !!projectId,
         persister: vaultSecretsPersister.persisterFn<LlmProvider[], QueryKey>,
     }
-})
+}
+
+/**
+ * The project's vault rows: everything a prompt, an evaluator, or the project's settings may use.
+ * The response also carries the organization connections an agent of the project may name; they
+ * share this one request (`vaultSecretsWithOrganizationQueryAtom`) and are left out here, so no
+ * surface that cannot use them sees them by accident.
+ */
+export const vaultSecretsQueryAtom = atomWithQuery<LlmProvider[]>((get) => ({
+    ...vaultSecretsQueryOptions(get),
+    select: projectRowsOnly,
+}))
+
+/**
+ * The same request as `vaultSecretsQueryAtom`, with the organization connections the project may
+ * use after the project's own rows. Only agent surfaces read it: an agent names an organization
+ * connection by scope and slug, and nothing else can use one.
+ */
+export const vaultSecretsWithOrganizationQueryAtom = atomWithQuery<LlmProvider[]>((get) =>
+    vaultSecretsQueryOptions(get),
+)
 
 /**
  * Derived atom for standard provider secrets.
@@ -141,7 +166,16 @@ export const standardSecretsAtom = atom((get) => {
             return {
                 ...secret,
                 key: match.key,
+                // A write-only record answers "is it configured" here; its value never arrives.
+                writeOnly: match.writeOnly,
+                hasKey: match.hasKey,
+                keyPreview: match.keyPreview,
+                managementPolicy: match.managementPolicy,
                 id: match.id,
+                // The connection's saved policy round-trips: a form seeded from this row
+                // sends it back on update instead of dropping it.
+                models: match.models,
+                harnesses: match.harnesses,
                 created_at: match.created_at,
             }
         } else {
@@ -188,16 +222,16 @@ export const createVaultSecretMutationAtom = atomWithMutation(() => ({
  * Mutation atom for updating vault secrets.
  */
 export const updateVaultSecretMutationAtom = atomWithMutation(() => ({
-    mutationFn: ({projectId, secret_id, payload}: UpdateMutationArgs) =>
-        updateVaultSecret({projectId, secret_id, payload}),
+    mutationFn: ({projectId, secret_id, payload, scope}: UpdateMutationArgs) =>
+        updateVaultSecret({projectId, secret_id, payload, scope}),
 }))
 
 /**
  * Mutation atom for deleting vault secrets.
  */
 export const deleteVaultSecretMutationAtom = atomWithMutation(() => ({
-    mutationFn: ({projectId, secret_id}: DeleteMutationArgs) =>
-        deleteVaultSecret({projectId, secret_id}),
+    mutationFn: ({projectId, secret_id, scope}: DeleteMutationArgs) =>
+        deleteVaultSecret({projectId, secret_id, scope}),
 }))
 
 /**
@@ -227,20 +261,7 @@ export const createStandardSecretAtom = atom(null, async (get, set, provider: Ll
             )
         }
 
-        const payload: CreateSecretDto = {
-            header: {
-                name: provider.title,
-            },
-            secret: {
-                kind: SecretKind.ProviderKey,
-                data: {
-                    kind: providerKind,
-                    provider: {
-                        key: provider.key,
-                    },
-                },
-            },
-        }
+        const payload = transformStandardProviderPayloadData(provider, providerKind)
 
         const findSecret = standardSecrets.find((s) => s.name === provider.name)
         // Prefer the id from the matched server-side record so we still hit
@@ -315,7 +336,11 @@ export const createCustomNamedSecretAtom = atom(null, async (get, set, secret: N
         const secretId = findSecret?.id ?? secret.id
 
         if (secretId) {
-            await updateMutation.mutateAsync({projectId, secret_id: secretId, payload})
+            await updateMutation.mutateAsync({
+                projectId,
+                secret_id: secretId,
+                payload: toUpdateSecretPayload(payload),
+            })
         } else {
             await createMutation.mutateAsync({projectId, payload})
         }
@@ -337,7 +362,11 @@ export const deleteSecretAtom = atom(null, async (get, set, provider: LlmProvide
 
     try {
         if (provider.id) {
-            await deleteMutation.mutateAsync({projectId, secret_id: provider.id})
+            await deleteMutation.mutateAsync({
+                projectId,
+                secret_id: provider.id,
+                scope: provider.ownerKind,
+            })
         }
     } catch (error) {
         console.error("Failed to delete secret:", error)
@@ -352,9 +381,9 @@ export const deleteSecretAtom = atom(null, async (get, set, provider: LlmProvide
  * migrated. The hook's `useEffect` is responsible for the user-presence
  * trigger and the logout reset (re-arm).
  *
- * On success, sets `{migrating: false, migrated: true}`.
- * On failure, rolls back to `{migrating: false, migrated: false}` so the
- * next mount can retry.
+ * Always ends in `{migrating: false, migrated: true}`, on failure too: a legacy payload
+ * that cannot be parsed stays backed up in localStorage, and the vault UI must never wait
+ * on it. The server list is the source of truth.
  */
 export const migrateVaultKeysAtom = atom(null, async (get, set) => {
     const migrationStatus = get(vaultMigrationAtom)
@@ -369,24 +398,67 @@ export const migrateVaultKeysAtom = atom(null, async (get, set) => {
         const localStorageProviders = localStorage.getItem(llmAvailableProvidersToken)
 
         if (localStorageProviders) {
-            const _providers = JSON.parse(localStorageProviders)
-            const providers = JSON.parse(_providers)
-
-            for (const provider of providers) {
-                if (provider.key) {
-                    await set(createStandardSecretAtom, provider as LlmProvider)
+            const providers = parseLegacyProviders(localStorageProviders)
+            const failed: LlmProvider[] = []
+            if (providers) {
+                for (const provider of providers) {
+                    if (!provider.key) continue
+                    try {
+                        await set(createStandardSecretAtom, provider)
+                    } catch (error) {
+                        // One bad entry must not stop the others; it stays for the next load.
+                        console.error("[vault] Legacy provider key was not migrated:", error)
+                        failed.push(provider)
+                    }
                 }
+            } else {
+                console.error(
+                    "[vault] Legacy provider keys could not be parsed; leaving them backed up.",
+                )
             }
 
-            // Create backup and cleanup
+            // Keep a backup, then leave only the entries that still need a retry in place, in
+            // the canonical double-encoded form. A later page load picks them up again.
             localStorage.setItem(`${llmAvailableProvidersToken}Backup`, localStorageProviders)
-            localStorage.removeItem(llmAvailableProvidersToken)
+            if (failed.length > 0) {
+                localStorage.setItem(
+                    llmAvailableProvidersToken,
+                    JSON.stringify(JSON.stringify(failed)),
+                )
+            } else {
+                localStorage.removeItem(llmAvailableProvidersToken)
+            }
         }
-
-        set(vaultMigrationAtom, {migrating: false, migrated: true})
     } catch (error) {
+        // A failed migration must not hold the vault UI in its loading state: the keys stay
+        // in localStorage for a later attempt, and the app keeps working with the server list.
         console.error("Migration failed:", error)
-        set(vaultMigrationAtom, {migrating: false, migrated: false})
-        throw error
+    } finally {
+        set(vaultMigrationAtom, {migrating: false, migrated: true})
     }
 })
+
+/** One legacy entry: whatever else it carried, only an object with a string key can migrate. */
+const legacyProviderSchema = z.object({key: z.string().nullish()}).passthrough()
+
+/**
+ * The legacy localStorage payload was double-encoded JSON (a JSON string holding JSON), but
+ * older builds wrote it once. Accept both; return null when the payload is not a list. Each
+ * entry is validated on its own, so one malformed entry does not block the valid ones.
+ */
+function parseLegacyProviders(raw: string): LlmProvider[] | null {
+    let parsed: unknown
+    try {
+        parsed = JSON.parse(raw)
+        if (typeof parsed === "string") parsed = JSON.parse(parsed)
+    } catch {
+        return null
+    }
+    if (!Array.isArray(parsed)) return null
+    const providers: LlmProvider[] = []
+    for (const entry of parsed) {
+        const valid = safeParseWithLogging(legacyProviderSchema, entry, "[vault] legacy provider")
+        if (valid) providers.push(valid as unknown as LlmProvider)
+    }
+    return providers
+}

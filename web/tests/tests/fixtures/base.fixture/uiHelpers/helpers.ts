@@ -200,8 +200,13 @@ export const clickTableRowIcon = async (
 
 // Confirms a modal dialog by clicking a button named 'Confirm' (case-insensitive)
 export const confirmModal = async (page: Page, buttonText: string | RegExp = /Confirm/i) => {
-    // Wait for any Ant Design modal to be visible
-    const modalLocator = page.locator(".ant-modal")
+    // Wait for any modal to be visible. Modals are mid-migration from antd `Modal`
+    // (`.ant-modal`) to the @agenta/ui Radix `Dialog` behind the `EnhancedModal`
+    // facade (`[data-slot="dialog-content"]`); both render in the app today, so match
+    // either. Deliberately not `getByRole("dialog")` — that would also match an open
+    // antd `Drawer`, which this helper has never targeted. `:visible` keeps a closed
+    // antd modal (which stays mounted, just hidden) from making the union ambiguous.
+    const modalLocator = page.locator('.ant-modal:visible, [data-slot="dialog-content"]:visible')
     await modalLocator.waitFor({state: "visible"})
 
     // Try to find the confirm button inside the modal

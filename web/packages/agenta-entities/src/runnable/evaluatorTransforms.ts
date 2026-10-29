@@ -156,6 +156,9 @@ export function nestEvaluatorConfiguration(
     const {
         prompt_template,
         model,
+        // The connection slug the judge's model runs on. Pulled out of `...rest` so it rides
+        // inside `llm_config` next to the model instead of surfacing as a top-level field.
+        connection,
         response_type,
         json_schema,
         // Prompt template format — surfaced into the nested `prompt` so the
@@ -200,6 +203,7 @@ export function nestEvaluatorConfiguration(
             ...(typeof template_format === "string" ? {template_format} : {}),
             llm_config: {
                 model,
+                ...(typeof connection === "string" ? {connection} : {}),
             },
         },
         feedback_config: feedbackConfig,
@@ -247,6 +251,18 @@ export function flattenEvaluatorConfiguration(
         ...(originalFlat ?? {}),
         prompt_template: prompt.messages,
         model: llmConfig?.model ?? originalFlat?.model,
+    }
+
+    // The judge resolves its credential by connection slug when one is stored. `llm_config` is
+    // authoritative for it: the UI writer DELETES the key when a static-catalog model clears it,
+    // so an absent key means "no connection", not "unchanged" — otherwise the judge keeps running
+    // on a connection the user just switched away from.
+    if (llmConfig) {
+        if (typeof llmConfig.connection === "string" && llmConfig.connection) {
+            result.connection = llmConfig.connection
+        } else {
+            delete result.connection
+        }
     }
 
     // Round-trip the prompt's template format back to the flat params so a
@@ -411,6 +427,9 @@ export function nestEvaluatorSchema(flatSchema: Record<string, unknown>): Record
     const {
         prompt_template,
         model,
+        // Persisted beside the model, never rendered as its own control — the model picker
+        // writes it. Destructured out so it doesn't spread into the top level via `...restProps`.
+        connection: _connection,
         response_type,
         json_schema,
         // Hidden fields - excluded from top-level schema

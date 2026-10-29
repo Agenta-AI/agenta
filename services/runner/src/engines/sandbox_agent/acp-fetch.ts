@@ -1,5 +1,7 @@
 import { Agent, fetch as undiciFetch } from "undici";
 
+import { sandboxGoneReason } from "./sandbox-gone.ts";
+
 /**
  * HITL pauses keep the ACP HTTP connection open for human-timescale delays: when a tool call needs
  * approval, the runner holds the in-flight `prompt` request while it waits for the human to
@@ -9,12 +11,11 @@ import { Agent, fetch as undiciFetch } from "undici";
  * paused turn and the resume turn. A plain chat completes in seconds so it never trips this.
  *
  * The fix is to drive the ACP HTTP client through an undici dispatcher whose timeouts are wide
- * (wider than the total run deadline in `run-limits.ts`, so a pause is never the one that trips
- * this) or fully disabled (0), instead of undici's short default. We scope it to the ACP fetch the
+ * or fully disabled (0), instead of undici's short default. We scope it to the ACP fetch the
  * `sandbox-agent` SDK uses rather than touching the global dispatcher, so unrelated HTTP keeps its
- * safe defaults. This is the low-level backstop UNDER the total deadline: the total deadline is
- * what normally ends a wedged run; this only matters if the harness's own connection hangs in a
- * way our abort signal can't reach.
+ * safe defaults. The run's first-response, idle, and per-tool-call limits remain the primary
+ * wedge protection; these transport timeouts only matter if the harness's own connection hangs
+ * in a way our abort signal cannot reach.
  */
 
 /** `0` disables the timeout outright; otherwise the millisecond value (default or override). */
@@ -25,7 +26,7 @@ function envTimeoutMs(name: string, defaultMs: number): number {
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : defaultMs;
 }
 
-/** Wider than the total run deadline default so an ordinary run/pause never trips this first. */
+/** Wide enough for ordinary transport waits; a human-input pause disables run limits separately. */
 const DEFAULT_ACP_HEADERS_TIMEOUT_MS = 60 * 60_000; // 60 min
 const DEFAULT_ACP_BODY_TIMEOUT_MS = 60 * 60_000; // 60 min
 
@@ -53,12 +54,50 @@ export function createAcpDispatcher(): Agent {
   });
 }
 
+export interface AcpFetchOptions {
+  /**
+   * Called when a response proves the sandbox is gone (see `sandbox-gone.ts`).
+   *
+   * This fetch is the socket the turn runs on, so it sees a deleted remote sandbox seconds before
+   * any poll can. It cannot end the turn itself: the ACP transport swallows the failure (it errors
+   * its readable, and the protocol SDK's read loop never rejects the pending `session/prompt`), so
+   * the promise the turn awaits stays pending forever. Reporting it here is what lets the liveness
+   * probe end the turn at once instead of one probe interval later, or never.
+   */
+  onSandboxGone?: (reason: string) => void;
+}
+
+/**
+ * Wrap a `fetch` so a response that names the sandbox as gone is reported once.
+ *
+ * The response is passed through untouched, body included: this wrapper reads only the status and
+ * the headers, because draining the body here would break every caller. With no
+ * `onSandboxGone` it is the identity, so nothing is inspected on a path that cannot act on it.
+ */
+export function withSandboxGoneReport(
+  inner: typeof fetch,
+  options: AcpFetchOptions = {},
+): typeof fetch {
+  const report = options.onSandboxGone;
+  if (!report) return inner;
+  return (async (input: any, init?: any) => {
+    const response = await inner(input, init);
+    const reason = sandboxGoneReason(response);
+    if (reason) report(reason);
+    return response;
+  }) as unknown as typeof fetch;
+}
+
 /**
  * A `fetch` for the ACP HTTP client backed by {@link createAcpDispatcher}. We use undici's own
  * `fetch` so the `dispatcher` option is honored regardless of how the global dispatcher is set.
  * The `sandbox-agent` SDK accepts a custom `fetch`; we hand it this one on every path.
  */
-export function createAcpFetch(dispatcher: Agent = createAcpDispatcher()): typeof fetch {
-  return ((input: any, init?: any) =>
+export function createAcpFetch(
+  dispatcher: Agent = createAcpDispatcher(),
+  options: AcpFetchOptions = {},
+): typeof fetch {
+  const bound = ((input: any, init?: any) =>
     undiciFetch(input, { ...init, dispatcher })) as unknown as typeof fetch;
+  return withSandboxGoneReport(bound, options);
 }

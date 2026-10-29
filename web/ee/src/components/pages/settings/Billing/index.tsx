@@ -1,22 +1,31 @@
-import {useCallback, useEffect, useState} from "react"
+/**
+ * Usage & Billing — EE binding.
+ *
+ * The page itself is `@agenta/settings-ui`'s. This file owns what is this host's: the
+ * subscription and usage queries, the Stripe round-trip (returning from checkout, the
+ * `?upgrade=true` deep link), the portal call, and the two dialogs.
+ */
 
+import {useCallback, useEffect, useMemo, useState} from "react"
+
+import {
+    BillingPage,
+    CreditTopUpsSection,
+    readTopUpReturn,
+    TOP_UP_QUERY,
+    withoutTopUpQuery,
+} from "@agenta/settings-ui"
+import {isBillingEnabled} from "@agenta/shared/api"
 import {message} from "@agenta/ui/app-message"
-import {Button, Spin, Typography} from "antd"
-import dayjs from "dayjs"
 import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import useURL from "@/oss/hooks/useURL"
-import {isBillingEnabled} from "@/oss/lib/helpers/isEE"
 import {editSubscriptionInfo, useSubscriptionData, useUsageData} from "@/oss/services/billing"
 import {currentCatalogEntryAtom, isOnFreePlanAtom} from "@/oss/state/access/atoms"
 
-import UsageProgressBar from "./assets/UsageProgressBar"
 import AutoRenewalCancelModal from "./Modals/AutoRenewalCancelModal"
 import PricingModal from "./Modals/PricingModal"
-import SubscriptionPlanDetails from "./Modals/PricingModal/assets/SubscriptionPlanDetails"
-
-const {Link} = Typography
 
 const Billing = () => {
     const router = useRouter()
@@ -100,142 +109,51 @@ const Billing = () => {
         }
     }, [editSubscriptionInfo])
 
+    // Credit packs: Stripe returns here with the result, and "Buy credits" elsewhere links here with
+    // the picker open. The section keeps what it needs once the URL is cleared.
+    const projectId = typeof router.query.project_id === "string" ? router.query.project_id : ""
+    const topUpReturn = useMemo(
+        () => readTopUpReturn(router.query),
+
+        [router.query[TOP_UP_QUERY.result], router.query[TOP_UP_QUERY.session]],
+    )
+    const clearTopUpQuery = useCallback(() => {
+        router.replace(
+            {pathname: router.pathname, query: withoutTopUpQuery(router.query)},
+            undefined,
+            {shallow: true},
+        )
+    }, [router])
+
     const navigateToWorkspaceTab = useCallback(() => {
         router.push(`${projectURL}/settings`, {query: {tab: "workspace"}})
     }, [router, projectURL])
 
-    if (isSubLoading || isUsageLoading) {
-        return (
-            <div className="flex items-center justify-center w-full mt-60">
-                <Spin spinning={true}></Spin>
-            </div>
-        )
-    }
-
     return (
-        <section className="flex flex-col gap-4">
-            {billingEnabled && (
-                <section className="w-full bg-[var(--ag-c-F5F7FA)] p-4 rounded-lg">
-                    <div className="flex flex-col items-start gap-2">
-                        <Typography.Text className="text-sm font-medium">
-                            Current plan
-                        </Typography.Text>
-                        <Typography.Text className="text-lg font-bold capitalize">
-                            <SubscriptionPlanDetails subscription={subscription} />
-                        </Typography.Text>
-                        {!isOnFreePlan && (
-                            <Typography.Text className="text-[var(--ag-c-586673)]">
-                                {subscription?.free_trial
-                                    ? "Trial period will end on "
-                                    : "Auto renews on "}
-                                <span className="text-[var(--ag-c-1C2C3D)] font-medium">
-                                    {/* Latent: subscription is undefined on fetch error — renders Invalid Date; typed as-is. */}
-                                    {dayjs
-                                        .unix(subscription?.period_end as number)
-                                        .format("MMM D, YYYY")}
-                                </span>
-                            </Typography.Text>
-                        )}
-
-                        {isCustomPlan ? (
-                            <Typography.Text className="text-[var(--ag-c-586673)]">
-                                For queries regarding your plan,{" "}
-                                <a
-                                    href="https://cal.com/mahmoud-mabrouk-ogzgey/demo"
-                                    target="_blank"
-                                >
-                                    click here to contact us
-                                </a>
-                            </Typography.Text>
-                        ) : !isOnFreePlan ? (
-                            <div className="flex items-center gap-2">
-                                <Button type="primary" onClick={() => setIsOpenPricingModal(true)}>
-                                    Upgrade plan
-                                </Button>
-
-                                <Link onClick={() => setIsOpenCancelModal(true)}>
-                                    Cancel subscription
-                                </Link>
-                            </div>
-                        ) : (
-                            <Button type="primary" onClick={() => setIsOpenPricingModal(true)}>
-                                Upgrade plan
-                            </Button>
-                        )}
-                    </div>
-                </section>
-            )}
-
-            <section className="w-full bg-[var(--ag-c-F5F7FA)] p-4 rounded-lg flex flex-col items-start gap-4">
-                <Typography.Text className="text-sm font-medium">Limits</Typography.Text>
-
-                <div className="w-full grid grid-cols-3 gap-4">
-                    {/* Latent: usage is undefined when the fetch errors — entries() would throw; typed as-is. */}
-                    {Object.entries(usage!)
-                        ?.filter(([key]) => key !== "users" && key !== "applications")
-                        ?.map(([key, info]) => {
-                            if (!info) return null
-                            return (
-                                <UsageProgressBar
-                                    key={`billing-${key}`}
-                                    label={key}
-                                    used={info.value}
-                                    limit={info.limit as number}
-                                    strict={info.strict}
-                                    isUnlimited={info.limit == null ? true : false}
-                                    free={info.free}
-                                    period={info.period}
-                                    scope={info.scope}
-                                />
-                            )
-                        })}
-                </div>
-            </section>
-
-            <section className="w-full bg-[var(--ag-c-F5F7FA)] p-4 rounded-lg flex flex-col items-start gap-4">
-                <div className="flex items-center gap-2">
-                    <Typography.Text className="text-sm font-medium">Members</Typography.Text>
-                    <Button size="small" onClick={navigateToWorkspaceTab}>
-                        View members
-                    </Button>
-                </div>
-
-                <div className="w-full grid grid-cols-3 gap-4">
-                    {/* Latent: usage.users can be absent (fetch error or plan without a users quota) — renders "undefined"; typed as-is. */}
-                    {billingEnabled && (
-                        <UsageProgressBar
-                            label={"Free"}
-                            used={usage?.users?.value as number}
-                            limit={usage?.users?.free as number}
-                            strict={usage?.users?.strict}
-                            isUnlimited={usage?.users?.limit == null ? true : false}
-                            free={usage?.users?.free as number}
-                        />
-                    )}
-
-                    <UsageProgressBar
-                        label={"Total"}
-                        used={usage?.users?.value as number}
-                        limit={usage?.users?.limit as number}
-                        strict={usage?.users?.strict}
-                        isUnlimited={usage?.users?.limit == null ? true : false}
-                        free={usage?.users?.free as number}
-                    />
-                </div>
-            </section>
-
-            {billingEnabled && (
-                <section className="w-full bg-[var(--ag-c-F5F7FA)] p-4 rounded-lg flex flex-col items-start gap-2">
-                    <Typography.Text className="text-sm font-medium">
-                        Billing information
-                    </Typography.Text>
-
-                    <Button onClick={handleOpenBillingPortal} loading={isLoadingOpenBillingPortal}>
-                        Open billing portal
-                    </Button>
-                </section>
-            )}
-
+        <BillingPage
+            billingEnabled={billingEnabled}
+            loading={isSubLoading || isUsageLoading}
+            subscription={subscription}
+            planTitle={currentCatalogEntry?.title}
+            usage={usage}
+            isOnFreePlan={isOnFreePlan}
+            isCustomPlan={isCustomPlan}
+            onUpgrade={() => setIsOpenPricingModal(true)}
+            onCancelSubscription={onCancelSubscription}
+            onOpenBillingPortal={handleOpenBillingPortal}
+            openingBillingPortal={isLoadingOpenBillingPortal}
+            onViewMembers={navigateToWorkspaceTab}
+        >
+            {billingEnabled && projectId ? (
+                <CreditTopUpsSection
+                    framed
+                    projectId={projectId}
+                    topUpReturn={topUpReturn}
+                    openPicker={router.query[TOP_UP_QUERY.open] === "1"}
+                    onQueryHandled={clearTopUpQuery}
+                    onUpgrade={() => setIsOpenPricingModal(true)}
+                />
+            ) : null}
             <AutoRenewalCancelModal
                 open={isOpenCancelModal}
                 onCancel={() => setIsOpenCancelModal(false)}
@@ -245,7 +163,7 @@ const Billing = () => {
                 onCancel={() => setIsOpenPricingModal(false)}
                 onCancelSubscription={onCancelSubscription}
             />
-        </section>
+        </BillingPage>
     )
 }
 

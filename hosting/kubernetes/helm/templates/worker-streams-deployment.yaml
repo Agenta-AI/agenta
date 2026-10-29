@@ -1,6 +1,5 @@
 {{- $values := include "agenta.values" . | fromYaml -}}
 {{- $workerStreams := default dict $values.workerStreams -}}
-{{- $newrelic := default dict $values.newrelic -}}
 {{- if eq (include "agenta.workerStreams.enabled" .) "true" }}
 apiVersion: apps/v1
 kind: Deployment
@@ -11,6 +10,20 @@ metadata:
     app.kubernetes.io/component: worker-streams
 spec:
   replicas: {{ include "agenta.workerStreams.replicas" . }}
+  {{- with $workerStreams.strategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- else }}
+  {{- /* Default: never take a pod down before its replacement is ready. The
+         Kubernetes default of 25% unavailable rounds to "the only pod" when a
+         workload runs one replica, which is a deliberate outage on every
+         rollout. */}}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  {{- end }}
   selector:
     matchLabels:
       {{- include "agenta.selectorLabels" . | nindent 6 }}
@@ -23,6 +36,12 @@ spec:
     spec:
       {{- include "agenta.imagePullSecrets" . | nindent 6 }}
       serviceAccountName: {{ include "agenta.serviceAccountName" . }}
+      {{- if hasKey $workerStreams "terminationGracePeriodSeconds" }}
+      terminationGracePeriodSeconds: {{ $workerStreams.terminationGracePeriodSeconds }}
+      {{- else }}
+      {{- /* Default 120 s: a consumer should finish the item it holds. */}}
+      terminationGracePeriodSeconds: 120
+      {{- end }}
       {{- with $workerStreams.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -40,7 +59,7 @@ spec:
           securityContext:
             {{- toYaml . | nindent 12 }}
           {{- end }}
-          command: {{ if $newrelic.licenseKey }}["newrelic-admin", "run-program", "python", "-m", "entrypoints.worker_streams"]{{ else }}["python", "-m", "entrypoints.worker_streams"]{{ end }}
+          command: ["python", "-m", "entrypoints.worker_streams"]
           env:
             {{- include "agenta.commonEnv" . | nindent 12 }}
             # empty ⇒ all stream loops; see docs/designs/workers-sprawl/specs.md
@@ -50,17 +69,51 @@ spec:
             - name: {{ $key }}
               value: {{ $val | quote }}
             {{- end }}
+            {{- /* extraEnv is a raw list of explicit Kubernetes env entries, so valueFrom works
+                   and names here override earlier chart entries. envFrom pulls whole Secrets or
+                   ConfigMaps, but Kubernetes uses those values only for names absent from env. */}}
+            {{- with $workerStreams.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with $workerStreams.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- /* Liveness from the heartbeat file: this workload proves that the consumer loop still turns.
+                 See agenta.heartbeatProbe in _helpers.tpl for what each workload's
+                 signal does and does not cover. Setting workerStreams.livenessProbe
+                 replaces it; heartbeat.enabled false removes it. */}}
+          {{- if $workerStreams.livenessProbe }}
           livenessProbe:
-            exec:
-              command: ["pgrep", "-f", "entrypoints.worker_streams"]
-            initialDelaySeconds: 15
-            periodSeconds: 30
-            timeoutSeconds: 5
-            failureThreshold: 3
+            {{- toYaml $workerStreams.livenessProbe | nindent 12 }}
+          {{- else }}
+          {{- $probe := include "agenta.heartbeatProbe" . }}
+          {{- if $probe }}
+          livenessProbe:
+            {{- $probe | nindent 12 }}
+          {{- end }}
+          {{- end }}
+          {{- with $workerStreams.lifecycle }}
+          lifecycle:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           {{- with $workerStreams.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          {{- $redisCaMount := include "agenta.redisDurableCaVolumeMount" . }}
+          {{- if $redisCaMount }}
+          volumeMounts:
+            {{- $redisCaMount | nindent 12 }}
+          {{- end }}
+      {{- $redisCaVolume := include "agenta.redisDurableCaVolume" . }}
+      {{- if $redisCaVolume }}
+      volumes:
+        {{- $redisCaVolume | nindent 8 }}
+      {{- end }}
+      {{- with $workerStreams.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
       {{- with $workerStreams.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -72,5 +125,10 @@ spec:
       {{- with $workerStreams.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- $spread := include "agenta.topologySpreadConstraints" (dict "root" $ "component" "worker-streams" "key" "workerStreams" "replicas" (include "agenta.workerStreams.replicas" .)) }}
+      {{- if $spread }}
+      topologySpreadConstraints:
+        {{- $spread | nindent 8 }}
       {{- end }}
 {{- end }}

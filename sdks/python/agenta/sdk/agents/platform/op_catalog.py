@@ -31,7 +31,6 @@ from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from agenta.sdk.agents.flags import ORDERED_OPERATIONS_ENV, ordered_operations_enabled
 from agenta.sdk.agents.tools.errors import UnknownPlatformOpError
 from agenta.sdk.agents.tools.models import ToolCall
 from agenta.sdk.utils.types import CATALOG_TYPES
@@ -39,6 +38,7 @@ from agenta.sdk.utils.types import CATALOG_TYPES
 from ._schema import expand_type_refs
 
 __all__ = [
+    "CHANNEL_TOOL_OPS",
     "PLATFORM_OP_NAMESPACE",
     "PlatformOp",
     "PLATFORM_OPS",
@@ -61,6 +61,8 @@ _HANDLER_CALL_REFS = frozenset(
         f"{PLATFORM_OP_NAMESPACE}test_run",
         f"{PLATFORM_OP_NAMESPACE}read_config",
         f"{PLATFORM_OP_NAMESPACE}commit_revision",
+        f"{PLATFORM_OP_NAMESPACE}create_app",
+        f"{PLATFORM_OP_NAMESPACE}list_starters",
     }
 )
 
@@ -164,7 +166,7 @@ class PlatformOp(BaseModel):
     description: str = Field(
         min_length=1, description="Model-facing description (SDK-owned)."
     )
-    method: Optional[Literal["GET", "POST", "DELETE"]] = None
+    method: Optional[Literal["GET", "POST", "PUT", "DELETE"]] = None
     # An EXISTING Agenta endpoint, as a path relative to the API origin (e.g. ``/api/tools/discover``).
     # The runner binds the origin to the run's own Agenta and confines the path to the API mount.
     path: Optional[str] = Field(default=None, min_length=1)
@@ -182,8 +184,17 @@ class PlatformOp(BaseModel):
     context_bindings: Dict[str, str] = Field(default_factory=dict)
     # Where the model's args land in the request body (a dotted deep-set path; absent = the root).
     args_into: Optional[str] = None
+    # Static server-fixed body fields, emitted as ``call.body``. The runner overlays these on the
+    # model's args, so the model can never override them (e.g. the hardwired ``apply`` flag that
+    # keeps check_skill_updates read-only).
+    static_body: Optional[Dict[str, Any]] = None
     # Catalog hint for the runner's ``allow_reads`` policy; no hint counts as a write.
     read_only: bool = False
+    # The op's own permission when the author set none on the tool, applied only under the
+    # agent-wide ``allow_reads`` mode. An author's per-tool choice or any other agent-wide mode
+    # wins, and the runner's operator kill switch still comes first. ``deny`` is not offered: an
+    # op nobody may run does not belong in the catalog.
+    default_permission: Optional[Literal["allow", "ask"]] = None
     # Per-op execution budget for long-running server-side handlers. Emitted as `timeoutMs`.
     timeout_ms: Optional[int] = Field(default=None, gt=0)
     # Builder ops opt in to the ephemeral per-call ``description`` (R12). The model writes one
@@ -305,6 +316,7 @@ class PlatformOp(BaseModel):
         return ToolCall(
             method=self.method,
             path=self.path,
+            body=dict(self.static_body) if self.static_body else None,
             context=dict(self.context_bindings) or None,
             args_into=self.args_into,
         )
@@ -494,8 +506,14 @@ def _delta_set_schema(description: str) -> Dict[str, Any]:
 _DISCOVER_TOOLS_DESCRIPTION = (
     "Discover the Agenta tools that fit a set of plain-language use cases. Returns the "
     "best-match tool per use case (with its input schema), companion/alternative tools, "
-    "each integration's connection state and how to connect it, and operating guidance. "
-    "Use it while wiring tools for an agent you are building."
+    "each integration's connection state, and operating guidance. Use it while wiring tools: "
+    "the result tells you which INTEGRATION covers each use case, and you add that whole "
+    "integration as ONE gateway_connection tool entry — never one entry per action. At run "
+    "time the agent reaches every action of it through search_tools and run_tool. When an "
+    "integration's state is ready, the slug it returns IS the connection slug to commit; "
+    "otherwise you get a connect affordance whose slug does not exist yet. Only ever commit a "
+    "slug that came back ready — an invented or not-yet-created slug commits cleanly and "
+    "fails at run time as connection-not-found."
 )
 _DISCOVER_TOOLS_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
@@ -523,6 +541,66 @@ _DISCOVER_TOOLS_INPUT_SCHEMA: Dict[str, Any] = {
 
 # Workflows query (read): list the project's workflow artifacts, so an agent building or improving
 # agents can find what already exists. Filters mirror ``WorkflowQueryRequest`` (all optional).
+_SEARCH_SKILLS_DESCRIPTION = (
+    "Search the project's skill registry (name and description match; empty search lists "
+    "everything). Answers with each skill's slug, name, description, head version and "
+    "file count, plus the Agenta built-ins in a separate `builtin` block. To give this "
+    "agent a skill from the results, append an `@ag.embed` entry to `skills` via "
+    "`commit_revision` — the exact entry shape is documented in the configuration "
+    "reference's skills section (reference by `workflow.slug` to follow the latest "
+    "version; `workflow_revision` with `version` to pin)."
+)
+_SEARCH_SKILLS_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "search": {
+            "type": "string",
+            "description": "Case-insensitive match on skill name and description.",
+        },
+    },
+}
+
+# Skill update checks are reads; applying an update uses the configured permission.
+_CHECK_SKILL_UPDATES_DESCRIPTION = (
+    "Check one imported skill against its upstream source, without changing anything. "
+    "Reports `update_available` (newer upstream content), `up_to_date`, `detached` "
+    "(edited in Agenta — updates never overwrite it), `missing_in_source`, or "
+    "`invalid_in_source`. Skill workflow ids come from `search_skills`; only skills "
+    "with an import origin can be checked. Use this when the user asks about skill "
+    "updates, or before proposing `apply_skill_update`; summarize what changed before "
+    "applying."
+)
+_CHECK_SKILL_UPDATES_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "skill_id": {
+            "type": "string",
+            "description": "The skill's workflow id (a UUID from `search_skills`).",
+        },
+    },
+    "required": ["skill_id"],
+}
+
+_APPLY_SKILL_UPDATE_DESCRIPTION = (
+    "Commit the upstream version of one imported skill as a new revision. Run "
+    "`check_skill_updates` first and tell the user what changed. Approval follows "
+    "this tool's configured permission. Skills edited in "
+    "Agenta report `detached` and are never overwritten; a concurrent edit reports "
+    "`conflict` instead of clobbering. Agents referencing the skill by slug "
+    "(follow-latest) pick the new version up on their next run; pinned references "
+    "keep their version until repinned."
+)
+_APPLY_SKILL_UPDATE_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "skill_id": {
+            "type": "string",
+            "description": "The skill's workflow id (a UUID from `search_skills`).",
+        },
+    },
+    "required": ["skill_id"],
+}
+
 _QUERY_WORKFLOWS_DESCRIPTION = (
     "Query the project's workflow artifacts (agents, prompts) with optional filters and "
     "pagination. Use it to find existing workflows before creating or referencing one."
@@ -556,10 +634,13 @@ _QUERY_WORKFLOWS_INPUT_SCHEMA: Dict[str, Any] = {
 # target field to bind.
 _QUERY_SPANS_DESCRIPTION = (
     "Query span records in this project. Use it to verify a past run or scheduled trigger fire "
-    "actually executed its tools. Returns `{count, spans}` with flat spans, including span names, "
+    "actually executed its tools. Returns `{count, spans, windowing}` with flat spans, including span names, "
     "status, attributes, events, and Agenta metrics. Filter by `trace_id` when you know it, or "
     "bracket the test with `windowing.oldest`/`windowing.newest`; then read the tool-call spans "
-    "in order and confirm the terminal span completed without an error status."
+    "in order and confirm the terminal span completed without an error status. One call returns "
+    "one page of spans (100 by default, at most 1000), newest first. When the response has a "
+    "`windowing` object, more spans may match: call again with that object as `windowing` to read "
+    "the next page."
 )
 _QUERY_SPANS_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
@@ -723,12 +804,17 @@ _QUERY_SPANS_INPUT_SCHEMA: Dict[str, Any] = {
                         {"type": "null"},
                     ],
                     "default": None,
-                    "description": "Cursor token returned by a prior query page.",
+                    "description": (
+                        "Cursor of the next page. Copy the whole `windowing` object of "
+                        "the previous response instead of setting it by hand."
+                    ),
                 },
                 "limit": {
                     "anyOf": [{"type": "integer"}, {"type": "null"}],
                     "default": None,
-                    "description": "Maximum spans to return.",
+                    "description": (
+                        "Maximum spans to return in one page (default 100, at most 1000)."
+                    ),
                 },
                 "order": {
                     "anyOf": [
@@ -815,37 +901,6 @@ _QUERY_SPANS_INPUT_SCHEMA: Dict[str, Any] = {
 # variant — "update myself". ``workflow_revision.workflow_variant_id`` is bound from run context
 # and stripped from the model-visible schema, so the agent can only ever target itself, never a
 # different variant in the project. Defaults to approval.
-# One switch for the API and the model-facing catalog: the SDK runs inside the API
-# process, so both read the same variable. The rollout order needs API support to exist
-# before the catalog advertises the shape (gate 3, plan ruling).
-# The switch itself lives in `agenta.sdk.agents.flags`, a leaf module, because the
-# `build-an-agent` skill reads it too and an adapter cannot import this package (it reaches
-# the SDK singleton). Re-exported under the private names this module has always used.
-_ORDERED_OPERATIONS_ENV = ORDERED_OPERATIONS_ENV
-_ordered_operations_enabled = ordered_operations_enabled
-
-
-# The legacy description, for the flag-off surface. The wholesale-list sentence names the
-# build-kit exception because the server REFUSES a commit that carries a platform-kind tool
-# entry: telling the model to send its own build-kit tools back would earn that refusal.
-_COMMIT_REVISION_DESCRIPTION_LEGACY = (
-    "Commit a new revision to your own workflow variant (update yourself). "
-    "Editing files in your workspace does not change your configuration. That copy is "
-    "rebuilt, and the edits are lost. Change your instructions and configuration only "
-    "through this tool. "
-    "Send only the "
-    "fields you are changing under `workflow_revision.delta.set` (deep-merged onto your "
-    "current config) and any field paths to drop under `delta.remove`. Put agent-template "
-    "edits under `delta.set.parameters.agent`. Lists such as `tools`, `skills`, and `mcps` "
-    "are replaced wholesale, not merged entry-by-entry: send the complete list, meaning "
-    "your current entries plus your change, or you wipe the rest. Leave the playground's "
-    "own tools (commit_revision, test_run, read_config) OUT of that list: they are not "
-    "part of your configuration, and a commit that carries one is refused. "
-    "The variant you are running is targeted automatically. The response returns the new "
-    "revision id; existing schedules and subscriptions keep pointing at the old revision "
-    "until you re-point them. This changes the agent and requires approval."
-)
-
 # The normative tool description, contracts/change-set.md section 15. About 1.5 KB and 400
 # tokens; the 3.2 KB version measured the same success rate and cost 11-13 percent more.
 # It works BECAUSE three things hold: the wrapper normalizes the repeated-list mistake,
@@ -861,7 +916,10 @@ committed.
 
 TARGET: an array of segments from the configuration root. A string segment names an
 object field. An object segment {"list": L, "key": K} names one entry of list L and
-stands in place of L's name. Keyed lists: skills, mcps, tools (by name), files (by path).
+stands in place of L's name. Keyed lists: skills, mcps, tools (by name — but a
+gateway_connection entry has no name and is keyed
+gateway_connection:{provider}:{integration}, e.g. "gateway_connection:composio:github"),
+files (by path).
 
     ["parameters","agent",{"list":"skills","key":"release-qa"},
      {"list":"files","key":"checklist.md"},"content"]
@@ -894,11 +952,7 @@ the error is retryable. `retryable` only tells you whether sending the SAME call
 work; it is false for most refusals, and that means correct the call rather than repeat
 it."""
 
-_COMMIT_REVISION_DESCRIPTION = (
-    _COMMIT_REVISION_DESCRIPTION_ORDERED
-    if _ordered_operations_enabled()
-    else _COMMIT_REVISION_DESCRIPTION_LEGACY
-)
+_COMMIT_REVISION_DESCRIPTION = _COMMIT_REVISION_DESCRIPTION_ORDERED
 
 _READ_CONFIG_DESCRIPTION = """Read your own configuration, or one part of it.
 
@@ -915,6 +969,23 @@ If the head moved in between, the commit answers 409 and you read again.
 Text comes back exactly as stored, so an `old_text` you copy from it will match. A value
 larger than the limit is refused, never shortened: the answer then lists `children`, and
 you read one of those instead."""
+
+# Inline, never a $ref: Moonshot (Kimi) rejects a $ref in a tool schema as
+# "infinite recursion", which fails every turn that offers the tool.
+_TARGET_SEGMENT_SCHEMA: Dict[str, Any] = {
+    "oneOf": [
+        {"type": "string", "minLength": 1},
+        {
+            "type": "object",
+            "additionalProperties": False,
+            "required": ["list", "key"],
+            "properties": {
+                "list": {"type": "string", "minLength": 1},
+                "key": {"type": "string", "minLength": 1},
+            },
+        },
+    ]
+}
 
 _READ_CONFIG_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
@@ -939,7 +1010,7 @@ _READ_CONFIG_INPUT_SCHEMA: Dict[str, Any] = {
                 "path": {
                     "type": "array",
                     "maxItems": 12,
-                    "items": {"$ref": "#/$defs/read_config_segment"},
+                    "items": _TARGET_SEGMENT_SCHEMA,
                     "description": (
                         "Segments from the configuration root. Omit to read everything."
                     ),
@@ -953,37 +1024,6 @@ _READ_CONFIG_INPUT_SCHEMA: Dict[str, Any] = {
             "description": "Largest answer to return before refusing. Default 65536.",
         },
     },
-    "$defs": {
-        "read_config_segment": {
-            "oneOf": [
-                {"type": "string", "minLength": 1},
-                {
-                    "type": "object",
-                    "additionalProperties": False,
-                    "required": ["list", "key"],
-                    "properties": {
-                        "list": {"type": "string", "minLength": 1},
-                        "key": {"type": "string", "minLength": 1},
-                    },
-                },
-            ]
-        }
-    },
-}
-
-_TARGET_SEGMENT_SCHEMA: Dict[str, Any] = {
-    "oneOf": [
-        {"type": "string", "minLength": 1},
-        {
-            "type": "object",
-            "additionalProperties": False,
-            "required": ["list", "key"],
-            "properties": {
-                "list": {"type": "string", "minLength": 1},
-                "key": {"type": "string", "minLength": 1},
-            },
-        },
-    ]
 }
 
 _OPERATION_SCHEMA: Dict[str, Any] = {
@@ -1041,77 +1081,35 @@ _COMMIT_REVISION_INPUT_SCHEMA: Dict[str, Any] = {
                     "type": "string",
                     "description": "Server-bound to the running variant; do not set.",
                 },
-                # Flag-off only. With ordered operations on, the server derives the
-                # message from the operations: free text was the site of every measured
-                # argument-corruption failure, and a derived message is always accurate.
-                **(
-                    {}
-                    if _ordered_operations_enabled()
-                    else {
-                        "message": {
-                            "type": "string",
-                            "description": "Commit message describing the change.",
-                        }
-                    }
-                ),
-                **(
-                    {
-                        "base_revision_id": {
-                            "type": "string",
-                            "description": (
-                                "The base_revision_id you read. Required for `operations`."
-                            ),
-                        }
-                    }
-                    if _ordered_operations_enabled()
-                    else {}
-                ),
-                # ONE delta arm is model-visible per deployment. With ordered operations on,
-                # `set` and `remove` leave this schema: a model that sees both picks a
-                # different arm from call to call, which is what made the approval cards
-                # inconsistent on one stack. The API still accepts the legacy form, so
-                # shipped callers are unaffected; this is the catalog surface only.
+                # No `message`: the server derives it from the operations. Free text was
+                # the site of every measured argument-corruption failure, and a derived
+                # message is always accurate.
+                "base_revision_id": {
+                    "type": "string",
+                    "description": (
+                        "The base_revision_id you read. Required for `operations`."
+                    ),
+                },
+                # Only the ordered arm is model-visible: a model that sees `set`/`remove`
+                # beside `operations` picks a different arm from call to call. The API still
+                # accepts the legacy form, so shipped callers are unaffected; this is the
+                # catalog surface only.
                 "delta": {
                     "type": "object",
                     "additionalProperties": False,
                     "description": (
                         "Ordered operations applied to your current revision, in array "
                         "order. If one fails, nothing is committed."
-                        if _ordered_operations_enabled()
-                        else "Change set applied to your current revision. `set` is "
-                        "deep-merged (omitted fields preserved); `remove` deletes the "
-                        "listed paths."
                     ),
-                    "properties": (
-                        {
-                            "operations": {
-                                "type": "array",
-                                "minItems": 1,
-                                "maxItems": 64,
-                                "items": _OPERATION_SCHEMA,
-                                "description": (
-                                    "Ordered operations, applied in array order."
-                                ),
-                            }
+                    "properties": {
+                        "operations": {
+                            "type": "array",
+                            "minItems": 1,
+                            "maxItems": 64,
+                            "items": _OPERATION_SCHEMA,
+                            "description": "Ordered operations, applied in array order.",
                         }
-                        if _ordered_operations_enabled()
-                        else {
-                            "set": _delta_set_schema(
-                                "Partial workflow revision data to merge. For "
-                                "agent-template updates, include parameters.agent with "
-                                "instructions, llm, tools, mcps, skills, harness, runner, "
-                                "or sandbox fields as needed."
-                            ),
-                            "remove": {
-                                "type": "array",
-                                "items": {"type": "string"},
-                                "description": (
-                                    "Dotted field paths to delete, e.g. "
-                                    "parameters.agent.tools."
-                                ),
-                            },
-                        }
-                    ),
+                    },
                 },
             },
             # `base_revision_id` is required WITH the ordered arm, and the schema has to say
@@ -1119,11 +1117,7 @@ _COMMIT_REVISION_INPUT_SCHEMA: Dict[str, Any] = {
             # a prose sentence sends the call anyway and spends the turn on the refusal.
             # `workflow_variant_id` is bound from run context and stripped from this list
             # along with the property, so the model never sees it required.
-            "required": (
-                ["workflow_variant_id", "base_revision_id", "delta"]
-                if _ordered_operations_enabled()
-                else ["workflow_variant_id", "delta"]
-            ),
+            "required": ["workflow_variant_id", "base_revision_id", "delta"],
         },
     },
     "required": ["workflow_revision"],
@@ -1242,8 +1236,9 @@ _TRIGGER_INPUTS_FIELDS_SCHEMA: Dict[str, Any] = {
         "resolves as a JSON Pointer, and any other leaf passes through literally — "
         "selectors are never interpolated into a larger string, and an unmatched selector "
         "resolves to null. Omit this field to pass the whole fire context through as-is. "
-        "Canonical pattern: include an explicit imperative `messages` entry and map the "
-        'event payload under a sibling key, e.g. `{"messages": [{"role": "user", '
+        "Put only the task in `messages`, not schedule/trigger metadata, timing checks, or "
+        "skip-run guards. Configure when to run in the schedule or trigger settings. For "
+        'subscriptions, map event data under a sibling key, e.g. `{"messages": [{"role": "user", '
         '"content": "Handle this event."}], "payload": "$.event.attributes"}`.'
     ),
     "anyOf": [
@@ -1256,7 +1251,7 @@ _CREATE_SCHEDULE_DESCRIPTION = (
     "Create a cron schedule that runs this agent. The destination workflow is bound "
     "from the current run context, so only this agent can be scheduled. When no revision "
     "is specified, the schedule binds to the variant's latest revision at creation time "
-    "and does not follow later commits. Requires approval."
+    "and does not follow later commits. Approval follows this tool's configured permission."
 )
 _CREATE_SCHEDULE_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
@@ -1300,7 +1295,7 @@ _CREATE_SUBSCRIPTION_DESCRIPTION = (
     "Create an event subscription that runs this agent when a provider event occurs. "
     "The destination workflow is bound from the current run context. When no revision is "
     "specified, the subscription binds to the variant's latest revision at creation time "
-    "and does not follow later commits. Requires approval."
+    "and does not follow later commits. Approval follows this tool's configured permission."
 )
 _CREATE_SUBSCRIPTION_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
@@ -1336,7 +1331,7 @@ _CREATE_SUBSCRIPTION_INPUT_SCHEMA: Dict[str, Any] = {
 
 _TEST_SUBSCRIPTION_DESCRIPTION = (
     "Open a temporary provider watch, wait for one real matching event, record it as a "
-    "test delivery, and tear the watch down. It does not run the workflow. Requires approval."
+    "test delivery, and tear the watch down. It does not run the workflow. Approval follows this tool's configured permission."
 )
 _TEST_SUBSCRIPTION_INPUT_SCHEMA: Dict[str, Any] = {
     "type": "object",
@@ -1424,12 +1419,118 @@ _TEST_RUN_INPUT_SCHEMA: Dict[str, Any] = {
             "properties": {
                 "terminal_tool": {
                     "type": "string",
-                    "description": "Expected final/terminal tool name that must run and return.",
+                    "description": (
+                        "Expected final/terminal tool name that must run and return. For "
+                        "a gateway integration this is run_tool — the agent reaches every "
+                        "action through search_tools/run_tool — never a provider action "
+                        "name such as GITHUB_CREATE_AN_ISSUE."
+                    ),
                 }
             },
         },
     },
     "required": ["target", "inputs"],
+}
+
+_RENAME_SESSION_DESCRIPTION = """Name and describe the session you are running in, so a person scanning a long list of sessions can tell what this one is. Name the session once, as soon as you understand what it is about, which is usually after the first exchange. After that, do not rename it. Rename it again only when the person asks you to.
+
+`name` is the general subject: what this session is about, as a short label a person can scan in a list. A few words. Not the latest step, and not a sentence.
+
+`description` is the current state: a short recap of what has happened and what is open, one to one and a half sentences, short enough to read inside a table cell.
+
+If a person named the session themselves, this tool refuses and gives you their name. Adopt that name and move on. Only when the person asks you for a different name, call it again with `replacing_name` and `replacing_revision` copied from that refusal. Those spend the request on one particular state of the session, so a rename the person has since overtaken or undone cannot take effect later.
+
+This renames the session you are in and no other one. It works only inside a session."""
+
+_RENAME_SESSION_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": r"\S",
+        },
+        "description": {
+            "type": "string",
+            "maxLength": 300,
+        },
+        "replacing_name": {
+            "type": "string",
+            "maxLength": 400,
+        },
+        "replacing_revision": {
+            "type": "integer",
+            # 0 is a real revision, not a missing one: a session whose title was filled from
+            # its first message and then kept by the person has a name nobody counted.
+            # Rejecting 0 here would make that one session impossible to rename on request.
+            "minimum": 0,
+        },
+    },
+    "required": ["name"],
+}
+
+_RENAME_AGENT_DESCRIPTION = """Name and describe yourself, so a person browsing the list of agents can tell what you are for. Rename yourself only while your name is still a placeholder such as "New agent" or "Untitled". Do it once you understand your own purpose, which is usually right after your first task. Once you have a real name, keep it. Rename yourself again only when the person asks you to.
+
+`name` is what you are for, as a short label a person can scan in a list. A few words.
+
+`description` is what you do and where you currently stand, one to one and a half sentences, short enough to read inside a table cell.
+
+This renames the agent you are running as and no other one. It changes only your name and your description, never your configuration."""
+
+_RENAME_AGENT_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 120,
+            "pattern": r"\S",
+        },
+        "description": {
+            "type": "string",
+            "maxLength": 300,
+        },
+    },
+    "required": ["name"],
+}
+
+# Template validation (read): check one template zip in this session's files with the loader's own
+# source resolution and parser. The source is fixed to `session_file` and its session is bound from
+# run context, so the model names only a path in its own session and cannot read another session.
+_VALIDATE_TEMPLATE_DESCRIPTION = """Validate a template package zip in this session's files, exactly as the template loader reads it.
+
+Send `path`: the zip's path relative to your working directory, such as
+`templates/seo-assistant-1.0.0.zip`. Validate the zip itself, never the folder you built it
+from. The check changes nothing: it creates no agent, session, skill or automation, so call it
+after every rebuild.
+
+When `valid` is true, the answer also has `version` and `digest`. Give both to the user with the
+zip's path: loading the zip later requires that exact version and digest.
+
+When `valid` is false, `issues` lists each problem: the package file (`path`), the manifest field
+(`field`), a `code`, a `message` and a `next_step`. Fix the package files as `next_step` says,
+rebuild the zip, and validate the new zip again. Never tell the user the template is ready, or
+offer it for download, while the last validation of that zip is invalid.
+`supported_schema_versions` lists the manifest schema versions the loader accepts."""
+
+_VALIDATE_TEMPLATE_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "path": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "description": (
+                "The zip's path relative to your working directory, e.g. "
+                "`templates/seo-assistant-1.0.0.zip`."
+            ),
+        },
+    },
+    "required": ["path"],
 }
 
 _EMPTY_INPUT_SCHEMA: Dict[str, Any] = {"type": "object", "properties": {}}
@@ -1445,37 +1546,304 @@ _TRIGGER_ID_INPUT_SCHEMA: Dict[str, Any] = {
 }
 
 
-# `read_config` and ordered operations are one feature: the read-then-edit loop. The flag
-# gates both, so a deployment never advertises the read without the write it feeds.
+# `read_config` and ordered operations are one feature: the read-then-edit loop.
 _READ_CONFIG_OPS: tuple = (
-    (
-        PlatformOp(
-            op="read_config",
-            description=_READ_CONFIG_DESCRIPTION,
-            # Handler mode: the logic runs behind a registered handler in the API process,
-            # reached through the generic `/tools/call`. There is no public read-config
-            # endpoint any more, because every detail of it was agent-shaped and no second
-            # consumer existed.
-            handler=f"{PLATFORM_OP_NAMESPACE}read_config",
-            input_schema=_READ_CONFIG_INPUT_SCHEMA,
-            context_bindings={
-                "target.workflow_variant_id": "$ctx.workflow.variant.id",
-                "target.run_is_draft": "$ctx.workflow.is_draft",
-            },
-            read_only=True,
-            timeout_ms=15000,
-            accepts_description=True,
-        ),
-    )
-    if _ordered_operations_enabled()
-    else ()
+    PlatformOp(
+        op="read_config",
+        description=_READ_CONFIG_DESCRIPTION,
+        # Handler mode: the logic runs behind a registered handler in the API process,
+        # reached through the generic `/tools/call`. There is no public read-config
+        # endpoint any more, because every detail of it was agent-shaped and no second
+        # consumer existed.
+        handler=f"{PLATFORM_OP_NAMESPACE}read_config",
+        input_schema=_READ_CONFIG_INPUT_SCHEMA,
+        context_bindings={
+            "target.workflow_variant_id": "$ctx.workflow.variant.id",
+            "target.run_is_draft": "$ctx.workflow.is_draft",
+        },
+        read_only=True,
+        timeout_ms=15000,
+        accepts_description=True,
+    ),
 )
+
+
+# Agent HTML apps. Copies of `CREATE_APP_TOOL_DEFINITION` / `LIST_STARTERS_TOOL_DEFINITION` in
+# the API's `core/apps/handlers.py`; an API unit test asserts the two stay equal.
+_BOUND_FROM_RUN_SCHEMA: Dict[str, Any] = {
+    "type": "string",
+    "description": "Bound from the run; the model never sets it.",
+}
+
+_CREATE_APP_DESCRIPTION = (
+    "Copy an app starter into a folder of this session's drive so the person gets a "
+    "small interactive page (a board, a checklist, a form). Call list_starters first, "
+    "then create_app(starter, dir); then write the app's config and data files. "
+    "Refuses when dir/app.json already exists unless update is true, and an update "
+    "leaves the app's data and config files alone."
+)
+
+_CREATE_APP_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "required": ["starter", "dir"],
+    "properties": {
+        "starter": {
+            "type": "string",
+            "description": "Starter name, optionally pinned: `board` or `board@1`.",
+        },
+        "dir": {
+            "type": "string",
+            "description": "Target folder relative to the drive root, e.g. `apps/sprint-board`.",
+        },
+        "update": {
+            "type": "boolean",
+            "default": False,
+            "description": "Refresh the template files of an existing app in `dir`.",
+        },
+        "session_id": _BOUND_FROM_RUN_SCHEMA,
+    },
+}
+
+_LIST_STARTERS_DESCRIPTION = (
+    "List the app starters create_app can copy: name, version, when to use it, its "
+    "config keys, data files and the drive access it needs. Includes starters this "
+    "agent authored under agent-files/.apps/starters/ (listed, not copyable yet)."
+)
+
+_LIST_STARTERS_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "session_id": _BOUND_FROM_RUN_SCHEMA,
+        "artifact_id": _BOUND_FROM_RUN_SCHEMA,
+    },
+}
+
+
+# Channel agent tools: post, read and search through the Slack and Telegram bots the running
+# agent is connected to. The server finds the bots from the run's workflow artifact, so the model
+# never names a bot, a connection or a raw Slack or Telegram id; destinations, threads and
+# messages are opaque ids the list, read and search results hand back.
+_CHANNEL_LIST_DESCRIPTION = (
+    "List the Slack channels and Telegram groups you can post to or read through the bots this "
+    "agent is connected to. Each result has an opaque destination_id to pass to "
+    "send_channel_message, read_channel_messages or search_channel_messages, and says whether "
+    "you may post there (can_post) and read or search it (can_read). Filter by name with "
+    "`query`; page with `cursor`."
+)
+
+_CHANNEL_LIST_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "type": {
+            "type": "string",
+            "enum": ["channel"],
+            "description": "Only channel destinations exist today.",
+        },
+        "query": {
+            "type": "string",
+            "maxLength": 200,
+            "description": "Case-insensitive part of the channel or group name.",
+        },
+        "limit": {"type": "integer", "minimum": 1, "maximum": 100},
+        "cursor": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "The cursor from the previous page.",
+        },
+        "artifact_id": _BOUND_FROM_RUN_SCHEMA,
+    },
+}
+
+_CHANNEL_SEND_DESCRIPTION = (
+    "Post a message now to a Slack channel or Telegram group, outside the conversation you "
+    "are in. Get destination_id from list_channel_destinations. To reply in a Slack thread, "
+    "pass a thread_id returned by an earlier send, read or search in the same destination. "
+    "Returns state `sent` (with message_id and thread_id), `failed` (with a reason), or "
+    "`unknown` when the post may have reached the chat; never send it again after `unknown`."
+)
+
+_CHANNEL_SEND_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "destination_id": {
+            "type": "string",
+            "maxLength": 256,
+            "description": "An opaque destination_id from list_channel_destinations.",
+        },
+        "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40000,
+            "description": "The message, in Markdown.",
+        },
+        "thread_id": {
+            "type": "string",
+            "maxLength": 256,
+            "description": "Optional. Reply in this Slack thread of the same destination.",
+        },
+        "artifact_id": _BOUND_FROM_RUN_SCHEMA,
+        "session_id": _BOUND_FROM_RUN_SCHEMA,
+        "tool_call_id": _BOUND_FROM_RUN_SCHEMA,
+    },
+    "required": ["destination_id", "text"],
+}
+
+_CHANNEL_READ_DESCRIPTION = (
+    "Read a Slack channel's or Telegram group's recent messages, oldest first, or one Slack "
+    "thread's root and replies when you pass its thread_id. Default 50 messages, at most 200; "
+    "pass the returned cursor to read older ones. Messages Agenta stored come first; on Slack, "
+    "older ones are fetched live. Read the result's notes: they say what could not be read."
+)
+
+_CHANNEL_READ_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "destination_id": {
+            "type": "string",
+            "maxLength": 256,
+            "description": "An opaque destination_id from list_channel_destinations.",
+        },
+        "thread_id": {
+            "type": "string",
+            "maxLength": 256,
+            "description": "Optional. Read this Slack thread instead of the channel.",
+        },
+        "limit": {"type": "integer", "minimum": 1, "maximum": 200},
+        "cursor": {
+            "type": "string",
+            "maxLength": 256,
+            "description": "The cursor from the previous page, to read older messages.",
+        },
+        "artifact_id": _BOUND_FROM_RUN_SCHEMA,
+    },
+    "required": ["destination_id"],
+}
+
+_CHANNEL_SEARCH_DESCRIPTION = (
+    "Search the messages Agenta stored from the Slack channels and Telegram groups you may "
+    "read, your own posts included, by words (web-search syntax: quotes for phrases, - to "
+    "exclude). Covers only messages since the bot joined each channel; the result's "
+    "`searched` list says what each search covered. Pass destination_ids from "
+    "list_channel_destinations to search only some channels, and a result's thread_id to "
+    "read_channel_messages to see the conversation around it."
+)
+
+_CHANNEL_SEARCH_INPUT_SCHEMA: Dict[str, Any] = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "query": {"type": "string", "minLength": 1, "maxLength": 500},
+        "destination_ids": {
+            "type": "array",
+            "items": {"type": "string", "maxLength": 256},
+            "maxItems": 100,
+            "description": "Optional. Only these destinations; default all readable ones.",
+        },
+        "after": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Optional. Only messages at or after this time (ISO 8601).",
+        },
+        "before": {
+            "type": "string",
+            "format": "date-time",
+            "description": "Optional. Only messages at or before this time (ISO 8601).",
+        },
+        "limit": {"type": "integer", "minimum": 1, "maximum": 50},
+        "cursor": {
+            "type": "string",
+            "maxLength": 64,
+            "description": "The cursor from the previous page.",
+        },
+        "artifact_id": _BOUND_FROM_RUN_SCHEMA,
+    },
+    "required": ["query"],
+}
+
+_CHANNEL_TOOL_OPS: tuple = (
+    PlatformOp(
+        op="list_channel_destinations",
+        description=_CHANNEL_LIST_DESCRIPTION,
+        method="POST",
+        path="/api/channels/tools/destinations/query",
+        input_schema=_CHANNEL_LIST_INPUT_SCHEMA,
+        context_bindings={"artifact_id": "$ctx.workflow.artifact.id"},
+        read_only=True,
+    ),
+    PlatformOp(
+        op="send_channel_message",
+        description=_CHANNEL_SEND_DESCRIPTION,
+        method="POST",
+        path="/api/channels/tools/messages/send",
+        input_schema=_CHANNEL_SEND_INPUT_SCHEMA,
+        # The tool call id keys the delivery record, so a retried call reports the first
+        # attempt instead of posting twice.
+        context_bindings={
+            "artifact_id": "$ctx.workflow.artifact.id",
+            "session_id": "$ctx.session.id",
+            "tool_call_id": "$ctx.tool.call_id",
+        },
+        read_only=False,
+        # Posting is the point of the tool, so it runs without a prompt by default. The
+        # bot's "Can post outside the conversation" setting is the admin's off switch.
+        default_permission="allow",
+    ),
+    PlatformOp(
+        op="read_channel_messages",
+        description=_CHANNEL_READ_DESCRIPTION,
+        method="POST",
+        path="/api/channels/tools/messages/read",
+        input_schema=_CHANNEL_READ_INPUT_SCHEMA,
+        context_bindings={"artifact_id": "$ctx.workflow.artifact.id"},
+        read_only=True,
+    ),
+    PlatformOp(
+        op="search_channel_messages",
+        description=_CHANNEL_SEARCH_DESCRIPTION,
+        method="POST",
+        path="/api/channels/tools/messages/search",
+        input_schema=_CHANNEL_SEARCH_INPUT_SCHEMA,
+        context_bindings={"artifact_id": "$ctx.workflow.artifact.id"},
+        read_only=True,
+    ),
+)
+
+# The ops the Agenta tools kit adds to a run of an agent connected to a bot. The kit reads the
+# condition from `POST /api/channels/tools/availability`.
+CHANNEL_TOOL_OPS: tuple = tuple(op.op for op in _CHANNEL_TOOL_OPS)
 
 
 PLATFORM_OPS: Dict[str, PlatformOp] = {
     op.op: op
     for op in _READ_CONFIG_OPS
+    + _CHANNEL_TOOL_OPS
     + (
+        PlatformOp(
+            op="create_app",
+            description=_CREATE_APP_DESCRIPTION,
+            handler=f"{PLATFORM_OP_NAMESPACE}create_app",
+            input_schema=_CREATE_APP_INPUT_SCHEMA,
+            context_bindings={"session_id": "$ctx.session.id"},
+            read_only=False,
+            timeout_ms=30000,
+        ),
+        PlatformOp(
+            op="list_starters",
+            description=_LIST_STARTERS_DESCRIPTION,
+            handler=f"{PLATFORM_OP_NAMESPACE}list_starters",
+            input_schema=_LIST_STARTERS_INPUT_SCHEMA,
+            context_bindings={
+                "session_id": "$ctx.session.id",
+                "artifact_id": "$ctx.workflow.artifact.id",
+            },
+            read_only=True,
+            timeout_ms=15000,
+        ),
         PlatformOp(
             op="discover_tools",
             description=_DISCOVER_TOOLS_DESCRIPTION,
@@ -1493,12 +1861,95 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             read_only=True,
         ),
         PlatformOp(
+            op="search_skills",
+            description=_SEARCH_SKILLS_DESCRIPTION,
+            method="POST",
+            path="/api/skills/query",
+            input_schema=_SEARCH_SKILLS_INPUT_SCHEMA,
+            read_only=True,
+        ),
+        PlatformOp(
+            op="check_skill_updates",
+            description=_CHECK_SKILL_UPDATES_DESCRIPTION,
+            method="POST",
+            path="/api/skills/{skill_id}/updates/check",
+            input_schema=_CHECK_SKILL_UPDATES_INPUT_SCHEMA,
+            read_only=True,
+        ),
+        PlatformOp(
+            op="apply_skill_update",
+            description=_APPLY_SKILL_UPDATE_DESCRIPTION,
+            method="POST",
+            path="/api/skills/{skill_id}/updates/apply",
+            input_schema=_APPLY_SKILL_UPDATE_INPUT_SCHEMA,
+            read_only=False,
+        ),
+        PlatformOp(
             op="query_spans",
             description=_QUERY_SPANS_DESCRIPTION,
             method="POST",
             path="/api/spans/query",
             input_schema=_QUERY_SPANS_INPUT_SCHEMA,
             read_only=True,
+        ),
+        PlatformOp(
+            op="get_current_session",
+            description=(
+                "Get the ID, current name, and Agenta web URL of the conversation you are "
+                "running in. Call this when you need to link to this session. Takes no "
+                "arguments. Copy the returned URL exactly; it requires the recipient's "
+                "existing Agenta access and does not make the session public. If url is "
+                "null, report url_unavailable_reason instead of inventing a link."
+            ),
+            method="POST",
+            path="/api/sessions/tools/current",
+            input_schema={
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {"session_id": {"type": "string"}},
+                "required": ["session_id"],
+            },
+            context_bindings={"session_id": "$ctx.session.id"},
+            read_only=True,
+        ),
+        PlatformOp(
+            op="validate_template",
+            description=_VALIDATE_TEMPLATE_DESCRIPTION,
+            method="POST",
+            path="/api/agent-templates/validate",
+            input_schema=_VALIDATE_TEMPLATE_INPUT_SCHEMA,
+            args_into="source",
+            # Fixed in code so the only source the model can reach is a file in its own session.
+            static_body={"source": {"kind": "session_file"}},
+            context_bindings={"source.session_id": "$ctx.session.id"},
+            read_only=True,
+        ),
+        PlatformOp(
+            op="rename_session",
+            description=_RENAME_SESSION_DESCRIPTION,
+            method="POST",
+            # `name_source=automatic` is fixed here, in code, and the model fills only the
+            # body, so an agent cannot claim a person chose the name. The endpoint refuses an
+            # automatic rename over a name a person controls, which is what stops a call the
+            # agent decided before the person renamed from replacing their name when it
+            # finally runs.
+            path="/api/sessions/streams/header?session_id={session_id}&name_source=automatic",
+            input_schema=_RENAME_SESSION_INPUT_SCHEMA,
+            context_bindings={"session_id": "$ctx.session.id"},
+            read_only=False,
+        ),
+        PlatformOp(
+            op="rename_agent",
+            description=_RENAME_AGENT_DESCRIPTION,
+            method="PUT",
+            path="/api/workflows/{workflow_id}",
+            input_schema=_RENAME_AGENT_INPUT_SCHEMA,
+            args_into="workflow",
+            context_bindings={
+                "workflow_id": "$ctx.workflow.artifact.id",
+                "workflow.id": "$ctx.workflow.artifact.id",
+            },
+            read_only=False,
         ),
         PlatformOp(
             op="test_run",
@@ -1599,7 +2050,11 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
         ),
         PlatformOp(
             op="list_connections",
-            description="List trigger connections visible to this project.",
+            description=(
+                "List this project's provider connections, with their real slugs. Use it "
+                "for a trigger connection_id, and to get the ready connection slug for a "
+                "gateway_connection tool entry."
+            ),
             method="POST",
             path="/api/triggers/connections/query",
             input_schema=_EMPTY_INPUT_SCHEMA,
@@ -1616,7 +2071,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
         ),
         PlatformOp(
             op="remove_schedule",
-            description="Delete a trigger schedule by id. Requires approval.",
+            description="Delete a trigger schedule by id. Approval follows this tool's configured permission.",
             method="DELETE",
             path="/api/triggers/schedules/{id}",
             input_schema=_TRIGGER_ID_INPUT_SCHEMA,
@@ -1624,7 +2079,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
         ),
         PlatformOp(
             op="remove_subscription",
-            description="Delete a trigger subscription by id. Requires approval.",
+            description="Delete a trigger subscription by id. Approval follows this tool's configured permission.",
             method="DELETE",
             path="/api/triggers/subscriptions/{id}",
             input_schema=_TRIGGER_ID_INPUT_SCHEMA,
@@ -1632,7 +2087,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
         ),
         PlatformOp(
             op="pause_schedule",
-            description="Pause a trigger schedule without deleting it. Requires approval.",
+            description="Pause a trigger schedule without deleting it. Approval follows this tool's configured permission.",
             method="POST",
             path="/api/triggers/schedules/{id}/stop",
             input_schema=_TRIGGER_ID_INPUT_SCHEMA,
@@ -1640,7 +2095,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
         ),
         PlatformOp(
             op="resume_schedule",
-            description="Resume a paused trigger schedule. Requires approval.",
+            description="Resume a paused trigger schedule. Approval follows this tool's configured permission.",
             method="POST",
             path="/api/triggers/schedules/{id}/start",
             input_schema=_TRIGGER_ID_INPUT_SCHEMA,
@@ -1648,7 +2103,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
         ),
         PlatformOp(
             op="pause_subscription",
-            description="Pause a trigger subscription without deleting it. Requires approval.",
+            description="Pause a trigger subscription without deleting it. Approval follows this tool's configured permission.",
             method="POST",
             path="/api/triggers/subscriptions/{id}/stop",
             input_schema=_TRIGGER_ID_INPUT_SCHEMA,
@@ -1656,7 +2111,7 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
         ),
         PlatformOp(
             op="resume_subscription",
-            description="Resume a paused trigger subscription. Requires approval.",
+            description="Resume a paused trigger subscription. Approval follows this tool's configured permission.",
             method="POST",
             path="/api/triggers/subscriptions/{id}/start",
             input_schema=_TRIGGER_ID_INPUT_SCHEMA,

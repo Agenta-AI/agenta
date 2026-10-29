@@ -75,10 +75,10 @@ describe("buildTurnText", () => {
   });
 });
 
-// S3: on any successful resume rung (HOT continuation OR S1 session/load) the ACP prompt is
-// last-message-only; buildTurnText only runs on the cold path. This imports `runTurn`'s own
-// decision function, so the pin fails if the shipped rule drifts.
-describe("S3 skip-flatten: sendLastMessageOnly = continuation || loaded", () => {
+// S3: HOT continuation is intrinsically verified because the live harness never went away. A
+// cold `session/load` must additionally prove that native history was replayed; accepting the id
+// alone is not enough to discard the reconstructed transcript.
+describe("S3 skip-flatten: only verified native history uses last-message-only", () => {
   it("cold turn (neither flag): the full transcript is sent, not last-message-only", () => {
     assert.equal(sendLastMessageOnly({}), false);
   });
@@ -87,11 +87,25 @@ describe("S3 skip-flatten: sendLastMessageOnly = continuation || loaded", () => 
     assert.equal(sendLastMessageOnly({ continuation: true }), true);
   });
 
-  it("S1 session/load rehydration turn: last-message-only", () => {
-    assert.equal(sendLastMessageOnly({ loaded: true }), true);
+  it("S1 session/load that only accepted the id: full reconstructed transcript", () => {
+    assert.equal(sendLastMessageOnly({ loaded: true }), false);
+  });
+
+  it("S1 session/load with observed native history: last-message-only", () => {
+    assert.equal(
+      sendLastMessageOnly({ loaded: true, nativeHistoryVerified: true }),
+      true,
+    );
   });
 
   it("both flags set (should not happen, but never double-flattens): still last-message-only", () => {
-    assert.equal(sendLastMessageOnly({ continuation: true, loaded: true }), true);
+    assert.equal(
+      sendLastMessageOnly({
+        continuation: true,
+        loaded: true,
+        nativeHistoryVerified: false,
+      }),
+      true,
+    );
   });
 });

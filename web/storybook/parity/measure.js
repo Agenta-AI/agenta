@@ -12,7 +12,7 @@
  * background/automated tab does not advance CSS animations, so after a theme switch every
  * transitioning element sits at `currentTime: 0` forever and `getComputedStyle` keeps
  * returning the pre-switch (light) value. Without this, dark mode reports a full column of
- * failures that do not exist. See antd-inventory/GOTCHAS.md.
+ * failures that do not exist. See docs/design/antd-migration/GOTCHAS.md.
  */
 
 /** Freeze all transitions/animations so computed styles report their settled values. */

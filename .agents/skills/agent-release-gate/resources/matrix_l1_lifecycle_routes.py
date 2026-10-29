@@ -48,11 +48,14 @@ sandbox survived" is worth nothing unless the running harness actually OBSERVED 
 `matrix_l5_live_route_observed.py` for the other half; a green here plus a red there means the
 runner is keeping a sandbox that is quietly running the old configuration.
 
-THE `model` CASE IS EVIDENCE-ONLY, ON PURPOSE. Changing the model id should move the `model`
-facet alone (apply-live, warm), but if a deployment's connection shape is keyed off the model
-then the `runtime` facet moves too and the plan escalates -- correctly. Rather than encode a
-guess as a blocker, this cell REPORTS the observed route for `model` and blocks only on the four
-cases whose routing is unambiguous in the capability table.
+THE `model` CASES ARE BLOCKING, AND THERE ARE TWO OF THEM. A same-connection model switch moves
+the `model` facet alone (apply-live, warm): an alias switch on claude, and a fully-qualified id
+switch on pi_core. The pi_core variant exists because of a caught bug class: the router once
+keyed its capability table on the bare literal "pi" while the wire carries "pi_core", so every
+playground Pi run fell into the fail-closed all-rebuild row, the live model route never fired,
+and a claude-only cell could not see it (#6364). If this case goes red on a facet OTHER than
+`model` moving (the shadow line names it), that red is the discovery mechanism working: it names
+the next over-eviction to remove, not a reason to demote the case.
 
   uv run matrix_l1_lifecycle_routes.py
 """
@@ -65,6 +68,8 @@ import uuid
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from qa_matrix_lib import (  # noqa: E402
     LIVE_TOOLS,
+    PI_CORE_HAIKU_MODEL,
+    PI_CORE_HARNESS_KIND,
     agent_config,
     archive,
     create_workflow,
@@ -117,10 +122,22 @@ CASES = [
     (
         "model",
         1,
-        False,
-        "the `model` facet is the other live route (setModel on the running session), but a "
-        "deployment whose connection shape is keyed off the model moves `runtime` too and "
-        "correctly escalates -- reported, not blocking",
+        True,
+        "the `model` facet is the other live route (setModel on the running session). An "
+        "alias-to-alias switch on the same self_managed anthropic connection moves no other "
+        "facet (the connection shape and the resolved modalities are identical), so a rebuild "
+        "here means the live route is broken",
+    ),
+    (
+        "model_pi_core",
+        1,
+        True,
+        "the SAME model-switch assertion on the pi_core harness. This is the standing trap for "
+        "the wire-spelling class of bug: the lifecycle router once keyed its capability table "
+        "on the bare literal 'pi' while the wire carries 'pi_core', so every playground Pi run "
+        "fell into the fail-closed all-rebuild row and every model switch threw the warm "
+        "sandbox away (fixed in #6364) -- and the claude-only model case above could not see "
+        "it. A same-provider id switch moves only the `model` facet",
     ),
 ]
 
@@ -150,6 +167,10 @@ def mutate(case: str, params: dict) -> dict:
         return p
     if case == "model":
         agent["llm"]["model"] = "sonnet"
+        return p
+    if case == "model_pi_core":
+        # Same provider, same connection, a different fully qualified id: only `model` moves.
+        agent["llm"]["model"] = "claude-sonnet-5"
         return p
     raise ValueError(f"unknown case {case}")
 
@@ -186,11 +207,30 @@ def l1():
         cfg = agent_config(instructions=BASELINE)
         rev_id, _ = seed_and_baseline(wf, var, cfg, hexid)
         base_params = {"agent": {**cfg, "tools": LIVE_TOOLS}}
+        # The pi_core variant of the model case runs the whole session on pi_core with a fully
+        # qualified id (the harness rejects bare aliases; see the module notes in qa_matrix_lib).
+        pi_base_params = json.loads(json.dumps(base_params))
+        pi_base_params["agent"]["harness"] = {"kind": PI_CORE_HARNESS_KIND}
+        pi_base_params["agent"]["llm"]["model"] = PI_CORE_HAIKU_MODEL
+        # Vault-backed auth, not the inherited self_managed default: a self_managed Pi run
+        # needs a PI_CODING_AGENT_DIR mount, which a gate deployment does not have, and turn 1
+        # would then fail before this case tests any lifecycle routing. Matches the Pi
+        # fixtures in matrix_l5_live_route_observed.py and bench_lib.py.
+        pi_base_params["agent"]["llm"]["connection"] = {
+            "mode": "agenta",
+            "slug": None,
+        }
 
         results = []
         blocking_failures = []
         for case, expected, blocking, why in CASES:
-            r = run_case(case, wf, var, rev_id, base_params)
+            r = run_case(
+                case,
+                wf,
+                var,
+                rev_id,
+                pi_base_params if case == "model_pi_core" else base_params,
+            )
             r["expected_sandboxes"] = expected
             r["blocking"] = blocking
             r["rationale"] = why

@@ -2,7 +2,7 @@
 
 export interface SsoProviderSettingsDto {
     client_id: string;
-    client_secret: string;
+    client_secret?: (string | null) | undefined;
     issuer_url: string;
     scopes: string[];
     extra?: Record<string, unknown> | undefined;

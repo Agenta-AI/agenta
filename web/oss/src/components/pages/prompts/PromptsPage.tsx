@@ -24,7 +24,6 @@ import {openDeleteAppModalAtom} from "@/oss/components/pages/app-management/moda
 import {openEditAppModalAtom} from "@/oss/components/pages/app-management/modals/EditAppModal/store/editAppModalStore"
 import {usePlaygroundNavigation} from "@/oss/hooks/usePlaygroundNavigation"
 import useURL from "@/oss/hooks/useURL"
-import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import {waitForAppToStart} from "@/oss/services/api"
 import {updateAppFolder} from "@/oss/services/app-selector/api"
 import {createFolder, deleteFolder, editFolder} from "@/oss/services/folders"
@@ -123,8 +122,6 @@ const PromptsPage = () => {
         refetchFolders()
         refetchAllFolders()
     }, [refetchFolders, refetchAllFolders])
-
-    useBreadcrumbsEffect({breadcrumbs: {prompts: {label: "prompts"}}}, [])
 
     const {
         foldersById,

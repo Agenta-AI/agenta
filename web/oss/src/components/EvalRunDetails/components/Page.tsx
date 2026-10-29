@@ -7,8 +7,6 @@ import dynamic from "next/dynamic"
 import Router from "next/router"
 
 import {useQueryParam} from "@/oss/hooks/useQuery"
-import useURL from "@/oss/hooks/useURL"
-import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 
 import {activePreviewProjectIdAtom, activePreviewRunIdAtom} from "../atoms/run"
 import {runDisplayNameAtomFamily, runStatusAtomFamily} from "../atoms/runDerived"
@@ -41,9 +39,7 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
     const setActiveRunId = useSetAtom(activePreviewRunIdAtom)
     const setEvalType = useSetAtom(previewEvalTypeAtom)
     const setActiveProjectId = useSetAtom(activePreviewProjectIdAtom)
-    const {projectURL} = useURL()
 
-    // Get the run display name for breadcrumbs
     const runDisplayNameAtom = useMemo(() => runDisplayNameAtomFamily(runId), [runId])
     const runDisplayName = useAtomValue(runDisplayNameAtom)
 
@@ -55,43 +51,6 @@ const EvalRunPreviewPage = ({runId, evaluationType, projectId = null}: EvalRunPr
     // config General Edit button, and the Add-evaluator button.
     const editDrawerRunId = useAtomValue(editEvaluationDrawerRunIdAtom)
     const setEditDrawerRunId = useSetAtom(editEvaluationDrawerRunIdAtom)
-
-    // Map evaluation type to display label and URL kind parameter
-    // Labels match EvaluationsView.tsx tab labels
-    const evaluationTypeBreadcrumb = useMemo(() => {
-        const typeMap: Record<string, {label: string; kind: string}> = {
-            auto: {label: "Auto Evals", kind: "auto"},
-            human: {label: "Human Evals", kind: "human"},
-            online: {label: "Live Evals", kind: "online"},
-            sdk: {label: "SDK Evals", kind: "custom"},
-        }
-        const config = typeMap[evaluationType] ?? {label: "Evaluations", kind: "auto"}
-        return {
-            label: config.label,
-            href: projectURL ? `${projectURL}/evaluations?kind=${config.kind}` : undefined,
-        }
-    }, [evaluationType, projectURL])
-
-    // Set breadcrumbs: workspace / project / evaluations [type] (link) / evaluation name
-    // Use "appPage" for evaluation type and "appPageDetail" for evaluation name
-    // to match the breadcrumb system's expected key ordering
-    useBreadcrumbsEffect(
-        {
-            breadcrumbs: {
-                appPage: {
-                    label: evaluationTypeBreadcrumb.label,
-                    href: evaluationTypeBreadcrumb.href,
-                },
-                appPageDetail: {
-                    label: runDisplayName || "results",
-                    value: runId,
-                },
-            },
-            type: "append",
-            condition: Boolean(runId),
-        },
-        [runId, runDisplayName, evaluationTypeBreadcrumb],
-    )
 
     useEffect(() => {
         setActiveRunId(runId)

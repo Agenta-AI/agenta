@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "entry": "standup-summarizer",
+  "agents": {
+    "standup-summarizer": {
+      "name": "Standup summarizer",
+      "description": "Posts a daily digest of channel activity so your team starts the day with a clear standup summary.",
+      "instructions": "./ai.agenta/agents/standup-summarizer/AGENTS.md",
+      "setup": "./ai.agenta/agents/standup-summarizer/SETUP.md",
+      "connections": [
+        {
+          "key": "read-and-post-to-the-channel",
+          "required": true,
+          "purpose": "Read and post to the channel",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "slack"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "discord"
+            }
+          ],
+          "setup_notes": "Read channels, post digest"
+        }
+      ]
+    }
+  }
+}

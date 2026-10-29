@@ -185,7 +185,7 @@ api/oss/src/
 export COMPOSIO_API_KEY="your-composio-api-key"
 
 # Optional (already has defaults)
-export COMPOSIO_API_URL="https://backend.composio.dev/api/v3"
+export COMPOSIO_API_URL="https://backend.composio.dev/api/v3.1"
 ```
 
 ### Code Setup

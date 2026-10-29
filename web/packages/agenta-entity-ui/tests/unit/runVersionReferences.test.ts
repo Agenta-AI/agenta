@@ -2,6 +2,7 @@ import {describe, expect, it} from "vitest"
 
 import {
     buildRunVersionReferences,
+    composeRevisionLabel,
     extractBoundWorkflowId,
     hasBoundWorkflow,
     isRunVersionBound,
@@ -153,5 +154,60 @@ describe("buildRunVersionReferences", () => {
                 workflowRevId: "var-1",
             }),
         ).toEqual({application: {id: "app-1"}, application_variant: {id: "var-1"}})
+    })
+})
+
+describe("composeRevisionLabel", () => {
+    // The common case: `extractBoundWorkflowId` returned a REVISION id, so the
+    // revision-keyed artifact/variant/version lookups all resolve directly.
+    it("composes artifact / variant · vN from a resolved revision", () => {
+        expect(
+            composeRevisionLabel({
+                artifact: "PR reviewer",
+                variant: "default",
+                version: 2,
+            }),
+        ).toBe("PR reviewer / default · v2")
+    })
+
+    it("omits the variant segment when it duplicates the artifact name", () => {
+        expect(composeRevisionLabel({artifact: "PR reviewer", variant: "PR reviewer"})).toBe(
+            "PR reviewer",
+        )
+    })
+
+    // A schedule/subscription bound via the default "runs whatever the variant currently
+    // deploys" bind stores an `application_variant` id, not a revision id (see
+    // `extractBoundWorkflowId`). The revision-keyed lookups can't resolve that id (it isn't
+    // a revision), so they come back null — this is the bug reproduced live: the edit
+    // drawer showed "Select a variant revision" for a schedule that WAS bound. The
+    // fallback (resolved via workflow id + variant list, not a revision id) recovers the
+    // label instead, and no version is appended since the pin doesn't name one.
+    it("falls back to the workflow/variant-list lookup when the revision-keyed lookup is null", () => {
+        expect(
+            composeRevisionLabel({
+                artifact: null,
+                fallbackArtifact: "PR reviewer",
+                variant: null,
+                fallbackVariant: "default",
+                version: null,
+            }),
+        ).toBe("PR reviewer / default")
+    })
+
+    it("prefers the revision-keyed result over the fallback when both are present", () => {
+        expect(
+            composeRevisionLabel({
+                artifact: "PR reviewer",
+                fallbackArtifact: "stale name",
+                variant: "default",
+                fallbackVariant: "stale variant",
+                version: 2,
+            }),
+        ).toBe("PR reviewer / default · v2")
+    })
+
+    it("returns null when nothing resolves", () => {
+        expect(composeRevisionLabel({})).toBeNull()
     })
 })

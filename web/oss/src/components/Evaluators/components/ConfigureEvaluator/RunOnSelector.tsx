@@ -92,7 +92,7 @@ const FlowPills = ({steps, token}: {steps: FlowNode[]; token: GlobalToken}) => (
                     </span>
                 )}
                 <span
-                    className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-solid px-2 py-[3px] text-[11px] leading-none"
+                    className="inline-flex items-center gap-1 whitespace-nowrap rounded-full border border-solid px-2 py-[3px] text-xs leading-none"
                     style={flowStyle(token, step.variant)}
                 >
                     <FlowIcon variant={step.variant} />
@@ -185,7 +185,7 @@ const RunOnSelector = ({mode, onPick}: RunOnSelectorProps) => {
             }}
         >
             <div
-                className="px-2.5 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-[0.04em]"
+                className="px-2.5 pb-1.5 pt-1 text-xs font-semibold uppercase tracking-[0.04em]"
                 style={{color: token.colorTextQuaternary}}
             >
                 What should the evaluator run on?
@@ -231,7 +231,7 @@ const RunOnSelector = ({mode, onPick}: RunOnSelectorProps) => {
                                 {m.label}
                                 {m.badge === "default" && (
                                     <span
-                                        className="rounded-full px-[7px] py-px text-[10.5px] font-semibold"
+                                        className="rounded-full px-[7px] py-px text-[12px] font-semibold"
                                         style={{
                                             background: token.colorPrimary,
                                             color: token.colorTextLightSolid,
@@ -242,7 +242,7 @@ const RunOnSelector = ({mode, onPick}: RunOnSelectorProps) => {
                                 )}
                                 {m.badge === "soon" && (
                                     <span
-                                        className="rounded-full px-[7px] py-px text-[10.5px] font-semibold"
+                                        className="rounded-full px-[7px] py-px text-[12px] font-semibold"
                                         style={{background: token.gold1, color: token.gold8}}
                                     >
                                         soon
@@ -250,7 +250,7 @@ const RunOnSelector = ({mode, onPick}: RunOnSelectorProps) => {
                                 )}
                             </div>
                             <div
-                                className="mt-0.5 text-[12.5px] leading-snug"
+                                className="mt-0.5 text-xs leading-snug"
                                 style={{color: token.colorTextTertiary}}
                             >
                                 {m.desc}

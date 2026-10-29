@@ -17,4 +17,4 @@ export type {
 export type {User} from "./user"
 
 // LLM provider configuration
-export type {LlmProvider} from "./llmProvider"
+export type {LlmProvider, SubscriptionLoginFacts} from "./llmProvider"

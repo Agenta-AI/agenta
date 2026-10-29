@@ -2,7 +2,7 @@
 
 Authoritative definitions for the view-mode selector used in the trace drill-in
 viewer ([TraceSpanDrillInView](./TraceSpanDrillInView.tsx)) and the legacy trace
-drawer ([AccordionTreePanel](../SharedDrawers/TraceDrawer/components/AccordionTreePanel.tsx)).
+drawer (`AccordionTreePanel` (now `@agenta/observability-ui/traceDrawer`)).
 
 If you are about to add, rename, or change the behavior of a view mode, update
 this file first and keep the two panels aligned.

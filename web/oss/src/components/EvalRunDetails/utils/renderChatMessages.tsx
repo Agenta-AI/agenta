@@ -92,16 +92,16 @@ export function renderChatMessages({
                     key={`${keyPrefix}-${i}`}
                     className="w-full flex flex-col gap-2 text-xs text-gray-700"
                 >
-                    <span className="capitalize text-[11px] text-gray-500">{msg.role}</span>
+                    <span className="capitalize text-xs text-gray-500">{msg.role}</span>
                     {textContent ? (
                         <span className="whitespace-pre-wrap break-words block">{textContent}</span>
                     ) : null}
                     {toolCalls.length > 0 ? (
                         <div className="flex flex-col gap-1">
-                            <span className="text-[10px] text-gray-400 font-medium">
+                            <span className="text-[12px] text-gray-400 font-medium">
                                 Tool Calls:
                             </span>
-                            <span className="whitespace-pre-wrap break-words text-[11px] bg-gray-50 rounded px-2 py-1 block">
+                            <span className="whitespace-pre-wrap break-words text-xs bg-gray-50 rounded px-2 py-1 block">
                                 {formatToolCalls(toolCalls)}
                             </span>
                         </div>

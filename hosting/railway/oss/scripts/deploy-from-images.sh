@@ -24,11 +24,17 @@ INFRA_SETTLE_SECONDS="${RAILWAY_INFRA_SETTLE_SECONDS:-40}"
 APP_SETTLE_SECONDS="${RAILWAY_APP_SETTLE_SECONDS:-60}"
 ALEMBIC_MAX_ATTEMPTS="${RAILWAY_ALEMBIC_MAX_ATTEMPTS:-3}"
 REDIS_IMAGE="${REDIS_IMAGE:-$(require_compose_redis_image "$SOURCE_COMPOSE_FILE")}"
-# Pin a 4.37-era SeaweedFS: its advanced IAM (the STS path mounts need) regressed in other releases.
-SEAWEEDFS_IMAGE="${SEAWEEDFS_IMAGE:-chrislusf/seaweedfs:4.37}"
+# Pin SeaweedFS: its advanced IAM (the STS path mounts need) regressed in other releases, and
+# older builds keep listing a pre-versioning object after its delete marker
+# is written, so a deleted file reappears in a geesefs mount and cannot be read.
+# Never go below 4.42.
+SEAWEEDFS_IMAGE="${SEAWEEDFS_IMAGE:-chrislusf/seaweedfs:4.47}"
 
 AGENTA_API_IMAGE="${AGENTA_API_IMAGE:-}"
 AGENTA_WEB_IMAGE="${AGENTA_WEB_IMAGE:-}"
+# Optional here only because an environment bootstrapped before web-mobile became
+# standard may still lack the service; bootstrap.sh now always creates it.
+AGENTA_WEB_MOBILE_IMAGE="${AGENTA_WEB_MOBILE_IMAGE:-}"
 AGENTA_SERVICES_IMAGE="${AGENTA_SERVICES_IMAGE:-}"
 AGENTA_RUNNER_IMAGE="${AGENTA_RUNNER_IMAGE:-}"
 
@@ -160,7 +166,7 @@ ENV REDIS_URI_VOLATILE=redis://redis.railway.internal:6379/0
 ENV REDIS_URI_DURABLE=redis://redis.railway.internal:6379/0
 ENV SUPERTOKENS_CONNECTION_URI=http://supertokens.railway.internal:3567
 
-CMD ["gunicorn", "entrypoints.routers:app", "--bind", "0.0.0.0:8000", "--worker-class", "uvicorn.workers.UvicornWorker", "--workers", "2", "--max-requests", "10000", "--max-requests-jitter", "1000", "--timeout", "60", "--graceful-timeout", "60", "--log-level", "info", "--access-logfile", "-", "--error-logfile", "-"]
+CMD ["gunicorn", "entrypoints.routers:app", "--bind", "0.0.0.0:8000", "--worker-class", "entrypoints.uvicorn_worker.DrainingUvicornWorker", "--workers", "2", "--max-requests", "100000", "--max-requests-jitter", "10000", "--timeout", "60", "--graceful-timeout", "900", "--log-level", "info", "--access-logfile", "-", "--error-logfile", "-"]
 EOF
 }
 
@@ -205,6 +211,19 @@ ENV HOSTNAME=0.0.0.0
 ENV AGENTA_LICENSE=oss
 
 CMD ["sh", "-lc", "/app/entrypoint.sh node /app/oss/server.js"]
+EOF
+}
+
+render_web_mobile_wrapper() {
+    local dir="$TMP_DIR/web-mobile"
+    mkdir -p "$dir"
+    cat > "$dir/Dockerfile" <<EOF
+FROM ${AGENTA_WEB_MOBILE_IMAGE}
+
+ENV HOSTNAME=0.0.0.0
+ENV AGENTA_LICENSE=oss
+
+CMD ["sh", "-lc", "/app/entrypoint.sh node /app/mobile/server.js"]
 EOF
 }
 
@@ -259,6 +278,9 @@ render_api_wrapper
 render_services_wrapper
 render_runner_wrapper
 render_web_wrapper
+if [ -n "$AGENTA_WEB_MOBILE_IMAGE" ]; then
+    render_web_mobile_wrapper
+fi
 render_alembic_wrapper
 render_redis_wrapper
 render_seaweedfs_wrapper
@@ -299,6 +321,10 @@ railway_call up "$TMP_DIR/runner" --path-as-root --service runner --detach
 railway_call up "$TMP_DIR/services" --path-as-root --service services --detach
 railway_call up "$TMP_DIR/cron" --path-as-root --service cron --detach
 railway_call up "$TMP_DIR/web" --path-as-root --service web --detach
+# Deploy the mobile app only when both the image and the service are present.
+if [ -n "$AGENTA_WEB_MOBILE_IMAGE" ] && railway_call service web-mobile >/dev/null 2>&1; then
+    railway_call up "$TMP_DIR/web-mobile" --path-as-root --service web-mobile --detach
+fi
 
 sleep "$APP_SETTLE_SECONDS"
 "$ROOT_DIR/hosting/railway/oss/scripts/deploy-gateway.sh"

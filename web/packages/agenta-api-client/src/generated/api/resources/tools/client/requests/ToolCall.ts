@@ -18,4 +18,5 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface ToolCall {
     data: AgentaApi.ToolCallData;
+    context?: AgentaApi.ToolCallContext | null;
 }

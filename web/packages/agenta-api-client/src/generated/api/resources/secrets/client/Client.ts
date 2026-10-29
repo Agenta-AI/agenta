@@ -26,20 +26,30 @@ export class SecretsClient {
     }
 
     /**
+     * @param {AgentaApi.ListSecretsRequest} request
      * @param {SecretsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
      *
      * @example
      *     await client.secrets.listSecrets()
      */
     public listSecrets(
+        request: AgentaApi.ListSecretsRequest = {},
         requestOptions?: SecretsClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.SecretResponseDto[]> {
-        return core.HttpResponsePromise.fromPromise(this.__listSecrets(requestOptions));
+    ): core.HttpResponsePromise<AgentaApi.PublicSecretResponseDto[]> {
+        return core.HttpResponsePromise.fromPromise(this.__listSecrets(request, requestOptions));
     }
 
     private async __listSecrets(
+        request: AgentaApi.ListSecretsRequest = {},
         requestOptions?: SecretsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.SecretResponseDto[]>> {
+    ): Promise<core.WithRawResponse<AgentaApi.PublicSecretResponseDto[]>> {
+        const { include_organization: includeOrganization, scope } = request;
+        const _queryParams: Record<string, unknown> = {
+            include_organization: includeOrganization,
+            scope: scope != null ? scope : undefined,
+        };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
@@ -55,7 +65,7 @@ export class SecretsClient {
             ),
             method: "GET",
             headers: _headers,
-            queryParameters: requestOptions?.queryParams,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
             timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
             maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
             withCredentials: true,
@@ -64,15 +74,23 @@ export class SecretsClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as AgentaApi.SecretResponseDto[], rawResponse: _response.rawResponse };
+            return { data: _response.body as AgentaApi.PublicSecretResponseDto[], rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {
-            throw new errors.AgentaApiError({
-                statusCode: _response.error.statusCode,
-                body: _response.error.body,
-                rawResponse: _response.rawResponse,
-            });
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as unknown,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
         }
 
         return handleNonStatusCodeError(_response.error, _response.rawResponse, "GET", "/secrets/");
@@ -90,10 +108,8 @@ export class SecretsClient {
      *         secret: {
      *             kind: "provider_key",
      *             data: {
-     *                 kind: "openai",
-     *                 provider: {
-     *                     key: "key"
-     *                 }
+     *                 kind: "mock",
+     *                 provider: {}
      *             }
      *         }
      *     })
@@ -101,14 +117,14 @@ export class SecretsClient {
     public createSecret(
         request: AgentaApi.CreateSecretDto,
         requestOptions?: SecretsClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.SecretResponseDto> {
+    ): core.HttpResponsePromise<AgentaApi.PublicSecretResponseDto> {
         return core.HttpResponsePromise.fromPromise(this.__createSecret(request, requestOptions));
     }
 
     private async __createSecret(
         request: AgentaApi.CreateSecretDto,
         requestOptions?: SecretsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.SecretResponseDto>> {
+    ): Promise<core.WithRawResponse<AgentaApi.PublicSecretResponseDto>> {
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
@@ -136,14 +152,14 @@ export class SecretsClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as AgentaApi.SecretResponseDto, rawResponse: _response.rawResponse };
+            return { data: _response.body as AgentaApi.PublicSecretResponseDto, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -172,15 +188,18 @@ export class SecretsClient {
     public readSecret(
         request: AgentaApi.ReadSecretRequest,
         requestOptions?: SecretsClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.SecretResponseDto> {
+    ): core.HttpResponsePromise<AgentaApi.PublicSecretResponseDto> {
         return core.HttpResponsePromise.fromPromise(this.__readSecret(request, requestOptions));
     }
 
     private async __readSecret(
         request: AgentaApi.ReadSecretRequest,
         requestOptions?: SecretsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.SecretResponseDto>> {
-        const { secret_id_or_slug: secretIdOrSlug } = request;
+    ): Promise<core.WithRawResponse<AgentaApi.PublicSecretResponseDto>> {
+        const { secret_id_or_slug: secretIdOrSlug, scope } = request;
+        const _queryParams: Record<string, unknown> = {
+            scope: scope != null ? scope : undefined,
+        };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
@@ -196,7 +215,7 @@ export class SecretsClient {
             ),
             method: "GET",
             headers: _headers,
-            queryParameters: requestOptions?.queryParams,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
             timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
             maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
             withCredentials: true,
@@ -205,14 +224,14 @@ export class SecretsClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as AgentaApi.SecretResponseDto, rawResponse: _response.rawResponse };
+            return { data: _response.body as AgentaApi.PublicSecretResponseDto, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -241,15 +260,18 @@ export class SecretsClient {
     public updateSecret(
         request: AgentaApi.UpdateSecretDto,
         requestOptions?: SecretsClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.SecretResponseDto> {
+    ): core.HttpResponsePromise<AgentaApi.PublicSecretResponseDto> {
         return core.HttpResponsePromise.fromPromise(this.__updateSecret(request, requestOptions));
     }
 
     private async __updateSecret(
         request: AgentaApi.UpdateSecretDto,
         requestOptions?: SecretsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.SecretResponseDto>> {
-        const { secret_id: secretId, ..._body } = request;
+    ): Promise<core.WithRawResponse<AgentaApi.PublicSecretResponseDto>> {
+        const { secret_id: secretId, scope, ..._body } = request;
+        const _queryParams: Record<string, unknown> = {
+            scope: scope != null ? scope : undefined,
+        };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
@@ -266,7 +288,7 @@ export class SecretsClient {
             method: "PUT",
             headers: _headers,
             contentType: "application/json",
-            queryParameters: requestOptions?.queryParams,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
             requestType: "json",
             body: _body,
             timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
@@ -277,14 +299,14 @@ export class SecretsClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as AgentaApi.SecretResponseDto, rawResponse: _response.rawResponse };
+            return { data: _response.body as AgentaApi.PublicSecretResponseDto, rawResponse: _response.rawResponse };
         }
 
         if (_response.error.reason === "status-code") {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -321,7 +343,10 @@ export class SecretsClient {
         request: AgentaApi.DeleteSecretRequest,
         requestOptions?: SecretsClient.RequestOptions,
     ): Promise<core.WithRawResponse<void>> {
-        const { secret_id: secretId } = request;
+        const { secret_id: secretId, scope } = request;
+        const _queryParams: Record<string, unknown> = {
+            scope: scope != null ? scope : undefined,
+        };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
@@ -337,7 +362,7 @@ export class SecretsClient {
             ),
             method: "DELETE",
             headers: _headers,
-            queryParameters: requestOptions?.queryParams,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
             timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
             maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
             withCredentials: true,
@@ -353,7 +378,7 @@ export class SecretsClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -366,5 +391,644 @@ export class SecretsClient {
         }
 
         return handleNonStatusCodeError(_response.error, _response.rawResponse, "DELETE", "/secrets/{secret_id}");
+    }
+
+    /**
+     * @param {AgentaApi.SecretProjectsRequest} request
+     * @param {SecretsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.secrets.setSecretProjects({
+     *         secret_id: "secret_id",
+     *         availability: "all_projects"
+     *     })
+     */
+    public setSecretProjects(
+        request: AgentaApi.SecretProjectsRequest,
+        requestOptions?: SecretsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.PublicSecretResponseDto> {
+        return core.HttpResponsePromise.fromPromise(this.__setSecretProjects(request, requestOptions));
+    }
+
+    private async __setSecretProjects(
+        request: AgentaApi.SecretProjectsRequest,
+        requestOptions?: SecretsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.PublicSecretResponseDto>> {
+        const { secret_id: secretId, ..._body } = request;
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `secrets/${core.url.encodePathParam(secretId)}/projects`,
+            ),
+            method: "PUT",
+            headers: _headers,
+            contentType: "application/json",
+            queryParameters: requestOptions?.queryParams,
+            requestType: "json",
+            body: _body,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.PublicSecretResponseDto, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as unknown,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "PUT", "/secrets/{secret_id}/projects");
+    }
+
+    /**
+     * @param {AgentaApi.SubscriptionTokenRequest} request
+     * @param {SecretsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.secrets.setSubscriptionToken({
+     *         secret_id: "secret_id",
+     *         token: "token"
+     *     })
+     */
+    public setSubscriptionToken(
+        request: AgentaApi.SubscriptionTokenRequest,
+        requestOptions?: SecretsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.PublicSecretResponseDto> {
+        return core.HttpResponsePromise.fromPromise(this.__setSubscriptionToken(request, requestOptions));
+    }
+
+    private async __setSubscriptionToken(
+        request: AgentaApi.SubscriptionTokenRequest,
+        requestOptions?: SecretsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.PublicSecretResponseDto>> {
+        const { secret_id: secretId, scope, ..._body } = request;
+        const _queryParams: Record<string, unknown> = {
+            scope: scope != null ? scope : undefined,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `secrets/${core.url.encodePathParam(secretId)}/subscription-token`,
+            ),
+            method: "PUT",
+            headers: _headers,
+            contentType: "application/json",
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            requestType: "json",
+            body: _body,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.PublicSecretResponseDto, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as unknown,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "PUT",
+            "/secrets/{secret_id}/subscription-token",
+        );
+    }
+
+    /**
+     * @param {AgentaApi.StartSubscriptionLoginRequest} request
+     * @param {SecretsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.secrets.startSubscriptionLogin({
+     *         secret_id: "secret_id"
+     *     })
+     */
+    public startSubscriptionLogin(
+        request: AgentaApi.StartSubscriptionLoginRequest,
+        requestOptions?: SecretsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.SubscriptionLoginAttemptResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__startSubscriptionLogin(request, requestOptions));
+    }
+
+    private async __startSubscriptionLogin(
+        request: AgentaApi.StartSubscriptionLoginRequest,
+        requestOptions?: SecretsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.SubscriptionLoginAttemptResponse>> {
+        const { secret_id: secretId, scope } = request;
+        const _queryParams: Record<string, unknown> = {
+            scope: scope != null ? scope : undefined,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `secrets/${core.url.encodePathParam(secretId)}/login-attempts`,
+            ),
+            method: "POST",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return {
+                data: _response.body as AgentaApi.SubscriptionLoginAttemptResponse,
+                rawResponse: _response.rawResponse,
+            };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as unknown,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "POST",
+            "/secrets/{secret_id}/login-attempts",
+        );
+    }
+
+    /**
+     * @param {AgentaApi.ReadSubscriptionLoginRequest} request
+     * @param {SecretsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.secrets.readSubscriptionLogin({
+     *         secret_id: "secret_id",
+     *         attempt_id: "attempt_id"
+     *     })
+     */
+    public readSubscriptionLogin(
+        request: AgentaApi.ReadSubscriptionLoginRequest,
+        requestOptions?: SecretsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.SubscriptionLoginAttemptResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__readSubscriptionLogin(request, requestOptions));
+    }
+
+    private async __readSubscriptionLogin(
+        request: AgentaApi.ReadSubscriptionLoginRequest,
+        requestOptions?: SecretsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.SubscriptionLoginAttemptResponse>> {
+        const { secret_id: secretId, attempt_id: attemptId, scope } = request;
+        const _queryParams: Record<string, unknown> = {
+            scope: scope != null ? scope : undefined,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `secrets/${core.url.encodePathParam(secretId)}/login-attempts/${core.url.encodePathParam(attemptId)}`,
+            ),
+            method: "GET",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return {
+                data: _response.body as AgentaApi.SubscriptionLoginAttemptResponse,
+                rawResponse: _response.rawResponse,
+            };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as unknown,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "GET",
+            "/secrets/{secret_id}/login-attempts/{attempt_id}",
+        );
+    }
+
+    /**
+     * @param {AgentaApi.CancelSubscriptionLoginRequest} request
+     * @param {SecretsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.secrets.cancelSubscriptionLogin({
+     *         secret_id: "secret_id",
+     *         attempt_id: "attempt_id"
+     *     })
+     */
+    public cancelSubscriptionLogin(
+        request: AgentaApi.CancelSubscriptionLoginRequest,
+        requestOptions?: SecretsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.SubscriptionLoginAttemptResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__cancelSubscriptionLogin(request, requestOptions));
+    }
+
+    private async __cancelSubscriptionLogin(
+        request: AgentaApi.CancelSubscriptionLoginRequest,
+        requestOptions?: SecretsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.SubscriptionLoginAttemptResponse>> {
+        const { secret_id: secretId, attempt_id: attemptId, scope } = request;
+        const _queryParams: Record<string, unknown> = {
+            scope: scope != null ? scope : undefined,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `secrets/${core.url.encodePathParam(secretId)}/login-attempts/${core.url.encodePathParam(attemptId)}/cancel`,
+            ),
+            method: "POST",
+            headers: _headers,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return {
+                data: _response.body as AgentaApi.SubscriptionLoginAttemptResponse,
+                rawResponse: _response.rawResponse,
+            };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as unknown,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "POST",
+            "/secrets/{secret_id}/login-attempts/{attempt_id}/cancel",
+        );
+    }
+
+    /**
+     * @param {AgentaApi.SubscriptionLoginPushRequest} request
+     * @param {SecretsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.secrets.pushSubscriptionLogin({
+     *         secret_id: "secret_id",
+     *         login: {
+     *             "key": "value"
+     *         },
+     *         version: 1,
+     *         generation: 1
+     *     })
+     */
+    public pushSubscriptionLogin(
+        request: AgentaApi.SubscriptionLoginPushRequest,
+        requestOptions?: SecretsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.SubscriptionLoginPushResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__pushSubscriptionLogin(request, requestOptions));
+    }
+
+    private async __pushSubscriptionLogin(
+        request: AgentaApi.SubscriptionLoginPushRequest,
+        requestOptions?: SecretsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.SubscriptionLoginPushResponse>> {
+        const { secret_id: secretId, scope, ..._body } = request;
+        const _queryParams: Record<string, unknown> = {
+            scope: scope != null ? scope : undefined,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `secrets/${core.url.encodePathParam(secretId)}/subscription-login`,
+            ),
+            method: "POST",
+            headers: _headers,
+            contentType: "application/json",
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            requestType: "json",
+            body: _body,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return {
+                data: _response.body as AgentaApi.SubscriptionLoginPushResponse,
+                rawResponse: _response.rawResponse,
+            };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as unknown,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "POST",
+            "/secrets/{secret_id}/subscription-login",
+        );
+    }
+
+    /**
+     * @param {AgentaApi.SubscriptionLoginFailureRequest} request
+     * @param {SecretsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.secrets.reportSubscriptionLoginFailure({
+     *         secret_id: "secret_id",
+     *         version: 1,
+     *         generation: 1,
+     *         reason: "reason"
+     *     })
+     */
+    public reportSubscriptionLoginFailure(
+        request: AgentaApi.SubscriptionLoginFailureRequest,
+        requestOptions?: SecretsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.SubscriptionLoginFailureResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__reportSubscriptionLoginFailure(request, requestOptions));
+    }
+
+    private async __reportSubscriptionLoginFailure(
+        request: AgentaApi.SubscriptionLoginFailureRequest,
+        requestOptions?: SecretsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.SubscriptionLoginFailureResponse>> {
+        const { secret_id: secretId, scope, ..._body } = request;
+        const _queryParams: Record<string, unknown> = {
+            scope: scope != null ? scope : undefined,
+        };
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                `secrets/${core.url.encodePathParam(secretId)}/subscription-login/failure`,
+            ),
+            method: "POST",
+            headers: _headers,
+            contentType: "application/json",
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
+            requestType: "json",
+            body: _body,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return {
+                data: _response.body as AgentaApi.SubscriptionLoginFailureResponse,
+                rawResponse: _response.rawResponse,
+            };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as unknown,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(
+            _response.error,
+            _response.rawResponse,
+            "POST",
+            "/secrets/{secret_id}/subscription-login/failure",
+        );
+    }
+
+    /**
+     * @param {AgentaApi.ProbeProviderRequest} request
+     * @param {SecretsClient.RequestOptions} requestOptions - Request-specific configuration.
+     *
+     * @throws {@link AgentaApi.UnprocessableEntityError}
+     *
+     * @example
+     *     await client.secrets.probeProvider()
+     */
+    public probeProvider(
+        request: AgentaApi.ProbeProviderRequest = {},
+        requestOptions?: SecretsClient.RequestOptions,
+    ): core.HttpResponsePromise<AgentaApi.ProbeProviderResponse> {
+        return core.HttpResponsePromise.fromPromise(this.__probeProvider(request, requestOptions));
+    }
+
+    private async __probeProvider(
+        request: AgentaApi.ProbeProviderRequest = {},
+        requestOptions?: SecretsClient.RequestOptions,
+    ): Promise<core.WithRawResponse<AgentaApi.ProbeProviderResponse>> {
+        const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
+        const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
+            _authRequest.headers,
+            this._options?.headers,
+            requestOptions?.headers,
+        );
+        const _response = await core.fetcher({
+            url: core.url.join(
+                (await core.Supplier.get(this._options.baseUrl)) ??
+                    (await core.Supplier.get(this._options.environment)) ??
+                    environments.AgentaApiEnvironment.Default,
+                "providers/probe",
+            ),
+            method: "POST",
+            headers: _headers,
+            contentType: "application/json",
+            queryParameters: requestOptions?.queryParams,
+            requestType: "json",
+            body: request,
+            timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
+            maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
+            withCredentials: true,
+            abortSignal: requestOptions?.abortSignal,
+            fetchFn: this._options?.fetch,
+            logging: this._options.logging,
+        });
+        if (_response.ok) {
+            return { data: _response.body as AgentaApi.ProbeProviderResponse, rawResponse: _response.rawResponse };
+        }
+
+        if (_response.error.reason === "status-code") {
+            switch (_response.error.statusCode) {
+                case 422:
+                    throw new AgentaApi.UnprocessableEntityError(
+                        _response.error.body as unknown,
+                        _response.rawResponse,
+                    );
+                default:
+                    throw new errors.AgentaApiError({
+                        statusCode: _response.error.statusCode,
+                        body: _response.error.body,
+                        rawResponse: _response.rawResponse,
+                    });
+            }
+        }
+
+        return handleNonStatusCodeError(_response.error, _response.rawResponse, "POST", "/providers/probe");
     }
 }

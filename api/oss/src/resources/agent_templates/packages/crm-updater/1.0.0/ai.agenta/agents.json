@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "entry": "crm-updater",
+  "agents": {
+    "crm-updater": {
+      "name": "CRM updater",
+      "description": "Each day, updates CRM contact records using context from your recent email threads.",
+      "instructions": "./ai.agenta/agents/crm-updater/AGENTS.md",
+      "setup": "./ai.agenta/agents/crm-updater/SETUP.md",
+      "connections": [
+        {
+          "key": "read-the-threads",
+          "required": true,
+          "purpose": "Read the threads",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "gmail"
+            }
+          ],
+          "setup_notes": "Read recent email threads"
+        },
+        {
+          "key": "land-the-updates",
+          "required": false,
+          "purpose": "Land the updates",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "hubspot"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "salesforce"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "attio"
+            }
+          ],
+          "setup_notes": "Land the updates"
+        }
+      ]
+    }
+  }
+}

@@ -1,16 +1,7 @@
-import Head from "next/head"
+import {PageTitle, type PageTitleProps} from "@agenta/ui/page-title"
 
-import {formatPageTitle} from "./utils"
-
-interface PageTitleProps {
-    title?: string | null
-    context?: string | null
-}
-
-const PageTitle = ({title, context}: PageTitleProps) => (
-    <Head>
-        <title>{formatPageTitle(title, context)}</title>
-    </Head>
-)
+// Compat shim: the component lives in @agenta/ui so desktop and mobile cannot drift apart.
+export {PageTitle}
+export type {PageTitleProps}
 
 export default PageTitle

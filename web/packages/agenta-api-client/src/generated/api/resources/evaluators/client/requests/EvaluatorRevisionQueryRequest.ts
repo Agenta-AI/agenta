@@ -17,6 +17,8 @@ export interface EvaluatorRevisionQueryRequest {
     evaluator_revision_refs?: AgentaApi.Reference[] | null;
     /** When true, include soft-deleted revisions. */
     include_archived?: boolean | null;
+    /** Divide matching revisions by artifact or variant and select one revision from each group. */
+    grouping?: AgentaApi.RevisionGrouping | null;
     /** Cursor-based pagination controls. */
     windowing?: AgentaApi.Windowing | null;
 }

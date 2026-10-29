@@ -1,12 +1,12 @@
 import {useEffect, useState} from "react"
 
 import {executionController} from "@agenta/playground"
+import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
 import {MagnifyingGlass} from "@phosphor-icons/react"
 import {Button, Tooltip} from "antd"
 import {useAtomValue} from "jotai"
 
 import {InspectorDrawer} from "@/oss/components/AgentChatSlice/components/Inspector/InspectorDrawer"
-import {playgroundInspectorEnabledAtom} from "@/oss/state/settings/featureFlags"
 
 /** Compare-column inspect: resolves the panel's read-back backend session_id, then opens the
  * unified Inspector in a floating drawer (session scope). */

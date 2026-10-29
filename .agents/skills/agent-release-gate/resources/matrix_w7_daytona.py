@@ -34,6 +34,7 @@ import uuid
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from qa_matrix_lib import (  # noqa: E402
     archive,
+    check_no_silent_turn,
     create_workflow,
     latest_revision,
     refs,
@@ -174,9 +175,13 @@ def w7_daytona() -> dict:
             ver or -1
         )
 
+        # A turn that produced nothing also produced no error and no tool error, so it would
+        # satisfy both absence checks above by doing nothing at all (ASD-EST100).
+        silent = check_no_silent_turn(turns)
         core_ok = (
             not any_errors
             and not any_tool_error
+            and not silent["violations"]
             and version_bumped
             and body_matches
             and len(manifest_frames) > 0
@@ -185,6 +190,7 @@ def w7_daytona() -> dict:
             "status": "PASS" if core_ok else "FAIL",
             "why": (
                 f"rounds={len(turns)}, any_tool_error={any_tool_error}, "
+                f"silent_turns={silent['violations']}, "
                 f"real_tool_errors={real_tool_errors}, "
                 f"version_bumped={version_bumped}, body_matches_exact_bytes={body_matches}, "
                 f"manifest_frames_found={len(manifest_frames)}, "

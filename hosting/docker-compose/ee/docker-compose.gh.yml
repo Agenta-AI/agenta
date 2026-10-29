@@ -11,6 +11,9 @@ name: agenta-ee-gh
 
 services:
     web:
+        # === ACTIVATION =========================================== #
+        profiles:
+            - with-web
         # === IMAGE ================================================ #
         image: ghcr.io/agenta-ai/${AGENTA_WEB_IMAGE_NAME:-internal-ee-agenta-web}:${AGENTA_WEB_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
@@ -18,6 +21,8 @@ services:
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.gh}
+        environment:
+            - AGENTA_SERVICES_INTERNAL_KEY=
         # === NETWORK ============================================== #
         networks:
             - agenta-ee-gh-network
@@ -29,22 +34,61 @@ services:
         # === LIFECYCLE ============================================ #
         restart: always
 
+    web-mobile:
+        # === ACTIVATION =========================================== #
+        # No profile: the mobile app (/m) starts with the stack, like api and web.
+        # Always on: /m is part of every deployment.
+        # === IMAGE ================================================ #
+        # The mobile app is edition-agnostic OSS-repo code: one public image
+        # serves both editions (no internal-ee variant).
+        image: ghcr.io/agenta-ai/${AGENTA_WEB_MOBILE_IMAGE_NAME:-agenta-web-mobile}:${AGENTA_WEB_MOBILE_IMAGE_TAG:-latest}
+        # === EXECUTION ============================================ #
+        command: sh -c "node ./mobile/server.js"
+        # === CONFIGURATION ======================================== #
+        env_file:
+            - ${ENV_FILE:-./.env.ee.gh}
+        environment:
+            - AGENTA_SERVICES_INTERNAL_KEY=
+            # The embed page fetches its config from the server side, where AGENTA_API_URL
+            # (often http://localhost/api) points at this container, not at the API.
+            - AGENTA_API_INTERNAL_URL=${AGENTA_API_INTERNAL_URL:-http://api:8000}
+        # === NETWORK ============================================== #
+        networks:
+            - agenta-ee-gh-network
+        # === LABELS =============================================== #
+        # (Path(`/m`) || PathPrefix(`/m/`)) auto-wins over the web catch-all PathPrefix(`/`)
+        # by rule length; no stripprefix — the app is built with basePath /m.
+        labels:
+            - "traefik.http.routers.web-mobile.rule=(Path(`/m`) || PathPrefix(`/m/`))"
+            - "traefik.http.routers.web-mobile.entrypoints=web"
+            - "traefik.http.services.web-mobile.loadbalancer.server.port=3000"
+        # === LIFECYCLE ============================================ #
+        restart: always
+
     api:
         # === IMAGE ================================================ #
         image: ghcr.io/agenta-ai/${AGENTA_API_IMAGE_NAME:-internal-ee-agenta-api}:${AGENTA_API_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
+        # A worker recycled at --max-requests finishes its open requests (an LLM gateway
+        # stream can run for minutes) for --graceful-timeout seconds while the other
+        # worker takes new ones. A container stop still uses docker's default 10 s:
+        # a compose recreate stops the old container before it starts the new one, so
+        # a longer stop_grace_period would only make an upgrade's downtime longer.
+        # --keep-alive is longer than the idle timeout of the proxy in front (Traefik keeps an
+        # idle connection to the worker for 90 s). If the worker closed first, a request the
+        # proxy sends on that connection in the same instant would fail with 502.
         command: >
             gunicorn entrypoints.routers:app
             --bind 0.0.0.0:8000
-            --worker-class uvicorn.workers.UvicornWorker
+            --worker-class entrypoints.uvicorn_worker.DrainingUvicornWorker
             --workers 2
             --worker-connections 1000
             --backlog 2048
-            --keep-alive 5
-            --max-requests 10000
-            --max-requests-jitter 1000
+            --keep-alive 620
+            --max-requests ${AGENTA_API_MAX_REQUESTS:-100000}
+            --max-requests-jitter ${AGENTA_API_MAX_REQUESTS_JITTER:-10000}
             --timeout 60
-            --graceful-timeout 30
+            --graceful-timeout ${AGENTA_API_GRACEFUL_TIMEOUT:-900}
             --log-level info
             --access-logfile -
             --error-logfile -
@@ -52,6 +96,7 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.ee.gh}
         environment:
+            - AGENTA_SERVICES_INTERNAL_KEY=${AGENTA_SERVICES_INTERNAL_KEY:?AGENTA_SERVICES_INTERNAL_KEY is required}
             - SCRIPT_NAME=/api
             - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
             # kill's direct runner hop (W7.3, sandbox teardown) — same address + shared
@@ -110,6 +155,7 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.ee.gh}
         environment:
+            - AGENTA_SERVICES_INTERNAL_KEY=
             - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
             # empty ⇒ all stream loops; see docs/designs/workers-sprawl/specs.md
             - AGENTA_WORKER_STREAMS=
@@ -151,6 +197,7 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.ee.gh}
         environment:
+            - AGENTA_SERVICES_INTERNAL_KEY=
             - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
             # empty ⇒ all queue loops; see docs/designs/workers-sprawl/specs.md
             - AGENTA_WORKER_QUEUES=
@@ -188,6 +235,7 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.ee.gh}
         environment:
+            - AGENTA_SERVICES_INTERNAL_KEY=
             - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
         # === NETWORK ============================================== #
         networks:
@@ -209,6 +257,8 @@ services:
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.gh}
+        environment:
+            AGENTA_SERVICES_INTERNAL_KEY: ""
         # === NETWORK ============================================== #
         networks:
             - agenta-ee-gh-network
@@ -216,11 +266,17 @@ services:
         depends_on:
             postgres:
                 condition: service_healthy
+            # ee0000000007 takes the usage report lock in the volatile Redis.
+            redis-volatile:
+                condition: service_healthy
 
     services:
         # === IMAGE ================================================ #
         image: ghcr.io/agenta-ai/${AGENTA_SERVICES_IMAGE_NAME:-internal-ee-agenta-services}:${AGENTA_SERVICES_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
+        # --keep-alive is longer than the idle timeout of the proxy in front (Traefik keeps an
+        # idle connection to the worker for 90 s). If the worker closed first, a request the
+        # proxy sends on that connection in the same instant would fail with 502.
         command: >
             gunicorn entrypoints.main:app
             --bind 0.0.0.0:8080
@@ -228,7 +284,7 @@ services:
             --workers 2
             --worker-connections 1000
             --backlog 2048
-            --keep-alive 5
+            --keep-alive 620
             --max-requests 10000
             --max-requests-jitter 1000
             --timeout 60
@@ -240,6 +296,7 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.ee.gh}
         environment:
+            - AGENTA_SERVICES_INTERNAL_KEY=${AGENTA_SERVICES_INTERNAL_KEY:?AGENTA_SERVICES_INTERNAL_KEY is required}
             - SCRIPT_NAME=/services
             - DOCKER_NETWORK_MODE=${DOCKER_NETWORK_MODE:-bridge}
             - AGENTA_RUNNER_INTERNAL_URL=${AGENTA_RUNNER_INTERNAL_URL:-http://runner:8765}
@@ -276,22 +333,30 @@ services:
         image: ghcr.io/agenta-ai/${AGENTA_RUNNER_IMAGE_NAME:-internal-ee-agenta-runner}:${AGENTA_RUNNER_IMAGE_TAG:-latest}
         # === EXECUTION ============================================ #
         init: true
+        extra_hosts:
+            - "host.docker.internal:host-gateway"
         # === CONFIGURATION ======================================== #
         environment:
             AGENTA_RUNNER_PORT: "8765"
             AGENTA_RUNNER_HOST: ${AGENTA_RUNNER_HOST:-0.0.0.0}
-            # Stable id so a runner restart keeps ownership of its local-sandbox sessions;
-            # a random id would orphan them for the owner TTL. A fixed default is safe because
-            # compose runs a single runner. Override only if you scale to multiple runners.
+            # The API binds each turn to one runner by this id, so two runners must never share
+            # it. A fixed default is safe because compose runs a single runner.
             AGENTA_RUNNER_REPLICA_ID: ${AGENTA_RUNNER_REPLICA_ID:-local-runner-1}
+            AGENTA_API_URL: ${AGENTA_API_URL:-}
             AGENTA_API_INTERNAL_URL: ${AGENTA_API_INTERNAL_URL:-http://api:8000}
             AGENTA_API_KEY: ${AGENTA_API_KEY:-}
             AGENTA_RUNNER_TOKEN: ${AGENTA_RUNNER_TOKEN:?AGENTA_RUNNER_TOKEN is required}
+            # Where the runner keeps state that must outlive a container recreate: the per-connection
+            # copy of a hosted subscription login (Pi rotates the refresh token on every exchange).
+            AGENTA_RUNNER_STATE_DIR: /var/lib/agenta/runner-state
             AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS: ${AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS:-local}
             AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER: ${AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER:-local}
             # Worst-case turn duration. Keep AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS (API) above it
             # plus 60s of skew, or every dispatch rebuilds the environment cold.
             AGENTA_RUNNER_RUN_TOTAL_TIMEOUT_MS: ${AGENTA_RUNNER_RUN_TOTAL_TIMEOUT_MS:-}
+            # Defaults: 30 min without progress; 30 min for one tool call.
+            AGENTA_RUNNER_RUN_IDLE_TIMEOUT_MS: ${AGENTA_RUNNER_RUN_IDLE_TIMEOUT_MS:-}
+            AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS: ${AGENTA_RUNNER_TOOL_CALL_TIMEOUT_MS:-}
             PI_CODING_AGENT_DIR: ${PI_CODING_AGENT_DIR:-/pi-agent}
             AGENTA_RUNNER_DAYTONA_API_KEY: ${AGENTA_RUNNER_DAYTONA_API_KEY:-}
             AGENTA_RUNNER_DAYTONA_API_URL: ${AGENTA_RUNNER_DAYTONA_API_URL:-}
@@ -303,13 +368,16 @@ services:
             AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM: ${AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM:-}
             AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES: ${AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES:-}
             AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS: ${AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS:-}
-            # This service has no env_file (see above), so the session flags must be listed
-            # here or they can never be set. Both default ON: absent or empty means on, and
-            # only the literal "false" disables. Disable AGENTA_SESSIONS_RECONSTRUCT together
-            # with the web NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY, or a turn that carries
-            # only its last message loses the conversation.
-            AGENTA_SESSIONS_RECONSTRUCT: ${AGENTA_SESSIONS_RECONSTRUCT:-}
-            AGENTA_RECORDS_DURABLE: ${AGENTA_RECORDS_DURABLE:-}
+            AGENTA_RUNNER_LIVE_FRAMES: ${AGENTA_RUNNER_LIVE_FRAMES:-true}
+            # Also unreachable without an explicit entry (no env_file), and the runner is
+            # the leg that refuses a gateway-routed run: it re-validates the transport rule
+            # the SDK applied, so a value set for the api and services but not here would
+            # admit the run and then strand it inside the sandbox. Default off; see
+            # docs/docs/self-host/reference/01-configuration.mdx.
+            AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED: ${AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED:-}
+            # The API's wallet switch, mirrored: on, the runner asks the wallet before a Daytona
+            # turn and reports its sandbox seconds; off, it makes neither call.
+            AGENTA_WALLETS_ENABLED: ${AGENTA_WALLETS_ENABLED:-}
         # === SUBSCRIPTION MOUNTS (opt-in) ========================= #
         # Use your own harness subscription for LOCAL runs instead of a managed API
         # key. Mount the login READ-WRITE: the harness runs directly out of the mount and
@@ -325,6 +393,8 @@ services:
         #     PI_CODING_AGENT_DIR: /agenta/harness/pi
         #     CLAUDE_CONFIG_DIR: /agenta/harness/claude
         # === NETWORK ============================================== #
+        volumes:
+            - runner-state:/var/lib/agenta/runner-state
         networks:
             - agenta-ee-gh-network
         # === RUNTIME ============================================== #
@@ -358,6 +428,7 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.ee.gh}
         environment:
+            AGENTA_SERVICES_INTERNAL_KEY: ""
             POSTGRES_USER: ${POSTGRES_USER:-username}
             POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
         # === NETWORK ============================================== #
@@ -438,7 +509,9 @@ services:
         # The bundled durable object store for session/agent mounts. Without it, runner mount
         # signing returns 503 and agent file writes are silently lost. Pinned (not :latest) so the
         # IAM/STS subsystem stays on a known-good build — it has regressed across releases.
-        image: chrislusf/seaweedfs:4.37
+        # Never go below 4.42: older builds keep listing a pre-versioning object after its
+        # delete marker is written, so a deleted file reappears in a geesefs mount, unreadable.
+        image: chrislusf/seaweedfs:4.47
         # === EXECUTION ============================================ #
         # ONLY FOR SEAWEEDFS (the bundled store). Real S3/R2/MinIO ship their own STS/IAM and ignore
         # all of this. Two configs, both generated from env (no committed files):
@@ -461,6 +534,7 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.ee.gh}
         environment:
+            AGENTA_SERVICES_INTERNAL_KEY: ""
             # The entrypoint bakes these into s3.json/iam.json via raw shell expansion, so they must
             # be present in this service's env (defaults here are for the bundled store, the same way
             # supertokens carries its own connection URI). Keys come from the env file — secrets never
@@ -516,6 +590,8 @@ services:
         # === CONFIGURATION ======================================== #
         env_file:
             - ${ENV_FILE:-./.env.ee.gh}
+        environment:
+            AGENTA_SERVICES_INTERNAL_KEY: ""
         # === NETWORK ============================================== #
         networks:
             - agenta-ee-gh-network
@@ -532,6 +608,7 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.ee.gh}
         environment:
+            AGENTA_SERVICES_INTERNAL_KEY: ""
             POSTGRESQL_CONNECTION_URI: ${POSTGRES_URI_SUPERTOKENS:-postgresql://username:password@postgres:5432/agenta_ee_supertokens}
         # === NETWORK ============================================== #
         networks:
@@ -570,6 +647,7 @@ services:
         env_file:
             - ${ENV_FILE:-./.env.ee.gh}
         environment:
+            AGENTA_SERVICES_INTERNAL_KEY: ""
             AGENTA_INGRESS_URL: http://api:8000/triggers/composio/events/
             PYTHONUNBUFFERED: "1"
         # === NETWORK ============================================== #
@@ -586,6 +664,7 @@ networks:
     agenta-ee-gh-network:
 
 volumes:
+    runner-state:
     postgres-data:
     redis-volatile-data:
     redis-durable-data:

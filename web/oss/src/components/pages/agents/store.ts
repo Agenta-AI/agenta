@@ -1,7 +1,8 @@
 import {
-    fetchAndClassifyWorkflows,
-    filterAgentWorkflows,
+    agentRosterSearchAtom,
+    ensureAgentFlags,
     queryWorkflows,
+    selectAgentWorkflows,
 } from "@agenta/entities/workflow"
 import type {Workflow} from "@agenta/entities/workflow"
 import {queryClient} from "@agenta/shared/api"
@@ -12,7 +13,10 @@ import {atomWithQuery} from "jotai-tanstack-query"
 
 import type {AppWorkflowRow} from "@/oss/components/pages/app-management/store"
 
-export const agentsSearchTermAtom = atom("")
+/** The roster's search term is the SHARED one (`@agenta/entities/workflow`), so this page and
+ * mobile's roster filter by the same term and the same rule. This query pushes it to the server
+ * because the list is paged; mobile filters its resolved list in place. */
+export const agentsSearchTermAtom = agentRosterSearchAtom
 const AGENTS_WORKFLOWS_QUERY_KEY = ["agents-workflows"] as const
 
 const mapWorkflowToRow = (workflow: Workflow): AppWorkflowRow => ({
@@ -20,6 +24,7 @@ const mapWorkflowToRow = (workflow: Workflow): AppWorkflowRow => ({
     workflowId: workflow.id,
     name: workflow.name ?? workflow.slug ?? workflow.id,
     appType: "agent",
+    description: workflow.description ?? null,
     isEvaluator: false,
     updatedAt: workflow.updated_at ?? workflow.created_at ?? null,
     createdAt: workflow.created_at ?? null,
@@ -40,10 +45,12 @@ const agentsWorkflowsQueryOptions = (projectId: string | null, searchTerm?: stri
             windowing: {order: "descending"},
         })
 
-        const workflows = await fetchAndClassifyWorkflows(
-            projectId,
-            response.workflows,
-            filterAgentWorkflows,
+        // The agent/prompt split comes from the project-wide classification map — one fetch the
+        // whole app shares — so this query only pays for its own (server-searched) list.
+        const agentFlags = await ensureAgentFlags(projectId)
+        const workflows = selectAgentWorkflows(
+            response.workflows.filter((workflow) => !workflow.deleted_at),
+            agentFlags,
         )
 
         return workflows.map(mapWorkflowToRow)

@@ -1,19 +1,15 @@
-import {
-    PropsWithChildren,
-    createContext,
-    useState,
-    useContext,
-    useCallback,
-    useEffect,
-    useMemo,
-} from "react"
+import {PropsWithChildren, createContext, useContext, useCallback, useEffect, useMemo} from "react"
 
+import {useThemeMode} from "@agenta/ui/theme"
 import {ConfigProvider, theme} from "antd"
 import {Inter} from "next/font/google"
-import {useLocalStorage} from "usehooks-ts"
 
-import useLazyEffect from "@/oss/hooks/useLazyEffect"
-import {DARK_TOKEN_OVERRIDES, darkComponents} from "@/oss/styles/theme/antd-overrides.generated"
+import {
+    DARK_TOKEN_OVERRIDES,
+    darkComponents,
+    LIGHT_TOKEN_OVERRIDES,
+    lightComponents,
+} from "@/oss/styles/theme/antd-overrides.generated"
 import antdTokens from "@/oss/styles/tokens/antd-themeConfig.json"
 // GENERATED from the theme source of truth (styles/theme/palette.ts) by
 // scripts/generate-tailwind-tokens.ts. Edit palette.ts + regenerate, not this.
@@ -55,9 +51,6 @@ export const getDeviceTheme = () => {
         : ThemeMode.Light
 }
 
-const getAppTheme = (themeMode: ThemeMode): ThemeType =>
-    themeMode === ThemeMode.System ? getDeviceTheme() : (themeMode as ThemeType)
-
 const isColorValue = (val: unknown): boolean =>
     typeof val === "string" && /^(#|rgba?\(|hsla?\()/.test(val.trim())
 
@@ -87,41 +80,22 @@ const stripComponentColors = <T extends Record<string, Record<string, unknown>>>
 // dark palette, edit palette.ts and run `pnpm generate:tailwind-tokens`. The per-token
 // rationale for each override lives in git history for this file (pre-wiring).
 
+const strippedLightComponents = stripComponentColors(antdTokens.components)
+
 const ThemeContextProvider: React.FC<PropsWithChildren> = ({children}) => {
-    const [themeMode, setThemeMode] = useLocalStorage<ThemeMode>("agenta-theme", ThemeMode.System)
-    const [appTheme, setAppTheme] = useState<ThemeType>(getAppTheme(themeMode))
+    // The stored preference, the theme it resolves to, the OS listener and the `.dark` class
+    // all live in @agenta/ui/theme, so this app and /m read and write one contract. What stays
+    // here is the part only this app has: antd's ConfigProvider and its cssVar key class.
+    const {themeMode, resolved, setMode} = useThemeMode()
+    const appTheme: ThemeType = resolved === "dark" ? ThemeMode.Dark : ThemeMode.Light
 
+    // antd's cssVar key class (`agenta`) makes the global `--ant-*` design-token variables
+    // (emitted by ConfigProvider's `cssVar: {key: "agenta"}` under the `.agenta` selector)
+    // resolve everywhere — including plain elements outside antd component subtrees, so
+    // Tailwind/CSS can alias them.
     useEffect(() => {
-        const handleSystemThemeChange = ({matches}: MediaQueryListEvent) => {
-            if (themeMode === ThemeMode.System) {
-                setAppTheme(matches ? ThemeMode.Dark : ThemeMode.Light)
-            }
-        }
-
-        const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)")
-        mediaQuery.addEventListener("change", handleSystemThemeChange)
-
-        return () => {
-            mediaQuery.removeEventListener("change", handleSystemThemeChange)
-        }
-    }, [themeMode])
-
-    useLazyEffect(() => {
-        setAppTheme(getAppTheme(themeMode))
-    }, [themeMode])
-
-    // Toggle the `.dark` class on <html> so the CSS-variable token layer (and any
-    // Tailwind `dark:` variants) reflect the active theme. Also add antd's cssVar
-    // key class (`agenta`) so the global `--ant-*` design-token variables (emitted
-    // by ConfigProvider's `cssVar: {key: "agenta"}` option under the `.agenta`
-    // selector) resolve everywhere — including plain elements outside antd
-    // component subtrees, so Tailwind/CSS can alias them.
-    useEffect(() => {
-        const root = document.documentElement
-        root.classList.toggle("dark", appTheme === ThemeMode.Dark)
-        root.classList.add("agenta")
-        root.style.colorScheme = appTheme === ThemeMode.Dark ? "dark" : "light"
-    }, [appTheme])
+        document.documentElement.classList.add("agenta")
+    }, [])
 
     const isDark = appTheme === ThemeMode.Dark
 
@@ -148,27 +122,41 @@ const ThemeContextProvider: React.FC<PropsWithChildren> = ({children}) => {
             }
         }
 
-        // Light mode preserved exactly as before: token + (inert) component config
-        // are both spread into `token`, matching the prior ConfigProvider shape.
+        // antdTokens.json is a full dump of the PRE-RECOLOR light palette, so whatever it
+        // says is what antd paints. LIGHT_TOKEN_OVERRIDES (generated from palette.ts) is
+        // spread last so the palette's light values reach the rendered --ant-* variables.
+        //
+        // Its per-component block is NOT inert, despite what this branch used to claim:
+        // antd reads `token[ComponentName]` in getComponentToken, so those 789 colors —
+        // 97% of them a mechanical dump of antd's own derivation from the old navy
+        // globals — outrank the global tokens above. Colors are stripped here exactly as
+        // in dark mode so antd re-derives them from the palette; structural overrides
+        // (sizes, radii, heights) still apply.
         return {
             algorithm: theme.defaultAlgorithm,
             cssVar: {key: "agenta"},
             token: {
                 ...baseToken,
                 ...antdTokens.token,
-                ...antdTokens.components,
+                ...strippedLightComponents,
+                ...LIGHT_TOKEN_OVERRIDES,
             },
+            // A `components` entry REPLACES token[Name] wholesale, so fold the stripped
+            // structural config back in for the components we override.
+            components: Object.fromEntries(
+                Object.entries(lightComponents).map(([name, tokens]) => [
+                    name,
+                    {...(strippedLightComponents[name] ?? {}), ...tokens},
+                ]),
+            ),
         }
     }, [isDark])
 
-    const toggleAppTheme = useCallback(
-        (themeType: ThemeModeType) => setThemeMode(themeType as ThemeMode),
-        [setThemeMode],
-    )
+    const toggleAppTheme = useCallback((themeType: ThemeModeType) => setMode(themeType), [setMode])
 
     // Stable value so useAppTheme consumers only re-render on actual theme changes
     const contextValue = useMemo(
-        () => ({appTheme, toggleAppTheme, themeMode}),
+        () => ({appTheme, toggleAppTheme, themeMode: themeMode as ThemeMode}),
         [appTheme, toggleAppTheme, themeMode],
     )
 

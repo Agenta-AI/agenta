@@ -18,6 +18,7 @@ export type WorkflowRouteSegment =
     | "playground"
     | "variants"
     | "traces"
+    | "sessions"
 
 const DISABLED_FOR_EVALUATOR: ReadonlySet<WorkflowRouteSegment> = new Set([
     // `overview` and `evaluations` are now allowed for evaluators — Overview
@@ -27,6 +28,8 @@ const DISABLED_FOR_EVALUATOR: ReadonlySet<WorkflowRouteSegment> = new Set([
     // disabled (no meaningful evaluator surface yet).
     "endpoints",
     "deployments",
+    // Only agents hold conversations; an evaluator's session list is always empty.
+    "sessions",
 ])
 
 export interface ResolveWorkflowDestinationArgs {

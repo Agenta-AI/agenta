@@ -38,13 +38,28 @@ describe("isBlockedIpLiteral — IPv4", () => {
       "198.51.100.1", // documentation (TEST-NET-2)
       "203.0.113.1", // documentation (TEST-NET-3)
       "198.18.0.1", // benchmarking
+      // RFC 6598 shared address space, which Python's `ipaddress` answers False to for
+      // every one of its own predicates. The guard blocks it anyway: the range is in
+      // everyday use for cloud pod and service networks and for some mesh VPNs, and a
+      // gateway endpoint URL is supplied by the tenant, so reaching one of those is the
+      // feature rather than a misconfiguration (P10).
+      "100.64.0.1",
+      "100.64.0.0",
+      "100.127.255.255",
     ]) {
       assert.equal(isBlockedIpLiteral(ip), true, `${ip} should be blocked`);
     }
   });
 
   it("allows routable public addresses", () => {
-    for (const ip of ["93.184.216.34", "8.8.8.8", "1.1.1.1", "100.64.0.1"]) {
+    for (const ip of [
+      "93.184.216.34",
+      "8.8.8.8",
+      "1.1.1.1",
+      // Either side of the shared address space, which must stay reachable.
+      "100.63.255.255",
+      "100.128.0.0",
+    ]) {
       assert.equal(isBlockedIpLiteral(ip), false, `${ip} should be allowed`);
     }
   });

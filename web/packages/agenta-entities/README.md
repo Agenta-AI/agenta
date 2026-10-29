@@ -112,7 +112,7 @@ import {traceSpan} from '@agenta/entities'
 
 // Entity picker with hierarchical navigation
 <EntityPicker
-  adapter="appRevision"
+  adapter="workflowRevision"
   variant="breadcrumb"
   onSelect={(selection) => console.log(selection)}
 />
@@ -131,7 +131,6 @@ import {traceSpan} from '@agenta/entities'
 | --------------------------- | ------------------------------------------------ |
 | `@agenta/entities` | Core utilities (createEntityController, schema utils) |
 | `@agenta/entities/shared` | Molecule factories, transforms, relations, user atoms |
-| `@agenta/entities/appRevision` | App revision molecule and app→variant→revision relations |
 | `@agenta/entities/workflow` | Workflow molecule (app/evaluator revision), schemas, API |
 | `@agenta/entities/trace` | Trace/span molecule, schemas, API |
 | `@agenta/entities/environment` | Environment molecule, deployment/revision APIs |
@@ -140,7 +139,6 @@ import {traceSpan} from '@agenta/entities'
 | `@agenta/entities/loadable` | Loadable bridge (data sources) |
 | `@agenta/entities/runnable` | Runnable utilities and execution helpers |
 | `@agenta/entities/simpleQueue` | Simple queue molecule |
-| `@agenta/entities/evaluationQueue` | Evaluation queue molecule |
 | `@agenta/entities/queue` | Unified queue controller |
 | `@agenta/entities/evaluationRun` | Evaluation run molecule |
 | `@agenta/entities/annotation` | Annotation molecule and helpers |
@@ -183,18 +181,16 @@ Server → TanStack Query → atoms.serverData
 Entities define parent-child relationships declaratively via `EntityRelation` objects. Relations are auto-registered when their modules are imported, enabling:
 
 - **Selection adapter generation** - EntityPicker adapters derive from relations
-- **Hierarchy discovery** - `entityRelationRegistry.getPath("app", "appRevision")` → `["app", "variant", "appRevision"]`
-- **Molecule extension** - `extendWithRelations()` adds child ID/data atoms
+- **Hierarchy discovery** - `entityRelationRegistry.getPath("workflow", "workflowRevision")`
 - **Binding utilities** - Type-safe loadable ID generation/parsing
 
 ```typescript
 import { entityRelationRegistry } from '@agenta/entities/shared'
-import { appToVariantRelation } from '@agenta/entities/appRevision'
 import { testsetToRevisionRelation } from '@agenta/entities/testset'
 
 // Relations are auto-registered on import
-const path = entityRelationRegistry.getPath("app", "appRevision")
-// → ["app", "variant", "appRevision"]
+const path = entityRelationRegistry.getPath("testset", "testcase")
+// → ["testset", "revision", "testcase"]
 
 const children = entityRelationRegistry.getChildren("testset")
 // → ["revision"]
@@ -204,7 +200,7 @@ const children = entityRelationRegistry.getChildren("testset")
 
 | Hierarchy | Relations Module |
 |-----------|------------------|
-| App → Variant → AppRevision | `@agenta/entities/appRevision` |
+| Workflow → Variant → WorkflowRevision | `@agenta/entities/workflow` |
 | Testset → Revision → Testcase | `@agenta/entities/testset` |
 
 **Import safety:** Within each entity module, the dependency between `relations.ts`
@@ -249,8 +245,6 @@ const DiffView = lazy(() =>
 )
 ```
 
-See the [import-lazy rule](../../.claude/skills/agenta-package-practices/rules/import-lazy.md) for detailed guidelines.
-
 ## Dependencies
 
 ### Peer Dependencies
@@ -277,6 +271,5 @@ Each submodule has its own README with detailed documentation:
 - [`src/testset/README.md`](./src/testset/README.md) - Testset entity
 - [`src/testcase/README.md`](./src/testcase/README.md) - Testcase entity
 - [`docs/onboarding-reference.md`](./docs/onboarding-reference.md) - Onboarding quick reference
-- [`docs/entity-implementation-analysis.md`](./docs/entity-implementation-analysis.md) - Detailed implementation analysis
 
 For UI components documentation, see [`@agenta/entity-ui`](../agenta-entity-ui/README.md).

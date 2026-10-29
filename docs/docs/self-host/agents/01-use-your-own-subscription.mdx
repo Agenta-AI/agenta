@@ -16,6 +16,12 @@ uploads the login to a Daytona sandbox, and a Daytona run cannot use one.
 
 This tutorial mounts your login into the runner container and runs an agent that uses it.
 
+:::tip Claude Pro or Max: paste a token instead
+For Claude, the simpler option is to paste a token from `claude setup-token` in
+`Settings > AI providers`. It needs no mount, works with local and Daytona runs, and works on
+Agenta Cloud too. See [Connect a Claude subscription](/guides/connect-a-claude-subscription).
+:::
+
 :::warning This is for a single trusted operator
 One personal subscription serves one operator, not every user of a shared deployment. Every local
 run can read the files mounted into the runner container, including this login. Use this only on a
@@ -151,6 +157,23 @@ docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml \
 In the studio, run an agent and choose the self-managed credential option (use your own login)
 for the matching harness. The run authenticates with your mounted subscription instead of a
 managed key.
+
+When you select the subscription option, the credential card checks the runner and reports what it
+finds for the selected harness:
+
+| Message | Meaning |
+| --- | --- |
+| `Subscription login found` | The mount is set and the login file looks usable. |
+| `Runner found. Subscription folder is not configured.` | The runner has no mount variable for this harness. Recheck step 3. |
+| `Runner found. Login file is missing.` | The mount variable is set, but the expected file is not there. Recheck steps 1 and 3. |
+| `Runner found. Login file cannot be used.` | The file exists but is empty or unreadable. Recheck step 2 (file ownership). |
+| `Runner is not connected.` | Agenta cannot reach the runner container. |
+| `Update the runner to check subscription status.` | The runner predates this check. |
+
+The check reads only the local login location. It does not contact the provider, so
+`Subscription login found` means the file is in place, not that the subscription is active. A
+successful run remains the proof. Use **Check again** after you change a mount or sign in again;
+the card also refreshes itself every few seconds while open.
 
 If the run fails because the harness has no login, the mount is missing, the runner cannot read it
 (step 2), or `PI_CODING_AGENT_DIR` / `CLAUDE_CONFIG_DIR` / `CODEX_HOME` does not point at it. Recheck

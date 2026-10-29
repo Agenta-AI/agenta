@@ -4,4 +4,9 @@ import type * as AgentaApi from "../index.js";
 
 export interface SessionStreamResponse {
     stream?: (AgentaApi.SessionStream | null) | undefined;
+    capabilities?: AgentaApi.OssSrcApisFastapiSessionsModelsSessionCapabilities | undefined;
+    /** The address of the runner pod that ran the stream's last turn. Filled only for a caller that proves it is runner infrastructure; empty when unknown. A routing hint, not proof that the pod is alive. */
+    runner_address?: string | undefined;
+    /** The replica id of the runner pod at runner_address. The caller checks it against the pod's health answer before it uses the address, because a dead pod's IP can pass to another pod. Filled under the same condition as runner_address; empty when unknown. */
+    runner_replica_id?: string | undefined;
 }

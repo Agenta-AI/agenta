@@ -1,4 +1,6 @@
-import {LLMIconMap} from "../LLMIcons"
+import {Anthropic, LLMIconMap, OpenAi, Pi} from "../LLMIcons"
+
+import type {ProviderGroup, ProviderOption} from "./types"
 
 /**
  * Capitalize the first letter of each word in a string.
@@ -15,6 +17,9 @@ export function capitalize(str: string): string {
  * Map normalized (lowercase, `_`-separated) provider keys to LLMIcons display labels.
  */
 export const PROVIDER_ICON_MAP: Record<string, string> = {
+    // Not a vendor: the mark a connection Agenta provisioned carries, since no vendor mark is
+    // honest for one.
+    agenta: "Agenta",
     anthropic: "Anthropic",
     openai: "OpenAI",
     // OpenAI's ChatGPT/Codex subscription provider — reuses the OpenAI mark (no distinct icon
@@ -67,6 +72,20 @@ export const getProviderIcon = (key: string): React.FC<{className?: string}> | n
 }
 
 /**
+ * Harness marks. A harness is a runtime, not a provider, so it is keyed separately even where the
+ * mark is shared: Codex is OpenAI's, Claude Code is Anthropic's, Pi has an interim mark of its own.
+ */
+const HARNESS_ICON_MAP: Record<string, React.FC<{className?: string}>> = {
+    pi_core: Pi,
+    codex: OpenAi,
+    claude: Anthropic,
+}
+
+/** The mark for a harness id, or null for one Agenta has no logo for. */
+export const getHarnessIcon = (harness: string): React.FC<{className?: string}> | null =>
+    HARNESS_ICON_MAP[normalizeProviderKey(harness)] ?? null
+
+/**
  * Display-name overrides for providers whose name must diverge from PROVIDER_ICON_MAP's
  * icon-lookup label — e.g. openai_codex reuses the OpenAI icon but must still read "OpenAI Codex".
  */
@@ -85,3 +104,18 @@ export const getProviderDisplayName = (key: string): string => {
         capitalize(key?.replace(/_/g, " ") || "")
     )
 }
+
+/** Whether an option matches a lowercased search term, by any text the picker shows for it. */
+export const optionMatchesSearch = (
+    option: ProviderOption,
+    group: ProviderGroup,
+    normalizedTerm: string,
+): boolean =>
+    [
+        option.label,
+        option.value,
+        option.caption,
+        option.searchCaption,
+        group.label,
+        group.caption,
+    ].some((text) => text?.toLowerCase().includes(normalizedTerm))

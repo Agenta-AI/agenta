@@ -99,5 +99,13 @@ export function NumberedStep({number, title, subtitle, children, className}: Num
 // ============================================================================
 
 export {SplitPanelLayout, type SplitPanelLayoutProps} from "./SplitPanelLayout"
+export {FilterRailLayout, type FilterRailLayoutProps} from "./FilterRailLayout"
 export {ModalContentLayout, type ModalContentLayoutProps} from "./ModalContentLayout"
 export {PanelFooter, type PanelFooterProps} from "./PanelFooter"
+export {
+    PanelSurface,
+    PanelScroll,
+    PanelSection,
+    PANEL_ACTION_CLASS,
+    type PanelSectionProps,
+} from "./PanelSection"

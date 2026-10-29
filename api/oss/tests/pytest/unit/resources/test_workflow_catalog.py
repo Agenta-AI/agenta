@@ -37,5 +37,10 @@ def test_agent_template_data_materializes_a_template_with_no_tool_entries():
     data = _build_template_data(entry["data"], settings_template=None)
 
     assert data is not None
-    assert data["parameters"]["agent"]["tools"] == []
+    assert data["parameters"]["agent"]["tools"] == [
+        {
+            "type": "agenta_tools",
+            "tools": {"get_current_session": "allow", "rename_session": "allow"},
+        }
+    ]
     assert "default" not in data["schemas"]["parameters"]["properties"]["agent"]

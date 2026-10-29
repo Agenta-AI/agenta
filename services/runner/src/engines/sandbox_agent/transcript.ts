@@ -152,7 +152,7 @@ function pauseSentinelNudge(block: ContentBlock): string | undefined {
     return `[${toolName} was NOT run — the turn paused for another approval first, so it was skipped, not denied. Call ${toolName} again with the same arguments now to run it.]`;
   }
   if (block.output === APPROVED_EXECUTION_RESULT_UNKNOWN) {
-    return `[${toolName} was approved and may have already run; its result was not observed before the pause ended the turn. Do NOT assume it failed and do NOT retry a side-effecting call.]`;
+    return `[${toolName} may have already run; its result was not observed before the turn ended. Do NOT assume it failed and do NOT retry a side-effecting call.]`;
   }
   return undefined;
 }

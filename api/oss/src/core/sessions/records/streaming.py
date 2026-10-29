@@ -1,5 +1,6 @@
 import zlib
-from typing import Optional
+from datetime import datetime, timezone
+from typing import Literal, Optional, Union
 from uuid import UUID
 
 from orjson import dumps, loads
@@ -10,7 +11,12 @@ try:
 except ImportError:
     AsyncpgUUID = None
 
-from oss.src.core.sessions.records.dtos import SessionRecordEvent
+from oss.src.core.sessions.records.dtos import (
+    MAX_LIVE_FRAME_BYTES,
+    SessionDurableEvent,
+    SessionLiveFrame,
+    SessionRecordEvent,
+)
 from oss.src.dbs.redis.shared.engine import get_streams_engine
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
@@ -23,6 +29,44 @@ MAXLEN_STREAMS_RECORDS = 100_000
 MAX_ATTRIBUTES_BYTES = 64 * 1024  # 64 KB per record
 
 _TRUNCATION_MARKER = "…[truncated]"
+
+# Postgres stores neither `text` nor `jsonb` containing U+0000, so a single NUL anywhere in a
+# record body fails the INSERT with `UntranslatableCharacterError` (SQLSTATE 22P05). Record
+# bodies carry arbitrary tool output — a `grep` across a binary file is enough to produce one —
+# and by the time the write fails the record is long past the runner, so the batch can only be
+# redelivered, forever. Strip the character here instead, at the same producer boundary that
+# already bounds the body size. orjson escapes it, so a serialized body can be scanned for the
+# escape before paying for the walk.
+_NUL = "\x00"
+_NUL_ESCAPE = b"\\u0000"
+
+
+def _strip_nul(value):
+    """Drop every U+0000 from a record body, in dict keys as well as string values."""
+    if isinstance(value, str):
+        return value.replace(_NUL, "")
+    if isinstance(value, dict):
+        result = {}
+        for key, item in value.items():
+            clean_key = _strip_nul(key) if isinstance(key, str) else key
+            if clean_key in result and clean_key != key:
+                # Stripping made this key collide with one already kept. The kept entry wins:
+                # a NUL-bearing key must never displace a clean one (``"ty\x00pe"`` overwriting
+                # ``"type"`` would corrupt the discriminator reconstruction relies on). A clean
+                # key reaching here later still overwrites, since ``clean_key == key`` then.
+                continue
+            result[clean_key] = _strip_nul(item)
+        return result
+    if isinstance(value, list):
+        return [_strip_nul(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_strip_nul(item) for item in value)
+    return value
+
+
+RECORD_STREAM_NAME = "streams:records"
+LIVE_FRAME_STREAM_NAME = "streams:session-live-frames"
+_FRAME_TRIM_INTERVAL = 64
 
 
 def _orjson_default(obj):
@@ -82,6 +126,24 @@ def _get_redis():
     return engine.get_redis() if engine else None
 
 
+async def trim_live_stream(redis) -> None:
+    """Trim expired disposable frames independently of the durable record queue."""
+    age_boundary = int(
+        (
+            datetime.now(timezone.utc).timestamp()
+            - env.sessions.live_frame_max_age_seconds
+        )
+        * 1000
+    )
+    # Approximate: the frames are disposable, so a few extra entries per listpack cost nothing
+    # and exact trimming makes every call O(N) in the evicted entries.
+    await redis.xtrim(
+        LIVE_FRAME_STREAM_NAME,
+        minid=f"{age_boundary}-0",
+        approximate=True,
+    )
+
+
 class RecordMessage(BaseModel):
     """Wire format for the dedicated record Redis stream."""
 
@@ -91,10 +153,122 @@ class RecordMessage(BaseModel):
     record_event: SessionRecordEvent
 
 
+class LiveFrameMessage(BaseModel):
+    organization_id: Optional[UUID] = None
+    project_id: UUID
+    kind: Literal["frame"] = "frame"
+    frame: SessionLiveFrame
+
+
+class DurableEventMessage(BaseModel):
+    organization_id: Optional[UUID] = None
+    project_id: UUID
+    kind: Literal["event"] = "event"
+    event: SessionDurableEvent
+
+
+LiveRelayMessage = Union[LiveFrameMessage, DurableEventMessage]
+
+
+def deserialize_live_relay_message(*, payload: bytes) -> LiveRelayMessage:
+    raw = loads(zlib.decompress(payload))
+    if raw.get("kind") == "frame":
+        return LiveFrameMessage.model_validate(raw)
+    if raw.get("kind") == "event":
+        return DurableEventMessage.model_validate(raw)
+    raise ValueError("message is not a live relay envelope")
+
+
 def deserialize_record(*, payload: bytes) -> RecordMessage:
-    payload = zlib.decompress(payload)
-    raw = loads(payload)
-    return RecordMessage.model_validate(raw)
+    return RecordMessage.model_validate(loads(zlib.decompress(payload)))
+
+
+async def _append_live_relay_message(redis, *, message: dict) -> None:
+    await redis.xadd(
+        name=LIVE_FRAME_STREAM_NAME,
+        fields={"data": zlib.compress(dumps(message, default=_orjson_default))},
+        maxlen=env.sessions.live_stream_maxlen,
+        # Approximate for the same reason as `trim_live_stream`: this runs on every relay write.
+        approximate=True,
+    )
+
+
+async def publish_live_frame(
+    *,
+    organization_id: Optional[UUID] = None,
+    project_id: UUID,
+    frame: SessionLiveFrame,
+) -> bool:
+    redis = _get_redis()
+    if redis is None:
+        log.warning("[RECORDS] Durable Redis not configured; frame not published")
+        return False
+
+    try:
+        frame_bytes = dumps(frame.model_dump(mode="json"), default=_orjson_default)
+        if len(frame_bytes) > MAX_LIVE_FRAME_BYTES:
+            log.warning(
+                "[RECORDS] Live frame exceeds size limit",
+                session_id=frame.session_id,
+                execution_id=frame.execution_id,
+                frame_index=frame.frame_index,
+            )
+            return False
+        message = {
+            "organization_id": str(organization_id) if organization_id else None,
+            "project_id": str(project_id),
+            "kind": "frame",
+            "frame": frame.model_dump(mode="json"),
+        }
+        await _append_live_relay_message(redis, message=message)
+        if frame.frame_index % _FRAME_TRIM_INTERVAL == 0:
+            try:
+                await trim_live_stream(redis)
+            except Exception:
+                log.warning("[RECORDS] Live stream trim failed", exc_info=True)
+        return True
+    except Exception:
+        log.error(
+            "[RECORDS] Failed to publish frame",
+            session_id=frame.session_id,
+            execution_id=frame.execution_id,
+            frame_index=frame.frame_index,
+            exc_info=True,
+        )
+        return False
+
+
+async def publish_durable_event(
+    *,
+    organization_id: Optional[UUID] = None,
+    project_id: UUID,
+    event: SessionDurableEvent,
+) -> bool:
+    redis = _get_redis()
+    if redis is None:
+        log.warning(
+            "[RECORDS] Durable Redis not configured; durable event not published"
+        )
+        return False
+
+    try:
+        message = {
+            "organization_id": str(organization_id) if organization_id else None,
+            "project_id": str(project_id),
+            "kind": "event",
+            "event": event.model_dump(mode="json"),
+        }
+        await _append_live_relay_message(redis, message=message)
+        return True
+    except Exception:
+        log.error(
+            "[RECORDS] Failed to publish durable event",
+            session_id=event.session_id,
+            execution_id=event.execution_id,
+            sequence=event.sequence,
+            exc_info=True,
+        )
+        return False
 
 
 async def publish_record(
@@ -110,43 +284,50 @@ async def publish_record(
         return False
 
     try:
-        # Truncate attributes before publishing so oversized record bodies are
-        # caught at the producer boundary, not after touching the DB.
-        truncated_event = record_event
+        # Sanitize attributes before publishing so an unstorable record body is caught at the
+        # producer boundary, not after touching the DB: oversized bodies are truncated and NULs
+        # are stripped.
+        sanitized_event = record_event
         if record_event.attributes is not None:
-            raw_attributes = dumps(record_event.attributes, default=_orjson_default)
+            attributes = record_event.attributes
+            raw_attributes = dumps(attributes, default=_orjson_default)
+            # Before the size check: stripping shrinks the body, and a NUL that survives to the
+            # DB costs the whole batch (see `_strip_nul`).
+            if _NUL_ESCAPE in raw_attributes:
+                log.warning(
+                    "[RECORDS] Stripped NUL characters from attributes",
+                    session_id=str(record_event.session_id),
+                )
+                attributes = _strip_nul(attributes)
+                raw_attributes = dumps(attributes, default=_orjson_default)
             if len(raw_attributes) > MAX_ATTRIBUTES_BYTES:
                 log.warning(
                     "[RECORDS] Attributes truncated",
                     session_id=str(record_event.session_id),
                     original_bytes=len(raw_attributes),
                 )
-                # Smart truncation keeps the event shape + partial content so records stay
-                # reconstructable; legacy path drops the whole body. Flag-gated (additive).
-                new_attributes = (
-                    _truncate_attributes(
-                        record_event.attributes,
-                        MAX_ATTRIBUTES_BYTES,
-                        len(raw_attributes),
-                    )
-                    if env.agenta.sessions.records.smart_truncation
-                    else {"_truncated": True}
+                # Keep the event shape + partial content so records stay reconstructable.
+                attributes = _truncate_attributes(
+                    attributes,
+                    MAX_ATTRIBUTES_BYTES,
+                    len(raw_attributes),
                 )
-                truncated_event = record_event.model_copy(
-                    update={"attributes": new_attributes}
+            if attributes is not record_event.attributes:
+                sanitized_event = record_event.model_copy(
+                    update={"attributes": attributes}
                 )
 
         message = {
             "organization_id": str(organization_id) if organization_id else None,
             "project_id": str(project_id),
-            "record_event": truncated_event.model_dump(mode="json"),
+            "record_event": sanitized_event.model_dump(mode="json"),
         }
 
         event_bytes = dumps(message, default=_orjson_default)
         event_bytes = zlib.compress(event_bytes)
 
         await redis.xadd(
-            name="streams:records",
+            name=RECORD_STREAM_NAME,
             fields={"data": event_bytes},
             maxlen=MAXLEN_STREAMS_RECORDS,
             approximate=True,

@@ -201,7 +201,7 @@ const InvocationSection = ({
                             {hasSchemaAvailable ? "Workflow" : "Custom workflow"}
                         </Tag>
                         {!hasSchemaAvailable ? (
-                            <Text type="secondary" className="text-[12.5px]">
+                            <Text type="secondary" className="text-xs">
                                 No playground schema — snapshot available as JSON
                             </Text>
                         ) : null}

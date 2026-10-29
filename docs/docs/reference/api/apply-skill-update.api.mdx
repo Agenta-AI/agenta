@@ -1,0 +1,73 @@
+---
+id: apply-skill-update
+title: "Apply Skill Update"
+description: "Commit the upstream version of one imported skill as a new revision."
+sidebar_label: "Apply Skill Update"
+hide_title: true
+hide_table_of_contents: true
+api: eJzlVk1vGzcQ/SvEnFpgIblGT9tLhbRAhLSIYTvpQRYcmjvSMuaSG3IoR13sfy+G3JVWduwEvvYkLfnmcT7eDNkByW2AcgVX99qYAOsCKgzK65a0s1DCG9c0mgTVKGIbyKNsxA590M4KtxHOotBN6zxhJQJzCBmEFBYfhMedZtzsxt7Y6xqFylwxYEiEKnqPlkSNsmIzTUHcyYCFCE5IoZwdEVhpurHK2Y3RioLQNhAbuY24Q223wu3QP3hNhPY3YZySxuyT1ehWEB7ZzRv7qUKSqsbqk5C2EtKjsLhDL8hFXp5BAa5FLzkDywpKkG1r9reJ5ja2lSSEAlrpZYOEntPXgZUNQgkZpCsoQHP6Wkk1FODxS9QeKyjJRywgqBobCWUHtG+THXltt1DAxvlGEpQQY2IhTYYBqT5iWUHfr5kvtM4GDExxfnbGP6d1u4pKYQibaMTlAIYClLOElhjOQWmVgpx/DmzTTdxqPaeAdD7hwfn7jXEPHNg3fB59/GeAJTcLCCQphpcMrjKi54CyVoYTpN2/36S8npr2xWHFRmOAczGSXQ4Uw+kegzM7rG4Htb6eNvOIjwNPX4AOIebMaMImPE2YchW+FPgb3u8LaDAEuX0R+vcA6YsspleGccG2fV+MAHf3GRWdSHOV3T56tX4kvyWHDUcO6b3cT1xd5rTwCNnIaAjK1fp7R06ldZDM5OAPqd8W3IGXGJi075nz1/Pzp6L/KI2ukqTFn947/3rF84zQ5oUKG6dOdn+gJtoSbtFDv34+hX+57GASR9j+oDAy5HloSoa45l1Wr21jSsihbmmhL0DR1wnNoV5H1VrCr/RdGXFusvsDblLPY4lyhZ5PxR+5BN86bIS8vb6+eEKY9dEg1Y6Hd+sCwdg7MM+XwbwbB3U/zxM9zNOUZw2i341TPXrDRrLVqZD5syZqQzmfY5wp42I1k1u0JGdSZ+CaOVT0mvaJZHGxfIf7tygr9KklJoAr1l9W1CnsUAXZ6nfIfg03zCJS7bz+N8tkuGbqbNWn6m7ctLiL5JxYXCzh8d1+ssWNIlXSxXhS2obiUdjHaKEAbFKbAKFsfj/scFUPYxfOZr/MztL8coEaaadHcM5Fvts+jDfriZPdsYP/p2+RQQfcefPWSJ1mQypJN6h6lZ8dPHnLyQNkEDYU+QHDXVhzM5Qr6DqO7YM3fc/LXyJ61uq6gJ30Wt6xclYdVDrw/wrKjTQBXyjNT5dD//8snnN51LNlMe+kifwFBdzjfvpwStOxHpulG7YXSmFLE8Mnw5y76tD0F++vrqHv/wNxH8F8
+sidebar_class_name: "post api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Apply Skill Update"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"post"}
+  path={"/skills/{skill_id}/updates/apply"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Commit the upstream version of one imported skill as a new revision.
+
+The commit uses the current head as its base, so a concurrent edit
+conflicts instead of being overwritten; locally edited skills report
+`detached` and are never touched.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./apply-skill-update.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./apply-skill-update.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./apply-skill-update.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

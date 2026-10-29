@@ -1,14 +1,10 @@
 import {useCallback} from "react"
 
+import type {EntityAPI, EntityDrillIn} from "@agenta/entities/shared"
 import {useAtomValue, useSetAtom} from "jotai"
-
-import type {EntityAPI, EntityDrillIn} from "@/oss/state/entities/shared"
 
 import {DrillInContent} from "./DrillInContent"
 import type {DrillInContentProps} from "./DrillInContent"
-
-// Re-export PathItem for convenience
-export type {PathItem} from "@/oss/state/entities/shared"
 
 // ============================================================================
 // TYPES

@@ -11,13 +11,26 @@ export default defineConfig({
                 __dirname,
                 "../agenta-ui/src/Editor/utils/diffUtils.ts",
             ),
+            // Colour maths + a stub catalog, so the agent icon atoms run without the picker.
+            "@agenta/ui/agent-icon": path.resolve(
+                __dirname,
+                "tests/__mocks__/agenta-ui-agent-icon.ts",
+            ),
+            "@agenta/ui/app-message": path.resolve(
+                __dirname,
+                "tests/__mocks__/agenta-ui-app-message.ts",
+            ),
             // Stub @agenta/ui so Vitest doesn't transform the entire antd tree.
             // Entity tests only exercise Jotai atoms — no React rendering needed.
             "@agenta/ui": path.resolve(__dirname, "tests/__mocks__/agenta-ui.ts"),
         },
     },
     test: {
-        include: ["tests/unit/**/*.test.ts"],
+        // `{ts,tsx}`, not `*.test.ts`: a `.tsx` suite added here would otherwise be silently
+        // SKIPPED (that hid six render tests in @agenta/ui). Collecting it means a package with
+        // no JSX transform fails loudly instead — add `@vitejs/plugin-react-swc` and
+        // `plugins: [react()]` (see agenta-ui / agenta-observability-ui) when that happens.
+        include: ["tests/unit/**/*.test.{ts,tsx}"],
         environment: "node",
         reporters: ["default", "junit"],
         outputFile: {

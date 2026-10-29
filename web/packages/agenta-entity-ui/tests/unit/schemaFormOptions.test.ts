@@ -6,9 +6,8 @@
  * never survives into the form value (it would otherwise leak into the accepted elicitation
  * `content` the agent consumes).
  */
-import {describe, expect, it} from "vitest"
-
 import type {FormFieldDescriptor} from "@agenta/shared/utils"
+import {describe, expect, it} from "vitest"
 
 import {
     DEFAULT_CRON,

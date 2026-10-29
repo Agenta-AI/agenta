@@ -1,5 +1,6 @@
 import {useEffect, useMemo, useState} from "react"
 
+import {isValidUUID} from "@agenta/shared/utils"
 import {useRowHeight} from "@agenta/ui/table"
 import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -9,8 +10,6 @@ import TestcaseEditDrawer from "@/oss/components/SharedDrawers/TestcaseDrawer"
 import useBlockNavigation from "@/oss/hooks/useBlockNavigation"
 import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
 import useURL from "@/oss/hooks/useURL"
-import {isValidUUID} from "@/oss/lib/helpers/validators"
-import {useBreadcrumbsEffect} from "@/oss/lib/hooks/useBreadcrumbs"
 import type {testset as DeleteModalTestset} from "@/oss/lib/Types"
 import {
     currentRevisionIdAtom,
@@ -176,21 +175,6 @@ export function TestcasesTableNew({mode = "edit"}: TestcasesTableNewProps) {
         onOpenAddColumnModal: () => setIsAddColumnModalOpen(true),
         onSetEditingTestcaseId: setEditingTestcaseId,
     })
-
-    // Breadcrumbs
-    useBreadcrumbsEffect(
-        {
-            breadcrumbs: {
-                testsets: {label: "testsets", href: `${projectURL}/testsets`},
-                "testset-detail": {
-                    label: metadata?.testsetName ?? "Test set",
-                    value: revisionIdParam as string,
-                },
-            },
-            condition: Boolean(projectURL),
-        },
-        [metadata?.testsetName, router.asPath, projectURL],
-    )
 
     // Block navigation if unsaved changes
     useBlockNavigation(

@@ -81,7 +81,7 @@ const EmbeddedTestsetRows = ({
             <DefRow label="Columns">
                 {columns ? (
                     columns.map((col) => (
-                        <Tag key={`${testsetId}-${col}`} className="!m-0 font-mono text-[11px]">
+                        <Tag key={`${testsetId}-${col}`} className="!m-0 font-mono text-xs">
                             {col}
                         </Tag>
                     ))

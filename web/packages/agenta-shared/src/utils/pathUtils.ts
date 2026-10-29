@@ -271,18 +271,6 @@ export function isExpandable(value: unknown): boolean {
 }
 
 /**
- * Get the type of a value for display
- */
-export function getValueType(
-    value: unknown,
-): "string" | "number" | "boolean" | "null" | "array" | "object" | "undefined" {
-    if (value === null) return "null"
-    if (value === undefined) return "undefined"
-    if (Array.isArray(value)) return "array"
-    return typeof value as "string" | "number" | "boolean" | "object"
-}
-
-/**
  * Get the count of children in a value
  */
 export function getChildCount(value: unknown): number {
@@ -385,45 +373,6 @@ export function parsePath(path: string | DataPath): DataPath {
  */
 export function getValueAtStringPath(data: unknown, path: string): unknown {
     return getValueAtPath(data, parsePath(path))
-}
-
-/**
- * Convert path segments to a string
- */
-export function pathToString(path: DataPath): string {
-    return path
-        .map((segment, index) => {
-            const str = String(segment)
-            // Use bracket notation for numeric segments
-            if (/^\d+$/.test(str)) {
-                return `[${str}]`
-            }
-            // Use dot notation for string segments
-            return index === 0 ? str : `.${str}`
-        })
-        .join("")
-}
-
-/**
- * Get the parent path
- */
-export function getParentPath(path: DataPath): DataPath {
-    return path.slice(0, -1)
-}
-
-/**
- * Get the last segment of a path
- */
-export function getLastSegment(path: DataPath): PathSegment | undefined {
-    return path[path.length - 1]
-}
-
-/**
- * Check if one path is a child of another
- */
-export function isChildPath(parent: DataPath, child: DataPath): boolean {
-    if (child.length <= parent.length) return false
-    return parent.every((segment, i) => String(segment) === String(child[i]))
 }
 
 /**
@@ -598,71 +547,4 @@ function getTypedValueType(val: unknown): string {
     if (typeof val === "number") return "number"
     if (typeof val === "boolean") return "boolean"
     return "unknown"
-}
-
-/**
- * Combine multiple path arrays with deduplication.
- *
- * Merges paths from different sources (schema, runtime, testcase columns)
- * into a single array, removing duplicates based on path string.
- *
- * @example
- * ```typescript
- * const schemaPaths = [{ path: 'output', type: 'object', ... }]
- * const runtimePaths = [{ path: 'output.name', type: 'string', ... }]
- * const combined = combineTypedPaths(schemaPaths, runtimePaths)
- * ```
- */
-export function combineTypedPaths(...pathArrays: (TypedPathInfo[] | undefined)[]): TypedPathInfo[] {
-    const seen = new Set<string>()
-    const result: TypedPathInfo[] = []
-
-    for (const paths of pathArrays) {
-        if (!paths) continue
-        for (const p of paths) {
-            const key = p.pathString || p.path
-            if (!seen.has(key)) {
-                seen.add(key)
-                result.push(p)
-            }
-        }
-    }
-
-    return result
-}
-
-/**
- * Build testcase column paths from column definitions.
- *
- * Converts testcase column definitions into TypedPathInfo objects
- * for use in path selection UIs.
- *
- * @example
- * ```typescript
- * const columns = [{ key: 'prompt', name: 'Prompt', type: 'string' }]
- * const paths = buildTestcaseColumnPaths(columns)
- * // [{ path: 'testcase.prompt', label: 'Prompt', type: 'string', source: 'testcase' }]
- * ```
- */
-export function buildTestcaseColumnPaths(
-    columns: {key: string; name?: string; type?: string}[],
-): TypedPathInfo[] {
-    return columns.map((col) => {
-        let valueType = "unknown"
-        if (col.type === "integer") {
-            valueType = "number"
-        } else if (col.type) {
-            valueType = col.type
-        }
-
-        const pathString = `testcase.${col.key}`
-        return {
-            path: pathString,
-            pathString,
-            label: col.name || col.key,
-            type: valueType,
-            valueType,
-            source: "testcase",
-        }
-    })
 }

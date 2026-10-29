@@ -26,3 +26,11 @@ export function safeStringify(value: unknown): string {
         return String(value ?? "")
     }
 }
+
+/**
+ * Pass strings through untouched; pretty-print everything else as JSON.
+ * Unlike `safeStringify`, a string input is not re-quoted.
+ */
+export function getStringOrJson(value: unknown): string {
+    return typeof value === "string" ? value : JSON.stringify(value, null, 2)
+}

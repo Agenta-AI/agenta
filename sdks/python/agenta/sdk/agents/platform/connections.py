@@ -1,9 +1,8 @@
-"""Agenta-platform-backed connection resolution over the existing secrets API.
+"""Agenta-platform-backed connection resolution through the gateway core API.
 
-``VaultConnectionResolver`` is the connected-path ``ConnectionResolver`` adapter. It fetches
-``GET /secrets/`` with the caller's request auth, builds an in-memory catalog from existing
-``provider_key`` and ``custom_provider`` vault records, selects exactly one connection for the
-``ModelRef``, and returns a least-privilege ``ResolvedConnection`` plan.
+``VaultConnectionResolver`` is the connected-path ``ConnectionResolver`` adapter. It asks the
+gateway core API to select and validate a route; that core service owns the vault read. The
+returned DTO contains route metadata only, never a provider secret.
 
 There is deliberately no ``/vault/connections`` route here. The vault remains the existing
 ``/secrets`` store; connection is only a runtime read view inside the service/SDK agent path.
@@ -11,8 +10,9 @@ There is deliberately no ``/vault/connections`` route here. The vault remains th
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Set
+import os
+from dataclasses import dataclass, field, replace
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 import httpx
 
@@ -24,28 +24,48 @@ from ..capabilities import (
     HARNESS_CONNECTION_CAPABILITIES,
     PROVIDER_ENV_VARS,
 )
-from ..connections.endpoints import build_resolved_connection
+from ..connections.endpoints import (
+    _REGION_ENV,
+    build_gateway_resolved_connection,
+    build_resolved_connection,
+    gateway_target,
+)
+from ..connections.credentials import credential_extras, secret_value_configured
 from ..connections import (
     AmbiguousConnectionError,
     ConnectionNotFoundError,
     ConnectionResolutionError,
     EndpointResolutionError,
     Endpoint,
+    ConnectionAccessDeniedError,
+    GatewayConnectionRefusedError,
+    is_access_refusal,
+    InvalidConnectionConfigurationError,
     MissingCredentialError,
     MissingProviderError,
+    OrganizationConnectionUnavailableError,
     ModelRef,
     ProviderMismatchError,
     ResolvedConnection,
+    ResolvedSubscription,
     RuntimeAuthContext,
+    SubscriptionConnectionMissingError,
+    SubscriptionLoginRequiredError,
+    SubscriptionNotSupportedError,
     UnsupportedConnectionModeError,
+    WriteOnlySecretError,
 )
 from ..model_catalog import model_input_modalities
-from .connection import PlatformConnection
+from .connection import GatewayCredentialsError, PlatformConnection
 
 log = get_module_logger(__name__)
 
 # Canonical map lives in capabilities.py; this alias keeps the local name callers already use.
 _PROVIDER_ENV_VARS: Dict[str, str] = PROVIDER_ENV_VARS
+
+# The slug of the retired Agenta-funded starter-credits connection. A record under it was
+# Agenta's, not the user's own custom provider, so its spans keep public-list pricing.
+STARTER_CREDITS_SLUG = "starter-credits"
 
 # The Claude harness selects a model by a bare alias (``haiku``/``sonnet``/``opus`` + ``[1m]``)
 # or by a dated id (``claude-opus-4-8``), never with a ``provider/`` prefix. Those bare ids are
@@ -143,6 +163,7 @@ _ALLOWED_EXTRA_ENV_KEYS: Set[str] = {
     "TOGETHERAI_API_KEY",
     "TOGETHER_API_KEY",
     "OPENROUTER_API_KEY",
+    "XAI_API_KEY",
     # Bedrock / AWS.
     "AWS_ACCESS_KEY_ID",
     "AWS_SECRET_ACCESS_KEY",
@@ -176,6 +197,59 @@ def _provider_env_var(provider: Optional[str]) -> Optional[str]:
     return _PROVIDER_ENV_VARS.get(provider.lower()) if provider else None
 
 
+def _credential_channels(
+    provider: str, candidate: "_ConnectionCandidate"
+) -> List[Tuple[str, ...]]:
+    """The environment variables this candidate's credential could ride, best first.
+
+    Each entry is one COMPLETE channel: every variable in it must be present for that
+    channel to authenticate. Deliberately the variables the harness itself would read for
+    this candidate, never merely the provider family's — a Bedrock or Azure candidate
+    authenticates through its own channel, and reading a family key (say
+    ``OPENAI_API_KEY``) for it would send one service's credential to another. The set
+    mirrors the credential material the plaintext path accepts for the same connection
+    (``CREDENTIAL_EXTRAS_KEYS``), so a standalone run can supply from the environment
+    exactly what the vault would have supplied.
+    """
+    if candidate.deployment == "bedrock":
+        return [
+            ("AWS_BEARER_TOKEN_BEDROCK",),
+            ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_SESSION_TOKEN"),
+            ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"),
+        ]
+    if candidate.deployment in {"vertex", "vertex_ai"}:
+        return [("GOOGLE_APPLICATION_CREDENTIALS",)]
+    if candidate.deployment == "azure":
+        return [("AZURE_OPENAI_API_KEY",)]
+    # A caller-selected endpoint owns its stored credential. An ambient family key must
+    # never be sent to that endpoint when the vault value is hidden.
+    if candidate.kind == "custom_provider" and (
+        (candidate.endpoint and candidate.endpoint.base_url)
+        or candidate.endpoint_blocked
+    ):
+        return []
+
+    env_var = _provider_env_var(provider) or _provider_env_var(candidate.provider)
+    return [(env_var,)] if env_var else []
+
+
+def _environment_credential(
+    provider: str, candidate: "_ConnectionCandidate"
+) -> Optional[Dict[str, str]]:
+    """This run's own credential for the candidate, or ``None`` when it has none.
+
+    A channel counts only when EVERY variable in it is set: half an AWS key pair
+    authenticates nothing, and passing it on would fail at the provider with a
+    misleading error instead of here with an actionable one.
+    """
+    for channel in _credential_channels(provider, candidate):
+        values = {name: (os.environ.get(name) or "").strip() for name in channel}
+        if all(values.values()):
+            return values
+
+    return None
+
+
 def _header_name(secret: Dict[str, Any]) -> Optional[str]:
     return _stripped(_as_dict(secret.get("header")).get("name"))
 
@@ -192,16 +266,33 @@ def _extras(settings: Dict[str, Any]) -> Dict[str, Any]:
     return _as_dict(settings.get("extras"))
 
 
+def _saved_models(data: Dict[str, Any]) -> Optional[List[str]]:
+    """The connection's saved model list, in saved order, or ``None`` when it saved none.
+
+    ``None`` and ``[]`` mean different things (use Agenta's defaults vs. show nothing), so the
+    absent case must stay distinguishable from the empty one.
+    """
+    models = data.get("models")
+    if models is None:
+        return None
+    slugs = [
+        _stripped(model.get("slug") if isinstance(model, dict) else model)
+        for model in models
+    ]
+    return [slug for slug in slugs if slug]
+
+
+def _saved_harnesses(data: Dict[str, Any]) -> Optional[List[str]]:
+    """The harnesses the connection is allowed to drive, or ``None`` when it saved no choice."""
+    harnesses = data.get("harnesses")
+    if harnesses is None:
+        return None
+    names = [_stripped(harness) for harness in harnesses]
+    return [name for name in names if name]
+
+
 def _model_slugs(data: Dict[str, Any]) -> Set[str]:
-    slugs: Set[str] = set()
-    for model in data.get("models") or []:
-        if isinstance(model, dict):
-            slug = _stripped(model.get("slug"))
-        else:
-            slug = _stripped(model)
-        if slug:
-            slugs.add(slug)
-    return slugs
+    return set(_saved_models(data) or [])
 
 
 def _model_keys(data: Dict[str, Any], *, slug: str, deployment: str) -> Set[str]:
@@ -239,6 +330,15 @@ class _ConnectionCandidate:
     endpoint_blocked: bool = False
     model_slugs: Set[str] = field(default_factory=set)
     model_keys: Set[str] = field(default_factory=set)
+    # The connection's saved policy, carried for the slices that consume it (the picker, the
+    # harness intersection). Neither field filters resolution here yet.
+    models: Optional[List[str]] = None
+    harnesses: Optional[List[str]] = None
+    # True when value_status says a credential exists but this caller's
+    # credential received the redacted, value-less shape.
+    write_only_redacted: bool = False
+    # True when the vault says Agenta manages this row rather than the user.
+    managed: bool = False
 
     def matches_provider(self, provider: Optional[str]) -> bool:
         return bool(
@@ -249,18 +349,63 @@ class _ConnectionCandidate:
         values = _model_lookup_values(model, self.deployment)
         return bool(values & self.model_slugs) or bool(values & self.model_keys)
 
+    def declares_model(self, model: ModelRef) -> bool:
+        """Whether the connection's SAVED model list names this model.
+
+        ``models is None`` means "use Agenta's defaults" — an absent declaration, not a claim on
+        every model — so it never narrows a provider pool. Saved ids are stored in their bare
+        spelling (the settings card collapses them), hence the case-insensitive bare compare.
+        """
+        if not self.models:
+            return False
+        declared = {value.lower() for value in self.models}
+        return bool(
+            {value.lower() for value in _model_lookup_values(model, self.deployment)}
+            & declared
+        )
+
     def selected_model_id(self, model: ModelRef) -> str:
-        full = model.to_model_string()
-        for key in self.model_keys:
-            if key == full:
-                parts = key.split("/", 2)
-                return parts[2] if len(parts) == 3 else model.model
+        """The model id to send upstream, with the vault's storage namespace stripped.
+
+        Matches the SAME lookup values as ``matches_model``: a stored key is namespaced
+        ``<connection-name>/<kind>/<model>`` and never carries a provider prefix, so comparing it
+        only against ``to_model_string()`` misses whenever the request also names a provider
+        (``openai/<name>/custom/<model>``) and the namespaced id would then be sent upstream as
+        the model name. Matching and stripping must agree, or a connection matches but resolves
+        to a model the upstream does not know.
+        """
+        for key in _ordered_model_lookup_values(model, self.deployment):
+            if key not in self.model_keys:
+                continue
+            matching_slugs = [
+                slug
+                for slug in self.model_slugs
+                if key == slug or key.endswith(f"/{slug}")
+            ]
+            if matching_slugs:
+                return max(matching_slugs, key=len)
+            # Persisted legacy records may carry model_keys without the saved model list.
+            parts = key.split("/", 2)
+            return parts[2] if len(parts) == 3 else model.model
         if model.model in self.model_slugs:
             return model.model
         prefix = f"{self.deployment}/"
         if model.model.startswith(prefix):
-            return model.model[len(prefix) :]
+            stripped = model.model[len(prefix) :]
+            # The strip runs before the fallback, so an id spelled ``custom/<model>`` would
+            # otherwise reach the upstream stale, having matched nothing this connection has.
+            if stripped in self.model_slugs:
+                return stripped
+            return stripped
         return model.model
+
+    def serves_custom_connection(self) -> bool:
+        """Whether spans served by this record skip public-list pricing.
+
+        A user's own custom-provider record does. A record Agenta manages (the funded
+        starter-credits connection) serves a public model at a public price, so it does not.
+        """
+        return self.kind == "custom_provider" and not self.managed
 
     def resolved_provider(self, model: ModelRef) -> str:
         if model.provider:
@@ -303,7 +448,8 @@ class _ConnectionCandidate:
         )
 
     def resolved_env(self, provider: str) -> Dict[str, str]:
-        env = dict(self.env)
+        # Region is endpoint addressing, not a credential.
+        env = {k: v for k, v in self.env.items() if k not in _REGION_ENV}
         env_var = _provider_env_var(provider) or _provider_env_var(self.provider)
         # Bedrock's key is a bearer token with its own channel below — never the family's
         # API-key env var (a bedrock key in ANTHROPIC_API_KEY would mis-auth the direct API).
@@ -317,14 +463,32 @@ class _ConnectionCandidate:
         return env
 
 
-def _model_lookup_values(model: ModelRef, deployment: str) -> Set[str]:
-    values = {model.model, model.to_model_string()}
+def _ordered_model_lookup_values(model: ModelRef, deployment: str) -> List[str]:
+    values = [model.model, model.to_model_string()]
     if model.provider:
-        values.add(f"{model.provider}/{model.model}")
+        values.append(f"{model.provider}/{model.model}")
     prefix = f"{deployment}/"
     if model.model.startswith(prefix):
-        values.add(model.model[len(prefix) :])
-    return {value for value in values if value}
+        values.append(model.model[len(prefix) :])
+    return list(dict.fromkeys(value for value in values if value))
+
+
+def _model_lookup_values(model: ModelRef, deployment: str) -> Set[str]:
+    return set(_ordered_model_lookup_values(model, deployment))
+
+
+def _write_only_redacted(secret: Dict[str, Any], has_credential: bool) -> bool:
+    """Whether the vault redacted this record's value for the current caller.
+
+    ``has_credential`` must consider EVERY credential channel the candidate could use (the
+    primary key and the credential extras): a surviving config extra like ``AWS_REGION``
+    must not read as "credentialed".
+    """
+    return (
+        bool(secret.get("write_only"))
+        and secret_value_configured(secret)
+        and not has_credential
+    )
 
 
 def _provider_key_candidate(secret: Dict[str, Any]) -> Optional[_ConnectionCandidate]:
@@ -333,13 +497,18 @@ def _provider_key_candidate(secret: Dict[str, Any]) -> Optional[_ConnectionCandi
     key = _stripped(_settings(secret).get("key"))
     if not provider:
         return None
-    # A provider_key is identified by its provider — it has no slug concept, never `header.name`.
+    # Records created since named connections carry a stable slug and are addressed by it, so a
+    # project can hold several keys per provider. Older records have none and stay addressable by
+    # their provider family. `header.name` is display-only and is never identity.
     return _ConnectionCandidate(
-        slug=provider,
+        slug=_stripped(secret.get("slug")) or provider,
         kind="provider_key",
         provider=provider,
         deployment="direct",
         api_key=key,
+        models=_saved_models(data),
+        harnesses=_saved_harnesses(data),
+        write_only_redacted=_write_only_redacted(secret, bool(key)),
     )
 
 
@@ -349,13 +518,21 @@ def _custom_provider_candidate(
     data = _data(secret)
     settings = _settings(secret)
     extras = _extras(settings)
-    slug = _header_name(secret) or _stripped(data.get("provider_slug"))
+    # The namespace stored model keys were built with, which stays the display name.
+    provider_slug = _header_name(secret) or _stripped(data.get("provider_slug"))
+    # Records created since named connections carry a stable slug and are addressed by it, so a
+    # rename no longer moves the connection; older records stay addressable by their name.
+    slug = _stripped(secret.get("slug")) or provider_slug
     provider_kind = _stripped(data.get("kind")) or "custom"
     if not slug:
         return None
 
     env = _normalized_extra_env(extras)
-    region = env.get("AWS_REGION") or env.get("AWS_DEFAULT_REGION")
+    region = (
+        env.get("AWS_REGION")
+        or env.get("AWS_DEFAULT_REGION")
+        or env.get("GOOGLE_CLOUD_LOCATION")
+    )
     raw_url = _stripped(settings.get("url"))
     endpoint_blocked = False
     if raw_url:
@@ -396,7 +573,188 @@ def _custom_provider_candidate(
         model_slugs=_model_slugs(data),
         # Stored model keys remain namespaced by the vault provider kind. Runtime
         # deployment normalization must not change how a committed model selector matches.
-        model_keys=_model_keys(data, slug=slug, deployment=provider_kind),
+        model_keys=_model_keys(
+            data, slug=provider_slug or slug, deployment=provider_kind
+        ),
+        models=_saved_models(data),
+        harnesses=_saved_harnesses(data),
+        write_only_redacted=_write_only_redacted(
+            secret, bool(api_key) or bool(credential_extras(extras))
+        ),
+        managed=_managed(secret),
+    )
+
+
+def _managed(secret: Dict[str, Any]) -> bool:
+    """Whether the vault says Agenta manages this row rather than the user.
+
+    The public secret carries the management POLICY (never the manager's name), and any
+    policy at all means the row is not the user's to edit. That is the property the funded
+    fallback needs: a user may save their own connection under any slug, including this
+    one's, and their model list is theirs.
+    """
+    management = secret.get("management")
+    return isinstance(management, dict) and bool(management.get("policy"))
+
+
+# The vault kind that holds a hosted subscription connection.
+SUBSCRIPTION_SECRET_KIND = "subscription_provider"
+
+# The login state a run needs. Any other state means the person must sign in again.
+_SUBSCRIPTION_READY = "ready"
+
+# The environment variable Claude Code reads a `claude setup-token` value from.
+_CLAUDE_TOKEN_ENV = "CLAUDE_CODE_OAUTH_TOKEN"
+
+
+@dataclass(frozen=True)
+class _SubscriptionRun:
+    """The one harness a subscription provider runs on, and the provider family it uses."""
+
+    harness: str
+    harness_name: str
+    provider: str
+
+
+# Pi reaches the ChatGPT subscription through its ``openai-codex`` provider, which the
+# capability table already declares. Codex 0.145.0 refuses a login file without an
+# ``id_token`` and the ChatGPT device login never issues one, so ChatGPT stays on Pi. Claude
+# Code reads the Claude setup-token under the ``anthropic`` family.
+_SUBSCRIPTION_RUNS: Dict[str, _SubscriptionRun] = {
+    "chatgpt": _SubscriptionRun(
+        harness="pi_core", harness_name="Pi", provider="openai-codex"
+    ),
+    "claude": _SubscriptionRun(
+        harness="claude", harness_name="Claude Code", provider="anthropic"
+    ),
+}
+
+
+@dataclass
+class _SubscriptionCandidate:
+    """One ``subscription_provider`` vault record, as the resolver reads it."""
+
+    id: str
+    slug: str
+    provider: str
+    version: int
+    generation: int
+    state: str
+    login: Dict[str, Any]
+
+    def is_ready(self) -> bool:
+        return self.state == _SUBSCRIPTION_READY and bool(self.login)
+
+
+def _as_int(value: Any) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _subscription_candidate(secret: Dict[str, Any]) -> Optional[_SubscriptionCandidate]:
+    """Read one subscription record, or ``None`` when it carries no addressable slug.
+
+    ``data.login`` is present only when the caller's credential carries the secret-resolve
+    grant. Without it the vault returns the record with the login stripped, which reads here
+    as "not ready" and fails loud rather than running with no credential.
+    """
+    slug = _stripped(secret.get("slug"))
+    secret_id = _stripped(secret.get("id"))
+    if not slug or not secret_id:
+        return None
+    data = _data(secret)
+    return _SubscriptionCandidate(
+        id=secret_id,
+        slug=slug,
+        provider=_stripped(data.get("provider")) or "",
+        version=_as_int(data.get("login_version")),
+        generation=_as_int(data.get("login_generation")),
+        state=_stripped(data.get("login_state")) or "",
+        login=_as_dict(data.get("login")),
+    )
+
+
+def _resolve_subscription(
+    *,
+    secrets: Sequence[Any],
+    model: ModelRef,
+    slug: str,
+    harness: Optional[str] = None,
+    organization: bool = False,
+) -> ResolvedConnection:
+    """Resolve a ``self_managed`` connection that names a hosted subscription secret.
+
+    With ``organization``, ``secrets`` holds the one organization login the API released
+    for this run (M5). It resolves exactly like a project login. The only difference is
+    the owner: a ChatGPT login travels as ``organizationSubscription``, so its refreshes
+    go to the organization row and a runner older than M5 refuses it.
+
+    A ChatGPT login stays ``runtime_provided``: the harness authenticates itself with the
+    login Agenta delivers as the ``subscription`` block, and refreshes it during the turn. A
+    Claude setup-token never refreshes, so it travels as an ordinary environment credential.
+    """
+    chosen: Optional[_SubscriptionCandidate] = None
+    for item in secrets:
+        secret = _as_dict(item)
+        if secret.get("kind") != SUBSCRIPTION_SECRET_KIND:
+            continue
+        candidate = _subscription_candidate(secret)
+        if candidate is not None and candidate.slug == slug:
+            chosen = candidate
+            break
+
+    if chosen is None:
+        # The config names a connection this project does not hold. Signing in cannot fix a
+        # name, so this is not the sign-in prompt.
+        raise SubscriptionConnectionMissingError(slug=slug)
+
+    # The pair is checked before the login state: signing in again would not help a run
+    # that cannot consume the credential in the first place.
+    run = _SUBSCRIPTION_RUNS.get(chosen.provider)
+    if run is None or harness != run.harness:
+        raise SubscriptionNotSupportedError(
+            harness=harness,
+            provider=chosen.provider,
+            supported_harness=run.harness_name if run else None,
+        )
+
+    if not chosen.is_ready():
+        # One error for a not-ready state and an absent login: the person takes the same
+        # action in both cases. Never name the login or its state here.
+        raise SubscriptionLoginRequiredError(slug=slug, provider=chosen.provider)
+
+    provider = run.provider
+    if chosen.provider == "claude":
+        return build_resolved_connection(
+            provider=provider,
+            model=model.model,
+            credential_mode="env",
+            values={_CLAUDE_TOKEN_ENV: chosen.login.get("access", "")},
+            input_modalities=model_input_modalities(
+                harness, model.model, provider=provider
+            ),
+        )
+
+    return build_resolved_connection(
+        provider=provider,
+        model=model.model,
+        credential_mode="runtime_provided",
+        values={},
+        # A miss means workspace-only downstream; do not guess.
+        input_modalities=model_input_modalities(
+            harness, model.model, provider=provider
+        ),
+        subscription=ResolvedSubscription(
+            id=chosen.id,
+            slug=chosen.slug,
+            provider=chosen.provider,
+            version=chosen.version,
+            generation=chosen.generation,
+            login=chosen.login,
+            owner="organization" if organization else "project",
+        ),
     )
 
 
@@ -448,13 +806,29 @@ def _choose_default(
         raise MissingProviderError(
             model=model.model, hint_provider=_harness_default_provider(harness)
         )
+    if not pool:
+        # Zero candidates with a known provider is a MISSING credential, not an ambiguous
+        # one — falling through to AmbiguousConnectionError told users with an empty vault
+        # "multiple connections for provider 'X'" and sent them hunting phantom secrets.
+        raise MissingCredentialError(provider=model.provider or "")
     if len(pool) == 1:
         return pool[0]
+    # A project may hold several connections per provider (Settings -> AI providers lists one row
+    # per connection), and a slug-less config is the shape the product itself creates for a new
+    # app. It is still resolvable when exactly one of those connections DECLARES the requested
+    # model in its saved list — the same list the picker offered the model from. Connections that
+    # saved no list stay unconstrained and never win by declaration.
+    declaring = [candidate for candidate in pool if candidate.declares_model(model)]
+    if len(declaring) == 1:
+        return declaring[0]
     default_named = [candidate for candidate in pool if candidate.slug == "default"]
     if len(default_named) == 1:
         return default_named[0]
     provider = model.provider or ""
-    raise AmbiguousConnectionError(provider=provider)
+    raise AmbiguousConnectionError(
+        provider=provider,
+        candidates=[candidate.slug for candidate in pool if candidate.slug],
+    )
 
 
 def _choose_named(
@@ -491,7 +865,12 @@ def _choose_named(
 
 
 def _resolve_from_secrets(
-    *, secrets: Sequence[Any], model: ModelRef, harness: Optional[str] = None
+    *,
+    secrets: Sequence[Any],
+    model: ModelRef,
+    harness: Optional[str] = None,
+    gateway_base_url: Optional[str] = None,
+    gateway_credentials_value: Optional[str] = None,
 ) -> ResolvedConnection:
     connection = model.connection
     # A bare Claude alias (haiku/sonnet/opus + [1m]) or a dated claude-* id is unambiguously
@@ -501,6 +880,21 @@ def _resolve_from_secrets(
     if inferred:
         model = model.model_copy(update={"provider": inferred})
     if connection.mode == "self_managed":
+        subscription_slug = _stripped(connection.slug)
+        if connection.is_organization:
+            # The rows here are the project's; an organization login is released by its own
+            # route (`VaultConnectionResolver`), and a project login with the same slug never
+            # stands in for it.
+            raise OrganizationConnectionUnavailableError(slug=subscription_slug or "")
+        if subscription_slug:
+            # A named self-managed connection is a hosted subscription: Agenta stores the
+            # login and delivers it. An unnamed one is the operator mount on the runner.
+            return _resolve_subscription(
+                secrets=secrets,
+                model=model,
+                slug=subscription_slug,
+                harness=harness,
+            )
         provider = model.provider or ""
         return build_resolved_connection(
             provider=provider,
@@ -514,6 +908,11 @@ def _resolve_from_secrets(
         )
     if connection.mode != "agenta":
         raise UnsupportedConnectionModeError(mode=str(connection.mode))
+    if connection.is_organization:
+        # The vault rows here are the project's, in plaintext. An organization connection
+        # is served only through the LLM gateway, and a project row with the same slug
+        # never stands in for it.
+        raise OrganizationConnectionUnavailableError(slug=connection.slug or "")
 
     candidates = _catalog(secrets)
     slug = _stripped(connection.slug)
@@ -523,6 +922,32 @@ def _resolve_from_secrets(
         else _choose_default(candidates, model, harness)
     )
     provider = chosen.resolved_provider(model)
+    # Checked BEFORE the endpoint and env checks: a redacted write-only key is the deeper
+    # cause, and surviving config extras (AWS_REGION) can make `env` non-empty, which would
+    # otherwise let the run proceed mis-credentialed.
+    if chosen.write_only_redacted:
+        # The vault will never hand this caller the value, so the connection cannot supply
+        # the credential here. A provider key in this run's own environment is the
+        # documented way to run outside the platform, and it is what the error tells the
+        # user to do — so use it when it is there, and fail loud only when it is not. The
+        # key rides the variable it was read from, never a different channel.
+        fallback = _environment_credential(provider, chosen)
+        if fallback is None:
+            raise WriteOnlySecretError(slug=chosen.slug, provider=provider)
+        chosen = replace(
+            chosen,
+            api_key=None,
+            write_only_redacted=False,
+            env={**chosen.env, **fallback},
+        )
+    if chosen.deployment in {"vertex", "vertex_ai"} and chosen.env.get(
+        "GOOGLE_CLOUD_API_KEY"
+    ):
+        # Same rejection `build_resolved_connection` made for the offline path: out of scope
+        # regardless of routing.
+        raise InvalidConnectionConfigurationError(
+            "Vertex API-key authentication is not supported by the agent connection contract"
+        )
     # A chosen custom connection must carry a usable base URL. Failing here (rather than
     # returning endpoint=None) keeps the harness from falling back to a provider default and
     # silently ignoring the user's routing choice (design Decision 4). The error names the slug
@@ -535,18 +960,74 @@ def _resolve_from_secrets(
     resolved_model = chosen.selected_model_id(model)
     if not env:
         raise MissingCredentialError(provider=provider, slug=chosen.slug)
-    return build_resolved_connection(
+
+    # Live requests always supply both values. This direct path is only for offline
+    # and recorded-replay resolution, where no gateway credential can be minted.
+    if not gateway_base_url or not gateway_credentials_value:
+        return build_resolved_connection(
+            provider=provider,
+            model=resolved_model,
+            deployment=chosen.deployment,
+            credential_mode="env",
+            values=env,
+            endpoint=chosen.endpoint,
+            input_modalities=model_input_modalities(
+                harness, resolved_model, provider=provider
+            ),
+            custom_connection=chosen.serves_custom_connection(),
+        )
+    namespace, name = gateway_target(
+        kind=chosen.kind, provider=provider, slug=chosen.slug
+    )
+    return build_gateway_resolved_connection(
         provider=provider,
         model=resolved_model,
         deployment=chosen.deployment,
-        credential_mode="env",
-        values=env,
-        endpoint=chosen.endpoint,
+        namespace=namespace,
+        name=name,
+        gateway_base_url=gateway_base_url,
+        gateway_credentials_value=gateway_credentials_value,
         # A miss means workspace-only downstream; do not guess.
         input_modalities=model_input_modalities(
             harness, resolved_model, provider=provider
         ),
+        custom_connection=chosen.serves_custom_connection(),
     )
+
+
+LLM_GATEWAY_DISABLED_CODE = "llm_gateway_disabled"
+
+# Starlette answers a path it has no route for with exactly this body, and FastAPI keeps it.
+# It is therefore what an API built before the gateway existed sends for
+# `POST /gateways/llms/resolve`, and the only way to tell that case from the gateway itself
+# answering 404 about an endpoint that does not exist — which is a real failure, not a reason
+# to resolve some other way.
+_ROUTE_ABSENT_BODY = {"detail": "Not Found"}
+
+
+def _llm_gateway_is_unavailable(
+    *, body: Any, refusal: GatewayConnectionRefusedError
+) -> bool:
+    """Whether this refusal means "this deployment does not route models through a gateway".
+
+    Two shapes mean it, and they are the same situation seen from two API versions.
+
+    ``llm_gateway_disabled`` is the current one: the route is there and the operator has the
+    plane switched off, or the gateway does not serve agents on this connection (a Bedrock
+    connection, `LLMGatewayConnectionNotServedError` in the API). An unrouted 404 is the older one: an SDK newer than its backend is an
+    ordinary state during a rolling upgrade, and that backend has no gateway at all.
+
+    Nothing else qualifies. A 403 from the permission check, a 409 for a missing secret, a 422
+    for an unresolvable model and a 404 naming a missing endpoint are all refusals about THIS
+    request, and quietly reading the vault instead would paper over them with a run that may
+    not even be credentialed the way the person asked. When in doubt this returns False, so
+    the ambiguous case fails loudly rather than silently changing where a secret travels.
+    """
+    if refusal.failure_code == LLM_GATEWAY_DISABLED_CODE:
+        return True
+    # `gateway_status` is the status the gateway actually answered with, which is what the
+    # refusal was built from; the class's own `status_code` is the one it reports upward.
+    return refusal.gateway_status == 404 and body == _ROUTE_ABSENT_BODY
 
 
 class VaultConnectionResolver:
@@ -561,28 +1042,94 @@ class VaultConnectionResolver:
     def __init__(self, connection: Optional[PlatformConnection] = None) -> None:
         self._connection = connection or PlatformConnection()
 
-    async def resolve(
+    async def _gateway_credentials(self, context: RuntimeAuthContext) -> Optional[str]:
+        """The gateway-confined credential this resolution hands to the sandbox.
+
+        A refusal surfaces as a resolution error rather than as a missing credential: the
+        run cannot reach a provider either way, and naming the exchange is what keeps the
+        operator from hunting a phantom "no backend configured" misconfiguration.
+        """
+        try:
+            return await self._connection.gateway_authorization(
+                plane="llm",
+                session_id=context.session_id,
+                agent_id=context.agent_id,
+            )
+        except GatewayCredentialsError as exc:
+            raise ConnectionResolutionError(str(exc)) from exc
+
+    async def _resolve_organization_subscription(
         self,
         *,
+        api_base: str,
+        authorization: Optional[str],
+        model: ModelRef,
+        slug: str,
+        context: RuntimeAuthContext,
+    ) -> ResolvedConnection:
+        """An organization subscription login the agent named (M5).
+
+        The API releases it to the run's own credential only, on the organization scope of
+        the secret read; the plaintext vault list never carries organization rows."""
+        try:
+            async with httpx.AsyncClient(timeout=self._connection.timeout) as client:
+                response = await client.get(
+                    f"{api_base}/secrets/{slug}?scope=organization",
+                    headers=self._connection.headers(authorization=authorization),
+                )
+        except Exception as exc:  # pylint: disable=broad-except
+            log.warning("agent: organization subscription fetch failed", exc_info=True)
+            raise ConnectionResolutionError(
+                "connection resolution request failed"
+            ) from exc
+
+        if response.status_code == 404:
+            raise SubscriptionConnectionMissingError(slug=slug)
+        if response.status_code >= 400:
+            try:
+                body = response.json()
+            except Exception:  # pylint: disable=broad-except
+                body = None
+            if is_access_refusal(status_code=response.status_code, body=body):
+                raise ConnectionAccessDeniedError.from_response(
+                    status_code=response.status_code, body=body
+                )
+            raise ConnectionResolutionError(
+                f"organization subscription fetch returned HTTP {response.status_code}"
+            )
+
+        return _resolve_subscription(
+            secrets=[response.json() or {}],
+            model=model,
+            slug=slug,
+            harness=context.harness,
+            organization=True,
+        )
+
+    async def _resolve_from_vault(
+        self,
+        *,
+        api_base: str,
+        authorization: Optional[str],
         model: ModelRef,
         context: RuntimeAuthContext,
     ) -> ResolvedConnection:
-        if model.connection.mode == "self_managed":
-            return await _StaticSecretsResolver([]).resolve(
-                model=model, context=context
-            )
+        """Resolve the way the SDK did before the gateway existed: read the vault directly.
 
-        api_base = self._connection.base_url()
-        if not api_base:
-            raise ConnectionResolutionError(
-                "no Agenta backend configured for connection resolution"
-            )
+        Reached only when the API says it does not serve the LLM gateway. The provider key
+        then travels into the sandbox as an environment variable, which is what the gateway
+        exists to stop — so this is the old contract, deliberately, and not a fallback the
+        SDK may take on its own initiative. Only the API decides.
 
+        No gateway credential is minted here. ``_resolve_from_secrets`` builds the catalog
+        from the vault records and, with no gateway base URL or credential to build a route
+        from, takes its ``credential_mode="env"`` branch.
+        """
         try:
             async with httpx.AsyncClient(timeout=self._connection.timeout) as client:
                 response = await client.get(
                     f"{api_base}/secrets/",
-                    headers=self._connection.headers(),
+                    headers=self._connection.headers(authorization=authorization),
                 )
         except Exception as exc:  # pylint: disable=broad-except
             log.warning(
@@ -594,6 +1141,14 @@ class VaultConnectionResolver:
 
         if response.status_code >= 400:
             log.warning("agent: vault secrets fetch HTTP %s", response.status_code)
+            try:
+                body = response.json()
+            except Exception:  # pylint: disable=broad-except
+                body = None
+            if is_access_refusal(status_code=response.status_code, body=body):
+                raise ConnectionAccessDeniedError.from_response(
+                    status_code=response.status_code, body=body
+                )
             raise ConnectionResolutionError(
                 f"connection resolution failed (HTTP {response.status_code})"
             )
@@ -601,12 +1156,216 @@ class VaultConnectionResolver:
         data = response.json() or []
         if not isinstance(data, list):
             raise ConnectionResolutionError("connection resolution returned a non-list")
+
         return _resolve_from_secrets(secrets=data, model=model, harness=context.harness)
+
+    async def resolve(
+        self,
+        *,
+        model: ModelRef,
+        context: RuntimeAuthContext,
+    ) -> ResolvedConnection:
+        # A self-managed connection never reaches the gateway, in EITHER shape. The harness
+        # authenticates itself, so there is no provider key for the gateway to hold and no
+        # route for it to build; `resolved_connection` carries `credential_mode`
+        # "runtime_provided" and, for a named one, the subscription login beside it.
+        #
+        # The unnamed case is the operator mount, and resolves to "inject nothing" with no
+        # read at all. The NAMED case is a hosted subscription and does need a vault read,
+        # but of the vault, not of `POST /gateways/llms/resolve`: that endpoint answers with
+        # a gateway route, and taking it either discarded the subscription and returned a
+        # gateway connection the harness cannot use, or was refused outright because no
+        # endpoint row exists for a subscription slug. It used to read the vault, and the
+        # branch was not repointed when the fetch moved to the gateway.
+        if model.connection.mode == "self_managed":
+            slug = _stripped(model.connection.slug)
+            if not slug:
+                return await _StaticSecretsResolver([]).resolve(
+                    model=model, context=context
+                )
+            api_base = self._connection.base_url()
+            if not api_base:
+                raise ConnectionResolutionError(
+                    "no Agenta backend configured for connection resolution"
+                )
+            if model.connection.is_organization:
+                return await self._resolve_organization_subscription(
+                    api_base=api_base,
+                    authorization=self._connection.authorization(),
+                    model=model,
+                    slug=slug,
+                    context=context,
+                )
+            return await self._resolve_from_vault(
+                api_base=api_base,
+                authorization=self._connection.authorization(),
+                model=model,
+                context=context,
+            )
+
+        api_base = self._connection.base_url()
+        if not api_base:
+            raise ConnectionResolutionError(
+                "no Agenta backend configured for connection resolution"
+            )
+
+        # Resolved once and reused for both the request header and the gateway-credentials
+        # field, so they cannot diverge across the two reads (the same precedent as the
+        # gateway tool resolver's ToolCallback).
+        authorization = self._connection.authorization()
+        body = {
+            "model": model.model,
+            "provider_key": model.provider,
+            "connection_slug": model.connection.slug,
+            "connection_namespace": model.connection.namespace,
+        }
+        # Sent only when the agent names a scope, so the request of an agent saved before M5
+        # is byte for byte what it was.
+        if model.connection.scope is not None:
+            body["connection_scope"] = model.connection.scope
+
+        try:
+            async with httpx.AsyncClient(timeout=self._connection.timeout) as client:
+                response = await client.post(
+                    f"{api_base}/gateways/llms/resolve",
+                    headers=self._connection.headers(authorization=authorization),
+                    json=body,
+                )
+        except Exception as exc:  # pylint: disable=broad-except
+            log.warning(
+                "agent: gateway connection resolution request failed", exc_info=True
+            )
+            raise ConnectionResolutionError(
+                "connection resolution request failed"
+            ) from exc
+
+        if response.status_code >= 400:
+            log.warning(
+                "agent: gateway connection resolution HTTP %s", response.status_code
+            )
+            # Read the body, not just the status. The gateway refuses with the shared
+            # `{code, message, retryable, next_step, details}` envelope, and reducing that to
+            # a status number was the whole reason a missing endpoint reached the person
+            # running the agent as an unknown-invoke-error 500 with nothing to act on.
+            try:
+                body = response.json()
+            except Exception:  # pylint: disable=broad-except
+                body = None
+            if isinstance(body, dict) and isinstance(body.get("detail"), dict):
+                if body["detail"].get("code") == "access_denied":
+                    # The run's credential was refused (gateway credential mint):
+                    # one 403 with the reason, not a connection refusal.
+                    raise ConnectionAccessDeniedError.from_response(
+                        status_code=response.status_code, body=body
+                    )
+            refusal = GatewayConnectionRefusedError.from_response(
+                status_code=response.status_code,
+                body=body,
+            )
+            if _llm_gateway_is_unavailable(body=body, refusal=refusal):
+                # A built-in model has no vault record, and the vault may hold a custom
+                # connection of the same slug that the customer pays for instead.
+                if model.connection.namespace == "builtin":
+                    raise refusal
+                # An organization connection has no plaintext path at all (M5).
+                if model.connection.is_organization:
+                    raise OrganizationConnectionUnavailableError(
+                        slug=model.connection.slug or ""
+                    )
+                return await self._resolve_from_vault(
+                    api_base=api_base,
+                    authorization=authorization,
+                    model=model,
+                    context=context,
+                )
+            raise refusal
+
+        data = response.json()
+        if data is None:
+            data = {}
+
+        # NOT `authorization`. That value reads the vault in plaintext, and this one crosses
+        # into the sandbox, where the gateway's whole premise is that nothing able to reach a
+        # provider key lives there. Exchanged for a gateway-audience credential instead.
+        gateway_credentials_value = await self._gateway_credentials(context)
+
+        # Keep the in-memory/static resolver's list shape as a test/replay compatibility
+        # path. A live API always returns the non-secret ``connection`` object above.
+        if isinstance(data, list):
+            return _resolve_from_secrets(
+                secrets=data,
+                model=model,
+                harness=context.harness,
+                gateway_base_url=self._connection.gateway_base_url(),
+                gateway_credentials_value=gateway_credentials_value,
+            )
+        resolved = data.get("connection") if isinstance(data, dict) else None
+        if not isinstance(resolved, dict):
+            raise ConnectionResolutionError(
+                "connection resolution returned an invalid response"
+            )
+        provider = resolved.get("provider_key")
+        deployment = resolved.get("deployment_kind")
+        namespace = resolved.get("namespace")
+        name = resolved.get("name")
+        resolved_model = resolved.get("model")
+        if not all(
+            isinstance(value, str) and value
+            for value in (provider, deployment, namespace, name, resolved_model)
+        ):
+            raise ConnectionResolutionError(
+                "connection resolution returned incomplete route metadata"
+            )
+        gateway_base_url = self._connection.gateway_base_url()
+        if not gateway_base_url or not gateway_credentials_value:
+            raise ConnectionResolutionError(
+                "no Agenta backend configured for gateway connection resolution"
+            )
+        return build_gateway_resolved_connection(
+            provider=provider,
+            model=resolved_model,
+            deployment=deployment,
+            namespace=namespace,
+            name=name,
+            gateway_base_url=gateway_base_url,
+            gateway_credentials_value=gateway_credentials_value,
+            input_modalities=model_input_modalities(
+                context.harness, resolved_model, provider=provider
+            ),
+            # The gateway names the namespace from the record kind (`gateway_target`):
+            # `custom` is a custom-provider record, `standard` a provider key. The response
+            # carries no management flag, so the Agenta-funded record is known by its slug.
+            custom_connection=(
+                resolved.get("custom_provider") is True
+                if namespace == "organization"
+                else namespace == "custom" and name != STARTER_CREDITS_SLUG
+            ),
+            # An older API sends no `protocol`; any other value is passed on for the runner
+            # to judge, which ignores one it does not know.
+            protocol=resolved.get("protocol")
+            if isinstance(resolved.get("protocol"), str)
+            else None,
+        )
 
 
 class _StaticSecretsResolver:
-    def __init__(self, secrets: Sequence[Any]) -> None:
+    """The offline stand-in for the live ``GET /secrets/`` fetch (self_managed short-circuit,
+    and a recorded-replay test's substitute for the vault). ``gateway_base_url`` /
+    ``gateway_credentials_value`` default to ``None``, which is correct for the self_managed
+    caller (it never reaches the gateway-building branch); a caller resolving an ``agenta``
+    connection offline must supply both, the same as :class:`VaultConnectionResolver` does.
+    """
+
+    def __init__(
+        self,
+        secrets: Sequence[Any],
+        *,
+        gateway_base_url: Optional[str] = None,
+        gateway_credentials_value: Optional[str] = None,
+    ) -> None:
         self._secrets = secrets
+        self._gateway_base_url = gateway_base_url
+        self._gateway_credentials_value = gateway_credentials_value
 
     async def resolve(
         self,
@@ -615,5 +1374,9 @@ class _StaticSecretsResolver:
         context: RuntimeAuthContext,
     ) -> ResolvedConnection:
         return _resolve_from_secrets(
-            secrets=self._secrets, model=model, harness=context.harness
+            secrets=self._secrets,
+            model=model,
+            harness=context.harness,
+            gateway_base_url=self._gateway_base_url,
+            gateway_credentials_value=self._gateway_credentials_value,
         )

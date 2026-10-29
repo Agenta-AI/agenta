@@ -1,0 +1,116 @@
+import {useEffect, useMemo, useRef, useState} from "react"
+
+import {Button} from "@agenta/ui/ui"
+import {useQuery} from "@tanstack/react-query"
+import {useRouter} from "next/router"
+
+import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {HomePageSkeleton} from "@/features/home/states/HomePageSkeleton"
+import {
+    fetchProjects,
+    projectHomeUrl,
+    projectTemplateUrl,
+    readDesktopLastUsed,
+    readLastContext,
+    peekTemplateKey,
+    type LastContext,
+} from "@/lib/context"
+
+import {selectContextTarget} from "./contextTarget"
+import {groupByWorkspace, type WorkspaceGroup} from "./workspaceGroups"
+
+interface ContextResolverProps {
+    /**
+     * Confine resolution to the workspace the URL names (`/w/:workspace_id`, `/w/:id/p`), so
+     * a link into a workspace lands in THAT workspace rather than the remembered one. Omitted
+     * on `/m/` and `/m/w`, which resolve across the whole tree.
+     */
+    workspaceId?: string
+}
+
+/**
+ * `/m/` root flow: resolve a project (remembered → desktop continuity → first) and forward to
+ * its home. There is no picker page — switching lives in the drawer. This route only ever shows
+ * the home skeleton, an error, or leaves.
+ *
+ * Also the body of every `/w/...` index gate, collapsed into one resolver because mobile answers
+ * all of them from the same project list.
+ */
+export const ContextResolver = ({workspaceId}: ContextResolverProps = {}) => {
+    const router = useRouter()
+    // useState initializer: read once, client-only (SSR renders the loading branch).
+    const [stored] = useState<LastContext | null>(() =>
+        typeof window === "undefined" ? null : readLastContext(),
+    )
+
+    // Always fetched (the shared key every screen uses): a stored pair still forwards on the
+    // first render, but once the tree answers we can tell a stale shortcut from a live one.
+    const query = useQuery({
+        queryKey: ["mobile", "projects"],
+        queryFn: () => fetchProjects(),
+        staleTime: 30_000,
+    })
+    const result = query.data
+
+    const groups = useMemo<WorkspaceGroup[]>(
+        () => (result?.kind === "ok" ? groupByWorkspace(result.projects) : []),
+        [result],
+    )
+
+    const target = useMemo<LastContext | null>(
+        () =>
+            selectContextTarget({
+                ready: router.isReady,
+                shortcut: stored,
+                groups,
+                groupsLoaded: result?.kind === "ok",
+                desktopLastUsed: readDesktopLastUsed(),
+                workspaceId,
+            }),
+        [router.isReady, stored, groups, result, workspaceId],
+    )
+
+    // The template key this mount resolves to, read once. The effect below can run more than
+    // once (the remembered project, then the fetched tree, or React's development double run),
+    // and every run must forward to the same place: a later run that read no key sent the user
+    // to the project home, and whichever navigation landed last won.
+    const templateKeyRef = useRef<string | null>(null)
+
+    useEffect(() => {
+        if (!target?.projectId) return
+        // On the URL, or remembered by AuthGate before a sign-in dropped the query.
+        if (templateKeyRef.current === null) {
+            templateKeyRef.current =
+                (typeof router.query.template === "string" ? router.query.template.trim() : "") ||
+                peekTemplateKey()
+        }
+        const templateKey = templateKeyRef.current
+        const next = templateKey ? projectTemplateUrl(target, templateKey) : projectHomeUrl(target)
+        // A gate that forwards to itself would loop; nothing here ever resolves to its own
+        // path, but the guard keeps that true if a route is added under a project home.
+        if (router.asPath.split("?")[0] === next) return
+        void router.replace(next)
+    }, [target])
+
+    // Signed out is not a screen on a phone — the auth page is, and AuthGate routes there
+    // from wherever the user landed (this page redirects away too fast to be that gate).
+
+    if (result?.kind === "error" || (result?.kind === "ok" && groups.length === 0)) {
+        return (
+            <ScreenScaffold>
+                <div className="flex grow flex-col items-center justify-center gap-3 p-6 text-center">
+                    <p className="text-muted-foreground text-xs">
+                        {result?.kind === "ok" ? "No projects found." : "Something went wrong."}
+                    </p>
+                    <Button type="button" variant="outline" onClick={() => void query.refetch()}>
+                        Retry
+                    </Button>
+                </div>
+            </ScreenScaffold>
+        )
+    }
+
+    // Every resolution forwards to a project home, so hold that page's own skeleton: the
+    // arrival is then one continuous frame rather than a line of text the home replaces.
+    return <HomePageSkeleton />
+}

@@ -45,10 +45,12 @@ import "./snapshotAdapter"
 export {workflowMolecule, type WorkflowMolecule, type WorkflowType} from "./state/molecule"
 
 export {
+    agentFlagsQueryOptions,
     deriveWorkflowTypeFromRevision,
-    fetchAndClassifyWorkflows,
-    filterAgentWorkflows,
-    filterNonAgentWorkflows,
+    ensureAgentFlags,
+    selectAgentWorkflows,
+    selectNonAgentWorkflows,
+    withAgentFlags,
 } from "./state/helpers"
 
 // Per-harness capability map from the `/inspect` response `meta` (agent playground picker).
@@ -65,9 +67,39 @@ export {
     type ModelRatings,
 } from "./state/inspectMeta"
 
+// Live runner subscription status for the selected harness (self-managed credentials card).
+export {
+    subscriptionStatusKey,
+    subscriptionStatusQueryAtomFamily,
+    SUBSCRIPTION_STATUS_QUERY_HARNESS,
+    resolveSubscriptionStatus,
+    type SubscriptionStatusDisplay,
+    type SubscriptionStatusTone,
+} from "./state/subscriptionStatus"
+
+export {
+    agentModelCandidatesAtomFamily,
+    builtinModelEndpointsQueryAtom,
+    loadAgentModelCandidates,
+    resolveAgentModelCandidateSources,
+    type AgentModelCandidatesState,
+} from "./state/agentModelCandidates"
+
+export {
+    type SubscriptionStatusResponse,
+    type SubscriptionRunnerState,
+    type SubscriptionHarnessState,
+} from "./api/subscriptionStatus"
+
 export {
     workflowAgentTemplateOverlayAtomFamily,
+    workflowBuildKitUiStateAtomFamily,
+    agentaToolsAccessAtom,
+    workflowBuildKitScopeAtomFamily,
+    migrateBuildKitStateAtom,
     workflowBuildKitEnabledAtomFamily,
+    workflowBuildKitDisabledOpsAtomFamily,
+    type BuildKitUiState,
     workflowBuildKitOverlayReadyAtomFamily,
     type AgentTemplate,
 } from "./state"
@@ -79,7 +111,6 @@ export {
 export {
     // Sub-schemas
     jsonSchemasSchema,
-    type JsonSchemas,
     workflowFlagsSchema,
     type WorkflowFlags,
     workflowDataSchema,
@@ -88,9 +119,6 @@ export {
     workflowSchema,
     workflowSchemas,
     type Workflow,
-    type CreateWorkflow,
-    type UpdateWorkflow,
-    type LocalWorkflow,
     // Variant schema (for 3-level hierarchy)
     workflowVariantSchema,
     type WorkflowVariant,
@@ -117,7 +145,6 @@ export {
     type WorkflowTypeColor,
     // Evaluator-specific utilities (for evaluator-type workflows)
     parseEvaluatorKeyFromUri,
-    buildEvaluatorUri,
     isOnlineCapableEvaluator,
     hasFullPagePlaygroundUX,
     collectEvaluatorCandidates,
@@ -200,6 +227,7 @@ export {
     archiveWorkflowVariant,
     unarchiveWorkflow,
     // Batch
+    fetchWorkflowAgentFlags,
     fetchWorkflowsBatch,
     // Schema
     fetchAgTypeSchema,
@@ -225,6 +253,8 @@ export {
     appWorkflowsListQueryStateAtom,
     promptWorkflowsListQueryStateAtom,
     agentWorkflowsListQueryStateAtom,
+    appWorkflowsAgentFlagsQueryAtom,
+    appWorkflowsWithAgentFlagsAtom,
     // Single workflow artifact by id (current-workflow resolution without listing all)
     workflowDetailQueryAtomFamily,
     // Union atoms (app + evaluator combined)
@@ -252,6 +282,9 @@ export {
     // Mutations
     updateWorkflowDraftAtom,
     discardWorkflowDraftAtom,
+    workflowDraftConsumedAtomFamily,
+    registerWorkflowDraftCallbacks,
+    clearWorkflowDraftCallbacks,
     // Cache invalidation
     invalidateWorkflowsListCache,
     invalidateWorkflowCache,
@@ -274,6 +307,12 @@ export {
     workflowAppTypeAtomFamily,
     workflowLatestRevisionQueryAtomFamily,
     agTypeSchemaAtomFamily,
+    // Agent icon (per-agent glyph + colour, stored on the artifact's tags)
+    agentIconAtomFamily,
+    readAgentIconTag,
+    withAgentIconTag,
+    type AgentIconRecord,
+    type AgentIconSetting,
     readPersistedAgentType,
     // Artifact (workflow-level container — entity display name)
     workflowArtifactQueryAtomFamily,
@@ -299,6 +338,19 @@ export {
     // Create from Ephemeral
     createWorkflowFromEphemeralAtom,
     type WorkflowCreateFromEphemeralParams,
+    loadAgentTemplateFromEphemeralAtom,
+    abandonAgentTemplateLoad,
+    templateConnectionChoices,
+    type LoadAgentTemplateFromEphemeralParams,
+    agentTemplatesQueryAtom,
+    agentTemplatesAtom,
+    agentTemplatesStatusAtom,
+    refetchAgentTemplatesAtom,
+    agentTemplateLookupAtomFamily,
+    type AgentTemplatesStatus,
+    type AgentTemplateLookup,
+    buildCreatePayloadFromEphemeral,
+    type EphemeralCreatePayload,
     archiveWorkflowRevisionAtom,
     type WorkflowArchiveParams,
     type WorkflowArchiveResult,
@@ -328,9 +380,6 @@ export {
     evaluatorsListQueryAtom,
     evaluatorsListDataAtom,
     nonArchivedEvaluatorsAtom,
-    llmEvaluatorsAtom,
-    fullPagePlaygroundEvaluatorsAtom,
-    nonHumanEvaluatorsAtom,
     nonDeterministicEvaluatorsAtom,
     // Lazy enrichment gate (defers the per-evaluator latest-revision fan-out)
     evaluatorEnrichmentActivatedAtom,
@@ -402,9 +451,14 @@ export {
     type EvaluatorCatalogPreset,
     type EvaluatorCatalogPresetsResponse,
     /** @deprecated Use EvaluatorCatalogTemplate */
-    type EvaluatorTemplate,
     /** @deprecated Use EvaluatorCatalogTemplatesResponse */
-    type EvaluatorTemplatesResponse,
+    validateAgentTemplate,
+    scanAgentTemplateSource,
+    type AgentTemplateRepositoryScan,
+    type AgentTemplateSource,
+    type AgentTemplateSourcePin,
+    type AgentTemplateValidationIssue,
+    type AgentTemplateValidationResult,
 } from "./api"
 
 // ============================================================================
@@ -441,3 +495,65 @@ export {
 // ============================================================================
 
 export {workflowSnapshotAdapter} from "./snapshotAdapter"
+
+// ============================================================================
+// AGENT TEMPLATES — the starter catalogue every create surface offers
+// ============================================================================
+
+export {
+    ALL_TEMPLATES_CATEGORY,
+    PROVIDERS,
+    SAVE_AS_TEMPLATE_MESSAGE,
+    SHARE_TEMPLATE_IN_MARKETPLACE_MESSAGE,
+    TEMPLATE_CATEGORY_ORDER,
+    agentTemplateByKey,
+    agentStarterTemplateFromEntry,
+    agentTemplateSeed,
+    categoryFromSlug,
+    categorySlug,
+    composioLogo,
+    templateBuilderMessage,
+    templateCategories,
+    templateConnections,
+    templatePrimaryProvider,
+    templateProviderSlugs,
+    templateToolCount,
+    UNAVAILABLE_TEMPLATE_MESSAGE,
+} from "./agentTemplates"
+export type {
+    AgentStarterTemplate,
+    TemplateConnection,
+    RequiredIntegration,
+    TemplateExampleSession,
+    TemplateTool,
+} from "./agentTemplates"
+
+export {
+    detectAccounts,
+    detectAccountsFromTemplate,
+    detectAccountsFromText,
+    requiredAccounts,
+    suggestionAccounts,
+} from "./detectAccounts"
+export type {DetectedAccount} from "./detectAccounts"
+
+export {
+    appendSetupPreamble,
+    buildSetupPreamble,
+    canCreateAgent,
+    isAccountSatisfied,
+    outstandingRequired,
+    setupStatus,
+    setupStepNeeded,
+} from "./agentSetup"
+export type {AgentSetupSelection, AgentSetupStatus} from "./agentSetup"
+
+export {agentRosterSearchAtom, matchesAgentQuery} from "./state/agentRoster"
+
+export {
+    commitAgentCredentialsAtom,
+    AGENT_CREDENTIALS_CONFLICT_MESSAGE,
+} from "./state/agentCredentials"
+
+export {buildKitDefaultPermission, resolveBuildKitPermissions} from "./buildKitPolicy"
+export {readAgentaTools, writeAgentaTools, type AgentaToolsMap} from "./agentaTools"

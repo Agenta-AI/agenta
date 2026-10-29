@@ -2,10 +2,9 @@
 
 import type * as core from "../../core/index.js";
 import * as errors from "../../errors/index.js";
-import type * as AgentaApi from "../index.js";
 
 export class UnprocessableEntityError extends errors.AgentaApiError {
-    constructor(body: AgentaApi.HttpValidationError, rawResponse?: core.RawResponse) {
+    constructor(body?: unknown, rawResponse?: core.RawResponse) {
         super({
             message: "UnprocessableEntityError",
             statusCode: 422,

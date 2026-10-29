@@ -14,7 +14,7 @@
 
 import {catalogPersister} from "@agenta/shared/api/persist"
 import {atom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
 import {fetchHarnessCapabilities} from "../api"
@@ -66,6 +66,11 @@ export interface HarnessCapabilities {
     model_selection: string
     /** Selectable models per provider family (provider -> list of ids/aliases). */
     models: Record<string, string[]>
+    /**
+     * The subset of `models` a connection starts with when it saved no model list of its own,
+     * per provider family, in this harness's spelling. Absent on an older backend.
+     */
+    default_models?: Record<string, string[]>
     /**
      * The curated per-model catalog (label / description / pricing / ratings), keyed by the same
      * ids as `models`. Published additively next to `models`; the picker prefers it when present

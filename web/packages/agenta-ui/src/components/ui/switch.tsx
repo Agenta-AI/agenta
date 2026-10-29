@@ -7,9 +7,9 @@ import {cn} from "./utils"
 
 /**
  * Switch — a Radix + cva primitive in @agenta/ui, following shadcn's source conventions (no
- * `forwardRef`, `data-slot` on Root AND Thumb). Re-skinned to antd's Switch geometry via the shared control scale
- * (`h-switch`/`w-switch`/`size-switch-thumb`), so nothing here uses raw pixels except the
- * theme-invariant 2px track padding (antd `trackPadding`) and the handle shadow (no token).
+ * `forwardRef`, `data-slot` on Root AND Thumb). Re-skinned to antd's Switch geometry via the shared
+ * control scale (`h-switch`/`w-switch`/`size-switch-thumb`). Dimensions come from tokens; the thumb
+ * TRAVEL is literal px because it must resolve under Tailwind v3 and v4 alike (see the variants).
  *
  * SCOPE: the bare toggle only. antd's `loading` (spinner in the handle) and rich checked/
  * unchecked labels are NOT part of this primitive — compose them if ever needed. No
@@ -41,19 +41,24 @@ const switchVariants = cva(
                 // antd press-stretch (switchHandleActiveInset -30%): on root :active the handle
                 // grows 30% toward the press-opposite side — unchecked grows right (anchor left,
                 // translate stays 0), checked grows left (anchor right, so shrink the travel by
-                // 0.3×thumb). Keyed on the ROOT's :active applied to the thumb (antd's mechanism),
-                // token-pure via theme() (×1.3/×0.3 = antd's -30% constant).
+                // 0.3×thumb). Keyed on the ROOT's :active applied to the thumb (antd's mechanism).
+                // Literal px, not theme()/translate-x-*: v4 (web/mobile) resolves neither, so the
+                // composed transform computed to `none` there. Values track controlScale.ts.
                 default: [
                     "h-switch w-switch",
-                    "active:data-[state=unchecked]:[&_[data-slot=switch-thumb]]:w-[calc(theme(width.switch-thumb)_*_1.3)]",
-                    "active:data-[state=checked]:[&_[data-slot=switch-thumb]]:w-[calc(theme(width.switch-thumb)_*_1.3)]",
-                    "active:data-[state=checked]:[&_[data-slot=switch-thumb]]:translate-x-[calc(theme(width.switch)_-_theme(width.switch-thumb)_-_4px_-_theme(width.switch-thumb)_*_0.3)]",
+                    // 18 × 1.3
+                    "active:data-[state=unchecked]:[&_[data-slot=switch-thumb]]:w-[23.4px]",
+                    "active:data-[state=checked]:[&_[data-slot=switch-thumb]]:w-[23.4px]",
+                    // 44 − 18 − 4 − 18×0.3
+                    "active:data-[state=checked]:[&_[data-slot=switch-thumb]]:[transform:translateX(16.6px)]",
                 ],
                 sm: [
                     "h-switch-sm w-switch-sm",
-                    "active:data-[state=unchecked]:[&_[data-slot=switch-thumb]]:w-[calc(theme(width.switch-thumb-sm)_*_1.3)]",
-                    "active:data-[state=checked]:[&_[data-slot=switch-thumb]]:w-[calc(theme(width.switch-thumb-sm)_*_1.3)]",
-                    "active:data-[state=checked]:[&_[data-slot=switch-thumb]]:translate-x-[calc(theme(width.switch-sm)_-_theme(width.switch-thumb-sm)_-_4px_-_theme(width.switch-thumb-sm)_*_0.3)]",
+                    // 12 × 1.3
+                    "active:data-[state=unchecked]:[&_[data-slot=switch-thumb]]:w-[15.6px]",
+                    "active:data-[state=checked]:[&_[data-slot=switch-thumb]]:w-[15.6px]",
+                    // 28 − 12 − 4 − 12×0.3
+                    "active:data-[state=checked]:[&_[data-slot=switch-thumb]]:[transform:translateX(8.4px)]",
                 ],
             },
         },
@@ -66,15 +71,15 @@ const switchThumbVariants = cva(
         "pointer-events-none block rounded-full bg-white",
         // antd handle shadow (`handleShadow`, theme-invariant) — `switch-handle` bridge token.
         "shadow-switch-handle",
-        "transition-transform data-[state=unchecked]:translate-x-0",
+        "transition-transform data-[state=unchecked]:[transform:translateX(0)]",
     ],
     {
         variants: {
             size: {
                 // travel = trackWidth − thumb − 2×trackPadding(2px) → 44−18−4=22 / 28−12−4=12.
-                default:
-                    "size-switch-thumb data-[state=checked]:translate-x-[calc(theme(width.switch)_-_theme(width.switch-thumb)_-_4px)]",
-                sm: "size-switch-thumb-sm data-[state=checked]:translate-x-[calc(theme(width.switch-sm)_-_theme(width.switch-thumb-sm)_-_4px)]",
+                // Literal px + arbitrary `transform` — see the root variants for why not theme().
+                default: "size-switch-thumb data-[state=checked]:[transform:translateX(22px)]",
+                sm: "size-switch-thumb-sm data-[state=checked]:[transform:translateX(12px)]",
             },
         },
         defaultVariants: {size: "default"},

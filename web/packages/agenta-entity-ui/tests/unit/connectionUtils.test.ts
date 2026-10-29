@@ -16,11 +16,14 @@ import {
     buildModelOptionGroups,
     composeModelValue,
     connectionFromConfig,
+    bareConnectionModelId,
     harnessAllowsModel,
     harnessAllowsProvider,
     harnessSupportsUserMcp,
     isDeploymentProviderKind,
     modelIdFromConfig,
+    modelDisplayName,
+    modelLabel,
     modelSelectionMode,
     providerForModel,
     vaultModelGroups,
@@ -39,6 +42,14 @@ const CAPABILITIES: HarnessCapabilitiesMap = {
             openai: ["gpt-5.5", "gpt-5.4"],
             anthropic: ["anthropic/claude-opus-4-7"],
             gemini: ["gemini/gemini-2.5-pro"],
+        },
+        // The shipped catalog publishes user MCP servers for Pi too: the Agenta Pi extension is
+        // Pi's MCP client and consumes registered gateway routes.
+        mcp: {
+            user_servers: {
+                connection_types: ["http"],
+                credentials: ["none", "header_secret_refs"],
+            },
         },
     },
     claude: {
@@ -90,7 +101,13 @@ describe("connectionUtils: connectionFromConfig", () => {
                 provider: "openai",
                 connection: {mode: "agenta", slug: "openai-prod"},
             }),
-        ).toEqual({provider: "openai", mode: "agenta", slug: "openai-prod"})
+        ).toEqual({
+            provider: "openai",
+            mode: "agenta",
+            slug: "openai-prod",
+            namespace: null,
+            scope: null,
+        })
     })
 
     it("defaults the mode to agenta when the connection block is absent or unknown", () => {
@@ -108,15 +125,80 @@ describe("connectionUtils: connectionFromConfig", () => {
             provider: null,
             mode: "agenta",
             slug: null,
+            namespace: null,
+            scope: null,
         })
     })
 })
 
 describe("connectionUtils: composeModelValue (always a ModelRef)", () => {
+    it("round-trips an organization subscription login with its scope", () => {
+        const stored = {
+            provider: "openai-codex",
+            model: "gpt-5.5",
+            connection: {
+                mode: "self_managed",
+                slug: "chatgpt",
+                scope: "organization",
+                namespace: "organization",
+            },
+        }
+        const fields = connectionFromConfig(stored)
+        expect(
+            composeModelValue({
+                modelId: "gpt-5.5",
+                provider: fields.provider,
+                mode: fields.mode,
+                slug: fields.slug,
+                namespace: fields.namespace,
+                scope: fields.scope,
+                existing: stored,
+            }),
+        ).toEqual(stored)
+    })
+
+    it("writes a built-in pick's namespace beside its slug, and only there", () => {
+        const compose = (mode: "agenta" | "self_managed", slug: string | null) =>
+            composeModelValue({
+                modelId: "gpt-5.5",
+                provider: "openai",
+                mode,
+                slug,
+                namespace: "builtin",
+            })
+        expect(compose("agenta", "agenta").connection).toEqual({
+            mode: "agenta",
+            slug: "agenta",
+            namespace: "builtin",
+        })
+        expect(compose("agenta", null).connection).toBeUndefined()
+        expect(compose("self_managed", "chatgpt").connection).toEqual({
+            mode: "self_managed",
+            slug: "chatgpt",
+        })
+    })
+
     it("returns a structured object even for the default connection (no bare string)", () => {
         expect(
             composeModelValue({modelId: "gpt-5.5", provider: "openai", mode: "agenta", slug: null}),
         ).toEqual({model: "gpt-5.5", provider: "openai"})
+    })
+
+    it("writes an organization pick with its scope and the organization namespace", () => {
+        expect(
+            composeModelValue({
+                modelId: "gpt-5.5",
+                provider: "openai",
+                mode: "agenta",
+                slug: "openai-company",
+                scope: "organization",
+            }).connection,
+        ).toEqual({
+            mode: "agenta",
+            slug: "openai-company",
+            scope: "organization",
+            namespace: "organization",
+        })
     })
 
     it("includes the agenta connection with its slug", () => {
@@ -134,7 +216,7 @@ describe("connectionUtils: composeModelValue (always a ModelRef)", () => {
         })
     })
 
-    it("omits the slug for a self_managed connection", () => {
+    it("writes no slug for a self_managed run that names no record", () => {
         expect(
             composeModelValue({
                 modelId: "opus",
@@ -143,6 +225,23 @@ describe("connectionUtils: composeModelValue (always a ModelRef)", () => {
                 slug: null,
             }),
         ).toEqual({model: "opus", provider: "anthropic", connection: {mode: "self_managed"}})
+    })
+
+    it("writes the slug for a hosted subscription, which is self_managed AND a record", () => {
+        // The resolver selects the stored sign-in by this slug. Without it the run falls back to
+        // whatever login the deployment mounted, which on cloud is none.
+        expect(
+            composeModelValue({
+                modelId: "gpt-5.6-sol",
+                provider: "openai-codex",
+                mode: "self_managed",
+                slug: "chatgpt",
+            }),
+        ).toEqual({
+            model: "gpt-5.6-sol",
+            provider: "openai-codex",
+            connection: {mode: "self_managed", slug: "chatgpt"},
+        })
     })
 
     it("round-trips a structured object through the helpers", () => {
@@ -177,7 +276,9 @@ describe("connectionUtils: composeModelValue (always a ModelRef)", () => {
 describe("connectionUtils: capability gating (inspect-fed)", () => {
     it("shows external MCP authoring only when the harness publishes it", () => {
         expect(harnessSupportsUserMcp(CAPABILITIES, "claude")).toBe(true)
-        expect(harnessSupportsUserMcp(CAPABILITIES, "pi_core")).toBe(false)
+        expect(harnessSupportsUserMcp(CAPABILITIES, "pi_core")).toBe(true)
+        // A harness that publishes no `mcp` block at all still hides the section.
+        expect(harnessSupportsUserMcp(CAPABILITIES, "pi_openai_compat")).toBe(false)
         expect(harnessSupportsUserMcp(null, "claude")).toBe(false)
     })
 
@@ -256,6 +357,171 @@ describe("connectionUtils: harness-filtered model picker", () => {
         expect(harnessAllowsModel(CAPABILITIES, "future-harness", "anything")).toBe(true)
         expect(harnessAllowsModel(CAPABILITIES, "pi_core", null)).toBe(true)
     })
+
+    it("supports custom-provider vault models with non-standard ID shapes when reachable by harness", () => {
+        const secrets = [
+            {
+                name: "my-bedrock",
+                provider: "bedrock",
+                models: ["custom-bedrock-model-id-123"],
+            },
+        ]
+        // claude harness consumes bedrock -> returns true even with non-standard model ID shape
+        expect(
+            harnessAllowsModel(
+                CAPABILITIES,
+                "claude",
+                "custom-bedrock-model-id-123",
+                secrets,
+                "my-bedrock",
+            ),
+        ).toBe(true)
+        // pi_core harness does not consume bedrock -> returns false
+        expect(
+            harnessAllowsModel(
+                CAPABILITIES,
+                "pi_core",
+                "custom-bedrock-model-id-123",
+                secrets,
+                "my-bedrock",
+            ),
+        ).toBe(false)
+        // bogus model id not in secrets or catalog -> returns false
+        expect(
+            harnessAllowsModel(CAPABILITIES, "claude", "bogus-model-id", secrets, "my-bedrock"),
+        ).toBe(false)
+    })
+
+    it("accepts a connection's model_keys, which is what the picker persists", () => {
+        // A credential-set (custom) connection publishes only `model_keys` — the fully qualified
+        // "<name>/<kind>/<model>" spelling the picker saves — while `models` holds bare slugs. A
+        // check against `models` alone reads a valid saved config back as unavailable and paints
+        // the red "Unavailable" badge on a working agent.
+        const secrets = [
+            {
+                name: "Starter credits",
+                slug: "starter-credits",
+                provider: "custom",
+                models: [],
+                modelKeys: ["Starter credits/custom/vertex_ai/gemini-3.6-flash"],
+            },
+        ]
+        expect(
+            harnessAllowsModel(
+                CAPABILITIES,
+                "pi_openai_compat",
+                "Starter credits/custom/vertex_ai/gemini-3.6-flash",
+                secrets,
+                "starter-credits",
+            ),
+        ).toBe(true)
+        // A key that connection does not publish is still unreachable.
+        expect(
+            harnessAllowsModel(
+                CAPABILITIES,
+                "pi_openai_compat",
+                "someone-else/custom/x",
+                secrets,
+                "starter-credits",
+            ),
+        ).toBe(false)
+    })
+
+    it("requires a specific vault connection to explicitly support a model when slug is provided, skipping generic catalog checks (name collision)", () => {
+        const secrets = [{name: "my-custom-conn", provider: "bedrock", models: ["other-model"]}]
+        // "opus" is in the claude catalog.
+        // A generic check (no slug) for "opus" returns true.
+        expect(harnessAllowsModel(CAPABILITIES, "claude", "opus")).toBe(true)
+
+        // But if we specifically ask whether "my-custom-conn" (which only supports "other-model")
+        // allows "opus", it must return false, not falling back to the catalog.
+        expect(harnessAllowsModel(CAPABILITIES, "claude", "opus", secrets, "my-custom-conn")).toBe(
+            false,
+        )
+
+        // And it should return true for the model it actually supports
+        expect(
+            harnessAllowsModel(CAPABILITIES, "claude", "other-model", secrets, "my-custom-conn"),
+        ).toBe(true)
+    })
+
+    it("matches a slugged record on its stored slug, and a legacy one on its name", () => {
+        // What the picker persists is the record's slug when it has one, so that is what the
+        // reachability check has to match on; a record predating slugs is still found by name.
+        const slugged = [
+            {
+                slug: "my-bedrock-a1b2c3",
+                name: "My Bedrock",
+                provider: "bedrock",
+                models: ["custom-bedrock-model-id-123"],
+            },
+        ]
+        expect(
+            harnessAllowsModel(
+                CAPABILITIES,
+                "claude",
+                "custom-bedrock-model-id-123",
+                slugged,
+                "my-bedrock-a1b2c3",
+            ),
+        ).toBe(true)
+        // The display name is not the identity once a slug is stored.
+        expect(
+            harnessAllowsModel(
+                CAPABILITIES,
+                "claude",
+                "custom-bedrock-model-id-123",
+                slugged,
+                "My Bedrock",
+            ),
+        ).toBe(false)
+
+        const legacy = [
+            {name: "my-bedrock", provider: "bedrock", models: ["custom-bedrock-model-id-123"]},
+        ]
+        expect(
+            harnessAllowsModel(
+                CAPABILITIES,
+                "claude",
+                "custom-bedrock-model-id-123",
+                legacy,
+                "my-bedrock",
+            ),
+        ).toBe(true)
+    })
+
+    it("selectedKeepsModel regression: vault model flagged unavailable without secrets, available with them", () => {
+        // Reproduces the false 'model not available' badge: the selectedKeepsModel derivation in
+        // useModelHarness called harnessAllowsModel WITHOUT customSecrets or slug. The function is
+        // correct — the call site was wrong. This test locks that in.
+        const secrets = [
+            {name: "my-bedrock", provider: "bedrock", models: ["custom-bedrock-model-id-123"]},
+        ]
+        // Old call (no secrets) — returns false → badge wrongly showed "model not available"
+        expect(harnessAllowsModel(CAPABILITIES, "claude", "custom-bedrock-model-id-123")).toBe(
+            false,
+        )
+        // Fixed call (secrets + slug threaded through) — returns true → badge shows "supports your model"
+        expect(
+            harnessAllowsModel(
+                CAPABILITIES,
+                "claude",
+                "custom-bedrock-model-id-123",
+                secrets,
+                "my-bedrock",
+            ),
+        ).toBe(true)
+        // Slug mismatch → still false (the credential is for a different connection)
+        expect(
+            harnessAllowsModel(
+                CAPABILITIES,
+                "claude",
+                "custom-bedrock-model-id-123",
+                secrets,
+                "other-connection",
+            ),
+        ).toBe(false)
+    })
 })
 
 describe("connectionUtils: model_catalog is preferred when published", () => {
@@ -266,8 +532,21 @@ describe("connectionUtils: model_catalog is preferred when published", () => {
             deployments: ["direct"],
             connection_modes: ["agenta", "self_managed"],
             model_selection: "provider/id",
-            models: {openai: ["gpt-5.5"], anthropic: ["anthropic/claude-opus-4-7"]},
+            models: {
+                openai: ["gpt-5.5"],
+                anthropic: ["anthropic/claude-opus-4-7"],
+                gemini: ["gemini/gemini-3.6-flash"],
+            },
             model_catalog: [
+                // The shape the seeded connection's model needs to carry to read as a name. The
+                // backend publishes this catalog (SDK `capabilities.py`); the frontend only
+                // displays it, so this entry is what the display path is pinned against.
+                {
+                    id: "gemini/gemini-3.6-flash",
+                    provider: "gemini",
+                    source: "pi_generated",
+                    name: "Gemini 3.6 Flash",
+                },
                 {
                     id: "openai/gpt-5.5",
                     provider: "openai",
@@ -299,6 +578,89 @@ describe("connectionUtils: model_catalog is preferred when published", () => {
         expect(anthropic.options[0]).toMatchObject({
             label: "Fable",
             value: "anthropic/claude-fable-5",
+        })
+    })
+
+    describe("modelLabel", () => {
+        it("names a BARE stored id from a family-prefixed catalog entry", () => {
+            // The pill's bug: Pi publishes `anthropic/claude-fable-5`, the config stores the bare
+            // id, and an exact compare missed — so the pill read the raw id instead of "Fable".
+            expect(modelLabel(WITH_CATALOG, "pi_core", "claude-fable-5")).toBe("Fable")
+        })
+
+        it("still names the id spelled exactly as the catalog lists it", () => {
+            expect(modelLabel(WITH_CATALOG, "pi_core", "anthropic/claude-fable-5")).toBe("Fable")
+        })
+
+        it("falls back to `name` when the entry curates no label", () => {
+            expect(modelLabel(WITH_CATALOG, "pi_core", "gpt-5.5")).toBe("GPT-5.5")
+            expect(modelLabel(WITH_CATALOG, "pi_core", "openai/gpt-5.5")).toBe("GPT-5.5")
+        })
+
+        it("names nothing for a model the catalog does not carry", () => {
+            // The uncataloged case the picker labels with the user's own saved spelling.
+            expect(modelLabel(WITH_CATALOG, "pi_core", "deepseek/deepseek-v4:nitro")).toBeNull()
+            expect(modelLabel(WITH_CATALOG, "pi_core", null)).toBeNull()
+        })
+    })
+
+    describe("bareConnectionModelId / modelDisplayName", () => {
+        it("strips a connection model key down to the model's own id", () => {
+            // What a credential-set connection stores: "<connection>/<deployment>/<id>", and the
+            // id can carry the deployment's own prefix too.
+            expect(bareConnectionModelId("Agenta/custom/vertex_ai/gemini-3.6-flash")).toBe(
+                "gemini-3.6-flash",
+            )
+            expect(bareConnectionModelId("Starter credits/custom/gpt-oss")).toBe("gpt-oss")
+        })
+
+        it("leaves anything that is not a connection model key alone", () => {
+            // A family-prefixed id is two segments and must survive: stripping it would break
+            // every catalog lookup that matches on the family prefix.
+            expect(bareConnectionModelId("anthropic/claude-fable-5")).toBe(
+                "anthropic/claude-fable-5",
+            )
+            expect(bareConnectionModelId("gpt-5.5")).toBe("gpt-5.5")
+            expect(bareConnectionModelId("eu.anthropic.claude-haiku-4-5")).toBe(
+                "eu.anthropic.claude-haiku-4-5",
+            )
+            // Second segment is a provider family, not a deployment — not a key.
+            expect(bareConnectionModelId("some/openai/thing")).toBe("some/openai/thing")
+        })
+
+        it("names a connection model key by the catalog's curated name", () => {
+            // The user-visible fix: the Model row and the picker read "GPT-5.5", never the key.
+            expect(modelDisplayName(WITH_CATALOG, "pi_core", "Agenta/custom/openai/gpt-5.5")).toBe(
+                "GPT-5.5",
+            )
+        })
+
+        it("names the seeded connection's model from the catalog, prefix and all", () => {
+            // The exact key a provisioned connection stores, with the deployment's own prefix on
+            // the tail. Once the backend catalog carries the model, the row reads its name with no
+            // frontend change — that is the whole contract this pins.
+            expect(
+                modelDisplayName(
+                    WITH_CATALOG,
+                    "pi_core",
+                    "Agenta/custom/vertex_ai/gemini-3.6-flash",
+                ),
+            ).toBe("Gemini 3.6 Flash")
+        })
+
+        it("falls back to the bare id, never to a guessed prettification", () => {
+            // A model the catalog does not carry: shown exactly as stored, minus the namespace.
+            expect(
+                modelDisplayName(WITH_CATALOG, "pi_core", "Agenta/custom/vertex_ai/gemini-4-ultra"),
+            ).toBe("gemini-4-ultra")
+        })
+
+        it("still names an ordinary catalogued id, and returns the id for an unknown one", () => {
+            expect(modelDisplayName(WITH_CATALOG, "pi_core", "claude-fable-5")).toBe("Fable")
+            expect(modelDisplayName(WITH_CATALOG, "pi_core", "deepseek/deepseek-v4:nitro")).toBe(
+                "deepseek/deepseek-v4:nitro",
+            )
+            expect(modelDisplayName(WITH_CATALOG, "pi_core", null)).toBe("")
         })
     })
 
@@ -477,6 +839,36 @@ describe("connectionUtils: vaultModelGroups (custom_provider connections)", () =
         ).toHaveLength(1)
     })
 
+    it("stamps the stored slug, not the display name, when the record carries one", () => {
+        // Records created since the vault slice carry a real slug, and the picker persists it —
+        // so the group's option metadata must name the slug the resolver matches on.
+        expect(
+            vaultModelGroups(
+                [
+                    {
+                        slug: "my-bedrock-a1b2c3",
+                        name: "My Bedrock",
+                        provider: "bedrock",
+                        models: ["eu.anthropic.claude-haiku-4-5"],
+                    },
+                ],
+                CAPABILITIES,
+                "claude",
+            ),
+        ).toEqual([
+            {
+                label: "My Bedrock",
+                options: [
+                    {
+                        label: "eu.anthropic.claude-haiku-4-5",
+                        value: "eu.anthropic.claude-haiku-4-5",
+                        metadata: {connectionSlug: "my-bedrock-a1b2c3", provider: "bedrock"},
+                    },
+                ],
+            },
+        ])
+    })
+
     it("regression: a non-custom deployment connection to Claude is unchanged by the custom gate", () => {
         // Claude consumes bedrock; the new openai-family check must NOT touch non-custom kinds.
         expect(
@@ -530,9 +922,27 @@ describe("connectionUtils: vaultPickedProviderFamily (F1 — vault pick must per
 
     it("never falls back to a deployment kind as the provider (not itself a model family)", () => {
         // No vendor-prefixed id AND the connection's own kind is a deployment surface: there is no
-        // safe family to derive, so the caller (useModelHarness.writeModel) falls back further to
-        // the prior provider rather than persisting an invalid one.
+        // safe family to derive from these two alone, so the caller must write NO provider rather
+        // than an invalid one (a deployment kind fails the server's harness/provider check).
         expect(vaultPickedProviderFamily("my-model-1", "bedrock", CAPABILITIES)).toBeNull()
+    })
+
+    it("resolves a deployment kind's family from the driving harness when it reaches only one", () => {
+        // The live bug: a Bedrock connection under Claude Code, whose model id names only the model
+        // ("claude-3-sonnet-20240229-v1:0"). Bedrock hosts many vendors, but Claude Code reaches
+        // exactly one family, so the answer is not a guess — and it is the pair the server accepts.
+        expect(
+            vaultPickedProviderFamily(
+                "claude-3-sonnet-20240229-v1:0",
+                "bedrock",
+                CAPABILITIES,
+                "claude",
+            ),
+        ).toBe("anthropic")
+        // A harness reaching several families leaves it undecidable — still null, never a guess.
+        expect(
+            vaultPickedProviderFamily("some-opaque-id", "bedrock", CAPABILITIES, "pi_core"),
+        ).toBeNull()
     })
 
     it("returns null when neither the id nor the metadata provider resolve a family", () => {
@@ -544,27 +954,30 @@ describe("connectionUtils: vaultPickedProviderFamily (F1 — vault pick must per
         expect(vaultPickedProviderFamily(null, "openai", CAPABILITIES)).toBe("openai")
     })
 
-    it("defaults an OpenAI-compatible (custom) connection with a bare model id to openai", () => {
-        // The `custom` kind is a deployment surface (not itself a family), but the OpenAI-compatible
-        // endpoint speaks the OpenAI dialect — so a provider-less pick resolves to openai instead of
-        // deferring to the caller's prior-provider fallback (design Decision 8).
-        expect(vaultPickedProviderFamily("gpt-oss", "custom", CAPABILITIES)).toBe("openai")
-        expect(vaultPickedProviderFamily("qwen2.5-coder:7b", "custom", CAPABILITIES)).toBe("openai")
+    it("writes NO provider for an OpenAI-compatible (custom) connection", () => {
+        // A named custom connection routes by slug alone. Its models are stored as `model_keys`
+        // ("<name>/custom/<model>") and the resolver matches them against
+        // `ModelRef.to_model_string()`, which a written provider turns into "<provider>/<key>" —
+        // matching no key, so the raw id reaches the endpoint. The resolver supplies the family
+        // itself (`resolved_provider` normalizes a provider-less custom connection to openai).
+        expect(vaultPickedProviderFamily("gpt-oss", "custom", CAPABILITIES)).toBeNull()
+        expect(vaultPickedProviderFamily("qwen2.5-coder:7b", "custom", CAPABILITIES)).toBeNull()
     })
 
-    it("still prefers an explicit id-encoded family over the custom openai default", () => {
-        // If the id itself encodes a known family, that wins even for a custom connection.
+    it("writes no provider for a custom connection even when the id encodes a family", () => {
+        // The prefix would break the model_keys match just the same, and "anthropic/" is not a
+        // route the OpenAI-compatible endpoint understands.
         expect(
             vaultPickedProviderFamily("eu.anthropic.claude-haiku-4-5", "custom", CAPABILITIES),
-        ).toBe("anthropic")
+        ).toBeNull()
     })
 })
 
-describe("connectionUtils: custom pick persists openai family AND keeps the connection slug", () => {
+describe("connectionUtils: a custom pick keeps the slug and omits the provider", () => {
     // Mirrors what `useModelHarness.writeModel` composes for a picked OpenAI-compatible option: the
-    // resolved family (openai, from vaultPickedProviderFamily) plus the option's own connection slug
-    // (threaded through `metadata.connectionSlug`). Neither may be dropped.
-    it("composes a ModelRef with provider openai and the preserved agenta slug", () => {
+    // option's own connection slug (threaded through `metadata.connectionSlug`) is the whole
+    // routing identity, and no provider rides along to prefix the model id.
+    it("composes a ModelRef with the agenta slug and no provider key", () => {
         const provider = vaultPickedProviderFamily("gpt-oss", "custom", CAPABILITIES)
         const ref = composeModelValue({
             modelId: "gpt-oss",
@@ -574,8 +987,8 @@ describe("connectionUtils: custom pick persists openai family AND keeps the conn
         })
         expect(ref).toEqual({
             model: "gpt-oss",
-            provider: "openai",
             connection: {mode: "agenta", slug: "my-gateway"},
         })
+        expect(ref).not.toHaveProperty("provider")
     })
 })

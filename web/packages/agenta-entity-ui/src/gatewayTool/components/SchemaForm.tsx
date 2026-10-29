@@ -8,7 +8,7 @@ import {
     useState,
 } from "react"
 
-import {cronToBuilder, describeBuilder} from "@agenta/entities/gatewayTrigger"
+import {cronToBuilder, summarizeSchedule} from "@agenta/entities/gatewayTrigger"
 import {buildFormFieldsFromSchema, type FormFieldDescriptor} from "@agenta/shared/utils"
 import {Editor} from "@agenta/ui/editor"
 import {
@@ -16,22 +16,32 @@ import {
     AccordionContent,
     AccordionItem,
     AccordionTrigger,
+    AutosizeTextarea,
     Button,
     Input,
     InputNumber,
-    Textarea,
+    TimePicker,
 } from "@agenta/ui/ui"
-import {CaretLeft, CaretRight, Check, MinusCircle, Plus} from "@phosphor-icons/react"
-// DELIBERATE RESIDUE — antd `Form` stays as the state engine (registration, rules,
+import {
+    CaretLeft,
+    CaretRight,
+    Check,
+    MinusCircle,
+    Plus,
+    SlidersHorizontal,
+} from "@phosphor-icons/react"
+// DELIBERATE RESIDUE — rc-form stays as the state engine (registration, rules,
 // validateFields, useWatch). The `form: FormInstance` prop is cross-package public API:
-// web/oss ElicitationWidget drives it with `Form.useWatch`/`validateFields`/`setFieldsValue`,
-// and gatewayTrigger's SubscriptionForm prefills it via `setFieldsValue`. Removing the engine
-// here would break those hosts; it needs its own coordinated chunk that owns them.
-import {Form} from "antd"
-import type {FormInstance} from "antd"
+// hosts create it via gatewayTrigger's `useSchemaFormInstance` (automation-ui's
+// EventPickerPanel). Removing the engine here would break those hosts; it needs its own
+// coordinated chunk that owns them.
+import Form, {List, useForm, useWatch} from "@rc-component/form"
+import type {FormInstance} from "@rc-component/form"
 
+import {HelpTip} from "../../drawers/shared/HelpTip"
 import {ScheduleBuilderField} from "../../gatewayTrigger/drawers/ScheduleBuilderField"
 
+import {FormItem} from "./FormItem"
 import {
     ChipsInput,
     Chip,
@@ -74,8 +84,6 @@ export interface StepInfo {
 
 export interface SchemaFormHandle {
     getValues: () => Promise<Record<string, unknown>>
-    /** Current values, raw and unvalidated (e.g. for copy-to-clipboard). */
-    getRawValues: () => Record<string, unknown>
     /** Stepper mode: jump to the step holding this field (e.g. after a validation failure). */
     goToField?: (name: string | (string | number)[]) => void
     /** Stepper mode: advance one step (into review at the end); no-op otherwise. */
@@ -90,6 +98,12 @@ interface Props {
     form?: FormInstance
     disabled?: boolean
     jsonMode?: boolean
+    /**
+     * What the optional-fields collapse calls itself, given the count. Defaults to
+     * "Optional (N)" — a host whose optional fields are something more specific than "fields"
+     * (event filters, say) passes its own wording.
+     */
+    optionalLabel?: (count: number) => string
     /** Render optional fields inline instead of behind an "Optional (N)" collapse. */
     flat?: boolean
     /** Opt-in `format` handling (date/date-time/multiline/email/uri) — see BuildFormFieldsOptions. */
@@ -112,6 +126,7 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
             disabled,
             jsonMode,
             flat,
+            optionalLabel,
             formats,
             openEnums,
             onValuesChange,
@@ -120,7 +135,7 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
         },
         ref,
     ) => {
-        const [form] = Form.useForm(formProp)
+        const [form] = useForm(formProp)
         const fields = useMemo(
             () =>
                 buildFormFieldsFromSchema(schema, "", {
@@ -162,7 +177,7 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                 pickable: stepperOn && !!current && wantsChoiceCards(current),
             })
         }, [step, fields, onReview, stepperOn, onStepChange])
-        Form.useWatch([], form) // review rows re-render as answers change
+        useWatch([], form) // review rows re-render as answers change
         const optionalFields = useMemo(() => fields.filter((f) => !f.required), [fields])
 
         // JSON editor state
@@ -218,7 +233,6 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                         return cleanFormValues(values)
                     }
                 },
-                getRawValues: () => form.getFieldsValue(true) as Record<string, unknown>,
                 goToField: (name) => {
                     const flatName = Array.isArray(name) ? name.join(".") : name
                     const i = fields.findIndex((f) => f.name === flatName)
@@ -261,17 +275,10 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
         return (
             <Form
                 form={form}
-                layout="vertical"
-                disabled={disabled}
-                requiredMark={false}
                 // Raw values on purpose: cleanFormValues would recurse into (and destroy) dayjs
                 // objects and JSON.parse typed strings — wrong for a draft snapshot.
                 onValuesChange={onValuesChange ? (_, all) => onValuesChange(all) : undefined}
-                className={
-                    flat
-                        ? "[&_.ant-form-item]:!mb-3 [&_.ant-form-item-label]:!pb-1 [&_.ant-form-item-label>label]:!h-auto [&_.ant-form-item-label>label]:!text-xs"
-                        : "[&_.ant-form-item]:!mb-3"
-                }
+                component={false}
             >
                 {/* No Enter-advance in the stepper: in chat, Enter means "send" (the composer
                     says ↵ Send) — overloading it to page a form is a conflicting affordance. */}
@@ -339,7 +346,7 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                 {!onReview && !fields[step].required && (
                                     <Button
                                         variant="ghost"
-                                        className="h-6 px-1.5 text-[11px] opacity-60"
+                                        className="h-6 px-1.5 text-xs opacity-60"
                                         onClick={() => {
                                             // Skip = no answer: clear the field (incl. a schema
                                             // default the user didn't endorse). setFieldValue
@@ -366,7 +373,7 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                 >
                                     <CaretLeft size={12} />
                                 </Button>
-                                <span className="text-[11px] tabular-nums text-colorTextDescription">
+                                <span className="text-xs tabular-nums text-colorTextDescription">
                                     {`${Math.min(step + 1, fields.length)}/${fields.length}`}
                                 </span>
                                 <Button
@@ -433,7 +440,10 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                         )}
                     </div>
                 ) : (
-                    <>
+                    // The fields are siblings with no chrome between them, so the column has to
+                    // own the rhythm: without it a label sat directly under the control above it
+                    // and the stack read as one run-on field.
+                    <div className="flex flex-col gap-4">
                         {requiredFields.map((field) => (
                             <SchemaFormField key={field.name} field={field} disabled={disabled} />
                         ))}
@@ -449,11 +459,27 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                   />
                               ))
                             : optionalFields.length > 0 && (
-                                  <Accordion type="multiple" variant="ghost" className="-mx-4 mt-1">
+                                  <Accordion type="multiple" variant="ghost" className="-mx-4">
                                       <AccordionItem value="optional">
-                                          <AccordionTrigger className="py-2 text-xs">
+                                          {/* Caret at the end, so the row reads label-first like
+                                              every other heading in this form. The sliders name
+                                              what is behind it: extras that tune the event, not
+                                              more of the fields above. */}
+                                          <AccordionTrigger
+                                              caret="end"
+                                              className="items-center gap-1.5 py-2 text-xs"
+                                          >
+                                              <span className="flex h-[22px] shrink-0 items-center">
+                                                  <SlidersHorizontal
+                                                      aria-hidden
+                                                      size={13}
+                                                      className="text-colorTextDescription"
+                                                  />
+                                              </span>
                                               <span className="text-xs text-colorTextDescription">
-                                                  Optional ({optionalFields.length})
+                                                  {optionalLabel
+                                                      ? optionalLabel(optionalFields.length)
+                                                      : `Optional (${optionalFields.length})`}
                                               </span>
                                           </AccordionTrigger>
                                           {/* forceMount: collapsed fields must stay registered
@@ -463,18 +489,20 @@ const SchemaForm = forwardRef<SchemaFormHandle, Props>(
                                               forceMount
                                               className="data-[state=closed]:hidden"
                                           >
-                                              {optionalFields.map((field) => (
-                                                  <SchemaFormField
-                                                      key={field.name}
-                                                      field={field}
-                                                      disabled={disabled}
-                                                  />
-                                              ))}
+                                              <div className="flex flex-col gap-4">
+                                                  {optionalFields.map((field) => (
+                                                      <SchemaFormField
+                                                          key={field.name}
+                                                          field={field}
+                                                          disabled={disabled}
+                                                      />
+                                                  ))}
+                                              </div>
                                           </AccordionContent>
                                       </AccordionItem>
                                   </Accordion>
                               )}
-                    </>
+                    </div>
                 )}
             </Form>
         )
@@ -526,19 +554,24 @@ function cleanFormValues(values: Record<string, unknown>): Record<string, unknow
 // Field components
 // ---------------------------------------------------------------------------
 
+/** Inline message under an empty required field. */
+const REQUIRED_MESSAGE = "Needed before this can run"
+
+/**
+ * A field's label, with its description behind an info icon. Provider schemas ship descriptions
+ * that run to several sentences (Gmail's `label_ids` enumerates eleven label constants); rendering
+ * them inline buried every control under a paragraph it only needed to read once.
+ */
 function FieldLabel({field}: {field: FormFieldDescriptor}) {
     return (
-        <div className="flex flex-col leading-tight">
-            <span>
-                {field.label}
-                {field.required && <span className="text-red-500 ml-1">*</span>}
-            </span>
-            {field.description && (
-                <span className="text-[11px] font-normal leading-snug text-colorTextDescription">
-                    {field.description}
-                </span>
-            )}
-        </div>
+        <span className="inline-flex items-center gap-1 text-[13px] font-medium leading-tight">
+            <span>{field.label}</span>
+            {/* No "Required" marker on the label: every field in these schemas is either needed
+                or plainly optional under its own heading, and the word repeated down a column
+                read as an error state on a form nobody had filled in yet. The requirement is
+                still enforced, and REQUIRED_MESSAGE says so at the point it is broken. */}
+            {field.description && <HelpTip label={field.label}>{field.description}</HelpTip>}
+        </span>
     )
 }
 
@@ -694,7 +727,7 @@ const choiceCardCls = (selected: boolean) =>
 const DigitBadge = ({digit}: {digit: number}) => (
     <span
         aria-hidden
-        className="ml-auto flex shrink-0 items-center self-stretch pl-3 text-[11px] leading-none text-colorTextTertiary"
+        className="ml-auto flex shrink-0 items-center self-stretch pl-3 text-xs leading-none text-colorTextTertiary"
     >
         {digit}
     </span>
@@ -847,7 +880,7 @@ function ChoiceCards({
                     <div className="flex min-w-0 flex-col">
                         <span className="text-xs font-medium">{o.label ?? o.value}</span>
                         {o.description && (
-                            <span className="text-[11px] leading-snug text-colorTextDescription">
+                            <span className="text-xs leading-snug text-colorTextDescription">
                                 {o.description}
                             </span>
                         )}
@@ -941,7 +974,7 @@ export function formatReviewValue(field: FormFieldDescriptor, value: unknown): s
     if (value === undefined || value === null || value === "") return "—"
     if (field.format === "cron" && typeof value === "string") {
         try {
-            return describeBuilder(cronToBuilder(value).state)
+            return summarizeSchedule(cronToBuilder(value).state)
         } catch {
             return value
         }
@@ -970,7 +1003,7 @@ function SchemaFormField({
     /** Threaded explicitly — the replaced leaves don't read antd's Form disabled context. */
     disabled?: boolean
 }) {
-    const rules = field.required ? [{required: true, message: `${field.label} is required`}] : []
+    const rules = field.required ? [{required: true, message: REQUIRED_MESSAGE}] : []
     const label = hideLabel ? undefined : <FieldLabel field={field} />
 
     // Object with nested children → render in a collapsible section
@@ -1014,7 +1047,7 @@ function SchemaFormField({
     // Free-form object or array → JSON editor
     if ((field.type === "object" || field.type === "array") && field.freeform) {
         return (
-            <Form.Item
+            <FormItem
                 name={field.name.split(".")}
                 label={label}
                 rules={[
@@ -1035,7 +1068,7 @@ function SchemaFormField({
                     disabled={disabled}
                     placeholder={field.type === "object" ? '{"key": "value"}' : '[{"item": 1}]'}
                 />
-            </Form.Item>
+            </FormItem>
         )
     }
 
@@ -1043,7 +1076,7 @@ function SchemaFormField({
     // upgraded to checkbox choice cards when the options carry descriptions.
     if (field.type === "array" && field.multiple) {
         return (
-            <Form.Item
+            <FormItem
                 name={field.name.split(".")}
                 label={label}
                 rules={rules}
@@ -1058,7 +1091,7 @@ function SchemaFormField({
                         disabled={disabled}
                     />
                 )}
-            </Form.Item>
+            </FormItem>
         )
     }
 
@@ -1078,31 +1111,31 @@ function SchemaFormField({
     switch (field.type) {
         case "boolean":
             return (
-                <Form.Item
+                <FormItem
                     name={field.name.split(".")}
                     label={label}
                     valuePropName="checked"
                     initialValue={field.default ?? false}
                 >
                     <FormSwitch size="sm" disabled={disabled} />
-                </Form.Item>
+                </FormItem>
             )
 
         case "number":
             return (
-                <Form.Item
+                <FormItem
                     name={field.name.split(".")}
                     label={label}
                     rules={rules}
                     initialValue={field.default}
                 >
                     <InputNumber className="w-full" placeholder={field.label} disabled={disabled} />
-                </Form.Item>
+                </FormItem>
             )
 
         case "enum":
             return (
-                <Form.Item
+                <FormItem
                     name={field.name.split(".")}
                     label={label}
                     rules={rules}
@@ -1129,7 +1162,7 @@ function SchemaFormField({
                             options={(field.enumValues ?? []).map((v) => ({value: v, label: v}))}
                         />
                     )}
-                </Form.Item>
+                </FormItem>
             )
 
         default:
@@ -1138,42 +1171,59 @@ function SchemaFormField({
                 // Seed the displayed schedule as the value — the builder has no empty state,
                 // so an unseeded required field would look answered while Accept stays disabled.
                 return (
-                    <Form.Item
+                    <FormItem
                         name={field.name.split(".")}
                         label={label}
                         rules={rules}
                         initialValue={cronInitialValue(field.default)}
                     >
                         <CronField />
-                    </Form.Item>
+                    </FormItem>
+                )
+            }
+            if (field.format === "time") {
+                return (
+                    <FormItem
+                        name={field.name.split(".")}
+                        label={label}
+                        rules={rules}
+                        initialValue={field.default}
+                    >
+                        <TimePicker disabled={disabled} />
+                    </FormItem>
                 )
             }
             if (field.format === "date" || field.format === "date-time") {
                 // No initialValue: a wire default is an ISO STRING and the control emits dayjs —
                 // date fields render empty; other types prefill.
                 return (
-                    <Form.Item name={field.name.split(".")} label={label} rules={rules}>
+                    <FormItem name={field.name.split(".")} label={label} rules={rules}>
                         <DateTimeInput
                             showTime={field.format === "date-time"}
                             disabled={disabled}
                         />
-                    </Form.Item>
+                    </FormItem>
                 )
             }
             if (field.format === "multiline") {
                 return (
-                    <Form.Item
+                    <FormItem
                         name={field.name.split(".")}
                         label={label}
                         rules={rules}
                         initialValue={field.default}
                     >
-                        <Textarea rows={3} placeholder={field.label} disabled={disabled} />
-                    </Form.Item>
+                        {/* Autosize owns the height, so there is no grabber to drag off the card. */}
+                        <AutosizeTextarea
+                            autoSize={{minRows: 3, maxRows: 20}}
+                            placeholder={field.label}
+                            disabled={disabled}
+                        />
+                    </FormItem>
                 )
             }
             return (
-                <Form.Item
+                <FormItem
                     name={field.name.split(".")}
                     label={label}
                     rules={[
@@ -1184,7 +1234,7 @@ function SchemaFormField({
                     initialValue={field.default}
                 >
                     <Input placeholder={field.label} disabled={disabled} />
-                </Form.Item>
+                </FormItem>
             )
     }
 }
@@ -1220,7 +1270,7 @@ function ArrayField({
                             {field.required && <span className="text-red-500 ml-1">*</span>}
                         </span>
                         {field.description && (
-                            <span className="text-[11px] font-normal leading-snug text-colorTextDescription">
+                            <span className="text-xs font-normal leading-snug text-colorTextDescription">
                                 {field.description}
                             </span>
                         )}
@@ -1228,7 +1278,7 @@ function ArrayField({
                 </div>
             )}
 
-            <Form.List
+            <List
                 name={namePath}
                 rules={
                     rules.length > 0
@@ -1252,23 +1302,18 @@ function ArrayField({
                             </span>
                         )}
 
-                        {fields.map(({key, name, ...restField}) =>
+                        {fields.map(({key, name}) =>
                             hasObjectItems ? (
                                 <ArrayObjectItem
                                     key={key}
                                     name={name}
-                                    restField={restField}
                                     itemChildren={field.itemChildren!}
                                     onRemove={() => remove(name)}
                                     disabled={disabled}
                                 />
                             ) : (
                                 <div key={key} className="flex items-start gap-2">
-                                    <Form.Item
-                                        {...restField}
-                                        name={[name]}
-                                        className="!mb-0 flex-1"
-                                    >
+                                    <FormItem name={[name]} className="!mb-0 flex-1">
                                         {primitiveItemType === "number" ||
                                         primitiveItemType === "integer" ? (
                                             <InputNumber
@@ -1282,7 +1327,7 @@ function ArrayField({
                                                 disabled={disabled}
                                             />
                                         )}
-                                    </Form.Item>
+                                    </FormItem>
                                     <Button
                                         variant="ghost"
                                         size="icon"
@@ -1309,7 +1354,7 @@ function ArrayField({
                         </Button>
                     </div>
                 )}
-            </Form.List>
+            </List>
         </div>
     )
 }
@@ -1320,13 +1365,11 @@ function ArrayField({
 
 function ArrayObjectItem({
     name,
-    restField,
     itemChildren,
     onRemove,
     disabled,
 }: {
     name: number
-    restField: {fieldKey?: number}
     itemChildren: FormFieldDescriptor[]
     onRemove: () => void
     disabled?: boolean
@@ -1360,7 +1403,7 @@ function ArrayObjectItem({
                 <AccordionContent forceMount className="data-[state=closed]:hidden">
                     {itemChildren.map((child) => {
                         const childRules = child.required
-                            ? [{required: true, message: `${child.label} is required`}]
+                            ? [{required: true, message: REQUIRED_MESSAGE}]
                             : []
                         const childLabel = <FieldLabel field={child} />
 
@@ -1386,9 +1429,8 @@ function ArrayObjectItem({
                                             className="data-[state=closed]:hidden"
                                         >
                                             {child.children.map((gc) => (
-                                                <Form.Item
+                                                <FormItem
                                                     key={gc.name}
-                                                    {...restField}
                                                     name={[name, ...gc.name.split(".")]}
                                                     label={<FieldLabel field={gc} />}
                                                     rules={
@@ -1396,7 +1438,7 @@ function ArrayObjectItem({
                                                             ? [
                                                                   {
                                                                       required: true,
-                                                                      message: `${gc.label} is required`,
+                                                                      message: REQUIRED_MESSAGE,
                                                                   },
                                                               ]
                                                             : []
@@ -1406,7 +1448,7 @@ function ArrayObjectItem({
                                                         placeholder={gc.label}
                                                         disabled={disabled}
                                                     />
-                                                </Form.Item>
+                                                </FormItem>
                                             ))}
                                         </AccordionContent>
                                     </AccordionItem>
@@ -1416,24 +1458,22 @@ function ArrayObjectItem({
 
                         if (child.type === "boolean") {
                             return (
-                                <Form.Item
+                                <FormItem
                                     key={child.name}
-                                    {...restField}
                                     name={[name, child.name]}
                                     label={childLabel}
                                     valuePropName="checked"
                                     initialValue={child.default ?? false}
                                 >
                                     <FormSwitch size="sm" disabled={disabled} />
-                                </Form.Item>
+                                </FormItem>
                             )
                         }
 
                         if (child.type === "number") {
                             return (
-                                <Form.Item
+                                <FormItem
                                     key={child.name}
-                                    {...restField}
                                     name={[name, child.name]}
                                     label={childLabel}
                                     rules={childRules}
@@ -1444,15 +1484,14 @@ function ArrayObjectItem({
                                         placeholder={child.label}
                                         disabled={disabled}
                                     />
-                                </Form.Item>
+                                </FormItem>
                             )
                         }
 
                         if (child.type === "enum") {
                             return (
-                                <Form.Item
+                                <FormItem
                                     key={child.name}
-                                    {...restField}
                                     name={[name, child.name]}
                                     label={childLabel}
                                     rules={childRules}
@@ -1466,22 +1505,21 @@ function ArrayObjectItem({
                                             label: v,
                                         }))}
                                     />
-                                </Form.Item>
+                                </FormItem>
                             )
                         }
 
                         // Default: string input
                         return (
-                            <Form.Item
+                            <FormItem
                                 key={child.name}
-                                {...restField}
                                 name={[name, child.name]}
                                 label={childLabel}
                                 rules={childRules}
                                 initialValue={child.default}
                             >
                                 <Input placeholder={child.label} disabled={disabled} />
-                            </Form.Item>
+                            </FormItem>
                         )
                     })}
                 </AccordionContent>

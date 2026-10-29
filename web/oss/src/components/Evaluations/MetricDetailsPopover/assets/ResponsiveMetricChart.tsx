@@ -1,5 +1,8 @@
 import {FC, memo, useMemo, useState} from "react"
 
+import {chartSeries} from "@/oss/lib/helpers/chartPalette"
+import {useIsDarkTheme} from "@/oss/lib/hooks/useChartSeries"
+
 import type {ChartDatum} from "../types"
 
 import {ChartAxis} from "./ChartAxis"
@@ -23,9 +26,8 @@ interface ResponsiveMetricChartProps {
     formatLabel?: (value: number) => string
 }
 
-const BAR_SOLIDS = Array(6).fill("#1677ff")
-const BAR_GRADIENTS = [["#91caff", "#1677ff"]]
-const MEAN_LINE_COLOR = "#102a57"
+/** The histogram is one series: the first categorical step, flat. */
+const SERIES_SLOT = 0
 const MEAN_BADGE_BG = "rgba(248, 250, 255, 0.98)"
 
 /**
@@ -95,6 +97,10 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
         binWidthLabel,
         formatLabel,
     }) => {
+        const isDark = useIsDarkTheme()
+        const series = chartSeries(isDark)
+        // The mean marker reads as chrome, not a series: ink in light, a quiet grey in dark.
+        const MEAN_LINE_COLOR = isDark ? "#BCBCBC" : "#113955"
         const originalBinSize = extraDimensions.binSize || 1
         // Use custom formatter if provided, otherwise fall back to format3Sig
         const labelFormatter = formatLabel ?? format3Sig
@@ -190,7 +196,7 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
         }
 
         // NEW: resolve fills (keep defaults)
-        const highlightFill = barColor || "#1677ff"
+        const highlightFill = barColor || series[SERIES_SLOT]
 
         const resolveBarFill = (index: number, isHighlighted: boolean) => {
             if (isHighlighted) {
@@ -200,7 +206,7 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                 return disableGradient ? barColor : `url(#${clipPathId}-base-${index})`
             }
             if (disableGradient) {
-                return BAR_SOLIDS[index % BAR_SOLIDS.length]
+                return series[SERIES_SLOT]
             }
             return `url(#${clipPathId}-base-${index})`
         }
@@ -238,9 +244,9 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                                         {!disableGradient && (
                                             <>
                                                 {chartData.map((_, idx) => {
-                                                    const [from, to] = barColor
-                                                        ? [barColor, barColor]
-                                                        : BAR_GRADIENTS[idx % BAR_GRADIENTS.length]
+                                                    // Flat fills: both stops are the same color.
+                                                    const from = barColor ?? series[SERIES_SLOT]
+                                                    const to = from
                                                     return (
                                                         <linearGradient
                                                             key={`${clipPathId}-base-${idx}`}
@@ -262,7 +268,7 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                                                     x2="100%"
                                                     y2="0%"
                                                 >
-                                                    <stop offset="0%" stopColor="#BFE8FF" />
+                                                    <stop offset="0%" stopColor={highlightFill} />
                                                     <stop offset="100%" stopColor={highlightFill} />
                                                 </linearGradient>
                                             </>
@@ -288,7 +294,7 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                                                         ? yScaleVertical(tick)
                                                         : yScale(tick))
                                                 }
-                                                stroke="#05172933"
+                                                stroke="var(--ag-chart-grid)"
                                                 strokeWidth={1}
                                                 strokeDasharray="5 5"
                                             />
@@ -582,7 +588,7 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                                                         margin.left + xScaleVertical(highlightValue)
                                                     }
                                                     y2={margin.top + plotHeight}
-                                                    stroke="#52c41a"
+                                                    stroke="var(--ag-colorSuccess)"
                                                     strokeWidth={3}
                                                     strokeDasharray="6 2"
                                                     style={{filter: "drop-shadow(0 0 2px #fff)"}}
@@ -604,7 +610,7 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                                                 <text
                                                     x={margin.left + xScaleVertical(highlightValue)}
                                                     y={margin.top - 5}
-                                                    fill="#52c41a"
+                                                    fill="var(--ag-colorSuccess)"
                                                     fontSize="10"
                                                     fontWeight="bold"
                                                     textAnchor="middle"
@@ -626,7 +632,7 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                                                         margin.top +
                                                         yScaleHorizontal(highlightValue)
                                                     }
-                                                    stroke="#52c41a"
+                                                    stroke="var(--ag-colorSuccess)"
                                                     strokeWidth={3}
                                                     strokeDasharray="6 2"
                                                     style={{filter: "drop-shadow(0 0 2px #fff)"}}
@@ -656,7 +662,7 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                                                         yScaleHorizontal(highlightValue) -
                                                         5
                                                     }
-                                                    fill="#52c41a"
+                                                    fill="var(--ag-colorSuccess)"
                                                     fontSize="10"
                                                     fontWeight="bold"
                                                     textAnchor="end"
@@ -770,13 +776,13 @@ const ResponsiveMetricChart: FC<ResponsiveMetricChartProps> = memo(
                                                                 binSize,
                                                         )}
                                                         {binWidthText ? (
-                                                            <span className="ml-2 text-[11px] text-gray-500">
+                                                            <span className="ml-2 text-xs text-gray-500">
                                                                 [bin width: {binWidthText}]
                                                             </span>
                                                         ) : null}
                                                     </span>
                                                     {isHighlighted && (
-                                                        <span className="ml-2 px-1 py-0.5 rounded bg-yellow-100 text-yellow-800 font-semibold text-[10px] border border-yellow-300">
+                                                        <span className="ml-2 px-1 py-0.5 rounded bg-yellow-100 text-yellow-800 font-semibold text-[12px] border border-yellow-300">
                                                             Highlighted
                                                         </span>
                                                     )}

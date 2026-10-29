@@ -1,12 +1,12 @@
 import {useEffect, useMemo, useState} from "react"
 
+import {webhookDeliveriesAtomFamily} from "@agenta/entities/webhook"
+import {WebhookDelivery} from "@agenta/entities/webhook"
 import {bgColors, borderColors, cn, textColors} from "@agenta/ui"
 import {Empty, Skeleton} from "antd"
 import {useAtomValue} from "jotai"
 
 import SimpleSharedEditor from "@/oss/components/EditorViews/SimpleSharedEditor"
-import {WebhookDelivery} from "@/oss/services/webhooks/types"
-import {webhookDeliveriesAtomFamily} from "@/oss/state/webhooks/atoms"
 
 const formatTimestamp = (value?: string) => {
     if (!value) return "-"

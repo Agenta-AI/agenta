@@ -9,8 +9,8 @@
  * Each test creates a fresh Jotai store so atoms don't bleed between tests.
  */
 
-import {describe, it, expect} from "vitest"
 import {createStore} from "jotai"
+import {describe, it, expect} from "vitest"
 
 import {
     loadableStateAtomFamily,

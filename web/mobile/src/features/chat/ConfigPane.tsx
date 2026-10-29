@@ -1,0 +1,109 @@
+import {useCallback} from "react"
+
+import {automationRunHistoryDrawerAtom} from "@agenta/automation-ui"
+import {configPanelCollapsedAtom} from "@agenta/chat/state"
+import type {TriggerOwnerRef} from "@agenta/entity-ui/drill-in"
+import {StorageFilesHeader, StorageSection} from "@agenta/entity-ui/drive"
+import {AgentBuildPanel} from "@agenta/playground-ui/agent-build"
+import {AgentConfigHeader} from "@agenta/playground-ui/agent-config-header"
+import {shortcutAria} from "@agenta/shared/utils"
+import {ShortcutKeys} from "@agenta/ui/shortcuts"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {Sidebar} from "@phosphor-icons/react"
+import {useSetAtom} from "jotai"
+
+import {DrillInBridgeProvider} from "./DrillInBridgeProvider"
+
+/**
+ * Build's left pane: the SHARED config panel under the SHARED "Configuration" header, with the
+ * SHARED Files region — the same three components the desktop playground renders.
+ *
+ * The drive is session-scoped, so the session is passed straight in: this surface already knows
+ * which conversation it is (the desktop has to resolve it from its open tabs instead).
+ *
+ * Deploy and the overflow menu are absent, not reproduced: both still read this app's app-layer
+ * state on the desktop side, and the header takes them as slots precisely so a surface that
+ * cannot offer them simply does not.
+ */
+export const ConfigPane = ({
+    entityId,
+    sessionId,
+    filesScope,
+    projectId,
+}: {
+    entityId: string
+    sessionId: string
+    filesScope: string
+    projectId: string
+}) => {
+    const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
+    // A row's "Run history" opens in a drawer over the agent, like the automation editor does,
+    // rather than navigating away from the conversation.
+    const openDrawer = useSetAtom(automationRunHistoryDrawerAtom)
+    const openRunHistory = useCallback(
+        ({id, kind}: TriggerOwnerRef) => {
+            openDrawer({automationId: id, kind: kind === "schedule" ? "schedule" : "event"})
+        },
+        [openDrawer],
+    )
+
+    return (
+        <div className="ag-panel-raised ag-scroll-no-bar flex h-full min-h-0 w-full flex-col overflow-y-auto">
+            <DrillInBridgeProvider sessionId={sessionId} projectId={projectId}>
+                <AgentBuildPanel
+                    revisionId={entityId}
+                    stickyHeaderTop={48}
+                    storage={
+                        <StorageSection
+                            revisionId={entityId}
+                            sessionId={sessionId}
+                            scope={filesScope}
+                        />
+                    }
+                    storageHeader={
+                        <StorageFilesHeader
+                            revisionId={entityId}
+                            sessionId={sessionId}
+                            scope={filesScope}
+                        />
+                    }
+                    // `SessionWorkspace` mounts the drawers: a linked one must open with this pane collapsed.
+                    automationDrawer={null}
+                    onOpenRunHistory={openRunHistory}
+                    header={
+                        <AgentConfigHeader
+                            revisionId={entityId}
+                            // `/m` mounts the auto-commit engine, so this header shows Save
+                            // rather than Commit. The desktop playground keeps Commit.
+                            autoSave
+                            // The desktop's collapse: the header owns "«", the top bar owns the
+                            // "»" that brings the panel back. Without a way OUT, the restore
+                            // control in the bar could never be reached.
+                            trailing={
+                                <SimpleTooltip
+                                    title={
+                                        <span className="flex items-center gap-1.5">
+                                            Hide configuration{" "}
+                                            <ShortcutKeys id="panel.config" tone="inverse" />
+                                        </span>
+                                    }
+                                >
+                                    <Button
+                                        variant="ghost"
+                                        size="icon-sm"
+                                        aria-label="Hide configuration"
+                                        aria-keyshortcuts={shortcutAria("panel.config")}
+                                        onClick={() => setConfigCollapsed(true)}
+                                        className="h-7 w-7 shrink-0 p-0"
+                                    >
+                                        <Sidebar size={16} weight="fill" mirrored />
+                                    </Button>
+                                </SimpleTooltip>
+                            }
+                        />
+                    }
+                />
+            </DrillInBridgeProvider>
+        </div>
+    )
+}

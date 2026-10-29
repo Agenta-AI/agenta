@@ -1,10 +1,10 @@
 import {useEffect} from "react"
 
+import {sessionStatusAtomFamily} from "@agenta/chat/state"
 import {useQuery, useQueryClient} from "@tanstack/react-query"
 import {Alert, Skeleton, Typography} from "antd"
 import {useAtomValue} from "jotai"
 
-import {sessionStatusAtomFamily} from "@/oss/components/AgentChatSlice/state/sessions"
 import {projectIdAtom} from "@/oss/state/project"
 
 import {fetchLatestTurn, fetchState} from "../api"
@@ -67,7 +67,7 @@ const StatesTab = ({sessionId}: {sessionId: string}) => {
                 </dd>
             </dl>
             <div>
-                <div className="mb-1 text-[10px] font-medium text-colorTextTertiary">data</div>
+                <div className="mb-1 text-[12px] font-medium text-colorTextTertiary">data</div>
                 <pre className="m-0 max-h-[40vh] overflow-auto whitespace-pre-wrap break-all rounded bg-colorFillQuaternary p-2 text-xs text-colorTextSecondary">
                     {JSON.stringify(latestTurn ?? {}, null, 2)}
                 </pre>

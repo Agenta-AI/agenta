@@ -1,7 +1,8 @@
 /**
  * ExecutionMetricsDisplay - Pure presentational component for execution metrics
  *
- * Displays execution metrics (latency, tokens, cost) as a row of tags.
+ * Displays execution metrics (latency, tokens, cost) as a row of tags, or — in the `plain`
+ * variant — as one quiet line of dot-separated text.
  * This is a pure presentational component with no data fetching logic.
  *
  * For connected versions that fetch from atoms, see @agenta/playground-ui.
@@ -20,9 +21,15 @@
  * ```
  */
 
-import {memo} from "react"
+import {Fragment, memo, type ReactNode} from "react"
 
-import {formatCurrency, formatLatency, formatTokens} from "@agenta/shared/utils"
+import {
+    formatCurrency,
+    formatLatency,
+    formatTokens,
+    splitTokenUsage,
+    type TokenBreakdown,
+} from "@agenta/shared/utils"
 import {Timer, Coins, Hash} from "@phosphor-icons/react"
 
 import {cn} from "../../../utils/styles"
@@ -46,6 +53,10 @@ export interface ExecutionMetricsData {
     promptTokens?: number
     /** Completion/output tokens */
     completionTokens?: number
+    /** Prompt tokens read from the provider's cache */
+    cacheReadTokens?: number
+    /** Prompt tokens written to the provider's cache */
+    cacheWriteTokens?: number
     /** Total cost in dollars */
     totalCost?: number
 }
@@ -57,8 +68,10 @@ export interface ExecutionMetricsDisplayProps {
     isLoading?: boolean
     /** Additional CSS class names */
     className?: string
-    /** Size variant */
+    /** Size variant. `badge` only — the `plain` row is always the compact text size. */
     size?: "small" | "default"
+    /** `badge` tags each metric; `plain` renders one line of dot-separated muted text. */
+    variant?: "badge" | "plain"
     /** Which metrics to show (defaults to all available) */
     show?: ("latency" | "tokens" | "cost")[]
 }
@@ -68,6 +81,36 @@ export interface ExecutionMetricsDisplayProps {
 // ============================================================================
 
 /**
+ * The `·` between two segments of a meta row. Muted a step below the values it separates.
+ *
+ * A separator that leads its segment should carry `first:hidden`: a segment whose neighbour
+ * rendered nothing then drops its dot instead of leaving one with nothing to separate.
+ */
+export const MetaSeparator = ({className}: {className?: string}) => (
+    <span aria-hidden className={cn("text-colorTextQuaternary", className)}>
+        ·
+    </span>
+)
+
+const TokenRow = ({label, value, dim}: {label: string; value: number; dim?: boolean}) => (
+    <div className={cn("flex items-center justify-between gap-3", dim && "opacity-85")}>
+        <span>{label}</span>
+        <span>{formatTokens(value)}</span>
+    </div>
+)
+
+/** A token total and its input, cache read, cache write and output parts, for a tooltip. */
+export const TokenBreakdownList = ({breakdown}: {breakdown: TokenBreakdown}) => (
+    <div className="min-w-[140px]">
+        <TokenRow label="Total Tokens" value={breakdown.total} />
+        <TokenRow label="Input" value={breakdown.input} dim />
+        <TokenRow label="Cache read" value={breakdown.cacheRead} dim />
+        <TokenRow label="Cache write" value={breakdown.cacheWrite} dim />
+        <TokenRow label="Output" value={breakdown.output} dim />
+    </div>
+)
+
+/**
  * Pure presentational component for displaying execution metrics
  */
 export const ExecutionMetricsDisplay = memo(function ExecutionMetricsDisplay({
@@ -75,6 +118,7 @@ export const ExecutionMetricsDisplay = memo(function ExecutionMetricsDisplay({
     isLoading = false,
     className,
     size = "default",
+    variant = "badge",
     show,
 }: ExecutionMetricsDisplayProps) {
     // Calculate what to show
@@ -95,16 +139,96 @@ export const ExecutionMetricsDisplay = memo(function ExecutionMetricsDisplay({
     const tagClassName = cn("flex items-center gap-1 m-0", size === "small" && "text-xs py-0")
     const iconSize = size === "small" ? 10 : 12
 
+    const tokenBreakdown = splitTokenUsage({
+        prompt: metrics.promptTokens,
+        completion: metrics.completionTokens,
+        cacheRead: metrics.cacheReadTokens,
+        cacheWrite: metrics.cacheWriteTokens,
+        total: metrics.totalTokens,
+    })
+
+    // The one thing the compact row can't show inline, so both variants share it.
+    const tokensTooltip: ReactNode = tokenBreakdown ? (
+        <TokenBreakdownList breakdown={tokenBreakdown} />
+    ) : metrics.promptTokens !== undefined && metrics.completionTokens !== undefined ? (
+        <div className="min-w-[140px]">
+            <div className="flex items-center justify-between gap-3">
+                <span>Total Tokens</span>
+                <span>{formattedTokens}</span>
+            </div>
+            <div className="flex items-center justify-between gap-3 opacity-85">
+                <span>Prompt</span>
+                <span>{formatTokens(metrics.promptTokens)}</span>
+            </div>
+            <div className="flex items-center justify-between gap-3 opacity-85">
+                <span>Completion</span>
+                <span>{formatTokens(metrics.completionTokens)}</span>
+            </div>
+        </div>
+    ) : (
+        <div className="flex items-center justify-between gap-3 min-w-[120px]">
+            <span>Total Tokens</span>
+            <span>{formattedTokens}</span>
+        </div>
+    )
+
     if (isLoading) {
         return (
             <div className={cn("flex items-center gap-1", className)}>
-                <SkeletonBlock active className="h-6" style={{width: 60}} />
+                <SkeletonBlock
+                    active
+                    className={variant === "plain" ? "h-4" : "h-6"}
+                    style={{width: 60}}
+                />
             </div>
         )
     }
 
     if (!hasAnyMetrics) {
         return null
+    }
+
+    if (variant === "plain") {
+        // Only tokens keeps a tooltip: the prompt/completion split is the one thing the row cannot
+        // show inline. Latency and cost would only restate the value already on screen.
+        const segments: {key: string; label: string; tooltip?: ReactNode}[] = []
+        if (showLatency && formattedLatency)
+            segments.push({key: "latency", label: formattedLatency})
+        if (showTokens && formattedTokens)
+            segments.push({
+                key: "tokens",
+                label: `${formattedTokens} tokens`,
+                tooltip: tokensTooltip,
+            })
+        if (showCost && formattedCost) segments.push({key: "cost", label: formattedCost})
+
+        return (
+            <div
+                className={cn(
+                    "flex items-center gap-1 whitespace-nowrap text-[12px] text-colorTextTertiary",
+                    className,
+                )}
+            >
+                {/* A second's delay: the breakdown is for a reader who lingers, not one passing over. */}
+                <TooltipProvider delayDuration={1000}>
+                    {segments.map((segment, index) => (
+                        <Fragment key={segment.key}>
+                            {segment.tooltip ? (
+                                <Tooltip>
+                                    <TooltipTrigger asChild>
+                                        <span>{segment.label}</span>
+                                    </TooltipTrigger>
+                                    <TooltipContent side="top">{segment.tooltip}</TooltipContent>
+                                </Tooltip>
+                            ) : (
+                                <span>{segment.label}</span>
+                            )}
+                            {index < segments.length - 1 ? <MetaSeparator /> : null}
+                        </Fragment>
+                    ))}
+                </TooltipProvider>
+            </div>
+        )
     }
 
     return (
@@ -134,30 +258,7 @@ export const ExecutionMetricsDisplay = memo(function ExecutionMetricsDisplay({
                                 </Badge>
                             </span>
                         </TooltipTrigger>
-                        <TooltipContent side="top">
-                            {metrics.promptTokens !== undefined &&
-                            metrics.completionTokens !== undefined ? (
-                                <div className="min-w-[140px]">
-                                    <div className="flex items-center justify-between gap-3">
-                                        <span>Total Tokens</span>
-                                        <span>{formattedTokens}</span>
-                                    </div>
-                                    <div className="flex items-center justify-between gap-3 opacity-85">
-                                        <span>Prompt</span>
-                                        <span>{formatTokens(metrics.promptTokens)}</span>
-                                    </div>
-                                    <div className="flex items-center justify-between gap-3 opacity-85">
-                                        <span>Completion</span>
-                                        <span>{formatTokens(metrics.completionTokens)}</span>
-                                    </div>
-                                </div>
-                            ) : (
-                                <div className="flex items-center justify-between gap-3 min-w-[120px]">
-                                    <span>Total Tokens</span>
-                                    <span>{formattedTokens}</span>
-                                </div>
-                            )}
-                        </TooltipContent>
+                        <TooltipContent side="top">{tokensTooltip}</TooltipContent>
                     </Tooltip>
                 </TooltipProvider>
             )}

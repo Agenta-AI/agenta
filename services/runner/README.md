@@ -50,6 +50,45 @@ Harness choice (`pi`, `claude`, or experimental `agenta`) and sandbox (`local` o
 `daytona`, where supported) are per-run config from the Python service, carried on the
 request's `harness` / `sandbox` fields.
 
+## Output and ingest limits
+
+The runner limits provider output per step and per turn. A step is one model reply (all
+updates until the next tool call) or one tool call. Each step admits at most 16 MiB of
+serialized provider updates and 50,000 updates. The whole turn admits at most 64 MiB and
+500,000 updates. A breach stops the turn with `output_limit_exceeded` and logs which limit
+tripped (`[output-budget] stopped turn: ...`). Admission happens before tool correlation,
+pause buffers, tracing, record coalescing and live delivery retain the update. The update
+that crosses a limit and later provider updates are rejected. Cleanup can still write the
+terminal error and close accepted message prefixes.
+
+- `AGENTA_RUNNER_OUTPUT_MAX_BYTES`: per step, default `16777216`, range `1024` to `268435456`.
+- `AGENTA_RUNNER_OUTPUT_MAX_EVENTS`: per step, default `50000`, range `1` to `1000000`.
+- `AGENTA_RUNNER_OUTPUT_MAX_TURN_BYTES`: per turn, default `67108864`, range `1024` to `1073741824`.
+- `AGENTA_RUNNER_OUTPUT_MAX_TURN_EVENTS`: per turn, default `500000`, range `1` to `10000000`.
+- `AGENTA_RECORDS_INGEST_TIMEOUT_MS`: default `30000`, range `1000` to `120000` per attempt.
+- `AGENTA_RECORDS_INGEST_RETRY_BUDGET_MS`: default `180000`, range `0` to `600000`. How long
+  one session record retries a 5xx, 429, 408, network error or timeout before it is lost.
+  The wait between attempts doubles from 100 ms up to 5 s. Any other 4xx is not retried.
+
+A running tool resends its whole output so far on every progress update, and the runner keeps
+only the final result. So a tool progress update is charged only for the bytes it adds over
+the largest earlier update for the same tool call. The update that completes or fails the call,
+an update with tool arguments, model text and other updates are charged in full, including
+metadata. The budget bounds admitted output and its downstream backlog, not total
+heap use or concurrency. A single transport frame has already been decoded before admission.
+Container memory limits and restart monitoring remain separate operational safeguards.
+
+Ingest retries reuse a record ID and timestamp, including after an ambiguous timeout.
+A record that does not land within the budget, or fails with any other 4xx, is lost. The
+session is then marked incomplete, the api is told at the end of the turn, and every later
+record of the session on that runner gets one attempt only. A report that fails is sent again at the start of
+the session's next turn on the same runner. A turn that must rebuild the conversation from an
+incomplete log is refused with `session_records_incomplete`. Each lost record logs
+`[sessions/persist] RECORD_DROPPED` at ERROR level; alert on that tag.
+If a runner execution is lost, cold replay retains persisted tool results and marks calls
+without results as having unknown outcomes. It must not tell the model to repeat those
+calls. This recovers persisted history only, not bytes lost when the process died.
+
 ## Result
 
 ```json
@@ -89,8 +128,8 @@ through an INTERNAL loopback HTTP MCP channel the runner serves (`tools/mcp-brid
 `tools/tool-mcp-http.ts`) — this channel is live and is how Claude runs take custom tools.
 
 This internal channel is different from external user MCP servers in `mcpServers`. The public
-contract accepts HTTP only. Pi currently refuses external MCP because it delivers tools through
-its bundled extension rather than ACP MCP; Claude accepts the HTTP entries.
+contract accepts HTTP only. Claude and Codex receive those entries over ACP; Pi's bundled
+extension discovers registered Agenta gateway MCP routes and registers their tools natively.
 
 ## The extension bundle
 

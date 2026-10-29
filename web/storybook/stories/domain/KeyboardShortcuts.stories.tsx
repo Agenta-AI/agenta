@@ -1,0 +1,264 @@
+/**
+ * The proposal from the shortcut map, made real enough to press.
+ *
+ * Every story here renders shipping components, not sketches: the approval card is the real
+ * `ApprovalCard`, the sheet and its button are the real `ShortcutsHelpButton`, and the two panel
+ * tooltips read their keys from the same registry the handlers are written against.
+ */
+import {ApprovalCard} from "@agenta/chat/components"
+import type {PendingApproval} from "@agenta/chat/model"
+import {shortcutAria} from "@agenta/shared/utils"
+import {KeyboardShortcutsSheet, ShortcutKeys, ShortcutsHelpButton} from "@agenta/ui/shortcuts"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {CaretDoubleLeft, CaretDoubleRight, GearSix, Robot} from "@phosphor-icons/react"
+import type {Meta, StoryObj} from "@storybook/nextjs"
+
+const meta = {
+    title: "@agenta/ui/Domain/KeyboardShortcuts",
+    component: ShortcutsHelpButton,
+    subcomponents: {KeyboardShortcutsSheet, ShortcutKeys},
+    parameters: {
+        layout: "padded",
+        docs: {
+            description: {
+                component:
+                    "Forty-three keyboard shortcuts already ship in the agent playground, and six of them tell you they exist. This adds two more, the files pane and the sheet itself, so the registry lists forty-five.\n\n`/m` renders the same `ApprovalCard` with `touch` set, so its keycaps are suppressed; see the **On mobile** story. The shortcut layer itself is desktop-only today, but every piece of it now lives in a package `/m` already depends on: the registry and the overlay guard in `@agenta/shared/utils`, and `useSessionShortcuts`, `ShortcutKeys`, `KeyboardShortcutsSheet` and `ShortcutsHelpButton` in `@agenta/ui/shortcuts`. A mobile host wires the same callbacks; nothing needs reimplementing. These stories show where the rest become visible.\n\nTwo layers: keys on the control that already does the job, and one sheet on `?` for the shortcuts no control can carry. The letters avoid every browser menu key, so the same bindings work on Windows, Linux and macOS.\n\n**Used in:** 1 place — the playground top bar (`PlaygroundHeader`), rightmost after the settings gear.",
+            },
+        },
+    },
+} satisfies Meta<typeof ShortcutsHelpButton>
+export default meta
+type Story = StoryObj
+
+const APPROVAL: PendingApproval[] = [
+    {
+        approvalId: "apr-1",
+        toolName: "GITHUB_CREATE_ISSUE",
+        input: {
+            owner: "Agenta-AI",
+            repo: "agenta",
+            title: "Playground shortcut hints",
+            body: "Surface the keyboard bindings on the controls that already do the job.",
+        },
+    },
+]
+
+const noop = () => undefined
+
+const Frame = ({
+    title,
+    note,
+    children,
+}: {
+    title: string
+    note: string
+    children: React.ReactNode
+}) => (
+    <section className="mb-8 flex w-full max-w-[560px] flex-col gap-2">
+        <h4 className="text-xs font-semibold text-colorText">{title}</h4>
+        <p className="m-0 text-xs text-colorTextSecondary">{note}</p>
+        <div className="mt-1">{children}</div>
+    </section>
+)
+
+/**
+ * The approval card is the surface where a keyboard answer is genuinely faster than a mouse, and
+ * where a mis-press costs the most, so the keys stay on screen instead of hiding in a tooltip.
+ */
+export const ApprovalCardKeys: Story = {
+    render: () => (
+        <Frame
+            title="Approval card"
+            note="The key sits on the button it presses. Touch drops both keycaps, because a touch reader has no keyboard."
+        >
+            <ApprovalCard
+                approvals={APPROVAL}
+                onRespond={noop}
+                onApproveAll={noop}
+                onDenyAll={noop}
+            />
+        </Frame>
+    ),
+}
+
+/** What `/m` renders at phone width: the same components, with every keycap gone. */
+export const OnMobile: Story = {
+    render: () => (
+        <div className="flex flex-col">
+            <Frame
+                title="Approval card, at phone width"
+                note="The same ApprovalCard the desktop renders, with touch set. The keycaps are gone because a phone has no keyboard, and the tap target extends invisibly instead. A keycap appearing here is a regression."
+            >
+                <div className="w-full max-w-[390px] rounded-xl border border-solid border-colorBorderSecondary p-3">
+                    <ApprovalCard
+                        approvals={APPROVAL}
+                        touch
+                        onRespond={noop}
+                        onApproveAll={noop}
+                        onDenyAll={noop}
+                    />
+                </div>
+            </Frame>
+
+            <Frame
+                title="Side by side"
+                note="Desktop on the left, touch on the right. The only difference is the keycaps."
+            >
+                <div className="flex flex-wrap items-start gap-4">
+                    <div className="w-full max-w-[340px]">
+                        <ApprovalCard
+                            approvals={APPROVAL}
+                            onRespond={noop}
+                            onApproveAll={noop}
+                            onDenyAll={noop}
+                        />
+                    </div>
+                    <div className="w-full max-w-[340px]">
+                        <ApprovalCard
+                            approvals={APPROVAL}
+                            touch
+                            onRespond={noop}
+                            onApproveAll={noop}
+                            onDenyAll={noop}
+                        />
+                    </div>
+                </div>
+            </Frame>
+        </div>
+    ),
+}
+
+/**
+ * The sheet and its button ship together: a hotkey with no button teaches nobody.
+ */
+export const ShortcutsSheet: Story = {
+    render: () => (
+        <div className="flex flex-col gap-5">
+            <Frame
+                title="The button, at the right edge of the playground top bar"
+                note="The last control in the bar, after the settings gear. Hover it to see the key; click it to open the sheet."
+            >
+                <div className="flex w-full max-w-[520px] items-center justify-between gap-4 rounded-md border border-solid border-colorBorderSecondary bg-colorBgContainer px-2.5 py-2">
+                    <span className="flex items-center gap-2">
+                        <span className="flex h-6 w-6 items-center justify-center rounded-md bg-colorFillSecondary">
+                            <Robot size={15} weight="fill" />
+                        </span>
+                        <span className="text-[16px] font-semibold text-colorText">
+                            Refund agent
+                        </span>
+                    </span>
+                    <span className="flex items-center gap-1">
+                        <Button variant="ghost" size="icon" aria-label="Playground settings">
+                            <GearSix size={16} />
+                        </Button>
+                        <ShortcutsHelpButton className="h-8 w-8 shrink-0 p-0" />
+                    </span>
+                </div>
+            </Frame>
+            <Frame
+                title="The hotkey"
+                note="Press ? anywhere on this page. It is ignored while the caret is in a text field, so typing a question mark in the composer stays a question mark. It matches the produced character, so it also works where ? is Shift+ß or Shift+comma."
+            >
+                <p className="m-0 flex items-center gap-1.5 text-xs text-colorTextSecondary">
+                    Try it now: <ShortcutKeys id="help.sheet" />
+                </p>
+            </Frame>
+        </div>
+    ),
+}
+
+/** The keys ride on affordances the reader already hovers, on both halves of every toggle. */
+export const PanelTooltips: Story = {
+    render: () => (
+        <div className="flex flex-col">
+            <Frame
+                title="The two side panels"
+                note="Each caret names its own key on hover, and carries it as aria-keyshortcuts for a screen reader. Alt+C shows or hides the configuration; Alt+O shows or hides the files pane."
+            >
+                <div className="flex items-center gap-3">
+                    <SimpleTooltip
+                        title={
+                            <span className="flex items-center gap-1.5">
+                                Show configuration <ShortcutKeys id="panel.config" tone="inverse" />
+                            </span>
+                        }
+                    >
+                        <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-keyshortcuts={shortcutAria("panel.config")}
+                            className="h-7 w-7 p-0"
+                        >
+                            <CaretDoubleRight size={14} />
+                        </Button>
+                    </SimpleTooltip>
+                    <SimpleTooltip
+                        title={
+                            <span className="flex items-center gap-1.5">
+                                Show files <ShortcutKeys id="panel.files" tone="inverse" />
+                            </span>
+                        }
+                    >
+                        <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-keyshortcuts={shortcutAria("panel.files")}
+                            className="h-7 w-7 p-0"
+                        >
+                            <CaretDoubleLeft size={14} />
+                        </Button>
+                    </SimpleTooltip>
+                </div>
+            </Frame>
+
+            <Frame
+                title="The session tab menu"
+                note="Right-click a session tab. A right-aligned key column, blank on the rows that have no key."
+            >
+                <div className="w-full max-w-[280px] rounded-md border border-solid border-colorBorderSecondary bg-colorBgElevated p-1 shadow-md">
+                    {[
+                        {label: "Rename", id: "session.rename"},
+                        {label: "Pin", id: undefined},
+                        {label: "Archive", id: "session.archive"},
+                        {label: "Delete", id: undefined},
+                        {label: "Close", id: "session.close"},
+                        {label: "Close other tabs", id: undefined},
+                    ].map((row) => (
+                        // Mirrors the real ContextMenuItem: a full-width flex row, so a
+                        // misalignment here is the same misalignment the app would show.
+                        <div
+                            key={row.label}
+                            className="relative flex w-full cursor-pointer select-none items-center gap-2 rounded px-3 py-1.5 text-xs text-colorText hover:bg-colorFillTertiary"
+                        >
+                            {row.id ? (
+                                <span className="flex min-w-0 flex-1 items-center gap-6">
+                                    <span className="min-w-0 flex-1">{row.label}</span>
+                                    <ShortcutKeys id={row.id} />
+                                </span>
+                            ) : (
+                                row.label
+                            )}
+                        </div>
+                    ))}
+                </div>
+            </Frame>
+
+            <Frame
+                title="The new session button"
+                note="The + at the end of the tab strip names Alt+N, unless it is disabled before the agent's first answer."
+            >
+                <SimpleTooltip
+                    title={
+                        <span className="flex items-center gap-1.5">
+                            New session <ShortcutKeys id="session.new" tone="inverse" />
+                        </span>
+                    }
+                >
+                    <Button variant="ghost" size="icon-sm" className="h-7 w-7 p-0">
+                        +
+                    </Button>
+                </SimpleTooltip>
+            </Frame>
+        </div>
+    ),
+}

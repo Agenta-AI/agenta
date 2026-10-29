@@ -108,9 +108,20 @@ function AccordionItem({
 function AccordionTrigger({
     className,
     children,
+    /** antd `expandIconPosition`: "start" (the default) or "end". */
+    caret = "start",
     ...props
-}: React.ComponentProps<typeof AccordionPrimitive.Trigger>) {
+}: React.ComponentProps<typeof AccordionPrimitive.Trigger> & {caret?: "start" | "end"}) {
     const variant = React.useContext(AccordionContext)
+    // Same box either side, so the caret keeps antd's fontHeight alignment wherever it sits.
+    const caretBox = (
+        <span className="flex h-[22px] shrink-0 items-center">
+            <ChevronRight
+                data-slot="accordion-caret"
+                className="size-3 text-colorText transition-transform duration-200"
+            />
+        </span>
+    )
     // Radix Header is an <h3>: preflight-off leaves its UA block margin (white bands +
     // extra height) and bold weight (leaks into the trigger via inherit) — reset both.
     return (
@@ -125,13 +136,16 @@ function AccordionTrigger({
                     1.5714) and centers the 12px icon in it; the flex-start header then makes
                     the header 46px tall and fixes the caret's vertical position. h-[22px] has
                     no scale key (h-5=20/h-6=24) — it IS antd's fontHeight, so kept as px. */}
-                <span className="flex h-[22px] shrink-0 items-center">
-                    <ChevronRight
-                        data-slot="accordion-caret"
-                        className="size-3 text-colorText transition-transform duration-200"
-                    />
-                </span>
+                {caret === "start" ? caretBox : null}
                 {children}
+                {/* An end caret takes the leftover width so it sits against the trigger's edge
+                    rather than trailing the label. */}
+                {caret === "end" ? (
+                    <>
+                        <span className="flex-1" />
+                        {caretBox}
+                    </>
+                ) : null}
             </AccordionPrimitive.Trigger>
         </AccordionPrimitive.Header>
     )

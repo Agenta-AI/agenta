@@ -11,10 +11,11 @@
  */
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
 import {
+    listMountFolder,
     queryLatestMountFiles,
     queryMountDir,
     queryMountFiles,
@@ -22,6 +23,7 @@ import {
     readMountFile,
     type MountFilesPage,
 } from "../api/api"
+import {parentFolderOf, listedEntryAt} from "../core/pathUtils"
 import type {Mount, MountFile} from "../core/schema"
 
 // Query keys, factored so the revalidate atom and the families can never drift.
@@ -45,6 +47,10 @@ export const mountDirQueryKey = (
     path: string,
     includeGitignored = false,
 ) => ["mounts", "files-dir", projectId, mountId, path, includeGitignored] as const
+
+// Under the `files-dir` prefix so the session revalidation covers it.
+export const mountFolderListingQueryKey = (projectId: string, mountId: string, path: string) =>
+    ["mounts", "files-dir", projectId, mountId, path, "raw"] as const
 
 /** The mounts (drives) bound to one session. */
 export const sessionMountsQueryFamily = atomFamily((sessionId: string) =>
@@ -190,24 +196,58 @@ export const mountDirQueryFamily = atomFamily(
         Boolean(a.includeGitignored) === Boolean(b.includeGitignored),
 )
 
-/** One mount file's text content. Bodies can be ~1.5 MB strings, so retention is short:
- * a minute after the last viewer unmounts the string is dropped (refetch is cheap). */
-export const mountFileContentQueryFamily = atomFamily(
+/** ONE raw folder level (no git pruning, no counts), shared by every existence check in it. */
+export const mountFolderListingQueryFamily = atomFamily(
     ({mountId, path}: {mountId: string; path: string}) =>
-        atomWithQuery<string | null>((get) => {
+        atomWithQuery<MountFile[] | null>((get) => {
             const projectId = get(projectIdAtom) ?? ""
             return {
-                queryKey: mountFileContentQueryKey(projectId, mountId, path),
+                queryKey: mountFolderListingQueryKey(projectId, mountId, path),
                 queryFn: ({signal}) =>
-                    readMountFile({mountId, projectId, abortSignal: signal, path}),
-                enabled: Boolean(mountId && path && projectId),
+                    listMountFolder({mountId, projectId, path, abortSignal: signal}),
+                enabled: Boolean(mountId && projectId),
                 staleTime: 30_000,
-                gcTime: 60_000,
                 refetchOnWindowFocus: false,
             }
         }),
     (a, b) => a.mountId === b.mountId && a.path === b.path,
 )
+
+/** Whether `path` is a file, from its parent folder's listing; `null` while unknown. */
+export const mountFileExistsAtomFamily = atomFamily(
+    ({mountId, path}: {mountId: string; path: string}) =>
+        atom<boolean | null>((get) => {
+            if (!mountId || !path) return null
+            const listing = get(
+                mountFolderListingQueryFamily({mountId, path: parentFolderOf(path)}),
+            )
+            if (listing.data === undefined) return null
+            const entry = listedEntryAt(listing.data ?? [], path)
+            return Boolean(entry && !entry.is_folder)
+        }),
+    (a, b) => a.mountId === b.mountId && a.path === b.path,
+)
+
+/** One mount file's text content. Bodies can be ~1.5 MB strings, so retention is short:
+ * a minute after the last viewer unmounts the string is dropped (refetch is cheap). */
+// Keyed by one string: an object key with a comparator is a linear scan on every lookup.
+const mountFileContentByKey = atomFamily((key: string) =>
+    atomWithQuery<string | null>((get) => {
+        const [mountId, path] = key.split("\0")
+        const projectId = get(projectIdAtom) ?? ""
+        return {
+            queryKey: mountFileContentQueryKey(projectId, mountId, path),
+            queryFn: ({signal}) => readMountFile({mountId, projectId, abortSignal: signal, path}),
+            enabled: Boolean(mountId && path && projectId),
+            staleTime: 30_000,
+            gcTime: 60_000,
+            refetchOnWindowFocus: false,
+        }
+    }),
+)
+
+export const mountFileContentQueryFamily = ({mountId, path}: {mountId: string; path: string}) =>
+    mountFileContentByKey(`${mountId}\0${path}`)
 
 /**
  * Mark one session's drive data stale: the mount list, plus the file listing and file contents

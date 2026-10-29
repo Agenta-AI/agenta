@@ -1,67 +1,38 @@
-import {useId, type ReactNode} from "react"
+import {type ReactNode} from "react"
 
-import {Button, Divider, LoadingButton, Switch} from "@agenta/ui/ui"
+import {Button, Divider, LoadingButton} from "@agenta/ui/ui"
 
 /**
  * Shared footer for entity config drawers (triggers: schedule + subscription; tools: integration
- * + reference). Cancel / [run slot] / Save on the right; the left side is an Active toggle when
- * `onEnabledChange` is supplied (triggers), otherwise an optional `left` slot or empty (tools).
- * The run affordance differs per surface, so it is passed in as a slot rather than baked in.
+ * + reference). Cancel / Save on the right, an optional `left` slot on the left.
  */
 export function DrawerFooter({
-    enabled,
-    onEnabledChange,
     left,
     onCancel,
-    run,
     isMutating,
     canSave,
     submitLabel,
     onSubmit,
+    cancelVariant = "outline",
 }: {
-    /** When `onEnabledChange` is provided, render an Active toggle on the left. */
-    enabled?: boolean
-    onEnabledChange?: (value: boolean) => void
-    /** Left-side content when there's no Active toggle. */
     left?: ReactNode
     onCancel: () => void
-    /** Optional run-in-playground affordance (playground only). */
-    run?: ReactNode
     isMutating?: boolean
     canSave: boolean
     submitLabel: string
     onSubmit: () => void
+    /** `ghost` draws Cancel as text, for footers where only the primary action carries a box. */
+    cancelVariant?: "outline" | "ghost"
 }) {
-    // Names the Switch from the adjacent visible "Active" text (axe button-name).
-    const activeLabelId = useId()
     return (
         <>
             <Divider className="m-0" />
             <div className="flex shrink-0 items-center justify-between gap-2 px-6 py-3">
+                <div className="flex items-center gap-2">{left}</div>
                 <div className="flex items-center gap-2">
-                    {onEnabledChange ? (
-                        <>
-                            <Switch
-                                checked={enabled}
-                                onCheckedChange={onEnabledChange}
-                                aria-labelledby={activeLabelId}
-                            />
-                            <span
-                                id={activeLabelId}
-                                className="text-xs text-[var(--ag-colorTextSecondary)]"
-                            >
-                                Active
-                            </span>
-                        </>
-                    ) : (
-                        left
-                    )}
-                </div>
-                <div className="flex items-center gap-2">
-                    <Button variant="outline" onClick={onCancel}>
+                    <Button variant={cancelVariant} onClick={onCancel}>
                         Cancel
                     </Button>
-                    {run}
                     <LoadingButton
                         variant="default"
                         loading={isMutating}

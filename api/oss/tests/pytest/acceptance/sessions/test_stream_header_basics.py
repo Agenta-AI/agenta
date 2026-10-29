@@ -6,6 +6,8 @@ PUT/POST /sessions/streams/header is the rename edit, a full-PUT of {name, descr
 
 import uuid
 
+import pytest
+
 
 class TestSessionStreamHeaderBasics:
     """GET /sessions/streams/ + PUT/POST /sessions/streams/header — happy paths."""
@@ -104,3 +106,78 @@ class TestSessionStreamHeaderBasics:
             "GET", "/sessions/streams/", params={"session_id": "foo bar"}
         )
         assert response.status_code == 422
+
+    def test_whitespace_only_name_rejected(self, authed_api):
+        # A non-empty name must contain a non-whitespace character: "   " would clear the
+        # visible title while the row still holds a value. The LLM-facing rename_session
+        # schema already rejects this; the endpoint must too.
+        session_id = str(uuid.uuid4())
+        authed_api(
+            "PUT",
+            "/sessions/streams/header",
+            params={"session_id": session_id},
+            json={"name": "Real Name"},
+        )
+
+        response = authed_api(
+            "PUT",
+            "/sessions/streams/header",
+            params={"session_id": session_id},
+            json={"name": "   "},
+        )
+        assert response.status_code == 422
+
+        response = authed_api(
+            "GET", "/sessions/streams/", params={"session_id": session_id}
+        )
+        assert response.json()["stream"]["name"] == "Real Name"
+
+    def test_empty_name_still_clears_the_title(self, authed_api):
+        # The empty string is the explicit clear-title action the chat rail sends;
+        # it must stay accepted (only whitespace-only garbage is rejected).
+        session_id = str(uuid.uuid4())
+        authed_api(
+            "PUT",
+            "/sessions/streams/header",
+            params={"session_id": session_id},
+            json={"name": "To Be Cleared"},
+        )
+
+        response = authed_api(
+            "PUT",
+            "/sessions/streams/header",
+            params={"session_id": session_id},
+            json={"name": ""},
+        )
+        assert response.status_code == 200
+        assert response.json()["stream"]["name"] == ""
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {},
+            {"header": {"name": "Should Not Apply"}},
+        ],
+    )
+    def test_noop_header_bodies_are_rejected(self, authed_api, payload):
+        session_id = str(uuid.uuid4())
+        authed_api(
+            "PUT",
+            "/sessions/streams/header",
+            params={"session_id": session_id},
+            json={"name": "Keep Me"},
+        )
+
+        response = authed_api(
+            "PUT",
+            "/sessions/streams/header",
+            params={"session_id": session_id},
+            json=payload,
+        )
+        assert response.status_code == 422
+
+        get_response = authed_api(
+            "GET", "/sessions/streams/", params={"session_id": session_id}
+        )
+        assert get_response.status_code == 200
+        assert get_response.json()["stream"]["name"] == "Keep Me"

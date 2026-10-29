@@ -14,25 +14,22 @@ import {
 } from "recharts"
 
 import {format3Sig} from "@/oss/components/Evaluations/MetricDetailsPopover"
+import {useChartSeries} from "@/oss/lib/hooks/useChartSeries"
 
 import type {EvaluatorMetricsSpiderChartProps, MetricData, SeriesMeta} from "./types"
-
-const DEFAULT_SERIES_COLORS = ["#3B82F6", "#8B5CF6", "#F97316", "#10B981", "#F43F5E"]
-
-const getDefaultSeries = (): SeriesMeta[] => [
-    {
-        key: "value",
-        color: DEFAULT_SERIES_COLORS[0],
-        name: "Eval 1",
-    },
-]
 
 const EvaluatorMetricsSpiderChart = ({
     className,
     metrics = [],
     maxScore = 100,
-    series = getDefaultSeries(),
+    series: seriesProp,
 }: EvaluatorMetricsSpiderChartProps) => {
+    const seriesColors = useChartSeries()
+    // One default series, painted with the first categorical step for the active theme.
+    const series: SeriesMeta[] = useMemo(
+        () => seriesProp ?? [{key: "value", color: seriesColors[0], name: "Eval 1"}],
+        [seriesProp, seriesColors],
+    )
     const chartData: MetricData[] = useMemo(() => {
         return metrics.map((m) => {
             const axisMax =

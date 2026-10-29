@@ -1,0 +1,262 @@
+from types import SimpleNamespace
+from typing import Optional, Tuple
+from uuid import UUID
+
+from fastapi import APIRouter, HTTPException, Request, status
+from fastapi.responses import JSONResponse
+from pydantic import SecretStr
+
+from oss.src.apis.fastapi.providers.models import (
+    ProbeProviderRequest,
+    ProbeProviderResponse,
+)
+from oss.src.apis.fastapi.vault.router import SecretSafeRoute
+from oss.src.core.access.context import get_request_access
+from oss.src.core.access.organizations import OrganizationAction, decide_organization
+from oss.src.core.access.permissions.service import check_action_access
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.gateways.dtos import secret_credential_values
+from oss.src.core.providers.dtos import ProviderCredentials
+from oss.src.core.providers.exceptions import ProviderProbeError
+from oss.src.core.providers.service import ProviderProbeService
+from oss.src.core.secrets.redaction import PRIMARY_CREDENTIAL_FIELDS
+from oss.src.core.secrets.services import VaultService
+from oss.src.utils.exceptions import intercept_exceptions
+from oss.src.utils.logging import get_module_logger
+
+
+log = get_module_logger(__name__)
+
+
+def _typed_or_stored(typed, stored):
+    if typed is None:
+        return stored
+
+    value = typed.get_secret_value() if isinstance(typed, SecretStr) else typed
+    if value in ("", {}, []):
+        return stored
+
+    return typed
+
+
+def _stored_credential(secret, settings, extras):
+    container_name, field = PRIMARY_CREDENTIAL_FIELDS.get(
+        str(getattr(secret.kind, "value", secret.kind)), (None, None)
+    )
+
+    if container_name is not None:
+        container = getattr(secret.data, container_name, None)
+        primary = getattr(container, field, None) if container is not None else None
+        if primary:
+            return primary
+
+    return (extras or {}).get("api_key") or None
+
+
+def _has_typed_fields(typed: ProviderCredentials) -> bool:
+    """Whether a probe request changes any stored field (a key, URL, version or extra)."""
+    for value in (typed.key, typed.url, typed.version):
+        if _typed_or_stored(value, None) is not None:
+            return True
+    return any(value not in (None, "") for value in (typed.extras or {}).values())
+
+
+def _merged_extras(typed, stored):
+    if not typed:
+        return stored
+
+    merged = dict(stored or {})
+    for name, value in typed.items():
+        if value in (None, ""):
+            continue
+        merged[name] = value
+
+    return merged or None
+
+
+def _stored_kind(secret) -> str:
+    kind = getattr(secret.data, "kind", None)
+
+    return str(getattr(kind, "value", kind))
+
+
+class ProvidersRouter:
+    """Credential test and model discovery for a provider connection.
+
+    Shares the vault router's `SecretSafeRoute`: the probe body IS a credential, so a
+    validation error on this route must not echo what the caller sent.
+    """
+
+    def __init__(
+        self,
+        provider_probe_service: ProviderProbeService,
+        vault_service: VaultService,
+    ):
+        self.service = provider_probe_service
+        self.vault_service = vault_service
+
+        self.router = APIRouter(route_class=SecretSafeRoute)
+
+        self.router.add_api_route(
+            "/providers/probe",
+            self.probe_provider,
+            methods=["POST"],
+            operation_id="probe_provider",
+            response_model=ProbeProviderResponse,
+        )
+
+    async def _merge_stored_secret(
+        self,
+        *,
+        project_id: UUID,
+        secret_id: UUID,
+        kind: Optional[str],
+        typed: ProviderCredentials,
+        organization_id: Optional[UUID] = None,
+    ) -> Tuple[str, ProviderCredentials]:
+        if organization_id is not None:
+            # An organization connection available to this project; never a project row.
+            secret = await self.vault_service.get_available_organization_secret_by_id(
+                organization_id=organization_id,
+                project_id=project_id,
+                secret_id=secret_id,
+            )
+        else:
+            secret = await self.vault_service.get_secret_by_id(
+                secret_id=secret_id,
+                project_id=project_id,
+            )
+
+        if secret is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Secret not found",
+            )
+
+        if secret.management is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Managed secrets cannot be probed.",
+            )
+
+        stored_kind = _stored_kind(secret)
+        settings = getattr(secret.data, "provider", None)
+        stored_extras = getattr(settings, "extras", None) if settings else None
+        stored_key = _stored_credential(secret, settings, stored_extras)
+
+        typed_key = _typed_or_stored(typed.key, None)
+        if kind is not None and kind != stored_kind and typed_key is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=(
+                    "Testing this connection as a different provider requires its "
+                    "credential; the stored one belongs to the saved provider."
+                ),
+            )
+
+        merged = ProviderCredentials(
+            key=_typed_or_stored(typed_key, stored_key),
+            url=_typed_or_stored(typed.url, getattr(settings, "url", None)),
+            version=_typed_or_stored(typed.version, getattr(settings, "version", None)),
+            extras=_merged_extras(typed.extras, stored_extras),
+        )
+
+        return kind or stored_kind, merged
+
+    @intercept_exceptions()
+    async def probe_provider(self, request: Request, body: ProbeProviderRequest):
+        organization_scope = body.secret_scope == "organization"
+        # EDIT_SECRET, not VIEW_SECRET: a probe spends a caller-supplied credential on an
+        # outbound request, so it belongs to whoever may change the connection. Testing an
+        # organization connection as saved is open to every member of a project it is
+        # available to (VIEW_SECRET); testing it with changed fields is an edit, so it
+        # needs the organization decision (M5).
+        has_permission = await check_action_access(
+            user_uid=str(request.state.user_id),
+            project_id=str(request.state.project_id),
+            permission=(
+                Permission.VIEW_SECRET if organization_scope else Permission.EDIT_SECRET
+            ),
+        )
+        organization_id = None
+        if has_permission and organization_scope:
+            raw = getattr(request.state, "organization_id", None)
+            organization_id = UUID(str(raw)) if raw else None
+            if organization_id is None or body.secret_id is None:
+                has_permission = False
+            elif _has_typed_fields(body.provider) or body.kind is not None:
+                decision = await decide_organization(
+                    access=get_request_access(),
+                    organization_id=organization_id,
+                    action=OrganizationAction.MANAGE_ORGANIZATION_SECRETS,
+                )
+                has_permission = decision.allowed
+
+        if not has_permission:
+            error_msg = "You do not have access to perform this action. Please contact your organization admin."
+            return JSONResponse(
+                {"detail": error_msg},
+                status_code=403,
+            )
+
+        kind, credentials = body.kind, body.provider
+        if body.secret_id is not None:
+            kind, credentials = await self._merge_stored_secret(
+                project_id=UUID(request.state.project_id),
+                secret_id=body.secret_id,
+                kind=kind,
+                typed=credentials,
+                organization_id=organization_id,
+            )
+
+        # An organization value never reaches a project member (M5): a provider that echoes
+        # it back (in a model id, or in an error text) gets the same refusal as the gateway.
+        echo_forms = _credential_forms(credentials) if organization_scope else ()
+
+        try:
+            result = await self.service.probe(
+                kind=kind,
+                credentials=credentials,
+            )
+        except ProviderProbeError as e:
+            if _echoes(e.message, echo_forms):
+                _refuse_echo(secret_id=body.secret_id)
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=e.message,
+            ) from None
+        if _echoes(result.model_dump_json(), echo_forms):
+            _refuse_echo(secret_id=body.secret_id)
+        return result
+
+
+PROBE_CREDENTIAL_ECHO_MESSAGE = (
+    "The provider answered with the stored credential, so the test result is not shown."
+)
+
+
+def _credential_forms(credentials: ProviderCredentials) -> Tuple[bytes, ...]:
+    """Every spelling of the credential values a probe sends, for the echo scan."""
+    key = credentials.key.get_secret_value() if credentials.key else None
+    provider = SimpleNamespace(key=key, extras=credentials.extras)
+    return secret_credential_values(
+        SimpleNamespace(data=SimpleNamespace(provider=provider))
+    )
+
+
+def _echoes(text: Optional[str], forms: Tuple[bytes, ...]) -> bool:
+    if not forms or not text:
+        return False
+    data = text.encode()
+    return any(form in data for form in forms)
+
+
+def _refuse_echo(*, secret_id) -> None:
+    log.warning(
+        "[providers] probe answer held an organization credential; refused",
+        secret_id=str(secret_id),
+    )
+    raise HTTPException(
+        status_code=status.HTTP_502_BAD_GATEWAY,
+        detail=PROBE_CREDENTIAL_ECHO_MESSAGE,
+    )

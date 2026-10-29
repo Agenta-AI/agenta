@@ -1,0 +1,63 @@
+---
+title: "Agents API overview"
+sidebar_label: "Overview"
+description: "Run configurable agents in managed sessions through the Agenta agent service."
+sidebar_position: 1
+---
+
+The Agenta agent service lets an application run AI agents through HTTP. Agenta manages the harness loop, sessions, tools, approvals, tracing, and sandbox lifecycle. Your application supplies a task and either references a stored agent or sends an inline configuration.
+
+## Start here
+
+- [Quickstart](/reference/agents/quickstart) runs a stored agent and consumes its stream.
+- [Agent configuration](/reference/agents/agent-configuration) defines every agent-template field.
+- [Invoke an agent](/reference/agents/invoke-an-agent) documents the complete HTTP contract.
+- [Chat message format](/reference/agents/chat-message-format) defines messages and stream frames.
+
+## Core concepts
+
+- **Agent:** instructions, model, harness, tools, skills, permissions, and sandbox configuration.
+- **Sandbox:** the local or Daytona environment where the agent works with commands and files.
+- **Session:** conversation state and a working directory that continue across turns.
+- **Interaction:** an approval, user-input request, or client tool call that pauses a turn.
+
+## Lifecycle
+
+1. Reference a stored workflow revision or send `data.parameters.agent` inline.
+2. Post messages to `/services/agent/v0/invoke`.
+3. Read one JSON response, SSE frames, or NDJSON frames.
+4. Answer any pending interaction.
+5. Reuse `session_id` for the next turn.
+
+The service supports Pi, Claude Code, and Codex harnesses; local and Daytona sandboxes; connected applications; code and client tools; referenced workflows; HTTP MCP servers; and reusable skills. Availability depends on the deployment and harness.
+
+## Minimal inline request
+
+```bash
+curl -N -X POST \
+  "$AGENTA_HOST/services/agent/v0/invoke?project_id=$PROJECT_ID" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Accept: text/event-stream" \
+  -d '{
+    "data": {
+      "inputs": {"messages": [{"role": "user", "content": "Summarize this repository."}]},
+      "parameters": {
+        "agent": {
+          "instructions": {"agents_md": "Read before answering."},
+          "llm": {"provider": "openai", "model": "gpt-5.6-luna"},
+          "tools": [],
+          "harness": {"kind": "pi_core"},
+          "runner": {"kind": "sidecar", "permissions": {"default": "allow_reads"}},
+          "sandbox": {"kind": "local"}
+        }
+      }
+    }
+  }'
+```
+
+Harness built-ins are always active and are not listed in `tools`. Store the returned `x-ag-session-id` and reuse it to continue the session.
+
+## Data location
+
+Agenta Cloud has US and EU hosts. The chosen host determines where prompts, configurations, traces, files, and secrets are stored. Self-hosted deployments use the infrastructure you configure. See [Data regions](/administration/security/data-regions) and [Privacy](/administration/security/privacy).

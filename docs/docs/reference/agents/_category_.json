@@ -1,0 +1,8 @@
+{
+  "label": "Agents API",
+  "position": 4,
+  "link": {
+    "type": "doc",
+    "id": "reference/agents/overview"
+  }
+}

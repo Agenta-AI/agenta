@@ -1,0 +1,31 @@
+---
+title: "New models and more accurate cost tracking"
+slug: new-models-and-cost-tracking
+date: 2026-09-30
+tags: [v0.121.6]
+description: "Run Agenta agents on Claude Opus 5.5, Claude Sonnet 5.5 and xAI Grok, with cost tracking that accounts for prompt caching."
+---
+
+<Summary>
+
+You can now run agents on Claude Opus 5.5, Claude Sonnet 5.5 and xAI's Grok. Connect xAI directly from AI providers, no OpenRouter needed.
+
+Cost tracking is also more accurate. Costs now account for cached tokens and cache writes, each model call is priced on its own, and calls we can't price are marked instead of showing $0.
+
+</Summary>
+
+{/* truncate */}
+
+## New models
+
+- **Claude Opus 5.5** and **Claude Sonnet 5.5** are available in the Claude and Pi harnesses and for prompts. Saved agents on Claude Fable 5 now run on Fable 5.1.
+- **xAI**: add your xAI key in AI providers and pick Grok for your agents and prompts.
+
+## More accurate cost tracking
+
+We reworked how traces count tokens and compute cost:
+
+- Cached tokens and cache writes are now part of the cost.
+- Each model call carries its own tokens and cost, so a run's total no longer double counts.
+- Calls through OpenRouter show the cost OpenRouter actually billed.
+- Calls that can't be priced, such as a custom model connection, are marked instead of showing $0.

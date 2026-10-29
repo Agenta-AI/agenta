@@ -25,6 +25,7 @@ import {z} from "zod"
 
 import {parseRevisionUri, safeParseWithLogging} from "../../shared"
 import {extractAllEndpointSchemas, type OpenAPISpec} from "../../shared/openapi"
+import type {Visibility} from "../../sharing/core/schema"
 import {
     workflowSchema,
     workflowResponseSchema,
@@ -52,30 +53,46 @@ const toUnixMs = (value: string | null | undefined): number => {
     return Number.isFinite(timestamp) ? timestamp : 0
 }
 
-const getWorkflowRecencyScore = (workflow: Workflow | null | undefined): number => {
+const workflowRecencyScore = (workflow: Workflow | null | undefined): number => {
     if (!workflow) return 0
-    return (
-        toUnixMs(workflow.created_at) ||
-        toUnixMs(workflow.updated_at) ||
-        Number(workflow.version ?? 0)
-    )
+    return toUnixMs(workflow.created_at) || toUnixMs(workflow.updated_at)
 }
 
-const selectMostRecentWorkflowRevision = (
-    workflows: (Workflow | null | undefined)[],
-): Workflow | undefined => {
-    let latest: Workflow | undefined
-    let latestScore = -1
+/**
+ * Is `a` a later revision than `b`?
+ *
+ * VERSION decides, not the timestamp. `version` is server-assigned and monotonic; `created_at` is
+ * not a reliable ordering — revisions committed by the agent land in bursts that tie to the second,
+ * and a tie used to fall through to array order and pick an arbitrary revision as "latest".
+ *
+ * Timestamps stay as the tie-break for revisions that share a version.
+ *
+ * `store.ts` carries the same rule. It cannot be shared from there — `state/` imports this
+ * module, not the reverse — and this copy exists to stop the two diverging: what stood here was
+ * the timestamp-first picker commit 0c9b25b7e2 already replaced on the store side.
+ */
+const isLaterWorkflowRevision = (
+    a: Workflow | null | undefined,
+    b: Workflow | null | undefined,
+): boolean => {
+    if (!a) return false
+    if (!b) return true
+    const aVersion = Number(a.version ?? 0)
+    const bVersion = Number(b.version ?? 0)
+    if (aVersion !== bVersion) return aVersion > bVersion
+    return workflowRecencyScore(a) > workflowRecencyScore(b)
+}
 
-    for (const workflow of workflows) {
-        if (!workflow) continue
-        // Skip v0 revisions (auto-created initial revisions with no useful data)
-        if ((workflow.version ?? 0) === 0) continue
-        const score = getWorkflowRecencyScore(workflow)
-        if (!latest || score > latestScore) {
-            latest = workflow
-            latestScore = score
-        }
+/** The newest real revision in a list. Version-0 placeholders carry no config and never win. */
+const pickMostRecentWorkflowRevision = (
+    revisions: (Workflow | null | undefined)[],
+): Workflow | null => {
+    let latest: Workflow | null = null
+
+    for (const revision of revisions) {
+        if (!revision) continue
+        if ((revision.version ?? 0) === 0) continue
+        if (isLaterWorkflowRevision(revision, latest)) latest = revision
     }
 
     return latest
@@ -353,6 +370,8 @@ export async function retrieveWorkflowRevision({
 
 export const AGENT_BUILD_KIT_WORKFLOW_SLUG = "__ag__build_kit"
 
+const buildKitAccessSchema = z.record(z.string(), z.enum(["read", "write"]))
+
 const agentBuildKitOverlaySchema = z
     .object({
         tools: z.array(z.unknown()).optional(),
@@ -385,7 +404,23 @@ export async function fetchAgentBuildKitOverlay(
     )
     if (!validated || Object.keys(validated).length === 0) return null
 
-    return validated
+    const access = buildKitAccessSchema.safeParse(revision?.data?.parameters?.op_access)
+    return {...validated, op_access: access.success ? access.data : {}}
+}
+
+export const AGENTA_TOOLS_WORKFLOW_SLUG = "__ag__agenta_tools"
+
+/** Every Agenta tool an agent can turn on, each marked "read" or "write". */
+export async function fetchAgentaToolsAccess(
+    projectId: string,
+): Promise<Record<string, "read" | "write">> {
+    const revision = await retrieveWorkflowRevision({
+        projectId,
+        workflowRef: {slug: AGENTA_TOOLS_WORKFLOW_SLUG},
+        lowPriority: true,
+    })
+    // Unreadable data is an error, not an empty list, so the section says it failed to load.
+    return buildKitAccessSchema.parse(revision?.data?.parameters?.op_access)
 }
 
 /**
@@ -556,6 +591,7 @@ export interface SimpleApplicationFetchResponse {
     additional_context?: {
         playground_build_kit?: {
             agent_template_overlay?: Record<string, unknown> | null
+            op_access?: Record<string, "read" | "write">
         } | null
     } | null
 }
@@ -571,6 +607,7 @@ const simpleApplicationFetchResponseSchema = z.object({
             playground_build_kit: z
                 .object({
                     agent_template_overlay: z.record(z.string(), z.unknown()).nullable().optional(),
+                    op_access: buildKitAccessSchema.optional(),
                 })
                 .nullable()
                 .optional(),
@@ -610,61 +647,6 @@ export async function fetchSimpleApplication(
         "[fetchSimpleApplication]",
     )
     return (validated ?? null) as SimpleApplicationFetchResponse | null
-}
-
-// ============================================================================
-// INTERFACE SCHEMAS FETCH (for builtin workflows)
-// ============================================================================
-
-/**
- * Response shape from the interface schemas endpoint.
- * Returns schemas for a builtin workflow URI.
- */
-export interface InterfaceSchemasResponse {
-    uri?: string | null
-    schemas?: {
-        parameters?: Record<string, unknown> | null
-        inputs?: Record<string, unknown> | null
-        outputs?: Record<string, unknown> | null
-    } | null
-}
-
-/**
- * Fetch interface schemas for a builtin workflow URI.
- *
- * This endpoint returns the parameters, inputs, and outputs schemas
- * for builtin workflow URIs (e.g., "agenta:builtin:auto_ai_critique:v0").
- *
- * This is useful as a fallback when revision data doesn't contain
- * the full schemas, allowing the frontend to dynamically render
- * configuration forms and validate inputs.
- *
- * Endpoint: `POST /workflows/interfaces/schemas`
- *
- * @param uri - The workflow URI (e.g., "agenta:builtin:auto_exact_match:v0")
- * @param projectId - Project ID
- * @returns Interface schemas response with parameters, inputs, outputs
- */
-export async function fetchInterfaceSchemas(
-    uri: string,
-    projectId: string,
-): Promise<InterfaceSchemasResponse | null> {
-    if (!projectId || !uri) {
-        return null
-    }
-
-    try {
-        const response = await axios.post(
-            `${getAgentaApiUrl()}/workflows/interfaces/schemas`,
-            {uri},
-            {params: {project_id: projectId}},
-        )
-
-        return response.data ?? null
-    } catch (error) {
-        console.error("[fetchInterfaceSchemas] Failed to fetch schemas", {uri, error})
-        return null
-    }
 }
 
 // ============================================================================
@@ -802,11 +784,16 @@ export interface CreateWorkflowPayload {
     name: string
     description?: string | null
     flags?: WorkflowRoleFlags
-    tags?: string[] | null
+    tags?: Workflow["tags"]
     meta?: Record<string, unknown> | null
     /** Commit message for the initial revision */
     message?: string | null
     data?: WorkflowData | null
+    /** Overrides the URI-inferred flags on the v1 commit (e.g. `{is_skill: true}`). */
+    revisionFlags?: Record<string, boolean> | null
+    /** Sharing (M3): `private` makes the creator the only one who sees the new agent.
+     * Omitted, the server keeps its default. */
+    visibility?: Visibility
 }
 
 /**
@@ -857,6 +844,7 @@ export async function createWorkflow(
                 flags: payload.flags,
                 tags: payload.tags,
                 meta: payload.meta,
+                ...(payload.visibility ? {visibility: payload.visibility} : {}),
             },
         },
         {params: {project_id: projectId}},
@@ -922,7 +910,7 @@ export async function createWorkflow(
         )
 
         // Step 4: Commit actual data revision (v1) with full parameters
-        const revisionFlags = inferRevisionFlagsFromUri(payload.data?.uri)
+        const revisionFlags = payload.revisionFlags ?? inferRevisionFlagsFromUri(payload.data?.uri)
         const commitResponse = await axios.post(
             `${getAgentaApiUrl()}/workflows/revisions/commit`,
             {
@@ -1018,7 +1006,7 @@ export interface UpdateWorkflowPayload {
     name?: string | null
     description?: string | null
     flags?: WorkflowRoleFlags
-    tags?: string[] | null
+    tags?: Workflow["tags"]
     meta?: Record<string, unknown> | null
     /** Commit message for the new revision */
     message?: string | null
@@ -1039,8 +1027,13 @@ export async function updateWorkflow(
     projectId: string,
     payload: UpdateWorkflowPayload,
 ): Promise<Workflow> {
-    // Update workflow metadata if non-data fields changed
-    const hasMetadataChanges = payload.name || payload.description || payload.flags || payload.tags
+    // Update workflow metadata if non-data fields changed. Description and tags are checked for
+    // presence, not truth: an empty string clears a description, `null` clears the tags.
+    const hasMetadataChanges =
+        payload.name ||
+        payload.description !== undefined ||
+        payload.flags ||
+        payload.tags !== undefined
     if (hasMetadataChanges) {
         await axios.put(
             `${getAgentaApiUrl()}/workflows/${payload.id}`,
@@ -1319,13 +1312,72 @@ export async function fetchWorkflowsBatch(
 
     for (const workflowId of workflowIds) {
         const candidates = groupedByWorkflowId.get(workflowId) ?? []
-        const mostRecent = selectMostRecentWorkflowRevision(candidates)
+        const mostRecent = pickMostRecentWorkflowRevision(candidates)
         if (mostRecent) {
             results.set(workflowId, mostRecent)
         }
     }
 
     return results
+}
+
+/**
+ * Classify workflows as agent / not-agent, in ONE bounded request.
+ *
+ * `is_agent` lives on the revision, never on the artifact, so the artifact list cannot answer
+ * this. Asking the revision query to group by artifact and get the latest revision returns one row
+ * per workflow — its real head, placeholder revisions skipped — instead of the entire history of
+ * each, which is what this used to cost through `fetchWorkflowsBatch`.
+ *
+ * Returns booleans, not revisions: a caller that wants the revision object wants a different
+ * cache entry, and mixing the two is what spread this fetch across six uncoordinated call sites.
+ *
+ * Endpoint: `POST /workflows/revisions/query`
+ *
+ * Raw axios rather than the Fern client this file's newer functions prefer: revision grouping
+ * ships in the same stack as this call, so the generated client does not carry it until the OpenAPI
+ * spec is regenerated. Migrate with the rest of this file once it does.
+ *
+ * @param projectId - Project ID
+ * @param workflowIds - Workflow IDs to classify
+ * @returns Map of workflow ID → whether its latest revision is an agent
+ */
+export async function fetchWorkflowAgentFlags(
+    projectId: string,
+    workflowIds: string[],
+    opts?: {lowPriority?: boolean},
+): Promise<Map<string, boolean>> {
+    const flags = new Map<string, boolean>()
+
+    if (!projectId || workflowIds.length === 0) return flags
+
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/workflows/revisions/query`,
+        {
+            workflow_refs: workflowIds.map((id) => ({id})),
+            grouping: {by: "artifact", get: "latest"},
+            // Archived workflows are classified too: the archived Agents tab needs them split the
+            // same way, and their revisions are not themselves archived.
+            include_archived: true,
+        },
+        {params: {project_id: projectId}, ...lowPriorityWhenCached(opts?.lowPriority)},
+    )
+
+    const validated = safeParseWithLogging(
+        workflowRevisionsResponseSchema,
+        response.data,
+        "[fetchWorkflowAgentFlags]",
+    )
+    if (!validated) return flags
+
+    // `workflowRevisionsResponseSchema` already parsed every row; re-parsing each one item by item
+    // (as `fetchWorkflowsBatch` does) just doubles the work on a payload we are here to shrink.
+    for (const revision of validated.workflow_revisions) {
+        const key = revision.workflow_id ?? revision.id
+        if (key) flags.set(key, revision.flags?.is_agent === true)
+    }
+
+    return flags
 }
 
 /**
@@ -1433,6 +1485,33 @@ export async function fetchHarnessCapabilities(opts?: {
         }
     }
     return byHarness
+}
+
+/**
+ * The platform-funded (`builtin`) LLM gateway endpoints this deployment serves, with their models.
+ * An organization outside the LLM gateway rollout is refused the whole listing, so it is offered
+ * none. A failure rejects rather than reading as none, so the query cache does not keep an empty
+ * list for its stale window.
+ */
+export async function fetchBuiltinModelEndpoints(
+    projectId: string,
+): Promise<{slug: string; models: string[]; deploymentKind: string | null}[]> {
+    const response = await axios.get(`${getAgentaApiUrl()}/gateways/llms/endpoints/`, {
+        params: {project_id: projectId},
+    })
+    const endpoints = (response.data?.endpoints ?? []) as {
+        namespace?: string
+        slug?: string
+        deployment_kind?: string | null
+        data?: {models?: {allowlist?: string[] | null}}
+    }[]
+    return endpoints
+        .filter((endpoint) => endpoint.namespace === "builtin" && endpoint.slug)
+        .map((endpoint) => ({
+            slug: endpoint.slug as string,
+            models: endpoint.data?.models?.allowlist ?? [],
+            deploymentKind: endpoint.deployment_kind ?? null,
+        }))
 }
 
 // ============================================================================

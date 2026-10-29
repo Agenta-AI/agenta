@@ -8,10 +8,12 @@
  * below; 0 antd type/runtime dependency) that mirrors the antd props call-sites pass.
  *
  * Covered: open · onClose · title · footer · extra · placement→side · width/height · closable ·
- * maskClosable · keyboard(Esc) · afterOpenChange · styles(body/header/footer) · className/rootClassName ·
- * zIndex · getContainer · destroyOnClose/Hidden (lazy) · closeOnLayoutClick (Radix outside-click).
- * Deferred (rare / unused): `mask={false}` (Radix always renders the overlay), custom `closeIcon`,
- * `push`, `loading`. Add if a call-site needs them.
+ * maskClosable (outside-click dismissal) · keyboard(Esc) · afterOpenChange · styles(body/header/footer) ·
+ * className/rootClassName · zIndex · getContainer · destroyOnClose/Hidden (lazy).
+ * `closeIcon={null}` hides the close button; a custom NODE is not rendered yet (no call-site
+ * passes one). Still deferred: `mask={false}` (Radix always renders the overlay), `push`,
+ * `loading` — verify against real call-sites before calling any of them unused, since this list
+ * was wrong about `closeIcon` AND `classNames`.
  */
 
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
@@ -72,7 +74,11 @@ interface DrawerProps {
     title?: React.ReactNode
     footer?: React.ReactNode
     extra?: React.ReactNode
-    placement?: "top" | "right" | "bottom" | "left"
+    /**
+     * antd's four edges, plus `responsive`: a bottom sheet below `lg` and the right-edge drawer
+     * from `lg` up, which is the one prop that makes a configuration panel correct in both apps.
+     */
+    placement?: "top" | "right" | "bottom" | "left" | "responsive"
     width?: string | number
     height?: string | number
     size?: "default" | "large" | string | number
@@ -106,8 +112,8 @@ interface DrawerProps {
 
 export interface EnhancedDrawerProps extends DrawerProps {
     children?: React.ReactNode
-    /** antd `Drawer` had this; Radix already closes on outside-click, so it's effectively a no-op. */
-    closeOnLayoutClick?: boolean
+    /** The panel element — what a confirm scoped to the drawer portals into. */
+    panelRef?: React.Ref<HTMLDivElement>
 }
 
 interface DrawerStyles {
@@ -121,6 +127,7 @@ interface DrawerStyles {
 export function EnhancedDrawer(props: EnhancedDrawerProps) {
     const {
         children,
+        panelRef,
         open,
         onClose,
         title,
@@ -133,9 +140,12 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
         closable = true,
         maskClosable = true,
         keyboard = true,
+        autoFocus = true,
         zIndex,
         getContainer,
         styles: customStyles,
+        classNames: customClassNames,
+        closeIcon,
         className,
         rootClassName,
         afterOpenChange,
@@ -165,6 +175,12 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
     }, [open, shouldRender, afterOpenChange])
 
     const styles = customStyles as DrawerStyles | undefined
+    // Same object-form-only treatment as `styles` above. Without this the semantic class slots
+    // went nowhere: `classNames={{body: "!p-0"}}` left the body's default padding in place.
+    const slotClassNames = customClassNames as DrawerSemanticClassNames | undefined
+    // antd `closeIcon={null}` means "no close button" — distinct from `closable={false}`, though
+    // both end up hiding it. Undefined leaves `closable` in charge.
+    const showClose = closable !== false && closeIcon !== null
 
     // `HTMLElement` is a browser-only global: guard it so SSR doesn't throw evaluating
     // `instanceof` before this ever needs a real container.
@@ -186,59 +202,102 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
 
     if (!shouldRender) return null
 
-    const side = placement as "top" | "right" | "bottom" | "left"
+    const side = placement
+    const isResponsive = side === "responsive"
+    // antd semantics: `maskClosable` (default true) alone governs outside-click dismissal.
+    const dismissOnOutside = maskClosable
     const isHorizontal = side === "left" || side === "right"
     // antd `width` sizes left/right drawers, `height` sizes top/bottom; otherwise Sheet's 378 default.
     // antd `size`: "default"=378, "large"=736; a number is treated as px (antd v6 behaviour).
     // Explicit width/height always wins; without this mapping `size` was silently ignored.
     const sizeToPx =
         typeof size === "number" ? size : size === "large" ? 736 : size === "default" ? 378 : null
-    const effWidth = width ?? (isHorizontal ? sizeToPx : null)
+    const effWidth = width ?? (isHorizontal || isResponsive ? sizeToPx : null)
     const effHeight = height ?? (!isHorizontal ? sizeToPx : null)
-    const sizeStyle: React.CSSProperties = isHorizontal
+    // `responsive` skips the axis clamp: its own class list carries the geometry, because the
+    // panel is full width on a phone and a fixed drawer from `lg` up, and an inline width would
+    // apply at both. The requested width reaches the `lg` half through a custom property.
+    const sizeStyle: React.CSSProperties = isResponsive
         ? effWidth != null
-            ? {width: effWidth, maxWidth: "100%"}
+            ? ({
+                  "--ag-sheet-responsive-width":
+                      typeof effWidth === "number" ? `${effWidth}px` : effWidth,
+              } as React.CSSProperties)
             : {}
-        : effHeight != null
-          ? {height: effHeight, maxHeight: "100%"}
-          : {}
+        : isHorizontal
+          ? effWidth != null
+              ? // The panel floats 8px in from each edge, so the clamp leaves room for both.
+                {width: effWidth, maxWidth: "calc(100% - 1rem)"}
+              : {}
+          : effHeight != null
+            ? {height: effHeight, maxHeight: "100%"}
+            : {}
+
+    const hasHeader = title != null || extra != null || showClose
 
     return (
         <Sheet open={open} onOpenChange={handleOpenChange}>
             <SheetContent
+                ref={panelRef}
                 side={side}
                 container={container}
-                className={cn(rootClassName, className)}
+                className={cn(rootClassName, className, slotClassNames?.content)}
                 style={{...sizeStyle, ...(zIndex != null ? {zIndex} : {}), ...styles?.content}}
+                onOpenAutoFocus={(e) => {
+                    // A control that focused itself on mount (`autoFocus`) keeps focus; Radix
+                    // would otherwise move it to the first tabbable, usually the close button.
+                    const panel = e.currentTarget as HTMLElement | null
+                    if (!autoFocus || panel?.contains(document.activeElement)) e.preventDefault()
+                }}
                 onEscapeKeyDown={(e) => {
                     if (!keyboard) e.preventDefault()
                 }}
                 onPointerDownOutside={(e) => {
-                    if (!maskClosable) e.preventDefault()
+                    if (!dismissOnOutside) e.preventDefault()
                 }}
                 onInteractOutside={(e) => {
-                    if (!maskClosable) e.preventDefault()
+                    if (!dismissOnOutside) e.preventDefault()
                 }}
             >
-                {title != null || extra != null || closable !== false ? (
-                    <SheetHeader showCloseButton={closable !== false} style={styles?.header}>
-                        {title != null ? (
-                            <SheetTitle className="flex-1">{title}</SheetTitle>
-                        ) : (
-                            <span className="flex-1" />
-                        )}
-                        {extra != null ? <div data-slot="drawer-extra">{extra}</div> : null}
+                {hasHeader ? (
+                    <SheetHeader
+                        showCloseButton={showClose}
+                        style={styles?.header}
+                        className={slotClassNames?.header}
+                    >
+                        {/* One row inside the header's column: antd's `extra` sits beside the title. */}
+                        <div className="flex items-center gap-2">
+                            {title != null ? (
+                                // min-w-0: its automatic minimum is min-content, so a nowrap title never shrank.
+                                <SheetTitle className="min-w-0 flex-1">{title}</SheetTitle>
+                            ) : (
+                                <span className="flex-1" />
+                            )}
+                            {extra != null ? <div data-slot="drawer-extra">{extra}</div> : null}
+                        </div>
                     </SheetHeader>
                 ) : null}
-                {/* antd `.ant-drawer-body`: 24px padding, scrolls internally. */}
+                {/* Body scrolls internally with 16px padding. Where it meets the panel's edge it
+                    takes the panel's corners, so a scrollbar or a pane inside it cannot paint a
+                    square corner on the floating panel. Not the panel itself: popups portal into
+                    it and would be clipped. */}
                 <div
                     data-slot="drawer-body"
-                    className="min-h-0 flex-1 overflow-y-auto px-6 py-6 text-field-md text-colorText"
+                    className={cn(
+                        "min-h-0 flex-1 overflow-y-auto p-4 text-field-md text-colorText",
+                        !hasHeader && "rounded-t-[inherit]",
+                        footer == null && "rounded-b-[inherit]",
+                        slotClassNames?.body,
+                    )}
                     style={styles?.body}
                 >
                     {children}
                 </div>
-                {footer != null ? <SheetFooter style={styles?.footer}>{footer}</SheetFooter> : null}
+                {footer != null ? (
+                    <SheetFooter style={styles?.footer} className={slotClassNames?.footer}>
+                        {footer}
+                    </SheetFooter>
+                ) : null}
             </SheetContent>
         </Sheet>
     )

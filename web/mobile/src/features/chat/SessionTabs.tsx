@@ -1,0 +1,154 @@
+import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "@agenta/chat/state"
+import {FilesPaneToggle, useSessionFilesPane} from "@agenta/entity-ui/drive"
+import {
+    SessionTabRail,
+    SessionTabStrip,
+    sessionMenuAccess,
+    withSessionShortcutKeys,
+} from "@agenta/sessions-ui"
+import {userAtom} from "@agenta/shared/state"
+import {useAtomValue} from "jotai"
+import {useRouter} from "next/router"
+
+import {PageTitle} from "@/components/PageTitle"
+
+import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
+
+import {ConfigRevealButton} from "./ConfigRevealButton"
+import {InspectSessionButton} from "./InspectSessionButton"
+import {SessionHistoryMenu} from "./SessionHistoryMenu"
+import {SessionSharingControl} from "./SessionSharingControl"
+import {useSessionHeader} from "./useSessionHeader"
+import {useSessionTabClose} from "./useSessionTabClose"
+import {useStartBlankSession} from "./useStartBlankSession"
+
+/**
+ * The conversation pane's header: this agent's sessions as tabs, the open one active — the same
+ * strip the desktop playground carries above its transcript.
+ *
+ * Selecting a tab is a route change here (a session per URL), not a local tab switch, so the rail
+ * only needs the host's routing.
+ *
+ * In Chat mode at md+ the vertical sessions pane sits beside the transcript and owns the switching
+ * — the same call the desktop makes (its tag bar drops its pills in full-screen mode), so the rail
+ * steps aside there and stays on the narrow frame, where that pane is not on screen.
+ */
+/** The config-panel reveal and the files-pane opener live in the TAB BAR, as they do on the
+ * desktop: `leadingExtra` sits where the config panel disappeared from, `extra` hugs the right
+ * edge the pane expands from. Putting them in the page header instead left the files chevron
+ * floating in the window's top-right corner, detached from the row it belongs to. */
+export const SessionTabs = ({
+    sessionId,
+    projectId,
+    workspaceId,
+    agentId,
+    agentResolving = false,
+}: {
+    sessionId: string
+    projectId: string
+    workspaceId: string
+    /** Scope the rail to this agent's sessions. Absent while resolving, or with no agent. */
+    agentId?: string | null
+    /** A null `agentId` is not yet the answer. */
+    agentResolving?: boolean
+}) => {
+    const router = useRouter()
+    const base = `/w/${workspaceId}/p/${projectId}`
+    const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
+    // The SAME verbs the sessions pane and the sessions list bind — rename, pin, archive, delete
+    // with their confirms — so a session's menu is the same whether it is a tab or a row.
+    const menu = useSessionRowMenu(base)
+    const startBlank = useStartBlankSession(base)
+    const closeTabs = useSessionTabClose({agentId, sessionId, base})
+    const configCollapsed = useAtomValue(configPanelCollapsedAtom)
+    const {open: filesOpen, toggle: toggleFiles} = useSessionFilesPane(
+        agentId ?? sessionId,
+        sessionId,
+    )
+    const query = useSessionHeader(projectId, sessionId)
+    const me = useAtomValue(userAtom)
+
+    const leadingExtra = !chatMaximized && configCollapsed ? <ConfigRevealButton /> : undefined
+    const extra = (
+        <>
+            {/* Before the session buttons, at the strip's right end: the chat's own sharing. */}
+            <SessionSharingControl
+                sessionId={sessionId}
+                sessionName={query.data?.name ?? ""}
+                workspaceId={workspaceId}
+                projectId={projectId}
+            />
+            {chatMaximized ? null : (
+                <>
+                    <InspectSessionButton sessionId={sessionId} />
+                    {agentId ? (
+                        <SessionHistoryMenu
+                            agentId={agentId}
+                            base={base}
+                            activeSessionId={sessionId}
+                        />
+                    ) : null}
+                </>
+            )}
+            <FilesPaneToggle open={filesOpen} onToggle={toggleFiles} disabled={!sessionId} />
+        </>
+    )
+
+    // Held back while resolving: an unscoped rail would re-key and refetch once the agent lands.
+    if (!agentId && agentResolving) {
+        return (
+            <>
+                <PageTitle title={query.data?.name} />
+                <SessionTabStrip
+                    className={chatMaximized ? "md:hidden" : undefined}
+                    extra={extra}
+                    leadingExtra={leadingExtra}
+                />
+            </>
+        )
+    }
+
+    return (
+        <>
+            <PageTitle title={query.data?.name} />
+            <SessionTabRail
+                className={chatMaximized ? "md:hidden" : undefined}
+                agentId={agentId ?? undefined}
+                policy={{origin: "exclude-trigger", expansions: []}}
+                limit={12}
+                withPinned
+                // Beside the transcript, not the screen's point: its reads queue behind it.
+                lowPriority
+                activeSessionId={sessionId}
+                activeFallbackTitle={query.data?.name}
+                menuFor={(vm) =>
+                    withSessionShortcutKeys(menu.menuFor(vm), {isActive: vm.id === sessionId})
+                }
+                onMenuSelect={menu.onMenuSelect}
+                // "Rename" and the tab's pencil open the rail's own editor; this only persists it.
+                onRenameTab={menu.onRenameRow}
+                // Someone else's chat keeps its name: renaming it is the owner's verb.
+                canRenameTab={(vm) =>
+                    sessionMenuAccess({ownerUserId: vm.stream.owner_user_id ?? null}, me?.id) !==
+                    "member"
+                }
+                // Closing drops the tab from this device's open set — never from the server.
+                onClose={(vm, ordered) => closeTabs([vm.id], ordered)}
+                onCloseMany={closeTabs}
+                onSelect={(vm) => {
+                    if (vm.id !== sessionId) void router.push(`${base}/sessions/${vm.id}`)
+                }}
+                // A session created here routes the same way, before the list has caught up.
+                onSelectUnlisted={(id) => {
+                    if (id !== sessionId) void router.push(`${base}/sessions/${id}`)
+                }}
+                // Starting a session needs an agent to start it with.
+                // A blank session to type into — NOT the agent's overview, which is where this
+                // used to land.
+                onNew={agentId ? () => startBlank(agentId) : undefined}
+                leadingExtra={leadingExtra}
+                extra={extra}
+            />
+        </>
+    )
+}

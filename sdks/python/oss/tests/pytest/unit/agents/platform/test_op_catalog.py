@@ -15,8 +15,8 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 
+import jsonschema
 import pytest
 from pydantic import ValidationError
 
@@ -28,19 +28,12 @@ from agenta.sdk.agents.platform import (
     PlatformOp,
     get_platform_op,
 )
-from agenta.sdk.agents.tools import GatewayToolResolutionError, UnknownPlatformOpError
-
-
-def _ordered_operations_enabled() -> bool:
-    """Read the flag independently of the code under test.
-
-    Calling the catalog's own helper would derive the expectation from the thing being
-    asserted: a helper that always returned True would move both sides together and the
-    test would still pass. The spellings are spelled out here for the same reason.
-    """
-    return (
-        os.getenv("AGENTA_WORKFLOWS_ORDERED_OPERATIONS_ENABLED") or ""
-    ).strip().lower() in {"true", "1", "t", "y", "yes", "on", "enable", "enabled"}
+from agenta.sdk.agents.tools import (
+    CallbackToolSpec,
+    GatewayToolResolutionError,
+    ToolCall,
+    UnknownPlatformOpError,
+)
 
 
 def _resolver(connection):
@@ -56,7 +49,13 @@ def test_catalog_ships_platform_builder_ops():
     assert set(PLATFORM_OPS) - {"read_config"} == {
         "discover_tools",
         "query_workflows",
+        "search_skills",
+        "check_skill_updates",
+        "apply_skill_update",
         "query_spans",
+        "get_current_session",
+        "rename_session",
+        "rename_agent",
         "test_run",
         "commit_revision",
         "annotate_trace",
@@ -74,7 +73,46 @@ def test_catalog_ships_platform_builder_ops():
         "resume_schedule",
         "pause_subscription",
         "resume_subscription",
+        "create_app",
+        "list_starters",
+        "list_channel_destinations",
+        "send_channel_message",
+        "read_channel_messages",
+        "search_channel_messages",
+        "validate_template",
     }
+
+
+def test_app_ops_are_handler_mode_and_hide_their_bound_fields():
+    create = get_platform_op("create_app")
+    assert create.handler == "tools.agenta.create_app"
+    assert create.read_only is False
+    schema = create.resolved_input_schema()
+    assert set(schema["properties"]) == {"starter", "dir", "update"}
+    assert schema["required"] == ["starter", "dir"]
+
+    starters = get_platform_op("list_starters")
+    assert starters.handler == "tools.agenta.list_starters"
+    assert starters.read_only is True
+    assert starters.resolved_input_schema()["properties"] == {}
+
+
+def _schema_refs(node, path="$"):
+    if isinstance(node, dict):
+        for key, value in node.items():
+            if key == "$ref":
+                yield path
+            yield from _schema_refs(value, f"{path}.{key}")
+    elif isinstance(node, list):
+        for index, value in enumerate(node):
+            yield from _schema_refs(value, f"{path}[{index}]")
+
+
+def test_read_config_schema_is_inline():
+    """Moonshot (Kimi) rejects the `read_config` path segment as a `$ref` ("infinite
+    recursion") and fails every turn that offers the tool, so the segment stays inline."""
+    schema = get_platform_op("read_config").resolved_input_schema()
+    assert list(_schema_refs(schema)) == []
 
 
 def test_reserved_id_uses_the_tools_agenta_namespace():
@@ -96,6 +134,17 @@ def test_op_requires_exactly_one_schema_source():
             input_schema={"type": "object"},
             input_schema_ref="messages",
         )
+
+
+def test_catalog_op_may_declare_put():
+    op = PlatformOp(
+        op="x",
+        description="d",
+        method="PUT",
+        path="/api/x",
+        input_schema={"type": "object"},
+    )
+    assert op.method == "PUT"
 
 
 def test_op_input_schema_ref_must_be_a_known_catalog_key():
@@ -246,6 +295,154 @@ async def test_discover_tools_wire_carries_call_not_call_ref(connection):
     assert wire["call"]["path"] == "/api/tools/discover"
 
 
+async def test_rename_session_emits_a_bound_direct_call(connection):
+    resolution = await _resolver(connection).resolve(
+        [PlatformToolConfig(op="rename_session")]
+    )
+    spec = resolution.tool_specs[0]
+
+    assert isinstance(spec, CallbackToolSpec)
+    assert spec.kind == "callback"
+    assert spec.name == "rename_session"
+    assert spec.call_ref is None
+    assert isinstance(spec.call, ToolCall)
+    assert spec.call.method == "POST"
+    # `name_source=automatic` is fixed in the catalog path, so the endpoint can refuse a
+    # rename that would replace a name a person controls. The model fills only the body, so
+    # it cannot claim a person chose the name it is writing.
+    assert (
+        spec.call.path
+        == "/api/sessions/streams/header?session_id={session_id}&name_source=automatic"
+    )
+    assert spec.call.context == {"session_id": "$ctx.session.id"}
+    assert spec.read_only is False
+
+    schema = get_platform_op("rename_session").resolved_input_schema()
+    assert set(schema["properties"]) == {
+        "name",
+        "description",
+        "replacing_name",
+        "replacing_revision",
+    }
+    assert schema["required"] == ["name"]
+    assert spec.input_schema == schema
+
+    wire = spec.to_wire()
+    assert wire["call"]["path"] == spec.call.path
+    assert wire["call"]["context"] == {"session_id": "$ctx.session.id"}
+
+
+async def test_validate_template_is_a_read_only_call_bound_to_this_session(connection):
+    resolution = await _resolver(connection).resolve(
+        [PlatformToolConfig(op="validate_template")]
+    )
+    spec = resolution.tool_specs[0]
+
+    assert spec.call_ref is None
+    assert spec.call.method == "POST"
+    assert spec.call.path == "/api/agent-templates/validate"
+    # The model's args land in `source`; the kind is fixed in code and the session comes from
+    # run context, so the model names only a path inside its own session.
+    assert spec.call.args_into == "source"
+    assert spec.call.body == {"source": {"kind": "session_file"}}
+    assert spec.call.context == {"source.session_id": "$ctx.session.id"}
+    assert spec.read_only is True
+    assert spec.effective_permission() is None
+
+    schema = spec.input_schema
+    assert schema == get_platform_op("validate_template").resolved_input_schema()
+    assert set(schema["properties"]) == {"path"}
+    assert schema["required"] == ["path"]
+    assert schema["additionalProperties"] is False
+    jsonschema.validate({"path": "templates/seo-assistant-1.0.0.zip"}, schema)
+    for smuggled in (
+        {"path": "a.zip", "session_id": "another-session"},
+        {"path": "a.zip", "kind": "internal"},
+        {},
+    ):
+        with pytest.raises(jsonschema.ValidationError):
+            jsonschema.validate(smuggled, schema)
+
+    wire = spec.to_wire()
+    assert wire["call"]["body"] == {"source": {"kind": "session_file"}}
+    assert wire["call"]["context"] == {"source.session_id": "$ctx.session.id"}
+    assert wire["call"]["args_into"] == "source"
+
+
+def test_validate_template_description_teaches_the_repair_loop():
+    description = get_platform_op("validate_template").description
+
+    for phrase in ("`path`", "`issues`", "`next_step`", "`version`", "`digest`"):
+        assert phrase in description
+    assert "rebuild the zip" in description
+    assert "creates no agent, session, skill or automation" in description
+    assert "Never tell the user the template is ready" in description
+
+
+def test_rename_session_takes_the_name_it_replaces():
+    # "Rename this session to X" stays possible after the person named it themselves. The
+    # field is the name being replaced, not a bare permission, so the endpoint can refuse a
+    # request the person has since overtaken.
+    schema = get_platform_op("rename_session").resolved_input_schema()
+
+    jsonschema.validate(
+        {"name": "A new name", "replacing_name": "An older name"}, schema
+    )
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate({"name": "A new name", "replacing_name": True}, schema)
+
+
+def test_rename_session_tells_the_agent_to_adopt_a_person_name():
+    description = get_platform_op("rename_session").description
+
+    assert "replacing_name" in description
+
+
+def test_rename_session_rejects_whitespace_only_name():
+    schema = get_platform_op("rename_session").resolved_input_schema()
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate({"name": "   "}, schema)
+
+
+async def test_rename_agent_emits_a_bound_direct_call(connection):
+    resolution = await _resolver(connection).resolve(
+        [PlatformToolConfig(op="rename_agent")]
+    )
+    spec = resolution.tool_specs[0]
+
+    assert isinstance(spec, CallbackToolSpec)
+    assert spec.kind == "callback"
+    assert spec.name == "rename_agent"
+    assert spec.call_ref is None
+    assert isinstance(spec.call, ToolCall)
+    assert spec.call.method == "PUT"
+    assert spec.call.path == "/api/workflows/{workflow_id}"
+    assert spec.call.context == {
+        "workflow_id": "$ctx.workflow.artifact.id",
+        "workflow.id": "$ctx.workflow.artifact.id",
+    }
+    assert spec.call.args_into == "workflow"
+    assert spec.read_only is False
+
+    schema = get_platform_op("rename_agent").resolved_input_schema()
+    assert set(schema["properties"]) == {"name", "description"}
+    assert "workflow_id" not in schema["properties"]
+    assert "workflow" not in schema["properties"]
+    assert schema["required"] == ["name"]
+    assert spec.input_schema == schema
+
+    wire = spec.to_wire()
+    assert wire["call"]["path"] == spec.call.path
+    assert wire["call"]["context"] == spec.call.context
+    assert wire["call"]["args_into"] == "workflow"
+
+
+def test_rename_agent_rejects_whitespace_only_name():
+    schema = get_platform_op("rename_agent").resolved_input_schema()
+    with pytest.raises(jsonschema.ValidationError):
+        jsonschema.validate({"name": "   "}, schema)
+
+
 async def test_test_run_emits_handler_call_ref_with_bindings_and_timeout_by_default(
     connection,
 ):
@@ -320,6 +517,31 @@ async def test_platform_handlers_empty_flag_uses_default_on(connection, monkeypa
     )
 
     assert [spec.name for spec in resolution.tool_specs] == ["test_run"]
+
+
+async def test_check_skill_updates_is_read_only(connection):
+    # The read half of skill update sync: its own endpoint that never writes.
+    resolution = await _resolver(connection).resolve(
+        [PlatformToolConfig(op="check_skill_updates")]
+    )
+    spec = resolution.tool_specs[0]
+    assert spec.call.method == "POST"
+    assert spec.call.path == "/api/skills/{skill_id}/updates/check"
+    assert spec.call.body is None
+    assert spec.read_only is True
+    assert set(spec.input_schema["properties"]) == {"skill_id"}
+    assert spec.input_schema["required"] == ["skill_id"]
+
+
+async def test_apply_skill_update_is_a_gated_write(connection):
+    # The write half: read_only=False means the approval card is the user prompt.
+    resolution = await _resolver(connection).resolve(
+        [PlatformToolConfig(op="apply_skill_update")]
+    )
+    spec = resolution.tool_specs[0]
+    assert spec.call.path == "/api/skills/{skill_id}/updates/apply"
+    assert spec.read_only is False
+    assert set(spec.input_schema["properties"]) == {"skill_id"}
 
 
 async def test_query_spans_emits_project_scoped_read_call(connection):
@@ -408,48 +630,27 @@ async def test_commit_revision_binds_self_and_strips_bound_field(connection):
     workflow_revision = spec.input_schema["properties"]["workflow_revision"]
     assert "workflow_variant_id" not in workflow_revision["properties"]
     # The ordered arm REQUIRES the base revision id: the server refuses a delta that omits
-    # it, so a schema that marks it optional buys a refused call and a wasted turn. Its
-    # absence from the flag-off list is equally deliberate: a legacy delta may omit it, and
-    # sending it is how a caller opts in to the staleness check.
-    assert workflow_revision["required"] == (
-        ["base_revision_id", "delta"] if _ordered_operations_enabled() else ["delta"]
-    )
+    # it, so a schema that marks it optional buys a refused call and a wasted turn.
+    assert workflow_revision["required"] == ["base_revision_id", "delta"]
     delta = workflow_revision["properties"]["delta"]
 
-    # The rest of the surface depends on the ordered-operations flag: with it on, the
-    # server derives the message and the ordered arm appears. Both states are pinned, so
-    # this test is honest whichever way the suite runs.
+    # The server derives the message, so `message` is not model-visible.
     # `description` is the ephemeral per-call note in its tolerated second position, not a
     # payload field: the runner lifts it out and it is never stored (read-config.md 12).
-    if _ordered_operations_enabled():
-        assert set(workflow_revision["properties"]) == {
-            "base_revision_id",
-            "delta",
-            "description",
-        }
-        # ONE arm is visible per deployment. A model that sees both picks a different one
-        # from call to call, and the approval card then varies for the same kind of edit.
-        # The endpoint still accepts the legacy form; only this surface narrows.
-        assert set(delta["properties"]) == {"operations"}
-    else:
-        assert set(workflow_revision["properties"]) == {
-            "message",
-            "delta",
-            "description",
-        }
-        assert set(delta["properties"]) == {"set", "remove"}
-        assert "parameters.agent" in delta["properties"]["set"]["description"]
+    assert set(workflow_revision["properties"]) == {
+        "base_revision_id",
+        "delta",
+        "description",
+    }
+    # Only the ordered arm is visible. A model that sees both picks a different one from
+    # call to call, and the approval card then varies for the same kind of edit. The
+    # endpoint still accepts the legacy form; only this surface narrows.
+    assert set(delta["properties"]) == {"operations"}
 
-    if _ordered_operations_enabled():
-        # Ordered operations change one entry at a time, so the wholesale-list warning is
-        # obsolete; the description teaches the read-then-commit loop instead.
-        assert "base_revision_id" in spec.description
-        assert "playground's own tools" in spec.description
-    else:
-        # Lists (tools, skills, mcps) replace wholesale on deep-merge; the description must
-        # warn the model to resend the complete list or it wipes its own build-kit tools (B2).
-        assert "wholesale" in spec.description
-        assert "revision id" in spec.description
+    # Ordered operations change one entry at a time; the description teaches the
+    # read-then-commit loop.
+    assert "base_revision_id" in spec.description
+    assert "playground's own tools" in spec.description
 
 
 async def test_commit_revision_is_not_read_only(connection):
@@ -490,77 +691,16 @@ def _has_embed_branch(items):
     )
 
 
-# With ordered operations on, `delta.set` leaves the commit schema, so the three cases below
-# have no surface to inspect there. They are not lost: `test_run` keeps `delta.set` in both
-# states, and case (d) pins the same three properties on it.
-legacy_delta_only = pytest.mark.skipif(
-    _ordered_operations_enabled(),
-    reason="delta.set is not model-visible on commit_revision when ordered operations are on",
-)
-
-
-def _commit_agent_subtree():
-    schema = get_platform_op("commit_revision").resolved_input_schema()
-    delta = schema["properties"]["workflow_revision"]["properties"]["delta"]
-    return delta["properties"]["set"]["properties"]["parameters"]["properties"]["agent"]
-
-
 def _test_run_agent_subtree():
     schema = get_platform_op("test_run").resolved_input_schema()
     delta = schema["properties"]["delta"]
     return delta["properties"]["set"]["properties"]["parameters"]["properties"]["agent"]
 
 
-@legacy_delta_only
-def test_commit_revision_delta_set_carries_agent_template_shape():
-    # (a) The agent-template shape is reachable under delta.set.parameters.agent, so the tool schema
-    # itself (not just prose) tells the model what a `parameters.agent` payload looks like. The
-    # harness `kind` enum is a concrete, low-drift landmark inside it.
-    agent = _commit_agent_subtree()
-    assert agent["type"] == "object"
-    assert set(agent["properties"]) >= {
-        "instructions",
-        "llm",
-        "tools",
-        "mcps",
-        "skills",
-        "harness",
-        "runner",
-        "sandbox",
-    }
-    harness_kind = agent["properties"]["harness"]["properties"]["kind"]
-    assert "pi_core" in harness_kind["enum"]
-    assert "claude" in harness_kind["enum"]
-    # The inline skill-template ref was expanded (its typed fields are present), not left as a marker.
-    skills_items = agent["properties"]["skills"]["items"]
-    assert "x-ag-type-ref" not in json.dumps(agent)
-    assert _has_embed_branch(skills_items)
-
-
-@legacy_delta_only
-def test_commit_revision_delta_set_agent_subtree_has_no_required():
-    # (b) A delta is a deep partial: EVERY field is optional, so no `required` array may survive
-    # anywhere under the agent subtree, or a schema-following harness would think it must resend
-    # every required field just to change one.
-    agent = _commit_agent_subtree()
-    assert list(_iter_required_lists(agent)) == []
-
-
-@legacy_delta_only
-def test_commit_revision_delta_set_list_items_accept_embeds():
-    # (c) tools/skills/mcps may hold `@ag.embed` build-kit entries; since the model re-sends the
-    # whole list, each item schema must accept the embed shape or the embeds get mangled.
-    agent = _commit_agent_subtree()
-    for field in ("tools", "skills", "mcps"):
-        items = agent["properties"][field]["items"]
-        assert "anyOf" in items, field
-        assert _has_embed_branch(items), field
-
-
 def test_test_run_delta_set_matches_commit_revision():
     # (d) test_run's uncommitted delta gets the same typed, deep-partial, embed-tolerant shape.
-    # With ordered operations on this is the only place that shape is pinned, because
-    # `delta.set` is no longer model-visible on commit_revision.
+    # This is the only place that shape is pinned, because `delta.set` is not
+    # model-visible on commit_revision.
     agent = _test_run_agent_subtree()
     assert set(agent["properties"]) >= {"instructions", "llm", "harness", "sandbox"}
     assert "pi_core" in agent["properties"]["harness"]["properties"]["kind"]["enum"]
@@ -674,6 +814,17 @@ async def test_create_trigger_ops_bind_self_target_and_hide_destination(connecti
     inputs_fields_description = schedule_data_props["inputs_fields"]["description"]
     assert "JSON Path" in inputs_fields_description
     assert "JSON Pointer" in inputs_fields_description
+    assert "Put only the task in `messages`" in inputs_fields_description
+    assert "not schedule/trigger metadata, timing checks, or skip-run guards" in (
+        inputs_fields_description
+    )
+    assert "Configure when to run in the schedule or trigger settings" in (
+        inputs_fields_description
+    )
+    assert "For subscriptions, map event data under a sibling key" in (
+        inputs_fields_description
+    )
+    assert '"payload": "$.event.attributes"' in inputs_fields_description
 
     subscription = specs["create_subscription"]
     assert subscription.call.args_into == "subscription"
@@ -745,13 +896,6 @@ async def test_disabling_handlers_cannot_silently_remove_config_editing(
     # Dropped silently, the model has no commit tool AND no error to report, so it
     # improvises: it writes workspace files and says it succeeded. That is the exact
     # failure this whole feature exists to prevent, so it fails at resolution instead.
-    if op == "read_config" and not _ordered_operations_enabled():
-        # `read_config` enters the catalog only with ordered operations on, which is the
-        # flag gating this whole surface. `commit_revision` does NOT (it is in the build
-        # kit unconditionally), which is why that half of this cell runs in both states and
-        # is the one that decides the upgrade blast radius.
-        pytest.skip("read_config is not in the catalog with ordered operations off")
-
     monkeypatch.setenv("AGENTA_AGENT_ENABLE_PLATFORM_HANDLERS", "false")
 
     with pytest.raises(GatewayToolResolutionError) as caught:

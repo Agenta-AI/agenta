@@ -21,7 +21,7 @@ import {cn} from "./utils"
  *   colorSuccess, exception = colorError. `transition-[width]` at `motionDurationSlow` 0.3s
  *   with antd's `motionEaseInOutCirc` — a CSS transition, not a keyframe.
  * - text (antd's `-indicator`) → `colorText` normal / colorSuccess / colorError, `fontSize`
- *   12px default / 10px small (`text-xs` / `text-[10px]`), `line-height:1` (`leading-none`). At
+ *   14px default / 12px small (`text-sm` / `text-[12px]`), `line-height:1` (`leading-none`). At
  *   status success/exception antd swaps the `{percent}%` label for antd's own filled glyphs
  *   `CheckCircleFilled` / `CloseCircleFilled` (@ant-design/icons — exact glyph parity; their
  *   `1em` svg + shared `.anticon` box make both the icon AND the info-area height match antd,
@@ -97,7 +97,7 @@ const progressTextVariants = cva("box-border whitespace-nowrap leading-none", {
             success: "text-success",
             exception: "text-error",
         },
-        size: {default: "text-xs", small: "text-[10px]"},
+        size: {default: "text-sm", small: "text-[12px]"},
     },
     defaultVariants: {status: "normal", size: "default"},
 })

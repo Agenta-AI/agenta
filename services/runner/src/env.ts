@@ -118,6 +118,19 @@ export function envTimerMs(
   });
 }
 
+/**
+ * Read `name` as an on/off switch for a diagnostic that is off by default.
+ *
+ * Deliberately permissive in one direction only: anything set and not an explicit off word turns
+ * the diagnostic ON, so `=1` / `=true` / `=yes` all work and a typo cannot silently leave an
+ * operator without the output they asked for.
+ */
+export function envFlag(name: string): boolean {
+  const raw = process.env[name]?.trim().toLowerCase();
+  if (!raw) return false;
+  return !["0", "false", "no", "off"].includes(raw);
+}
+
 function warnOnce(name: string, detail: string, log: (msg: string) => void): void {
   if (warnedNames.has(name)) return;
   warnedNames.add(name);

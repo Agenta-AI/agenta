@@ -40,6 +40,8 @@ export interface ChatMessage {
   role: string;
   /** A plain string, or ACP-style content blocks (text/image/resource/attachment). */
   content: string | ContentBlock[];
+  /** Omitted uses content; null hides the message in normal chat. */
+  display_content?: string | null;
 }
 
 export interface AttachmentRef {
@@ -147,7 +149,7 @@ export interface ResolvedToolSpec {
    * `call` XOR `callRef`. Plumbing only here: nothing emits or dispatches it yet.
    */
   call?: {
-    method: "GET" | "POST" | "DELETE";
+    method: "GET" | "POST" | "PUT" | "DELETE";
     path: string;
     body?: Record<string, unknown>;
     context?: Record<string, string>;
@@ -199,8 +201,8 @@ export interface RunContextReference {
  * `workflow` mirrors the platform's three workflow entities — the `artifact` (the workflow), the
  * `variant`, and the `revision` — so the run's identity reads the same way the rest of the platform
  * names a workflow; `is_draft` says whether the run targets a committed revision (`false`) or an
- * uncommitted playground draft (`true`). The conversation id is NOT carried here — it rides the
- * top-level `sessionId` field, and the runner owns the live id across turns.
+ * uncommitted playground draft (`true`). The service does not carry the conversation id here — it
+ * rides the top-level `sessionId` field, and the runner augments its dispatch copy with the live id.
  *
  * The inner keys are deliberately snake_case (`workflow.variant.id`, `trace.trace_id`): they are
  * the binding NAMESPACE a `call.context` value (`"$ctx.<dotted.path>"`) addresses, so they match
@@ -221,6 +223,22 @@ export interface RunContext {
    */
   project?: {
     id?: string;
+  };
+  /**
+   * The live session id, filled by the runner from its session environment for tool dispatch and
+   * never filled by the service's `/run` request context.
+   */
+  session?: {
+    id?: string;
+  };
+  /**
+   * The tool call being dispatched, filled by the relay for each direct call and never by the
+   * service. Its id stays the same when the same call is relayed again (a resumed approval
+   * reuses it), so an endpoint can key a side effect on it and answer a retry without repeating
+   * the effect.
+   */
+  tool?: {
+    call_id?: string;
   };
   workflow?: {
     artifact?: RunContextReference;
@@ -315,7 +333,20 @@ export interface McpServerConfig {
   };
   policy: {
     tools: McpToolPolicy;
+    /** The whole-server decision. The fallback once `toolPermissions` has no entry of its own. */
     permission?: ToolPermission;
+    /**
+     * Per-tool decisions, keyed by the name the SERVER advertises (`echo`) — never a
+     * harness-rendered name (`mcp__acme__echo`), which differs per harness and, on Pi, is lossy.
+     * Present only when the author opted into per-tool policy.
+     */
+    toolPermissions?: Record<string, ToolPermission>;
+    /**
+     * What an advertised tool with no entry in `toolPermissions` gets. Present exactly when
+     * `toolPermissions` is, and authoritative for this server when present: the run's own default
+     * permission is not consulted for a server whose author wrote a per-tool table.
+     */
+    newToolPermission?: ToolPermission;
   };
 }
 
@@ -389,7 +420,12 @@ export type RenderHint =
   | { kind: "elicitation" };
 
 export type AgentEvent =
-  | { type: "message"; text: string; attachments?: AttachmentRef[] }
+  | {
+      type: "message";
+      text: string;
+      attachments?: AttachmentRef[];
+      display_content?: string | null;
+    }
   | { type: "thought"; text: string }
   | { type: "message_start"; id: string }
   | { type: "message_delta"; id: string; delta: string }
@@ -451,6 +487,25 @@ export type AgentEvent =
       reasonCode: string;
       workingPath?: string;
     }
+  // A configured MCP server that did NOT join this run. Non-fatal by construction: the turn goes
+  // on without that server's tools, and this event is the only thing that says so. Emitted once
+  // per failed server per turn; a server that connected emits nothing, so the stream stays quiet
+  // on the healthy path. See `engines/sandbox_agent/mcp-handshake.ts`.
+  | {
+      type: "mcp_server_failed";
+      serverName: string;
+      /** Stable string code, never a display string. See `McpHandshakeReasonCode`. */
+      reasonCode: string;
+      /** The handshake's HTTP status, when the server answered at all. */
+      status?: number;
+      message: string;
+      /**
+       * The gateway's own refusal, when the handshake body carried one. A disconnected MCP
+       * connection refuses the handshake itself, so this is where `requirement.connect` — the
+       * endpoint that reconnects it — reaches a caller (OR85). Absent for any other failure.
+       */
+      detail?: AgentErrorDetail;
+    }
   | {
       type: "usage";
       input?: number;
@@ -458,7 +513,37 @@ export type AgentEvent =
       total?: number;
       cost?: number;
     }
-  | { type: "error"; message: string }
+  /**
+   * This turn's ADMITTED execution id, emitted once at the start of a session-owned run.
+   *
+   * The runner mints the turn id per execution (`resolveTurnId`), so before this the browser had
+   * no way to learn it: the client's `start` frame is built and sent before the runner replies at
+   * all. Without the id no first-party client can name the execution it means to act on, which is
+   * why `expected_execution_id` on the public Cancel has never had a caller that could fill it.
+   *
+   * Emitted LIVE only, never through the persisting emitter: it is transport correlation, not
+   * conversation, and it must not become a record in the session's history.
+   */
+  | { type: "turn"; turnId: string }
+  | {
+      type: "error";
+      message: string;
+      /**
+       * Stable string code, never a display string: the class of failure, so a client can render a
+       * purposeful state (add-your-own-key, retry) instead of parsing `message`. Optional and
+       * defaulted by the consumer, so an older runner that omits it stays readable.
+       * Values: see `RunErrorCode` in engines/sandbox_agent/errors.ts.
+       */
+      code?: string;
+      /**
+       * The GATEWAY's own typed refusal, recovered from the harness's error text, when this
+       * failure was one. A different vocabulary from `code` above and a different question:
+       * `code` says what class of run failure this is, `detail.code` says what the gateway
+       * refused and what to do about it. Present only when the text still carried it — see
+       * `parseGatewayErrorDetail`. The terminal `AgentRunResult.errorDetail` is the same shape.
+       */
+      detail?: AgentErrorDetail;
+    }
   // `traceId` is the run's observability trace id, stamped on the turn's terminal event so a
   // persisted transcript can link a replayed turn back to its trace (latency, full-trace view).
   // Live streams carry it via `messageMetadata`; this is the durable-replay channel.
@@ -472,7 +557,24 @@ export interface AgentUsage {
   input: number;
   output: number;
   total: number;
-  cost: number;
+  /**
+   * INVARIANT: absent means the cost is UNKNOWN (the harness reported none); a present `0` is a
+   * measured zero — a free model or a fully cached turn. Consumers read presence as evidence of
+   * a measurement, so a producer must never substitute a zero for an absence: doing so records
+   * an unpriced run as a free one, which every downstream aggregate then believes.
+   */
+  cost?: number;
+}
+
+/**
+ * Token counts of a turn, as the tracer stamps them on its model span. Input is EXCLUSIVE of
+ * cache: reads and writes are separate counts. Runner-internal, never on the wire.
+ */
+export interface ModelTokenUsage {
+  input: number;
+  output: number;
+  cacheRead: number;
+  cacheWrite: number;
 }
 
 /**
@@ -488,6 +590,12 @@ export interface AgentUsage {
 export interface ModelCredentialBinding {
   kind: "environment";
   name: string;
+}
+
+/** A resolved custom credential whose plaintext is required by code inside the sandbox. */
+export interface SandboxCredential {
+  binding: ModelCredentialBinding;
+  value: string;
 }
 
 /**
@@ -522,6 +630,20 @@ export interface ModelCredential {
 }
 
 /**
+ * OUR credentials for the gateway, bound to the header that carries them.
+ *
+ * Deliberately NOT a `ModelCredential` with a widened binding. A `ModelCredential` is a
+ * provider's secret and authenticates the gateway to that provider; this authenticates the
+ * caller as us, into the gateway. A header-bound value also has no environment variable to
+ * materialize into, so folding it into the credential union would produce a value that
+ * validates, crosses the wire, and then vanishes at `materializeModelEnvironment`.
+ */
+export interface GatewayCredentials {
+  header: string;
+  value: string;
+}
+
+/**
  * Everything the runner needs to reach the model, grouped under the consumer that owns it.
  *
  * The organization mirrors `ResolvedConnection` in the Python SDK
@@ -540,8 +662,11 @@ export interface ModelCredential {
  * - `deployment` is HOW that provider is reached: `direct` (the provider's own API), `custom`
  *   (an OpenAI-compatible third party such as OpenRouter or a self-hosted gateway), or `bedrock`
  *   / `vertex` (a cloud reseller with its own auth scheme).
- * - `endpoint` is the route, and it is general, not OpenAI-specific. `baseUrl` is what an
- *   OpenAI-compatible deployment needs; `apiVersion` is what Azure needs; `region` is what AWS
+ * - `endpoint` is the route, and it is general, not OpenAI-specific. `baseUrl` is the
+ *   provider's API base, the prefix a client puts before an operation path, so its shape is the
+ *   provider's own (`https://api.openai.com/v1`, `https://api.anthropic.com`,
+ *   `https://generativelanguage.googleapis.com/v1beta`); the runner hands it to the harness as
+ *   written. `apiVersion` is what Azure needs; `region` is what AWS
  *   and Vertex need; `headers` carries non-secret routing headers some gateways require. A
  *   given deployment fills in the subset that applies to it and leaves the rest unset. AWS and
  *   the other cloud resellers are covered by exactly this: `deployment: "bedrock"` plus
@@ -556,6 +681,54 @@ export interface ModelCredential {
  *   that may appear here.
  * - `credentials` are the secrets, each one typed as above.
  */
+/**
+ * The harness login a hosted subscription connection delivers, in Pi's own `auth.json` credential
+ * shape (`@earendil-works/pi-ai`, `utils/oauth/types.ts`). `expires` is absolute epoch
+ * milliseconds, which is what every comparison in this runner and in Pi reads.
+ *
+ * It is a CREDENTIAL. It never enters a log line, an error message, a trace, or a status body.
+ */
+export interface SubscriptionLogin {
+  type: string;
+  access: string;
+  refresh: string;
+  expires: number;
+  accountId?: string;
+  [key: string]: unknown;
+}
+
+/**
+ * A hosted subscription connection delivered with the run, instead of an API key.
+ *
+ * `credentialMode` stays `runtime_provided` for these runs — the harness still authenticates from
+ * its own login file rather than an environment key — but the login no longer comes from an
+ * operator mount on the runner box. The API sends it here, the runner materializes it into a
+ * per-connection agent dir before the harness starts, and pushes a refreshed one back.
+ *
+ * The two counters are different questions and only one of them is identity:
+ *
+ * - `generation` changes when the USER signs in again, which invalidates every session built on
+ *   the old login. It is a session-fingerprint input.
+ * - `version` changes on every stored login change, a background refresh included. It is NOT a
+ *   fingerprint input, so a refresh keeps warm sessions warm. It is the version a push-back and a
+ *   failure report quote back to the API, so the API can answer whether this run used a stale one.
+ */
+export interface ModelConnectionSubscription {
+  /** The vault secret row's id. Also the per-connection agent-dir name; a path segment only. */
+  id: string;
+  slug: string;
+  /** The product family, e.g. `chatgpt`. */
+  provider: string;
+  version: number;
+  generation: number;
+  login: SubscriptionLogin;
+  /**
+   * Set by this runner, never sent: whose login it is. An organization login (it arrived as
+   * `organizationSubscription`) pushes its refreshes to the organization's row.
+   */
+  owner?: "project" | "organization";
+}
+
 export interface ModelConnection {
   provider: string;
   deployment: string;
@@ -568,16 +741,74 @@ export interface ModelConnection {
   credentialMode: "env" | "runtime_provided" | "none";
   environment?: Record<string, string>;
   credentials: ModelCredential[];
+  /**
+   * Present only for a hosted subscription run. Its presence is what separates the two
+   * `runtime_provided` shapes: WITH it the login rides the request and the run is allowed on
+   * Daytona; WITHOUT it the run reads the operator's own mount and stays local, unchanged.
+   */
+  subscription?: ModelConnectionSubscription;
+  /**
+   * An organization subscription login the agent named (M5). The same shape as `subscription`,
+   * in its own field so a runner older than M5 never reads it. It runs like a project login on
+   * every engine; its refreshes go to the organization's row.
+   */
+  organizationSubscription?: ModelConnectionSubscription;
+  /** Our own credentials for the gateway. Independent of `credentialMode`, which describes the
+   * provider's secret. Omitted when the model is not reached through a gateway. */
+  gatewayCredentials?: GatewayCredentials;
+  /**
+   * True when the route serves the user's own custom-provider record, false when it serves a
+   * provider key. The SDK resolver knows the record kind and states it; omitted by older SDKs,
+   * in which case only a `custom` deployment counts (`servedByCustomConnection`).
+   */
+  customConnection?: boolean;
+  /**
+   * The protocol the gateway route also serves natively, which a runner that knows it speaks
+   * instead of the one `provider` implies: "gemini" on the built-in Gemini route (Google's
+   * native `streamGenerateContent`, `docs/design/gemini-native-door`). `endpoint.baseUrl` is
+   * still the OpenAI-compatible route; omitted by older SDKs and APIs.
+   */
+  protocol?: string;
+}
+
+/**
+ * One compiled tool decision inside `gatewayPolicy`.
+ *
+ * `readOnly` is TRI-STATE and `null` is a real value: `true` is a read, `false` is a write,
+ * and `null` means the provider catalog carries no hint. It is `boolean | null`, never
+ * `boolean | undefined` — the Python producer emits the key with a null value rather than
+ * dropping it, so a missing key and a null value must not come to mean different things.
+ */
+export interface GatewayToolPolicy {
+  permission: "allow" | "ask" | "deny";
+  readOnly: boolean | null;
+}
+
+/** One configured integration inside `gatewayPolicy`: its routing plus its tool table. */
+export interface GatewayIntegrationPolicy {
+  provider: string;
+  connection: string;
+  toolkitVersion: string;
+  tools: Record<string, GatewayToolPolicy>;
+}
+
+/** The private compiled gateway policy, keyed by integration. */
+export interface GatewayPolicy {
+  integrations: Record<string, GatewayIntegrationPolicy>;
 }
 
 export interface AgentRunRequest {
   /**
-   * Harness id: "pi_core" | "pi_agenta" | "claude". `pi_core` and `pi_agenta` both drive the
-   * ACP agent "pi" (pi_agenta is Pi with Agenta's forced skills/prompt/policy); "claude" drives
+   * Harness id: "pi_core" | "claude" | "codex". `pi_core` drives the ACP agent "pi";
+   * "pi_agenta" (a removed 2026 experiment) is still read as `pi_core` so an old
+   * stored request replays. "claude" drives
    * the ACP agent "claude". Selected by the request; there is no engine selector.
    */
   harness?: string;
-  /** Sandbox: "local" | "daytona". */
+  /**
+   * Sandbox: "local" | "daytona" | "inprocess". `daytona` and `inprocess` are one choice that the
+   * runner routes by harness at its ingress (`sandbox-routing.ts`).
+   */
   sandbox?: string;
   /** External conversation id. The cold runtime still receives history in `messages`. */
   sessionId?: string;
@@ -625,6 +856,8 @@ export interface AgentRunRequest {
   connection?: { mode: string; slug?: string };
   /** Resolved model routing and credential bindings, grouped under their consumer. */
   modelConnection?: ModelConnection;
+  /** Resolved custom credentials delivered as readable sandbox environment variables. */
+  sandboxCredentials?: SandboxCredential[];
   /** The conversation so far; the runner picks the latest turn and replays the rest. */
   messages?: ChatMessage[];
   /** Deprecated: accepted and ignored. Pi activates every built-in tool on every run. */
@@ -644,6 +877,42 @@ export interface AgentRunRequest {
   toolCallback?: ToolCallbackContext;
   /** Authored permission plan assembled by the SDK (`runner.permissions.*` in the agent config). */
   permissions?: PermissionsConfig;
+  /**
+   * The private compiled policy for the agent's gateway connections. The SDK compiled it from
+   * each saved `gateway_connection` entry and the agent-wide permission mode, so `inherit`
+   * never appears here. Omitted when the agent configures no connection.
+   *
+   * Private on purpose: it never reaches the harness, the sandbox, a tool name, or a
+   * `callRef`. The two derived tools (`gateway.search` / `gateway.run`) both read this one
+   * table, which is why it is top level rather than attached to a tool spec — the runner
+   * filters search results before it knows which tool the model will run.
+   *
+   * Declared here ahead of the enforcement that reads it; nothing in the runner consumes it
+   * yet.
+   */
+  gatewayPolicy?: GatewayPolicy;
+  /**
+   * SDK-owned platform instructions. The runner chooses the existing delivery surface by harness:
+   * Pi's append-system prompt, or the rendered instructions file for Claude and Codex.
+   *
+   * Deliberately outside `configFingerprint` and the desired-state facets, preserving the warm
+   * behavior of the field it replaces: the text is fixed when an environment is built and the
+   * next ordinary build picks up changes without evicting a warm session solely for generated
+   * guidance.
+   */
+  platformInstructions?: string;
+  /** SDK-rendered context for this turn, added to the harness prompt after history selection.
+   * Refreshed on warm continuations and excluded from environment identity and desired state.
+   */
+  turnContext?: string;
+  /**
+   * Compatibility input for SDKs deployed before `platformInstructions`. The new scalar field
+   * wins when both are present so generated guidance is never delivered twice.
+   */
+  gatewayGuidance?: {
+    text: string;
+    carrier: "appendSystemPrompt" | "agentsMd";
+  };
   /**
    * The declared sandbox security boundary (Layer 2). Omitted when unset. The network policy is
    * enforced on Daytona; on the local sidecar a restricted-network run is rejected under
@@ -684,11 +953,30 @@ export interface AgentRunRequest {
    * non-session runs. A session sees a sequence of turnIds (send/steer each start a new one).
    */
   turnId?: string;
+  /** True only when the shared event route, rather than this HTTP response, owns delivery. */
+  detached?: boolean;
   /**
    * The Agenta project id for this run. Set alongside `turnId` on session-owned runs so
    * the runner can include it in heartbeat and record-ingest calls. Absent otherwise.
    */
   projectId?: string;
+  /**
+   * Stable id of the durable continuation command that admitted this request. Repeated delivery
+   * carries the same id; the runner starts at most one execution for it. Omitted for ordinary runs.
+   */
+  controlCommandId?: string;
+  /**
+   * The post-hydration config this turn runs, produced by the SDK (`agents/utils/wire.py`) and
+   * OPAQUE here: the runner never reads inside it and never derives behavior from it. It is
+   * echoed verbatim onto the `data.parameters` of every interaction row this turn writes, so a
+   * client that answers the gate without being able to reproduce the config (mobile, the M2
+   * dispatcher) can replay the exact turn instead of hydrating the referenced variant's HEAD.
+   *
+   * Deliberately NOT part of `configFingerprint` (`session-identity.ts`): it is a projection of
+   * fields already in the fingerprint, so hashing it would let a cosmetic config-serialization
+   * change evict warm sessions. Session runs only; absent otherwise.
+   */
+  effectiveParameters?: Record<string, unknown>;
   /**
    * The session's `session_streams` row id, captured for free from the alive-watchdog's
    * heartbeat response (`sessions/alive.ts`) and threaded here before the engine runs. Present
@@ -696,6 +984,22 @@ export interface AgentRunRequest {
    * (`engines/sandbox_agent.ts`) as `session_turns.stream_id`.
    */
   streamId?: string;
+}
+
+/**
+ * The platform's agent-actionable error envelope (api/AGENTS.md "Domain-level exceptions"),
+ * carried onto the wire when a run's failure IS one — today, a gateway data-plane refusal
+ * (`model_not_allowed` / `endpoint_inactive` / `ceiling_exceeded` and siblings) relayed back
+ * through a harness's own error text. `code` is the stable lower-snake-case cause; `retryable`
+ * is about replaying the SAME request, never true for a policy/config refusal; `details` carries
+ * every error-specific field (never new top-level fields, matching the platform convention).
+ */
+export interface AgentErrorDetail {
+  code: string;
+  message: string;
+  retryable: boolean;
+  next_step?: string;
+  details?: Record<string, unknown>;
 }
 
 export interface AgentRunResult {
@@ -710,13 +1014,40 @@ export interface AgentRunResult {
   usage?: AgentUsage;
   /** Why the turn ended (harness-reported when available). */
   stopReason?: string;
+  /**
+   * Only on `stopReason: "cancelled"`. True when the harness was told to stop AND confirmed it
+   * stopped inside the settle budget, which is what lets the sandbox be parked warm instead of
+   * deleted. Absent or false means the harness never confirmed, so the environment is destroyed.
+   */
+  cancelSettled?: boolean;
   /** What the harness was probed to support this run. */
   capabilities?: HarnessCapabilities;
   sessionId?: string;
   model?: string;
   /** Trace id of the run (the caller's trace when a traceparent was passed). */
   traceId?: string;
+  /**
+   * The sandbox provider the run executed on, after harness routing (`sandbox-routing.ts`). It
+   * can differ from the requested `sandbox`: Pi chosen on `daytona` runs `inprocess`.
+   */
+  sandbox?: string;
+  /** Human-facing summary; unchanged shape. Every failure keeps this even when `errorDetail` is
+   * also present, so a caller reading only this field never regresses. */
   error?: string;
+  /**
+   * The same failure, structured, when the runner could recover a gateway refusal's cause from
+   * the harness's own error text (best-effort: absent when it could not — see
+   * `parseGatewayErrorDetail` in `gateway-error.ts`). Never present without `error`.
+   */
+  errorDetail?: AgentErrorDetail;
+  /**
+   * Set only when the turn was ended by the TTFB run-limit on a FRESH prompt, which means it
+   * produced no token, no tool call and no side effect before it was cut. Nothing ran, so the
+   * dispatch may re-prompt it once (`runAgent` in `server.ts`); the flag is cleared before the
+   * result leaves the runner, so no caller can loop on it. Never set for a resume or a
+   * continuation, where earlier work exists that a replay could repeat.
+   */
+  stalledBeforeFirstResponse?: boolean;
 }
 
 /**

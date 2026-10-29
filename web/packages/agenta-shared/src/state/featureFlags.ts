@@ -1,0 +1,75 @@
+/**
+ * Per-user experimental settings — the "Feature Flags" and "Debugging" switches in Settings › Preferences.
+ *
+ * They live here, not in an app, because a flag is read where the feature is (a package) and
+ * written where the settings page is (every app). Both surfaces on a browser share one atom
+ * and one storage key, so turning voice input on in `/m` is honoured by the desktop too.
+ */
+
+import {atom} from "jotai"
+import {atomWithStorage} from "jotai/utils"
+import {atomFamily} from "jotai-family"
+
+import {stringStorage} from "./stringStorage"
+
+/**
+ * The signed-in user's id, as the browser last saw it — the scope for every per-user
+ * preference below.
+ *
+ * Storage-backed rather than derived from the profile query, so a preference survives a reload
+ * without waiting on a request. Apps push into it once they know who is signed in (OSS from
+ * its profile listener, mobile from its profile query). Both use the stable profile `uid`.
+ *
+ * It does NOT resolve on the first paint. Deliberately no `getOnInit`: this atom scopes values
+ * that render (the Classic mode switch, the sidebar's nav areas), and reading storage during
+ * the first render would diverge from prerendered HTML and break hydration on `/m`. So it reads
+ * `null` on every first render and settles a tick later. Anything that ACTS on a preference —
+ * writing a cookie, navigating — must therefore read storage directly rather than treat that
+ * first `null` as "signed out"; see `readSettledClassicModeCookie` in `./classicMode`.
+ */
+export const ACTIVE_USER_ID_KEY = "agenta:onboarding:active-user-id"
+
+export const activeUserIdAtom = atomWithStorage<string | null>(
+    ACTIVE_USER_ID_KEY,
+    null,
+    stringStorage,
+)
+
+/** The storage key of a per-user setting; non-atom stores (the app grant store) use it too. */
+export const userSettingsKey = (userId: string, key: string) => `agenta:settings:${userId}:${key}`
+
+/**
+ * A boolean preference scoped to whoever is signed in.
+ *
+ * Reads the default and writes nothing while the user is unknown: a preference written under no
+ * user would be inherited by the next person to sign in on this browser.
+ *
+ * Call it ONCE at module level — every call builds its own atom family.
+ */
+export const userScopedFlagAtom = (key: string, defaultValue = false) => {
+    const family = atomFamily((userId: string) =>
+        atomWithStorage<boolean>(userSettingsKey(userId, key), defaultValue),
+    )
+
+    return atom(
+        (get) => {
+            const userId = get(activeUserIdAtom)
+            if (!userId) return defaultValue
+            return get(family(userId))
+        },
+        (get, set, next: boolean) => {
+            const userId = get(activeUserIdAtom)
+            if (!userId) return
+            set(family(userId), next)
+        },
+    )
+}
+
+/** Experimental switch for the Playground's session/turn inspector controls. */
+export const playgroundInspectorEnabledAtom = userScopedFlagAtom("playground-inspector")
+
+/** Temporary channel probe page, kept separate from the permanent Channels settings tab. */
+export const agentaChannelSurfaceEnabledAtom = userScopedFlagAtom("agenta-channel-surface")
+
+/** Debug switch for the log and diagnostic sections of the Channels settings tab. */
+export const channelDebugEnabledAtom = userScopedFlagAtom("channel-debug")

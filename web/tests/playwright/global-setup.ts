@@ -6,6 +6,7 @@ import {chromium, type BrowserContext, type Page} from "@playwright/test"
 import {waitForApiResponse} from "../tests/fixtures/base.fixture/apiHelpers"
 import {clickButton, typeWithDelay} from "../tests/fixtures/base.fixture/uiHelpers/helpers"
 import {AuthResponse} from "../tests/fixtures/user.fixture/authHelpers/types"
+import {pollLocatorState} from "../utils"
 import {generateRuntimeTestEmail, getTestmailClient, isTestmailInboxEmail} from "../utils/testmail"
 
 import {
@@ -72,9 +73,9 @@ function getConfiguredTestEmail(): string | null {
 }
 
 async function fillOTPDigits(page: Page, otp: string, delay: number): Promise<void> {
-    // Ant Design 5.x Input.OTP renders: <div class="ant-otp"><input class="ant-otp-input"/>...</div>
+    // Target the OTP autofill field independently of the component library.
     // Click the first cell to ensure focus (autoFocus may have been lost), then type sequentially.
-    const firstInput = page.locator(".ant-otp input").first()
+    const firstInput = page.locator('input[autocomplete="one-time-code"]').first()
     await firstInput.waitFor({state: "visible", timeout: 10000})
     await firstInput.click()
     await page.keyboard.type(otp, {delay})
@@ -82,7 +83,7 @@ async function fillOTPDigits(page: Page, otp: string, delay: number): Promise<vo
 
 async function clickVisibleSurveyChoice(page: Page, choice: string): Promise<boolean> {
     const radio = page.getByRole("radio", {name: choice, exact: true}).first()
-    if (await radio.isVisible().catch(() => false)) {
+    if (await pollLocatorState(() => radio.isVisible())) {
         await radio.check().catch(async () => {
             await radio.click({force: true})
         })
@@ -90,7 +91,7 @@ async function clickVisibleSurveyChoice(page: Page, choice: string): Promise<boo
     }
 
     const checkbox = page.getByRole("checkbox", {name: choice, exact: true}).first()
-    if (await checkbox.isVisible().catch(() => false)) {
+    if (await pollLocatorState(() => checkbox.isVisible())) {
         await checkbox.check().catch(async () => {
             await checkbox.click({force: true})
         })
@@ -98,7 +99,7 @@ async function clickVisibleSurveyChoice(page: Page, choice: string): Promise<boo
     }
 
     const text = page.getByText(choice, {exact: true}).first()
-    if (await text.isVisible().catch(() => false)) {
+    if (await pollLocatorState(() => text.isVisible())) {
         await text.click({force: true})
         return true
     }
@@ -124,14 +125,14 @@ async function fillVisiblePostSignupFields(page: Page): Promise<void> {
 
     for (let index = 0; index < formItemCount; index++) {
         const item = formItems.nth(index)
-        if (!(await item.isVisible().catch(() => false))) {
+        if (!(await pollLocatorState(() => item.isVisible()))) {
             continue
         }
 
         const checkedRadio = item.getByRole("radio", {checked: true}).first()
-        if (!(await checkedRadio.isVisible().catch(() => false))) {
+        if (!(await pollLocatorState(() => checkedRadio.isVisible()))) {
             const radio = item.getByRole("radio").first()
-            if (await radio.isVisible().catch(() => false)) {
+            if (await pollLocatorState(() => radio.isVisible())) {
                 await radio.check().catch(async () => {
                     await radio.click({force: true})
                 })
@@ -140,9 +141,9 @@ async function fillVisiblePostSignupFields(page: Page): Promise<void> {
         }
 
         const checkedCheckbox = item.getByRole("checkbox", {checked: true}).first()
-        if (!(await checkedCheckbox.isVisible().catch(() => false))) {
+        if (!(await pollLocatorState(() => checkedCheckbox.isVisible()))) {
             const checkbox = item.getByRole("checkbox").first()
-            if (await checkbox.isVisible().catch(() => false)) {
+            if (await pollLocatorState(() => checkbox.isVisible())) {
                 await checkbox.check().catch(async () => {
                     await checkbox.click({force: true})
                 })
@@ -151,7 +152,7 @@ async function fillVisiblePostSignupFields(page: Page): Promise<void> {
         }
 
         const textArea = item.locator("textarea").first()
-        if (await textArea.isVisible().catch(() => false)) {
+        if (await pollLocatorState(() => textArea.isVisible())) {
             const value = await textArea.inputValue().catch(() => "")
             if (!value.trim()) {
                 await textArea.fill("E2E signup bootstrap")
@@ -162,7 +163,7 @@ async function fillVisiblePostSignupFields(page: Page): Promise<void> {
         const textInput = item
             .locator('input:not([type="hidden"]):not([type="radio"]):not([type="checkbox"])')
             .first()
-        if (await textInput.isVisible().catch(() => false)) {
+        if (await pollLocatorState(() => textInput.isVisible())) {
             const value = await textInput.inputValue().catch(() => "")
             if (!value.trim()) {
                 await textInput.fill("E2E signup bootstrap")
@@ -174,7 +175,7 @@ async function fillVisiblePostSignupFields(page: Page): Promise<void> {
 
 async function advanceVisiblePostSignupStep(page: Page): Promise<boolean> {
     const submitButton = page.getByRole("button", {name: "Submit", exact: true}).first()
-    if (await submitButton.isVisible().catch(() => false)) {
+    if (await pollLocatorState(() => submitButton.isVisible())) {
         if (await submitButton.isDisabled().catch(() => true)) {
             return false
         }
@@ -183,7 +184,7 @@ async function advanceVisiblePostSignupStep(page: Page): Promise<boolean> {
     }
 
     const continueButton = page.getByRole("button", {name: "Continue", exact: true}).first()
-    if (await continueButton.isVisible().catch(() => false)) {
+    if (await pollLocatorState(() => continueButton.isVisible())) {
         if (await continueButton.isDisabled().catch(() => true)) {
             return false
         }
@@ -221,12 +222,13 @@ async function handlePostSignup(page: Page): Promise<void> {
         const surveyTitle = page
             .getByRole("heading", {name: /Tell us about yourself|Almost done/i})
             .first()
-        const surveyVisible = await surveyTitle.isVisible().catch(() => false)
-        const hasActionButton = await page
-            .getByRole("button", {name: /Continue|Submit/})
-            .first()
-            .isVisible()
-            .catch(() => false)
+        const surveyVisible = await pollLocatorState(() => surveyTitle.isVisible())
+        const hasActionButton = await pollLocatorState(() =>
+            page
+                .getByRole("button", {name: /Continue|Submit/})
+                .first()
+                .isVisible(),
+        )
 
         if (!surveyVisible && !hasActionButton) {
             await page.waitForTimeout(500)
@@ -410,7 +412,7 @@ async function getVisibleAuthFeedback(page: Page): Promise<string | null> {
 
     for (const candidate of candidateTexts) {
         const locator = page.getByText(candidate, {exact: false}).first()
-        if (await locator.isVisible().catch(() => false)) {
+        if (await pollLocatorState(() => locator.isVisible())) {
             const text = (await locator.textContent().catch(() => candidate))?.trim()
             if (text) {
                 return text
@@ -553,7 +555,7 @@ async function authenticateUserImpl({
     const emailInput = page.locator('input[type="email"]').first()
     await emailInput.waitFor({state: "visible", timeout})
 
-    const emailInputIsEditable = await emailInput.isEditable().catch(() => false)
+    const emailInputIsEditable = await pollLocatorState(() => emailInput.isEditable())
     if (emailInputIsEditable) {
         await typeWithDelay(page, 'input[type="email"]', email)
 
@@ -573,11 +575,11 @@ async function authenticateUserImpl({
             discoveryTimeout,
         ])
 
-        if (await continueWithEmail.isVisible().catch(() => false)) {
+        if (await pollLocatorState(() => continueWithEmail.isVisible())) {
             await continueWithEmail.click()
-        } else if (await continueWithOtp.isVisible().catch(() => false)) {
+        } else if (await pollLocatorState(() => continueWithOtp.isVisible())) {
             await continueWithOtp.click()
-        } else if (await continueButton.isVisible().catch(() => false)) {
+        } else if (await pollLocatorState(() => continueButton.isVisible())) {
             await continueButton.click()
         }
 
@@ -622,7 +624,7 @@ async function authenticateUserImpl({
         ])
     }
 
-    if (await passwordInput.isVisible().catch(() => false)) {
+    if (await pollLocatorState(() => passwordInput.isVisible())) {
         console.log("[global-setup] Email + password flow detected")
         logAuthEmail("Password sign-in attempt", email)
         await typeWithDelay(page, "input[type='password']", password)
@@ -687,13 +689,12 @@ async function authenticateUserImpl({
         return
     }
 
-    const otpAlreadyRequested = await resendOtpLink.isVisible().catch(() => false)
+    const otpAlreadyRequested = await pollLocatorState(() => resendOtpLink.isVisible())
     const canSendOtp =
-        (await continueWithOtpButton.isVisible().catch(() => false)) ||
-        (await continueWithOtpButton
-            .waitFor({state: "visible", timeout: 5000})
-            .then(() => true)
-            .catch(() => false))
+        (await pollLocatorState(() => continueWithOtpButton.isVisible())) ||
+        (await pollLocatorState(() =>
+            continueWithOtpButton.waitFor({state: "visible", timeout: 5000}).then(() => true),
+        ))
 
     if (!otpAlreadyRequested && canSendOtp) {
         console.log("[global-setup] Sending OTP email")
@@ -727,7 +728,7 @@ async function authenticateUserImpl({
                             'iframe[src*="challenges.cloudflare.com/cdn-cgi/challenge-platform"]',
                         )
                         .first()
-                    if (await turnstileIframe.isVisible().catch(() => false)) {
+                    if (await pollLocatorState(() => turnstileIframe.isVisible())) {
                         console.log(
                             `[global-setup] Turnstile iframe found via CSS selector (attempt ${attempt})`,
                         )
@@ -757,7 +758,7 @@ async function authenticateUserImpl({
                             if (iframeCount > 0) {
                                 for (let i = 0; i < iframeCount; i++) {
                                     const iframe = iframes.nth(i)
-                                    if (await iframe.isVisible().catch(() => false)) {
+                                    if (await pollLocatorState(() => iframe.isVisible())) {
                                         const src = await iframe
                                             .getAttribute("src")
                                             .catch(() => "unknown")
@@ -805,7 +806,7 @@ async function authenticateUserImpl({
 
             // Check if a "security check" error appeared (Turnstile not ready yet)
             const securityCheckError = page.getByText("Please complete the security check")
-            if (await securityCheckError.isVisible().catch(() => false)) {
+            if (await pollLocatorState(() => securityCheckError.isVisible())) {
                 console.log(
                     `[global-setup] Turnstile not ready yet (attempt ${attempt}/${MAX_OTP_SEND_ATTEMPTS}), retrying...`,
                 )
@@ -843,7 +844,7 @@ async function authenticateUserImpl({
         throw new Error(`OTP auth requires a Testmail inbox email, got '${email}'`)
     }
 
-    if (await resendOtpLink.isVisible().catch(() => false)) {
+    if (await pollLocatorState(() => resendOtpLink.isVisible())) {
         console.log("[global-setup] OTP entry screen already active, requesting a fresh OTP email")
         otpRequestedAt = Date.now()
         const resendCodeResponsePromise = waitForApiResponse(page, {
@@ -878,6 +879,66 @@ async function authenticateUserImpl({
     }
 
     await waitForSettledAuthenticatedPage(page, timeout)
+}
+
+/**
+ * Storage keys owned by `@agenta/shared`'s classicMode state. Copied rather than imported: the
+ * test package does not depend on the web packages, and the values run inside `page.evaluate`.
+ * Source of truth: `web/packages/agenta-shared/src/state/classicMode.ts`.
+ */
+const ACTIVE_USER_ID_KEY = "agenta:onboarding:active-user-id"
+const navSimplifiedOverrideKey = (userId: string) =>
+    `agenta:onboarding:${userId}:nav-simplified-override`
+
+/**
+ * Put the shared storage state on the full desktop app, the way the Classic mode switch does.
+ *
+ * Every account this setup creates is new enough to fall in the simplified cohort, so Classic
+ * mode is off by default. That costs the desktop suites twice: the gate redirects them into `/m`,
+ * where none of the desktop paths they assert on exist, and the desktop sidebar hides its
+ * advanced areas (Prompts, Evaluations), which several specs navigate through.
+ *
+ * Turning Classic mode on fixes both. The override is what the Preferences switch writes, and it
+ * outranks the signup-era default everywhere it is read, so the client-side gate stands down and
+ * the cookie sync publishes `agenta-classic-mode=1` for the middleware. `?view=desktop` on top is
+ * the product's own escape hatch: it sets `agenta-mobile-optout`, which both gates honour ahead of
+ * everything else, and it clears any `agenta-classic-mode=0` the signup flow already wrote.
+ *
+ * The mobile-gate spec runs with `storageState: undefined`, so it still exercises the gate itself.
+ */
+async function pinDesktopView(page: Page, rootURL: string, timeout: number): Promise<void> {
+    try {
+        // Navigate first: localStorage is per-origin, and a context that has not left about:blank
+        // has none to write to.
+        await page.goto(`${rootURL}/w?view=desktop`, {timeout, waitUntil: "domcontentloaded"})
+
+        const userId = await page.evaluate((key) => localStorage.getItem(key), ACTIVE_USER_ID_KEY)
+        if (userId) {
+            await page.evaluate(
+                (key) => localStorage.setItem(key, "false"),
+                navSimplifiedOverrideKey(userId),
+            )
+        } else {
+            console.warn(
+                "[global-setup] No active user id in storage; Classic mode stays at its default",
+            )
+        }
+
+        const optedOut = (await page.context().cookies()).some(
+            (cookie) => cookie.name === "agenta-mobile-optout",
+        )
+        if (!optedOut) {
+            console.warn(
+                "[global-setup] agenta-mobile-optout cookie was not set; desktop tests may be redirected to /m",
+            )
+            return
+        }
+        console.log(
+            "[global-setup] Pinned the desktop view (Classic mode on, mobile gate opted out)",
+        )
+    } catch (error) {
+        console.warn("[global-setup] Could not pin the desktop view:", error)
+    }
 }
 
 async function globalSetup() {
@@ -931,6 +992,8 @@ async function globalSetup() {
             testmail,
         })
 
+        await pinDesktopView(authenticatedPage, rootURL, timeout)
+
         mkdirSync(dirname(storageState), {recursive: true})
         await authenticatedPage.context().storageState({path: storageState})
         await maybeCreateEphemeralProject(authenticatedPage, baseURL)
@@ -941,6 +1004,9 @@ async function globalSetup() {
             )
             const cachedContext = await browser.newContext({storageState})
             const cachedPage = await cachedContext.newPage()
+            // A state saved before this pin existed still redirects to /m; refresh it.
+            await pinDesktopView(cachedPage, rootURL, timeout)
+            await cachedContext.storageState({path: storageState})
             await cachedPage.goto(`${rootURL}/apps`, {timeout, waitUntil: "domcontentloaded"})
             await maybeCreateEphemeralProject(cachedPage, baseURL)
             await cachedContext.close()
@@ -1005,7 +1071,7 @@ async function maybeCreateEphemeralProject(page: Page, baseURL: string): Promise
             console.log(
                 "[global-setup] Ephemeral project disabled (AGENTA_TEST_EPHEMERAL_PROJECT=false)",
             )
-            writeProjectMetadata(projectMetadataPath, defaultProject, page, null)
+            writeProjectMetadata(projectMetadataPath, defaultProject, page, null, false)
             return
         }
 
@@ -1021,7 +1087,7 @@ async function maybeCreateEphemeralProject(page: Page, baseURL: string): Promise
             console.warn(
                 `[global-setup] Failed to create ephemeral project (${response.status()}): ${text}`,
             )
-            writeProjectMetadata(projectMetadataPath, defaultProject, page, null)
+            writeProjectMetadata(projectMetadataPath, defaultProject, page, null, false)
             return
         }
 
@@ -1030,12 +1096,12 @@ async function maybeCreateEphemeralProject(page: Page, baseURL: string): Promise
             `[global-setup] Created ephemeral project: ${projectName} (${project.project_id})`,
         )
 
-        writeProjectMetadata(projectMetadataPath, project, page, originalDefaultProjectId)
+        writeProjectMetadata(projectMetadataPath, project, page, originalDefaultProjectId, true)
     } catch (error) {
         console.warn("[global-setup] Failed to create ephemeral project, using default:", error)
         try {
             const projectMetadataPath = getProjectMetadataPath()
-            writeProjectMetadata(projectMetadataPath, null, page, null)
+            writeProjectMetadata(projectMetadataPath, null, page, null, false)
         } catch (writeError) {
             console.warn("[global-setup] Could not write fallback project metadata:", writeError)
         }
@@ -1047,6 +1113,7 @@ function writeProjectMetadata(
     project: any,
     page: Page,
     originalDefaultProjectId: string | null,
+    ephemeral: boolean,
 ): void {
     let metadata: Record<string, unknown> | null = null
 
@@ -1055,6 +1122,7 @@ function writeProjectMetadata(
             project_id: project.project_id,
             project_name: project.project_name ?? null,
             workspace_id: project.workspace_id,
+            ephemeral,
             ...(originalDefaultProjectId !== null
                 ? {original_default_project_id: originalDefaultProjectId}
                 : {}),
@@ -1069,6 +1137,7 @@ function writeProjectMetadata(
                 metadata = {
                     workspace_id: match[1],
                     project_id: match[2],
+                    ephemeral,
                     created_at: new Date().toISOString(),
                 }
                 console.log("[global-setup] Derived project metadata from page URL")

@@ -18,7 +18,8 @@ const PlaygroundPageTitle = ({onboarding}: {onboarding: boolean}) => {
     )
 
     if (onboarding) return <PageTitle title="Home" />
-    if (!workflowName) return <PageTitle />
+    // Nothing named yet: render no title so the app default stands instead of flapping to it.
+    if (!workflowName) return null
 
     if (earlyAgentState === "agent") {
         return (

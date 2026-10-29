@@ -4,6 +4,7 @@ from uuid import UUID
 
 from fastapi import (
     APIRouter,
+    Header,
     HTTPException,
     Query,
     Request,
@@ -19,18 +20,31 @@ from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 
-from oss.src.core.mounts.dtos import MountArchiveSource, MountCreate
+from oss.src.core.apps.scope_token import (
+    ScopeTokenInvalid,
+    enforce as enforce_app_scope,
+    mint as mint_app_scope,
+)
+from oss.src.apis.fastapi.sharing.utils import (
+    agent_resource,
+    allow_mount,
+    allow_resource,
+    not_found_exception,
+)
+from oss.src.core.mounts.dtos import MountArchiveSource, MountCreate, MountScope
 from oss.src.core.mounts.service import MountsService
 from oss.src.core.mounts.types import (
     MountArtifactIdInvalid,
     MountArtifactNotFound,
     MountDataInvalid,
     MountFileNotFound,
+    MountFileTooLarge,
     MountImmutableField,
     MountNameInvalid,
     MountNotFound,
     MountProtected,
     MountPathInvalid,
+    MountPreconditionFailed,
     MountSlugConflict,
     MountSlugReserved,
     MountStorageUnavailable,
@@ -38,6 +52,8 @@ from oss.src.core.mounts.types import (
 
 from oss.src.apis.fastapi.mounts.models import (
     AgentMountQueryRequest,
+    AppScopeRequest,
+    AppScopeResponse,
     MountArchiveRequest,
     MountCreateRequest,
     MountCredentialsResponse,
@@ -53,7 +69,10 @@ from oss.src.apis.fastapi.mounts.models import (
 )
 from oss.src.apis.fastapi.mounts.utils import (
     BINARY_RESPONSE,
+    SizeCappedUploadRoute,
+    TEXT_READ_TOO_LARGE_RESPONSE,
     ZIP_RESPONSE,
+    check_upload_size,
     download_mount_file,
     merge_mount_query,
     sign_mount_credentials,
@@ -68,6 +87,13 @@ def handle_mount_exceptions():
         async def wrapper(*args, **kwargs):
             try:
                 return await func(*args, **kwargs)
+            except ScopeTokenInvalid as e:
+                # A scope token only ever narrows, so a failure here is the caller asking for
+                # more than the app was granted — forbidden, not malformed.
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail={"code": "scope", "message": str(e)},
+                ) from e
             except MountDataInvalid as e:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -113,6 +139,11 @@ def handle_mount_exceptions():
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=e.message,
                 ) from e
+            except MountFileTooLarge as e:
+                raise HTTPException(
+                    status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                    detail=e.message,
+                ) from e
             except MountProtected as e:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
@@ -123,6 +154,11 @@ def handle_mount_exceptions():
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=e.message,
                 ) from e
+            except MountPreconditionFailed as e:
+                raise HTTPException(
+                    status_code=status.HTTP_412_PRECONDITION_FAILED,
+                    detail={"code": "conflict", "etag": e.etag},
+                ) from e
             except MountStorageUnavailable as e:
                 raise HTTPException(
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -132,6 +168,18 @@ def handle_mount_exceptions():
         return wrapper
 
     return decorator
+
+
+def _if_none_match_any(value: Optional[str]) -> bool:
+    """Only `If-None-Match: *` (create-only) is supported; an etag list is rejected."""
+    if value is None:
+        return False
+    if value.strip() == "*":
+        return True
+    raise HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="If-None-Match only supports '*' on this endpoint.",
+    )
 
 
 class MountsRouter:
@@ -243,6 +291,14 @@ class MountsRouter:
         # --- File ops (durable store contents) ---
         # Specific sub-paths registered before "/{mount_id}/files" so they win.
         self.router.add_api_route(
+            "/{mount_id}/apps/scope",
+            self.mint_app_scope_token,
+            methods=["POST"],
+            operation_id="mint_app_scope_token",
+            response_model=AppScopeResponse,
+            status_code=status.HTTP_200_OK,
+        )
+        self.router.add_api_route(
             "/{mount_id}/files/folder",
             self.create_folder,
             methods=["POST"],
@@ -254,6 +310,7 @@ class MountsRouter:
         self.router.add_api_route(
             "/{mount_id}/files/upload",
             self.upload_mount_file,
+            route_class_override=SizeCappedUploadRoute,
             methods=["POST"],
             operation_id="upload_mount_file",
             response_model=MountFileWrittenResponse,
@@ -276,16 +333,34 @@ class MountsRouter:
             methods=["GET"],
             operation_id="get_mount_files",
             response_model=None,
+            responses=TEXT_READ_TOO_LARGE_RESPONSE,
             status_code=status.HTTP_200_OK,
         )
         self.router.add_api_route(
             "/{mount_id}/files",
             self.write_mount_file,
+            route_class_override=SizeCappedUploadRoute,
             methods=["PUT"],
             operation_id="write_mount_file",
             response_model=MountFileWrittenResponse,
             response_model_exclude_none=True,
             status_code=status.HTTP_200_OK,
+            # The handler reads the raw body with `await request.body()`, which FastAPI cannot
+            # see, so the generated spec described a PUT with NO body — and the generated client
+            # duly sent none. Declaring it here is documentation only: the runtime read is
+            # unchanged, and the generated client gains the parameter it was missing. Without
+            # this, every caller has to hand-roll the write, which is how the bridge ended up
+            # on axios against the repo's own Fern rule.
+            openapi_extra={
+                "requestBody": {
+                    "required": True,
+                    "content": {
+                        "application/octet-stream": {
+                            "schema": {"type": "string", "format": "binary"}
+                        },
+                    },
+                }
+            },
         )
         self.router.add_api_route(
             "/{mount_id}/files",
@@ -306,6 +381,26 @@ class MountsRouter:
         if not has_permission:
             raise FORBIDDEN_EXCEPTION
 
+    async def _require_mount(
+        self, request: Request, *, mount_id: UUID, permission: Permission
+    ) -> None:
+        """A mount of a session or agent the caller may not see answers as an unknown
+        mount. The mount's scope is cached: it never changes after creation."""
+        scope = await self.mounts_service.fetch_mount_scope(
+            project_id=UUID(request.state.project_id), mount_id=mount_id
+        )
+        if not await allow_mount(request, scope=scope, permission=permission):
+            raise MountNotFound()
+
+    async def _allow_agent(
+        self, request: Request, *, artifact_id: str, permission: Permission
+    ) -> bool:
+        return await allow_resource(
+            request,
+            action=permission,
+            resource=agent_resource(artifact_id),
+        )
+
     @intercept_exceptions()
     @handle_mount_exceptions()
     async def create_mount(
@@ -315,6 +410,16 @@ class MountsRouter:
         body: MountCreateRequest,
     ) -> MountResponse:
         await self._check(request, Permission.EDIT_MOUNTS)
+        # A mount bound to an unknown session or agent is created, so a hidden one
+        # answers the one canonical not-found body.
+        if not await allow_mount(
+            request,
+            scope=MountScope(
+                session_id=body.mount.session_id, agent_id=body.mount.agent_id
+            ),
+            permission=Permission.EDIT_MOUNTS,
+        ):
+            raise not_found_exception()
 
         mount = await self.mounts_service.create_mount(
             project_id=UUID(request.state.project_id),
@@ -349,8 +454,21 @@ class MountsRouter:
             mount_query=mount_query,
             windowing=body.windowing,
         )
+        # Drop the mounts of sessions and agents the caller may not see (one cached
+        # check per distinct session or agent).
+        visible: dict = {}
+        kept = []
+        for mount in mounts:
+            scope = MountScope(session_id=mount.session_id, agent_id=mount.agent_id)
+            key = (scope.session_id, scope.agent_id)
+            if key not in visible:
+                visible[key] = await allow_mount(
+                    request, scope=scope, permission=Permission.VIEW_MOUNTS
+                )
+            if visible[key]:
+                kept.append(mount)
 
-        return MountsResponse(count=len(mounts), mounts=mounts)
+        return MountsResponse(count=len(kept), mounts=kept)
 
     @intercept_exceptions()
     @handle_mount_exceptions()
@@ -362,6 +480,10 @@ class MountsRouter:
         name: str = Query(default="default"),
     ) -> MountCredentialsResponse:
         await self._check(request, Permission.USE_MOUNTS)
+        if not await self._allow_agent(
+            request, artifact_id=artifact_id, permission=Permission.USE_MOUNTS
+        ):
+            raise MountArtifactNotFound(str(artifact_id))
 
         mount = await self.mounts_service.get_or_create_agent_mount(
             project_id=UUID(request.state.project_id),
@@ -385,6 +507,10 @@ class MountsRouter:
         body: AgentMountQueryRequest,
     ) -> MountsResponse:
         await self._check(request, Permission.VIEW_MOUNTS)
+        if not await self._allow_agent(
+            request, artifact_id=body.artifact_id, permission=Permission.VIEW_MOUNTS
+        ):
+            return MountsResponse(count=0, mounts=[])
 
         mount = await self.mounts_service.fetch_agent_mount(
             project_id=UUID(request.state.project_id),
@@ -406,6 +532,12 @@ class MountsRouter:
             project_id=UUID(request.state.project_id),
             mount_id=mount_id,
         )
+        if mount and not await allow_mount(
+            request,
+            scope=MountScope(session_id=mount.session_id, agent_id=mount.agent_id),
+            permission=Permission.VIEW_MOUNTS,
+        ):
+            mount = None
         if not mount:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -430,6 +562,9 @@ class MountsRouter:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Path mount_id does not match body id.",
             )
+        await self._require_mount(
+            request, mount_id=mount_id, permission=Permission.EDIT_MOUNTS
+        )
 
         mount = await self.mounts_service.edit_mount(
             project_id=UUID(request.state.project_id),
@@ -448,6 +583,9 @@ class MountsRouter:
         mount_id: UUID,
     ) -> MountResponse:
         await self._check(request, Permission.EDIT_MOUNTS)
+        await self._require_mount(
+            request, mount_id=mount_id, permission=Permission.EDIT_MOUNTS
+        )
 
         mount = await self.mounts_service.archive_mount(
             project_id=UUID(request.state.project_id),
@@ -471,6 +609,9 @@ class MountsRouter:
         mount_id: UUID,
     ) -> MountResponse:
         await self._check(request, Permission.EDIT_MOUNTS)
+        await self._require_mount(
+            request, mount_id=mount_id, permission=Permission.EDIT_MOUNTS
+        )
 
         mount = await self.mounts_service.unarchive_mount(
             project_id=UUID(request.state.project_id),
@@ -499,6 +640,13 @@ class MountsRouter:
             project_id=UUID(request.state.project_id),
             mount_id=mount_id,
         )
+        # Signed credentials can write: a session mount needs rule S2.
+        if mount and not await allow_mount(
+            request,
+            scope=MountScope(session_id=mount.session_id, agent_id=mount.agent_id),
+            permission=Permission.USE_MOUNTS,
+        ):
+            mount = None
         if not mount:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -511,6 +659,64 @@ class MountsRouter:
             mount_id=mount_id,
         )
         return MountCredentialsResponse(count=1, mount=mount, credentials=credentials)
+
+    @intercept_exceptions()
+    @handle_mount_exceptions()
+    async def mint_app_scope_token(
+        self,
+        request: Request,
+        mount_id: UUID,
+        *,
+        scope: AppScopeRequest,
+    ) -> AppScopeResponse:
+        """Issue a folder-scoped token for a running HTML app.
+
+        The browser asks for one when the person grants an app access, then attaches it to every
+        bridge call so the server can refuse a path outside the folder. It only ever narrows what
+        the caller already has, so minting is gated on the level being asked for: read-write needs
+        EDIT_MOUNTS, exactly as the write itself does.
+        """
+        await self._check(request, Permission.VIEW_MOUNTS)
+        if scope.level == "read-write":
+            await self._check(request, Permission.EDIT_MOUNTS)
+
+        # Confirms the mount is in this project before signing anything about it.
+        await self._resolve_mount_for_scope(request=request, mount_id=mount_id)
+        await self._require_mount(
+            request,
+            mount_id=mount_id,
+            permission=(
+                Permission.EDIT_MOUNTS
+                if scope.level == "read-write"
+                else Permission.VIEW_MOUNTS
+            ),
+        )
+
+        token, expires_at = mint_app_scope(
+            project_id=UUID(request.state.project_id),
+            mount_id=mount_id,
+            prefix=scope.dir,
+            level=scope.level,
+        )
+        return AppScopeResponse(
+            token=token,
+            expires_at=expires_at,
+            dir=scope.dir.strip("/"),
+            level=scope.level,
+        )
+
+    async def _resolve_mount_for_scope(
+        self, *, request: Request, mount_id: UUID
+    ) -> None:
+        mount = await self.mounts_service.fetch_mount(
+            project_id=UUID(request.state.project_id),
+            mount_id=mount_id,
+        )
+        if not mount:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Mount not found.",
+            )
 
     # -----------------------------------------------------------------------
     # File ops (durable store contents)
@@ -533,8 +739,21 @@ class MountsRouter:
         with_counts: bool = Query(default=False),
         git_aware: bool = Query(default=False),
         include_gitignored: bool = Query(default=False),
+        x_agenta_app_scope: Optional[str] = Header(default=None),
     ):
         await self._check(request, Permission.VIEW_MOUNTS)
+        await self._require_mount(
+            request, mount_id=mount_id, permission=Permission.VIEW_MOUNTS
+        )
+        # The scope decides the path, not the query: a scoped caller that named none gets its own
+        # folder, so a pathless listing cannot walk out of the app's scope.
+        scoped_path = enforce_app_scope(
+            token=x_agenta_app_scope,
+            project_id=UUID(request.state.project_id),
+            mount_id=mount_id,
+            path=read if read is not None else path,
+            writing=False,
+        )
 
         if read is not None:
             content = await self.mounts_service.read_file(
@@ -545,12 +764,13 @@ class MountsRouter:
             return MountFileContentResponse(
                 path=content.path,
                 content=content.content,
+                etag=content.etag,
             )
 
         listing = await self.mounts_service.list_files(
             project_id=UUID(request.state.project_id),
             mount_id=mount_id,
-            path=path,
+            path=scoped_path,
             order=order,
             limit=limit,
             depth=depth,
@@ -573,18 +793,37 @@ class MountsRouter:
         mount_id: UUID,
         *,
         path: str = Query(...),
+        if_match: Optional[str] = Header(default=None),
+        if_none_match: Optional[str] = Header(default=None),
+        x_agenta_app_scope: Optional[str] = Header(default=None),
     ) -> MountFileWrittenResponse:
         await self._check(request, Permission.EDIT_MOUNTS)
+        await self._require_mount(
+            request, mount_id=mount_id, permission=Permission.EDIT_MOUNTS
+        )
+        enforce_app_scope(
+            token=x_agenta_app_scope,
+            project_id=UUID(request.state.project_id),
+            mount_id=mount_id,
+            path=path,
+            writing=True,
+        )
 
+        if_none_match_any = _if_none_match_any(if_none_match)
         content = await request.body()
+        check_upload_size(len(content))
 
         written = await self.mounts_service.write_file(
             project_id=UUID(request.state.project_id),
             mount_id=mount_id,
             path=path,
             content=content,
+            if_match=if_match,
+            if_none_match_any=if_none_match_any,
         )
-        return MountFileWrittenResponse(path=written.path, size=written.size)
+        return MountFileWrittenResponse(
+            path=written.path, size=written.size, etag=written.etag
+        )
 
     @intercept_exceptions()
     @handle_mount_exceptions()
@@ -596,6 +835,9 @@ class MountsRouter:
         path: str = Query(...),
     ) -> MountFolderCreatedResponse:
         await self._check(request, Permission.EDIT_MOUNTS)
+        await self._require_mount(
+            request, mount_id=mount_id, permission=Permission.EDIT_MOUNTS
+        )
 
         created = await self.mounts_service.create_folder(
             project_id=UUID(request.state.project_id),
@@ -615,6 +857,9 @@ class MountsRouter:
         path: Optional[str] = Query(default=None),
     ) -> MountFileWrittenResponse:
         await self._check(request, Permission.EDIT_MOUNTS)
+        await self._require_mount(
+            request, mount_id=mount_id, permission=Permission.EDIT_MOUNTS
+        )
 
         written = await upload_mount_file(
             mounts_service=self.mounts_service,
@@ -623,7 +868,9 @@ class MountsRouter:
             file=file,
             path=path,
         )
-        return MountFileWrittenResponse(path=written.path, size=written.size)
+        return MountFileWrittenResponse(
+            path=written.path, size=written.size, etag=written.etag
+        )
 
     @intercept_exceptions()
     @handle_mount_exceptions()
@@ -635,6 +882,9 @@ class MountsRouter:
         path: str = Query(...),
     ):
         await self._check(request, Permission.VIEW_MOUNTS)
+        await self._require_mount(
+            request, mount_id=mount_id, permission=Permission.VIEW_MOUNTS
+        )
 
         return await download_mount_file(
             mounts_service=self.mounts_service,
@@ -652,6 +902,10 @@ class MountsRouter:
         archive_request: MountArchiveRequest,
     ):
         await self._check(request, Permission.VIEW_MOUNTS)
+        for archived in archive_request.mounts:
+            await self._require_mount(
+                request, mount_id=archived.mount_id, permission=Permission.VIEW_MOUNTS
+            )
 
         return await stream_mounts_archive(
             mounts_service=self.mounts_service,
@@ -675,12 +929,25 @@ class MountsRouter:
         mount_id: UUID,
         *,
         path: str = Query(...),
+        if_match: Optional[str] = Header(default=None),
+        x_agenta_app_scope: Optional[str] = Header(default=None),
     ) -> MountFileDeletedResponse:
         await self._check(request, Permission.EDIT_MOUNTS)
+        await self._require_mount(
+            request, mount_id=mount_id, permission=Permission.EDIT_MOUNTS
+        )
+        enforce_app_scope(
+            token=x_agenta_app_scope,
+            project_id=UUID(request.state.project_id),
+            mount_id=mount_id,
+            path=path,
+            writing=True,
+        )
 
         deleted = await self.mounts_service.delete_path(
             project_id=UUID(request.state.project_id),
             mount_id=mount_id,
             path=path,
+            if_match=if_match,
         )
         return MountFileDeletedResponse(deleted=deleted.deleted, count=deleted.count)

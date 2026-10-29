@@ -1,0 +1,179 @@
+---
+import "../styles/global.css";
+import Analytics from "../components/Analytics.astro";
+
+interface Props {
+  title?: string;
+  description?: string;
+  // og:type — "article" for blog posts, "website" for everything else.
+  ogType?: "website" | "article";
+  // Page-specific share image (absolute path under /public, e.g. a post hero).
+  // Falls back to the site default OG image when omitted.
+  ogImage?: string;
+  // Override the auto-derived canonical (rarely needed; pages compute it from
+  // their own URL by default).
+  canonical?: string;
+}
+
+const {
+  title = "Agenta — Build agents and AI automations that work",
+  description = "Build agents using skills and tools, run on any harness, in any environment. The open platform for agents and AI automation.",
+  ogType = "website",
+  ogImage,
+  canonical,
+} = Astro.props;
+
+// Canonical URL: strip any trailing slash. Our Cloudflare assets config sets
+// html_handling: "drop-trailing-slash" (wrangler.jsonc), so every route is
+// served at its no-slash form — the canonical must match. `canonical` is an
+// escape hatch for the rare page that needs to override this.
+const canonicalHref =
+  canonical ??
+  (() => {
+    const path = Astro.url.pathname.replace(/\/+$/, "");
+    return new URL(path === "" ? "/" : path, Astro.site).toString();
+  })();
+
+// Markdown twin of this page (src/pages/*.md.ts), advertised to agents. The 404
+// page has no twin — the worker builds that body itself.
+const canonicalPath = new URL(canonicalHref).pathname.replace(/\/$/, "");
+const markdownHref =
+  canonicalPath === "/404" ? null : `${canonicalPath || "/index"}.md`;
+
+// Share image: page-specific ogImage (resolved to an absolute URL) or the site
+// default. Both must be absolute for crawlers/social cards.
+const ogImageUrl = new URL(ogImage ?? "/og/default.png", Astro.site).toString();
+
+// noindex: preview/test deploys set PUBLIC_NOINDEX=true so crawlers never index
+// them. The matching disallow-all robots.txt lives in src/pages/robots.txt.ts.
+const noindex = import.meta.env.PUBLIC_NOINDEX === "true";
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="generator" content={Astro.generator} />
+
+    <!-- Declared before the resolver below, which rewrites its content for the
+         resolved mode. A meta element further down the head would not exist yet
+         when the resolver runs, so a light-mode first paint would keep the dark
+         colour until the next theme change. -->
+    <meta name="theme-color" content="#0A0A0B" />
+
+    <!-- Theme resolver — must run before first paint (inline, before the
+         stylesheets). Preference lives in localStorage("ag-theme"):
+         "system" (default) | "light" | "dark". "system" resolves via
+         prefers-color-scheme and tracks live OS changes. The nav switcher
+         calls window.__agTheme.set(pref). -->
+    <script is:inline>
+      (() => {
+        const KEY = "ag-theme";
+        const mq = window.matchMedia("(prefers-color-scheme: dark)");
+        const read = () => {
+          try {
+            const v = localStorage.getItem(KEY);
+            return v === "light" || v === "dark" ? v : "system";
+          } catch {
+            return "system";
+          }
+        };
+        const apply = () => {
+          const pref = read();
+          const mode = pref === "system" ? (mq.matches ? "dark" : "light") : pref;
+          document.documentElement.dataset.theme = mode;
+          const meta = document.querySelector('meta[name="theme-color"]');
+          if (meta) meta.setAttribute("content", mode === "dark" ? "#0A0A0B" : "#F6F5F3");
+          document.dispatchEvent(new CustomEvent("ag-theme-change", { detail: { pref, mode } }));
+        };
+        mq.addEventListener("change", () => {
+          if (read() === "system") apply();
+        });
+        window.__agTheme = {
+          get: read,
+          set(pref) {
+            try {
+              if (pref === "system") localStorage.removeItem(KEY);
+              else localStorage.setItem(KEY, pref);
+            } catch {}
+            apply();
+          },
+        };
+        apply();
+      })();
+    </script>
+
+    {noindex && <meta name="robots" content="noindex, nofollow" />}
+
+    <title>{title}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonicalHref} />
+
+    <!-- Machine-readable affordances. `service-desc` (RFC 8631) points agents at
+         the API surface; `alternate` advertises the markdown twin of this page,
+         which the edge worker also serves via `Accept: text/markdown`. -->
+    <link rel="service-desc" type="application/json" href="/openapi.json" />
+    {
+      markdownHref && (
+        <link rel="alternate" type="text/markdown" href={markdownHref} />
+      )
+    }
+
+    <!-- Favicons. SVG (adaptive, dark tile + brand mark) is preferred by modern
+         browsers; .ico is the universal fallback; PNGs cover legacy + Apple. -->
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
+    <link rel="icon" href="/favicon-32x32.png" type="image/png" sizes="32x32" />
+    <link rel="icon" href="/favicon-16x16.png" type="image/png" sizes="16x16" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
+    <link rel="manifest" href="/site.webmanifest" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content={ogType} />
+    <meta property="og:site_name" content="Agenta" />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonicalHref} />
+    <meta property="og:image" content={ogImageUrl} />
+
+    <!-- Twitter / X card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImageUrl} />
+
+    <!-- Web fonts: Inter (body) + Geist / Geist Mono (used in the explorer code blocks).
+         GT Alpina + PP Mondwest are self-hosted (see src/styles/tokens.css). -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,400..700;1,14..32,400..700&family=Geist:wght@400..700&family=Geist+Mono:wght@400..600&display=swap"
+    />
+
+    <!-- Preload the two critical self-hosted faces (hero + highlighted word). -->
+    <link
+      rel="preload"
+      href="/fonts/GT-Alpina-Light.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link
+      rel="preload"
+      href="/fonts/PPMondwest-Regular.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+
+    <!-- Page-specific head content (JSON-LD, per-page robots overrides, etc.). -->
+    <slot name="head" />
+
+    <Analytics />
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>

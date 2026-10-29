@@ -72,7 +72,14 @@ export type AcpPromptBlock =
   | { type: "image"; data: string; mimeType: string }
   | { type: "text"; text: string };
 
+/** The filesystem the model's tools see, when it differs from the harness host. */
+export interface AttachmentFiles {
+  exists(path: AttachmentPath): Promise<boolean>;
+  materialize(path: AttachmentPath, bytes: Uint8Array): Promise<"written" | "exists">;
+}
+
 export interface AttachmentSandbox {
+  attachmentFiles?: AttachmentFiles;
   statFs?: (query: { path: string }) => Promise<unknown>;
   mkdirFs?: (query: { path: string }) => Promise<unknown>;
   writeFsFile?: (query: { path: string }, body: Uint8Array) => Promise<unknown>;
@@ -104,7 +111,7 @@ export const CODEX_INLINE_BASE64_MAX_BYTES = 10 * 1024 * 1024;
 const DEFAULT_RESTORE_CONCURRENCY = 4;
 const DEFAULT_RESTORE_TIMEOUT_MS = 15_000;
 
-// Adapter fidelity at the pinned versions: claude-agent-acp 0.58.1, codex-acp 1.1.7, and
+// Adapter fidelity at the pinned versions: claude-agent-acp 0.70.0, codex-acp 1.7.0, and
 // pi-acp 0.0.29.
 const ADAPTER_NATIVE_SUPPORT = {
   claude: { image: true, audio: false, document: false },
@@ -401,6 +408,7 @@ export async function materializeWorkingCopy(
   bytes: Uint8Array,
 ): Promise<"written" | "exists"> {
   const path = attachmentWorkingPath(plan.workspace.cwd, ref);
+  if (sandbox.attachmentFiles) return sandbox.attachmentFiles.materialize(path, bytes);
   return plan.isDaytona
     ? daytonaMaterialize(sandbox, path, bytes)
     : localMaterialize(path, bytes);
@@ -640,6 +648,7 @@ async function workingCopyExists(
   ref: AttachmentRef,
 ): Promise<boolean> {
   const path = attachmentWorkingPath(plan.workspace.cwd, ref);
+  if (sandbox.attachmentFiles) return sandbox.attachmentFiles.exists(path);
   if (plan.isDaytona) {
     if (typeof sandbox.statFs !== "function") return false;
     await rejectDaytonaSymlinks(sandbox, [

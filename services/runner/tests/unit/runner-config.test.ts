@@ -10,8 +10,14 @@ import assert from "node:assert/strict";
 import {
   DEFAULT_DAYTONA_AUTOSTOP_MINUTES,
   DEFAULT_DAYTONA_AUTODELETE_MINUTES,
+  SANDBOX_RECIPE_VERSION,
+  DEFAULT_DAYTONA_SNAPSHOT,
+  DEFAULT_SHUTDOWN_WAIT_SECONDS,
   RunnerConfigError,
   parseRunnerConfig,
+  providerNotEnabledMessage,
+  runnerConfigSummary,
+  withoutImpliedInProcess,
 } from "../../src/config/runner-config.ts";
 
 /** Parse with only the given keys set (a valid Daytona key is supplied when daytona is enabled). */
@@ -42,7 +48,7 @@ describe("enabled providers", () => {
         AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS: "  LOCAL , Daytona ",
         AGENTA_RUNNER_DAYTONA_API_KEY: "k",
       }).providers.enabled,
-      ["local", "daytona"],
+      ["local", "daytona", "inprocess"],
     );
   });
 
@@ -69,6 +75,65 @@ describe("enabled providers", () => {
       () => parse({ AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS: "   " }),
       RunnerConfigError,
     );
+  });
+});
+
+describe("inprocess follows daytona", () => {
+  const withKey = (list: string, extra: Record<string, string> = {}) =>
+    parse({ AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS: list, AGENTA_RUNNER_DAYTONA_API_KEY: "k", ...extra }).providers;
+
+  it("is enabled wherever daytona is, with no setting of its own", () => {
+    assert.deepEqual(withKey("daytona", { AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER: "daytona" }).enabled, ["daytona", "inprocess"]);
+    assert.deepEqual(withKey("local,daytona").enabled, ["local", "daytona", "inprocess"]);
+    assert.equal(withKey("daytona", { AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER: "daytona" }).inprocessImplied, true);
+  });
+
+  it("keeps daytona the default: the added entry goes last", () => {
+    const providers = withKey("daytona", { AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER: "daytona" });
+    assert.equal(providers.default, "daytona");
+    assert.equal(providers.enabled[0], "daytona");
+  });
+
+  it("is not enabled on a deployment without daytona", () => {
+    assert.deepEqual(parse({}).providers.enabled, ["local"]);
+    assert.deepEqual(parse({ AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS: "local" }).providers.enabled, ["local"]);
+  });
+
+  it("an explicit entry is kept as written and is not marked implied", () => {
+    const providers = withKey("daytona,inprocess", { AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER: "daytona" });
+    assert.deepEqual(providers.enabled, ["daytona", "inprocess"]);
+    assert.equal(providers.inprocessImplied, false);
+    assert.equal(withKey("inprocess", { AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER: "inprocess" }).inprocessImplied, false);
+  });
+
+  it("may be the default with daytona alone in the list, which counts as naming it", () => {
+    const providers = withKey("daytona", { AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER: "inprocess" });
+    assert.equal(providers.default, "inprocess");
+    assert.equal(providers.inprocessImplied, false);
+  });
+
+  it("the startup summary shows the effective list", () => {
+    const config = parse({
+      AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS: "daytona",
+      AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER: "daytona",
+      AGENTA_RUNNER_DAYTONA_API_KEY: "k",
+    });
+    assert.match(runnerConfigSummary(config), /providers enabled=\[daytona,inprocess\] default=daytona/);
+  });
+
+  it("the refusal for inprocess says how it is enabled", () => {
+    assert.match(providerNotEnabledMessage("inprocess", ["local"]), /not enabled on this deployment \(enabled: local\)\. 'inprocess' is enabled together with 'daytona'\./);
+    assert.doesNotMatch(providerNotEnabledMessage("daytona", ["local"]), /together/);
+  });
+
+  it("withoutImpliedInProcess drops only an implied entry", () => {
+    const implied = parse({ AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS: "daytona", AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER: "daytona", AGENTA_RUNNER_DAYTONA_API_KEY: "k" });
+    const dropped = withoutImpliedInProcess(implied);
+    assert.deepEqual(dropped.providers.enabled, ["daytona"]);
+    assert.equal(dropped.providers.inprocessImplied, false);
+    assert.deepEqual(implied.providers.enabled, ["daytona", "inprocess"], "the input is not changed");
+    const explicit = parse({ AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS: "daytona,inprocess", AGENTA_RUNNER_DAYTONA_API_KEY: "k", AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER: "daytona" });
+    assert.throws(() => withoutImpliedInProcess(explicit));
   });
 });
 
@@ -102,6 +167,12 @@ describe("default provider", () => {
 });
 
 describe("daytona configuration", () => {
+  it("uses the shared sandbox recipe version for the default snapshot", () => {
+    assert.equal(
+      DEFAULT_DAYTONA_SNAPSHOT,
+      `agenta-agent-sandbox-v${SANDBOX_RECIPE_VERSION}`,
+    );
+  });
   it("daytona enabled without a provisioning credential fails", () => {
     assert.throws(
       () => parse({ AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS: "local,daytona" }),
@@ -184,5 +255,37 @@ describe("server + callback sections", () => {
     assert.equal(config.server.port, 9000);
     assert.equal(config.server.logLevel, "info");
     assert.equal(config.server.token, "secret");
+  });
+
+  it("the shutdown wait defaults to no wait, which fits inside compose's 10-second stop", () => {
+    assert.equal(parse({}).server.shutdownWaitSeconds, 0);
+    assert.equal(parse({}).server.shutdownWaitSeconds, DEFAULT_SHUTDOWN_WAIT_SECONDS);
+    assert.equal(
+      parse({ AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS: "" }).server.shutdownWaitSeconds,
+      0,
+    );
+  });
+
+  it("reads the shutdown wait the chart passes, zero included", () => {
+    assert.equal(
+      parse({ AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS: "200" }).server.shutdownWaitSeconds,
+      200,
+    );
+    assert.equal(
+      parse({ AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS: "0" }).server.shutdownWaitSeconds,
+      0,
+    );
+  });
+
+  it("refuses a shutdown wait that is not a whole number of seconds", () => {
+    for (const raw of ["-1", "1.5", "30s"]) {
+      assert.throws(
+        () => parse({ AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS: raw }),
+        (err: unknown) =>
+          err instanceof RunnerConfigError &&
+          err.message.includes("AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS"),
+        raw,
+      );
+    }
   });
 });

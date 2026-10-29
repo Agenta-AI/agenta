@@ -1,5 +1,23 @@
 import {createElement, useCallback, useEffect, useMemo, useState} from "react"
 
+import {
+    createWebhookAtom,
+    setWebhookActiveAtom,
+    testWebhookAtom,
+    updateWebhookAtom,
+} from "@agenta/entities/webhook"
+import {
+    createdWebhookSecretAtom,
+    editingWebhookAtom,
+    isWebhookDrawerOpenAtom,
+    selectedProviderAtom,
+} from "@agenta/entities/webhook"
+import {
+    WebhookProvider,
+    WebhookSubscriptionCreateRequest,
+    WebhookSubscriptionEditRequest,
+} from "@agenta/entities/webhook"
+import {WEBHOOK_TEST_FAILURE_MESSAGE, handleTestResult} from "@agenta/entities/webhook"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {BookOpen} from "@phosphor-icons/react"
 import {
@@ -16,28 +34,9 @@ import {
 } from "antd"
 import {useAtom, useSetAtom} from "jotai"
 
-import {
-    WebhookProvider,
-    WebhookSubscriptionCreateRequest,
-    WebhookSubscriptionEditRequest,
-} from "@/oss/services/webhooks/types"
-import {
-    createWebhookAtom,
-    setWebhookActiveAtom,
-    testWebhookAtom,
-    updateWebhookAtom,
-} from "@/oss/state/webhooks/atoms"
-import {
-    createdWebhookSecretAtom,
-    editingWebhookAtom,
-    isWebhookDrawerOpenAtom,
-    selectedProviderAtom,
-} from "@/oss/state/webhooks/state"
-
 import {WEBHOOK_SCHEMA, EVENT_OPTIONS} from "./assets/constants"
 import {RequestPreview} from "./RequestPreview"
 import {buildSubscription} from "./utils/buildSubscription"
-import {WEBHOOK_TEST_FAILURE_MESSAGE, handleTestResult} from "./utils/handleTestResult"
 import {WebhookFieldRenderer} from "./WebhookFieldRenderer"
 import WebhookLogsTab from "./WebhookLogsTab"
 

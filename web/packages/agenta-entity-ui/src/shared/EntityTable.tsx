@@ -57,9 +57,9 @@ import {
     type TableScopeConfig,
     type TypeChipConfig,
 } from "@agenta/ui/table"
+import type {ColumnDef, ColumnDefs} from "@agenta/ui/table"
 import {Checkbox, RadioGroup, RadioGroupItem} from "@agenta/ui/ui"
 import type {GroupColumnsOptions} from "@agenta/ui/utils"
-import type {ColumnType, ColumnsType} from "antd/es/table"
 import {useAtomValue, useSetAtom} from "jotai"
 import {getDefaultStore} from "jotai/vanilla"
 
@@ -130,9 +130,9 @@ export interface EntityTableProps<
      */
     grouping?: boolean | GroupColumnsOptions<TRow, TColumn>
     /** Extra columns prepended to the column list */
-    prependColumns?: ColumnsType<TRow>
+    prependColumns?: ColumnDefs<TRow>
     /** Extra columns appended to the column list */
-    appendColumns?: ColumnsType<TRow>
+    appendColumns?: ColumnDefs<TRow>
     /** Optional cell renderer override for entity-specific display rules. */
     renderCell?: (
         value: unknown,
@@ -410,7 +410,7 @@ export function EntityTable<
     }, [grouping, collapsedGroups, toggleGroupCollapse, getRowData])
 
     // Build table columns
-    const tableColumns: ColumnsType<TRow> = useMemo(() => {
+    const tableColumns: ColumnDefs<TRow> = useMemo(() => {
         // Selection column. Header is `Checkbox` (select-all) ONLY when the
         // table is multi-select — single-select has no select-all concept.
         // Row control mirrors that: `Checkbox` for multi-select, `Radio` for
@@ -419,7 +419,7 @@ export function EntityTable<
         // checkboxes whose behaviour silently replaces the previous
         // selection on every click — the "we do something else behind the
         // curtains" UX wart Arda flagged on 2026-06-01.
-        const selectionColumn: ColumnType<TRow> = {
+        const selectionColumn: ColumnDef<TRow> = {
             key: "__selection",
             title: multiSelect ? (
                 <Checkbox
@@ -481,7 +481,7 @@ export function EntityTable<
         } as BuildEntityColumnsOptions<TRow, TColumn>)
 
         // Assemble final columns
-        const result: ColumnsType<TRow> = []
+        const result: ColumnDefs<TRow> = []
         if (selectable) result.push(selectionColumn)
         if (prependColumns) result.push(...prependColumns)
         result.push(...entityColumns)

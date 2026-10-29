@@ -1,6 +1,7 @@
+import {validateUUID} from "@agenta/shared/utils"
+
 import axios from "@/oss/lib/api/assets/axiosConfig"
 import {getAgentaApiUrl} from "@/oss/lib/helpers/api"
-import {validateUUID} from "@/oss/lib/helpers/validators"
 import {getProjectValues} from "@/oss/state/project"
 
 import {PreviewTestsetsQueryPayload} from "./types"

@@ -274,6 +274,25 @@ def _parse_integration_detail(item: Dict[str, Any]) -> CatalogIntegration:
         if mapped and mapped not in auth_schemes:
             auth_schemes.append(mapped)
 
+    # Some toolkits (e.g. telegram) have NO Composio-managed auth config at all —
+    # `composio_managed_auth_schemes` comes back empty even though the toolkit is
+    # connectable via `use_custom_auth`. Fall back to `auth_config_details` (the
+    # same field the connections adapter reads to pick `use_custom_auth`'s
+    # authScheme) so the client learns a real supported mode instead of a caller
+    # defaulting to oauth against a toolkit that has none.
+    if not auth_schemes:
+        for detail in item.get("auth_config_details") or []:
+            mode = (detail.get("mode") or "").lower()
+            if not mode or mode == "no_auth":
+                continue
+            mapped = (
+                CatalogAuthScheme.OAUTH
+                if "oauth" in mode
+                else CatalogAuthScheme.API_KEY
+            )
+            if mapped not in auth_schemes:
+                auth_schemes.append(mapped)
+
     raw_cats = meta.get("categories") or []
     categories = [c["name"] if isinstance(c, dict) else str(c) for c in raw_cats if c]
 

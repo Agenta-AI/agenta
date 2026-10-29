@@ -1,15 +1,18 @@
+import asyncio
 from typing import Optional, List, Tuple, Dict
 from uuid import UUID
 from datetime import datetime, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy import not_, and_
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import not_, and_, update
+from sqlalchemy.exc import DBAPIError, IntegrityError
+from sqlalchemy.exc import TimeoutError as PoolTimeoutError
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.inspection import inspect
 
+from oss.src.core.access.dtos import PrincipalRef
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import suppress_exceptions
 
@@ -79,6 +82,13 @@ from oss.src.dbs.postgres.evaluations.dbes import (
 log = get_module_logger(__name__)
 
 
+# Errors that mean the database could not be reached, as opposed to a query that
+# ran and found nothing.
+_CONNECTION_ERRORS = (PoolTimeoutError, DBAPIError, OSError)
+_FETCH_RUN_ATTEMPTS = 3
+_FETCH_RUN_BACKOFF_SECONDS = 2.0
+
+
 class EvaluationsDAO(EvaluationsDAOInterface):
     def __init__(self, engine: TransactionsEngine = None):
         if engine is None:
@@ -95,6 +105,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         user_id: UUID,
         #
         run: EvaluationRunCreate,
+        principal: PrincipalRef,
     ) -> Optional[EvaluationRun]:
         _run = EvaluationRun(
             **run.model_dump(
@@ -119,6 +130,10 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
         if _run.data:
             run_dbe.data = _run.data.model_dump(mode="json")  # type: ignore
+
+        run_dbe.principal_kind = principal.kind.value
+        run_dbe.principal_id = principal.id
+        run_dbe.principal_user_id = user_id
 
         try:
             async with self.engine.session() as session:
@@ -146,6 +161,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         user_id: UUID,
         #
         runs: List[EvaluationRunCreate],
+        principal: PrincipalRef,
     ) -> List[EvaluationRun]:
         _runs = [
             EvaluationRun(
@@ -177,6 +193,9 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             if _run.data:
                 run_dbe.data = _run.data.model_dump(mode="json")  # type: ignore
 
+            run_dbe.principal_kind = principal.kind.value
+            run_dbe.principal_id = principal.id
+
             run_dbes.append(run_dbe)
 
         try:
@@ -200,12 +219,42 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             raise
 
-    @suppress_exceptions()
+    # A full pool or a refused connection is not "run not found". Suppressing it
+    # made the evaluation worker read None, skip the run, and ack the message, so
+    # the run stayed RUNNING with nothing processing it. Retry the read a few times,
+    # then raise so the failure is loud.
+    @suppress_exceptions(exclude=list(_CONNECTION_ERRORS))
     async def fetch_run(
         self,
         *,
         project_id: UUID,
         #
+        run_id: UUID,
+    ) -> Optional[EvaluationRun]:
+        for attempt in range(1, _FETCH_RUN_ATTEMPTS + 1):
+            try:
+                return await self._fetch_run_once(
+                    project_id=project_id,
+                    run_id=run_id,
+                )
+            except _CONNECTION_ERRORS as exc:
+                if attempt == _FETCH_RUN_ATTEMPTS:
+                    raise
+
+                log.warning(
+                    "[EVAL] fetch_run could not reach the database; retrying",
+                    run_id=str(run_id),
+                    attempt=attempt,
+                    error=str(exc),
+                )
+                await asyncio.sleep(_FETCH_RUN_BACKOFF_SECONDS * attempt)
+
+        return None
+
+    async def _fetch_run_once(
+        self,
+        *,
+        project_id: UUID,
         run_id: UUID,
     ) -> Optional[EvaluationRun]:
         async with self.engine.session() as session:
@@ -266,6 +315,29 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             return _runs
 
+    async def set_run_principal(
+        self,
+        *,
+        project_id: UUID,
+        run_id: UUID,
+        principal: PrincipalRef,
+        user_id: Optional[UUID] = None,
+    ) -> None:
+        async with self.engine.session() as session:
+            await session.execute(
+                update(EvaluationRunDBE)
+                .where(
+                    EvaluationRunDBE.project_id == project_id,
+                    EvaluationRunDBE.id == run_id,
+                )
+                .values(
+                    principal_kind=principal.kind.value,
+                    principal_id=principal.id,
+                    principal_user_id=user_id,
+                )
+            )
+            await session.commit()
+
     @suppress_exceptions(exclude=[EvaluationClosedConflict])
     async def edit_run(
         self,
@@ -274,6 +346,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         user_id: UUID,
         #
         run: EvaluationRunEdit,
+        principal: Optional[PrincipalRef] = None,
     ) -> Optional[EvaluationRun]:
         async with self.engine.session() as session:
             stmt = select(EvaluationRunDBE).filter(
@@ -324,6 +397,12 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
             if run.data:
                 run_dbe.data = run.data.model_dump(mode="json")  # type: ignore
+
+            # An explicit start sets the principal in this same UPDATE.
+            if principal is not None:
+                run_dbe.principal_kind = principal.kind.value
+                run_dbe.principal_id = principal.id
+                run_dbe.principal_user_id = user_id
 
             await session.commit()
 

@@ -1,9 +1,8 @@
+import type {Org} from "@agenta/entities/organization"
 import Image from "next/image"
 
 import {useAppTheme} from "@/oss/components/Layout/ThemeContextProvider"
 import ListOfOrgs from "@/oss/components/Sidebar/components/ListOfOrgs"
-import type {Org} from "@/oss/lib/Types"
-
 interface PostSignupHeaderProps {
     orgs: Org[]
 }

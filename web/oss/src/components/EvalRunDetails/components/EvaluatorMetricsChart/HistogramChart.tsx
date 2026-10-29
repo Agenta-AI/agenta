@@ -12,6 +12,8 @@ import {
     ReferenceLine,
 } from "recharts"
 
+import {useChartSeries} from "@/oss/lib/hooks/useChartSeries"
+
 type ChartDatum = Record<string, string | number | boolean | undefined>
 
 interface HistogramChartProps {
@@ -62,6 +64,7 @@ const HistogramChart = ({
     reserveLegendSpace = false,
     barProps,
 }: HistogramChartProps) => {
+    const series0 = useChartSeries()[0]
     const chartBarSize = !barSize ? undefined : barSize
     const yAxisWidth = typeof yAxisProps?.width === "number" ? yAxisProps.width : 48
     const activeSeries =
@@ -71,7 +74,7 @@ const HistogramChart = ({
                   {
                       key: yKey,
                       name: tooltipLabel ?? "Value",
-                      color: "#3B82F6",
+                      color: series0,
                       barProps,
                   },
               ]
@@ -93,14 +96,14 @@ const HistogramChart = ({
                 <XAxis
                     dataKey={xKey}
                     tickLine={false}
-                    tick={{fill: "#666"}}
+                    tick={{fill: "var(--ag-chart-axis-text)"}}
                     height={20}
                     {...xAxisProps}
                 />
                 <YAxis
                     domain={yDomain as any}
-                    tickLine={{stroke: "#05172933"}}
-                    tick={{fill: "#666"}}
+                    tickLine={{stroke: "var(--ag-chart-axis-line)"}}
+                    tick={{fill: "var(--ag-chart-axis-text)"}}
                     tickMargin={8}
                     width={yAxisWidth}
                     {...yAxisProps}
@@ -109,7 +112,7 @@ const HistogramChart = ({
                     strokeDasharray="3 2"
                     horizontal
                     vertical={false}
-                    stroke="#05172933"
+                    stroke="var(--ag-chart-grid)"
                     {...cartesianGridProps}
                 />
 
@@ -153,7 +156,7 @@ const HistogramChart = ({
                     <ReferenceLine
                         key={`${line.label ?? "line"}-${line.value}`}
                         x={line.value}
-                        stroke={line.color ?? "#94A3B8"}
+                        stroke={line.color ?? "var(--ag-chart-reference)"}
                         strokeDasharray="4 2"
                         label={line.label}
                     />
@@ -164,7 +167,7 @@ const HistogramChart = ({
                         key={seriesItem.key}
                         dataKey={seriesItem.key}
                         name={seriesItem.name}
-                        fill={seriesItem.color ?? "#3B82F6"}
+                        fill={seriesItem.color ?? series0}
                         radius={[8, 8, 0, 0]}
                         barSize={chartBarSize}
                         maxBarSize={100}

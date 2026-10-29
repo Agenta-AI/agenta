@@ -1,7 +1,9 @@
 from typing import Optional
 from uuid import UUID
 
-from fastapi import APIRouter, Request, status, Depends, HTTPException
+from fastapi import APIRouter, Body, Request, status, Depends, HTTPException
+from fastapi.encoders import jsonable_encoder
+from pydantic import ValidationError
 
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
@@ -67,7 +69,6 @@ from oss.src.apis.fastapi.environments.utils import (
     parse_environment_variant_query_request_from_body,
     merge_environment_variant_query_requests,
     parse_environment_revision_query_request_from_params,
-    parse_environment_revision_query_request_from_body,
     merge_environment_revision_query_requests,
     ensure_environment_deploy_allowed,
 )
@@ -1062,6 +1063,7 @@ class EnvironmentsRouter:
         query_request_params: Optional[EnvironmentRevisionQueryRequest] = Depends(
             parse_environment_revision_query_request_from_params
         ),
+        query_request_body: Optional[EnvironmentRevisionQueryRequest] = Body(None),
     ) -> EnvironmentRevisionsResponse:
         if not await check_action_access(  # type: ignore
             user_uid=request.state.user_id,
@@ -1070,28 +1072,20 @@ class EnvironmentsRouter:
         ):
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
-        body_json = None
-        query_request_body = None
-
         try:
-            body_json = await request.json()
-
-            if body_json:
-                query_request_body = parse_environment_revision_query_request_from_body(
-                    **body_json
+            environment_revision_query_request = (
+                merge_environment_revision_query_requests(
+                    query_request_params,
+                    query_request_body,
                 )
-
-        except Exception as exc:
-            # Ignore JSON parsing issues and proceed without a body filter.
-            log.debug(
-                "Failed to parse environment revision query request body as JSON: %s",
-                exc,
             )
-
-        environment_revision_query_request = merge_environment_revision_query_requests(
-            query_request_params,
-            query_request_body,
-        )
+        except ValidationError as exc:
+            # Merging re-runs request validation, so an invalid params/body combination
+            # must reach the caller as 422 instead of being suppressed into an empty 200.
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=jsonable_encoder(exc.errors()),
+            ) from exc
 
         environment_revisions = await self.environments_service.query_environment_revisions(
             project_id=UUID(request.state.project_id),
@@ -1105,6 +1099,8 @@ class EnvironmentsRouter:
             references=environment_revision_query_request.references,
             #
             include_archived=environment_revision_query_request.include_archived,
+            #
+            grouping=environment_revision_query_request.grouping,
             #
             windowing=environment_revision_query_request.windowing,
         )

@@ -19,6 +19,7 @@
  *
  * Run: pnpm exec vitest run tests/unit/lifecycle-live-routes.test.ts
  */
+import { turnLogUnmoved } from "../utils/turn-log.ts";
 import { beforeEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
 
@@ -152,6 +153,7 @@ function makeEngine(options: EngineOptions = {}) {
       calls.turns.push(env as unknown as FakeEnv);
       return { ok: true, output: "ok", stopReason: "complete" };
     },
+    readLatestTurnIndex: turnLogUnmoved,
     async runCold(): Promise<AgentRunResult> {
       return { ok: true, output: "cold", stopReason: "complete" };
     },
@@ -167,6 +169,7 @@ function makeEngine(options: EngineOptions = {}) {
             (env as unknown as FakeEnv).commitApplied({
               configFingerprint: fp,
               facets: normalizeDesiredState(request, fp).digests,
+              fieldDigests: {},
             });
             return true;
           },
@@ -187,7 +190,7 @@ function makeCtx(engine: KeepaliveEngine): KeepaliveContext {
     pool: new SessionPool<SessionEnvironment>({ poolMax: 8 }, () => {}),
     config,
     // The propagation hold is real in production — it is what keeps applied state from advancing
-    // over a value the egress layer has probably not picked up yet. Ten seconds per rotation test
+    // over a value the egress layer has probably not picked up yet. Thirty seconds per rotation test
     // would buy the assertions nothing, so the seam exists and the tests use it.
     credentialWait: async () => {},
   };
@@ -412,7 +415,10 @@ describe("THE RELEASE BLOCKER: an instructions change REBUILDS", () => {
     await runWithKeepalive(next, undefined, undefined, ctx);
 
     assert.equal(env1.appliedState.configFingerprint, fingerprintBefore);
-    assert.notEqual(env1.appliedState.configFingerprint, configFingerprint(next));
+    assert.notEqual(
+      env1.appliedState.configFingerprint,
+      configFingerprint(next),
+    );
     assert.equal(env1.appliedState.generation, before);
   });
 
@@ -684,6 +690,149 @@ describe("FAIL CLOSED: everything that must still rebuild", () => {
     );
     assert.equal(calls.acquire, 2);
     assert.equal(calls.applied.length, 0);
+  });
+});
+
+describe("A REPAIR ANSWERS ONLY ITS OWN QUESTION (audit finding 1)", () => {
+  // The live route used to set `mismatch = undefined` wholesale, so a model switch riding with
+  // an edited transcript, a rotated credential, or a stale tail cleared THOSE checks too and
+  // continued warm on an environment that failed them. Each case here pairs the live-applicable
+  // model change with one other mismatch and asserts the rebuild still happens. The wasted
+  // in-place apply before the rebuild is acceptable; the reuse was not.
+
+  it("a model change plus an EDITED transcript still rebuilds", async () => {
+    const { engine, calls } = makeEngine();
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(turn1, undefined, undefined, ctx);
+    await runWithKeepalive(
+      turn2({
+        model: "m2",
+        messages: [
+          { role: "user", content: "EDITED" },
+          { role: "assistant", content: "hi" },
+          { role: "user", content: "more" },
+        ],
+      }),
+      undefined,
+      undefined,
+      ctx,
+    );
+    assert.equal(
+      calls.acquire,
+      2,
+      "the edited history must evict, model route or not",
+    );
+  });
+
+  it("a model change plus a ROTATED credential with no delivery port still rebuilds", async () => {
+    const { engine, calls } = makeEngine();
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(
+      withSecret("sk-a", turn1),
+      undefined,
+      undefined,
+      ctx,
+    );
+    await runWithKeepalive(
+      withSecret("sk-b", turn2({ model: "m2" })),
+      undefined,
+      undefined,
+      ctx,
+    );
+    assert.equal(
+      calls.acquire,
+      2,
+      "an undeliverable rotation must evict; the old key must never serve the turn",
+    );
+  });
+
+  it("a model change plus a DELIVERABLE rotation chains both repairs and stays warm", async () => {
+    const { port, deliveries } = makeCredentialPort();
+    const { engine, calls } = makeEngine({ credentialPort: port });
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(
+      withSecret("sk-a", turn1),
+      undefined,
+      undefined,
+      ctx,
+    );
+    await runWithKeepalive(
+      withSecret("sk-b", turn2({ model: "m2" })),
+      undefined,
+      undefined,
+      ctx,
+    );
+    assert.equal(
+      calls.acquire,
+      1,
+      "both doors repaired their own reason: warm",
+    );
+    assert.equal(deliveries.length, 1, "the rotation was actually delivered");
+    assert.equal(
+      calls.applied.length,
+      1,
+      "the model change was actually applied",
+    );
+  });
+
+  it("a model change plus an edited transcript plus an undeliverable rotation DELETES", async () => {
+    // The eviction is named by the FIRST unresolved reason and disposed by ALL of them.
+    // `history` sorts ahead of the credential checks, so this combination was evicted as
+    // `history`, mapped to `continuity-invalid`, and PARKED — handing the next turn a sandbox
+    // whose daemon still held the old key. The name may stay `history`; the disposition may not.
+    const { engine, calls } = makeEngine();
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(
+      withSecret("sk-a", turn1),
+      undefined,
+      undefined,
+      ctx,
+    );
+    await runWithKeepalive(
+      withSecret(
+        "sk-b",
+        turn2({
+          model: "m2",
+          messages: [
+            { role: "user", content: "EDITED" },
+            { role: "assistant", content: "hi" },
+            { role: "user", content: "more" },
+          ],
+        }),
+      ),
+      undefined,
+      undefined,
+      ctx,
+    );
+    assert.equal(calls.acquire, 2, "the combination must evict");
+    assert.deepEqual(
+      calls.acquiredEnvs[0]?.destroyReasons,
+      ["runtime-incompatible"],
+      "a stale credential outranks a continuity-only park",
+    );
+  });
+
+  it("a model change plus a STALE tail still rebuilds", async () => {
+    const { engine, calls } = makeEngine();
+    const ctx = makeCtx(engine);
+    await runWithKeepalive(turn1, undefined, undefined, ctx);
+    await runWithKeepalive(
+      turn2({
+        model: "m2",
+        messages: [
+          { role: "user", content: "hello" },
+          { role: "assistant", content: "hi" },
+        ],
+      }),
+      undefined,
+      undefined,
+      ctx,
+    );
+    assert.equal(
+      calls.acquire,
+      2,
+      "a tail that is not a fresh user turn must evict",
+    );
   });
 });
 
@@ -984,6 +1133,58 @@ describe("the disagreement counters stay quiet", () => {
     // never to a restart, which behind a reference would install the same placeholder and deliver
     // nothing while reporting success.
     assert.equal(mechanismForRotation(unbounded), "rebuild-sandbox");
+  });
+
+  it("a Daytona rotation holds the turn for the full measured propagation before it runs", async () => {
+    // The hold is the only thing between a rotated vault value and a turn that goes out on the
+    // OLD key. Measured on staging (2026-09-23): a turn held 10s still used the old value; one
+    // dispatched 28s after the rotation used the new one. So the turn must wait the 30s bound,
+    // and it must wait BEFORE it runs, not beside it.
+    const { port, deliveries } = makeCredentialPort();
+    const { engine, calls } = makeEngine({ credentialPort: port });
+    const holds: Array<{ ms: number; deliveries: number; turns: number }> = [];
+    let releaseHold!: () => void;
+    const ctx: KeepaliveContext = {
+      ...makeCtx(engine),
+      credentialWait: (ms) => {
+        holds.push({
+          ms,
+          deliveries: deliveries.length,
+          turns: calls.turns.length,
+        });
+        return new Promise<void>((resolve) => {
+          releaseHold = resolve;
+        });
+      },
+    };
+    await runWithKeepalive(
+      withSecret("sk-a", turn1),
+      undefined,
+      undefined,
+      ctx,
+    );
+    const rotated = runWithKeepalive(
+      withSecret("sk-b", turn2()),
+      undefined,
+      undefined,
+      ctx,
+    );
+    while (holds.length === 0) await new Promise((r) => setTimeout(r, 0));
+
+    // The value is written first and the hold starts after: a hold taken before the update
+    // would expire before the new value had even been sent to the provider.
+    assert.deepEqual(holds, [{ ms: 30_000, deliveries: 1, turns: 1 }]);
+    // Nothing runs while the hold is pending: a hold that is not awaited is no hold at all.
+    for (let i = 0; i < 20; i++) await new Promise((r) => setTimeout(r, 0));
+    assert.equal(
+      calls.turns.length,
+      1,
+      "the rotated turn must wait out the hold",
+    );
+
+    releaseHold();
+    await rotated;
+    assert.equal(calls.turns.length, 2);
   });
 
   it("keeps the STRONGER repair when a rotation and a runtime change collide", () => {

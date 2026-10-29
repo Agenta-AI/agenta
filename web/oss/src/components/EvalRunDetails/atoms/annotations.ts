@@ -1,15 +1,16 @@
+import {transformApiData} from "@agenta/entities/annotation/dto"
+import type {AnnotationDto} from "@agenta/entities/annotation/dto"
 import {createBatchFetcher, type BatchFetcher} from "@agenta/shared/utils"
 import {uuidToSpanId, uuidToTraceId} from "@agenta/shared/utils"
 import {atom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
 import axios from "@/oss/lib/api/assets/axiosConfig"
-import {transformApiData} from "@/oss/lib/hooks/useAnnotations/assets/transformer"
-import type {AnnotationDto} from "@/oss/lib/hooks/useAnnotations/types"
 import {getProjectValues} from "@/oss/state/project"
 import {workspaceMembersAtom} from "@/oss/state/workspace/atoms/selectors"
 
+import {sameFamilyKey} from "./familyKeys"
 import {activePreviewRunIdAtom, effectiveProjectIdAtom} from "./run"
 
 const annotationBatcherCache = new Map<string, BatchFetcher<string, AnnotationDto[] | null>>()
@@ -123,6 +124,7 @@ export const evaluationAnnotationBatcherFamily = atomFamily(
 
             return batcher
         }),
+    sameFamilyKey,
 )
 
 export const evaluationAnnotationQueryAtomFamily = atomFamily(
@@ -150,6 +152,7 @@ export const evaluationAnnotationQueryAtomFamily = atomFamily(
                 },
             }
         }),
+    sameFamilyKey,
 )
 
 export const scenarioAnnotationsQueryAtomFamily = atomFamily(
@@ -190,4 +193,5 @@ export const scenarioAnnotationsQueryAtomFamily = atomFamily(
                 },
             }
         }),
+    sameFamilyKey,
 )

@@ -1,103 +1,48 @@
-"""The Agenta harness's forced defaults: the things ``AgentaHarness`` always applies.
-(``ClaudeHarness`` shares the AGENTS.md preamble and forced platform skills; the persona
-remains Pi-only — see :mod:`.harnesses`.)
+"""Agenta-shipped platform skills.
 
-``AgentaHarness`` is Pi with an opinion. It is the same engine as :class:`PiHarness`, but
-every run carries a fixed set of Agenta-shipped extras the author cannot turn off:
+The platform skills (getting started, build-an-agent, create-template) live here as concrete inline packages.
+The canonical skill content is defined here (the SDK, the lowest layer); the server-side
+``StaticWorkflowCatalog`` imports the same constants so the embed path and the catalog stay
+one source of truth.
 
-- a base **persona** appended to Pi's system prompt (``AGENTA_FORCED_APPEND_SYSTEM``),
-- a base **AGENTS.md preamble** the author's instructions are appended to (``AGENTA_PREAMBLE``),
-- a set of **forced platform skills** (``AGENTA_FORCED_SKILLS``).
-
-The forced platform skills are the actually-forced part of "forced skills". The default agent
-config template embeds the platform default skill by reserved ``__ag__*`` slug, but that embed
-only rides the *default* template: a custom ``pi_agenta`` config that drops the embed would
-otherwise lose the platform skill entirely. To make "forced" mean forced, ``AgentaHarness``
-unions ``AGENTA_FORCED_SKILLS`` into every run's skills via :func:`force_skills`, regardless of
-what the author's config carries. The canonical skill content lives here (in the SDK, the lowest
-layer); the server-side ``StaticWorkflowCatalog`` imports the same constant so the embed path
-and the forced path stay one source of truth.
-
-Two layers, kept distinct on purpose (matching Pi's own split, see :class:`PiAgentTemplate`):
-the *persona* is an ``append_system`` (changes Pi's base prompt), while *project conventions*
-belong in ``AGENTS.md``. ``AGENTA_PREAMBLE`` is the AGENTS.md layer; ``AGENTA_FORCED_APPEND_SYSTEM``
-is the persona layer.
+The ``pi_agenta`` harness (Pi plus a forced Agenta overlay: a preamble, a persona, forced
+skills) was an experiment and was removed on 2026-08-29; the overlay constants and helpers
+went with it.
 """
 
 from __future__ import annotations
 
-from typing import List, Optional
-
-from ..flags import ordered_operations_enabled
 from ..skills import SkillFile, SkillTemplate
-from .agent_templates import build_agent_template_skill_files
-
-# Read once, at import, exactly like the op catalog builds its tool descriptions. The skill
-# TEACHES the commit surface the catalog ADVERTISES, and one deployment must show one shape:
-# a model that sees the ordered form in the tool description and the legacy form in its skill
-# picks between them unpredictably. That is not hypothetical — a live agent followed a legacy
-# `delta.set` example from this skill against an ordered-operations deployment and replaced a
-# skills list it meant to append to.
-_ORDERED = ordered_operations_enabled()
-
-# The base AGENTS.md preamble. The author's own ``instructions`` are appended after this, so
-# the final AGENTS.md is ``AGENTA_PREAMBLE`` + the author's project conventions.
-#
-# TODO(product): replace this placeholder with the real Agenta AGENTS.md preamble.
-AGENTA_PREAMBLE = """\
-# Agenta agent
-
-You are an agent running on the Agenta platform. The instructions below are Agenta's
-baseline; the user's own instructions follow and take precedence where they are more
-specific.
-
-- Prefer the tools and skills provided to you over guessing.
-- When a skill matches the task, read its SKILL.md fully before acting.
-- Keep answers grounded in what the tools and skills actually return."""
-
-# The base persona, always appended to Pi's built-in system prompt (never replaces it). This
-# is the "who the agent is" layer, distinct from the AGENTS.md project-context layer above.
-#
-# TODO(product): replace this placeholder with the real Agenta persona framing.
-AGENTA_FORCED_APPEND_SYSTEM = """\
-You are an Agenta agent. Be precise, cite what your tools and skills return, and do not
-fabricate results."""
 
 # Reserved slug of the platform default skill. The default agent config template embeds the
 # skill by this slug; the server-side StaticWorkflowCatalog resolves the slug to the
 # SkillTemplate below. Kept here so the catalogue and the forced path share one slug constant.
 GETTING_STARTED_WITH_AGENTA_SLUG = "__ag__getting_started_with_agenta"
 BUILD_AN_AGENT_SLUG = "__ag__build_an_agent"
+CREATE_TEMPLATE_SLUG = "__ag__create_template"
 
-# Canonical SKILL.md body for the platform "getting started" skill. Single source of the body
-# text: the server-side StaticWorkflowCatalog imports this constant rather than redeclaring it.
+# RETIRED on 2026-09-07. Two of the four conventions this skill carried moved into the platform
+# prompt (`platform_instructions.py`), which every harness reads first: state assumptions, and
+# keep answers short. The other two were dropped on purpose. Greeting the user once is covered by
+# the prompt's "lead with the answer" rule, which leaves no room for an opening greeting. The
+# skill-relative path convention is not in the prompt because Pi supplies it itself. No default template
+# embeds the slug any more (`build_agent_v0_default()` is called without a skill slug), but
+# revisions saved before that still reference `__ag__getting_started_with_agenta`, and an
+# embed the catalog cannot resolve fails the run. So the slug stays resolvable and serves this
+# one-line stub. Delete the constant, the catalog entry, and this comment once a data migration
+# has dropped the embed from stored revisions.
 _GETTING_STARTED_BODY = (
     "# Getting started with Agenta agents\n"
     "\n"
-    "This skill orients an agent running on the Agenta platform.\n"
-    "\n"
-    "## When to use it\n"
-    "\n"
-    "Use it at the start of a task to recall how Agenta agents are expected to behave: be "
-    "concise, ask for missing inputs, and prefer the tools and skills the agent was given over "
-    "guessing.\n"
-    "\n"
-    "## Conventions\n"
-    "\n"
-    "- Greet the user once, then get to work.\n"
-    "- State assumptions briefly when a request is ambiguous.\n"
-    "- When a skill or tool references a relative path, resolve it against the skill directory "
-    "(the parent of SKILL.md) before running it.\n"
-    "- Keep answers short unless the user asks for depth.\n"
+    "This skill is retired. The platform instructions you already read cover how an Agenta "
+    "agent behaves. There is nothing more to do here.\n"
 )
 
-# The platform default skill as a concrete inline package. This is the canonical content; the
-# server-side catalogue serves the same SkillTemplate for the reserved slug above.
 GETTING_STARTED_WITH_AGENTA_SKILL = SkillTemplate(
     name="agenta-getting-started",
     description=(
-        "Getting started on the Agenta platform: how an Agenta agent should behave, ask for "
-        "missing inputs, and use its tools and skills. Use at the start of a task."
+        "Retired. The platform instructions cover how an Agenta agent behaves; this skill "
+        "adds nothing and you do not need to read it."
     ),
     body=_GETTING_STARTED_BODY,
 )
@@ -109,8 +54,7 @@ GETTING_STARTED_WITH_AGENTA_SKILL = SkillTemplate(
 # builtins_reference_files.py) asserts this text names every top-level template field and every
 # tool `type`, so a schema that grows without updating this file fails CI.
 #
-# Assembled in three pieces: an intro and a commit chapter that follow the deployment's commit
-# surface, around the field-by-field middle that is the same either way.
+# Assembled in three pieces: an intro, the field-by-field middle, and the commit chapter.
 _CONFIG_SCHEMA_INTRO_ORDERED = """\
 # The agent config, field by field
 
@@ -123,21 +67,7 @@ below is addressed as `["parameters", "agent", ...]`. The portable definition �
 `llm`, `tools`, `mcps`, `skills` — is flat on it; the execution parts — `harness`, `runner`,
 `sandbox` — are nested sub-objects. The commit checks your target, NOT the value you write into
 it: a misplaced or misspelled field inside an entry commits fine and only bites when the agent
-next runs. Get the shape right from this reference, and verify with `test_run` after every commit.
-"""
-
-_CONFIG_SCHEMA_INTRO_LEGACY = """\
-# The agent config, field by field
-
-Read this before your first `commit_revision`, and whenever a run misbehaves after a commit and
-you need to check the shape.
-
-`parameters.agent` is one object. You edit it by sending only the changed fields under
-`commit_revision`'s `workflow_revision.delta.set.parameters.agent`. The portable definition —
-`instructions`, `llm`, `tools`, `mcps`, `skills` — is flat on it; the execution parts —
-`harness`, `runner`, `sandbox` — are nested sub-objects. The commit does NOT validate this shape:
-a misplaced or misspelled field commits fine and only bites when the agent next runs. Get the
-shape right from this reference, and verify with `test_run` after every commit.
+next runs. Get the shape right from this reference before you commit.
 """
 
 _CONFIG_SCHEMA_FIELDS = """\
@@ -151,14 +81,14 @@ _CONFIG_SCHEMA_FIELDS = """\
   "tools": [],
   "mcps": [],
   "skills": [],
-  "harness": { "kind": "pi_agenta" },
-  "runner": { "kind": "sidecar", "permissions": { "default": "allow_reads" } },
+  "harness": { "kind": "pi_core" },
+  "runner": { "kind": "sidecar", "permissions": { "default": "allow" } },
   "sandbox": { "kind": "local" }
 }
 ```
 
-The example above shows one common setup; your own `harness` may be `pi_agenta`, `claude`, or
-`pi_core`. Whatever it is, keep `harness`, `runner`, `sandbox`, and `llm` as they are unless the
+The example above shows one common setup; your own `harness` may be `pi_core`, `claude`, or
+`codex`. Whatever it is, keep `harness`, `runner`, `sandbox`, and `llm` as they are unless the
 user explicitly asks to change one.
 
 ## The fields you decide
@@ -166,8 +96,7 @@ user explicitly asks to change one.
 ### instructions
 
 `instructions.agents_md` — a Markdown string, your AGENTS.md: who you are and what you do. Write
-only your own project conventions here — the platform supplies its own baseline framing (on
-`pi_agenta` and `claude`, a fixed Agenta preamble is prepended automatically). One or two
+only your own project conventions here. One or two
 sentences for a simple agent; an explicit numbered procedure for a multi-tool or scheduled one
 (see the instruction-writing section of SKILL.md).
 
@@ -177,7 +106,7 @@ You almost never touch `llm` in a delta. Keep it exactly as it is unless the use
 to change the model, provider, or connection. The rules below matter only when they do ask:
 
 - `model` — the model. How you NAME it depends on the harness (this is the trap):
-  - `pi_core` / `pi_agenta`: a real model id, e.g. `gpt-5.5` or `anthropic/claude-...`
+  - `pi_core`: a real model id, e.g. `gpt-5.5` or `anthropic/claude-...`
     (provider/id selection).
   - `claude`: an alias — `default`, `sonnet`, `opus`, or `haiku` — never a raw model id.
 - `provider` — the provider family (`openai`, `anthropic`, ...); inferred from the model string
@@ -189,9 +118,12 @@ to change the model, provider, or connection. The rules below matter only when t
 
 ### tools
 
-A list of tool entries, each discriminated on `type`. Every entry may also carry two shared
-optional fields: `render` (a UI hint) and `permission` (`allow` / `ask` / `deny`, overriding the
-runner default for that one tool). The six `type` values:
+A list of tool entries, each discriminated on `type`. Every entry except `gateway_connection`
+and `agenta_tools` may also carry two shared optional fields: `render` (a UI hint) and `permission` (`allow` /
+`ask` / `deny`, overriding the runner default for that one tool). A `gateway_connection` entry
+covers a whole integration, so it takes neither: its permissions live in its own `policy`, and
+a top-level `permission` on one is refused. The `type` values, with `gateway` legacy —
+read it when a revision carries one, never write a new one:
 
 - `builtin` — legacy, accepted and ignored. The harness built-ins (`read`, `bash`, `edit`,
   `write`, `grep`, `find`, `ls`) are always available and are never listed in `tools`, so do not
@@ -199,10 +131,37 @@ runner default for that one tool). The six `type` values:
   refused comes from `runner.permissions.default` plus the `harness.permissions.allow` / `ask` /
   `deny` rule lists. Those seven names are also reserved: no tool of any other type may take one,
   and a config that does is refused.
-- `gateway` — a server-side gateway action (Composio). Do not hand-write it: run `discover_tools`
-  and copy what it returns, adding the `connection` slug once the connection is ready.
-  `{ "type": "gateway", "provider": "composio", "integration": "github",
+- `gateway` — LEGACY. ONE single gateway action, from before an agent could take a whole
+  integration. Do not write one: use `gateway_connection` below, which covers every action of
+  the integration with one entry. Kept so you can read and preserve what an older revision
+  already carries: `{ "type": "gateway", "provider": "composio", "integration": "github",
      "action": "GET_AN_ISSUE", "connection": "<connection-slug>" }`. `name` is optional.
+- `gateway_connection` — one whole gateway integration with one permission policy, which
+  replaces a list of per-tool `gateway` entries. This is how you add a WHOLE integration:
+  1. Get the REAL connection slug. Run `discover_tools` (or the connect flow) and read the slug
+     off a connection that already exists. NEVER invent one — a plausible-looking guess such as
+     `googledrive-main` commits without complaint and only fails when the agent next runs.
+  2. Add ONE entry with that connection and a policy, via `add_item` on
+     `parameters.agent.tools`. One entry per integration is the limit; a second for the same
+     integration is refused.
+  3. A newly added integration always starts with every tool allowed: set
+     `policy.permissions` to `{ "default": "allow", "tools": {} }`. Do not pre-emptively add
+     per-tool restrictions based on which actions you expect to use. Only change that policy
+     when the user explicitly asks for different permissions.
+  It is addressed for `replace_item` and `remove_item` by the key
+  `gateway_connection:<provider>:<integration>` — for example
+  `gateway_connection:composio:github`. The entry carries no `name`, so that derived key is its
+  only address. Read it, and keep it, when a revision already carries one.
+  `{ "type": "gateway_connection", "connection": { "provider": "composio", "integration":
+     "github", "slug": "<connection-slug>" }, "policy": { "permissions": { "default": "allow",
+     "tools": {} } } }`. Each permission is `inherit` / `allow` /
+  `ask` / `deny`. A tool the map does not name takes `default`, and `inherit` follows the
+  agent-wide runner policy. The commit does not check that the slug exists, so a wrong one is
+  caught only when the agent next runs, as a connection-not-found failure naming the slug.
+  To RESTRICT an integration the user already has, name the tools in the map rather than
+  lowering `default`: `{ "default": "allow", "tools": { "DELETE_REPOSITORY": "deny",
+  "CREATE_ISSUE": "ask" } }` keeps everything else usable while denying one tool and asking
+  before another. Only write a policy like that when the user asked for it.
 - `code` — sandboxed code you supply: `{ "type": "code", "name": "...", "runtime":
   "python"|"node", "script": "...", "input_schema": {...}, "secrets": [...] }`.
 - `client` — a tool the caller fulfills: `{ "type": "client", "name": "...", "description":
@@ -220,12 +179,35 @@ runner default for that one tool). The six `type` values:
   "discover_tools" }`. The catalog owns everything else about it. You never commit one: the
   platform tools you call are injected into your run, and a commit whose `tools` carries a
   `platform` entry is refused.
+- `agenta_tools` — which Agenta tools the agent gets in every run, not only here:
+  `{ "type": "agenta_tools", "tools": { "get_current_session": "allow", "rename_session":
+  "allow" } }`. Each value is `allow` or `ask`; a tool not listed is off. Keep this entry when
+  you edit `tools`; the author manages it in the Agenta tools section.
 
 ### mcps
 
 Declared external MCP servers. Each has `name`, an HTTP `connection` with `url`, optional
 public `headers`, and discriminated `credentials`, plus a `policy` for tools and permission.
 Secret header references resolve from the vault at run time; values never live in the config.
+
+`policy` carries four fields, and they answer different questions:
+
+- `tools` — the filter: `{ "mode": "all" }`, or `{ "mode": "include", "names": [...] }`. A tool it
+  hides is never offered to the model.
+- `permission` — `allow` / `ask` / `deny` for the whole server. It decides every tool only while
+  there is no per-tool table; see below for what a table does to it.
+- `tool_permissions` — `allow` / `ask` / `deny` per tool, keyed by the name the SERVER advertises
+  (`"echo"`), never the harness-rendered name (`"mcp__acme__echo"`).
+- `new_tool_permission` — what a tool the server starts advertising later gets before anyone has
+  seen it. With no value it is `ask`. It never falls back to `permission`.
+
+Setting either of the last two makes the per-tool table authoritative for that server: a tool the
+table does not name follows `new_tool_permission`, and asks when that field is absent. Neither
+`permission` nor the run's own default permission reaches such a tool, so writing
+`permission: "allow"` beside a table does NOT make unnamed tools run unapproved. Setting neither
+field leaves the server exactly as it behaved before per-tool policy existed, with `permission`
+deciding every tool. A `tool_permissions` entry for a tool an `include` filter hides is refused,
+not ignored.
 
 ### skills
 
@@ -263,7 +245,7 @@ the run:
 
 ## The execution parts (keep as-is unless asked)
 
-- `harness` — `{ "kind": "pi_core" | "pi_agenta" | "claude", "permissions": {...}, "extras":
+- `harness` — `{ "kind": "pi_core" | "claude" | "codex", "permissions": {...}, "extras":
   {...} }`. `permissions` is `{ "default_mode": "default"|"acceptEdits"|"plan"|
   "bypassPermissions", "allow": [...], "ask": [...], "deny": [...] }`. The three rule lists name
   tools that run without asking, that ask first, and that are never allowed to run; each entry is
@@ -271,16 +253,16 @@ the run:
   built-ins on every harness. `default_mode` applies to Claude only. Pi harnesses read prompt
   overrides (`system` / `append_system`) from `extras`.
 - `runner` — `{ "kind": "sidecar", "permissions": { "default": "allow"|"ask"|"deny"|
-  "allow_reads" }, "extras": {...} }`. `allow_reads` (the default) runs read-hinted tools and
-  asks for everything else.
+  "allow_reads" }, "extras": {...} }`. The standard creation template sets
+  `runner.permissions.default` to `allow`. Omitting the field applies `allow_reads`, which runs
+  read-hinted tools and asks for everything else.
 - `sandbox` — `{ "kind": "local" | "daytona", "permissions": {...}, "extras": {...} }`.
   `permissions` (optional) is the security boundary: `{ "network": { "mode": "on"|"off"|
   "allowlist", "allowlist": ["<CIDR>"] }, "filesystem": "on"|"readonly"|"off", "enforcement":
   "strict"|"best_effort" }`.
 """
 
-# The commit chapter for a deployment that serves the ordered-operations surface: the
-# read-then-commit loop, the target grammar, the seven operations, and the failure modes the
+# The commit chapter: the read-then-commit loop, the target grammar, the seven operations, and the failure modes the
 # contracts (docs/design/agent-config-editing/contracts/) actually produce. Every example
 # validates against the ordered arm of `_COMMIT_REVISION_INPUT_SCHEMA`; a test asserts it.
 _CONFIG_SCHEMA_COMMIT_ORDERED = """\
@@ -308,7 +290,9 @@ L's name — write the selector instead of the list name, never both.
 ```
 
 The keyed lists: `skills` and `mcps` by `name`, `tools` by the tool's `name` (a `reference` tool
-by `name`, else its `slug`), and a skill's `files` by `path`. Any other list takes no selector.
+by `name`, else its `slug`; a `gateway_connection` by the derived key
+`gateway_connection:<provider>:<integration>`, e.g. `gateway_connection:composio:github`, since
+it carries no `name`), and a skill's `files` by `path`. Any other list takes no selector.
 
 ### The seven operations
 
@@ -355,9 +339,9 @@ for almost every refusal, which means correct the call rather than repeat it.
   your run and are not part of your configuration. Remove them and commit again.
 
 The second group commits fine and bites later, at a different spot, because the commit checks
-your target and not the value you wrote into it. Your two detectors are `test_run` (read the
-`resolved` block and the executed tool list, not just the status) and a skill that fails to load
-on the next run.
+your target and not the value you wrote into it. Check each of these before you commit. They
+show up as a skill that fails to load on the next run, or in the `resolved` block of a
+`test_run` the person asked for.
 
 - `slug` or `content` as top-level fields on a skill entry. The skill's Markdown goes in `body`;
   a bundled file's text goes in that file's `content` inside `files`. Bites at RUN time: skill
@@ -367,8 +351,8 @@ on the next run.
 - `harness.kind: "claude"` paired with a non-Anthropic `provider`. Claude reaches `anthropic`
   only. Bites at RUN time: the run's Model & Harness never resolves and the agent never runs.
 - A raw model id on the `claude` harness (Claude selects by alias) or an alias like `sonnet` on a
-  `pi_core`/`pi_agenta` harness (Pi selects by provider/id). Bites silently: the run falls back to
-  a default model with no error. Only `test_run`'s `resolved` block shows the fallback.
+  `pi_core` harness (Pi selects by provider/id). Bites silently: the run falls back to
+  a default model with no error. Only the `resolved` block of a `test_run` shows the fallback.
 - Naming an `@ag.embed` entry with a selector. An embed has no key, so no operation can address
   it. Leave those entries where they are.
 
@@ -472,8 +456,12 @@ Remove a skill — `remove_item`, target ending on the selector:
 }
 ```
 
-Add one tool — `add_item` on `tools`, with the entry `discover_tools` returned and the
-`connection` slug filled in. Your existing tools stay as they are:
+Add an integration — ONE `add_item` on `tools` with a `gateway_connection` entry, carrying
+the REAL connection slug `discover_tools` reported as ready. That one entry covers every action
+of the integration; at run time the agent reaches them through `search_tools` and `run_tool`.
+New integrations always start with every tool allowed and no per-tool overrides. Do not infer a
+stricter policy from the task; only restrict it when the user explicitly asks.
+Your existing tools stay as they are:
 
 ```json
 {
@@ -485,12 +473,15 @@ Add one tool — `add_item` on `tools`, with the entry `discover_tools` returned
           "operation": "add_item",
           "target": ["parameters", "agent", "tools"],
           "value": {
-            "type": "gateway",
-            "provider": "composio",
-            "integration": "github",
-            "action": "GITHUB_CREATE_AN_ISSUE",
-            "connection": "conn_9f3a1c",
-            "name": "create_github_issue"
+            "type": "gateway_connection",
+            "connection": {
+              "provider": "composio",
+              "integration": "github",
+              "slug": "github-7f2a"
+            },
+            "policy": {
+              "permissions": { "default": "allow", "tools": {} }
+            }
           }
         }
       ]
@@ -509,171 +500,14 @@ Don't forget:
   alone, so you never resend a list.
 - Copy `old_text` out of the read, character for character, including line breaks.
 - Copy `@ag.embed` entries through unchanged; do not try to inline or edit what they point at.
-- After the user connects an integration, re-run `discover_tools` before committing the tool, so
-  the `connection` slug is current.
+- After the user connects an integration, re-run `discover_tools` and copy the REAL slug it
+  reports as ready onto the `gateway_connection` entry. NEVER invent a slug: a plausible guess
+  commits without complaint and fails at run time as connection-not-found.
 - Touch `harness`, `runner`, `sandbox`, and `llm` only when you are intentionally changing them.
 """
 
-_CONFIG_SCHEMA_COMMIT_LEGACY = """\
-
-## How a delta commits (merge semantics)
-
-`commit_revision` sends `workflow_revision.delta.set` and an optional `delta.remove`:
-
-- `set` **deep-merges** onto your current config: a nested object key you leave out keeps its old
-  value.
-- **Lists replace wholesale.** `tools`, `skills`, and `mcps` are NOT merged item by item — the
-  list you send REPLACES the old one. To add one tool, send the full list (your current entries
-  plus the new one). Sending only the new tool wipes the rest — every skill, MCP, and gateway
-  tool you left out is gone on your next run.
-- `remove` takes dotted paths, e.g. `parameters.agent.tools`.
-
-## Mistakes that break your agent
-
-The commit accepts whatever you send — none of these return a validation error. Each one commits
-fine and then bites later, at a different spot. Your two detectors are `test_run` (read the
-`resolved` block and the executed tool list, not just the status) and a skill that fails to load
-on the next run.
-
-- `slug` or `content` as top-level fields on a skill entry. The skill's Markdown goes in `body`;
-  a bundled file's text goes in that file's `content` inside `files`. Bites at RUN time: skill
-  parsing rejects the unknown keys and the run fails to load the skill.
-- Any unknown or misspelled key in a skill entry or a tool entry. Same failure point: the run
-  rejects the entry when it parses the config, not the commit.
-- `harness.kind: "claude"` paired with a non-Anthropic `provider`. Claude reaches `anthropic`
-  only. Bites at RUN time: the run's Model & Harness never resolves and the agent never runs.
-- A raw model id on the `claude` harness (Claude selects by alias) or an alias like `sonnet` on a
-  `pi_core`/`pi_agenta` harness (Pi selects by provider/id). Bites silently: the run falls back
-  to a default model with no error. Only `test_run`'s `resolved` block shows the fallback.
-- Sending a short `tools`/`skills`/`mcps` list. Bites on the NEXT run: lists replace wholesale,
-  so every entry you left out is gone.
-- Rebuilding the whole `parameters.agent` object instead of a narrow delta. Prefer a `delta.set`
-  that touches only what you change, so `harness`, `runner`, `sandbox`, and `llm` survive the
-  deep merge untouched.
-
-## Example requests
-
-These are complete `commit_revision` payloads, ready to adapt. Field names match exactly; only the
-values are placeholders. Most of the time you change only `instructions` and `skills` — the first
-two examples cover the common case.
-
-Instructions only, the minimal two-step case — just a persona and a task:
-
-```json
-{
-  "workflow_revision": {
-    "message": "Set the agent's persona: triage inbound support emails.",
-    "delta": {
-      "set": {
-        "parameters": {
-          "agent": {
-            "instructions": {
-              "agents_md": "You triage inbound support emails. For each email: (1) classify it as bug, billing, or question; (2) draft a one-paragraph reply; (3) hand off billing issues instead of answering them."
-            }
-          }
-        }
-      }
-    }
-  }
-}
-```
-
-Adding a skill entry — an inline skill template with one bundled reference file. `skills` replaces
-wholesale too, so include your existing entries (this example assumes the list was empty):
-
-```json
-{
-  "workflow_revision": {
-    "message": "Add a code-review-checklist skill.",
-    "delta": {
-      "set": {
-        "parameters": {
-          "agent": {
-            "skills": [
-              {
-                "name": "code-review-checklist",
-                "description": "Use when reviewing a pull request for style and correctness issues.",
-                "body": "# Code review checklist\\n\\nWalk every changed file against `references/checklist.md` before approving.\\n",
-                "files": [
-                  {
-                    "path": "references/checklist.md",
-                    "content": "- No commented-out code\\n- Tests cover the new branch\\n- Error messages are actionable\\n"
-                  }
-                ]
-              }
-            ]
-          }
-        }
-      }
-    }
-  }
-}
-```
-
-Adding ONE gateway tool — `tools` replaces wholesale, so resend every entry you already have (any
-`@ag.embed` tool, every gateway tool) plus the new one. Leave every `platform` entry out: those
-tools are injected into your run, and a commit that carries one is refused. The gateway
-entry is copied from what `discover_tools` returned, with the `connection` slug filled in.
-CAVEAT: the list below is SHORTENED to keep the example readable — in a real commit, resend your
-ENTIRE current tools list, every entry you have, not this subset:
-
-```json
-{
-  "workflow_revision": {
-    "message": "Add the GitHub create-issue tool.",
-    "delta": {
-      "set": {
-        "parameters": {
-          "agent": {
-            "tools": [
-              { "@ag.embed": { "@ag.references": { "workflow": { "slug": "__ag__some_tool" } },
-                                "@ag.selector": { "path": "parameters.tool" } } },
-              {
-                "type": "gateway",
-                "provider": "composio",
-                "integration": "github",
-                "action": "GITHUB_CREATE_AN_ISSUE",
-                "connection": "conn_9f3a1c",
-                "name": "create_github_issue"
-              }
-            ]
-          }
-        }
-      }
-    }
-  }
-}
-```
-
-Dropping one field with `delta.remove` — a dotted path, no `set` required:
-
-```json
-{
-  "workflow_revision": {
-    "message": "Drop the reasoning_effort override; use the model's default again.",
-    "delta": {
-      "remove": ["parameters.agent.llm.extras.reasoning_effort"]
-    }
-  }
-}
-```
-
-Don't forget:
-
-- Re-send the complete list for `tools`, `skills`, and `mcps`, minus every `platform` entry. A
-  one-entry list wipes the rest.
-- Copy `@ag.embed` entries through unchanged; do not try to inline or edit what they point at.
-- `message` is a real commit message. Say what changed and why, not a placeholder.
-- After the user connects an integration, re-run `discover_tools` before committing the tool, so
-  the `connection` slug is current.
-- Keep `harness`, `runner`, `sandbox`, and `llm` out of `delta.set` unless you are intentionally
-  changing them; a narrow delta preserves them through the deep merge.
-"""
-
 _CONFIG_SCHEMA_REFERENCE = (
-    (_CONFIG_SCHEMA_INTRO_ORDERED if _ORDERED else _CONFIG_SCHEMA_INTRO_LEGACY)
-    + _CONFIG_SCHEMA_FIELDS
-    + (_CONFIG_SCHEMA_COMMIT_ORDERED if _ORDERED else _CONFIG_SCHEMA_COMMIT_LEGACY)
+    _CONFIG_SCHEMA_INTRO_ORDERED + _CONFIG_SCHEMA_FIELDS + _CONFIG_SCHEMA_COMMIT_ORDERED
 )
 
 # Bundled reference file: the `inputs_fields` template language. Verified against the runtime
@@ -738,8 +572,8 @@ On a provider event:
 ## The canonical pattern
 
 Your agent reads its task from `inputs.messages` (the same shape `test_run` uses). Give every
-trigger an explicit imperative `messages` entry so the run starts from a command, not an empty
-context.
+trigger an explicit imperative `messages` entry containing only the task, not schedule/trigger
+metadata, timing checks, or skip-run guards. Configure when to run in the schedule or trigger settings.
 
 A schedule that runs a fixed job every fire:
 
@@ -817,174 +651,83 @@ Don't forget:
 """
 
 
-# SKILL.md, assembled from a common spine plus the three passages that describe HOW a commit is
-# made. Those three follow the deployment's commit surface (see `_ORDERED` above); everything
-# else — the decision table, discovery, triggers, verification, the footguns — is the same either
-# way, and lives in one copy so it cannot drift between the two arms.
+# SKILL.md, assembled from a common spine plus the passages that describe HOW a commit is made.
+#
+# WHAT THIS SKILL IS FOR, AND WHAT IT IS NOT. The platform prompt (`platform_instructions.py`)
+# owns behavior: decide and proceed, the three ask gates, show a sample before building an
+# automation, run `test_run` only when the person asks. This skill owns the MECHANICS of a
+# configuration change and nothing else. A sentence here that restates or contradicts the
+# platform prompt is a bug: models pick between two wordings of one rule unpredictably.
+#
 _BUILD_HEAD = """\
-# Build an Agenta agent
+# Configure this Agenta agent
 
-You turn a plain-language request into a working, verified Agenta agent. You are configuring
-yourself: the committed template you edit is the agent that will keep running. Optimize for the
-fewest calls and the least time. A simple no-tool ask is two actions: write better
-`instructions.agents_md`, then call `commit_revision`.
+Read this when the request is a change to you: new instructions, a skill, an integration, a
+trigger, or a first setup. Do not read it for a task. The platform instructions say how to tell
+the two apart. A fresh agent, with its default name and default instructions, still decides by
+intent: "Summarize my inbox" is a task on the first turn as much as on the hundredth. The
+request is a change to you only when the person describes a role, a recurring job, or an
+integration to connect.
 
-Before anything else, check `references/agent-templates/index.md` for a playbook matching the
-ask. When one matches, read it and follow it: a playbook layers this use case onto the loop
-below and never replaces its approval stops. When none matches, follow the generic loop below.
+## What you can change
 
-## When to use
+Four things under `parameters.agent`:
 
-Use this when the user asks you to build, set up, configure, or automate an agent.
-
-## The shape of your config
-
-You decide four things under `parameters.agent`:
-
-- `instructions.agents_md`: who you are and what you do.
-- `tools`: integration actions and platform ops you can call.
+- `instructions.agents_md`: who you are and what you do, with a `## Memory` section at the end.
 - `skills`: reusable know-how packaged as skill templates.
-- A trigger: either a schedule or an event subscription, only when the user asked for one.
+- `tools`: whole integrations, one `gateway_connection` entry each.
+- A trigger: a schedule or an event subscription, when the person asks for one or the job
+  clearly repeats.
+
+Everything else stays as it is unless the person asks to change it.
 """
 
 _BUILD_SHAPE_ORDERED = """\
-
-Everything else is fixed unless the user explicitly asks to change it. Configure yourself with
-`commit_revision` by changing `parameters.agent` fields; do not create a separate app.
-
-Editing files in your workspace does not change your configuration. That copy is rebuilt, and
-the edits are lost. Change your instructions and configuration only through `commit_revision`.
-
-Every commit is the same loop: `read_config` the part you are about to change, then
-`commit_revision` with the `base_revision_id` that read returned and a list of `delta.operations`.
-Each operation changes one field or one list entry, and leaves everything else alone.
-
-Read `references/config-schema.md` before your first `commit_revision`. It gives:
-
-- the exact shape of every field,
-- the tool-entry types,
-- the skill-entry shape,
-- the operations a commit is made of, with a worked example of each,
-- the mistakes that break your agent.
+Change your configuration only with `commit_revision`. Every change is the same two calls:
+`read_config` the part you are about to change, then `commit_revision` with the
+`base_revision_id` that read returned and a list of `delta.operations`. Each operation changes
+one field or one list entry and leaves everything else alone. Read
+`references/config-schema.md` before your first commit: it gives the exact shape of every
+field, the operations, worked examples, and the mistakes that break an agent.
 """
 
-_BUILD_SHAPE_LEGACY = """\
+_BUILD_LOOP_ORDERED = """\
 
-Everything else is fixed unless the user explicitly asks to change it. Configure yourself with
-`commit_revision` by setting `parameters.agent` fields; do not create a separate app.
+## How a change goes
 
-Editing files in your workspace does not change your configuration. That copy is rebuilt, and
-the edits are lost. Change your instructions and configuration only through `commit_revision`.
+1. `read_config` the part you are about to change. The answer carries `base_revision_id`.
+2. If the change needs an outside app, call `discover_tools` with one short fragment per
+   capability, such as "list github issues" or "post a slack message". Read the
+   per-integration connection state, not the headline match. If the integration is not
+   connected, call `request_connection` for it and stop until the person has connected it;
+   then run `discover_tools` again and take the real slug it reports as ready. Never invent a
+   slug: a guess commits fine and fails at run time.
+3. `commit_revision` with that `base_revision_id`. `add_item` ONE `gateway_connection` entry
+   per integration onto `tools`, with the real slug and the policy
+   `{ "default": "allow", "tools": {} }`. `set` `instructions.agents_md`. This is an approval
+   stop. If the commit is refused, read `next_step` and correct the call; earlier connections
+   and triggers are not undone.
+4. Add a trigger only when the person asked for one or the job clearly repeats. Read
+   `references/trigger-inputs.md` first. For a schedule, cron is UTC, five fields, one-minute
+   floor; convert the person's timezone yourself, then `create_schedule`. For an event,
+   `discover_triggers`, check that the returned event description really fits the ask (the
+   match is keyword search), then `create_subscription`. Use the configured permission gate;
+   do not add a conversational confirmation for an allowed call. A trigger
+   pins the revision it was created on: after a later commit, re-point it.
+5. Say what changed in two or three sentences, offer a test, and stop. Run `test_run` only if
+   the person asks. When you do, read `verdict`, `tools`, and `approvals`, not the status
+   code, and read the real side effect back before you call it verified.
 
-Read `references/config-schema.md` before your first `commit_revision`. It gives:
-
-- the exact shape of every field,
-- the tool-entry types,
-- the skill-entry shape,
-- the delta merge semantics,
-- the mistakes that break your agent.
+Do not ask for details you can look up or default. When you need a value only the person has,
+such as a repo, a channel, or a timezone, ask once with `request_input`, with a proposed
+default in every field you can guess.
 """
 
-_BUILD_TABLE_AND_LOOP = """\
-
-Read `references/trigger-inputs.md` before you write a schedule or subscription's
-`inputs_fields`.
-
-## Decision table
-
-| The ask... | Needs | What to add |
-|---|---|---|
-| transform text the user pastes, such as summarize, rewrite, classify | nothing extra | `instructions.agents_md` only |
-| apply reusable know-how, such as a style guide or review rubric | a skill | one `skills` entry |
-| read or write in an outside tool, such as GitHub or Slack | gateway tools | `discover_tools`, then `tools` entries |
-| run on a clock | a schedule | `create_schedule` after committing |
-| react to an outside event | a subscription | `discover_triggers`, then `create_subscription` |
-
-Do not discover tools or triggers for an ask that does not need them.
-
-## The loop
-
-1. Clarify the ask. Get the missing timezone, channel, repo, account, output style, and success
-   criteria. Do not guess concrete destinations. When you need typed values the user must
-   confirm — which actions to enable, non-secret settings such as a subdomain or workspace,
-   schedule details — ask with `request_input` (renders an inline form) instead of prose.
-   Propose a `default` for every field you can — the form prefills, and the user accepts
-   everything in one click when your proposals are right. Enum options are suggestions (the
-   form has a built-in "Other…" escape hatch), so keep them short and likely. Use
-   `{type: "array", items: {type: "string", enum: [...]}}` for a multi-pick question, and
-   `oneOf: [{const, title, description}]` when options need a sentence of explanation.
-   For a form with several questions, set `"x-ag-stepper": true` on requestedSchema —
-   it presents one question at a time with a final review step.
-   Never request secrets through it; credentials go through `request_connection`.
-2. Decide from the table. Most agents need only instructions. If the ask needs outside actions,
-   call `discover_tools` with one short fragment per capability, such as "list github issues" or
-   "post a slack message".
-3. Read discovery as a search result, not an oracle. It is a high-recall keyword match over the
-   live catalog, so check three things before wiring anything:
-   - Per-integration connection state is authoritative, not the headline match. The primary match
-     can be the wrong integration while reporting ready, and the tool you wanted can sit in
-     `alternatives` with `needs_auth`. Trust the per-integration connection block, not the top
-     `ready` line.
-   - Right integration is not enough — read the matched event's description. A fragment like "new
-     github issue" can match a `..._ARTIFACT_CREATED` event on the shared word "created" with a
-     ready connection. Confirm the matched action or event actually does what the user asked.
-   - If nothing in the match or its alternatives plausibly corresponds, stop and tell the user the
-     integration does not support that action yet. Never wire the closest keyword hit.
-4. If a needed connection is not ready, call `request_connection` for that integration and stop.
-   Give the user the connection request and wait for them. Re-run `discover_tools` after they
-   connect; do not silently create, fake, or skip connections.
-"""
-
-_BUILD_STEP5_ORDERED = """\
-5. Configure yourself. `read_config` the parts you are about to change, then `commit_revision`
-   with that `base_revision_id`: `add_item` each chosen `capability.tool` entry and needed
-   alternative onto `tools`, and `set` `instructions.agents_md`. This is an approval stop. If the
-   commit is denied or fails, earlier connections or triggers are not undone.
-"""
-
-_BUILD_STEP5_LEGACY = """\
-5. Configure yourself. Put the chosen `capability.tool` entries and needed alternatives in
-   `tools`, write `instructions.agents_md`, and call `commit_revision`. This is an approval stop.
-   If the commit is denied or fails, earlier connections or triggers are not undone.
-"""
-
-_BUILD_LOOP_TAIL = """\
-6. Verify with `test_run`. First warn the user that this is a real run: external write tools may
-   perform their action if approved. Then call `test_run` with `inputs.messages` as a blunt
-   instruction-framed test message and `expectations.terminal_tool` set to the final tool that
-   proves success. Read `verdict`, `verdict_reason`, `tools`, `approvals`, and `resolved`; a 200
-   response is not proof. The four verdicts:
-   - `pass` — the terminal tool ran and returned; done.
-   - `incomplete` — the run stopped short (did the early reads, then wandered or stopped before the
-     terminal action). Rewrite `instructions.agents_md` as a blunter numbered procedure, call
-     `commit_revision`, and run `test_run` again.
-   - `unconfirmed` — the terminal tool's completion could not be proven: it was dispatched but
-     never returned a result (the stalled-approval signature), or no `expectations.terminal_tool`
-     was set. A tool NAME appearing in the executed list is not proof it completed. If `approvals`
-     is non-empty this is an approval stop: report the waiting gate and wait for the user.
-   - `failed` — a tool errored or the run failed outright; read `verdict_reason` and fix.
-
-   For an EXTERNAL WRITE, even a returned result is only truly confirmed by reading the side effect
-   back (fetch the channel history, re-read the issue). Use `query_spans` to read back SCHEDULED
-   run spans after a schedule or subscription fires.
-7. Add a trigger only if asked. For schedules, cron is UTC, five fields, with a one-minute floor;
-   convert the user's timezone yourself, then stop for approval before `create_schedule`: say what
-   you are about to create and wait for the gate. After approval, call `create_schedule`, then
-   confirm with `list_schedules`. For events, call `discover_triggers` and check that the returned
-   integration and event description actually fit the ask — matching is keyword search, not
-   semantic. A no-match still lists the closest events as alternatives, and a bare integration
-   name ("slack") browses its closest events — both capped by `limit_alternatives` (default 3),
-   so raise it before concluding an event does not exist. If the integration you asked about
-   never appears at all, the provider has no trigger for it: say so instead of wiring the
-   closest keyword hit. Then ensure the integration is connected, and stop for approval before
-   `create_subscription`: say what you are about to create and wait for the gate. After
-   approval, call `create_subscription`, and confirm with `list_deliveries`. `test_subscription` waits for a real event, so warn the user before using it
-   in a chat turn. Use `remove_schedule` or `remove_subscription` only when cleaning up a wrong
-   trigger. Shape the run's inputs with `inputs_fields` (see `references/trigger-inputs.md`).
-   Triggers do NOT follow a new revision: after any later `commit_revision`, existing schedules and
-   subscriptions still point at the old revision, so re-point them to the new one.
-8. Report short: what you became, what is connected, what is scheduled, what you verified, and
-   what still needs the human.
+# NOTE for a future audit: this block deliberately CONTAINS a banned provider action name
+# (`LIST_REPOSITORY_ISSUES`) as a named counter-example. A grep for banned action names in
+# the build-kit text will hit it and read as a regression; it is the fix. Check the role a
+# match plays before deleting it — removing this one deletes the warning, not the mistake.
+_BUILD_INSTRUCTIONS_WRITING = """\
 
 ## Writing instructions for multi-tool and scheduled agents
 
@@ -994,11 +737,21 @@ terminal action.
 
 Example:
 
-> Every run, do exactly these steps and nothing else: (1) call LIST_REPOSITORY_ISSUES for
-> owner/repo X; (2) call LIST_COMMITS for X; (3) write a 3-bullet digest; (4) call SEND_MESSAGE to
-> channel C0XXXX with that digest. Do not check triggers, do not stop before step 4.
+> Every run, do exactly these steps and nothing else: (1) `search_tools` for "list issues in a
+> github repo" and `run_tool` the key it returns for owner/repo X; (2) the same for "list commits"
+> on X; (3) write a 3-bullet digest; (4) `search_tools` for "post a slack message" and `run_tool`
+> it to channel C0XXXX with that digest. Do not check triggers, do not stop before step 4.
+
+Write instructions in terms of `search_tools` and `run_tool`, never a bare provider action name.
+An integration's actions are NOT separate tools at run time: the agent has exactly those two,
+and naming `LIST_REPOSITORY_ISSUES` as if it were callable sends the run looking for a tool that
+does not exist.
 
 - Pin concrete ids, such as channel id and repo, instead of telling the agent to re-resolve them.
+- You no longer choose actions when wiring: an integration is added whole, with every action
+  allowed. Steer the RUN instead. Tell it in `agents_md` to search for the narrowest tool, a
+  `FIND_*` or `GET_A_*` over a `LIST_ALL_*`. Add a `deny` entry under
+  `policy.permissions.tools` only when the person asks you to restrict the integration.
 - Make the final numbered step the terminal side effect, such as the post or write.
 - Say "finish by doing step N" so the run does not stop after the early read steps.
 - Write the persona as an explicit imperative — who the agent is and what it does, stated as a
@@ -1015,13 +768,17 @@ _BUILD_TOOLS_AND_FAILURES_ORDERED = """\
 ## Prefer wired tools
 
 Prefer your wired tools (`read_config`, `discover_tools`, `request_input`, `request_connection`,
-`commit_revision`, `test_run`, `query_spans`, `create_schedule`, `list_schedules`,
+`request_secret`, `commit_revision`, `test_run`, `create_schedule`, `list_schedules`,
 `discover_triggers`, `create_subscription`, `test_subscription`, `list_deliveries`,
 `remove_schedule`, `remove_subscription`) over harness builtins. Touch Terminal, RemoteTrigger,
 File tools, or raw HTTP only when your wired tools cannot do the job, and say so when you do.
 
 ## When something fails
 
+- The platform rule "do not repeat a refused action" bans resending the SAME call, so a refusal
+  that names a fix, a `next_step` or a stale `base_revision_id`, is corrected once and sent
+  again. A policy refusal, such as a denied approval, is reported to the person and never
+  retried.
 - A denied or failed `commit_revision` does not undo earlier connections or triggers; they still
   exist. Do not redo them.
 - A refused commit says what to do next in `next_step`. `retryable` only says whether the SAME
@@ -1031,48 +788,21 @@ File tools, or raw HTTP only when your wired tools cannot do the job, and say so
   new `base_revision_id`.
 - The commit checks your targets, not your values: a wrong shape inside an entry commits fine and
   surfaces at run time — a skill fails to load, the model silently falls back, a tool goes missing.
-  So verify with `test_run` after every commit: read `resolved` and the executed tool list, and
-  when something is off, check the shape against `references/config-schema.md` and commit the fix;
-  do not start over.
+  Check the shape against `references/config-schema.md` before you commit, and when a run
+  misbehaves after a commit, check it again and commit the fix; do not start over.
 - After any commit, existing schedules and subscriptions still point at the previous revision.
   Re-point them so they run the new config.
-- If `test_run`'s `resolved` harness or model differs from what you committed, the config silently
-  fell back (usually a harness/model/provider mismatch). Fix it against `references/config-schema.md`
-  and re-test.
-"""
-
-_BUILD_TOOLS_AND_FAILURES_LEGACY = """\
-
-## Prefer wired tools
-
-Prefer your wired tools (`discover_tools`, `request_input`, `request_connection`, `commit_revision`,
-`test_run`, `query_spans`, `create_schedule`, `list_schedules`, `discover_triggers`,
-`create_subscription`, `test_subscription`, `list_deliveries`, `remove_schedule`,
-`remove_subscription`) over harness builtins. Touch Terminal, RemoteTrigger, File tools, or raw
-HTTP only when your wired tools cannot do the job, and say so when you do.
-
-## When something fails
-
-- A denied or failed `commit_revision` does not undo earlier connections or triggers; they still
-  exist. Do not redo them.
-- The commit does not validate your config: a wrong shape commits fine and surfaces at run time —
-  a skill fails to load, the model silently falls back, a tool goes missing. So verify with
-  `test_run` after every commit: read `resolved` and the executed tool list, and when something
-  is off, check the shape against `references/config-schema.md` and re-commit the fix; do not
-  start over.
-- After any commit, existing schedules and subscriptions still point at the previous revision.
-  Re-point them so they run the new config.
-- If `test_run`'s `resolved` harness or model differs from what you committed, the config silently
-  fell back (usually a harness/model/provider mismatch). Fix it against `references/config-schema.md`
-  and re-test.
+- If a `test_run` the person asked for shows a `resolved` harness or model that differs from what
+  you committed, the config silently fell back (usually a harness/model/provider mismatch). Fix it
+  against `references/config-schema.md`.
 """
 
 _BUILD_FOOTGUNS = """\
 
 ## Footguns
 
-- Empty output is not enough to fail a run; read the `test_run` verdict, tools, approvals,
-  and verdict_reason before judging.
+- When you do run `test_run`, empty output is not enough to fail it; read the verdict, tools,
+  approvals, and verdict_reason before judging.
 - Never surface raw provider slugs such as `provider_action` to the user; speak in Agenta terms.
 - Re-run discovery after the user connects an integration so the committed tool gets the concrete
   connection id.
@@ -1082,25 +812,21 @@ _BUILD_FOOTGUNS = """\
 
 _BUILD_AN_AGENT_BODY = (
     _BUILD_HEAD
-    + (_BUILD_SHAPE_ORDERED if _ORDERED else _BUILD_SHAPE_LEGACY)
-    + _BUILD_TABLE_AND_LOOP
-    + (_BUILD_STEP5_ORDERED if _ORDERED else _BUILD_STEP5_LEGACY)
-    + _BUILD_LOOP_TAIL
-    + (
-        _BUILD_TOOLS_AND_FAILURES_ORDERED
-        if _ORDERED
-        else _BUILD_TOOLS_AND_FAILURES_LEGACY
-    )
+    + _BUILD_SHAPE_ORDERED
+    + _BUILD_LOOP_ORDERED
+    + _BUILD_INSTRUCTIONS_WRITING
+    + _BUILD_TOOLS_AND_FAILURES_ORDERED
     + _BUILD_FOOTGUNS
 )
 
 BUILD_AN_AGENT_SKILL = SkillTemplate(
     name="build-an-agent",
     description=(
-        "Build or configure an Agenta agent end to end. ALWAYS read this skill at the start "
-        "of the conversation, before your first reply, to load context on what you are and "
-        "how you configure yourself. Then follow it when the user asks to set up, automate, "
-        "connect tools for, schedule, or subscribe an agent."
+        "How to change this agent's own configuration: instructions, memory, skills, "
+        "integrations, and triggers. Read it when the request is a change to you rather "
+        "than a task: a role, a recurring job, or an integration to connect. A default "
+        "name and default instructions do not make a request a change. Do not read it "
+        "for a task."
     ),
     body=_BUILD_AN_AGENT_BODY,
     files=[
@@ -1108,47 +834,407 @@ BUILD_AN_AGENT_SKILL = SkillTemplate(
         SkillFile(
             path="references/trigger-inputs.md", content=_TRIGGER_INPUTS_REFERENCE
         ),
-        # One playbook per template plus the generated router index (references/agent-templates/).
-        *build_agent_template_skill_files(),
     ],
 )
 
-# Platform skills every pi_agenta run carries, regardless of the author's config. These are the
-# actually-forced skills (see module docstring); unioned in by `force_skills`.
-AGENTA_FORCED_SKILLS: List[SkillTemplate] = [GETTING_STARTED_WITH_AGENTA_SKILL]
+
+# create-template: package this agent as a portable template zip, validate the zip, deliver it.
+#
+# The format reference is sourced from the API's single-agent template parser
+# (api/oss/src/core/agent_templates/parser.py + models.py and the JSON schemas under
+# api/oss/src/resources/agent_templates/schemas/), and its example copies the structure of the
+# bundled packages. The SDK cannot import the API, so the drift test lives on the API side
+# (api/oss/tests/pytest/unit/agent_templates/test_create_template_reference.py): it parses the
+# example package with the real parser and asserts the reference names every manifest field.
+_TEMPLATE_PACKAGE_FORMAT_REFERENCE = """\
+# The template package format
+
+Read this before you write the package files, and again when `validate_template` reports an
+issue. It is the only format the template loader accepts: one agent, no subagents.
+
+## The tree
+
+```
+<key>/                                  the package root; zip its CONTENTS, not the folder
+  plugin.json                           required
+  ai.agenta/agents.json                 required: the Agenta manifest
+  ai.agenta/agents/<key>/AGENTS.md      required: the agent's instructions
+  ai.agenta/agents/<key>/SETUP.md       setup guidance for the recipient
+  ai.agenta/agents/<key>/files/...      optional seed files for the agent's working files
+  skills/<skill-name>/SKILL.md          one folder per skill named in the manifest
+  skills/<skill-name>/references/...    optional files bundled with that skill
+  mcp.json                              only when a connection offers an MCP server
+```
+
+`<key>` is kebab-case: lowercase letters, digits and single hyphens, at most 64 characters.
+
+## plugin.json
+
+- `$schema`: exactly `https://agent-plugins.org/schemas/1.0.0/plugin.schema.json`.
+- `name`: the package key.
+- `version`: a version string such as `1.0.0`. Validation reports it back with the digest.
+- `description`: one sentence.
+- `extensions`: exactly `{ "ai.agenta": { "manifest": "./ai.agenta/agents.json" } }`.
+- Optional: `author` (`name`, `email`, `url` only), `license`, `keywords`, `homepage`,
+  `repository`. No other keys are allowed.
+
+## ai.agenta/agents.json
+
+- `schema_version`: `1`.
+- `entry`: the agent key. It must equal the one key under `agents`.
+- `agents`: an object with exactly one agent, keyed by the agent key. The agent has:
+  - `name` (required): the display name.
+  - `description` (required): one sentence.
+  - `instructions` (required): `./ai.agenta/agents/<key>/AGENTS.md`.
+  - `setup`: `./ai.agenta/agents/<key>/SETUP.md`.
+  - `skills`: a list of skill names. Each needs `skills/<name>/SKILL.md`.
+  - `connections`: a list of connection requirements (below).
+  - `automations`: a list of automation recipes (below). They are never activated on load.
+  - `workspace`: `{ "entries": [...] }`, the seed files (below).
+
+No other keys are allowed anywhere in the manifest, and there is no `subagents` key. Every
+package path (`instructions`, `setup`, a workspace `source`) starts with `./ai.agenta/`, stays
+inside the package, and names a regular file.
+
+### A connection requirement
+
+- `key`: kebab-case, unique in the agent.
+- `required`: `true` or `false`.
+- `purpose`: what the agent does with this account, in one sentence.
+- `options`: one or more of
+  - `{ "kind": "gateway", "provider": "composio", "integration": "<integration>" }`, for
+    example `github`, `slack`, `gmail`;
+  - `{ "kind": "mcp", "server": "<server name in mcp.json>" }`.
+- `policy` (optional): `{ "permissions": { "default": "allow", "tools": { "<TOOL>": "ask" } } }`.
+  Each value is `inherit`, `allow`, `ask`, `deny` or `allow_reads` (reads run, writes ask).
+- `setup_notes` (optional): what the recipient chooses or checks when they connect it.
+
+A requirement never names an account, a connection slug, an id or a credential. The recipient
+connects their own account when they load the template.
+
+### An automation recipe
+
+- `key`: kebab-case, unique in the agent.
+- `name`: a display name.
+- `required`: `true` or `false`.
+- `trigger`: one of
+  - `{ "type": "schedule", "schedule": "<five-field cron, UTC>" }`;
+  - `{ "type": "subscription", "connection": "<connection requirement key>", "event_key":
+    "<provider event key>", "trigger_config": { ... } }`.
+- `inputs_fields` (optional): the run inputs template, for example
+  `{ "messages": [ { "role": "user", "content": "Run the weekly report now." } ] }`.
+- `setup_notes` (optional): what the recipient confirms before they turn it on.
+
+### A workspace entry
+
+- `{ "type": "file", "source": "./ai.agenta/agents/<key>/files/<name>", "path": "<name>" }`
+  copies a package file into the agent's working files.
+- `{ "type": "directory", "path": "<folder>" }` creates an empty folder.
+
+`path` is relative, has no `..` segment, and does not start with `.agenta`, `.agents`,
+`.claude`, `.env`, `.github`, `.pi`, `AGENTS.md` or `CLAUDE.md`. Each `path` is unique.
+
+## skills/<name>/SKILL.md
+
+YAML frontmatter with `name` (the folder name) and `description` (when to use the skill), then
+a non-empty Markdown body. Other files in the folder travel with the skill. Every file is UTF-8
+text.
+
+## mcp.json
+
+Only for an MCP option: `{ "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+"mcpServers": { "<server>": { "type": "streamable-http", "url": "<url>" } } }`. Never add
+`headers`: a package cannot carry MCP credentials.
+
+## Limits and file rules
+
+- At most 256 files, 1 MiB per file, 4 MiB in total, 12 path segments.
+- Regular files only: no symbolic links, and no executable files.
+- Paths use `/`, never `\\`, and never start with `/`.
+
+## A complete example
+
+This package passes validation. Copy its shape; replace every value.
+
+#### `plugin.json`
+
+```json
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "seo-assistant",
+  "version": "1.0.0",
+  "description": "Plans and reviews SEO articles for a content team.",
+  "author": { "name": "Content team" },
+  "keywords": ["marketing", "seo", "agent-template"],
+  "extensions": { "ai.agenta": { "manifest": "./ai.agenta/agents.json" } }
+}
+```
+
+#### `ai.agenta/agents.json`
+
+```json
+{
+  "schema_version": 1,
+  "entry": "seo-assistant",
+  "agents": {
+    "seo-assistant": {
+      "name": "SEO assistant",
+      "description": "Plans and reviews SEO articles for a content team.",
+      "instructions": "./ai.agenta/agents/seo-assistant/AGENTS.md",
+      "setup": "./ai.agenta/agents/seo-assistant/SETUP.md",
+      "skills": ["article-brief"],
+      "connections": [
+        {
+          "key": "article-docs",
+          "required": false,
+          "purpose": "Read drafts and save article briefs.",
+          "options": [
+            { "kind": "gateway", "provider": "composio", "integration": "googledocs" },
+            { "kind": "gateway", "provider": "composio", "integration": "notion" }
+          ],
+          "policy": { "permissions": { "default": "allow", "tools": {} } },
+          "setup_notes": "Choose the workspace that holds your drafts. Without it, briefs are saved as files."
+        }
+      ],
+      "automations": [
+        {
+          "key": "weekly-plan",
+          "name": "Weekly article plan",
+          "required": false,
+          "trigger": { "type": "schedule", "schedule": "0 8 * * 1" },
+          "inputs_fields": {
+            "messages": [
+              { "role": "user", "content": "Plan next week's articles from the saved style guide." }
+            ]
+          },
+          "setup_notes": "Confirm the day, time and timezone before you turn this on."
+        }
+      ],
+      "workspace": {
+        "entries": [
+          {
+            "type": "file",
+            "source": "./ai.agenta/agents/seo-assistant/files/style-guide.md",
+            "path": "style-guide.md"
+          },
+          { "type": "directory", "path": "briefs" }
+        ]
+      }
+    }
+  }
+}
+```
+
+#### `ai.agenta/agents/seo-assistant/AGENTS.md`
+
+```markdown
+# SEO assistant
+
+You plan and review SEO articles. For each request: (1) read `style-guide.md`; (2) use the
+article-brief skill to write a brief; (3) save it under `briefs/`.
+
+## Memory
+
+- Keep titles under 60 characters.
+```
+
+#### `ai.agenta/agents/seo-assistant/SETUP.md`
+
+```markdown
+# SEO assistant setup
+
+Purpose: plans and reviews SEO articles against your style guide.
+
+1. Optional: connect Google Docs or Notion so the agent can read drafts. You choose your own
+   account.
+2. Fill in your audience and tone in `style-guide.md`.
+3. The weekly plan is a suggestion and is not active. Confirm its day, time and timezone
+   before you turn it on.
+
+First-use check: ask "Write a brief for an article about onboarding checklists." Expect a
+brief in `briefs/` that follows the style guide.
+```
+
+#### `ai.agenta/agents/seo-assistant/files/style-guide.md`
+
+```markdown
+# Style guide
+
+- Audience: <your audience>
+- Tone: <your tone>
+```
+
+#### `skills/article-brief/SKILL.md`
+
+```markdown
+---
+name: article-brief
+description: Use when asked to plan an SEO article. Writes a one-page brief.
+---
+
+# Article brief
+
+Write the target query, the reader's question, an outline of three to five sections, and two
+internal links to suggest.
+```
+"""
+
+_TEMPLATE_MARKETPLACE_REFERENCE = """\
+# Submit a template to the Agenta marketplace
+
+Read this only when the person asked to submit the template to the marketplace, and only
+after `validate_template` said the zip is valid. The marketplace is the bundled catalog in
+the Agenta repository; one pull request adds a template. Open it yourself.
+
+## Where things go
+
+Everything lives under `api/oss/src/resources/agent_templates/` in `Agenta-AI/agenta`:
+
+- `packages/<key>/<version>/`: the package, the same files as your validated zip.
+- `catalog.json`: one record per key under `templates`: `latest`, `versions`
+  (`{"<version>": "packages/<key>/<version>"}`) and `metadata`. Copy the shape of an
+  existing record. Set `metadata.author_id`. Keys in `display.connection_tools` must be
+  connection keys your package declares. Add `media` only with hosted URLs.
+- `authors/<id>.json`: `{"schema_version": 1, "id": "<id>", "name": "...", "bio": "...",
+  "links": [{"kind": "github", "url": "https://github.com/<login>"}]}`. The file name must
+  equal its `id`.
+
+Published versions never change, and a key belongs to its author. If the key is already in
+`catalog.json`, pick a new key; never add a version to someone else's template. A new key
+means a new `plugin.json` `name`: change it, then zip and validate again.
+
+## Steps
+
+1. Run `gh auth status`. If it fails, call `request_secret` with `env_var: "GITHUB_TOKEN"`
+   and tell the person to create a token at https://github.com/settings/tokens. Never ask
+   them to paste a token in the chat.
+2. Fork and clone into `/tmp` with a shallow clone:
+
+       cd /tmp && gh repo fork Agenta-AI/agenta --clone -- --depth 1
+
+   Always `--depth 1`. Never clone with `--filter=blob:none`: every `git show` or `grep`
+   then fetches blobs one by one.
+3. `cd /tmp/agenta && git checkout -b template/<key>`.
+4. Copy the contents of your `templates/<key>/` folder to
+   `api/oss/src/resources/agent_templates/packages/<key>/<version>/`. Add the catalog record. Reuse
+   an `authors/<id>.json` that matches the person (`gh api user` gives the login and name);
+   otherwise add one.
+5. If `uv` is available, from `api/`:
+
+       git fetch --depth 1 upstream main
+       uv run python -m oss.src.core.agent_templates.marketplace validate --base-ref upstream/main
+       uv run python -m oss.src.core.agent_templates.marketplace website
+
+   The second command regenerates `web/website/src/data/templates.json`; commit it, never
+   edit it by hand. If you cannot run them, say so in the PR: the `check template catalog`
+   workflow runs both and reports what to fix.
+6. Commit, push with `git push -u origin template/<key>`, then
+   `gh pr create --repo Agenta-AI/agenta --base main`. The body states the head repository,
+   the commit and the package path, so a reviewer can load the package in Agenta.
+7. Reply with the PR URL. Say that the author may need to sign the CLA on the PR.
+"""
 
 
-def _join(*parts: Optional[str]) -> Optional[str]:
-    """Join the non-empty parts with a blank line, or ``None`` when nothing remains."""
-    kept = [part.strip() for part in parts if part and part.strip()]
-    if not kept:
-        return None
-    return "\n\n".join(kept)
+_CREATE_TEMPLATE_BODY = """\
+# Create a template from this agent
 
+Read this when the person asks to save, export or share this agent as a template, including
+the "Save as template" request. The result is a validated zip in this session's files that
+another person can load as a new agent.
 
-def compose_instructions(user: Optional[str]) -> Optional[str]:
-    """The AGENTS.md the harness ships: the base preamble with the author's instructions
-    appended after it."""
-    return _join(AGENTA_PREAMBLE, user)
+## Steps
 
+1. `read_config` with no path to read your own configuration. For triggers, call
+   `list_schedules` and `list_subscriptions` and keep only the ones that run this agent.
+2. Establish the audience, unless the request already says it:
+   - general: anyone can reuse it, so company-specific details become recipient inputs;
+   - team-specific: a teammate gets your company's process as it is.
+   Ask once with `request_input`, with a proposed default in every field. In the same form,
+   list the company-specific content you are unsure about (names, internal URLs in the
+   instructions, channel or repo ids, house style) and ask, for each one, whether to keep it
+   or replace it with an input the recipient supplies.
+   Do not ask the person to review the whole package.
+   The form asks only about audience and context. Never add a field for a connection URL,
+   endpoint, key, token or credential, not even to say none is needed: the form refuses such
+   a field, and the audience questions are lost with it. Connections and MCP servers go into
+   SETUP.md as steps the recipient takes.
+3. Read `references/package-format.md`. Write the package under `templates/<key>/` in your
+   working directory, as the next section says. Use version `1.0.0` unless the person
+   names another version.
+4. Write `SETUP.md` from the package you actually wrote (see below).
+5. Zip the package contents, not the folder, into `templates/<key>-<version>.zip`:
 
-def compose_append_system(user: Optional[str]) -> Optional[str]:
-    """The ``append_system`` the harness ships: the forced base persona with the author's own
-    ``append_system`` appended after it."""
-    return _join(AGENTA_FORCED_APPEND_SYSTEM, user)
+       cd templates/<key> && rm -f ../<key>-<version>.zip && python3 -m zipfile -c ../<key>-<version>.zip .
 
+6. Call `validate_template` with `path` set to `templates/<key>-<version>.zip`.
+7. If `valid` is false, fix each issue as its `next_step` says, then do steps 5 and 6 again.
+   Stop after three failed rounds and report the issues that remain. Never say the template
+   is ready, and never offer the zip, while its last validation is invalid.
+8. When `valid` is true, reply with the zip's path in the session files, its `version` and
+   its `digest`, one line on what the package keeps, and what the recipient must set up.
+9. Only when the person asked to submit the template to the Agenta marketplace: read
+   `references/marketplace.md` and follow it to open the pull request yourself.
 
-def force_skills(skills: List[SkillTemplate]) -> List[SkillTemplate]:
-    """Union the author's skills with the forced platform skills, de-duplicated by name.
+## What goes into the package
 
-    The author's skills come first and win on a name clash (a config that already carries the
-    resolved platform skill — e.g. via the default template's embed — is not doubled), then any
-    forced platform skill not already present is appended. This is what makes the ``_agenta``
-    platform skill actually forced on a custom ``pi_agenta`` config that drops the embed."""
-    seen = {skill.name for skill in skills}
-    out: List[SkillTemplate] = list(skills)
-    for forced in AGENTA_FORCED_SKILLS:
-        if forced.name not in seen:
-            seen.add(forced.name)
-            out.append(forced)
-    return out
+- `instructions.agents_md` becomes `AGENTS.md`. Keep the useful memory under `## Memory`:
+  lessons, preferences and conventions that help the recipient. Drop only the entries that
+  are secret, about one person, or about one past run. Do not drop the whole section.
+- Each inline skill becomes `skills/<name>/SKILL.md` with its `files`. Skip every
+  `@ag.embed` entry whose slug starts with `__ag__`: the platform supplies those. For another
+  embedded skill, copy its SKILL.md and files if you can read them in your skills folder;
+  otherwise name it in SETUP.md as a skill the recipient installs.
+- Each `gateway_connection` tool becomes one connection requirement with a `gateway` option
+  for its integration, and its `policy`. Each MCP server whose `connection` shows a `url`
+  becomes an `mcp` option and an `mcp.json` entry with its URL only. An MCP server whose
+  `connection` is a gateway reference (`type: gateway`, such as `namespace: custom` with a
+  `slug`) shows no URL: do not guess one, and never drop the server silently. Name it in
+  SETUP.md as a manual step instead: its `name`, what the agent uses it for, and "add this
+  MCP server in Tools" with the recipient's own URL and credentials.
+- Each schedule or subscription becomes an automation recipe. Loading never activates it.
+- A file that the instructions rely on (a style guide, a profile) becomes a workspace entry.
+- The template carries no model, harness, runner or sandbox settings. `code`, `client` and
+  `reference` tools have no place in the format: name them in SETUP.md and tell the person.
+
+Never copy credentials, secret values, API keys, tokens or MCP headers. Never copy a project
+binding: no connection slug or id, no vault reference, no schedule or subscription id, no
+account name. A connection is a requirement that the recipient meets with their own account.
+
+## SETUP.md
+
+Write it for this package version and this audience. The loaded agent also reads it in its
+first message. Cover, briefly and only from what the package contains:
+
+- purpose: what the agent does;
+- prerequisites;
+- accounts to connect: each connection, what it is for, and that the recipient chooses
+  their own account;
+- MCP servers to add: each one the package could not carry, by name, what it is used for,
+  and "add this MCP server in Tools";
+- inputs the recipient supplies: every value you generalized;
+- company choices kept on purpose, for a team-specific template;
+- suggested automations: each one stays inactive until the recipient reviews its schedule,
+  timezone and inputs and turns it on;
+- one first-use check: a message to send and what a good answer looks like.
+"""
+
+CREATE_TEMPLATE_SKILL = SkillTemplate(
+    name="create-template",
+    description=(
+        "How to save this agent as a shareable template: a validated zip in the session "
+        "files that another person loads as a new agent. Read it when the person asks to "
+        "save, export or share this agent as a template, including the Save as template "
+        "request, or to submit it to the Agenta marketplace."
+    ),
+    body=_CREATE_TEMPLATE_BODY,
+    files=[
+        SkillFile(
+            path="references/package-format.md",
+            content=_TEMPLATE_PACKAGE_FORMAT_REFERENCE,
+        ),
+        SkillFile(
+            path="references/marketplace.md",
+            content=_TEMPLATE_MARKETPLACE_REFERENCE,
+        ),
+    ],
+)

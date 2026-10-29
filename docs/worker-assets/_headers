@@ -1,0 +1,46 @@
+# Cloudflare Workers Static Assets edge response headers for the docs site.
+# https://developers.cloudflare.com/workers/static-assets/headers/
+#
+# Paths here are PUBLIC URL paths, and the docs build is staged into dist/docs
+# so that the asset tree matches the /docs/ URL prefix. This file itself lives
+# at the assets root (dist/_headers); Cloudflare ignores it anywhere else, which
+# is why scripts/stage-worker-assets.mjs copies it up out of the build.
+#
+# A request that matches several rules INHERITS all of their headers, and a
+# header set by more than one matching rule is joined with a comma. Since every
+# path below also matches the `/*` rule at the bottom, each block first clears
+# the inherited `Cache-Control` (`! Cache-Control`) before setting its own —
+# otherwise assets would ship a malformed, dual-`max-age` header.
+
+# Content-hashed JS, CSS and images emitted by the Docusaurus build.
+/docs/assets/*
+  ! Cache-Control
+  Cache-Control: public, max-age=31536000, immutable
+
+# Copied verbatim from static/ — stable filenames, so revalidate weekly.
+/docs/img/*
+  ! Cache-Control
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+
+/docs/images/*
+  ! Cache-Control
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+
+/docs/examples/*
+  ! Cache-Control
+  Cache-Control: public, max-age=604800, stale-while-revalidate=86400
+
+# Both workers answer on a public *.workers.dev URL. The production build is
+# deliberately built WITHOUT DOCS_NOINDEX, because it is the real docs, so
+# without this rule a crawler could index agenta-docs.<subdomain>.workers.dev as
+# a duplicate of agenta.ai/docs. The rule is scoped to the workers.dev host, so
+# it never applies to agenta.ai.
+https://:worker.:subdomain.workers.dev/*
+  X-Robots-Tag: noindex
+
+# HTML pages and everything else — short TTL, stale-while-revalidate so readers
+# get a fast page and still see docs edits within the minute.
+/*
+  Cache-Control: public, max-age=60, stale-while-revalidate=3600
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin

@@ -19,6 +19,7 @@ from oss.src.core.git.dtos import (
     RevisionCreate,
     RevisionEdit,
     RevisionQuery,
+    RevisionGrouping,
     RevisionCommit,
 )
 
@@ -273,10 +274,27 @@ class GitDAOInterface(ABC):
         project_id: UUID,
         #
         revision_query: RevisionQuery,
+        grouping: Optional[RevisionGrouping] = None,
         #
         artifact_refs: Optional[List[Reference]] = None,
         variant_refs: Optional[List[Reference]] = None,
         revision_refs: Optional[List[Reference]] = None,
+        #
+        include_archived: Optional[bool] = None,
+        #
+        windowing: Optional[Windowing] = None,
+    ) -> List[Revision]:
+        raise NotImplementedError
+
+    @abstractmethod
+    async def query_head_revisions(
+        self,
+        *,
+        project_id: UUID,
+        #
+        revision_query: RevisionQuery,
+        #
+        artifact_search: Optional[str] = None,
         #
         include_archived: Optional[bool] = None,
         #

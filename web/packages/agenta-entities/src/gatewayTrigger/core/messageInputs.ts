@@ -118,6 +118,31 @@ export function setScheduleMessage(
 }
 
 /**
+ * Rewrite the message into a new agent shape after the bound agent resolves.
+ *
+ * The drawers derive `isChat`/`primaryKey` from an async query, so a message typed before the
+ * agent is known is stored under the wrong key. Re-reading it under the new shape yields "" —
+ * the composer looks empty while `inputs_fields` still holds the old shape, which then saves
+ * against an agent that can't receive it.
+ *
+ * `setScheduleMessage` alone can't do this: it preserves sibling keys, so writing under the new
+ * shape would leave `{"message": "…", "messages": [...]}`. The old shape's key must go first.
+ * A mapping the composer can't read is returned untouched — there's nothing safe to migrate.
+ */
+export function remapMessageShape(
+    inputsText: string,
+    prev: {isChat: boolean; primaryKey: string},
+    next: {isChat: boolean; primaryKey: string},
+): string {
+    const message = getScheduleMessage(inputsText, prev.isChat, prev.primaryKey)
+    if (!message) return inputsText
+    const obj = parseObject(inputsText)
+    if (prev.isChat || isMessagesPayload(obj)) delete obj.messages
+    else delete obj[prev.primaryKey]
+    return setScheduleMessage(JSON.stringify(obj), message, next.isChat, next.primaryKey)
+}
+
+/**
  * Best-effort message preview from a resolved `inputs_fields` object — for list rows
  * where the agent schema isn't handy. Reads the first chat user message, else the first
  * non-empty string value. Empty string when there's nothing to show.

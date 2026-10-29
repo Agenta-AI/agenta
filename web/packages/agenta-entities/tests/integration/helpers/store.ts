@@ -7,12 +7,11 @@
  * key is provided.
  */
 
+import {axios} from "@agenta/shared/api"
+import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import {QueryClient} from "@tanstack/react-query"
 import {createStore} from "jotai"
 import {queryClientAtom} from "jotai-tanstack-query"
-
-import {axios} from "@agenta/shared/api"
-import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 
 import {TEST_CONFIG} from "./env"
 

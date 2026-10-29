@@ -1,4 +1,4 @@
-from os import getenv
+from os import environ, getenv
 from json import dumps
 from typing import Callable, Dict, Optional, List, Any
 
@@ -8,7 +8,12 @@ from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.utils.constants import TRUTHY
 from agenta.sdk.utils.cache import TTLLRUCache
 from agenta.sdk.utils.exceptions import suppress, display_exception
+from agenta.sdk.utils.providers import normalize_provider_kind
 
+from agenta.sdk.agents.connections.credentials import (
+    credential_extras,
+    secret_value_configured,
+)
 from agenta.sdk.models.workflows import WorkflowServiceRequest
 from agenta.sdk.contexts.running import RunningContext
 
@@ -50,6 +55,125 @@ _CACHE_ENABLED = (
 ).lower() in TRUTHY
 
 _cache = TTLLRUCache()
+
+_ENV_PROVIDER_KEYS_FLAG = "AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED"
+
+
+def env_provider_keys_enabled() -> bool:
+    """Whether the provider keys in this process's environment may serve a request.
+
+    `OPENAI_API_KEY` and its siblings belong to whoever runs the process. A self-hosted
+    deployment may share them with its own users, which is what the OSS edition has always
+    done. The EE edition also runs hosted, where every project would then run on the
+    operator's keys, so it starts with them off. The flag overrides the default either way.
+    """
+    value = (getenv(_ENV_PROVIDER_KEYS_FLAG) or "").strip().lower()
+    if value:
+        return value in TRUTHY
+
+    return (getenv("AGENTA_LICENSE") or "").strip().lower() != "ee"
+
+
+# Provider credentials a deployment can set (`llm.*` in Helm, the compose env files, or by hand
+# for Azure and Vertex) whose spelling no standard provider kind produces. They never become
+# local secrets, but litellm and the OpenAI client still read them from the environment (an
+# Azure AD token even wins over a key the call carries, and a Bedrock call without a key
+# takes the Bedrock bearer token), so they are held with the rest.
+_DEPLOYED_PROVIDER_KEY_NAMES = (
+    "TOGETHERAI_API_KEY",
+    "XAI_API_KEY",
+    "AZURE_API_KEY",
+    "AZURE_OPENAI_API_KEY",
+    "AZURE_AI_API_KEY",
+    "AZURE_AD_TOKEN",
+    "AZURE_OPENAI_AD_TOKEN",
+    "VERTEXAI_CREDENTIALS",
+    "VERTEX_CREDENTIALS",
+    "AWS_BEARER_TOKEN_BEDROCK",
+    "BEDROCK_MANTLE_API_KEY",
+)
+
+
+def env_provider_key_names() -> List[str]:
+    names = [f"{provider_kind.upper()}_API_KEY" for provider_kind in _PROVIDER_KINDS]
+    return names + [name for name in _DEPLOYED_PROVIDER_KEY_NAMES if name not in names]
+
+
+# None until `hold_env_provider_keys` runs, and then the keys it moved out of the environment.
+_held_env_provider_keys: Optional[Dict[str, str]] = None
+
+
+def hold_env_provider_keys() -> List[str]:
+    """Move the provider keys out of this process's environment and hold them here.
+
+    litellm and the OpenAI client both read `<PROVIDER>_API_KEY` from the environment when a
+    call carries no key of its own, so any call without a stored key (a custom connection
+    saved without one, a project with an empty vault) would silently run on them, against
+    whatever endpoint the call names. Held here, they reach a call only as an explicit key
+    from `get_secrets`, and only when `env_provider_keys_enabled()`. Returns the names moved.
+    """
+    global _held_env_provider_keys  # pylint: disable=global-statement
+
+    held = dict(_held_env_provider_keys or {})
+    for name in env_provider_key_names():
+        value = environ.pop(name, None)
+        if value:
+            held[name] = value
+
+    _held_env_provider_keys = held
+
+    return sorted(held)
+
+
+# The variables litellm and boto3 read to pick an AWS identity when a call names none of
+# its own, or to add to the keys it names (a session token, a role, a profile).
+_HOST_AWS_CREDENTIAL_NAMES = (
+    "AWS_ACCESS_KEY_ID",
+    "AWS_SECRET_ACCESS_KEY",
+    "AWS_SESSION_TOKEN",
+    "AWS_SECURITY_TOKEN",
+    "AWS_SESSION_NAME",
+    "AWS_ROLE_NAME",
+    "AWS_ROLE_ARN",
+    "AWS_PROFILE",
+    "AWS_PROFILE_NAME",
+    "AWS_WEB_IDENTITY_TOKEN",
+    "AWS_WEB_IDENTITY_TOKEN_FILE",
+    "AWS_STS_ENDPOINT",
+    "AWS_EXTERNAL_ID",
+    "AWS_CONTAINER_CREDENTIALS_FULL_URI",
+    "AWS_CONTAINER_CREDENTIALS_RELATIVE_URI",
+    "AWS_CONTAINER_AUTHORIZATION_TOKEN",
+    "AWS_CONTAINER_AUTHORIZATION_TOKEN_FILE",
+    "AWS_SHARED_CREDENTIALS_FILE",
+    "AWS_CONFIG_FILE",
+)
+
+
+def drop_host_aws_credentials() -> List[str]:
+    """Remove the host's AWS credentials from this process's environment in hosted mode.
+
+    Where the host's provider keys may not serve requests, its AWS identity may not either.
+    A Bedrock or SageMaker call then signs only with the keys it carries. Self-hosted, the
+    variables stay, so a connection without keys can run on the host's AWS role. Returns
+    the names removed.
+    """
+    if env_provider_keys_enabled():
+        return []
+
+    return sorted(
+        name
+        for name in _HOST_AWS_CREDENTIAL_NAMES
+        if environ.pop(name, None) is not None
+    )
+
+
+def _env_provider_key(name: str) -> Optional[str]:
+    if _held_env_provider_keys is not None:
+        return _held_env_provider_keys.get(name)
+
+    return getenv(name)
+
 
 _INVALID_SECRETS_STATUS_TYPE = "#v0:schemas:invalid-secrets"
 
@@ -304,10 +428,10 @@ async def get_secrets(
     local_secrets: List[Dict[str, Any]] = []
 
     try:
-        for provider_kind in _PROVIDER_KINDS:
+        for provider_kind in _PROVIDER_KINDS if env_provider_keys_enabled() else []:
             provider = provider_kind
             key_name = f"{provider.upper()}_API_KEY"
-            key = getenv(key_name)
+            key = _env_provider_key(key_name)
 
             if not key:
                 continue
@@ -361,8 +485,24 @@ async def get_secrets(
     except Exception:  # pylint: disable=bare-except
         display_exception("Vault: Vault Secrets Exception")
 
+    vault_secrets, redacted_names = _split_write_only_redacted(vault_secrets)
+    if redacted_names:
+        # Engineering copy; adjust freely.
+        log.error(
+            "Vault: %d secret(s) are write-only and were returned without their values "
+            "(%s). Their values cannot be read back outside the platform runtime; for "
+            "standalone runs, provide the provider key via its environment variable "
+            "(for example OPENAI_API_KEY) instead.",
+            len(redacted_names),
+            ", ".join(redacted_names),
+        )
+
     local_standard = {}
-    vault_standard = {}
+    # A project may hold several connections per provider family, so vault provider_key records
+    # are kept as a list. Keying them by family (as the locals still are) would drop every
+    # connection but the last, making a named second OpenAI key unreachable.
+    vault_standard = []
+    vault_standard_kinds = set()
     vault_custom = []
 
     if local_secrets:
@@ -372,13 +512,25 @@ async def get_secrets(
     if vault_secrets:
         for secret in vault_secrets:
             if secret["kind"] == "provider_key":  # type: ignore
-                vault_standard[secret["data"]["kind"]] = secret  # type: ignore
+                vault_standard.append(secret)
+                vault_standard_kinds.add(
+                    normalize_provider_kind(secret["data"]["kind"])  # type: ignore
+                )
             elif secret["kind"] == "custom_provider":  # type: ignore
                 vault_custom.append(secret)
 
-    combined_standard = {**local_standard, **vault_standard}
-    combined_vault = list(vault_standard.values()) + vault_custom
-    secrets = list(combined_standard.values()) + vault_custom
+    # A stored key still shadows the env-var local for the same family. Compared by canonical
+    # family, because the two sides can spell one family differently (MISTRALAI_API_KEY against
+    # a stored `mistral`) and a raw comparison would let the env key survive and then win the
+    # resolver's tiebreak, which reads both spellings as the same family.
+    surviving_locals = [
+        secret
+        for kind, secret in local_standard.items()
+        if normalize_provider_kind(kind) not in vault_standard_kinds
+    ]
+    combined_standard = surviving_locals + vault_standard
+    combined_vault = vault_standard + vault_custom
+    secrets = combined_standard + vault_custom
 
     secrets_cache = pack_secrets_cache_payload(
         secrets=secrets,
@@ -389,6 +541,44 @@ async def get_secrets(
     set_secrets_cache(credentials, secrets_cache)
 
     return secrets, combined_vault, local_secrets
+
+
+def _split_write_only_redacted(
+    vault_secrets: List[Dict[str, Any]],
+) -> tuple[List[Dict[str, Any]], List[str]]:
+    """Drop entries whose value the vault redacted (write-only secret, non-granted caller).
+
+    A redacted entry has no usable credential, so keeping it would either pass an empty key
+    to a provider or shadow a working env-var key of the same provider family. Returns the
+    usable entries and the display names of the dropped ones.
+    """
+    usable: List[Dict[str, Any]] = []
+    redacted_names: List[str] = []
+
+    for secret in vault_secrets or []:
+        if isinstance(secret, dict) and secret.get("write_only"):
+            data = secret.get("data") or {}
+            kind = secret.get("kind")
+            value = None
+            if kind in ("provider_key", "custom_provider"):
+                provider = data.get("provider") or {}
+                value = provider.get("key") or credential_extras(
+                    provider.get("extras") or {}
+                )
+            elif kind == "custom_secret":
+                value = (data.get("secret") or {}).get("content")
+
+            if not value:
+                if secret_value_configured(secret):
+                    header = secret.get("header") or {}
+                    redacted_names.append(
+                        header.get("name") or secret.get("slug") or kind
+                    )
+                continue
+
+        usable.append(secret)
+
+    return usable, redacted_names
 
 
 def _has_invalid_secrets_error(response: Any) -> bool:
@@ -408,7 +598,64 @@ def _has_invalid_secrets_error(response: Any) -> bool:
     return False
 
 
+# The top-level keys `AgentTemplateSchema` defines (`sdk/utils/types.py`), which is what
+# `parameters.agent` holds for an agent. Kept as names rather than by importing the model,
+# because this is a recognition test and must not fail a request by validating it.
+_AGENT_TEMPLATE_KEYS = frozenset(
+    {
+        "instructions",
+        "llm",
+        "tools",
+        "mcps",
+        "skills",
+        "harness",
+        "runner",
+        "sandbox",
+    }
+)
+
+
 class VaultMiddleware:
+    @staticmethod
+    def _is_agent_request(request: WorkflowServiceRequest) -> bool:
+        """Agent model connections resolve in API core, never from a vault prefetch.
+
+        The legacy vault middleware predates gateway routing and loads the complete project
+        vault into the service process.  An agent request carries its configuration under
+        ``data.parameters.agent``; its model route is instead resolved by the dedicated,
+        non-secret gateway-core endpoint.
+
+        Recognised by the shape of that block rather than by the parameter name alone.
+        A workflow's parameter names are its author's to choose, so "there is a parameter
+        called ``agent`` and it is an object" also described an ordinary workflow that
+        happened to have one, and such a workflow ran with an empty vault and no
+        explanation (M10).  Requiring at least one key only an agent template defines
+        makes the match say what it means.
+
+        Still a recognition rather than a declaration, and that is the real closure this
+        is standing in for: the request carries no field saying which kind of workflow it
+        is, so both directions of this check are guesses about a shape.  Recording a
+        declared kind on the wire is a change for the API and the SDK together, and until
+        it exists an ordinary workflow collides only by naming a parameter ``agent`` and
+        giving it nothing but keys from an agent template.
+        """
+        data = request.data
+        parameters = data.parameters if data is not None else None
+        if not isinstance(parameters, dict):
+            return False
+
+        agent = parameters.get("agent")
+        if not isinstance(agent, dict):
+            return False
+
+        # Every key it has, and nothing else. An agent template's fields all default, so
+        # an agent may legitimately arrive as `{}` and requiring one of them to be
+        # present sent a real agent to the vault — the opposite mistake to the one this
+        # check was narrowed to avoid. A subset admits the empty block and still refuses
+        # a workflow whose author happened to name a parameter `agent`, because that
+        # block carries keys of its own.
+        return agent.keys() <= _AGENT_TEMPLATE_KEYS
+
     async def __call__(
         self,
         request: WorkflowServiceRequest,
@@ -421,21 +668,22 @@ class VaultMiddleware:
 
         credentials = None
 
-        with suppress():
-            ctx = RunningContext.get()
-            credentials = ctx.credentials
+        if not self._is_agent_request(request):
+            with suppress():
+                ctx = RunningContext.get()
+                credentials = ctx.credentials
 
-            secrets, vault_secrets, local_secrets = await get_secrets(
-                api_url,
-                credentials,
-                host,
-                scope_type,
-                scope_id,
-            )
+                secrets, vault_secrets, local_secrets = await get_secrets(
+                    api_url,
+                    credentials,
+                    host,
+                    scope_type,
+                    scope_id,
+                )
 
-            ctx.secrets = secrets
-            ctx.vault_secrets = vault_secrets
-            ctx.local_secrets = local_secrets
+                ctx.secrets = secrets
+                ctx.vault_secrets = vault_secrets
+                ctx.local_secrets = local_secrets
 
         response = await call_next(request)
 

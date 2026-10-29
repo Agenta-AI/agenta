@@ -19,13 +19,11 @@ export interface SendOTPProps {
 
 export interface PasswordlessAuthProps {
     message: AuthErrorMsgType
-    isLoading: boolean
     email: string
     setEmail: React.Dispatch<React.SetStateAction<string>>
     setMessage: React.Dispatch<React.SetStateAction<AuthErrorMsgType>>
     authErrorMsg: (error: any) => void
     setIsLoginCodeVisible: React.Dispatch<React.SetStateAction<boolean>>
-    setIsLoading: React.Dispatch<React.SetStateAction<boolean>>
     disabled: boolean
     lockEmail?: boolean
 }
@@ -44,6 +42,6 @@ export interface SocialAuthProps {
     variant?: "default" | "promoted"
     // Yellow keycap treatment (the one primary action on the screen).
     yellow?: boolean
-    // Render the inline "Last used" tag.
-    lastUsed?: boolean
+    // Tags exactly one provider with the inline "Last used" badge.
+    lastUsedProviderId?: string
 }

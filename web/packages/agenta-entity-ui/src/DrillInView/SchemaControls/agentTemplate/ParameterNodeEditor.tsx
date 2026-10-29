@@ -213,7 +213,7 @@ export function ParameterNodeEditor({
 
     return (
         <div className="flex flex-col gap-4">
-            <div className="text-[11px] font-medium uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
+            <div className="text-xs font-medium uppercase tracking-wide text-[var(--ag-colorTextTertiary)]">
                 Editing · {pathLabel(path)}
             </div>
 
@@ -331,7 +331,7 @@ export function ParameterNodeEditor({
                             }
                             disabled={disabled}
                         />
-                        <span className="text-[11px] text-[var(--ag-colorTextTertiary)]">
+                        <span className="text-xs text-[var(--ag-colorTextTertiary)]">
                             The model must provide this parameter on every call.
                         </span>
                     </div>
@@ -348,7 +348,7 @@ export function ParameterNodeEditor({
                                 <Plus size={13} />
                                 Add property
                             </Button>
-                            <span className="text-[11px] text-[var(--ag-colorTextTertiary)]">
+                            <span className="text-xs text-[var(--ag-colorTextTertiary)]">
                                 {childCount === 0
                                     ? "No nested properties yet."
                                     : `${childCount} nested ${
@@ -360,12 +360,10 @@ export function ParameterNodeEditor({
                 ) : null}
             </div>
 
-            <p className="m-0 text-[11px] leading-snug text-[var(--ag-colorTextTertiary)]">
-                {hint}
-            </p>
+            <p className="m-0 text-xs leading-snug text-[var(--ag-colorTextTertiary)]">{hint}</p>
 
             {path.length > 3 ? (
-                <p className="m-0 text-[11px] leading-snug text-[var(--ag-colorTextTertiary)]">
+                <p className="m-0 text-xs leading-snug text-[var(--ag-colorTextTertiary)]">
                     Deeply nested — switch to JSON for full control over this structure.
                 </p>
             ) : null}

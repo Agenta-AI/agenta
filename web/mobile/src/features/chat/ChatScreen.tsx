@@ -1,0 +1,388 @@
+import {useEffect, useMemo, useRef, useState} from "react"
+
+import {
+    buildTurnViewModels,
+    createExecutedToolIdentityCache,
+    createTurnViewModelCache,
+    getPendingApprovals,
+} from "@agenta/chat/model"
+import {fetchSessionRecordsAtom, isSessionFresh} from "@agenta/entities/session"
+import {projectIdAtom} from "@agenta/shared/state"
+import {useAtom, useAtomValue, useSetAtom} from "jotai"
+
+import {ContentRail} from "@/components/ContentRail"
+import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {StatusTag} from "@/components/StatusTag"
+
+import {useBindProjectContext} from "../context/useBindProjectContext"
+import {pendingTasksAtom} from "../home/pendingTask"
+import {AppShell} from "../nav/AppShell"
+import {useLivenessPoll} from "../sessions/useLivenessPoll"
+
+import {ApprovalDock} from "./ApprovalDock"
+import {conversationKey} from "./conversationKey"
+import {LiveConversation} from "./LiveConversation"
+import {ReadOnlyComposerNotice} from "./ReadOnlyComposerNotice"
+import {heldCommitAtomFamily, selectedRevisionAtomFamily} from "./selectedRevision"
+import type {SessionReadOnly} from "./sessionReadOnly"
+import {SessionWorkspace} from "./SessionWorkspace"
+import {ChatNoAccess} from "./states/ChatNoAccess"
+import {ChatEmpty, ChatLoading} from "./states/ChatStates"
+import {ChatUnreachable} from "./states/ChatUnreachable"
+import {TranscriptTurns} from "./TranscriptTurns"
+import {mergeAssistantRuns} from "./turnRuns"
+import {useAgentEntity} from "./useAgentEntity"
+import {useAgentVisibilityRecheck} from "./useAgentVisibilityRecheck"
+import {useApprovalActions} from "./useApprovalActions"
+import {useChatAccess} from "./useChatAccess"
+import {useLeaveHeldTask} from "./useLeaveHeldTask"
+import {useReferenceToolDisplays} from "./useReferenceToolDisplays"
+import {useSessionTranscript} from "./useSessionTranscript"
+import {useSessionWatch} from "./useSessionWatch"
+import {useTranscriptAutoScroll} from "./useTranscriptAutoScroll"
+import {watchAwarePollMs} from "./watchRelay"
+
+/**
+ * The chat screen router — mount it with `key={sessionId}` so per-session state resets.
+ *
+ * Once the session's agent resolves (owning workflow → latest revision), the LIVE screen mounts:
+ * the shared conversation engine with sending, streaming, and engine-routed approvals. Until it
+ * resolves — or for a session with no turns (nothing to invoke) — the read-only replay below
+ * keeps working exactly as before.
+ */
+export const ChatScreen = ({
+    sessionId,
+    projectId,
+    workspaceId,
+    agentId,
+}: {
+    sessionId: string
+    projectId: string
+    workspaceId: string
+    /** Route-supplied agent for a session with no turns yet (started from Home's composer). */
+    agentId?: string
+}) => {
+    // Every @agenta/* entity query gates on the shared session+project atoms; without this a
+    // DIRECT load of a session URL leaves the workflow molecule disabled — the engine still
+    // sends (the server uses the saved config), but config-derived UI (always-allow) never
+    // qualifies. Home/Sessions bind it too; chat must not depend on having visited them.
+    useBindProjectContext(projectId)
+    // Warm the transcript as soon as the route names the session, so it races the agent chain.
+    const boundProjectId = useAtomValue(projectIdAtom)
+    const prefetchRecords = useSetAtom(fetchSessionRecordsAtom)
+    useEffect(() => {
+        if (!sessionId || boundProjectId !== projectId) return
+        // A session minted here a moment ago has no records to read.
+        if (isSessionFresh(sessionId)) return
+        void prefetchRecords(sessionId).catch(() => undefined)
+    }, [boundProjectId, prefetchRecords, projectId, sessionId])
+    useLeaveHeldTask(sessionId, projectId)
+    // A session the server does not list yet names its agent only in the route, and the rail's
+    // link does not carry it. A first message waiting here names it too.
+    const taskAgentId = useAtomValue(pendingTasksAtom)[sessionId]?.agentId
+    const routeAgentId = agentId ?? taskAgentId
+    const {
+        entityId: latestEntityId,
+        agentId: resolvedAgentId,
+        resolving,
+        refetchLatest,
+        unreachable,
+        agentHidden: entityAgentHidden,
+        retry,
+        retrying,
+    } = useAgentEntity(sessionId, projectId, routeAgentId)
+    const access = useChatAccess({
+        sessionId,
+        projectId,
+        routeAgentId,
+        agentHidden: entityAgentHidden,
+    })
+    // An agent made private while this screen is open: the session row read says so (one
+    // request per recheck). Only a row that names no workflow re-reads the agent's revision.
+    useAgentVisibilityRecheck({
+        checkedAt: access.checkedAt,
+        enabled: Boolean(resolvedAgentId) && access.rowAgentHidden === null,
+        refetch: refetchLatest,
+    })
+    // Shared again after it was hidden: read the agent's revision once to show it again.
+    const rowHiddenBefore = useRef(access.rowAgentHidden)
+    useEffect(() => {
+        const before = rowHiddenBefore.current
+        rowHiddenBefore.current = access.rowAgentHidden
+        if (before === true && access.rowAgentHidden === false) void refetchLatest()
+    }, [access.rowAgentHidden, refetchLatest])
+    const agentHidden = access.agentHidden
+    // A revision picked in the top bar pins the workspace to it — config AND the conversation's
+    // invocation target, as on the desktop.
+    const [pinnedRevisionId, pinRevision] = useAtom(selectedRevisionAtomFamily(sessionId))
+    const setHeldCommit = useSetAtom(heldCommitAtomFamily(sessionId))
+    // A hidden agent shows no configuration at all: no revision of it is held, pinned or mounted,
+    // and one this screen pinned while the agent was visible goes when access to it does.
+    const entityId = agentHidden ? null : (pinnedRevisionId ?? latestEntityId)
+    useEffect(() => {
+        if (!agentHidden) return
+        pinRevision(null)
+        setHeldCommit(null)
+    }, [agentHidden, pinRevision, setHeldCommit])
+    // A session starts pinned to the server's latest at the moment it opens. After that it moves
+    // only to a version the agent commits in this session (`LiveConversation` follows it); a
+    // version made elsewhere is offered by the top bar instead.
+    const hasAgent = Boolean(latestEntityId)
+    useEffect(() => {
+        if (pinnedRevisionId || !hasAgent) return
+        let live = true
+        void refetchLatest().then(({data, status}) => {
+            if (live && status === "success" && data?.revisionId) pinRevision(data.revisionId)
+        })
+        return () => {
+            live = false
+        }
+    }, [sessionId, pinnedRevisionId, hasAgent, refetchLatest, pinRevision])
+    // Switching sessions re-runs the agent query, and for the moment it is pending `entityId` is
+    // null and `resolving` is true. Blanking on that turned every switch into a teardown: the
+    // config pane unmounted, the chat became a spinner, and the workspace visibly rebuilt to
+    // change which transcript is on screen. Hold the last resolved revision across the gap so the
+    // frame stays put; the transcript itself is keyed by sessionId and swaps immediately.
+    const lastEntityIdRef = useRef<string | null>(null)
+    if (entityId) lastEntityIdRef.current = entityId
+    // Held only across a pending switch: a session that failed to load must not borrow the last
+    // one, and neither may a session whose agent the reader cannot see.
+    if (unreachable || agentHidden) lastEntityIdRef.current = null
+    const heldEntityId = entityId ?? lastEntityIdRef.current
+    // Held for the same gap: a blink to null re-scopes the files pane and the tab rail (#6542, #6544).
+    const lastAgentIdRef = useRef<string | null>(null)
+    if (resolvedAgentId) lastAgentIdRef.current = resolvedAgentId
+    if (unreachable) lastAgentIdRef.current = null
+    const heldAgentId = resolvedAgentId ?? lastAgentIdRef.current
+    useReferenceToolDisplays(heldEntityId)
+    // Only a FIRST load has nothing to hold — that is the one time a spinner is honest.
+    const showLoading = resolving && !heldEntityId
+    const liveness = useLivenessPoll(projectId)
+    const liveStream = liveness.data?.find((s) => s.session_id === sessionId)
+    const running = Boolean(liveStream?.flags?.is_running)
+    const sharedReader = Boolean(liveStream?.capabilities?.shared_reader)
+    // The conversation is ALWAYS mounted — the mode only decides what sits beside it (and, on a
+    // narrow frame, which of the two is on screen). Unmounting it on a mode flip would drop a
+    // streaming turn.
+    // Until the agent query settles, `entityId` is null for an agent-backed session too — so
+    // committing to the replay branch here would tell the user the session is read-only when it
+    // is not. `resolving` is query-PENDING, not fetching: a cached answer renders immediately.
+    const chat = access.blocked ? (
+        <ChatNoAccess
+            kind={access.blocked}
+            sessionsHref={`/w/${workspaceId}/p/${projectId}/sessions`}
+        />
+    ) : showLoading ? (
+        <ChatLoading />
+    ) : unreachable ? (
+        <ChatUnreachable onRetry={retry} retrying={retrying} />
+    ) : heldEntityId ? (
+        <LiveConversation
+            // Per SESSION only — see `conversationKey`. Keying it here and not the page keeps the
+            // shell, the split and the config pane mounted while the transcript is rebuilt.
+            key={conversationKey({sessionId, revisionId: heldEntityId})}
+            embedded
+            entityId={heldEntityId}
+            sessionId={sessionId}
+            projectId={projectId}
+            workspaceId={workspaceId}
+            running={running}
+            stopStateLoading={liveness.isLoading}
+            sessionTurnId={liveStream?.turn_id}
+            stoppingTurnId={liveStream?.stopping_turn_id}
+            sharedReader={sharedReader}
+            agentId={heldAgentId}
+            readOnly={access.readOnly}
+            canSend={access.canSend}
+        />
+    ) : (
+        <ReplayScreen
+            embedded
+            sessionId={sessionId}
+            projectId={projectId}
+            workspaceId={workspaceId}
+            running={running}
+            agentId={heldAgentId}
+            readOnly={access.readOnly}
+            canSend={access.canSend}
+        />
+    )
+
+    return (
+        <SessionWorkspace
+            // Held, not raw: the config pane keys off this, and letting it blink to null mid-switch
+            // is what unmounted the pane.
+            entityId={heldEntityId}
+            agentId={heldAgentId}
+            agentResolving={resolving}
+            linkEntityId={entityId}
+            linkAgentId={resolvedAgentId}
+            agentHidden={agentHidden}
+            canSend={access.canSend}
+            sessionId={sessionId}
+            workspaceId={workspaceId}
+            projectId={projectId}
+            chat={chat}
+            deepLinks
+        />
+    )
+}
+
+/** The original read-only replay (records poll + watch relay + detached approvals). */
+const ReplayScreen = ({
+    sessionId,
+    projectId,
+    workspaceId,
+    running,
+    agentId,
+    readOnly = null,
+    canSend = true,
+    embedded = false,
+}: {
+    sessionId: string
+    projectId: string
+    workspaceId: string
+    running: boolean
+    /** Scopes the session tab rail to this agent's sessions. */
+    agentId?: string | null
+    /** Why the reader cannot send, when the reason is sharing (a private agent, a Viewer). */
+    readOnly?: SessionReadOnly | null
+    /** False until the reader is known to be allowed to answer: the approval card answers nothing. */
+    canSend?: boolean
+    /** Rendered inside a workspace pane — the shell belongs to the parent. */
+    embedded?: boolean
+}) => {
+    // Tightened records cadence only while this foregrounded screen shows a running or pending
+    // turn; derived from the previous render's messages, so it settles one render behind.
+    const [pollMs, setPollMs] = useState(0)
+    const {messages, state, refresh, retry, interactionChanged} = useSessionTranscript(
+        sessionId,
+        pollMs,
+    )
+    // Live relay (M3): push-invalidate through the same tick body; while it is open the
+    // poll below is only a safety net.
+    const watch = useSessionWatch({
+        sessionId,
+        projectId,
+        onRecordsChanged: refresh,
+        onInteractionChanged: interactionChanged,
+    })
+    const pendingApprovals = useMemo(() => getPendingApprovals(messages), [messages])
+    const pendingCount = pendingApprovals.length
+    const pendingApprovalIds = useMemo(
+        () => pendingApprovals.map((approval) => approval.approvalId),
+        [pendingApprovals],
+    )
+    const approvals = useApprovalActions({sessionId, projectId, pendingApprovalIds})
+    // ~4s while a fired decision settles (fire-and-forget — records carry the resume).
+    const basePollMs =
+        approvals.phase === "resuming" ? 4_000 : pendingCount > 0 || running ? 7_500 : 0
+    const nextPollMs = watchAwarePollMs(basePollMs, watch.connected)
+    if (nextPollMs !== pollMs) setPollMs(nextPollMs)
+    // One identity cache per session — the dep does that, and must, since the screen is no longer
+    // remounted per session.
+
+    // Both factories take no argument, so the linter reads `sessionId` as unused. It is the point:
+    // the dep is what discards the previous session's cache on a screen that never remounts.
+
+    const executedFor = useMemo(() => createExecutedToolIdentityCache(), [sessionId])
+    // Without this every view model is a fresh object per poll, so TurnRow's memo never hits.
+
+    const turnCache = useMemo(() => createTurnViewModelCache(), [sessionId])
+    const turns = useMemo(
+        () => buildTurnViewModels(messages, {busy: false, executedFor, cache: turnCache}),
+        [messages, executedFor, turnCache],
+    )
+    const visibleTurns = useMemo(
+        () => mergeAssistantRuns(turns.filter((turn) => !turn.hidden)),
+        [turns],
+    )
+    // Keyed on `turns` (new array per poll) so streamed growth also re-pins.
+    const autoScroll = useTranscriptAutoScroll(turns, sessionId)
+
+    let body
+    if (state === "loading") {
+        body = <ChatLoading />
+    } else if (state === "empty") {
+        body = <ChatEmpty />
+    } else if (state === "failed") {
+        body = <ChatUnreachable onRetry={retry} retrying={false} />
+    } else {
+        body = (
+            <ContentRail className="flex grow flex-col gap-3 p-4 pt-6 pb-[calc(1rem+env(safe-area-inset-bottom))]">
+                <TranscriptTurns
+                    turns={visibleTurns}
+                    sessionId={sessionId}
+                    remoteRunning={running}
+                    waitingOnUser={pendingCount > 0}
+                    pending={running && !!visibleTurns[visibleTurns.length - 1]?.isUser}
+                />
+            </ContentRail>
+        )
+    }
+
+    const scaffold = (
+        <ScreenScaffold
+            scrollRef={autoScroll.ref}
+            onScroll={autoScroll.onScroll}
+            // Same edge fades the live conversation wears.
+            scrollStyle={{maskImage: autoScroll.edgeMask, WebkitMaskImage: autoScroll.edgeMask}}
+            embedded={embedded}
+            header={
+                <>
+                    {/* Why there is no composer. The session may still name an agent (the link
+                        carries it) and only be missing a revision — don't claim it has none. */}
+                    {readOnly ? null : (
+                        <p className="text-muted-foreground border-colorBorderSecondary m-0 shrink-0 border-x-0 border-t-0 border-b border-solid px-4 py-1.5 text-xs">
+                            {agentId
+                                ? "Read-only — this agent has no revision to message yet."
+                                : "Read-only — this session has no agent to message yet."}
+                        </p>
+                    )}
+                    {running ? (
+                        <div className="border-border shrink-0 border-b px-4 py-2">
+                            <ContentRail className="flex items-center justify-between">
+                                <StatusTag tone="running" dot>
+                                    running
+                                </StatusTag>
+                            </ContentRail>
+                        </div>
+                    ) : null}
+                </>
+            }
+            // Only a rendering dock counts as a footer — it owns the safe-area inset, and
+            // ApprovalDock renders nothing when no gate is pending.
+            footer={
+                readOnly ? (
+                    // A sharing reason has its notice in the composer's place, under any gate.
+                    <>
+                        <ApprovalDock
+                            approvals={pendingApprovals}
+                            actions={approvals}
+                            bottomMost={false}
+                            readOnly
+                            readOnlyNote={readOnly.approvalNote}
+                        />
+                        <ReadOnlyComposerNotice text={readOnly.notice} />
+                    </>
+                ) : pendingApprovals.length > 0 ? (
+                    <ApprovalDock
+                        approvals={pendingApprovals}
+                        actions={approvals}
+                        readOnly={!canSend}
+                    />
+                ) : undefined
+            }
+        >
+            {body}
+        </ScreenScaffold>
+    )
+
+    return embedded ? (
+        scaffold
+    ) : (
+        <AppShell workspaceId={workspaceId} projectId={projectId}>
+            {scaffold}
+        </AppShell>
+    )
+}

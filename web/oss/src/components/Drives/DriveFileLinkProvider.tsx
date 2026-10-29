@@ -10,11 +10,10 @@
  */
 import {useEffect} from "react"
 
+import {chatFileResolver} from "@agenta/entity-ui/drive"
 import {useSetAtom} from "jotai"
 
 import {chatFileLinkAtomFamily} from "@/oss/components/AgentChatSlice/state/fileLinks"
-
-import {chatFileResolver} from "./chatFileRefs"
 
 export function DriveFileLinkProvider({
     sessionId,

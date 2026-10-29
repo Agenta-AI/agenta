@@ -28,14 +28,37 @@ export {
 } from "./inspectMeta"
 
 // ============================================================================
+// RUNNER SUBSCRIPTION STATUS (live per-harness login state)
+// ============================================================================
+
+export {
+    subscriptionStatusKey,
+    subscriptionStatusQueryAtomFamily,
+    SUBSCRIPTION_STATUS_QUERY_HARNESS,
+    resolveSubscriptionStatus,
+    type SubscriptionStatusDisplay,
+    type SubscriptionStatusTone,
+} from "./subscriptionStatus"
+
+export {
+    agentModelCandidatesAtomFamily,
+    builtinModelEndpointsQueryAtom,
+    loadAgentModelCandidates,
+    resolveAgentModelCandidateSources,
+    type AgentModelCandidatesState,
+} from "./agentModelCandidates"
+
+// ============================================================================
 // HELPERS
 // ============================================================================
 
 export {
+    agentFlagsQueryOptions,
     deriveWorkflowTypeFromRevision,
-    fetchAndClassifyWorkflows,
-    filterAgentWorkflows,
-    filterNonAgentWorkflows,
+    ensureAgentFlags,
+    selectAgentWorkflows,
+    selectNonAgentWorkflows,
+    withAgentFlags,
 } from "./helpers"
 
 // ============================================================================
@@ -52,6 +75,8 @@ export {
     appWorkflowsListQueryStateAtom,
     promptWorkflowsListQueryStateAtom,
     agentWorkflowsListQueryStateAtom,
+    appWorkflowsAgentFlagsQueryAtom,
+    appWorkflowsWithAgentFlagsAtom,
     // Single workflow artifact by id (current-workflow resolution without listing all)
     workflowDetailQueryAtomFamily,
     // Variant/Revision list queries (for 3-level hierarchy)
@@ -74,12 +99,22 @@ export {
     workflowIsDirtyAtomFamily,
     workflowIsEphemeralAtomFamily,
     workflowAgentTemplateOverlayAtomFamily,
+    workflowBuildKitUiStateAtomFamily,
+    agentaToolsAccessAtom,
+    workflowBuildKitScopeAtomFamily,
+    migrateBuildKitStateAtom,
     workflowBuildKitEnabledAtomFamily,
+    workflowBuildKitDisabledOpsAtomFamily,
+    type BuildKitUiState,
     workflowBuildKitOverlayReadyAtomFamily,
     type AgentTemplate,
     // Mutations
     updateWorkflowDraftAtom,
+    registerWorkflowDraftCallbacks,
+    clearWorkflowDraftCallbacks,
+    type WorkflowDraftCallbacks,
     discardWorkflowDraftAtom,
+    workflowDraftConsumedAtomFamily,
     // Cache invalidation
     invalidateWorkflowsListCache,
     invalidateWorkflowCache,
@@ -111,6 +146,18 @@ export {
 } from "./store"
 
 // Persisted agent-type map (cold-reload fallback for playgroundEarlyAgentStateAtom)
+// ============================================================================
+// AGENT ICON (per-agent glyph + colour, stored on the artifact's tags)
+// ============================================================================
+
+export {
+    agentIconAtomFamily,
+    readAgentIconTag,
+    withAgentIconTag,
+    type AgentIconRecord,
+    type AgentIconSetting,
+} from "./agentIcon"
+
 export {readPersistedAgentType} from "./persistedAgentType"
 
 // Union atoms (app + evaluator combined)
@@ -191,6 +238,23 @@ export {
     clearWorkflowArchiveCallbacks,
 } from "./commit"
 
+export {
+    loadAgentTemplateFromEphemeralAtom,
+    abandonAgentTemplateLoad,
+    templateConnectionChoices,
+    type LoadAgentTemplateFromEphemeralParams,
+} from "./loadTemplate"
+export {
+    agentTemplatesQueryAtom,
+    agentTemplatesAtom,
+    agentTemplatesStatusAtom,
+    refetchAgentTemplatesAtom,
+    agentTemplateLookupAtomFamily,
+    type AgentTemplatesStatus,
+    type AgentTemplateLookup,
+} from "./agentTemplateCatalog"
+export {buildCreatePayloadFromEphemeral, type EphemeralCreatePayload} from "./createPayload"
+
 // ============================================================================
 // EVALUATOR UTILITIES (for evaluator-type workflows)
 // ============================================================================
@@ -200,9 +264,6 @@ export {
     evaluatorsListQueryAtom,
     evaluatorsListDataAtom,
     nonArchivedEvaluatorsAtom,
-    llmEvaluatorsAtom,
-    fullPagePlaygroundEvaluatorsAtom,
-    nonHumanEvaluatorsAtom,
     nonDeterministicEvaluatorsAtom,
     // Lazy enrichment gate (defers the per-evaluator latest-revision fan-out)
     evaluatorEnrichmentActivatedAtom,
@@ -275,3 +336,5 @@ export {
     ensureEnabledSandbox,
     type AgentCreationPrefs,
 } from "./agentCreationPrefs"
+
+export {agentRosterSearchAtom, matchesAgentQuery} from "./agentRoster"

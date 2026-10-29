@@ -1,18 +1,18 @@
 import type {Key} from "react"
 
-import type {ColumnsType} from "antd/es/table"
+import type {ColumnDefs} from "../columnDef"
 
 /**
  * Collects all column keys that have `fixed` property set
  */
 export const collectFixedColumnKeys = <RecordType extends object>(
-    columns: ColumnsType<RecordType>,
+    columns: ColumnDefs<RecordType>,
 ): string[] => {
     const keys = new Set<string>()
-    const visit = (cols: ColumnsType<RecordType>) => {
+    const visit = (cols: ColumnDefs<RecordType>) => {
         cols.forEach((column) => {
-            const typedColumn = column as ColumnsType<RecordType>[number] & {
-                children?: ColumnsType<RecordType>
+            const typedColumn = column as ColumnDefs<RecordType>[number] & {
+                children?: ColumnDefs<RecordType>
             }
             if (!typedColumn) return
             const columnKey = typedColumn.key
@@ -39,12 +39,12 @@ export const toColumnKey = (key: Key | undefined): string | null =>
  * Builds a map of parent column keys to their descendant leaf keys
  */
 export const buildColumnDescendantMap = <RecordType extends object>(
-    columns: ColumnsType<RecordType>,
+    columns: ColumnDefs<RecordType>,
 ): Map<string, string[]> => {
     const map = new Map<string, string[]>()
-    const gatherDescendants = (column: ColumnsType<RecordType>[number]): string[] => {
-        const typedColumn = column as ColumnsType<RecordType>[number] & {
-            children?: ColumnsType<RecordType>
+    const gatherDescendants = (column: ColumnDefs<RecordType>[number]): string[] => {
+        const typedColumn = column as ColumnDefs<RecordType>[number] & {
+            children?: ColumnDefs<RecordType>
         }
         if (!typedColumn) return []
         const key = toColumnKey(typedColumn.key)

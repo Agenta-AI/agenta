@@ -46,10 +46,11 @@ show_usage() {
     echo "  --no-cache              Build with --no-cache (requires --build)"
     echo ""
     echo "Web:"
-    echo "  --no-web                Alias for --web-mode none"
+    echo "  --no-web                Alias for --web-mode none; disables desktop and mobile web"
     echo "  --web-local             Alias for --web-mode local"
     echo "  --web-mode <mode>       Web mode: docker|local|none (default: docker)"
     echo "  --web-url <URL>         Override AGENTA_WEB_URL"
+    echo "  --with-mobile           Deprecated no-op: /m starts by default now."
     echo ""
     echo "Environment:"
     echo "  -e, --env <path>        Use explicit env file (otherwise stage default)"
@@ -253,6 +254,10 @@ while [[ "$#" -gt 0 ]]; do
         --no-tunnel)
             WITH_TUNNEL=false
             ;;
+        --with-mobile)
+            # Deprecated: /m is on by default. Kept so old commands and scripts still run.
+            :
+            ;;
         --no-local-overrides)
             LOCAL_OVERRIDES=false
             ;;
@@ -428,6 +433,27 @@ if [[ "$WEB_MODE" == "docker" ]]; then
     COMPOSE_CMD+=" --profile with-web"
 fi
 
+# The dev web container runs as uid 10001 and writes generated files into the public/ directories
+# that compose bind-mounts from this checkout: entrypoint.sh writes __env.js, and the OSS and EE
+# dev scripts write the pdfjs worker. A fresh clone leaves those directories mode 755 owned by the
+# host user, so uid 10001 cannot write and the container crash-loops in the entrypoint before
+# Next.js ever starts. Widen them here instead of making every contributor rediscover that. They
+# hold public static assets only, and the gh images bind-mount no source, so this is dev-only.
+if [[ "$IMAGE_MODE" == "dev" && "$WEB_MODE" == "docker" ]]; then
+    for _public_dir in ./web/oss/public ./web/ee/public ./web/mobile/public; do
+        [[ -d "$_public_dir" ]] || continue
+        chmod o+rwx "$_public_dir" 2>/dev/null ||
+            echo "Warning: could not make $_public_dir writable by the web container (uid 10001)." >&2
+        # An __env.js or worker left behind by a host-side `pnpm dev` is owned by the host user,
+        # and the container overwrites the file in place, so widen those two as well.
+        for _generated in "$_public_dir/__env.js" "$_public_dir/pdf.worker.min.mjs"; do
+            if [[ -f "$_generated" ]]; then
+                chmod o+rw "$_generated" 2>/dev/null || true
+            fi
+        done
+    done
+fi
+
 if $WITH_NGINX; then
     COMPOSE_CMD+=" --profile with-nginx"
 else
@@ -436,6 +462,23 @@ fi
 
 if $WITH_TUNNEL; then
     COMPOSE_CMD+=" --profile with-tunnel"
+fi
+
+# A backend-only run (--no-web / --web-mode none) starts neither web app. The `with-web`
+# profile already holds back the desktop app, but web-mobile has no profile: it is part of
+# every stack. Scaling it to 0 is not enough, because `pull` and `up` still fetch its image
+# (in dev that is the web dev image, which a backend-only run never builds). So name every
+# other service explicitly for `pull` and `up`. `build` and `down` keep the full model.
+declare -a STACK_SERVICES=()
+if [[ "$WEB_MODE" == "none" ]]; then
+    _all_services="$($COMPOSE_CMD config --services)" \
+        || error_exit "Failed to read compose services for the assembled file set."
+    while IFS= read -r _svc; do
+        if [[ -n "$_svc" && "$_svc" != "web-mobile" ]]; then
+            STACK_SERVICES+=("$_svc")
+        fi
+    done <<< "$_all_services"
+    echo "Backend-only run: leaving out web and web-mobile."
 fi
 
 # --------------------------------------------------------------------------------------------
@@ -516,7 +559,7 @@ elif $BUILD; then
 elif $PULL_ENABLED; then
     # Pull non-built images for all stages unless disabled
     echo "Pulling latest images..."
-    $COMPOSE_CMD pull --ignore-buildable || error_exit "Pull failed"
+    $COMPOSE_CMD pull --ignore-buildable ${STACK_SERVICES[@]+"${STACK_SERVICES[@]}"} || error_exit "Pull failed"
 fi
 
 # Shutdown with optional nuke
@@ -537,7 +580,7 @@ if $DOWN; then
 fi
 
 echo "Starting Docker containers with domain: $AGENTA_WEB_URL ..."
-AGENTA_WEB_URL="$AGENTA_WEB_URL" $COMPOSE_CMD up -d --remove-orphans || error_exit "Failed to start Docker containers."
+AGENTA_WEB_URL="$AGENTA_WEB_URL" $COMPOSE_CMD up -d --remove-orphans ${STACK_SERVICES[@]+"${STACK_SERVICES[@]}"} || error_exit "Failed to start Docker containers."
 
 echo "✅ Setup complete!"
 

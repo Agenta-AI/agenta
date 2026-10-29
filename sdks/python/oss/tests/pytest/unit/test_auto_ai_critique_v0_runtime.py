@@ -11,7 +11,6 @@ Covers:
 - existing result normalization (numeric, boolean, dict, raw text) is unchanged.
 """
 
-from contextlib import contextmanager
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
@@ -36,11 +35,6 @@ def _fake_completion_response(content: str) -> SimpleNamespace:
     message = SimpleNamespace(content=content)
     choice = SimpleNamespace(message=message)
     return SimpleNamespace(choices=[choice])
-
-
-@contextmanager
-def _noop_aws_credentials(_provider_settings):
-    yield
 
 
 @pytest.fixture
@@ -77,15 +71,9 @@ def mocked_llm_call(initialized_sdk):
             "acompletion",
             side_effect=_fake_acompletion,
         ) as mock_acompletion,
-        patch.object(
-            critique_handlers.mockllm,
-            "user_aws_credentials_from",
-            side_effect=_noop_aws_credentials,
-        ) as mock_creds,
     ):
         yield SimpleNamespace(
             acompletion=mock_acompletion,
-            user_aws_credentials_from=mock_creds,
             captured=captured,
         )
 
@@ -151,7 +139,7 @@ async def test_uses_workflow_secret_resolution_for_standard_model(
     )
 
     mocked_secrets.ensure.assert_awaited_once()
-    mocked_secrets.get_settings.assert_called_once_with("gpt-4o-mini")
+    mocked_secrets.get_settings.assert_called_once_with("gpt-4o-mini", connection=None)
 
     kwargs = mocked_llm_call.captured["kwargs"]
     assert kwargs["model"] == "gpt-4o-mini"
@@ -183,7 +171,9 @@ async def test_resolves_custom_provider_model_settings(mocked_secrets, mocked_ll
         outputs="o",
     )
 
-    mocked_secrets.get_settings.assert_called_once_with("my-self-hosted-claude")
+    mocked_secrets.get_settings.assert_called_once_with(
+        "my-self-hosted-claude", connection=None
+    )
 
     kwargs = mocked_llm_call.captured["kwargs"]
     # The compatible model resolved from provider_settings is used, not the raw

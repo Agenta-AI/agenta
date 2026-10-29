@@ -2,10 +2,11 @@
 
 This package holds the implementations that reach the Agenta backend over HTTP: the
 :class:`PlatformConnection` (base URL + per-call auth), the gateway tool resolver, the
-named-secret provider, and the provider-key fetch, plus the three resolution entrypoints
-(:func:`resolve_tools`, :func:`resolve_mcp`, :func:`resolve_secrets`). The pure resolution
+named-secret provider, and the connection resolver, plus the resolution entrypoints
+(:func:`resolve_tools`, :func:`resolve_mcp`, :func:`resolve_connection`). The pure resolution
 framework and the neutral models stay in ``agenta.sdk.agents.tools``; only the platform-bound
-code lives here.
+code lives here. ``resolve_secrets`` remains as a deprecated compatibility alias for
+``resolve_connection`` during the migration window.
 
 Kept out of ``agenta.sdk.agents.__init__`` eager exports on purpose: these modules reach
 into ``agenta``/the SDK singleton, so importing them lazily (``from agenta.sdk.agents.platform
@@ -15,7 +16,7 @@ import ...``) avoids re-entering ``agenta``'s own import.
 from .connection import PlatformConnection, default_timeout
 from .connections import VaultConnectionResolver
 from .gateway import AgentaGatewayToolResolver
-from .op_catalog import PLATFORM_OPS, PlatformOp, get_platform_op
+from .op_catalog import CHANNEL_TOOL_OPS, PLATFORM_OPS, PlatformOp, get_platform_op
 from .platform_tools import AgentaPlatformToolResolver
 from .resolve import resolve_connection, resolve_mcp, resolve_secrets, resolve_tools
 from .secrets import (
@@ -23,23 +24,36 @@ from .secrets import (
     resolve_named_secrets,
     resolve_provider_keys,
 )
+from .channel_tools import read_channel_tools
+from .session_context import (
+    read_session_context,
+    resolve_session_context,
+    run_optional,
+    session_context_timeout,
+)
 from .workflow import AgentaWorkflowToolResolver
 
 __all__ = [
-    "PlatformConnection",
-    "default_timeout",
-    "AgentaGatewayToolResolver",
-    "AgentaWorkflowToolResolver",
-    "AgentaPlatformToolResolver",
-    "AgentaNamedSecretProvider",
-    "VaultConnectionResolver",
-    "PlatformOp",
+    "read_channel_tools",
+    "CHANNEL_TOOL_OPS",
     "PLATFORM_OPS",
+    "AgentaGatewayToolResolver",
+    "AgentaNamedSecretProvider",
+    "AgentaPlatformToolResolver",
+    "AgentaWorkflowToolResolver",
+    "PlatformConnection",
+    "PlatformOp",
+    "VaultConnectionResolver",
+    "default_timeout",
     "get_platform_op",
+    "read_session_context",
+    "resolve_connection",
+    "resolve_mcp",
     "resolve_named_secrets",
     "resolve_provider_keys",
-    "resolve_tools",
-    "resolve_mcp",
     "resolve_secrets",
-    "resolve_connection",
+    "resolve_session_context",
+    "resolve_tools",
+    "run_optional",
+    "session_context_timeout",
 ]

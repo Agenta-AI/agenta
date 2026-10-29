@@ -21,13 +21,13 @@
  * }
  *
  * // In any component
- * import { useEntityActionDispatch, commitAction } from '@agenta/entity-ui'
+ * import { useEntityActionDispatch } from '@agenta/entity-ui'
  *
  * function MyComponent() {
  *   const dispatch = useEntityActionDispatch()
  *
  *   return (
- *     <Button onClick={() => dispatch(commitAction({type: 'revision', id, name}))}>
+ *     <Button onClick={() => dispatch({type: 'commit', entity: {type: 'revision', id, name}})}>
  *       Commit
  *     </Button>
  *   )

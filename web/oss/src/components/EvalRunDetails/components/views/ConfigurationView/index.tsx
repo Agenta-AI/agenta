@@ -2,7 +2,7 @@ import {memo, useMemo, useState} from "react"
 
 import {Segmented, Typography} from "antd"
 import {atom, useAtomValue} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 import {compareRunIdsAtom, getComparisonColor} from "../../../atoms/compare"
 import {
@@ -389,7 +389,7 @@ const V2CompareColumn = memo(
         const isBase = index === 0
         const comparisonColor = getComparisonColor(index)
         const swatchColor = isBase
-            ? "#1c2c3d"
+            ? "var(--ag-colorText)"
             : comparisonColor !== "transparent"
               ? comparisonColor
               : "#2f54eb"

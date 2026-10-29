@@ -1,9 +1,10 @@
 import {useMemo} from "react"
 
 import {Rows} from "@phosphor-icons/react"
-import type {MenuProps} from "antd"
-import {atom, useAtom, useAtomValue} from "jotai"
+import {useAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
+
+import type {TableMenuItem} from "../tableMenu"
 
 /**
  * Row height size options
@@ -57,36 +58,6 @@ export function createRowHeightAtom(storageKey: string, defaultSize: RowHeightSi
 }
 
 /**
- * Creates a derived atom that returns the pixel height for the current size
- * @param sizeAtom - The row height size atom
- * @param config - Row height configuration with size definitions
- */
-export function createRowHeightPxAtom(
-    sizeAtom: ReturnType<typeof createRowHeightAtom>,
-    config: RowHeightConfig["sizes"],
-) {
-    return atom((get) => {
-        const size = get(sizeAtom)
-        return config[size].height
-    })
-}
-
-/**
- * Creates a derived atom that returns the max lines for the current size
- * @param sizeAtom - The row height size atom
- * @param config - Row height configuration with size definitions
- */
-export function createRowHeightMaxLinesAtom(
-    sizeAtom: ReturnType<typeof createRowHeightAtom>,
-    config: RowHeightConfig["sizes"],
-) {
-    return atom((get) => {
-        const size = get(sizeAtom)
-        return config[size].maxLines ?? 10
-    })
-}
-
-/**
  * Return type for useRowHeight hook
  */
 export interface UseRowHeightResult {
@@ -99,7 +70,7 @@ export interface UseRowHeightResult {
     /** Max lines to show in cells */
     maxLines: number
     /** Menu items for the settings dropdown */
-    menuItems: MenuProps["items"]
+    menuItems: TableMenuItem[]
 }
 
 /**
@@ -137,7 +108,7 @@ export function useRowHeight(
     const heightPx = useMemo(() => config.sizes[size].height, [config.sizes, size])
     const maxLines = useMemo(() => config.sizes[size].maxLines ?? 10, [config.sizes, size])
 
-    const menuItems = useMemo<MenuProps["items"]>(() => {
+    const menuItems = useMemo<TableMenuItem[]>(() => {
         const sizes: RowHeightSize[] = ["small", "medium", "large"]
         return [
             {
@@ -146,9 +117,13 @@ export function useRowHeight(
                 icon: <Rows size={16} />,
                 children: sizes.map((s) => ({
                     key: `row-height-${s}`,
-                    label: config.sizes[s].label,
+                    // The selected size reads as bold, the way antd's inline style did.
+                    label: (
+                        <span className={size === s ? "font-semibold" : undefined}>
+                            {config.sizes[s].label}
+                        </span>
+                    ),
                     onClick: () => setSize(s),
-                    style: size === s ? {fontWeight: 600} : undefined,
                 })),
             },
         ]
@@ -161,27 +136,4 @@ export function useRowHeight(
         maxLines,
         menuItems,
     }
-}
-
-/**
- * Simplified hook when you only need to read the row height values (not set them)
- * Useful in child components that just need the current height/maxLines
- *
- * @param sizeAtom - Persisted atom for row height size
- * @param config - Row height configuration (just the sizes)
- */
-export function useRowHeightValue(
-    sizeAtom: ReturnType<typeof createRowHeightAtom>,
-    config: RowHeightConfig["sizes"],
-) {
-    const size = useAtomValue(sizeAtom)
-
-    return useMemo(
-        () => ({
-            size,
-            heightPx: config[size].height,
-            maxLines: config[size].maxLines ?? 10,
-        }),
-        [size, config],
-    )
 }

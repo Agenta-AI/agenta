@@ -1,6 +1,6 @@
 import {useEffect, useState} from "react"
 
-import {CHAT_COLUMN} from "../assets/conversationLayout"
+import {CHAT_COLUMN} from "@agenta/chat/assets"
 
 /**
  * One message row. Carries `data-mid` (load-bearing for the pin / anchor / ResizeObserver, which all

@@ -30,6 +30,7 @@ from qa_matrix_lib import (  # noqa: E402
     agent_config,
     approval_reply,
     archive,
+    check_no_silent_turn,
     create_workflow,
     invoke,
     latest_revision,
@@ -156,13 +157,21 @@ def w4():
             b_skill.get("body")
         )
 
-        core_ok = conflict_seen and a_edit_present and b_edit_present
+        # Settlement here only checks that no approval is pending, which a turn that
+        # produced nothing also satisfies (ASD-EST100).
+        silent = check_no_silent_turn(turns_a + turns_b)
+        core_ok = (
+            conflict_seen
+            and a_edit_present
+            and b_edit_present
+            and not silent["violations"]
+        )
         return {
             "status": "PASS" if core_ok else "FAIL",
             "why": (
                 f"conflict_seen={conflict_seen} (execute-time base check caught the staleness "
                 f"under a pending approval), a_edit_present={a_edit_present}, "
-                f"b_edit_present={b_edit_present}. NOTE: A's recovery was explicitly coached "
+                f"b_edit_present={b_edit_present}, silent_turns={silent['violations']}. NOTE: A's recovery was explicitly coached "
                 f"(runner error-detail bug in effect)."
             ),
             "workflow_id": wf,

@@ -1420,6 +1420,8 @@ class TestsetsRouter:
             include_archived=testset_revision_query_request.include_archived,
             include_testcases=testset_revision_query_request.include_testcases,
             #
+            grouping=testset_revision_query_request.grouping,
+            #
             windowing=testset_revision_query_request.windowing,
         )
 

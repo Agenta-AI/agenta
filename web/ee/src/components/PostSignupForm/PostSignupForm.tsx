@@ -1,5 +1,6 @@
 import {useCallback, useMemo, useState} from "react"
 
+import type {Org} from "@agenta/entities/organization"
 import type {User} from "@agenta/shared/types"
 import {ArrowRight} from "@phosphor-icons/react"
 import {Button, Checkbox, Form, Input, Radio, Rate, Space, Typography} from "antd"
@@ -13,7 +14,6 @@ import {
 } from "posthog-js"
 import {flushSync} from "react-dom"
 
-import type {Org} from "@/oss/lib/Types"
 import {
     buildPostLoginPathResolved,
     waitForWorkspaceContext,
@@ -22,9 +22,14 @@ import {
 import PostSignupHeader from "./PostSignupHeader"
 import PostSignupSubmitting from "./PostSignupSubmitting"
 
-const mainContainerClass = "w-[400px] mx-auto h-[82vh] flex flex-col justify-between"
+const mainContainerClass = "w-[400px] mx-auto flex flex-col gap-4 pb-12"
+// The card paints its own surface from the same antd token layer that colors its
+// text, so background and foreground can never resolve to different themes. With
+// no background of its own it took the page color, which left no visible card
+// edge and made the text unreadable whenever the page surface and the antd
+// tokens disagreed.
 const containerClass =
-    "p-6 grid gap-8 rounded-lg shadow-[0px_9px_28px_8px_#0000000D,0px_3px_6px_-4px_#0000001F,0px_6px_16px_0px_#00000014] border border-colorBorder"
+    "p-6 grid gap-8 rounded-lg bg-[var(--ant-color-bg-elevated)] border border-solid border-[var(--ant-color-border-secondary)] shadow-[var(--ant-box-shadow)]"
 const formItemClass = "gap-2 [&>.ant-form-item-row>.ant-form-item-label]:font-medium"
 
 // Fisher-Yates shuffle algorithm
@@ -35,22 +40,6 @@ const shuffleArray = <T,>(array: T[]): T[] => {
         ;[shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]]
     }
     return shuffled
-}
-
-const calculateICP = (
-    companySize?: string,
-    userRole?: string,
-    agentExperience?: string,
-): boolean => {
-    if (!companySize || !userRole || !agentExperience) {
-        return false
-    }
-
-    const isTargetCompanySize = ["11-50", "51-200", "201+"].includes(companySize)
-    const isNotHobbyist = userRole !== "Hobbyist — personal projects"
-    const isNotJustExploring = agentExperience !== "Not yet — just exploring"
-
-    return isTargetCompanySize && isNotHobbyist && isNotJustExploring
 }
 
 // Exact PostHog choice strings -> $set boolean property names.
@@ -113,7 +102,7 @@ const QUESTION_KIND_KEYWORD_MATCHERS: {
         matches: (q) => /built ai agents|automations before/i.test(q.question),
     },
     {kind: "intent", matches: (q) => /want to do with agenta/i.test(q.question)},
-    {kind: "referral", matches: (q) => /hear about us/i.test(q.question)},
+    {kind: "referral", matches: (q) => /hear about (us|agenta)/i.test(q.question)},
     {
         kind: "email",
         matches: (q) => q.type === SurveyQuestionType.Open && /email/i.test(q.question),
@@ -192,6 +181,9 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
 
                 const responses: Record<string, unknown> = {}
                 const personProperties: Record<string, any> = {}
+                // Role and size belong to the onboarding. The survey only fills them in for
+                // someone who has not answered there, so it never replaces that answer.
+                const firstAnswers: Record<string, any> = {}
 
                 allQuestions.forEach(({question, index, kind}) => {
                     const key = `$survey_response_${question.id}`
@@ -225,12 +217,12 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
 
                     switch (kind) {
                         case "companySize":
-                            personProperties.company_size_v2 = Array.isArray(answer)
+                            firstAnswers.company_size_v2 = Array.isArray(answer)
                                 ? answer[0]
                                 : answer
                             break
                         case "role":
-                            personProperties.user_role_v2 = answer
+                            firstAnswers.user_role_v2 = answer
                             break
                         case "experience":
                             personProperties.agent_experience_v2 = answer
@@ -241,23 +233,21 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
                                 convertIntentsToBinaryProperties(answer),
                             )
                             break
+                        // Referral is a multi-select list here and a single onboarding chip in
+                        // `referral_source_v2`, so it stays on the `survey sent` event only.
                         case "referral":
-                            personProperties.referral_source_v2 = answer
                             break
                     }
                 })
 
-                personProperties.is_icp_v2 = calculateICP(
-                    personProperties.company_size_v2,
-                    personProperties.user_role_v2,
-                    personProperties.agent_experience_v2,
-                )
-
+                // No `is_icp_v2` here: its inputs come from two surfaces, so reporting derives it.
+                // See docs/design/onboarding-revamp/questions-and-survey-parity.md.
                 posthog.capture("survey sent", {
                     $survey_id: survey.id,
                     $survey_name: survey.name,
                     ...responses,
                     $set: personProperties,
+                    $set_once: firstAnswers,
                 })
             } catch (error) {
                 console.error("Error submitting survey:", error)
@@ -495,7 +485,7 @@ const PostSignupForm = ({survey, user, orgs, posthog}: PostSignupFormProps) => {
                     size="large"
                     type="primary"
                     onClick={isLastStep ? form.submit : handleNextStep}
-                    className="w-full min-h-[32px] mt-2"
+                    className="w-full min-h-[32px]"
                     iconPlacement="end"
                     icon={<ArrowRight className="mt-[3px]" />}
                     disabled={!isCurrentStepValid}

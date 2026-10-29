@@ -1,0 +1,73 @@
+export {ApprovalCard, type ApprovalCardProps} from "./ApprovalCard"
+export {ChatComposer, type ChatComposerProps} from "./ChatComposer"
+export {default as ComposerAttachments} from "./ComposerAttachments"
+export {default as ComposerQuotes} from "./ComposerQuotes"
+export {default as ComposerRejections, type ComposerRejectionsProps} from "./ComposerRejections"
+export {
+    default as RunFailureCallout,
+    type RunFailureCalloutProps,
+    // The failure classes the callout recognises, so a host can enumerate what it must offer an
+    // escape for rather than keeping a second list that drifts.
+    BUY_CREDITS_CODES,
+    NOT_SENT_CODES,
+    OWN_KEY_CODES,
+    PLAN_LIMIT_TITLES,
+    planLimitTitle,
+    REFUSAL_TITLES,
+    refusalTitle,
+    RETRYABLE_CODES,
+    STARTER_CREDIT_CODES,
+    SUBSCRIPTION_LOGIN_CODES,
+} from "./RunFailureCallout"
+export {
+    default as AttachmentCard,
+    type AttachmentCardProps,
+    type AttachmentCardState,
+    type AttachmentCardAction,
+} from "./AttachmentCard"
+export {default as AttachmentCardGrid, type AttachmentCardGridProps} from "./AttachmentCardGrid"
+export {
+    default as AttachmentStrip,
+    type AttachmentStripFile,
+    type AttachmentStripProps,
+} from "./AttachmentStrip"
+export {
+    default as AttachmentDropOverlay,
+    type AttachmentDropOverlayProps,
+} from "./AttachmentDropOverlay"
+export {default as RevealCollapse} from "./RevealCollapse"
+export {
+    CollapsibleMessageBody,
+    COLLAPSED_MESSAGE_MAX_PX,
+    type CollapsibleMessageBodyProps,
+} from "./CollapsibleMessageBody"
+export {default as MicPermissionNotice} from "./MicPermissionNotice"
+export {default as VoiceInputButton} from "./VoiceInputButton"
+export {default as RecordingBar} from "./RecordingBar"
+export {default as RecordingWaveform} from "./RecordingWaveform"
+export {ToolIOBlock, type ToolIOBlockProps} from "./ToolIOBlock"
+export {TurnFooter} from "./TurnFooter"
+export {TurnMetrics} from "./TurnMetrics"
+export {TurnTimestamp} from "./TurnTimestamp"
+export {ConnectionWarningStrip} from "./ConnectionWarningStrip"
+export {McpServerNoticeCard, type McpServerNoticeCardProps} from "./McpServerNoticeCard"
+export {SessionHistoryNotice, type SessionHistoryNoticeState} from "./SessionHistoryNotice"
+export {StartupActivity, WaitingForInput, WorkingDots} from "./TurnActivity"
+export {ConnectionDock, type ConnectionDockProps} from "./ConnectionDock"
+export {ElicitationDock, type ElicitationDockProps} from "./ElicitationDock"
+export {ConnectionFocusProvider, type ConnectionFocusProviderProps} from "./ConnectionFocusProvider"
+export {default as QueuedMessagesDock, type QueuedMessagesDockProps} from "./QueuedMessagesDock"
+export {
+    default as ChatMarkdown,
+    CHAT_MARKDOWN_STRUCTURAL_CLASS,
+    type ChatMarkdownProps,
+    type ChatMarkdownLinkResolver,
+    type UseChatMarkdownLinkResolver,
+} from "./ChatMarkdown"
+export {PermissionsPickerPanel, useRovingList, type RovingListOptions} from "./SlashCommand"
+export {
+    type ActivityFailure,
+    ActivityTimeline,
+    type ActivityTimelineProps,
+    ActivityNode,
+} from "./activity"

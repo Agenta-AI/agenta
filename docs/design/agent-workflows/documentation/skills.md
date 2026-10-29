@@ -67,7 +67,7 @@ says.
 
 `agent-workflows-qa` (shared) defines the test matrix for the agent runtime. Its three axes
 are the environment (sandbox-agent local, sandbox-agent Daytona, and the local SDK), the
-harness (`pi_core`, `pi_agenta`, `claude`), and the capability under test. "Test with daytona,
+harness (`pi_core`, `claude`, `codex`), and the capability under test. "Test with daytona,
 local pi, and claude, on both the SDK and the UI" is exactly a walk across these cells. Each
 test forces a capability with a token the model cannot guess, so a pass proves the capability
 ran.

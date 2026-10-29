@@ -26,6 +26,7 @@ from oss.src.core.triggers.dtos import (
 )
 from oss.src.core.triggers.exceptions import TriggerReferenceInvalid
 from oss.src.core.triggers.service import TriggersService
+from oss.tests.pytest.utils.principals import any_principal
 
 
 def _make_service():
@@ -56,6 +57,7 @@ def _make_service():
     dao.create_subscription = AsyncMock(side_effect=_persist_create)
     dao.edit_subscription = AsyncMock(side_effect=lambda **kw: kw["subscription"])
     dao.delete_subscription = AsyncMock(return_value=True)
+    dao.purge_subscription = AsyncMock(return_value=True)
     dao.fetch_subscription = AsyncMock(
         return_value=TriggerSubscription(
             id=uuid4(),
@@ -126,6 +128,7 @@ async def test_create_test_subscription_bypasses_reference_validation():
         project_id=uuid4(),
         user_id=uuid4(),
         subscription=_create(is_test=True),
+        principal=any_principal(),
     )
 
     service._validate_references.assert_not_awaited()
@@ -141,6 +144,7 @@ async def test_create_non_test_subscription_validates_references():
         project_id=uuid4(),
         user_id=uuid4(),
         subscription=_create(is_test=False),
+        principal=any_principal(),
     )
 
     service._validate_references.assert_awaited_once()
@@ -210,7 +214,8 @@ async def test_test_subscription_returns_captured_delivery_and_tears_down():
     result = await service.test_subscription(
         project_id=uuid4(),
         user_id=uuid4(),
-        subscription=_create(is_test=False),  # forced to test inside the helper
+        subscription=_create(is_test=False),  # forced to test inside the helper,
+        principal=any_principal(),
     )
 
     assert result is delivery
@@ -218,7 +223,8 @@ async def test_test_subscription_returns_captured_delivery_and_tears_down():
     created = service.dao.create_subscription.await_args.kwargs["subscription"]
     assert created.flags.is_test is True
     # ...and always torn down.
-    service.dao.delete_subscription.assert_awaited_once()
+    service.dao.purge_subscription.assert_awaited_once()
+    service.dao.delete_subscription.assert_not_awaited()
 
 
 async def test_test_subscription_times_out_and_tears_down():
@@ -231,10 +237,12 @@ async def test_test_subscription_times_out_and_tears_down():
         project_id=uuid4(),
         user_id=uuid4(),
         subscription=_create(is_test=True),
+        principal=any_principal(),
     )
 
     assert result is None
-    service.dao.delete_subscription.assert_awaited_once()
+    service.dao.purge_subscription.assert_awaited_once()
+    service.dao.delete_subscription.assert_not_awaited()
 
 
 async def test_test_subscription_tears_down_on_error():
@@ -246,9 +254,11 @@ async def test_test_subscription_tears_down_on_error():
             project_id=uuid4(),
             user_id=uuid4(),
             subscription=_create(is_test=True),
+            principal=any_principal(),
         )
 
-    service.dao.delete_subscription.assert_awaited_once()
+    service.dao.purge_subscription.assert_awaited_once()
+    service.dao.delete_subscription.assert_not_awaited()
 
 
 async def test_test_subscription_reuses_existing_live_subscription_on_conflict():
@@ -275,12 +285,14 @@ async def test_test_subscription_reuses_existing_live_subscription_on_conflict()
         project_id=uuid4(),
         user_id=uuid4(),
         subscription=_create(is_test=False),
+        principal=any_principal(),
     )
 
     # The freshly arrived delivery is returned, not the stale baseline.
     assert result is new_delivery
     # The existing live subscription must NOT be torn down.
     service.dao.delete_subscription.assert_not_awaited()
+    service.dao.purge_subscription.assert_not_awaited()
     # Only the single failed mint attempt — no duplicate persisted.
     service.dao.create_subscription.assert_awaited_once()
     # Reuse resolved via the exact colliding trigger_id, not a connection+event query.

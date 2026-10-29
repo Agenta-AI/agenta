@@ -1,0 +1,172 @@
+{{- $values := include "agenta.values" . | fromYaml -}}
+{{- $webMobile := default dict $values.webMobile -}}
+{{- $agenta := default dict $values.agenta -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agenta.fullname" . }}-web-mobile
+  labels:
+    {{- include "agenta.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web-mobile
+spec:
+  replicas: {{ include "agenta.webMobile.replicas" . }}
+  {{- with $webMobile.strategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- else }}
+  {{- /* Default: never take a pod down before its replacement is ready. The
+         Kubernetes default of 25% unavailable rounds to "the only pod" when a
+         workload runs one replica, which is a deliberate outage on every
+         rollout. */}}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "agenta.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: web-mobile
+  template:
+    metadata:
+      labels:
+        {{- include "agenta.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: web-mobile
+    spec:
+      {{- include "agenta.imagePullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ include "agenta.serviceAccountName" . }}
+      {{- if hasKey $webMobile "terminationGracePeriodSeconds" }}
+      terminationGracePeriodSeconds: {{ $webMobile.terminationGracePeriodSeconds }}
+      {{- else }}
+      {{- /* Default 60 s: the load balancer needs time to stop sending requests here. */}}
+      terminationGracePeriodSeconds: 60
+      {{- end }}
+      {{- with $webMobile.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: web-mobile
+          image: {{ include "agenta.webMobileImage" . }}
+          imagePullPolicy: {{ include "agenta.webMobile.pullPolicy" . }}
+          {{- with $webMobile.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          command: ["/app/entrypoint.sh"]
+          args: ["node", "mobile/server.js"]
+          ports:
+            - name: http
+              containerPort: {{ include "agenta.webMobile.port" . }}
+              protocol: TCP
+          env:
+            - name: HOSTNAME
+              value: "0.0.0.0"
+            - name: AGENTA_LICENSE
+              value: {{ include "agenta.edition" . | quote }}
+            {{- /* Use the *Effective helpers, like every other workload: they fall back to
+                   ingress.host when the operator does not set agenta.webUrl/apiUrl/servicesUrl.
+                   Reading the raw values here shipped empty URLs to the browser bundle. */}}
+            - name: AGENTA_WEB_URL
+              value: {{ include "agenta.webUrlEffective" . | quote }}
+            - name: AGENTA_SERVICES_URL
+              value: {{ include "agenta.servicesUrlEffective" . | quote }}
+            - name: AGENTA_API_URL
+              value: {{ include "agenta.apiUrlEffective" . | quote }}
+            {{- /* The embed widget page fetches its config server side; this skips the public URL. */}}
+            {{- if $agenta.apiInternalUrl }}
+            - name: AGENTA_API_INTERNAL_URL
+              value: {{ $agenta.apiInternalUrl | quote }}
+            {{- end }}
+            - name: AGENTA_AUTH_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agenta.secretName" . }}
+                  key: AGENTA_AUTH_KEY
+            - name: AGENTA_CRYPT_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agenta.secretName" . }}
+                  key: AGENTA_CRYPT_KEY
+            - name: SUPERTOKENS_URI_CORE
+              value: {{ include "agenta.supertokensUri" . | quote }}
+            - name: SUPERTOKENS_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "agenta.secretName" . }}
+                  key: SUPERTOKENS_API_KEY
+                  optional: true
+            {{- include "agenta.webOptionalEnv" . | nindent 12 }}
+            {{- range $key, $val := $webMobile.env }}
+            - name: {{ $key }}
+              value: {{ $val | quote }}
+            {{- end }}
+            {{- /* extraEnv is a raw list of explicit Kubernetes env entries, so valueFrom works
+                   and names here override earlier chart entries. envFrom pulls whole Secrets or
+                   ConfigMaps, but Kubernetes uses those values only for names absent from env. */}}
+            {{- with $webMobile.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with $webMobile.envFrom }}
+          envFrom:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          startupProbe:
+            httpGet:
+              path: /m/__env.js
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            timeoutSeconds: 10
+            failureThreshold: 90
+          livenessProbe:
+            httpGet:
+              path: /m/__env.js
+              port: http
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /m/__env.js
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          {{- with $webMobile.lifecycle }}
+          lifecycle:
+            {{- toYaml . | nindent 12 }}
+          {{- else }}
+          {{- /* Default: hold the container open for 10 s after Kubernetes
+                 sends the stop signal, so the load balancer finishes taking
+                 this pod out of rotation before the process goes away. */}}
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sleep", "10"]
+          {{- end }}
+          {{- with $webMobile.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with $webMobile.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
+      {{- with $webMobile.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $webMobile.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $webMobile.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- $spread := include "agenta.topologySpreadConstraints" (dict "root" $ "component" "web-mobile" "key" "webMobile" "replicas" (include "agenta.webMobile.replicas" .)) }}
+      {{- if $spread }}
+      topologySpreadConstraints:
+        {{- $spread | nindent 8 }}
+      {{- end }}

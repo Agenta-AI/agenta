@@ -1,0 +1,49 @@
+---
+title: "Subagents and delegation"
+sidebar_label: "Subagents"
+description: "Expose another Agenta workflow to an agent as a reference tool."
+sidebar_position: 14
+---
+
+Agenta models delegation as a `reference` tool. The parent agent calls it like any other tool; Agenta invokes the referenced workflow server-side and returns its result.
+
+## Follow the latest variant revision
+
+```json
+{
+  "type": "reference",
+  "ref_by": "variant",
+  "slug": "release-reviewer",
+  "description": "Review release notes for omissions and risky claims.",
+  "input_schema": {
+    "type": "object",
+    "properties": { "draft": { "type": "string" } },
+    "required": ["draft"]
+  },
+  "permission": "allow"
+}
+```
+
+Without `version`, `ref_by: "variant"` resolves the latest revision. Set `version` to pin a specific revision.
+
+## Follow an environment deployment
+
+```json
+{
+  "type": "reference",
+  "ref_by": "environment",
+  "slug": "release-reviewer",
+  "environment": "production",
+  "description": "Review release notes using the production reviewer."
+}
+```
+
+Environment references run the revision deployed in that environment and cannot also set `version`.
+
+The workflow `slug` is the model-visible tool name. The optional `name` field is retained only for compatibility with older stored references.
+
+## Concurrency and permissions
+
+Reference tools use normal runner tool scheduling and permission resolution. Agenta does not expose a separate `max_concurrent_subagents` setting. Use the parent agent's instructions and tool permission to control when delegation occurs.
+
+Connections and secrets required by the child workflow remain server-side and are resolved from the child's configuration.

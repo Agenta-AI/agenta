@@ -1,14 +1,12 @@
 import {useCallback, type RefObject} from "react"
 
+import type {AgentSetupSelection, AgentStarterTemplate} from "@agenta/entities/workflow"
+import {captureFirstAgentIntent, classifyAgentIntent} from "@agenta/shared/analytics"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 
 import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 
-import {
-    captureFirstAgentIntent,
-    classifyAgentIntent,
-    truncateForCapture,
-} from "../assets/onboardingAnalytics"
+import {agentNameFromTask} from "../assets/agentName"
 
 import {useCreateAgent} from "./useCreateAgent"
 
@@ -37,16 +35,30 @@ export function useAgentHomeActions(
     const onCreate = useCallback(
         // `prompt` overrides the ref read for Enter-submit, where the editor has already
         // serialized + cleared itself and hands the markdown to the submit callback.
-        (templateName?: string, prompt?: string) => {
+        // `setup` is what the pre-create connect step decided, when it ran.
+        (
+            templateName?: string,
+            prompt?: string,
+            setup?: AgentSetupSelection,
+            template?: AgentStarterTemplate,
+        ) => {
             const message = prompt?.trim() || readPrompt()
             if (message) {
                 captureFirstAgentIntent(posthog, {
                     source: "composer",
-                    properties: {message: truncateForCapture(message)},
                     intentValue: classifyAgentIntent(message),
                 })
             }
-            return createAgent({name: templateName, seedMessage: message, autoSendSeed})
+            // A template names the agent after itself; free text names it after the task. Without
+            // this every composer-created agent was literally called "New agent", which made the
+            // roster and the session list's agent column carry no information.
+            return createAgent({
+                name: templateName || agentNameFromTask(message) || undefined,
+                seedMessage: message,
+                autoSendSeed,
+                setup,
+                template,
+            })
         },
         [createAgent, posthog, readPrompt, autoSendSeed],
     )

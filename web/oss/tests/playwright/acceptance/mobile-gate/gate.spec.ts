@@ -1,0 +1,54 @@
+import {expect, test} from "@playwright/test"
+
+const IPHONE_UA =
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+
+/**
+ * A genuinely empty context. `storageState: undefined` reads as "no session" but does not clear
+ * anything: an option set to undefined falls back to the config value, so these tests inherited
+ * the shared signed-in state, including the `agenta-mobile-optout` cookie that switches the very
+ * gate they assert on off. Both directions decide on the request, before any session matters.
+ */
+const NO_SESSION = {cookies: [], origins: []}
+
+test.describe("mobile gate: forward direction", () => {
+    test.use({
+        userAgent: IPHONE_UA,
+        extraHTTPHeaders: {"sec-ch-ua-mobile": "?1"},
+        storageState: NO_SESSION,
+    })
+
+    test("mobile UA on a desktop route lands in /m", async ({page}) => {
+        await page.goto("/w")
+        await expect(page).toHaveURL(/\/m\/?$/)
+    })
+
+    test("observability session deep link maps to the mobile session chat", async ({page}) => {
+        await page.goto("/w/ws1/p/pr1/observability?session=abc")
+        // Pre-WP4 the target 404s inside /m; the URL mapping is the contract.
+        await expect(page).toHaveURL(/\/m\/w\/ws1\/p\/pr1\/sessions\/abc$/)
+    })
+
+    test("auth maps to the mobile sign-in", async ({page}) => {
+        await page.goto("/auth")
+        await expect(page).toHaveURL(/\/m\/auth$/)
+    })
+
+    test("?view=desktop sets the opt-out and pins the desktop site", async ({page, context}) => {
+        await page.goto("/w?view=desktop")
+        expect(page.url()).not.toContain("/m")
+        const cookies = await context.cookies()
+        expect(cookies.some((c) => c.name === "agenta-mobile-optout")).toBe(true)
+        await page.goto("/w")
+        expect(page.url()).not.toContain("/m")
+    })
+})
+
+test.describe("mobile gate: reverse direction", () => {
+    test.use({storageState: NO_SESSION})
+
+    test("a desktop browser can open /m", async ({page}) => {
+        await page.goto("/m/")
+        expect(new URL(page.url()).pathname.startsWith("/m")).toBe(true)
+    })
+})

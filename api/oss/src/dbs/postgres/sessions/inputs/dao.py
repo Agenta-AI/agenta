@@ -1,0 +1,469 @@
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional
+from uuid import UUID
+
+from sqlalchemy import and_, func, or_, select, text, update as sa_update
+
+from oss.src.core.sessions.inputs.dtos import PendingInput, PendingInputCreate
+from oss.src.core.sessions.inputs.interfaces import SessionInputsDAOInterface
+from oss.src.core.sessions.inputs.types import (
+    SessionInputNotRemovable,
+    SessionInputNotEditable,
+)
+from oss.src.dbs.postgres.sessions.commands.dbes import SessionCommandDBE
+from oss.src.dbs.postgres.sessions.inputs.dbes import SessionInputDBE
+from oss.src.dbs.postgres.sessions.inputs.mappings import (
+    new_input_row,
+    to_pending_input,
+)
+from oss.src.dbs.postgres.sessions.executions.dbes import SessionExecutionDBE
+from oss.src.dbs.postgres.shared.engine import (
+    TransactionsEngine,
+    get_transactions_engine,
+)
+
+
+class SessionInputsDAO(SessionInputsDAOInterface):
+    def __init__(self, engine: Optional[TransactionsEngine] = None):
+        self.engine = engine or get_transactions_engine()
+
+    async def claim_dispatch(
+        self, *, project_id: UUID, session_id: str, input_id: UUID, execution_id: str
+    ) -> bool:
+        async with self.engine.session() as session:
+            result = await session.execute(
+                sa_update(SessionInputDBE)
+                .where(
+                    SessionInputDBE.project_id == project_id,
+                    SessionInputDBE.session_id == session_id,
+                    SessionInputDBE.id == input_id,
+                    SessionInputDBE.state == "promoted",
+                    SessionInputDBE.promoted_execution_id == execution_id,
+                    SessionInputDBE.dispatch_claimed.is_(False),
+                )
+                .values(dispatch_claimed=True)
+                .returning(SessionInputDBE.id)
+            )
+            claimed = result.scalar_one_or_none() is not None
+            await session.commit()
+            return claimed
+
+    async def release_dispatch(
+        self, *, project_id: UUID, session_id: str, input_id: UUID, execution_id: str
+    ) -> bool:
+        # Mirrors `claim_dispatch`, including the compare-and-set on the flag: the claim stays
+        # one-shot, so two retries racing after a release still dispatch exactly once.
+        #
+        # INVARIANT, and the SQL does not enforce it: there is exactly one caller, and it is the
+        # flow that won the claim. `dispatch_claimed.is_(True)` asks whether somebody holds the
+        # claim, never whether the caller is that somebody, because nothing here identifies an
+        # attempt. A second call site (a reaper, an admin un-claim, a cancel path) would release
+        # a claim it does not hold and break at-most-once. Fencing that needs an attempt id on
+        # the row, so until there is one, keep the single call site.
+        async with self.engine.session() as session:
+            result = await session.execute(
+                sa_update(SessionInputDBE)
+                .where(
+                    SessionInputDBE.project_id == project_id,
+                    SessionInputDBE.session_id == session_id,
+                    SessionInputDBE.id == input_id,
+                    SessionInputDBE.state == "promoted",
+                    SessionInputDBE.promoted_execution_id == execution_id,
+                    SessionInputDBE.dispatch_claimed.is_(True),
+                )
+                .values(dispatch_claimed=False)
+                .returning(SessionInputDBE.id)
+            )
+            released = result.scalar_one_or_none() is not None
+            await session.commit()
+            return released
+
+    def transaction(self):
+        return self.engine.session()
+
+    async def _lock_session(
+        self, session: Any, project_id: UUID, session_id: str
+    ) -> None:
+        await session.execute(
+            text("SELECT pg_advisory_xact_lock(hashtext(:scope))"),
+            {"scope": f"{project_id}:{session_id}:inputs"},
+        )
+
+    async def create_input(
+        self,
+        *,
+        user_id: Optional[UUID],
+        pending_input: PendingInputCreate,
+        prioritize: bool = False,
+        transaction: Optional[Any] = None,
+    ) -> PendingInput:
+        async def execute(session: Any) -> PendingInput:
+            await self._lock_session(
+                session, pending_input.project_id, pending_input.session_id
+            )
+            # Admission reads before it writes. Two requests carrying the same key can both
+            # observe "missing" before either commits, so repeat that lookup after taking the
+            # session-scoped transaction lock. Returning the winner lets the service apply the
+            # fingerprint rule without leaking an IntegrityError to either caller.
+            existing = (
+                await session.execute(
+                    select(SessionInputDBE).where(
+                        SessionInputDBE.project_id == pending_input.project_id,
+                        SessionInputDBE.session_id == pending_input.session_id,
+                        SessionInputDBE.idempotency_key
+                        == pending_input.idempotency_key,
+                    )
+                )
+            ).scalar_one_or_none()
+            if existing is not None:
+                return to_pending_input(existing)
+            aggregate = func.min if prioritize else func.max
+            current = (
+                await session.execute(
+                    select(aggregate(SessionInputDBE.position)).where(
+                        SessionInputDBE.project_id == pending_input.project_id,
+                        SessionInputDBE.session_id == pending_input.session_id,
+                    )
+                )
+            ).scalar_one()
+            position = (
+                (current - 1)
+                if prioritize and current is not None
+                else (current or 0) + 1
+            )
+            row = new_input_row(
+                user_id=user_id,
+                position=position,
+                pending_input=pending_input,
+            )
+            session.add(row)
+            await session.flush()
+            return to_pending_input(row)
+
+        if transaction is not None:
+            return await execute(transaction)
+        async with self.engine.session() as session:
+            return await execute(session)
+
+    async def fetch_by_idempotency_key(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        idempotency_key: str,
+        transaction: Optional[Any] = None,
+    ) -> Optional[PendingInput]:
+        async def execute(session: Any) -> Optional[PendingInput]:
+            row = (
+                await session.execute(
+                    select(SessionInputDBE).where(
+                        SessionInputDBE.project_id == project_id,
+                        SessionInputDBE.session_id == session_id,
+                        SessionInputDBE.idempotency_key == idempotency_key,
+                    )
+                )
+            ).scalar_one_or_none()
+            return to_pending_input(row) if row else None
+
+        if transaction is not None:
+            return await execute(transaction)
+        async with self.engine.session() as session:
+            return await execute(session)
+
+    async def fetch_by_execution_id(
+        self, *, project_id: UUID, session_id: str, execution_id: str
+    ) -> Optional[PendingInput]:
+        async with self.engine.session() as session:
+            row = (
+                await session.execute(
+                    select(SessionInputDBE).where(
+                        SessionInputDBE.project_id == project_id,
+                        SessionInputDBE.session_id == session_id,
+                        SessionInputDBE.promoted_execution_id == execution_id,
+                    )
+                )
+            ).scalar_one_or_none()
+            return to_pending_input(row) if row else None
+
+    async def list_pending(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        transaction: Optional[Any] = None,
+    ) -> List[PendingInput]:
+        async def execute(session: Any) -> List[PendingInput]:
+            rows = (
+                await session.execute(
+                    select(SessionInputDBE)
+                    .outerjoin(
+                        SessionExecutionDBE,
+                        and_(
+                            SessionExecutionDBE.project_id
+                            == SessionInputDBE.project_id,
+                            SessionExecutionDBE.session_id
+                            == SessionInputDBE.session_id,
+                            SessionExecutionDBE.execution_id
+                            == SessionInputDBE.promoted_execution_id,
+                        ),
+                    )
+                    .where(
+                        SessionInputDBE.project_id == project_id,
+                        SessionInputDBE.session_id == session_id,
+                        or_(
+                            SessionInputDBE.state == "pending",
+                            and_(
+                                SessionInputDBE.state == "promoted",
+                                SessionExecutionDBE.state.in_(
+                                    ("pending_delivery", "recoverable")
+                                ),
+                            ),
+                        ),
+                    )
+                    .order_by(SessionInputDBE.position, SessionInputDBE.created_at)
+                )
+            ).scalars()
+            return [to_pending_input(row) for row in rows]
+
+        if transaction is not None:
+            return await execute(transaction)
+        async with self.engine.session() as session:
+            return await execute(session)
+
+    async def fetch_active_successor(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        transaction: Any,
+    ) -> Optional[PendingInput]:
+        row = (
+            await transaction.execute(
+                select(SessionInputDBE)
+                .join(
+                    SessionExecutionDBE,
+                    and_(
+                        SessionExecutionDBE.project_id == SessionInputDBE.project_id,
+                        SessionExecutionDBE.session_id == SessionInputDBE.session_id,
+                        SessionExecutionDBE.execution_id
+                        == SessionInputDBE.promoted_execution_id,
+                    ),
+                )
+                .where(
+                    SessionInputDBE.project_id == project_id,
+                    SessionInputDBE.session_id == session_id,
+                    SessionInputDBE.state == "promoted",
+                    SessionExecutionDBE.terminal_outcome.is_(None),
+                )
+                .order_by(SessionInputDBE.position, SessionInputDBE.created_at)
+                .limit(1)
+                .with_for_update(of=SessionExecutionDBE)
+            )
+        ).scalar_one_or_none()
+        return to_pending_input(row) if row else None
+
+    async def fetch_input(
+        self, *, project_id: UUID, session_id: str, input_id: UUID
+    ) -> Optional[PendingInput]:
+        async with self.engine.session() as session:
+            row = (
+                await session.execute(
+                    select(SessionInputDBE).where(
+                        SessionInputDBE.project_id == project_id,
+                        SessionInputDBE.session_id == session_id,
+                        SessionInputDBE.id == input_id,
+                    )
+                )
+            ).scalar_one_or_none()
+            return to_pending_input(row) if row else None
+
+    async def remove_pending(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        input_id: UUID,
+        user_id: Optional[UUID],
+    ) -> Optional[PendingInput]:
+        async with self.engine.session() as session:
+            # Serialize with admission before checking its committed command reservation.
+            await self._lock_session(session, project_id, session_id)
+            reserved = (
+                await session.execute(
+                    select(SessionCommandDBE.id)
+                    .where(
+                        SessionCommandDBE.project_id == project_id,
+                        SessionCommandDBE.session_id == session_id,
+                        SessionCommandDBE.kind == "cancel",
+                        SessionCommandDBE.state.in_(("pending", "claimed")),
+                        SessionCommandDBE.deleted_at.is_(None),
+                        SessionCommandDBE.data["steer_input_id"].astext
+                        == str(input_id),
+                    )
+                    .limit(1)
+                )
+            ).scalar_one_or_none()
+            if reserved is not None:
+                raise SessionInputNotRemovable(str(input_id))
+            row = (
+                await session.execute(
+                    sa_update(SessionInputDBE)
+                    .where(
+                        SessionInputDBE.project_id == project_id,
+                        SessionInputDBE.session_id == session_id,
+                        SessionInputDBE.id == input_id,
+                        SessionInputDBE.state == "pending",
+                    )
+                    .values(
+                        state="removed",
+                        updated_at=datetime.now(timezone.utc),
+                        updated_by_id=user_id,
+                    )
+                    .returning(SessionInputDBE)
+                )
+            ).scalar_one_or_none()
+            return to_pending_input(row) if row else None
+
+    async def prioritize_pending(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        input_id: UUID,
+        user_id: Optional[UUID],
+        transaction: Any,
+    ) -> Optional[PendingInput]:
+        await self._lock_session(transaction, project_id, session_id)
+        row = (
+            await transaction.execute(
+                select(SessionInputDBE)
+                .where(
+                    SessionInputDBE.project_id == project_id,
+                    SessionInputDBE.session_id == session_id,
+                    SessionInputDBE.id == input_id,
+                )
+                .with_for_update()
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            return None
+        if row.state == "pending" and row.policy != "steer":
+            minimum = (
+                await transaction.execute(
+                    select(func.min(SessionInputDBE.position)).where(
+                        SessionInputDBE.project_id == project_id,
+                        SessionInputDBE.session_id == session_id,
+                    )
+                )
+            ).scalar_one()
+            row.position = minimum - 1
+            row.policy = "steer"
+            row.updated_at = datetime.now(timezone.utc)
+            row.updated_by_id = user_id
+            await transaction.flush()
+        return to_pending_input(row)
+
+    async def promote_next(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        execution_id: str,
+        input_id: Optional[UUID] = None,
+        only_policy: Optional[str] = None,
+        transaction: Optional[Any] = None,
+    ) -> Optional[PendingInput]:
+        async def execute(session: Any) -> Optional[PendingInput]:
+            await self._lock_session(session, project_id, session_id)
+            stmt = select(SessionInputDBE).where(
+                SessionInputDBE.project_id == project_id,
+                SessionInputDBE.session_id == session_id,
+                SessionInputDBE.state == "pending",
+            )
+            if only_policy is not None:
+                stmt = stmt.where(SessionInputDBE.policy == only_policy)
+            if input_id is not None:
+                stmt = stmt.where(SessionInputDBE.id == input_id)
+            row = (
+                await session.execute(
+                    stmt.order_by(SessionInputDBE.position, SessionInputDBE.created_at)
+                    .limit(1)
+                    .with_for_update(skip_locked=True)
+                )
+            ).scalar_one_or_none()
+            if row is None:
+                return None
+            row.state = "promoted"
+            row.promoted_execution_id = execution_id
+            row.updated_at = datetime.now(timezone.utc)
+            await session.flush()
+            return to_pending_input(row)
+
+        if transaction is not None:
+            return await execute(transaction)
+        async with self.engine.session() as session:
+            return await execute(session)
+
+    async def lock_pending_for_edit(
+        self, *, project_id: UUID, session_id: str, input_id: UUID, transaction: Any
+    ) -> Optional[PendingInput]:
+        await self._lock_session(transaction, project_id, session_id)
+        row = (
+            await transaction.execute(
+                select(SessionInputDBE)
+                .where(
+                    SessionInputDBE.project_id == project_id,
+                    SessionInputDBE.session_id == session_id,
+                    SessionInputDBE.id == input_id,
+                )
+                .with_for_update()
+            )
+        ).scalar_one_or_none()
+        if row is None:
+            return None
+        reserved = (
+            await transaction.execute(
+                select(SessionCommandDBE.id)
+                .where(
+                    SessionCommandDBE.project_id == project_id,
+                    SessionCommandDBE.session_id == session_id,
+                    SessionCommandDBE.kind == "cancel",
+                    SessionCommandDBE.state.in_(("pending", "claimed")),
+                    SessionCommandDBE.deleted_at.is_(None),
+                    SessionCommandDBE.data["steer_input_id"].astext == str(input_id),
+                )
+                .limit(1)
+            )
+        ).scalar_one_or_none()
+        if row.state != "pending" or reserved is not None:
+            raise SessionInputNotEditable(str(input_id))
+        return to_pending_input(row)
+
+    async def update_content(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        input_id: UUID,
+        content: Dict[str, Any],
+        user_id: Optional[UUID],
+        transaction: Any,
+    ) -> PendingInput:
+        row = (
+            await transaction.execute(
+                sa_update(SessionInputDBE)
+                .where(
+                    SessionInputDBE.project_id == project_id,
+                    SessionInputDBE.session_id == session_id,
+                    SessionInputDBE.id == input_id,
+                    SessionInputDBE.state == "pending",
+                )
+                .values(
+                    content=content,
+                    updated_at=datetime.now(timezone.utc),
+                    updated_by_id=user_id,
+                )
+                .returning(SessionInputDBE)
+            )
+        ).scalar_one()
+        return to_pending_input(row)

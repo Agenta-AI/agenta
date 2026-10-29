@@ -1,0 +1,84 @@
+# Tonight handoff
+
+> AGENT-GENERATED, low weight. Draft execution handoff. Mahmoud makes final decisions.
+
+## Fixed direction
+
+- Keep current Redis execution ownership for version one.
+- Add durable commands with `pending`, `claimed`, `applied`, and `obsolete` states.
+- Use direct API-to-runner HTTP behind a replaceable control-delivery port for version one.
+- Keep `expected_execution_id` optional on public Stop.
+- Keep the Redis ownership lock until Stop settles.
+- Keep durable storage and settlement independent of the delivery transport.
+- Use heartbeat command discovery as delivery fallback.
+- Require same-sandbox and native-session resume only for harnesses and environments that expose
+  resumable cancellation. Run this release-gate cell for every supported harness and
+  sandbox-provider pair; record an explicit cold-start result where resume is unavailable.
+- Keep live-frame work independent from Stop work.
+- Park the repaired-records versus separate-event-table decision for review.
+
+## Work package A: sandbox cancellation spike
+
+**Goal:** Identify which cancellation paths preserve warm resume and qualify the requirement by
+capability.
+
+Answer:
+
+1. Which request cancels a prompt in each supported harness?
+2. Does it preserve the native harness session?
+3. What happens to a running tool and partial message?
+4. Does the runner park or destroy the sandbox on every cancellation path?
+5. Is a sandbox-agent patch required?
+6. Does Daytona need a rebuilt snapshot?
+
+Deliver a code-traced report, a characterization test, the smallest patch proposal, and a live test
+plan for start, Stop, and resume. Require the same sandbox and native session only where the harness
+and environment report that capability. Do not redesign ownership, commands, or public endpoints.
+
+## Work package B: durable command and direct-delivery design
+
+**Goal:** Produce an implementation-ready design for reliable API-to-runner commands.
+
+Define the command schema, idempotency, direct-delivery acknowledgement, failure recovery, adapter
+boundary, and how Redis ownership remains held until Stop settles. Keep long-poll claim semantics
+as a deferred transport. Do not implement a new execution ownership model.
+
+## Work package C: current Stop implementation map
+
+**Goal:** Remove uncertainty before changing Stop.
+
+Trace the browser request, API stream mutation, Redis key changes, heartbeat response, runner abort,
+sandbox cleanup, records, interactions, and frontend refresh. List every branch that means cancel,
+kill, steer, or approval interruption. Deliver a sequence diagram and file-by-file change map. Do
+not implement changes.
+
+## Work package D: stable record-ID spike
+
+**Goal:** Make the later immutable-history decision safe.
+
+Inventory every stable `record_id` producer and classify repeated IDs as exact retries,
+progressive updates, or resume re-emissions. Add or propose regression tests for final tool state,
+interaction responses, terminal events, and harness reconstruction. Do not select repaired records
+or a separate event table.
+
+## First implementation after the spikes
+
+1. Add the durable command repository and service behind interfaces.
+2. Add the direct API-to-runner adapter and authenticated runner route.
+3. Let Stop create a durable command with an optional expected-execution guard.
+4. Let the runner apply Stop through its active abort controller.
+5. Preserve Redis ownership until cancellation settles.
+6. Make heartbeat discover pending Stop as fallback.
+7. Emit the durable cancellation outcome and publish the existing watch notification.
+8. Prove Stop delivery within five seconds and warm resume on the live stack.
+
+## Deferred explicitly
+
+- Postgres execution authority.
+- Ownership generations and full fencing.
+- Multiple-runner routing guarantees.
+- User-operated runner requirements.
+- Final records versus event-table selection.
+- Final public endpoint naming.
+- WebSocket or gRPC control transport.
+- Runner-initiated long-poll control transport.

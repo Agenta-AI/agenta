@@ -1,6 +1,7 @@
 # /agenta/sdk/decorators/routing.py
 
 import warnings
+import httpx
 from typing import Any, Callable, Optional, AsyncGenerator, Union
 from json import dumps
 from uuid import UUID
@@ -11,7 +12,11 @@ from fastapi.responses import JSONResponse, StreamingResponse, Response
 from starlette.routing import Mount
 
 from agenta.sdk.utils.exceptions import suppress
+from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.models.workflows import (
+    failure_code_of,
+    retry_after_of,
+    returned_stacktrace,
     WorkflowInvokeRequest,
     WorkflowInspectRequest,
     WorkflowInspectResponse,
@@ -40,9 +45,15 @@ from agenta.sdk.middlewares.routing.cors import CORSMiddleware
 from agenta.sdk.middlewares.routing.auth import AuthMiddleware
 from agenta.sdk.middlewares.routing.otel import OTelMiddleware
 from agenta.sdk.middlewares.running.vault import invalidate_secrets_cache
+from agenta.sdk.engines.tracing.server import RouteSpanNameMiddleware
 from agenta.sdk.contexts.tracing import TracingContext, tracing_context_manager
 from agenta.sdk.decorators.running import auto_workflow, inspect_workflow, Workflow
 from agenta.sdk.engines.running.errors import ErrorStatus
+from agenta.sdk.redaction.redactor import strip_echoed_key_fragments
+from agenta.sdk.agents.platform.connection import PlatformConnection
+
+
+log = get_module_logger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -80,6 +91,7 @@ def create_app(**kwargs: Any) -> FastAPI:
     app.add_middleware(CORSMiddleware)
     app.add_middleware(AuthMiddleware)
     app.add_middleware(OTelMiddleware)
+    app.add_middleware(RouteSpanNameMiddleware)
 
     @app.get("/health")
     async def health():
@@ -235,6 +247,79 @@ def apply_invoke_prelude(req: Request, request: WorkflowInvokeRequest) -> None:
             }
 
 
+async def admit_session_input(
+    req: Request,
+    request: WorkflowInvokeRequest,
+    credentials: Optional[str],
+) -> Optional[Response]:
+    if request.on_busy is None or request.session_id is None:
+        return None
+    if isinstance(request.meta, dict) and request.meta.get("promoted_input_id"):
+        return None
+
+    connection = PlatformConnection(authorization=credentials)
+    api_base = connection.base_url()
+    if not api_base:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "code": "service_unavailable",
+                "message": "Session admission is unavailable.",
+                "retryable": True,
+                "next_step": "Retry with the same idempotency key.",
+            },
+        )
+    headers = connection.headers(authorization=credentials)
+    idempotency_key = req.headers.get("Idempotency-Key")
+    if idempotency_key:
+        headers["Idempotency-Key"] = idempotency_key
+    try:
+        async with httpx.AsyncClient(timeout=connection.timeout) as client:
+            response = await client.post(
+                f"{api_base}/sessions/control/inputs/admit",
+                headers=headers,
+                json={
+                    "session_id": request.session_id,
+                    "content": request.model_dump(mode="json", exclude_none=True),
+                    "on_busy": request.on_busy,
+                },
+            )
+    except httpx.HTTPError:
+        return JSONResponse(
+            status_code=503,
+            content={
+                "code": "service_unavailable",
+                "message": "Session admission is unavailable.",
+                "retryable": True,
+                "next_step": "Retry with the same idempotency key.",
+            },
+        )
+
+    if response.status_code == 200:
+        body = response.json()
+        execution_id = body.get("execution_id")
+        if isinstance(execution_id, str) and execution_id:
+            request.meta = {**(request.meta or {}), "run_id": execution_id}
+        return None
+
+    try:
+        body = response.json()
+    except ValueError:
+        body = {
+            "code": "internal_error",
+            "message": "Session admission returned an invalid response.",
+            "retryable": True,
+            "next_step": "Retry with the same idempotency key.",
+        }
+    if (
+        isinstance(body, dict)
+        and set(body) == {"detail"}
+        and isinstance(body["detail"], dict)
+    ):
+        body = body["detail"]
+    return JSONResponse(status_code=response.status_code, content=body)
+
+
 def _get_request_tracing_context(req: Request) -> TracingContext:
     context = TracingContext.get().model_copy(deep=True)
     otel = getattr(req.state, "otel", None) or {}
@@ -305,6 +390,10 @@ def _make_json_response(
         status_code=((response.status.code or 200) if response.status else 200),
         content=response.model_dump(mode="json", exclude_none=True),
     )
+
+    retry_after = getattr(response.status, "retry_after", None)
+    if retry_after is not None:
+        res.headers["Retry-After"] = str(retry_after)
 
     return _set_common_headers(res, response)  # type: ignore
 
@@ -484,12 +573,22 @@ async def handle_invoke_success(
 async def handle_invoke_failure(exception: Exception) -> Response:
     status = None
 
+    # A stable slug naming the class of failure, when the exception declares one. It reaches
+    # the client as `status.failure_code` so a browser can branch on the failure instead of
+    # matching the message text. A resolution failure raised BEFORE the stream opens (a
+    # subscription with no usable login, say) can only be reported through an error body, so
+    # without this the same failure carries a code on the stream and none on the batch reply.
+    failure_code = failure_code_of(exception)
+
     if isinstance(exception, ErrorStatus):
+        raised_stacktrace = exception.stacktrace
         status = WorkflowServiceStatus(
             type=exception.type,
             code=exception.code,
-            message=exception.message,
-            stacktrace=exception.stacktrace,
+            message=strip_echoed_key_fragments(exception.message),
+            stacktrace=returned_stacktrace(exception.stacktrace),
+            failure_code=failure_code,
+            retry_after=retry_after_of(exception),
         )
 
     else:
@@ -504,19 +603,22 @@ async def handle_invoke_failure(exception: Exception) -> Response:
         if code in [401, 403, 429]:  # Downstream API errors
             code = 424
 
-        message = str(exception) or "Internal Server Error"
+        message = strip_echoed_key_fragments(str(exception)) or "Internal Server Error"
 
         stacktrace = format_exception(
             exception,  # type: ignore
             value=exception,
             tb=exception.__traceback__,
         )
+        raised_stacktrace = stacktrace
 
         status = WorkflowServiceStatus(
             type=type,
             code=code,
             message=message,
-            stacktrace=stacktrace,
+            stacktrace=returned_stacktrace(stacktrace),
+            failure_code=failure_code,
+            retry_after=retry_after_of(exception),
         )
 
     trace_id = None
@@ -533,6 +635,19 @@ async def handle_invoke_failure(exception: Exception) -> Response:
 
     error = WorkflowBatchResponse(
         status=status,
+        trace_id=trace_id,
+        span_id=span_id,
+    )
+
+    # The traceback goes here rather than onto the response, which is what makes
+    # withholding it from the caller cost an operator nothing: one record carries the
+    # failure and the frames that produced it (D68).
+    log.warning(
+        "Workflow invocation failed",
+        status_code=status.code if status else None,
+        status_type=status.type if status else None,
+        message=status.message if status else None,
+        stacktrace=raised_stacktrace,
         trace_id=trace_id,
         span_id=span_id,
     )
@@ -578,7 +693,7 @@ async def handle_inspect_failure(exception: Exception) -> Response:
     if code in [401, 403, 429]:  # Downstream API errors
         code = 424
 
-    message = str(exception) or "Internal Server Error"
+    message = strip_echoed_key_fragments(str(exception)) or "Internal Server Error"
 
     return JSONResponse({"details": message}, status_code=code)
 
@@ -632,6 +747,11 @@ class route:
             apply_invoke_prelude(req, request)
 
             try:
+                admission_response = await admit_session_input(
+                    req, request, credentials
+                )
+                if admission_response is not None:
+                    return admission_response
                 with tracing_context_manager(_get_request_tracing_context(req)):
                     response = await wf.invoke(
                         request=request,

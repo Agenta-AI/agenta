@@ -8,7 +8,7 @@ const EmptyAgents = () => {
                 <Robot size={20} />
             </span>
             <span className="text-xs font-medium">No agents yet</span>
-            <span className="max-w-[360px] text-[11px] leading-snug text-[var(--ag-colorTextSecondary)]">
+            <span className="max-w-[360px] text-xs leading-snug text-[var(--ag-colorTextSecondary)]">
                 Describe what you want above, or pick a template. Your agents will appear here once
                 you create one.
             </span>

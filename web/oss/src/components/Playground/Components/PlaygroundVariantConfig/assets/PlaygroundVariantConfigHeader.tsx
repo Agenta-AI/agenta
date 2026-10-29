@@ -1,5 +1,6 @@
 import {useCallback, useMemo} from "react"
 
+import {configPanelCollapsedAtom} from "@agenta/chat/state"
 import {environmentMolecule} from "@agenta/entities/environment"
 import {isLocalDraftId} from "@agenta/entities/shared"
 import {workflowMolecule, workflowLatestRevisionIdAtomFamily} from "@agenta/entities/workflow"
@@ -9,12 +10,16 @@ import {
 } from "@agenta/entity-ui/selection"
 import {VariantDetailsWithStatus} from "@agenta/entity-ui/variant"
 import {isAgentModeAtomFamily, playgroundController} from "@agenta/playground"
+import {AgentConfigHeader} from "@agenta/playground-ui/agent-config-header"
+import {shortcutAria} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
 import {Tag} from "@agenta/ui/components"
-import {MoreOutlined} from "@ant-design/icons"
-import {Trash} from "@phosphor-icons/react"
-import {Button, Tooltip} from "antd"
+import {EnhancedButton} from "@agenta/ui/components/presentational"
+import {ShortcutKeys} from "@agenta/ui/shortcuts"
+import {SimpleTooltip} from "@agenta/ui/ui"
+import {DotsThree, Trash} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
+import {ChevronsLeft} from "lucide-react"
 import dynamic from "next/dynamic"
 
 import {routerAppIdAtom} from "@/oss/state/app/atoms/fetcher"
@@ -32,7 +37,7 @@ const PlaygroundVariantHeaderMenu = dynamic(
         ssr: false,
         // Reserve the kebab's 32px footprint while the chunk loads so it doesn't pop in and
         // shift Commit/Deploy leftward on the (skeletonized) agent config header.
-        loading: () => <Button type="text" icon={<MoreOutlined size={14} />} disabled />,
+        loading: () => <EnhancedButton type="text" icon={<DotsThree size={14} />} disabled />,
     },
 )
 
@@ -184,6 +189,51 @@ const PlaygroundVariantConfigHeader = ({
         }
     }, [_variantId])
 
+    // Agent playgrounds swap the kebab for a collapse control (the kebab's only other item,
+    // Revert Changes, lives on the Draft tag in the page header) — PR #5943.
+    const setConfigPanelCollapsed = useSetAtom(configPanelCollapsedAtom)
+    const handleCollapseConfigPanel = useCallback(
+        () => setConfigPanelCollapsed(true),
+        [setConfigPanelCollapsed],
+    )
+
+    // Agent playground: the whole bar is the SHARED `AgentConfigHeader` (the mobile app renders
+    // exactly this), with the two pieces that are still app-layer passed in as slots.
+    if (showAgentHeader && !embedded) {
+        return (
+            <AgentConfigHeader
+                revisionId={variantId}
+                className={className}
+                // Saves itself (#6126); `AgentRevisionSelector` carries the host's after-commit work.
+                autoSave
+                // Collapse, not Deploy + kebab. PR #5943 removed both from the AGENT header by
+                // design and kept them on the classic prompt header; the package extraction
+                // reinstated them here, which also cost this control its accessible name.
+                trailing={
+                    <SimpleTooltip
+                        title={
+                            <span className="flex items-center gap-1.5">
+                                Hide configuration <ShortcutKeys id="panel.config" tone="inverse" />
+                            </span>
+                        }
+                    >
+                        <EnhancedButton
+                            type="text"
+                            size="small"
+                            aria-keyshortcuts={shortcutAria("panel.config")}
+                            aria-label="Hide configuration"
+                            icon={<ChevronsLeft size={14} />}
+                            onClick={handleCollapseConfigPanel}
+                            // Square 24px, like prod's icon-only antd button — the kit's `small`
+                            // keeps its 7px side padding, which made this one 30px wide.
+                            className="!w-6 !px-0"
+                        />
+                    </SimpleTooltip>
+                }
+            />
+        )
+    }
+
     return (
         <section
             className={`h-[48px] flex items-center justify-between overflow-hidden ${embedded ? "grow" : `sticky top-0 z-[10] w-full`} border-b border-colorBorderSecondary py-2 px-4 ${
@@ -270,9 +320,9 @@ const PlaygroundVariantConfigHeader = ({
             <div className="flex items-center justify-end gap-2 shrink-0 grow min-w-0">
                 {extraActions}
                 {hasPresets && onLoadPreset && (
-                    <Button size="small" onClick={onLoadPreset}>
+                    <EnhancedButton size="small" onClick={onLoadPreset}>
                         Load Preset
-                    </Button>
+                    </EnhancedButton>
                 )}
                 {isLocalDraftVariant ? (
                     <>
@@ -283,15 +333,15 @@ const PlaygroundVariantConfigHeader = ({
                             size="small"
                         />
                         {!rawEntity?.meta?.__ephemeral && (
-                            <Tooltip title="Discard draft">
-                                <Button
+                            <SimpleTooltip title="Discard draft">
+                                <EnhancedButton
                                     type="text"
                                     size="small"
                                     danger
                                     icon={<Trash size={16} />}
                                     onClick={handleDiscardLocalDraft}
                                 />
-                            </Tooltip>
+                            </SimpleTooltip>
                         )}
                     </>
                 ) : (

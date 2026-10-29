@@ -1,7 +1,8 @@
 import {useCallback, useMemo} from "react"
 
-import Sort, {type SortResult} from "@/oss/components/Filters/Sort"
-import dayjs from "@/oss/lib/helpers/dateTimeHelper/dayjs"
+import {ANALYTICS_RANGE_PRESETS, type SortResult} from "@agenta/observability"
+import {ALL_TIME_SENTINEL, RangePicker} from "@agenta/observability-ui"
+import {dayjs} from "@agenta/shared/utils/dateTime"
 
 type RangeValue = {from?: string | null; to?: string | null; preset?: string | null} | null
 
@@ -18,27 +19,8 @@ type SortOptionValue =
     | "all time"
     | "custom"
 
-interface SortPresetMeta {
-    label: SortOptionValue
-    amount?: number
-    unit?: dayjs.ManipulateType
-}
-
-const SORT_PRESETS: SortPresetMeta[] = [
-    {label: "30 mins", amount: 30, unit: "minute"},
-    {label: "1 hour", amount: 1, unit: "hour"},
-    {label: "6 hours", amount: 6, unit: "hour"},
-    {label: "24 hours", amount: 24, unit: "hour"},
-    {label: "3 days", amount: 3, unit: "day"},
-    {label: "7 days", amount: 7, unit: "day"},
-    {label: "14 days", amount: 14, unit: "day"},
-    {label: "1 month", amount: 1, unit: "month"},
-    {label: "3 months", amount: 3, unit: "month"},
-    {label: "all time"},
-]
-
 const KNOWN_SORT_VALUES = new Set<SortOptionValue>([
-    ...SORT_PRESETS.map((preset) => preset.label),
+    ...ANALYTICS_RANGE_PRESETS.map((preset) => preset.label as SortOptionValue),
     "custom",
 ])
 
@@ -66,11 +48,11 @@ const detectSortValue = (value: RangeValue): SortOptionValue => {
         return "custom"
     }
 
-    for (const preset of SORT_PRESETS) {
+    for (const preset of ANALYTICS_RANGE_PRESETS) {
         if (!preset.amount || !preset.unit) continue
         const expectedFrom = to.subtract(preset.amount, preset.unit)
         if (Math.abs(expectedFrom.diff(from, "minute")) <= 1) {
-            return preset.label
+            return preset.label as SortOptionValue
         }
     }
 
@@ -106,35 +88,41 @@ const convertSortResultToRange = (result: SortResult): RangeValue => {
     return {from, to, preset: "custom"}
 }
 
+/** The inverse of `convertSortResultToRange`: this surface stores its own `{from,to,preset}`. */
+const convertRangeToSortResult = (value: RangeValue): SortResult => {
+    const label = detectSortValue(value)
+    if (label === "custom") {
+        const customRange: NonNullable<SortResult["customRange"]> = {}
+        if (value?.from) customRange.startTime = value.from
+        if (value?.to) customRange.endTime = value.to
+        return {type: "custom", sorted: "", customRange, label: "custom"}
+    }
+    return {
+        type: "standard",
+        sorted: value?.from ?? ALL_TIME_SENTINEL,
+        label,
+    }
+}
+
 interface QuickDateRangePickerProps {
     value: RangeValue
     onChange: (range: RangeValue) => void
 }
 
 const QuickDateRangePicker = ({value, onChange}: QuickDateRangePickerProps) => {
-    const defaultSortValue = useMemo(
-        () => detectSortValue(value),
+    const range = useMemo(
+        () => convertRangeToSortResult(value),
         [value?.from, value?.to, value?.preset],
     )
-    const sortComponentKey = useMemo(() => {
-        return `${defaultSortValue}:${value?.from ?? "null"}:${value?.to ?? "null"}`
-    }, [defaultSortValue, value?.from, value?.to])
 
     const handleSortApply = useCallback(
         (result: SortResult) => {
-            const nextRange = convertSortResultToRange(result)
-            onChange(nextRange)
+            onChange(convertSortResultToRange(result))
         },
         [onChange],
     )
 
-    return (
-        <Sort
-            key={sortComponentKey}
-            defaultSortValue={defaultSortValue}
-            onSortApply={handleSortApply}
-        />
-    )
+    return <RangePicker value={range} onChange={handleSortApply} />
 }
 
 export default QuickDateRangePicker

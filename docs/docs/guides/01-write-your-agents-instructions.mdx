@@ -5,7 +5,7 @@ description: "Edit an agent's AGENTS.md instructions, write a first version, and
 ---
 
 ```mdx-code-block
-import Image from "@theme/IdealImage";
+import { Stream } from "@cloudflare/stream-react";
 ```
 
 An agent's instructions live in `AGENTS.md`. Agenta sends this file to the agent at the start of every session. This guide shows you how to edit it, write a first version, and add corrections. To learn what belongs in instructions rather than a file or skill, see [Instructions](/concepts/instructions).
@@ -13,15 +13,9 @@ An agent's instructions live in `AGENTS.md`. Agenta sends this file to the agent
 ## Open the editor
 
 1. Go to `Agents` in the sidebar and pick your agent.
-2. In the playground, set **Playground mode** to `Build`.
-3. In the **Configuration** column, open **Instructions** and click the `AGENTS.md` row.
+2. In the **Configuration** column, click the `AGENTS.md` row under **Instructions**.
 
-<Image
-  style={{ display: "block", margin: "24px 0" }}
-  img={require("/images/agents/instructions-agents-md-editor.png")}
-  alt="The AGENTS.md editor dialog, with the Edit and Preview control, the formatting toolbar, and the tips rail on the right"
-  loading="lazy"
-/>
+<Stream controls autoplay muted loop src="527e90e91f5b353cbfe4ebd9035c36d6" height="400px" />
 
 ## Write a first version
 
@@ -49,11 +43,7 @@ question.
 Never publish or send anything. Show me the draft and wait.
 ```
 
-Then:
-
-1. Click `Save`. The dialog closes and the playground header state reads `Draft`.
-2. Click `Commit` in the **Configuration** header.
-3. Pick `New version`, keep or edit the commit message, and click `Commit`.
+Then click `Save`. The dialog closes and the agent uses the new instructions from its next message on.
 
 ## Add a correction
 
@@ -69,7 +59,7 @@ question. In social copy: no emoji, and never open with a scene-setting sentence
 Open with the claim.
 ```
 
-Save and commit again. Each commit creates a version. You can review what changed and when on the **Registry** page.
+Click `Save` again. The correction applies from the agent's next message on.
 
 ## Ask the agent to edit the instructions
 

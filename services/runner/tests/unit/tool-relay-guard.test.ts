@@ -36,6 +36,12 @@ import {
 import { ApprovedExecutionGrants } from "../../src/responder.ts";
 import type { PermissionPlan } from "../../src/permission-plan.ts";
 import { buildRelayExecutionGuard } from "../../src/engines/sandbox_agent/relay-guard.ts";
+import { advertisedToolSpecs } from "../../src/tools/public-spec.ts";
+import {
+  GATEWAY_POLICY,
+  RUN_TOOL_SPEC,
+  SEARCH_TOOL_SPEC,
+} from "../utils/gateway.ts";
 
 const ENDPOINT = "https://agenta.example/api/tools/call";
 const RUN_CONTEXT: RunContext = {
@@ -149,8 +155,15 @@ describe("startToolRelay execution guard", () => {
     // A refusal is an ERROR result, not a blank success: the model reads the reason and stops,
     // instead of inventing an explanation. The loop still continues, which is what `isError`
     // means in MCP.
-    assert.equal(res.ok, false, "a guard deny is a tool ERROR carrying its reason");
-    assert.match(res.error ?? "", /The user declined this .* call\. .*Do not send this call again/s);
+    assert.equal(
+      res.ok,
+      false,
+      "a guard deny is a tool ERROR carrying its reason",
+    );
+    assert.match(
+      res.error ?? "",
+      /The user declined this .* call\. .*Do not send this call again/s,
+    );
     assert.equal(calls.length, 0, "the forged record never executed");
   });
 
@@ -168,7 +181,10 @@ describe("startToolRelay execution guard", () => {
 
     const replay = await relayOnce({ spec: askSpec(), args, guard });
     assert.equal(replay.ok, false);
-    assert.match(replay.error ?? "", /The user declined this .* call\. .*Do not send this call again/s);
+    assert.match(
+      replay.error ?? "",
+      /The user declined this .* call\. .*Do not send this call again/s,
+    );
     assert.equal(calls.length, 1, "the replayed record consumed nothing");
   });
 
@@ -226,7 +242,11 @@ describe("startToolRelay execution guard", () => {
       guard,
     });
 
-    assert.equal(res.ok, false, "a guard deny is a tool ERROR carrying its reason");
+    assert.equal(
+      res.ok,
+      false,
+      "a guard deny is a tool ERROR carrying its reason",
+    );
     assert.match(res.error ?? "", /is not permitted in this run/);
     assert.equal(calls.length, 0, "the forged record never executed");
   });
@@ -321,5 +341,54 @@ describe("startToolRelay execution guard", () => {
       { workflow_variant_id: "own-variant" },
       "execution still binds the runner's own context value",
     );
+  });
+});
+
+/**
+ * R14. The sandbox bundle is the advertisement the in-sandbox shim reads, and it is the one
+ * artifact an in-sandbox process can read at will. The gateway policy is what decides whether
+ * an integration tool runs, so it must not be in there — nor the connection it would route to,
+ * nor the credential the callback carries.
+ */
+describe("the sandbox bundle carries no gateway secret (R14)", () => {
+  it("advertises the two runtime tools without policy, routing, or credential", () => {
+    const bundle = JSON.stringify(
+      advertisedToolSpecs([RUN_TOOL_SPEC, SEARCH_TOOL_SPEC]),
+    );
+
+    for (const leak of [
+      "github-work", // the connection slug
+      "slack-main",
+      "gateway.run", // the call reference, which is routing
+      "gateway.search",
+      "permission",
+      "readOnly",
+      "composio", // the provider
+      "Access tok", // the callback credential
+    ]) {
+      assert.ok(
+        !bundle.includes(leak),
+        `the sandbox bundle must not carry '${leak}': ${bundle}`,
+      );
+    }
+    // What it DOES carry: the names and the model-facing schemas, and nothing more.
+    assert.deepEqual(
+      JSON.parse(bundle).map((spec: { name: string }) => spec.name),
+      ["run_tool", "search_tools"],
+    );
+  });
+
+  it("keeps the resolved policy out of the advertisement entirely", () => {
+    const bundle = JSON.stringify(
+      advertisedToolSpecs([RUN_TOOL_SPEC, SEARCH_TOOL_SPEC]),
+    );
+    for (const key of Object.keys(GATEWAY_POLICY.integrations)) {
+      for (const tool of Object.keys(GATEWAY_POLICY.integrations[key].tools)) {
+        assert.ok(
+          !bundle.includes(tool),
+          `no compiled tool decision may appear in the bundle: ${tool}`,
+        );
+      }
+    }
   });
 });

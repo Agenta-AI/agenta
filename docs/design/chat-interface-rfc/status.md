@@ -115,7 +115,7 @@ Review by Devin (automated reviewer). All threads resolved:
 - Updated builtin chat service to set `flags={"is_chat": True}`
 - Added `flags` support to new `@ag.route` and propagated to `auto_workflow()`
 - Added `is_chat: bool = False` to `WorkflowFlags` in SDK and API models
-- Manually tested deployment at http://144.76.237.122:8180 - verified `x-agenta.flags.is_chat` appears in OpenAPI
+- Manually tested deployment at http://<dev-host>:8180 - verified `x-agenta.flags.is_chat` appears in OpenAPI
 
 ## Next Steps
 

@@ -31,8 +31,15 @@ from oss.src.core.tools.providers.composio.dtos import (
     ComposioSearchQueryResult,
     ComposioSearchResult,
 )
-from oss.src.core.tools.exceptions import AdapterError, DiscoveryUnsupportedError
+from oss.src.core.tools.exceptions import (
+    AdapterError,
+    DiscoveryUnsupportedError,
+    ProviderNotConfiguredError,
+    ProviderNotFoundError,
+)
+from oss.src.core.tools.registry import ToolsGatewayRegistry
 from oss.src.core.tools.service import ToolsService
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 FIXTURE = Path(__file__).parent / "fixtures" / "composio_search_tools.json"
 
@@ -407,7 +414,7 @@ async def test_discover_capabilities_end_to_end(monkeypatch):
 
     calls = {"search": 0}
 
-    async def _search_capabilities(*, use_cases, user_id):
+    async def _search_capabilities(*, use_cases, user_id, toolkits=None):
         calls["search"] += 1
         return search
 
@@ -469,7 +476,7 @@ async def test_discover_caches_tool_schema_half_recomputes_state_fresh(monkeypat
 
     called = {"search": 0, "query": 0}
 
-    async def _search_capabilities(*, use_cases, user_id):
+    async def _search_capabilities(*, use_cases, user_id, toolkits=None):
         called["search"] += 1
         return _parsed_search()
 
@@ -497,25 +504,9 @@ async def test_discover_caches_tool_schema_half_recomputes_state_fresh(monkeypat
     assert result.capabilities
 
 
-async def test_discover_raises_when_provider_lacks_search(monkeypatch):
-    service = object.__new__(ToolsService)
-    service.adapter_registry = SimpleNamespace(get=lambda _k: SimpleNamespace())
-
-    async def _miss(**_kwargs):
-        return None
-
-    async def _noop(**_kwargs):
-        return None
-
-    monkeypatch.setattr("oss.src.core.tools.service.get_cache", _miss)
-    monkeypatch.setattr("oss.src.core.tools.service.set_cache", _noop)
-
-    with pytest.raises(DiscoveryUnsupportedError):
-        await service.discover_capabilities(
-            project_id=uuid4(),
-            use_cases=["do a thing"],
-            provider_key="agenta",
-        )
+# A provider that cannot search is now impossible to build: ``search_capabilities`` is
+# abstract on ``ToolsGatewayInterface``, so the class fails at import instead of on a
+# live turn. The route's 422 mapping is still covered below.
 
 
 # ---------------------------------------------------------------------------
@@ -546,6 +537,7 @@ def _capabilities_result() -> CapabilitiesResult:
 
 def _router_with_discover(discover_fn):
     return ToolsRouter(
+        run_admission=NoopRunAdmission(),
         tools_service=SimpleNamespace(discover_capabilities=discover_fn),
         workflows_service=None,
     )
@@ -604,6 +596,57 @@ async def test_discover_route_maps_unsupported_provider_to_422(monkeypatch):
             body=CapabilitiesQuery(use_cases=["x"], provider="agenta"),
         )
     assert caught.value.status_code == 422
+
+
+async def test_discover_route_maps_provider_not_configured_to_503(monkeypatch):
+    # Composio disabled (no COMPOSIO_API_KEY) -> the service raises
+    # ProviderNotConfiguredError, not the generic ProviderNotFoundError. A
+    # self-hoster must see a clear "not configured" status, not a bare 404.
+    async def _discover(**_kwargs):
+        raise ProviderNotConfiguredError("composio", env_var="COMPOSIO_API_KEY")
+
+    async def _allow(**_kwargs):
+        return True
+
+    monkeypatch.setattr("oss.src.apis.fastapi.tools.router.check_action_access", _allow)
+
+    with pytest.raises(HTTPException) as caught:
+        await _router_with_discover(_discover).discover_capabilities(
+            _request(),
+            body=CapabilitiesQuery(use_cases=["create a github issue"]),
+        )
+
+    assert caught.value.status_code == 503
+    assert "COMPOSIO_API_KEY" in caught.value.detail
+    assert "composio" in caught.value.detail
+
+
+# ---------------------------------------------------------------------------
+# Registry: composio unset (unconfigured) vs a genuinely unknown provider
+# ---------------------------------------------------------------------------
+
+
+def test_registry_raises_not_configured_for_known_but_disabled_provider():
+    registry = ToolsGatewayRegistry(
+        adapters={},
+        unconfigured={"composio": "COMPOSIO_API_KEY"},
+    )
+
+    with pytest.raises(ProviderNotConfiguredError) as caught:
+        registry.get("composio")
+
+    assert caught.value.env_var == "COMPOSIO_API_KEY"
+    assert "COMPOSIO_API_KEY" in str(caught.value)
+
+
+def test_registry_raises_not_found_for_unknown_provider():
+    registry = ToolsGatewayRegistry(
+        adapters={},
+        unconfigured={"composio": "COMPOSIO_API_KEY"},
+    )
+
+    with pytest.raises(ProviderNotFoundError):
+        registry.get("some-other-provider")
 
 
 def test_capabilities_query_rejects_empty_use_cases():

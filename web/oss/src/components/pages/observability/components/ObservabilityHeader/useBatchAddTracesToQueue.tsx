@@ -22,19 +22,19 @@ import {useCallback, useEffect, useRef, useState} from "react"
 
 import {simpleQueueMolecule, type SimpleQueue} from "@agenta/entities/simpleQueue"
 import {addAllMatchingTracesToQueue, BatchFlushError} from "@agenta/entities/simpleQueue/etl"
+import type {Condition} from "@agenta/observability"
+import {createAdaptiveTracePageFetcher} from "@agenta/observability"
+import {withRateLimitRetry} from "@agenta/observability"
 import {notification} from "@agenta/ui/app-message"
 import {Button} from "antd"
 import {useAtomValue} from "jotai"
 
 import {queueMaxItemsAtom} from "@/oss/state/access/atoms"
-import type {Condition} from "@/oss/state/newObservability/atoms/queryHelpers"
-import {createAdaptiveTracePageFetcher} from "@/oss/state/newObservability/etl/adaptiveTracePageFetcher"
-import {withRateLimitRetry} from "@/oss/state/newObservability/etl/withRateLimitRetry"
 /** Auto-dismiss window for the success toast; rendered as a visible progress bar. */
 const SUCCESS_DISMISS_MS = 5_000
 
 /** Brand primary used for the auto-dismiss countdown bar (matches antd's `colorPrimary`). */
-const PRIMARY_COLOR = "#1c2c3d"
+const PRIMARY_COLOR = "var(--ag-colorText)"
 
 /**
  * Description wrapper that drives the success toast's own auto-dismiss timer:
@@ -109,6 +109,7 @@ const AutoDismissDescription = ({
 export interface BatchAddScanConfig {
     params: Record<string, any>
     appId: string
+    projectId: string
     isHasAnnotationSelected: number
     hasAnnotationConditions: Condition[]
     hasAnnotationOperator?: string

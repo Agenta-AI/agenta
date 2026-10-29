@@ -5,12 +5,18 @@
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/apibase-request-scope.test.ts)
  */
-import { afterEach, describe, it } from "vitest";
+import { afterEach, describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 import type { AddressInfo } from "node:net";
 
-import { apiBase, runWithRequestApiBase } from "../../src/apiBase.ts";
+import {
+  apiBase,
+  runWithRequestApiBase,
+  trustedApiBase,
+} from "../../src/apiBase.ts";
 import { createAgentServer, type RunAgent } from "../../src/server.ts";
+import { runnerToken, runnerTokenHeader } from "../../src/sessions/auth.ts";
+import { reportContinuationAdmission } from "../../src/sessions/control-channel.ts";
 
 const INTERNAL_ENV = "AGENTA_API_INTERNAL_URL";
 const PUBLIC_ENV = "AGENTA_API_URL";
@@ -141,5 +147,90 @@ describe("apiBase (request-scoped, not a process-global first-write-wins pin)", 
     assert.equal(a, "http://a.internal");
     assert.equal(b, "http://b.internal");
     assert.equal(process.env[PUBLIC_ENV], undefined);
+  });
+});
+
+describe("the runner token goes only to a trusted api base", () => {
+  const TOKEN_ENV = "AGENTA_RUNNER_TOKEN";
+  const previousToken = process.env[TOKEN_ENV];
+
+  afterEach(() => {
+    if (previousToken === undefined) delete process.env[TOKEN_ENV];
+    else process.env[TOKEN_ENV] = previousToken;
+    vi.unstubAllGlobals();
+  });
+
+  it("sends the token to the AGENTA_API_INTERNAL_URL base, even inside a request scope", () => {
+    process.env[TOKEN_ENV] = "runner-secret";
+    process.env[INTERNAL_ENV] = "http://api.internal:8000";
+    delete process.env[PUBLIC_ENV];
+
+    runWithRequestApiBase("https://collector.example.com", () => {
+      assert.equal(apiBase(), "http://api.internal:8000");
+      assert.deepEqual(runnerTokenHeader(apiBase()), {
+        "x-agenta-runner-token": "runner-secret",
+      });
+    });
+  });
+
+  it("sends the token to the AGENTA_API_URL base, even inside a request scope", () => {
+    process.env[TOKEN_ENV] = "runner-secret";
+    delete process.env[INTERNAL_ENV];
+    process.env[PUBLIC_ENV] = "https://agenta.example.com/api/";
+
+    runWithRequestApiBase("https://collector.example.com", () => {
+      assert.equal(apiBase(), "https://agenta.example.com/api");
+      assert.equal(trustedApiBase(), "https://agenta.example.com/api");
+      assert.deepEqual(runnerTokenHeader(apiBase()), {
+        "x-agenta-runner-token": "runner-secret",
+      });
+    });
+  });
+
+  it("sends the token to the fixed default base outside a request scope", () => {
+    process.env[TOKEN_ENV] = "runner-secret";
+    delete process.env[INTERNAL_ENV];
+    delete process.env[PUBLIC_ENV];
+
+    assert.equal(apiBase(), "http://api:8000");
+    assert.deepEqual(runnerTokenHeader(apiBase()), {
+      "x-agenta-runner-token": "runner-secret",
+    });
+  });
+
+  it("sends no token to the base inferred from the request when both env bases are unset", () => {
+    process.env[TOKEN_ENV] = "runner-secret";
+    delete process.env[INTERNAL_ENV];
+    delete process.env[PUBLIC_ENV];
+
+    const inferred = runWithRequestApiBase(
+      "https://collector.example.com",
+      () => apiBase(),
+    );
+    assert.equal(inferred, "https://collector.example.com");
+    // The destination decides, not the async context: outside the scope the captured base is
+    // still refused.
+    assert.equal(runnerToken(inferred), undefined);
+    assert.deepEqual(runnerTokenHeader(inferred), {});
+  });
+
+  it("refuses a continuation admission instead of sending the token to an inferred base", async () => {
+    process.env[TOKEN_ENV] = "runner-secret";
+    delete process.env[INTERNAL_ENV];
+    delete process.env[PUBLIC_ENV];
+    const fetchSpy = vi.fn();
+    vi.stubGlobal("fetch", fetchSpy);
+
+    await runWithRequestApiBase("https://collector.example.com", async () => {
+      await assert.rejects(
+        reportContinuationAdmission({
+          commandId: "cmd-1",
+          sessionId: "sess-1",
+          executionId: "turn-1",
+        }),
+        /no runner token for this API base/,
+      );
+    });
+    assert.equal(fetchSpy.mock.calls.length, 0);
   });
 });

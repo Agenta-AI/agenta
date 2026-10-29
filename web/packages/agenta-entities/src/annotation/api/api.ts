@@ -271,11 +271,22 @@ export async function queryAnnotationsByInvocationLink({
         },
     }
 
-    const spansResponse = await axios.post(`${getAgentaApiUrl()}/spans/query`, spansBody, {
-        params: {project_id: projectId},
-    })
-
-    const spans = spansResponse.data?.spans ?? []
+    // The API returns one page per call (it has a default and a maximum limit) and a
+    // `windowing` cursor while more pages remain.
+    const spans: {trace_id?: string}[] = []
+    let windowing: unknown = undefined
+    // A safety stop: 100 pages of 100 annotations each.
+    let pages = 0
+    do {
+        const spansResponse = await axios.post(
+            `${getAgentaApiUrl()}/spans/query`,
+            windowing ? {...spansBody, windowing} : spansBody,
+            {params: {project_id: projectId}},
+        )
+        spans.push(...(spansResponse.data?.spans ?? []))
+        windowing = spansResponse.data?.windowing
+        pages += 1
+    } while (windowing && pages < 100)
     if (spans.length === 0) {
         return {count: 0, annotations: []}
     }

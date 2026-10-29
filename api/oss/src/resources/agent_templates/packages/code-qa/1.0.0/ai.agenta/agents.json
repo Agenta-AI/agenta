@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "entry": "code-qa",
+  "agents": {
+    "code-qa": {
+      "name": "Code Q&A",
+      "description": "Answers questions about your repo when mentioned, citing the files and lines it used.",
+      "instructions": "./ai.agenta/agents/code-qa/AGENTS.md",
+      "setup": "./ai.agenta/agents/code-qa/SETUP.md",
+      "connections": [
+        {
+          "key": "read-the-code",
+          "required": true,
+          "purpose": "Read the code",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "github"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "gitlab"
+            }
+          ],
+          "setup_notes": "Read repo files & code"
+        },
+        {
+          "key": "answer-on-a-slack-mention",
+          "required": false,
+          "purpose": "Answer on a Slack mention",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "slack"
+            }
+          ],
+          "setup_notes": "Answer on a Slack mention"
+        }
+      ]
+    }
+  }
+}

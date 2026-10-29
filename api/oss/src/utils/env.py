@@ -1,7 +1,7 @@
 import os
 import hashlib
 import warnings
-from typing import List, Optional
+from typing import List, Literal, Optional
 from uuid import getnode
 from json import loads
 from urllib.parse import urlparse, quote_plus
@@ -109,6 +109,19 @@ def _parse_optional_positive_int_env(name: str) -> int | None:
     return value
 
 
+def _parse_non_negative_int_env(name: str, default: int) -> int:
+    """Read a count that may legitimately be zero, so `or default` cannot be used."""
+    value = _parse_optional_int_env(name)
+
+    if value is None:
+        return default
+
+    if value < 0:
+        raise ValueError(f"{name} must be 0 or greater, got {value}")
+
+    return value
+
+
 def _parse_bool_env(name: str, default: bool) -> bool:
     raw = os.getenv(name)
     if raw is None:
@@ -159,6 +172,26 @@ class AccessConfig(BaseModel):
     blocked_emails: set = _comma_set(
         "AGENTA_ACCESS_BLOCKED_EMAILS",
         "AGENTA_BLOCKED_EMAILS",
+    )
+    # Seconds the PostHog-backed blocklists are cached. Lower means a new entry blocks sign-ups sooner.
+    blocklist_cache_ttl: int = (
+        _parse_optional_positive_int_env("AGENTA_ACCESS_BLOCKLIST_CACHE_TTL") or 60
+    )
+    # Unset means no limit. Counts the organizations a user owns now, so deleting one frees a slot.
+    max_owned_organizations: int | None = _parse_optional_positive_int_env(
+        "AGENTA_ACCESS_MAX_OWNED_ORGANIZATIONS"
+    )
+
+    # How many proxies in front of the API append to X-Forwarded-For. Set to N, the client IP
+    # is the Nth entry from the right, so entries a client sends itself are ignored. Unset
+    # keeps the first entry, which a client can set. Read by the sign-in rate limit,
+    # Turnstile and the auth log.
+    trusted_proxy_hops: int | None = _parse_optional_positive_int_env(
+        "AGENTA_ACCESS_TRUSTED_PROXY_HOPS"
+    )
+    # Read CF-Connecting-IP only when Cloudflare proxies the API. Otherwise a client can set it.
+    trust_cloudflare_ip: bool = _parse_bool_env(
+        "AGENTA_ACCESS_TRUST_CLOUDFLARE_IP", False
     )
 
     default_plan: str | None = (
@@ -237,6 +270,25 @@ class BillingConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# agenta.accounts — self-service account lifecycle.
+# ---------------------------------------------------------------------------
+
+
+class AccountsConfig(BaseModel):
+    """Self-service account deletion (EE).
+
+    A deletion leaves a tombstone keyed by the email hash. An email that signs up
+    again inside `tombstone_days` of its deletion gets no free credits.
+    """
+
+    tombstone_days: int = (
+        _parse_optional_positive_int_env("AGENTA_ACCOUNT_TOMBSTONE_DAYS") or 365
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
 # agenta.api — API-specific sub-namespace (caching, etc.)
 # ---------------------------------------------------------------------------
 
@@ -254,17 +306,57 @@ class ApiCachingConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
-class WorkflowsConfig(BaseModel):
-    """Workflow-revision behavior toggles."""
+class SkillsImportConfig(BaseModel):
+    """Skill-registry import (repo/marketplace fetch) limits."""
 
-    # The ordered-operations change set (agent-config-editing, slice S1b). OFF is today's
-    # surface exactly: the catalog advertises only `set`/`remove`, and a delta carrying
-    # `operations` is refused as an unknown field, the same answer it gets today. Turning
-    # it on adds the ordered arm to the request model and the catalog schema. The flag
-    # exists so the API can ship dark, ahead of the SDK catalog and the runner, per the
-    # mixed-version rollout order.
-    ordered_operations_enabled: bool = _parse_bool_env(
-        "AGENTA_WORKFLOWS_ORDERED_OPERATIONS_ENABLED", False
+    fetch_timeout_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SKILLS_IMPORT_TIMEOUT_SECONDS") or 30
+    )
+    # Cap on the DOWNLOADED tarball; per-file caps live in the parser contract.
+    max_tarball_mb: int = (
+        _parse_optional_positive_int_env("AGENTA_SKILLS_IMPORT_MAX_TARBALL_MB") or 50
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class ApiThrottlingConfig(BaseModel):
+    """Throttling budgets that do not come from an organization's plan."""
+
+    # The platform's own turn bookkeeping (heartbeats, record reads, turn rows, interactions,
+    # mounts, credential refresh), sent with a run credential. Its volume follows the
+    # platform's design, not the user's intent, so it has its own per-organization budget
+    # instead of spending the plan's; requests per minute. The middleware uses the larger of
+    # this and the plan's own bucket, so no organization gets less than its plan gave it before.
+    # Model-driven platform calls with the same credential are NOT bookkeeping and stay on the
+    # plan budget. The routes: `_BOOKKEEPING_ROUTES` in `ee/src/middlewares/throttling.py`.
+    bookkeeping_capacity: int = (
+        _parse_optional_positive_int_env("AGENTA_API_THROTTLING_BOOKKEEPING_CAPACITY")
+        or 60000
+    )
+    bookkeeping_rate: int = (
+        _parse_optional_positive_int_env("AGENTA_API_THROTTLING_BOOKKEEPING_RATE")
+        or 60000
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class ApiTracingConfig(BaseModel):
+    """Bounds on span and trace list queries: `POST /spans/query`, `POST /traces/query`
+    and the legacy `POST /tracing/spans/query`. With focus=trace, the limit counts traces.
+    A request for spans by trace id alone (the trace drawer) is not bounded."""
+
+    # Used when the request sends no `windowing.limit`. The response carries the
+    # `windowing` of the next page when the page is full.
+    query_default_limit: int = (
+        _parse_optional_positive_int_env("AGENTA_API_TRACING_QUERY_DEFAULT_LIMIT")
+        or 100
+    )
+    # A larger `windowing.limit` is lowered to this value. 1000 is the largest page a
+    # first-party client asks for (the tool spans of the analytics runs list).
+    query_max_limit: int = (
+        _parse_optional_positive_int_env("AGENTA_API_TRACING_QUERY_MAX_LIMIT") or 1000
     )
 
     model_config = ConfigDict(extra="ignore")
@@ -274,20 +366,9 @@ class ApiConfig(BaseModel):
     """Agenta API sub-namespace."""
 
     caching: ApiCachingConfig = ApiCachingConfig()
-    workflows: WorkflowsConfig = WorkflowsConfig()
-
-    model_config = ConfigDict(extra="ignore")
-
-
-# ---------------------------------------------------------------------------
-# agenta.extras
-# ---------------------------------------------------------------------------
-
-
-class ExtrasConfig(BaseModel):
-    """Extras and feature toggles (demos, etc.)."""
-
-    demos: str = os.getenv("AGENTA_EXTRAS_DEMOS") or os.getenv("AGENTA_DEMOS") or ""
+    skills_import: SkillsImportConfig = SkillsImportConfig()
+    throttling: ApiThrottlingConfig = ApiThrottlingConfig()
+    tracing: ApiTracingConfig = ApiTracingConfig()
 
     model_config = ConfigDict(extra="ignore")
 
@@ -338,6 +419,11 @@ class LoggingConfig(BaseModel):
         or "INFO"
     ).upper()
 
+    # "text" (colored, the default) or "json" (one object per line)
+    format: str = (os.getenv("AGENTA_LOG_FORMAT") or "text").strip().lower()
+    # Prefixes trace ids in JSON logs for Google Cloud Logging
+    google_cloud_project: str | None = os.getenv("GOOGLE_CLOUD_PROJECT") or None
+
     model_config = ConfigDict(extra="ignore")
 
 
@@ -352,6 +438,30 @@ class OTLPConfig(BaseModel):
     max_batch_bytes: int = int(
         os.getenv("AGENTA_OTLP_MAX_BATCH_BYTES") or str(10 * 1024 * 1024)
     )
+
+    # Traces with more spans than this keep their per-request totals.
+    totals_max_spans: int = Field(
+        default_factory=lambda: int(
+            os.getenv("AGENTA_OTLP_TOTALS_MAX_SPANS") or 10_000
+        ),
+        ge=1,
+        validate_default=True,
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
+# agenta.server_tracing — spans about the Agenta servers themselves, sent to an
+# OTLP collector. Separate from product tracing, which goes to Agenta.
+# ---------------------------------------------------------------------------
+
+
+class ServerTracingConfig(BaseModel):
+    # OTLP/HTTP base URL, e.g. http://collector:4318. Unset turns server tracing off.
+    endpoint: str | None = os.getenv("AGENTA_SERVER_TRACING_ENDPOINT") or None
+    # A ratio from 0 to 1, parsed and checked when tracing starts (default 0.1).
+    sample_ratio: str | None = os.getenv("AGENTA_SERVER_TRACING_SAMPLE_RATIO") or None
 
     model_config = ConfigDict(extra="ignore")
 
@@ -380,8 +490,9 @@ class ServicesCodeConfig(BaseModel):
             _SANDBOX_RUNNER_LOCAL_WARNED = True
             warnings.warn(
                 "AGENTA_SERVICES_CODE_SANDBOX_RUNNER is 'local' (default): code execution "
-                "is not sandboxed from the host. Set it to 'restricted' to harden a "
-                "shared/multi-tenant deployment.",
+                "has no sandbox restrictions. Use it only when everyone who can create evaluators is "
+                "trusted. Set it to 'daytona' to isolate code from users you do not "
+                "fully trust.",
                 stacklevel=2,
             )
         return self
@@ -424,6 +535,17 @@ class WorkersConfig(BaseModel):
 
     streams: list[str] = _load_csv_env_list("AGENTA_WORKER_STREAMS")
     queues: list[str] = _load_csv_env_list("AGENTA_WORKER_QUEUES")
+
+    # Where a long-running loop records that it is still turning. A liveness probe
+    # then fails when the file goes stale, which is the only way to notice a worker
+    # that is alive and no longer working: its process is PID 1 in its container, so
+    # the container lifecycle already covers a process that exits, and nothing covers
+    # one that stops making progress.
+    #
+    # Empty means write nothing, which is the default. A deployment that wants the
+    # probe sets this and points the probe at the same path, so the writer and the
+    # reader can never disagree. The Helm chart does both from one value.
+    heartbeat_file: str = os.getenv("AGENTA_HEARTBEAT_FILE") or ""
 
     model_config = ConfigDict(extra="ignore")
 
@@ -508,15 +630,47 @@ class RedactionConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+def _parse_sessions_late_output() -> Literal["quarantine", "reject"]:
+    value = (os.getenv("AGENTA_SESSIONS_LATE_OUTPUT") or "quarantine").strip().lower()
+    if value in ("quarantine", "reject"):
+        return value
+    warnings.warn(
+        f"AGENTA_SESSIONS_LATE_OUTPUT={value!r} is not recognized; "
+        "behaving as 'quarantine'.",
+        stacklevel=2,
+    )
+    return "quarantine"
+
+
+def _parse_sessions_watchdog_stale_heartbeat_seconds() -> int:
+    configured = _parse_optional_positive_int_env(
+        "AGENTA_SESSIONS_WATCHDOG_STALE_HEARTBEAT_SECONDS"
+    )
+    if configured is not None:
+        return configured
+    return 90
+
+
 class SessionsRecordsConfig(BaseModel):
     """Durable session-record ingest tuning (server-side history reconstruction)."""
 
-    # When a record body exceeds the cap, preserve its structure + partial content (trim only
-    # the large field values) instead of replacing the whole body with {"_truncated": True}.
-    # Off = legacy whole-body drop. On makes reconstruction from records higher-fidelity.
-    smart_truncation: bool = (
-        os.getenv("AGENTA_RECORDS_SMART_TRUNCATION") or "false"
-    ).lower() in _TRUTHY
+    # How long a record message the worker failed to write sits unacknowledged before the
+    # worker claims it back and tries again.
+    reclaim_idle_ms: int = Field(
+        default_factory=lambda: int(
+            os.getenv("AGENTA_RECORDS_RECLAIM_IDLE_MS") or 30_000
+        ),
+        ge=0,
+        validate_default=True,
+    )
+
+    # Deliveries after which a record message is dropped instead of retried forever. A message
+    # Postgres never accepts would otherwise hold every later message in the group.
+    max_deliveries: int = Field(
+        default_factory=lambda: int(os.getenv("AGENTA_RECORDS_MAX_DELIVERIES") or 5),
+        ge=1,
+        validate_default=True,
+    )
 
     model_config = ConfigDict(extra="ignore")
 
@@ -556,11 +710,109 @@ class SessionAttachmentsConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
+class SessionWatchdogConfig(BaseModel):
+    """The execution watchdog: how long a running turn may go silent before it is settled.
+
+    The rule is HEARTBEAT AGE, not lease expiry. The Redis `alive` and `running` keys carry a
+    one-hour TTL, so "shortly after the lease expires" would mean an hour after the runner
+    died. The runner beats every `heartbeat_interval_seconds` (30) and the beat is mirrored
+    onto `session_streams.updated_at`, so the age of that column is the real liveness signal.
+
+    A turn is declared lost when its stream row still claims `is_running` and its last
+    heartbeat is older than `stale_heartbeat_seconds`, 90 seconds by default (three missed
+    beats).
+
+    Only a turn that still claims `is_running` is eligible. A turn parked for a human sends a
+    final beat with `is_running: false` and then stops beating on purpose; that state is
+    resumable, not lost, and the watchdog must never end it.
+
+    Raise `stale_heartbeat_seconds` if a healthy deployment settles live turns. Lower it to
+    settle a dead turn sooner. It is a plain restart-time setting; nothing else changes.
+    """
+
+    # Maximum age of the last heartbeat before a RUNNING turn is declared lost.
+    stale_heartbeat_seconds: int = _parse_sessions_watchdog_stale_heartbeat_seconds()
+
+    # How long an ALIVE-but-not-running row (between turns, or parked awaiting a human) is left
+    # alone before it is RECLAIMED. That state is resumable, so it is keyed to the 30-minute
+    # approval TTL rather than to three missed beats. It does not govern whether such a row owes
+    # its turn a terminal record: that question is asked of the records plane on the
+    # `stale_heartbeat_seconds` clock, because a durable Stop clears `is_running` before the
+    # runner has written its own ending.
+    idle_grace_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_WATCHDOG_IDLE_GRACE_SECONDS")
+        or 1_800
+    )
+
+    # How often the watchdog runs.
+    interval_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_WATCHDOG_INTERVAL_SECONDS")
+        or 60
+    )
+
+    # Rows settled per pass. A backlog drains over successive passes, not one huge commit.
+    batch_size: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_WATCHDOG_BATCH_SIZE") or 500
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class SessionsCommandsConfig(BaseModel):
+    """Durable session commands: how a Stop reaches the runner, and how long it may wait.
+
+    `adapter` picks the control-delivery transport behind `ControlDeliveryPort`:
+
+      * `direct` — the API posts the command to the runner's own `/cancel`, over the
+        authenticated hop that already carries hard kill. One runner process, no held
+        connection, no poll loop. This is the default.
+      * `long_poll` — the runner holds a claim request open and the API answers it. Correct for
+        two or more runner replicas and for a runner the API cannot reach inbound. Not built in
+        this slice; naming it here fails loudly rather than silently falling back.
+
+    `direct` calls one service address, so with two runner replicas behind a load balancer the
+    call lands on the right process only by luck. Nothing here guards that, on purpose: the
+    detector is exact and lives in the service, where a `not_held` for a session that is alive
+    and beating is the wrong-replica failure and nothing else produces it.
+    """
+
+    adapter: str = os.getenv("AGENTA_SESSIONS_CONTROL_ADAPTER") or "direct"
+
+    # How long a claimed command may go unreported before the settlement sweep acts. Three
+    # heartbeat intervals.
+    lease_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_COMMAND_LEASE_SECONDS") or 90
+    )
+    # Bounds a delivery loop where a runner accepts a command and never reports.
+    max_deliveries: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_COMMAND_MAX_DELIVERIES") or 3
+    )
+    sweep_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_COMMAND_SWEEP_SECONDS") or 10
+    )
+    # A command nobody ever claimed is a runner that is not there.
+    admission_timeout_seconds: int = (
+        _parse_optional_positive_int_env(
+            "AGENTA_SESSIONS_COMMAND_ADMISSION_TIMEOUT_SECONDS"
+        )
+        or 90
+    )
+    # How long the direct call waits for the runner to acknowledge. The runner answers before
+    # it cancels anything, so this covers a network hop, not a harness cancel.
+    delivery_timeout_seconds: float = float(
+        os.getenv("AGENTA_SESSIONS_COMMAND_DELIVERY_TIMEOUT_SECONDS") or 5.0
+    )
+    model_config = ConfigDict(extra="ignore")
+
+
 class SessionsConfig(BaseModel):
     """Agenta sessions sub-namespace."""
 
+    late_output: Literal["quarantine", "reject"] = _parse_sessions_late_output()
     attachments: SessionAttachmentsConfig = SessionAttachmentsConfig()
+    commands: SessionsCommandsConfig = SessionsCommandsConfig()
     records: SessionsRecordsConfig = SessionsRecordsConfig()
+    watchdog: SessionWatchdogConfig = SessionWatchdogConfig()
 
     model_config = ConfigDict(extra="ignore")
 
@@ -568,6 +820,34 @@ class SessionsConfig(BaseModel):
 # ---------------------------------------------------------------------------
 # agenta — top-level Agenta core config.
 # ---------------------------------------------------------------------------
+
+
+def _services_internal_key_from_environment() -> str | None:
+    """Read the dedicated runtime proof without accepting public placeholders."""
+    runtime_key = (os.getenv("AGENTA_SERVICES_INTERNAL_KEY") or "").strip()
+
+    if not runtime_key or runtime_key == "replace-me":
+        return None
+
+    return runtime_key
+
+
+class AuthCodeRateLimitConfig(BaseModel):
+    """Exact per-client-IP limit on the sign-in code and sign-up endpoints.
+
+    The edge rate limit counts per front-end server and approximately, so a slow bot
+    creating one account every 30 seconds passed it. One Redis counter per IP is exact.
+    """
+
+    enabled: bool = _parse_bool_env("AGENTA_AUTH_CODE_RATE_LIMIT_ENABLED", True)
+    requests_per_window: int = (
+        _parse_optional_positive_int_env("AGENTA_AUTH_CODE_REQUESTS_PER_WINDOW") or 5
+    )
+    window_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_AUTH_CODE_WINDOW_SECONDS") or 600
+    )
+
+    model_config = ConfigDict(extra="ignore")
 
 
 class AgentaConfig(BaseModel):
@@ -579,18 +859,39 @@ class AgentaConfig(BaseModel):
     services_url: str = os.getenv("AGENTA_SERVICES_URL") or "http://localhost/services"
     api_url: str = os.getenv("AGENTA_API_URL") or "http://localhost/api"
     api_internal_url: str | None = os.getenv("AGENTA_API_INTERNAL_URL")
+    # Every origin this deployment's app is served from, beyond `web_url`.
+    #
+    # The OAuth callback page posts the consent result to its opener and is refused
+    # unless it names that window's exact origin, so a deployment reachable at more than
+    # one address had the completion delivered nowhere for everyone not using the one
+    # configured address: the dialog waited out its timeout on a connection that was
+    # already authorized. One value cannot describe a deployment behind both a tunnel and
+    # a local address, which is the ordinary shape of a test or preview stack (D71).
+    #
+    # Declared rather than inferred: the page could read the address the browser used to
+    # reach it, but that comes from the Host header, which the caller sets.
+    app_origins: list[str] = _load_csv_env_list("AGENTA_APP_ORIGINS")
 
     auth_key: str = os.getenv("AGENTA_AUTH_KEY") or "replace-me"
     crypt_key: str = os.getenv("AGENTA_CRYPT_KEY") or "replace-me"
+    # Shared secret that proves a caller IS the platform runtime (the workflow service),
+    # as opposed to a browser or an ApiKey holder reaching the same public route. Only a
+    # caller holding it can be issued a credential that reads write-only secret values.
+    # This is deliberately separate from the administrator key: deployments must opt in
+    # by configuring the same dedicated value on the API and platform services. NEVER
+    # sent to the runner or into a sandbox.
+    services_internal_key: str | None = _services_internal_key_from_environment()
 
     access: AccessConfig = AccessConfig()
+    accounts: AccountsConfig = AccountsConfig()
     ai_services: AIServicesConfig = AIServicesConfig()
     api: ApiConfig = ApiConfig()
+    auth_code_rate_limit: AuthCodeRateLimitConfig = AuthCodeRateLimitConfig()
     billing: BillingConfig = BillingConfig()
-    extras: ExtrasConfig = ExtrasConfig()
     logging: LoggingConfig = LoggingConfig()
     otlp: OTLPConfig = OTLPConfig()
     redaction: RedactionConfig = RedactionConfig()
+    server_tracing: ServerTracingConfig = ServerTracingConfig()
     services: ServicesConfig = ServicesConfig()
     sessions: SessionsConfig = SessionsConfig()
     webhooks: WebhooksConfig = WebhooksConfig()
@@ -619,6 +920,144 @@ class AlembicConfig(BaseModel):
     cfg_path_tracing: str = os.getenv("ALEMBIC_CFG_PATH_TRACING") or (
         f"/app/{_LICENSE}/databases/postgres/migrations/tracing/alembic.ini"
     )
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
+# channels.slack — the Agenta-owned Slack app (hosted install), one
+# deployment's credentials, never a project's. See channels/adapters/slack.
+# ---------------------------------------------------------------------------
+
+
+class ChannelsSlackConfig(BaseModel):
+    client_id: str | None = os.getenv("SLACK_CLIENT_ID")
+    client_secret: str | None = os.getenv("SLACK_CLIENT_SECRET")
+    signing_secret: str | None = os.getenv("SLACK_SIGNING_SECRET")
+
+    model_config = ConfigDict(extra="ignore")
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.client_id and self.client_secret and self.signing_secret)
+
+
+# ---------------------------------------------------------------------------
+# channels.telegram — the Agenta-owned Telegram bot (hosted bind), one
+# deployment's bot, shared by every project. A custom bot uses a per-project
+# token in the vault instead; these are only for the hosted bot.
+# ---------------------------------------------------------------------------
+
+
+class ChannelsTelegramConfig(BaseModel):
+    # One shared bot token for the whole deployment, never a project's.
+    bot_token: str | None = os.getenv("TELEGRAM_HOSTED_BOT_TOKEN")
+    # The @username of the hosted bot, for the deep link t.me/<username>.
+    bot_username: str | None = os.getenv("TELEGRAM_HOSTED_BOT_USERNAME")
+    # The secret token Telegram echoes on every hosted webhook call, set once
+    # per deployment at setWebhook time; the ingress verifies it before it
+    # consumes a bind token or writes anything.
+    webhook_secret: str | None = os.getenv("TELEGRAM_HOSTED_WEBHOOK_SECRET")
+
+    model_config = ConfigDict(extra="ignore")
+
+    @property
+    def enabled(self) -> bool:
+        # A username is required too: without it the deep link degrades to
+        # https://t.me/?start=... , which connects nothing.
+        return bool(self.bot_token and self.webhook_secret and self.bot_username)
+
+
+# ---------------------------------------------------------------------------
+# channels.whatsapp — Meta's WhatsApp Cloud API. Each connection brings its own
+# number, token and app secret; the deployment only chooses the Graph API base.
+# ---------------------------------------------------------------------------
+
+
+class ChannelsWhatsAppConfig(BaseModel):
+    # The versioned Graph API base. Overridable so a local stack can point the
+    # adapter at a fake Graph API instead of Meta.
+    graph_api_url: str = (
+        os.getenv("WHATSAPP_GRAPH_API_URL") or "https://graph.facebook.com/v24.0"
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
+# channels.embed — the public chat widget. Its ingress has no Agenta login,
+# so it limits itself: per embed, per visitor key, and per request size.
+# ---------------------------------------------------------------------------
+
+
+class ChannelsEmbedConfig(BaseModel):
+    requests_per_minute_per_embed: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env(
+                "AGENTA_CHANNELS_EMBED_REQUESTS_PER_MINUTE_PER_EMBED"
+            )
+            or 600
+        )
+    )
+    requests_per_minute_per_key: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env(
+                "AGENTA_CHANNELS_EMBED_REQUESTS_PER_MINUTE_PER_KEY"
+            )
+            or 30
+        )
+    )
+    # The four visitor read routes. Larger than the ingress buckets: the
+    # widget polls the list after a first message and reconnects the stream.
+    read_requests_per_minute_per_embed: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env(
+                "AGENTA_CHANNELS_EMBED_READ_REQUESTS_PER_MINUTE_PER_EMBED"
+            )
+            or 6000
+        )
+    )
+    read_requests_per_minute_per_key: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env(
+                "AGENTA_CHANNELS_EMBED_READ_REQUESTS_PER_MINUTE_PER_KEY"
+            )
+            or 240
+        )
+    )
+    # Open live streams per embed in one API process (each holds a Redis
+    # connection). Over the cap the widget gets a 429 and retries.
+    max_live_streams_per_embed: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env(
+                "AGENTA_CHANNELS_EMBED_MAX_LIVE_STREAMS_PER_EMBED"
+            )
+            or 200
+        )
+    )
+    # Applies to the message text and to the serialized host context.
+    max_message_chars: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env("AGENTA_CHANNELS_EMBED_MAX_MESSAGE_CHARS")
+            or 10000
+        )
+    )
+    # Uploads ride in the request body as base64 and stay in the inbox row.
+    max_file_bytes: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env("AGENTA_CHANNELS_EMBED_MAX_FILE_BYTES")
+            or 5 * 1024 * 1024
+        )
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class ChannelsConfig(BaseModel):
+    slack: ChannelsSlackConfig = ChannelsSlackConfig()
+    telegram: ChannelsTelegramConfig = ChannelsTelegramConfig()
+    whatsapp: ChannelsWhatsAppConfig = ChannelsWhatsAppConfig()
+    embed: ChannelsEmbedConfig = ChannelsEmbedConfig()
 
     model_config = ConfigDict(extra="ignore")
 
@@ -682,11 +1121,22 @@ class CloudflareConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+# The REST scope discovery and execution have to agree on (#5174). Named, because it is the
+# value the code ships and a deployment may override, and a test that reads the field default
+# instead reads whatever COMPOSIO_API_URL says in the shell it runs in (D95).
+COMPOSIO_DEFAULT_API_URL = "https://backend.composio.dev/api/v3.1"
+
+
+def composio_api_url() -> str:
+    """The Composio REST scope: the deployment's override, else the shipped default."""
+    return os.getenv("COMPOSIO_API_URL") or COMPOSIO_DEFAULT_API_URL
+
+
 class ComposioConfig(BaseModel):
     """Composio integration configuration"""
 
     api_key: str | None = os.getenv("COMPOSIO_API_KEY")
-    api_url: str = os.getenv("COMPOSIO_API_URL", "https://backend.composio.dev/api/v3")
+    api_url: str = composio_api_url()
     # Dev: when set, unknown-trigger drops log at WARNING instead of INFO.
     webhook_target: str | None = os.getenv("COMPOSIO_WEBHOOK_TARGET")
     # Override the registered webhook URL. Composio requires public HTTPS; in dev
@@ -698,7 +1148,8 @@ class ComposioConfig(BaseModel):
     webhook_replay_window_seconds: int = int(
         os.getenv("COMPOSIO_WEBHOOK_REPLAY_WINDOW_SECONDS") or 300
     )
-    # Full trigger-types catalog: project-agnostic cache TTL + whole-fetch deadline.
+    # Full trigger-types and tool catalogs: project-agnostic cache TTL + whole-fetch
+    # deadline. Both crawl the same Composio catalog surface.
     catalog_cache_ttl_seconds: int = int(
         os.getenv("COMPOSIO_CATALOG_CACHE_TTL_SECONDS") or 24 * 60 * 60
     )
@@ -710,6 +1161,170 @@ class ComposioConfig(BaseModel):
     def enabled(self) -> bool:
         """Composio enabled if API key is present"""
         return bool(self.api_key)
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
+# Gateway mocks
+# ---------------------------------------------------------------------------
+
+
+class MockGatewaysConfig(BaseModel):
+    """Development-only gateway mock configuration.
+
+    The URLs have safe defaults so the compose services can share one image, but generated
+    gateway entries are opt-in.  A production process must therefore not accidentally expose
+    an endpoint merely because a Docker DNS name happens to resolve.
+    """
+
+    enabled: bool = _parse_bool_env("AGENTA_GATEWAYS_MOCKS_ENABLED", default=False)
+
+    llm_url: str = os.getenv(
+        "AGENTA_MOCK_LLM_GATEWAY_URL", "http://mock-llm-gateway:9091"
+    )
+    mcp_url: str = os.getenv(
+        "AGENTA_MOCK_MCP_GATEWAY_URL", "http://mock-mcp-gateway:9092"
+    )
+    # The address the mock OAuth issuer publishes itself under, for the case where that has
+    # to differ from the Docker address above: a browser completing the consent flow cannot
+    # resolve a container name, so a tunnelled stack points this at its public HTTPS address.
+    # Empty means "the address the gateway dials", which is every stack with no browser leg.
+    mcp_public_url: str = os.getenv("AGENTA_MOCK_MCP_GATEWAY_PUBLIC_URL", "")
+    upstream_token: str = os.getenv(
+        "AGENTA_GATEWAYS_MOCKS_UPSTREAM_TOKEN", "agenta-gateway-mock-token"
+    )
+    # The header-authenticated mock MCP surface, which is the only one a person can drive
+    # from a browser to reach the connect journey's API-key screen. The bearer profile on
+    # `/` is selected by a request header nothing but a test sends, and `/oauth/mcp`
+    # publishes OAuth metadata, so neither produces the 401-without-metadata a key server
+    # answers with.
+    #
+    # Both halves are configurable so a stack can move them, and both have defaults so the
+    # QA runbook can name one pair. The name is what an endpoint's credential binding
+    # names, as a header or a query parameter; the surface also accepts the value as
+    # `Authorization: Bearer <value>` and as the password of `Authorization: Basic`.
+    mcp_key_header: str = os.getenv("AGENTA_MOCK_MCP_GATEWAY_KEY_HEADER", "X-Api-Key")
+    mcp_key_value: str = os.getenv("AGENTA_MOCK_MCP_GATEWAY_KEY", "agenta-mock-mcp-key")
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
+# MCP adapter
+# ---------------------------------------------------------------------------
+
+
+class GatewayEgressConfig(BaseModel):
+    """Whether the gateway's outbound boundary (`core/gateways/egress.py`) enforces.
+
+    Separate from `AGENTA_INSECURE_EGRESS_ALLOWED`, which governs webhook delivery, OIDC
+    issuer probes and provider-endpoint checks and defaults to permissive so a zero-config
+    self-host works. The gateway cannot inherit that default: its targets are tenant data
+    and upstream-supplied URLs reached with a provider credential attached, so the range
+    check and the https requirement are on unless an operator turns them off deliberately.
+
+    Also distinct from `AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED`, which is read only by the
+    SDK and the runner (`sdks/python/agenta/sdk/agents/connections/models.py`,
+    `services/runner/src/engines/sandbox_agent/run-plan.ts`) and governs the hop *into*
+    Agenta rather than egress out of it.
+
+    Turning this on does not open every internal address by accident on a dev stack: the
+    narrower escape hatches are `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` and the mock upstreams
+    admitted while `AGENTA_GATEWAYS_MOCKS_ENABLED` is on.
+
+    The same boundary applies to a workflow or evaluator revision whose `url` is not under
+    `AGENTA_SERVICES_URL`, so this flag and `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` are also how
+    an operator lets custom workflows on a private network or plain http be called.
+    """
+
+    insecure_allowed: bool = _parse_bool_env(
+        "AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED", default=False
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class GatewayCredentialsConfig(BaseModel):
+    """How long the sandbox-scoped gateway credential a run carries stays valid.
+
+    Its own lifetime, separate from the 15 minutes every other secret token gets, because
+    the two are bounded by different things. An ordinary secret token is handed to a browser
+    or a short server-to-server hop and a short life is the point of it. This one is minted
+    once when a run's connections resolve and is then held INSIDE a sandbox for as long as
+    the turn lasts: nothing re-mints it mid-turn and nothing delivers a new one, so its
+    lifetime is a hard ceiling on how long an agent may use a gateway MCP server or the LLM
+    gateway. At 15 minutes a single long turn lost both partway through.
+
+    43200 (12h) matches `MountsConfig.credentials_ttl_seconds`, and for the same reason: it
+    has to sit above the runner's total run deadline, or the credential dies under a turn
+    that was still allowed to be running.
+    """
+
+    ttl_seconds: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env("AGENTA_GATEWAYS_CREDENTIALS_TTL_SECONDS")
+            or 43200
+        )
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
+class LLMGatewayConfig(BaseModel):
+    """Whether this deployment serves the LLM gateway plane at all.
+
+    The product switch, not a security or mock escape hatch: with it off the API refuses
+    every LLM gateway route and the agent SDK resolves a model the way it did before the
+    gateway existed, by reading the project's vault key and injecting it into the sandbox.
+    Default off, because that legacy path is what every existing deployment runs today and
+    a routing change is not something an upgrade should make on an operator's behalf.
+
+    The API is the authority. The SDK carries no matching flag of its own: it learns the
+    plane is off from the refusal this flag produces (`llm_gateway_disabled`), so one
+    deployment cannot end up with a runtime routing through a gateway the API has closed.
+    """
+
+    enabled: bool = _parse_bool_env("AGENTA_LLM_GATEWAY_ENABLED", default=False)
+
+    # The platform's own Vertex AI account, which the `builtin/agenta` endpoint serves its
+    # models from. The endpoint exists only when the service-account document and the project
+    # are both set.
+    vertex_sa_json_b64: str | None = (
+        os.getenv("AGENTA_LLM_GATEWAY_VERTEX_SA_JSON_B64") or None
+    )
+    vertex_project: str | None = os.getenv("AGENTA_LLM_GATEWAY_VERTEX_PROJECT") or None
+    # Send `builtin/agenta` calls on Vertex's Priority PayGo tier instead of Standard. Google
+    # bills Priority above Standard and the wallet still charges Standard rates, so the
+    # platform pays the difference. On staging it cut stalls by about two thirds, not to zero.
+    vertex_priority: bool = _parse_bool_env(
+        "AGENTA_LLM_GATEWAY_VERTEX_PRIORITY", default=False
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+    @property
+    def vertex_configured(self) -> bool:
+        return bool(self.vertex_sa_json_b64 and self.vertex_project)
+
+
+class MCPGatewayConfig(BaseModel):
+    """The MCP gateway plane: whether it serves, and its outbound-guard escape hatch.
+
+    `enabled` is the operator's kill switch, default on, because the MCP gateway is the
+    feature this release ships. Off, the API refuses every MCP gateway route, the settings
+    navigation hides the MCP endpoints tab, and an agent run dials its declared MCP servers
+    directly with the named secrets the runtime already injects — the pre-gateway behavior.
+
+    `host_allowlist` mirrors the runner's `AGENTA_AGENT_MCPS_HOST_ALLOWLIST`: a `custom` MCP
+    server whose host is listed here skips the SSRF guard (`core/webhooks/utils.py`)
+    entirely, so a self-hoster can reach one known internal server without disabling the
+    guard globally via AGENTA_INSECURE_EGRESS_ALLOWED. The list applies to every target of
+    the gateway egress boundary, custom workflow service URLs included."""
+
+    enabled: bool = _parse_bool_env("AGENTA_MCP_GATEWAY_ENABLED", default=True)
+
+    host_allowlist: list[str] = _load_csv_env_list("AGENTA_MCP_GATEWAY_HOST_ALLOWLIST")
 
     model_config = ConfigDict(extra="ignore")
 
@@ -987,6 +1602,7 @@ class LLMConfig(BaseModel):
     perplexityai: str = os.getenv("PERPLEXITYAI_API_KEY", "")
     togetherai: str = os.getenv("TOGETHERAI_API_KEY", "")
     minimax: str = os.getenv("MINIMAX_API_KEY", "")
+    xai: str = os.getenv("XAI_API_KEY", "")
 
     model_config = ConfigDict(extra="ignore")
 
@@ -1009,6 +1625,7 @@ class LLMConfig(BaseModel):
                 "perplexityai",
                 "togetherai",
                 "minimax",
+                "xai",
             ]
             if getattr(self, name)
         ]
@@ -1043,7 +1660,7 @@ _SANDBOX_LOCAL_WARNED = False
 
 # Sandbox providers this runner can provision. Kept in lockstep with the runner's
 # KNOWN_SANDBOX_PROVIDER_IDS and the SDK's KNOWN_SANDBOX_PROVIDERS so all three readers agree.
-_KNOWN_SANDBOX_PROVIDERS = ("local", "daytona")
+_KNOWN_SANDBOX_PROVIDERS = ("local", "daytona", "inprocess")
 
 
 def _parse_enabled_sandbox_providers(raw: Optional[str]) -> List[str]:
@@ -1099,9 +1716,18 @@ def _parse_default_sandbox_provider(raw: Optional[str], enabled: List[str]) -> s
     return value
 
 
+def _with_implied_sandbox_providers(ids: List[str]) -> List[str]:
+    """``inprocess`` is enabled wherever ``daytona`` is (the runner's withImpliedProviders)."""
+    if "daytona" in ids and "inprocess" not in ids:
+        return [*ids, "inprocess"]
+    return list(ids)
+
+
 def _enabled_sandbox_providers_default() -> List[str]:
-    return _parse_enabled_sandbox_providers(
-        os.getenv("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS")
+    return _with_implied_sandbox_providers(
+        _parse_enabled_sandbox_providers(
+            os.getenv("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS")
+        )
     )
 
 
@@ -1156,6 +1782,17 @@ class RunnerConfig(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+def _store_version_retention_days_default() -> int:
+    days = _parse_optional_int_env("AGENTA_STORE_VERSION_RETENTION_DAYS")
+    if days is None:
+        return 30
+    if days < 0:
+        raise ValueError(
+            f"AGENTA_STORE_VERSION_RETENTION_DAYS must be 0 or greater, got {days}"
+        )
+    return days
+
+
 class StoreConfig(BaseModel):
     """Shared S3-compatible object store credentials.
 
@@ -1190,6 +1827,15 @@ class StoreConfig(BaseModel):
     jwt_private_key: str | None = os.getenv("AGENTA_STORE_JWT_PRIVATE_KEY")
     jwt_issuer: str = os.getenv("AGENTA_STORE_JWT_ISSUER") or "http://api:8000"
 
+    # How long the bundled SeaweedFS keeps a version that is no longer current — every
+    # overwritten body and every deleted object. Without it a DeleteObject is final, so a
+    # runaway delete (an agent running `rm -rf` over a FUSE mount) is unrecoverable. Applies
+    # to the bundled store only; a remote S3 bucket's versioning and lifecycle stay under the
+    # operator's control. 0 removes Agenta's expiration rule and leaves existing versioning enabled.
+    version_retention_days: int = Field(
+        default_factory=_store_version_retention_days_default
+    )
+
     model_config = ConfigDict(extra="ignore")
 
     @property
@@ -1206,37 +1852,31 @@ class MountsConfig(BaseModel):
     """Mounts-domain config. Store credentials live in StoreConfig."""
 
     # Lifetime of signed mount credentials, in seconds. The store backends clamp it to their
-    # own STS bounds.
+    # own STS bounds. The default is 43200 (12h) because that is SeaweedFS's maxSessionLength
+    # ceiling (AWS GetFederationToken accepts up to 129600), and because it must stay ABOVE the
+    # runner's default total run deadline (11h, DEFAULT_TOTAL_DEADLINE_MS in run-limits.ts) plus
+    # its 60s lease skew: the runner only reuses a warm sandbox when the lease covers
+    # `now + deadline + skew`, so a TTL at or below the deadline forces every mount-backed
+    # session to rebuild cold.
     credentials_ttl_seconds: int = Field(
         default_factory=lambda: (
             _parse_optional_positive_int_env("AGENTA_MOUNTS_CREDENTIALS_TTL_SECONDS")
-            or 3600
+            or 43200
+        )
+    )
+
+    # Largest request body the drive upload and write routes accept, in bytes. The API holds
+    # the whole file in memory while it writes it to the store, so this bounds the memory one
+    # request can take. A larger request gets 413: before its body is read when it declares
+    # Content-Length, and as soon as it passes the limit when it does not.
+    max_upload_bytes: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env("AGENTA_MOUNTS_MAX_UPLOAD_BYTES")
+            or 100 * 1024 * 1024
         )
     )
 
     model_config = ConfigDict(extra="ignore")
-
-
-# ---------------------------------------------------------------------------
-# newrelic
-# ---------------------------------------------------------------------------
-
-
-class NewRelicConfig(BaseModel):
-    """New Relic monitoring configuration"""
-
-    license_key: str | None = (
-        os.getenv("NEWRELIC_LICENSE_KEY")
-        or os.getenv("NEW_RELIC_LICENSE_KEY")
-        or os.getenv("NRIA_LICENSE_KEY")
-    )
-
-    model_config = ConfigDict(extra="ignore")
-
-    @property
-    def enabled(self) -> bool:
-        """New Relic enabled if license key present"""
-        return bool(self.license_key)
 
 
 # ---------------------------------------------------------------------------
@@ -1254,6 +1894,9 @@ class PostgresConfig(BaseModel):
 
     user: str = os.getenv("POSTGRES_USER") or "username"
     password: str = os.getenv("POSTGRES_PASSWORD") or "password"
+    # Compose service name in-network; set POSTGRES_HOST=localhost to reach the
+    # published port from the host (tests run outside the network).
+    host: str = os.getenv("POSTGRES_HOST") or "postgres"
     # The bundled Postgres always listens on 5432 inside the Docker network.
     # POSTGRES_PORT only remaps the host-published port (compose
     # "${POSTGRES_PORT:-5432}:5432") and must NOT feed the in-network URIs below.
@@ -1270,14 +1913,58 @@ class PostgresConfig(BaseModel):
         _parse_optional_positive_int_env("POSTGRES_COMMIT_LOCK_TIMEOUT_MS") or 5_000
     )
 
+    # Connection-pool sizing, per engine, per process. Every process builds two
+    # engines (core and tracing), so a process reserves 2 x (pool_size +
+    # max_overflow) connections. The defaults fit the smallest supported server,
+    # 400 connections shared by about ten processes: 10 processes x 2 engines x
+    # (5 + 10) = 300, which leaves headroom for migrations, the cron and a psql
+    # session. Raise them deliberately against `SHOW max_connections`, not by
+    # guessing: a pool wider than the server grants turns a traffic burst into
+    # TooManyConnectionsError for every process at once.
+    pool_size: int = _parse_non_negative_int_env("POSTGRES_POOL_SIZE", 5)
+    max_overflow: int = _parse_non_negative_int_env("POSTGRES_MAX_OVERFLOW", 10)
+
+    # The queue and stream consumers are long-lived and bursty: they open many
+    # connections during an evaluation run and then idle, and an idle checked-in
+    # connection is never closed while it stays within pool_size. A narrow pool
+    # keeps the steady state small and sends the burst through overflow, which
+    # does close on check-in.
+    worker_pool_size: int = _parse_non_negative_int_env("POSTGRES_WORKER_POOL_SIZE", 2)
+    worker_max_overflow: int = _parse_non_negative_int_env(
+        "POSTGRES_WORKER_MAX_OVERFLOW", 8
+    )
+
+    # A pooled connection is discarded after this long, so a server-side restart
+    # or a failover does not leave the pool holding dead sockets for hours.
+    pool_recycle_seconds: int = (
+        _parse_optional_positive_int_env("POSTGRES_POOL_RECYCLE_SECONDS") or 30 * 60
+    )
+
+    # How long a caller waits for a connection once the pool and its overflow are
+    # exhausted. Bounded, so a saturated pool fails the request instead of
+    # blocking the event loop forever.
+    pool_timeout_seconds: int = (
+        _parse_optional_positive_int_env("POSTGRES_POOL_TIMEOUT_SECONDS") or 30
+    )
+
+    # The server's own `max_connections`, and how many of our processes share it.
+    # Used only to warn at start when the configured pool cannot fit; nothing
+    # reads them at request time.
+    max_connections: int = (
+        _parse_optional_positive_int_env("POSTGRES_MAX_CONNECTIONS") or 400
+    )
+    pool_consumers: int = (
+        _parse_optional_positive_int_env("POSTGRES_POOL_CONSUMERS") or 10
+    )
+
     uri_core: str = os.getenv("POSTGRES_URI_CORE") or (
-        f"postgresql+asyncpg://{_user_q}:{_password_q}@postgres:5432/{db_prefix}_core"
+        f"postgresql+asyncpg://{_user_q}:{_password_q}@{host}:5432/{db_prefix}_core"
     )
     uri_tracing: str = os.getenv("POSTGRES_URI_TRACING") or (
-        f"postgresql+asyncpg://{_user_q}:{_password_q}@postgres:5432/{db_prefix}_tracing"
+        f"postgresql+asyncpg://{_user_q}:{_password_q}@{host}:5432/{db_prefix}_tracing"
     )
     uri_supertokens: str = os.getenv("POSTGRES_URI_SUPERTOKENS") or (
-        f"postgresql://{_user_q}:{_password_q}@postgres:5432/{db_prefix}_supertokens"
+        f"postgresql://{_user_q}:{_password_q}@{host}:5432/{db_prefix}_supertokens"
     )
 
     # Stable signed-64-bit advisory-lock key for this deployment. We mix
@@ -1327,12 +2014,37 @@ class PostHogConfig(BaseModel):
         os.getenv("POSTHOG_API_KEY")
         or "phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7"
     )
+    # Whether THIS deployment supplied the key, as opposed to falling back to the
+    # built-in project key above. `enabled` cannot answer that — the fallback makes it
+    # true in every checkout — and a consumer that must tell "this operator runs
+    # PostHog" from "this is a stock local stack" needs the difference.
+    api_key_configured: bool = bool(os.getenv("POSTHOG_API_KEY"))
 
     model_config = ConfigDict(extra="ignore")
 
     @property
     def enabled(self) -> bool:
         """PostHog enabled if API key present"""
+        return bool(self.api_key)
+
+
+# ---------------------------------------------------------------------------
+# typesafe
+# ---------------------------------------------------------------------------
+
+
+class TypeSafeConfig(BaseModel):
+    """TypeSafe judgment model (Jev), used by the EE fraud check at signup and at
+    API key creation. Without a key the check is skipped and every signup is allowed."""
+
+    api_url: str = os.getenv("TYPESAFE_API_URL") or "https://api.typesafe.ai"
+    api_key: str | None = os.getenv("TYPESAFE_API_KEY") or None
+    model: str = os.getenv("TYPESAFE_MODEL") or "jev-latest"
+
+    model_config = ConfigDict(extra="ignore")
+
+    @property
+    def enabled(self) -> bool:
         return bool(self.api_key)
 
 
@@ -1376,8 +2088,13 @@ class SessionsRedisConfig(BaseModel):
     Defaults mirror the golden fixture (services/runner/tests/fixtures/sessions/
     redis_contract.json) shared with the TypeScript runner. Do not change a default
     without updating that fixture and the TS side in lockstep.
+
+    AGENTA_SESSIONS_SEQUENCE_WRITES independently gates atomic record sequencing.
     """
 
+    sequence_writes: bool = (
+        os.getenv("AGENTA_SESSIONS_SEQUENCE_WRITES") or "true"
+    ).lower() in _TRUTHY
     alive_ttl_seconds: int = (
         _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_ALIVE_TTL_SECONDS")
         or 3600
@@ -1389,10 +2106,6 @@ class SessionsRedisConfig(BaseModel):
     attached_ttl_seconds: int = (
         _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_ATTACHED_TTL_SECONDS")
         or 60
-    )
-    owner_ttl_seconds: int = (
-        _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_OWNER_TTL_SECONDS")
-        or 120
     )
     heartbeat_interval_seconds: int = (
         _parse_optional_positive_int_env(
@@ -1409,6 +2122,46 @@ class SessionsRedisConfig(BaseModel):
     concurrency_limit: int = (
         _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_CONCURRENCY_LIMIT")
         or 1000
+    )
+    live_stream_maxlen: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_LIVE_STREAM_MAXLEN")
+        or 100_000
+    )
+    live_frame_max_age_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_LIVE_FRAME_MAX_AGE_SECONDS")
+        or 900
+    )
+    shared_reader: bool = (
+        os.getenv("AGENTA_SESSIONS_SHARED_READER") or "true"
+    ).lower() in _TRUTHY
+    live_auth_recheck_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_LIVE_AUTH_RECHECK_SECONDS")
+        or 60
+    )
+    live_reader_buffer_limit: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_LIVE_READER_BUFFER_LIMIT")
+        or 256
+    )
+    # API-side only (SSE watch endpoint keep-alive cadence) — NOT part of the
+    # runner golden fixture; safe to tune without touching the TS side.
+    watch_heartbeat_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_WATCH_HEARTBEAT_SECONDS")
+        or 15
+    )
+    # SSE `retry:` preamble — the browser's OWN auto-reconnect delay after a
+    # server-side drop (restart/deploy). Without it the interval is
+    # implementation-defined, and a restart reconnect-storms the API.
+    watch_retry_milliseconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_WATCH_RETRY_MILLISECONDS")
+        or 5000
+    )
+    # API-side only (turn-supersession tombstones) — NOT part of the runner golden
+    # fixture; the runner never reads this key, it learns supersession from
+    # `is_current_turn`. Defaults to the alive TTL so a tombstone always outlives the
+    # lock whose displacement created it.
+    superseded_ttl_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_SESSIONS_REDIS_SUPERSEDED_TTL_SECONDS")
+        or 3600
     )
 
     model_config = ConfigDict(extra="ignore")
@@ -1467,6 +2220,37 @@ class SendgridConfig(BaseModel):
     def enabled(self) -> bool:
         """SendGrid enabled only if API key and sender email are present"""
         return bool(self.api_key and self.from_email)
+
+
+# ---------------------------------------------------------------------------
+# signup_grant_policy — who gets the wallet signup grant (EE).
+# ---------------------------------------------------------------------------
+
+
+class SignupGrantPolicyConfig(BaseModel):
+    """Signup grant policy (EE): the velocity caps and email rules that decide whether a
+    new organization gets the wallet signup grant.
+
+    The policy itself ships as the payload of a PostHog flag, so no real value lives in
+    source. Without a resolvable payload the policy is unresolved and the signup grant
+    fails closed. Only the flag's NAME is configurable here. A deployment with NO PostHog
+    of its own runs on the built-in development policy in `wallets/signup_policy.py`.
+
+    The variable names come from the retired starter-credits program. They are kept so
+    deployments that set them need no change.
+    """
+
+    policy_flag: str = (
+        os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_POLICY_FLAG")
+        or "starter-credits-bridge-policy"
+    )
+    # Optional operator webhook ({"text": ...} POST), called when the live payload is
+    # malformed.
+    alert_webhook: str | None = (
+        os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_ALERT_WEBHOOK") or None
+    )
+
+    model_config = ConfigDict(extra="ignore")
 
 
 # ---------------------------------------------------------------------------
@@ -1540,6 +2324,52 @@ class SuperTokensConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Triggers
+# ---------------------------------------------------------------------------
+
+
+class TriggersConfig(BaseModel):
+    """Guardrails for trigger schedules."""
+
+    # The smallest gap allowed between two consecutive fires of a schedule's cron
+    # expression. Every fire starts an agent run in its own sandbox, so `* * * * *`
+    # bills 1440 runs a day; and because a run routinely outlives one minute, such a
+    # schedule also overlaps itself. Enforced on create and edit only, so rows stored
+    # before the floor existed keep firing until someone edits them.
+    #
+    # The web mirrors this default as MIN_CRON_INTERVAL_MINUTES so the drawer can
+    # reject a value before submitting. Lowering this below that constant makes the
+    # client stricter than the server until the two are changed together.
+    schedule_min_interval_minutes: int = (
+        _parse_optional_positive_int_env(
+            "AGENTA_TRIGGERS_SCHEDULE_MIN_INTERVAL_MINUTES"
+        )
+        or 15
+    )
+
+
+# ---------------------------------------------------------------------------
+# Wallets
+# ---------------------------------------------------------------------------
+
+
+class WalletsConfig(BaseModel):
+    """Master switch for the credit wallet (EE only).
+
+    Off until the ledger works end to end. While off, an organization gets no
+    balance row and no signup grant, and the `measurements`/`debits` stream consumers are not started — so no
+    row is written that a later, corrected implementation would have to undo.
+    Organizations created while it was off get their balance row lazily on
+    first use; their missed signup grant comes only from the one-off
+    `entrypoints.backfill_wallet_signup_grants` job, run before turning it on.
+    """
+
+    enabled: bool = _parse_bool_env("AGENTA_WALLETS_ENABLED", default=False)
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
 # Auth — derived flags. Kept as a convenience facade reading from
 # identity.* (OIDC) and agenta.access.email_disabled (email).
 # ---------------------------------------------------------------------------
@@ -1605,16 +2435,21 @@ class EnvironSettings(BaseModel):
     agenta: AgentaConfig = AgentaConfig()
     alembic: AlembicConfig = AlembicConfig()
     auth: AuthFacade = AuthFacade()
+    channels: ChannelsConfig = ChannelsConfig()
     cloudflare: CloudflareConfig = CloudflareConfig()
     composio: ComposioConfig = ComposioConfig()
     crisp: CrispConfig = CrispConfig()
     daytona: DaytonaConfig = DaytonaConfig()
     docker: DockerConfig = DockerConfig()
+    gateway_credentials: GatewayCredentialsConfig = GatewayCredentialsConfig()
+    gateway_egress: GatewayEgressConfig = GatewayEgressConfig()
     identity: IdentityConfig = IdentityConfig()
     llm: LLMConfig = LLMConfig()
+    llm_gateway: LLMGatewayConfig = LLMGatewayConfig()
     loops: LoopsConfig = LoopsConfig()
+    mcp_gateway: MCPGatewayConfig = MCPGatewayConfig()
+    mock_gateways: MockGatewaysConfig = MockGatewaysConfig()
     mounts: MountsConfig = MountsConfig()
-    newrelic: NewRelicConfig = NewRelicConfig()
     postgres: PostgresConfig = PostgresConfig()
     posthog: PostHogConfig = PostHogConfig()
     redis: RedisConfig = RedisConfig()
@@ -1622,9 +2457,13 @@ class EnvironSettings(BaseModel):
     sessions: SessionsRedisConfig = SessionsRedisConfig()
     smtp: SmtpConfig = SmtpConfig()
     sendgrid: SendgridConfig = SendgridConfig()
+    signup_grant_policy: SignupGrantPolicyConfig = SignupGrantPolicyConfig()
     store: StoreConfig = StoreConfig()
     stripe: StripeConfig = StripeConfig()
     supertokens: SuperTokensConfig = SuperTokensConfig()
+    triggers: TriggersConfig = TriggersConfig()
+    typesafe: TypeSafeConfig = TypeSafeConfig()
+    wallets: WalletsConfig = WalletsConfig()
 
     model_config = ConfigDict(extra="ignore")
 

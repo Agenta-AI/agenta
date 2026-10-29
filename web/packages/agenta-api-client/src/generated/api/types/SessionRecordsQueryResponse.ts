@@ -5,4 +5,6 @@ import type * as AgentaApi from "../index.js";
 export interface SessionRecordsQueryResponse {
     count: number;
     records: AgentaApi.SessionRecord[];
+    windowing?: (AgentaApi.SessionTranscriptWindowing | null) | undefined;
+    records_incomplete?: boolean | undefined;
 }

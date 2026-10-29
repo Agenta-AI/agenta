@@ -6,6 +6,10 @@
  * (read by non-tag consumers, e.g. skeletons).
  */
 
+import {type ReactNode} from "react"
+
+import {cn} from "../../../utils/styles"
+
 // ============================================================================
 // TYPES
 // ============================================================================
@@ -41,4 +45,38 @@ export const environmentColors: Record<
         textColor: "var(--ag-env-development-text)",
         label: "Development",
     },
+}
+
+// ============================================================================
+// STATUS INDICATOR — borderless dot + same-tone label (● Connected), for the
+// "Status" reading a row/entity is in. Distinct from `Tag` (a filled pill).
+// ============================================================================
+
+export type StatusTone = "success" | "warning" | "error" | "processing" | "default"
+
+// Dot + label share one color via `bg-current`, so a tone sets both at once. Tokens
+// resolve through the palette, so each flips light↔dark with the theme.
+const STATUS_TONE_CLASS: Record<StatusTone, string> = {
+    success: "text-colorSuccess",
+    warning: "text-colorWarning",
+    error: "text-colorError",
+    processing: "text-colorInfo",
+    default: "text-colorTextSecondary",
+}
+
+export interface StatusIndicatorProps {
+    tone?: StatusTone
+    label: ReactNode
+    className?: string
+}
+
+export function StatusIndicator({tone = "default", label, className}: StatusIndicatorProps) {
+    return (
+        <span
+            className={cn("inline-flex items-center gap-1.5", STATUS_TONE_CLASS[tone], className)}
+        >
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-current" />
+            <span className="truncate">{label}</span>
+        </span>
+    )
 }

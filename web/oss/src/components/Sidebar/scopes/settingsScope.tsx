@@ -1,128 +1,59 @@
 import {useEffect, useMemo} from "react"
 
-import {
-    Buildings,
-    ClockCounterClockwise,
-    Flag,
-    FolderSimple,
-    Key,
-    Lightning,
-    Link,
-    Receipt,
-    ShieldCheck,
-    Sparkle,
-    User,
-    UsersThree,
-    Vault,
-    Wrench,
-} from "@phosphor-icons/react"
-import {useAtom} from "jotai"
-
-import {
-    getSettingsSidebarTabs,
-    isSettingsTabKey,
-    resolveSettingsTab,
-    SETTINGS_SCOPES,
-    type SettingsScopeKey,
-    type SettingsTabKey,
-} from "@/oss/components/pages/settings/assets/navigation"
-import {useSettingsAccess} from "@/oss/components/pages/settings/hooks/useSettingsAccess"
-import {useQueryParam} from "@/oss/hooks/useQuery"
-import {settingsTabAtom} from "@/oss/state/settings"
-
-import ProjectOrgSwitcher from "../components/ProjectOrgSwitcher"
-import SidebarBackButton from "../components/SidebarBackButton"
 import type {
-    SidebarConfig,
     SidebarScope,
     SidebarSection,
     SidebarSelection,
     SidebarSlotContext,
-} from "../engine/types"
+} from "@agenta/navigation"
+import {SETTINGS_SIDEBAR_SCOPE_ID} from "@agenta/navigation"
+import {
+    buildSettingsSidebarSections,
+    getSettingsSidebarTabs,
+    isSettingsTabKey,
+    resolveSettingsTab,
+} from "@agenta/settings"
+import {useAtom} from "jotai"
+
+import {useSettingsAccess} from "@/oss/components/pages/settings/hooks/useSettingsAccess"
+import {useQueryParam} from "@/oss/hooks/useQuery"
+import {useOrgData} from "@/oss/state/org"
+import {useProfileData} from "@/oss/state/profile"
+import {settingsTabAtom} from "@/oss/state/settings"
+
+import ProjectOrgSwitcher from "../components/ProjectOrgSwitcher"
+import SidebarBackButton from "../components/SidebarBackButton"
+import SidebarToggleButton from "../components/SidebarToggleButton"
 
 import {useSidebarBottomSection} from "./bottomSection"
-import {SETTINGS_SIDEBAR_SCOPE_ID} from "./constants"
 
 interface SettingsScopeOptions {
     lastPath?: string
-}
-
-const getSettingsSidebarIcon = (key: SettingsTabKey) => {
-    switch (key) {
-        case "apiKeys":
-            return <Key size={16} className="mt-0.5" />
-        case "secrets":
-            return <Vault size={16} className="mt-0.5" />
-        case "llms":
-            return <Sparkle size={16} className="mt-0.5" />
-        case "tools":
-            return <Wrench size={16} className="mt-0.5" />
-        case "triggers":
-            return <Lightning size={16} className="mt-0.5" />
-        case "webhooks":
-            return <Link size={16} className="mt-0.5" />
-        case "workspace":
-            return <UsersThree size={16} className="mt-0.5" />
-        case "organizationGeneral":
-            return <Buildings size={16} className="mt-0.5" />
-        case "organization":
-            return <ShieldCheck size={16} className="mt-0.5" />
-        case "auditLog":
-            return <ClockCounterClockwise size={16} className="mt-0.5" />
-        case "billing":
-            return <Receipt size={16} className="mt-0.5" />
-        case "account":
-            return <User size={16} className="mt-0.5" />
-        case "featureFlags":
-            return <Flag size={16} className="mt-0.5" />
-        case "projects":
-            return <FolderSimple size={16} className="mt-0.5" />
-        default: {
-            const exhaustiveCheck: never = key
-            return exhaustiveCheck
-        }
-    }
-}
-
-const useSettingsTabs = (): Record<SettingsScopeKey, SidebarConfig[]> => {
-    const access = useSettingsAccess()
-
-    return useMemo<Record<SettingsScopeKey, SidebarConfig[]>>(() => {
-        const items: Record<SettingsScopeKey, SidebarConfig[]> = {
-            project: [],
-            organization: [],
-            personal: [],
-        }
-
-        getSettingsSidebarTabs(access).forEach(({key, scope, title, isHidden}) => {
-            items[scope].push({
-                key,
-                title,
-                icon: getSettingsSidebarIcon(key),
-                isHidden,
-            })
-        })
-
-        return items
-    }, [access])
 }
 
 const useSettingsSidebarSelection = (): SidebarSelection => {
     const [tab, setTab] = useQueryParam("tab", undefined, "replace")
     const [settingsTab, setSettingsTab] = useAtom(settingsTabAtom)
     const access = useSettingsAccess()
+    // Owner-only tabs (Usage & Billing) read as hidden until the organization and the profile
+    // load. Rewriting the URL before then sent a full page load of `?tab=billing` (Stripe's
+    // return) to the Members tab.
+    const {selectedOrg} = useOrgData()
+    const {user} = useProfileData()
+    const accessReady = Boolean(selectedOrg && user)
 
     const requestedTab = tab ?? settingsTab
     const activeTab = resolveSettingsTab(requestedTab, access)
 
     useEffect(() => {
+        if (!accessReady) return
         if (settingsTab !== activeTab) {
             setSettingsTab(activeTab)
         }
         if (tab && tab !== activeTab) {
             setTab(activeTab)
         }
-    }, [activeTab, settingsTab, setSettingsTab, setTab, tab])
+    }, [accessReady, activeTab, settingsTab, setSettingsTab, setTab, tab])
 
     return {
         mode: "controlled",
@@ -136,36 +67,26 @@ const useSettingsSidebarSelection = (): SidebarSelection => {
 }
 
 const useSettingsSidebarSections = (): SidebarSection[] => {
-    const tabsByScope = useSettingsTabs()
+    const access = useSettingsAccess()
     const bottomSection = useSidebarBottomSection({includeSettingsLink: false})
 
     return useMemo(
-        () => [
-            ...SETTINGS_SCOPES.map(({key, title}, index) => ({
-                key: `settings-${key}`,
-                items: tabsByScope[key],
-                dividerBefore: index > 0,
-                before: ({collapsed}: SidebarSlotContext) =>
-                    collapsed ? null : (
-                        <div className="px-3 pb-1 pt-1 text-xs font-medium text-colorTextTertiary">
-                            {title}
-                        </div>
-                    ),
-            })),
-            bottomSection,
-        ],
-        [bottomSection, tabsByScope],
+        () => [...buildSettingsSidebarSections(getSettingsSidebarTabs(access)), bottomSection],
+        [access, bottomSection],
     )
 }
 
 const SettingsSidebarHeader = ({collapsed, lastPath}: SidebarSlotContext) => (
     <div
         className={[
-            "w-full h-[48px] shrink-0 flex items-center mb-1",
-            collapsed ? "justify-center" : "px-1.5",
+            "w-full shrink-0 flex items-center mb-1",
+            // Collapsed rail is 48px wide, too narrow for the Back button and the toggle side
+            // by side, so stack them instead of squeezing both into one row.
+            collapsed ? "flex-col justify-center gap-1 py-1" : "h-[48px] justify-between px-1.5",
         ].join(" ")}
     >
         <SidebarBackButton collapsed={collapsed} lastPath={lastPath} />
+        <SidebarToggleButton />
     </div>
 )
 

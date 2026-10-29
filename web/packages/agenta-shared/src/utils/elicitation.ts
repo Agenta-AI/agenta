@@ -96,9 +96,23 @@ export interface ElicitationRequestPayload {
         type: "object"
         properties: Record<string, ElicitationFieldSchema>
         required?: string[]
+        /** Question order; parse always sets it. */
+        "x-ag-order"?: string[]
         /** Presentation hints, e.g. "x-ag-stepper": true → one question at a time + review. */
         [key: `x-ag-${string}`]: unknown
     }
+}
+
+// JSONB storage re-sorts object keys, so the authored question order travels as an array.
+const ELICITATION_ORDER_KEY = "x-ag-order"
+
+const propertyOrder = (properties: Record<string, unknown>, declared: unknown): string[] => {
+    const names = Object.keys(properties)
+    const known = new Set(names)
+    const declaredKnown = Array.isArray(declared)
+        ? declared.filter((name): name is string => known.has(name as string))
+        : []
+    return [...new Set([...declaredKnown, ...names])]
 }
 
 export type ElicitationAction = "accept" | "decline" | "cancel"
@@ -209,7 +223,10 @@ export function parseElicitationPayload(input: unknown): ElicitationParseResult 
         }
         const title = typeof prop.title === "string" ? prop.title : ""
         if (SECRET_FIELD_PATTERN.test(name) || SECRET_FIELD_PATTERN.test(title))
-            return {ok: false, reason: `property "${name}" is secret-shaped — use a connect flow`}
+            return {
+                ok: false,
+                reason: `property "${name}" is secret-shaped — do not retry the form; use request_secret or request_connection`,
+            }
     }
 
     const required = requestedSchema.required
@@ -226,9 +243,14 @@ export function parseElicitationPayload(input: unknown): ElicitationParseResult 
     // enum (downstream consumers key on enum; oneOf stays for the option titles/descriptions);
     // and misplaced top-level enum/oneOf on an array fold into items (declared items win) —
     // left at the top level they would mis-promote the field to a single-select downstream.
+    const sourceProperties = requestedSchema.properties as Record<string, unknown>
+    const order = propertyOrder(
+        sourceProperties,
+        (requestedSchema as Record<string, unknown>)[ELICITATION_ORDER_KEY],
+    )
     const properties = Object.fromEntries(
-        Object.entries(requestedSchema.properties).map(([name, prop]) => {
-            const field = {...(prop as ElicitationFieldSchema)}
+        order.map((name) => {
+            const field = {...(sourceProperties[name] as ElicitationFieldSchema)}
             const canonical = normalizeStringFormat(field.format)
             if (canonical) field.format = canonical
             else delete field.format
@@ -263,7 +285,7 @@ export function parseElicitationPayload(input: unknown): ElicitationParseResult 
     const requested = requestedSchema as ElicitationRequestPayload["requestedSchema"]
     const payload: ElicitationRequestPayload = {
         message,
-        requestedSchema: {...requested, properties},
+        requestedSchema: {...requested, properties, [ELICITATION_ORDER_KEY]: order},
     }
     return {ok: true, payload}
 }
@@ -316,8 +338,7 @@ export function deriveElicitationPartState(part: {
 
 /**
  * Degradation retry cap: true when an earlier part in the turn already auto-settled as an
- * elicitation degradation. The widget then PARKS the part (visible notice, no auto-settle)
- * instead of feeding the settle→resume→re-emit token loop.
+ * elicitation degradation. A repeat then settles as a cancel that moves the question to chat.
  */
 export function hasPriorElicitationDegradation(
     parts: readonly {state?: string; errorText?: string}[] | undefined,
@@ -327,26 +348,6 @@ export function hasPriorElicitationDegradation(
             typeof part?.errorText === "string" &&
             part.errorText.startsWith("elicitation: unsupported payload"),
     )
-}
-
-/**
- * Split a persisted form draft for restore: date/date-time fields serialized as ISO strings must
- * be revived to date objects by the caller (antd DatePicker rejects strings); everything else
- * restores as-is. Unknown keys stay in `plain` (tolerant — the schema may have changed).
- */
-export function partitionElicitationDraft(
-    payload: ElicitationRequestPayload,
-    draft: Record<string, unknown>,
-): {plain: Record<string, unknown>; dates: Record<string, string>} {
-    const plain: Record<string, unknown> = {}
-    const dates: Record<string, string> = {}
-    for (const [name, value] of Object.entries(draft)) {
-        const format = payload.requestedSchema.properties[name]?.format
-        if ((format === "date" || format === "date-time") && typeof value === "string")
-            dates[name] = value
-        else plain[name] = value
-    }
-    return {plain, dates}
 }
 
 const isDateLike = (value: unknown): value is {toISOString: () => string} =>

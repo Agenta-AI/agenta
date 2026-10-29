@@ -1,10 +1,9 @@
+import type {WorkspaceRole} from "@agenta/entities/organization"
+import {updateOrganization} from "@agenta/entities/organization"
+import {updateWorkspace, fetchAllWorkspaceRoles} from "@agenta/entities/organization"
 import {message} from "@agenta/ui/app-message"
 import {atom} from "jotai"
 import {atomWithMutation, atomWithQuery} from "jotai-tanstack-query"
-
-import {WorkspaceRole} from "@/oss/lib/Types"
-import {updateOrganization} from "@/oss/services/organization/api"
-import {updateWorkspace, fetchAllWorkspaceRoles} from "@/oss/services/workspace/api"
 
 import {selectedOrgQueryAtom, orgsQueryAtom} from "../../org/selectors/org"
 import {userAtom} from "../../profile/selectors/user"

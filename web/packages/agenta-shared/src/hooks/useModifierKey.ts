@@ -1,8 +1,7 @@
 import {useMemo} from "react"
 
+import {modifierKeyLabel} from "../utils/platform"
+
 export function useModifierKey(): string {
-    return useMemo(() => {
-        if (typeof navigator === "undefined") return "Ctrl"
-        return /Mac|iPhone|iPad|iPod/i.test(navigator.platform) ? "⌘" : "Ctrl"
-    }, [])
+    return useMemo(() => modifierKeyLabel(), [])
 }

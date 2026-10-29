@@ -1,6 +1,7 @@
 # /agenta/sdk/decorators/tracing.py
 
 import warnings
+from contextlib import contextmanager
 from functools import wraps
 from inspect import (
     getfullargspec,
@@ -19,6 +20,7 @@ from agenta.sdk.contexts.tracing import (
     tracing_context_manager,
 )
 from agenta.sdk.engines.tracing.conventions import parse_span_kind
+from agenta.sdk.engines.tracing.server import product_context
 from agenta.sdk.engines.tracing.spans import CustomSpan
 from agenta.sdk.redaction.context import get_active_redactor
 from agenta.sdk.utils.exceptions import suppress
@@ -34,6 +36,31 @@ log = get_module_logger(__name__)
 
 def _has_instrument(handler: Callable[..., Any]) -> bool:
     return bool(getattr(handler, "__has_instrument__", False))
+
+
+def _is_agent_configuration(parameters: Any) -> bool:
+    return isinstance(parameters, dict) and isinstance(parameters.get("agent"), dict)
+
+
+def _agent_configuration_summary(parameters: Dict[str, Any]) -> Dict[str, Any]:
+    """The part of an agent config that an agent root span records.
+
+    Analytics groups and filters agent runs by `agent.llm.model`, `agent.llm.provider`
+    and `agent.llm.connection.mode` on the root span. Only those three values are kept:
+    no skills, and no connection slug or extras.
+    """
+    llm = parameters["agent"].get("llm")
+    if not isinstance(llm, dict):
+        return {}
+
+    summary: Dict[str, Any] = {
+        key: llm[key] for key in ("model", "provider") if isinstance(llm.get(key), str)
+    }
+    connection = llm.get("connection")
+    if isinstance(connection, dict) and isinstance(connection.get("mode"), str):
+        summary["connection"] = {"mode": connection["mode"]}
+
+    return {"agent": {"llm": summary}} if summary else {}
 
 
 def auto_instrument(handler: Callable[..., Any]) -> Callable[..., Any]:
@@ -55,6 +82,7 @@ class instrument:  # pylint: disable=invalid-name
         redact: Optional[Callable[..., Any]] = None,
         redact_on_error: Optional[bool] = True,
         max_depth: Optional[int] = 2,
+        stream_output: Optional[Callable[[List[Any]], Any]] = None,
         # DEPRECATING
         kind: str = "task",
         spankind: Optional[str] = "TASK",
@@ -67,6 +95,7 @@ class instrument:  # pylint: disable=invalid-name
         self.redact = redact
         self.redact_on_error = redact_on_error
         self.max_depth = max_depth
+        self.stream_output = stream_output
 
     @staticmethod
     def _warn_if_not_initialized(handler_name: str) -> None:
@@ -340,15 +369,42 @@ class instrument:  # pylint: disable=invalid-name
 
         self.kind = parse_span_kind(self.type)
 
-    @staticmethod
-    def _join_stream(chunks: list):
+    def _join_stream(self, chunks: list):
         """Collapse accumulated stream chunks the way the generator wrappers do:
-        all-str -> joined string, all-bytes -> joined bytes, else the list."""
+        all-str -> joined string, all-bytes -> joined bytes, else the list.
+
+        A caller may opt into a domain-specific projection for a structured stream. The
+        wire chunks still pass through unchanged; only the span output is translated.
+        """
+        if self.stream_output is not None:
+            return self.stream_output(chunks)
         if all(isinstance(r, str) for r in chunks):
             return "".join(chunks)
         if all(isinstance(r, bytes) for r in chunks):
             return b"".join(chunks)
         return chunks
+
+    @contextmanager
+    def _stream_span_scope(self, span, captured_ctx):
+        """Activate one stream step in the context that created its span.
+
+        ASGI consumers may request consecutive chunks from different context frames.
+        OpenTelemetry context tokens therefore cannot stay attached across a yielded
+        chunk. Attaching and detaching around each generator step keeps both operations
+        in the same frame and keeps the workflow span current inside stream finalizers.
+        """
+        otel_token = otel_context.attach(captured_ctx)
+        try:
+            with use_span(
+                span,
+                end_on_exit=False,
+                record_exception=True,
+                set_status_on_exception=True,
+            ):
+                yield
+        finally:
+            with suppress():
+                otel_context.detach(otel_token)
 
     def _wrap_returned_gen(self, gen, span, captured_ctx):
         """Keep a batch-path span open across a RETURNED generator's consumption.
@@ -367,36 +423,38 @@ class instrument:  # pylint: disable=invalid-name
         """
 
         async def wrapped():
-            otel_token = otel_context.attach(captured_ctx)
+            acc = []
             try:
-                with use_span(
-                    span,
-                    end_on_exit=True,
-                    record_exception=True,
-                    set_status_on_exception=True,
-                ):
-                    acc = []
-                    try:
-                        if isasyncgen(gen):
-                            async for chunk in gen:
-                                acc.append(chunk)
-                                yield chunk
-                        else:
-                            for chunk in gen:
-                                acc.append(chunk)
-                                yield chunk
-                    finally:
-                        self._post_instrument(span, self._join_stream(acc))
+                if isasyncgen(gen):
+                    while True:
+                        with self._stream_span_scope(span, captured_ctx):
+                            try:
+                                chunk = await gen.__anext__()
+                            except StopAsyncIteration:
+                                break
+                        acc.append(chunk)
+                        yield chunk
+                else:
+                    while True:
+                        with self._stream_span_scope(span, captured_ctx):
+                            try:
+                                chunk = next(gen)
+                            except StopIteration:
+                                break
+                        acc.append(chunk)
+                        yield chunk
             finally:
-                # Detach can run in a DIFFERENT context frame than the attach when the
-                # stream is closed abnormally — mid-stream raise, or the ASGI server
-                # calling aclose() from another task (StreamingResponse). OTel raises
-                # "Token created in a different Context" there. Guard it: the leaked
-                # activation dies with the task anyway, and crashing the teardown would
-                # mask the real error. (Thread/task-safety: span currency is per-task
-                # contextvar; this only cleans up THIS task's activation.)
-                with suppress():
-                    otel_context.detach(otel_token)
+                try:
+                    with self._stream_span_scope(span, captured_ctx):
+                        try:
+                            if isasyncgen(gen):
+                                await gen.aclose()
+                            else:
+                                gen.close()
+                        finally:
+                            self._post_instrument(span, self._join_stream(acc))
+                finally:
+                    span.end()
 
         return wrapped()
 
@@ -434,13 +492,20 @@ class instrument:  # pylint: disable=invalid-name
     def _get_traceparent(self):
         context = TracingContext.get()
 
+        # never a server span: product spans parent on product spans or start a trace
+        current = product_context()
+
+        if context.link:
+            return current
+
         traceparent = context.traceparent
+        if traceparent is None:
+            traceparent = current
 
-        if not context.link:
-            for key, value in get_all(get_current()).items():
-                traceparent = set_baggage(name=key, value=value, context=traceparent)
+        for key, value in get_all(current).items():
+            traceparent = set_baggage(name=key, value=value, context=traceparent)
 
-            return traceparent
+        return traceparent
 
     def _set_link(self, span):
         if not isinstance(span, CustomSpan):
@@ -544,16 +609,24 @@ class instrument:  # pylint: disable=invalid-name
             )
 
             if span.parent is None:
-                # Unbounded flattening of a resolved agent config (tools with full JSON
-                # schemas) yields hundreds of leaf attributes, overflowing the span
-                # attribute limit and evicting the oldest attributes (ag.refs.*).
-                # Depth 3 keeps one `@ag.type=json:` attribute per config section
-                # (configuration.agent.tools, .llm, ...) instead of one per leaf.
-                span.set_attributes(
-                    attributes={"configuration": context.parameters or {}},
-                    namespace="meta",
-                    max_depth=3,
+                # An agent config carries every skill's body and bundled files, which made
+                # each agent root span megabytes large. The root span's revision reference
+                # points at the config, so an agent run records only the model summary.
+                is_agent = _is_agent_configuration(context.parameters)
+                configuration = (
+                    _agent_configuration_summary(context.parameters)
+                    if is_agent
+                    else context.parameters or {}
                 )
+                # Depth 3 keeps one `@ag.type=json:` attribute per config section
+                # instead of one per leaf, so a large config cannot overflow the span
+                # attribute limit and evict the oldest attributes (ag.refs.*).
+                if configuration or not is_agent:
+                    span.set_attributes(
+                        attributes={"configuration": configuration},
+                        namespace="meta",
+                        max_depth=3,
+                    )
 
             _inputs = self._redact(
                 name=span.name,

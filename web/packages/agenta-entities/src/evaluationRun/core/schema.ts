@@ -20,19 +20,12 @@ import {auditFieldsSchema, timestampFieldsSchema} from "../../shared/utils/zodSc
 // ============================================================================
 
 export const evaluationRunStepTypeSchema = z.enum(["input", "invocation", "annotation"])
-export type EvaluationRunStepType = z.infer<typeof evaluationRunStepTypeSchema>
 
 export const evaluationRunStepOriginSchema = z.enum(["custom", "human", "auto"])
-export type EvaluationRunStepOrigin = z.infer<typeof evaluationRunStepOriginSchema>
 
-export const evaluationRunMappingKindSchema = z.enum([
-    "input",
-    "ground_truth",
-    "application",
-    "evaluator",
-    "annotation",
-])
-export type EvaluationRunMappingKind = z.infer<typeof evaluationRunMappingKindSchema>
+// The backend defines mapping kinds as a free-form string and may add values,
+// so the schema stays permissive.
+export const evaluationRunMappingKindSchema = z.string()
 
 // ============================================================================
 // SUB-SCHEMAS
@@ -81,7 +74,6 @@ export const evaluationRunDataSchema = z.object({
     repeats: z.number().nullable().optional(),
     mappings: z.array(evaluationRunDataMappingSchema).nullable().optional(),
 })
-export type EvaluationRunData = z.infer<typeof evaluationRunDataSchema>
 
 export const evaluationRunFlagsSchema = z.record(z.string(), z.unknown()).nullable().optional()
 export type EvaluationRunFlags = z.infer<typeof evaluationRunFlagsSchema>

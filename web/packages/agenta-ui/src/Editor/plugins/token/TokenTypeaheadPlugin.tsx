@@ -504,7 +504,7 @@ export function TokenMenuPlugin({tokens, templateFormat = "curly"}: TokenMenuPlu
                         e.stopPropagation()
                         selectOption(suggestion)
                     }}
-                    className={`flex items-center justify-between gap-2 px-2 py-1.5 cursor-pointer font-mono text-[10px] ${
+                    className={`flex items-center justify-between gap-2 px-2 py-1.5 cursor-pointer font-mono text-[12px] ${
                         index === selectedIndex ? "bg-blue-100 text-blue-800" : "hover:bg-gray-100"
                     }`}
                 >

@@ -41,7 +41,6 @@ function makeContext() {
     runAgentDir: undefined,
     durableCwdSafeToDelete: false,
     runtimeRemount: undefined,
-    otlpAuthFilePath: undefined,
     codexSqliteHome: undefined,
     closeToolMcp: undefined,
     installedMountExpiries: {} as Record<string, number | undefined>,
@@ -88,13 +87,10 @@ describe("FINDING 1: the environment is a read-only projection, not a readonly r
     const { context } = makeContext();
     // Structural proof: assigning through the view cannot compile, and at runtime the getter-only
     // property refuses the write. Both directions matter; a silent no-op would be worse.
-    assert.throws(
-      () => {
-        "use strict";
-        (context.env as unknown as Record<string, unknown>).mountedCwd = "/hack";
-      },
-      /only a getter|Cannot set/,
-    );
+    assert.throws(() => {
+      "use strict";
+      (context.env as unknown as Record<string, unknown>).mountedCwd = "/hack";
+    }, /only a getter|Cannot set/);
   });
 
   it("reads through, so a committed change is visible at once", () => {
@@ -253,7 +249,11 @@ describe("FINDING 5 and INVARIANT 2: credentials and the re-sign path", () => {
     context.recordResignedCredential("cwd", fresh);
     context.beginCwdMount();
 
-    assert.strictEqual(environment.mountCreds, fresh, "the new credential is committed");
+    assert.strictEqual(
+      environment.mountCreds,
+      fresh,
+      "the new credential is committed",
+    );
     assert.equal(
       context.env.mountedCwd,
       "/run/cwd",
@@ -274,7 +274,8 @@ describe("the plan mutation is narrow, and the budgets are per acquire", () => {
     const { context, plan } = makeContext();
     context.appendAgentMountGuidance("DURABLE STORAGE");
     assert.equal(
-      (plan as { prompt: { appendSystemPrompt?: string } }).prompt.appendSystemPrompt,
+      (plan as { prompt: { appendSystemPrompt?: string } }).prompt
+        .appendSystemPrompt,
       "DURABLE STORAGE",
     );
     assert.equal(

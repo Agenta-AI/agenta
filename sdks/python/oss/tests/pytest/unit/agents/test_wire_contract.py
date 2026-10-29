@@ -10,7 +10,7 @@ purpose. Regenerate the golden deliberately, and update ``protocol.ts`` and ``KN
 to match.
 
 There is no engine selector on the wire: the runner drives one engine (the sandbox-agent ACP
-path) and ``harness`` (``pi_core`` / ``pi_agenta`` / ``claude``) picks the agent.
+path) and ``harness`` (``pi_core`` / ``claude`` / ``codex``) picks the agent.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ from agenta.sdk.redaction.context import redaction_context
 from agenta.sdk.redaction.redactor import Redactor
 
 from agenta.sdk.agents import (
-    AgentaAgentTemplate,
+    AgentRunFailed,
     AgentTemplate,
     ClaudeAgentTemplate,
     CodexAgentTemplate,
@@ -46,6 +46,16 @@ from agenta.sdk.agents import (
     ToolResolver,
     TraceContext,
 )
+from agenta.sdk.agents.platform_instructions import compose_platform_instructions
+from agenta.sdk.agents.connections import EnvironmentCredentialBinding
+from agenta.sdk.agents.dtos import ResolvedSandboxCredential
+from agenta.sdk.agents.platform.gateway import _derived_tool_specs
+from agenta.sdk.agents.tools import (
+    CompiledTool,
+    ResolvedGatewayIntegration,
+    ResolvedGatewayPolicy,
+)
+from agenta.sdk.agents.utils.effective_config import MAX_STAMPED_BYTES
 from agenta.sdk.agents.utils.wire import (
     _ERROR_MAX_LEN,
     request_to_wire,
@@ -76,6 +86,7 @@ KNOWN_REQUEST_KEYS = {
     "harnessMode",
     "modelCapabilities",
     "modelConnection",
+    "sandboxCredentials",
     "messages",
     "context",
     "telemetry",
@@ -85,13 +96,29 @@ KNOWN_REQUEST_KEYS = {
     "mcpServers",
     "toolCallback",
     "permissions",
+    "gatewayPolicy",
+    "platformInstructions",
+    "turnContext",
     "systemPrompt",
     "appendSystemPrompt",
     "skills",
     "sandboxPermission",
     "harnessFiles",
     "turnId",
+    "detached",
     "projectId",
+    "controlCommandId",
+    "effectiveParameters",
+}
+
+# The post-hydration config a session turn runs. Stamped on the wire so the runner can echo it
+# onto a parked gate's interaction row (effective-turn-config plan, T1/T3).
+_EFFECTIVE_PARAMETERS = {
+    "agent": {
+        "instructions": "You are a helpful assistant.",
+        "llm": {"model": "openai-codex/gpt-5.5", "provider": "openai"},
+        "runner": {"permissions": {"default": "allow_reads"}},
+    }
 }
 
 _CUSTOM_TOOL = {
@@ -122,6 +149,11 @@ _DIRECT_CALL_TOOL = {
 _CALLBACK = ToolCallback(
     endpoint="https://api.example/tools/call", authorization="Access tok-123"
 )
+# The other tool fixtures in this file are hand-written because the API produces them. The two
+# derived gateway tools are OURS — `_derived_tool_specs()` is their only producer — so the
+# golden is built from that function rather than from a copy of it. A hand-written copy would
+# pin a payload production never sends, and the one artifact meant to anchor Python-to-
+# TypeScript drift could then not catch a change to the real specifications.
 # One resolved inline skill package (the post-embed shape that rides the wire). A bundled
 # file is included so the `files[]` wire shape (camelCase `executable`) is exercised too.
 _SKILL = {
@@ -166,6 +198,7 @@ def _pi_payload():
         sandbox="local",
         config=config,
         messages=[Message(role="user", content="hi")],
+        turn_context='## This session\n\nThis session is named "Q3 notes".',
         trace=TraceContext(
             traceparent="00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
             endpoint="https://otlp.example/v1/traces",
@@ -191,6 +224,7 @@ def _pi_payload():
             ),
         ),
         session_id="sess-1",
+        effective_parameters=dict(_EFFECTIVE_PARAMETERS),
     )
 
 
@@ -233,6 +267,10 @@ def _claude_payload():
         trace=None,
         run_context=RunContext(run=RunContextRun(kind="test")),
         session_id=None,
+        # Deliberately supplied on a NON-session run: the gate is `session_id`, so this golden
+        # pins that an ad-hoc run's payload carries no `effectiveParameters` (nothing will ever
+        # park a gate against it, and the wire stays byte-identical to the pre-change contract).
+        effective_parameters=dict(_EFFECTIVE_PARAMETERS),
     )
 
 
@@ -254,6 +292,12 @@ def _codex_payload():
             ],
             endpoint=Endpoint(base_url="https://api.openai.com/v1"),
         ),
+        sandbox_credentials=[
+            ResolvedSandboxCredential(
+                binding=EnvironmentCredentialBinding(name="GITHUB_TOKEN"),
+                value="github-secret",
+            )
+        ],
     )
     return request_to_wire(
         harness=HarnessKind.CODEX,
@@ -266,20 +310,47 @@ def _codex_payload():
     )
 
 
-def _agenta_payload():
-    config = AgentaAgentTemplate(
-        agents_md="Agenta preamble + project rules.",
+def _gateway_connection_payload():
+    """A Pi run whose agent configures one gateway connection.
+
+    The smallest config that exercises the new field: the two derived tools the resolver
+    builds, and the private policy they read. ``RUN_WORKFLOW`` carries no catalog read-only
+    hint, so it pins the tri-state null form on the wire (qa.md case C27).
+    """
+    gateway_policy = ResolvedGatewayPolicy(
+        integrations={
+            "github": ResolvedGatewayIntegration(
+                provider="composio",
+                connection="github-work",
+                toolkit_version="20250827_00",
+                tools={
+                    "GET_ISSUE": CompiledTool(permission="allow", read_only=True),
+                    "CREATE_ISSUE": CompiledTool(permission="ask", read_only=False),
+                    "RUN_WORKFLOW": CompiledTool(permission="deny"),
+                },
+            )
+        }
+    )
+    config = PiAgentTemplate(
+        agents_md="You are a helpful assistant.",
         model="gpt-5.5",
-        custom_tools=[dict(_CUSTOM_TOOL)],
+        # Straight from the producer, so the golden records what a real resolve emits.
+        custom_tools=_derived_tool_specs(list(gateway_policy.integrations)),
         tool_callback=_CALLBACK,
-        append_system="You are an Agenta agent.",
-        skills=[dict(_SKILL)],
+        # Straight from the same producer path the adapters use, so the golden pins the
+        # separate-field form (the guidance is spliced runner-side at environment build).
+        platform_instructions=compose_platform_instructions(
+            list(gateway_policy.integrations)
+        ),
     )
     return request_to_wire(
-        harness=HarnessKind.AGENTA,
+        harness=HarnessKind.PI,
         sandbox="local",
         config=config,
-        messages=[Message(role="user", content="hi")],
+        messages=[Message(role="user", content="close issue 12")],
+        trace=None,
+        session_id=None,
+        gateway_policy=gateway_policy,
     )
 
 
@@ -317,16 +388,114 @@ def _attachment_payload():
     )
 
 
-def test_request_to_wire_agenta_carries_skills_and_pi_shape():
-    payload = _agenta_payload()
+#: The login the hosted-subscription golden carries. Not a credential: every value is a literal.
+_SUBSCRIPTION_LOGIN = {
+    "type": "oauth",
+    "access": "access-token",
+    "refresh": "refresh-token",
+    "expires": 1789000000000,
+    "accountId": "acct-1",
+}
+
+
+def _subscription_connection_payload():
+    """A Pi run authenticated by a hosted subscription instead of an API key.
+
+    The harness still owns authentication (``runtime_provided``, no credentials), and Agenta
+    delivers the login it signs in with. This is the only wire shape that carries a login, so
+    the golden is the anchor the runner's own mirror is asserted against.
+    """
+    from agenta.sdk.agents.connections import Connection, ResolvedSubscription
+    from agenta.sdk.agents.dtos import ModelRef
+
+    config = PiAgentTemplate(
+        agents_md="You are a helpful assistant.",
+        model="openai-codex/gpt-5.5",
+        model_ref=ModelRef(
+            model="gpt-5.5",
+            provider="openai-codex",
+            connection=Connection(mode="self_managed", slug="chatgpt"),
+        ),
+        resolved_connection=ResolvedConnection(
+            provider="openai-codex",
+            model="gpt-5.5",
+            credential_mode="runtime_provided",
+            subscription=ResolvedSubscription(
+                id="0199-secret-id",
+                slug="chatgpt",
+                provider="chatgpt",
+                version=3,
+                generation=1,
+                login=dict(_SUBSCRIPTION_LOGIN),
+            ),
+        ),
+    )
+    return request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+        session_id=None,
+    )
+
+
+def test_request_to_wire_subscription_connection_matches_golden(golden):
+    """The hosted-subscription run's whole payload, login included (contracts section 1)."""
+    payload = _subscription_connection_payload()
+    assert payload == golden("run_request.subscription_connection.json")
     assert set(payload) <= KNOWN_REQUEST_KEYS
-    # Agenta is a Pi config: same tool shape and shared permission plan, plus prompt overrides.
-    assert payload["permissions"] == {"default": "allow_reads"}
-    assert payload["tools"] == list(PI_BUILTIN_TOOL_NAMES)
-    assert payload["appendSystemPrompt"] == "You are an Agenta agent."
-    # ...plus the resolved inline skill packages, on their own seam (not in `wire_tools`).
-    assert payload["skills"][0]["name"] == "release-notes"
-    assert payload["skills"][0]["files"][0]["path"] == "scripts/draft.py"
+
+
+def test_request_to_wire_gateway_connection_matches_golden(golden):
+    """The connection run's whole payload, including ``gatewayPolicy`` (contracts section 5)."""
+    payload = _gateway_connection_payload()
+    assert payload == golden("run_request.gateway_connection.json")
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+
+
+def test_gateway_policy_read_only_null_survives_the_round_trip(golden):
+    """qa.md case C27, the Python half.
+
+    An unknown read-only hint must ride the wire as an explicit null, not as a dropped key: a
+    missing key and a null value would otherwise come to mean different things to the runner,
+    whose mirror declares ``boolean | null``. The golden file is read back from disk, so this
+    also proves the null survives JSON serialization rather than only the in-memory dict.
+    """
+    fixture = golden("run_request.gateway_connection.json")
+    tools = fixture["gatewayPolicy"]["integrations"]["github"]["tools"]
+    assert "readOnly" in tools["RUN_WORKFLOW"]
+    assert tools["RUN_WORKFLOW"]["readOnly"] is None
+    # And the model accepts the same object back, tri-state intact.
+    parsed = WireRunRequest.model_validate(fixture)
+    assert (
+        parsed.gateway_policy.integrations["github"].tools["RUN_WORKFLOW"].read_only
+        is None
+    )
+    assert (
+        parsed.gateway_policy.integrations["github"].tools["GET_ISSUE"].read_only
+        is True
+    )
+
+
+def test_request_to_wire_omits_gateway_policy_without_a_connection(golden):
+    """A run with no connection entry keeps its exact payload — the four goldens prove it.
+
+    The subset guard cannot catch a field that is emitted as null, so assert the key's
+    absence directly on every existing golden and on the producer output.
+    """
+    for name, payload in (
+        ("run_request.pi_core.json", _pi_payload()),
+        ("run_request.claude.json", _claude_payload()),
+        ("run_request.codex.json", _codex_payload()),
+        ("run_request.attachment.json", _attachment_payload()),
+        (
+            "run_request.subscription_connection.json",
+            _subscription_connection_payload(),
+        ),
+    ):
+        assert "gatewayPolicy" not in payload
+        assert "gatewayPolicy" not in golden(name)
+        assert payload == golden(name)
 
 
 def test_request_to_wire_skills_ride_their_own_seam_not_tools():
@@ -437,14 +606,19 @@ async def test_default_template_carries_no_tool_entries_and_still_names_every_bu
 ):
     """Two guarantees at once, both of which a future edit could silently break.
 
-    The shipped default template carries NO tool entries: built-ins are activated by the
+    The shipped default template carries no built-in tool entries, only the Agenta tools: built-ins are activated by the
     runner, never configured. And the wire's deprecated ``tools`` field still names every
     built-in, so an older runner that reads it as a grant list activates the same set instead
     of the empty list that caused issue #5590. This starts from the SHIPPED default rather than
     a hand-written template, and it runs the real chain (template parse, tool resolution, the Pi
     harness adapter, the wire serializer).
     """
-    assert build_agent_v0_default()["tools"] == []
+    assert build_agent_v0_default()["tools"] == [
+        {
+            "type": "agenta_tools",
+            "tools": {"get_current_session": "allow", "rename_session": "allow"},
+        }
+    ]
 
     template = AgentTemplate.from_params({"agent": build_agent_v0_default()})
     resolved = await ToolResolver().resolve(template.tools)
@@ -513,6 +687,27 @@ def test_request_to_wire_omits_turn_id_when_none():
     assert "turnId" not in payload
 
 
+def test_request_to_wire_carries_detached_only_for_a_session():
+    detached = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(model="openai/gpt-5"),
+        messages=[],
+        session_id="sess-1",
+        detached=True,
+    )
+    ad_hoc = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(model="openai/gpt-5"),
+        messages=[],
+        detached=True,
+    )
+
+    assert detached["detached"] is True
+    assert "detached" not in ad_hoc
+
+
 def test_request_to_wire_carries_project_id_when_set():
     payload = request_to_wire(
         harness=HarnessKind.PI,
@@ -533,6 +728,175 @@ def test_request_to_wire_omits_project_id_when_none():
         messages=[Message(role="user", content="hi")],
     )
     assert "projectId" not in payload
+
+
+def test_request_to_wire_carries_effective_parameters_on_a_session_run():
+    # The post-hydration config the turn runs, stamped so the runner can echo it onto a parked
+    # gate's interaction row (effective-turn-config plan, T1).
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(),
+        messages=[Message(role="user", content="hi")],
+        session_id="sess-1",
+        effective_parameters=dict(_EFFECTIVE_PARAMETERS),
+    )
+    assert payload["effectiveParameters"] == _EFFECTIVE_PARAMETERS
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+
+
+def test_request_to_wire_omits_effective_parameters_without_a_session():
+    # A non-session run can never park a gate, so the field is not emitted and the ad-hoc wire
+    # stays byte-identical to the pre-change contract.
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(),
+        messages=[Message(role="user", content="hi")],
+        session_id=None,
+        effective_parameters=dict(_EFFECTIVE_PARAMETERS),
+    )
+    assert "effectiveParameters" not in payload
+
+
+def test_request_to_wire_omits_effective_parameters_when_empty():
+    # Nothing to stamp -> no key (never a noise `"effectiveParameters": {}`).
+    for empty in (None, {}):
+        payload = request_to_wire(
+            harness=HarnessKind.PI,
+            sandbox="local",
+            config=PiAgentTemplate(),
+            messages=[Message(role="user", content="hi")],
+            session_id="sess-1",
+            effective_parameters=empty,
+        )
+        assert "effectiveParameters" not in payload
+
+
+def test_effective_parameters_equal_the_post_hydration_config_either_way():
+    """The stamped blob is whatever the handler ran with, on both invoke shapes.
+
+    The resolver decides hydration purely from what the caller sent
+    (``_caller_supplied_configuration``): a references-only invoke gets the hydrated revision's
+    parameters, an inline-parameters invoke keeps the caller's. Either way the handler is
+    handed ONE ``data.parameters`` dict, and that is exactly what reaches the wire — which is
+    what makes a resume replaying the blob reproduce the turn.
+    """
+    hydrated = {"agent": {"llm": {"model": "anthropic/claude-haiku-4-5"}}}
+    inline_draft = {"agent": {"llm": {"model": "anthropic/claude-sonnet-4-5"}}}
+
+    for post_hydration in (hydrated, inline_draft):
+        payload = request_to_wire(
+            harness=HarnessKind.PI,
+            sandbox="local",
+            config=PiAgentTemplate(),
+            messages=[Message(role="user", content="hi")],
+            session_id="sess-1",
+            effective_parameters=post_hydration,
+        )
+        assert payload["effectiveParameters"] == post_hydration
+
+
+def test_effective_parameters_drop_mcp_connection_headers():
+    # The one place the config schema permits a raw credential VALUE is an MCP server's static
+    # `connection.headers`; the vault-key REFS under `credentials` survive so the replayed run
+    # re-resolves the same secret.
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(),
+        messages=[Message(role="user", content="hi")],
+        session_id="sess-1",
+        effective_parameters={
+            "agent": {
+                "mcps": [
+                    {
+                        "name": "notion",
+                        "connection": {
+                            "type": "http",
+                            "url": "https://mcp.example/sse",
+                            "headers": {"authorization": "Bearer sk-live-1234"},
+                            "credentials": {
+                                "type": "header_secret_refs",
+                                "headers": {"authorization": "NOTION_TOKEN"},
+                            },
+                        },
+                    }
+                ]
+            }
+        },
+    )
+    connection = payload["effectiveParameters"]["agent"]["mcps"][0]["connection"]
+    assert "headers" not in connection
+    assert connection["url"] == "https://mcp.example/sse"
+    assert connection["credentials"]["headers"] == {"authorization": "NOTION_TOKEN"}
+
+
+def test_effective_parameters_preserve_tool_input_schema_properties():
+    # Redaction is scoped to connection descriptors: a tool's JSON-Schema may legitimately
+    # declare a property named `headers`, and mangling it would change the tool contract the
+    # replayed run exposes to the model.
+    tool = {
+        "name": "http_get",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"headers": {"type": "object"}},
+        },
+    }
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(),
+        messages=[Message(role="user", content="hi")],
+        session_id="sess-1",
+        effective_parameters={"agent": {"tools": [tool]}},
+    )
+    assert payload["effectiveParameters"]["agent"]["tools"][0] == tool
+
+
+def test_effective_parameters_preserve_builder_sized_configuration():
+    # The normal playground builder measured 147,209 bytes with 18 tools. Dropping
+    # that config silently resumes against the saved agent, which has no builder tools.
+    parameters = {
+        "agent": {
+            "instructions": {"agents_md": "Build and update the current agent."},
+            "tools": [
+                {
+                    "name": "commit_revision"
+                    if index == 0
+                    else f"builder_tool_{index}",
+                    "description": "Builder operation schema documentation. " * 210,
+                    "inputSchema": {"type": "object", "properties": {}},
+                }
+                for index in range(18)
+            ],
+        }
+    }
+    assert 147_209 <= len(json.dumps(parameters).encode("utf-8")) <= 160_000
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(),
+        messages=[Message(role="user", content="Configure this agent")],
+        session_id="sess-builder",
+        effective_parameters=parameters,
+    )
+    assert payload["effectiveParameters"] == parameters
+
+
+def test_effective_parameters_over_the_cap_are_dropped_whole():
+    # A truncated config is invalid JSON and a silently-truncated one is worse than none, so an
+    # oversize blob is not stamped at all (the resume degrades to reference hydration).
+    oversize = {"agent": {"instructions": "x" * (MAX_STAMPED_BYTES + 1)}}
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(),
+        messages=[Message(role="user", content="hi")],
+        session_id="sess-1",
+        effective_parameters=oversize,
+    )
+    assert "effectiveParameters" not in payload
 
 
 def test_request_to_wire_claude_matches_golden(golden):
@@ -629,8 +993,7 @@ def test_request_to_wire_codex_matches_golden(golden):
 
 
 def test_request_to_wire_codex_renders_config_toml_from_authored_options():
-    # The Milestone 1 authoring schema does not yet carry these keys. That support lands in the
-    # permissions milestone, so this test drives the pass-through directly to pin the rendering.
+    # This test drives the pass-through directly to pin the rendering.
     # No resolved connection is threaded here, so the run defaults to MANAGED (file-free auth): the
     # config gains the `model_provider` pointer + the custom provider table (env_key OPENAI_API_KEY)
     # around the authored scalars (D-002 final ruling).
@@ -716,6 +1079,43 @@ def test_request_to_wire_codex_subscription_renders_no_provider_block():
     assert "harnessFiles" not in payload
 
 
+def test_request_to_wire_codex_gateway_route_renders_base_url_and_headers():
+    # A gateway-routed resolved connection threads endpoint.base_url and the gateway
+    # credential's HEADER NAME (never its value) onto config.toml.
+    from agenta.sdk.agents.connections.models import GatewayCredentials
+
+    config = CodexAgentTemplate(
+        model="openai/gpt-5.5",
+        resolved_connection=ResolvedConnection(
+            provider="openai",
+            model="gpt-5.5",
+            deployment="custom",
+            credential_mode="none",
+            endpoint=Endpoint(
+                base_url="https://gw.example.com/gateways/llms/standard/openai"
+            ),
+            gateway_credentials=GatewayCredentials(
+                header="X-AG-Credentials", value="ApiKey mock-gateway-credentials"
+            ),
+        ),
+    )
+    payload = request_to_wire(
+        harness=HarnessKind.CODEX,
+        sandbox="local",
+        config=config,
+        messages=[Message(role="user", content="hi")],
+    )
+    content = payload["harnessFiles"][0]["content"]
+    assert (
+        'base_url = "https://gw.example.com/gateways/llms/standard/openai"' in content
+    )
+    assert (
+        'env_http_headers = { "X-AG-Credentials" = "AGENTA_GATEWAY_CREDENTIALS_VALUE" }'
+        in content
+    )
+    assert "ApiKey mock-gateway-credentials" not in content
+
+
 def test_author_permission_rules_exclude_mcp_from_wire_but_keep_settings():
     config = ClaudeAgentTemplate(
         harness_permissions={
@@ -791,6 +1191,28 @@ def test_known_request_keys_match_the_wire_schema():
         field.alias or name for name, field in WireRunRequest.model_fields.items()
     }
     assert declared == KNOWN_REQUEST_KEYS
+
+
+def test_request_to_wire_carries_durable_continuation_coordination_ids():
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(model="openai/gpt-5.5"),
+        messages=[Message(role="user", content="approved")],
+        session_id="session-1",
+        turn_id="turn-continuation-1",
+        project_id="project-1",
+        control_command_id="command-1",
+    )
+
+    assert payload["sessionId"] == "session-1"
+    assert payload["turnId"] == "turn-continuation-1"
+    assert payload["projectId"] == "project-1"
+    assert payload["controlCommandId"] == "command-1"
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+
+    parsed = WireRunRequest.model_validate(payload)
+    assert parsed.control_command_id == "command-1"
 
 
 def test_named_connection_choice_is_a_declared_schema_field():
@@ -874,6 +1296,41 @@ def test_request_to_wire_carries_consumer_owned_model_connection():
         "credentialMode",
     ):
         assert removed not in payload
+
+
+def test_request_to_wire_carries_the_hosted_subscription_block():
+    # A hosted subscription run: the harness still owns authentication (runtime_provided, no
+    # credentials), and Agenta delivers the login the harness signs in with.
+    login = dict(_SUBSCRIPTION_LOGIN)
+    payload = _subscription_connection_payload()
+
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+    assert payload["model"] == "openai-codex/gpt-5.5"
+    # The author's choice still rides `connection`; the resolved login rides `modelConnection`.
+    assert payload["connection"] == {"mode": "self_managed", "slug": "chatgpt"}
+    assert payload["modelConnection"] == {
+        "provider": "openai-codex",
+        "deployment": "direct",
+        "credentialMode": "runtime_provided",
+        "credentials": [],
+        "subscription": {
+            "id": "0199-secret-id",
+            "slug": "chatgpt",
+            "provider": "chatgpt",
+            "version": 3,
+            "generation": 1,
+            "login": login,
+        },
+    }
+    # The schema must describe what the producer emits, or the runner mirror drifts. The login is
+    # a typed model, so a producer that dropped one of its four required fields fails right here.
+    parsed = WireRunRequest.model_validate(payload)
+    assert parsed.model_connection is not None
+    subscription = parsed.model_connection.subscription
+    assert subscription is not None
+    assert subscription.version == 3
+    assert subscription.generation == 1
+    assert subscription.login.model_dump(by_alias=True) == login
 
 
 @pytest.mark.parametrize(
@@ -964,6 +1421,8 @@ def test_result_from_wire_parses_ok(golden):
     assert result.session_id == "sess-42"
     assert result.model == "gpt-5.5"
     assert result.trace_id == "trace-abc"
+    # The provider that ran, after the runner's harness routing.
+    assert result.sandbox == "inprocess"
     # Capabilities come back camelCase and map onto snake_case flags.
     assert result.capabilities is not None
     assert result.capabilities.mcp_tools is True
@@ -974,6 +1433,54 @@ def test_result_from_wire_parses_ok(golden):
 def test_result_from_wire_raises_on_failure(golden):
     with pytest.raises(RuntimeError, match="model exploded"):
         result_from_wire(golden("run_result.error.json"))
+
+
+def test_result_from_wire_carries_gateway_error_detail(golden):
+    # A gateway refusal survives on AgentRunFailed as structured data, not only as a string.
+    with pytest.raises(AgentRunFailed) as excinfo:
+        result_from_wire(golden("run_result.error_detail.json"))
+    exc = excinfo.value
+    assert exc.error_detail is not None
+    assert exc.error_detail["code"] == "model_not_allowed"
+    assert exc.error_detail["retryable"] is False
+    assert exc.error_detail["next_step"] == "choose a model the connection allows"
+    # failure_code takes the specific cause, not the generic default.
+    assert exc.failure_code == "model_not_allowed"
+
+
+def test_result_from_wire_error_detail_absent_for_a_plain_failure(golden):
+    with pytest.raises(AgentRunFailed) as excinfo:
+        result_from_wire(golden("run_result.error.json"))
+    exc = excinfo.value
+    assert exc.error_detail is None
+    assert exc.failure_code == "agent_run_failed"
+
+
+@pytest.mark.parametrize(
+    "error_detail", ["not an envelope", ["not", "an", "envelope"], 1]
+)
+def test_result_from_wire_ignores_malformed_gateway_error_detail(error_detail):
+    with pytest.raises(AgentRunFailed) as excinfo:
+        result_from_wire(
+            {
+                "ok": False,
+                "error": "gateway failed",
+                "errorDetail": error_detail,
+            }
+        )
+
+    assert excinfo.value.error_detail is None
+    assert excinfo.value.failure_code == "agent_run_failed"
+
+
+@pytest.mark.parametrize(
+    "error_detail", ["not an envelope", ["not", "an", "envelope"], 1]
+)
+def test_agent_run_failed_ignores_malformed_error_detail(error_detail):
+    error = AgentRunFailed("runner failed", error_detail=error_detail)  # type: ignore[arg-type]
+
+    assert error.error_detail is None
+    assert error.failure_code == "agent_run_failed"
 
 
 def test_sanitize_runner_error_passes_clean_message_through():
@@ -1278,3 +1785,54 @@ def test_result_from_wire_redacts_seeded_credential_from_output_events_and_error
         with pytest.raises(RuntimeError) as exc:
             result_from_wire({"ok": False, "error": f"provider rejected {marker}"})
         assert marker not in str(exc.value)
+
+
+def test_request_to_wire_omits_turn_context_when_unset():
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(),
+        messages=[Message(role="user", content="hi")],
+    )
+    assert "turnContext" not in payload
+    assert "sessionContext" not in payload
+
+
+def test_request_to_wire_carries_only_rendered_turn_context():
+    context = '## This session\n\nThis session is named "Q3 notes".'
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(),
+        messages=[Message(role="user", content="hi")],
+        session_id="sess_abc",
+        turn_context=context,
+    )
+    assert set(payload) <= KNOWN_REQUEST_KEYS
+    assert payload["turnContext"] == context
+    assert "sessionContext" not in payload
+    assert payload["messages"] == [{"role": "user", "content": "hi"}]
+
+
+def test_display_content_survives_sdk_and_wire_conversion(golden):
+    from agenta.sdk.agents.adapters.vercel.messages import (
+        message_to_vercel_ui_message,
+        vercel_messages_to_agenta_messages,
+    )
+
+    cases = golden("message_display.json")
+    messages = [Message.from_raw(raw) for raw in cases]
+    payload = request_to_wire(
+        harness=HarnessKind.PI,
+        sandbox="local",
+        config=PiAgentTemplate(),
+        messages=messages,
+    )
+    assert payload["messages"] == cases
+    for raw, message in zip(cases, messages):
+        ui = message_to_vercel_ui_message(message)
+        restored = vercel_messages_to_agenta_messages([ui])[0]
+        assert restored.to_wire() == raw
+    from agenta.sdk.agents.wire_models import WireChatMessage
+
+    assert "display_content" in WireChatMessage.model_fields

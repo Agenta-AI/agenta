@@ -21,10 +21,8 @@ state/
 │   ├── playground.ts     # Core playground state
 │   ├── connections.ts    # Output connections
 │   └── entitySelector.ts # Entity selector modal state
-├── controllers/
-│   └── playgroundController.ts # High-level state management
-└── context/
-    └── PlaygroundEntityProvider.tsx # Entity provider injection
+└── controllers/
+    └── playgroundController.ts # High-level state management
 ```
 
 ## Entity Selection

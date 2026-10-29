@@ -2,27 +2,6 @@ import {STRIP_COPY} from "@/oss/components/TemplateStrip/assets/constants"
 import {getEnv} from "@/oss/lib/helpers/dynamicEnv"
 
 /**
- * Template behavior toggle (`NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER`). On by default: clicking a
- * template (Home or the gallery) opens the playground seeded with the template's builder
- * instruction (the agent-builder flow; no direct config write). Set to "false" to fall back to
- * the config-definition drawer flow. Default-on requires the build kit to reach ephemeral
- * drafts, delivered via the `__ag__build_kit` static workflow
- * (docs/design/build-kit-overlay-delivery/).
- */
-export const TEMPLATE_BUILDER_MODE =
-    (getEnv("NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER") || "").toLowerCase() !== "false"
-
-/**
- * Playground-native onboarding toggle (`NEXT_PUBLIC_AGENT_PLAYGROUND_ONBOARDING`). On by default: the
- * project-scoped `/playground` route lands on an ephemeral agent (onboarding lives INSIDE the
- * playground) and commits it in place on send — no redirect. Set to `false` to keep onboarding on the
- * agent-home page, navigating to the app playground after create. Additive: both flows coexist so we
- * can A/B the seamless single-page experience against the redirect flow.
- */
-export const PLAYGROUND_NATIVE_ONBOARDING =
-    (getEnv("NEXT_PUBLIC_AGENT_PLAYGROUND_ONBOARDING") || "").toLowerCase() !== "false"
-
-/**
  * Template-strip experience toggle (`NEXT_PUBLIC_AGENT_TEMPLATE_STRIP`). On by default: Home,
  * playground onboarding, and every agent's empty chat render the shared `<TemplateStrip />`:
  * always visible, filterable in place, card click fills the composer + shows a provenance
@@ -33,6 +12,19 @@ export const PLAYGROUND_NATIVE_ONBOARDING =
 export const TEMPLATE_STRIP_MODE =
     (getEnv("NEXT_PUBLIC_AGENT_TEMPLATE_STRIP") || "").toLowerCase() !== "false"
 
+/** Browse-surface layout (`NEXT_PUBLIC_AGENT_BROWSE_RAIL`). OFF by default: sessions, agents and
+ * the templates gallery use the one-row toolbar (#5833/#5846). Set to "true" for the filter rail.
+ * Mobile always renders the rail — it is the phone's whole viewport, not a second sidebar. */
+export const BROWSE_RAIL_MODE =
+    (getEnv("NEXT_PUBLIC_AGENT_BROWSE_RAIL") || "").toLowerCase() === "true"
+
+/** Returning users start a task with an agent they already have; first-run users describe an
+ * agent to create. Different question, different verb. */
+/** No subtitle: the composer's placeholder asks the same thing one line below it. */
+export const RETURNING_HERO = {
+    title: "What do you want to do?",
+}
+
 export const HERO = {
     eyebrowNew: "New",
     eyebrowLabel: "Agent builder",
@@ -40,6 +32,13 @@ export const HERO = {
     subtitle:
         "Describe an agent in plain language — we'll create and name it, then open the playground.",
     placeholder: STRIP_COPY.describeAgentPlaceholder,
+} as const
+
+/** A template already says what is being built and why, so the page asks the one thing still
+ * open — what it needs connected — instead of repeating the question the pick answered. */
+export const TEMPLATE_HERO = {
+    title: (name: string) => `Set up ${name}`,
+    subtitle: "Connect what it needs, then we'll build it and open the playground.",
 } as const
 
 export const COMPOSER = {
@@ -56,13 +55,6 @@ export const COMPOSER = {
 export const TEMPLATES_SECTION = {
     title: "Or start from a template",
     browseAll: "Browse all",
-} as const
-
-export const TEMPLATES_GALLERY = {
-    title: "Templates",
-    subtitle:
-        "Start from a proven agent — review what it does, connect what it needs, and open the playground.",
-    searchPlaceholder: "Search templates…",
 } as const
 
 /** First-run tutorial video config. `null` hides the column (composer returns to full width). */

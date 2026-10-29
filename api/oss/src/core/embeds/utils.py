@@ -186,6 +186,8 @@ def create_universal_resolver(
     environments_service: Optional[Any] = None,
     applications_service: Optional[Any] = None,
     evaluators_service: Optional[Any] = None,
+    #
+    entity_visible: Optional[Callable[[Any], Awaitable[bool]]] = None,
 ) -> Callable[[Dict[str, Reference]], Awaitable[Dict[str, Any]]]:
     """
     Create a universal resolver that can handle ANY entity type.
@@ -203,6 +205,9 @@ def create_universal_resolver(
         environments_service: Optional environments service
         applications_service: Optional applications service
         evaluators_service: Optional evaluators service
+        entity_visible: Checks each fetched workflow, application or evaluator
+            revision before its content is used; a hidden one fails exactly like
+            a reference that names nothing (`EmbedNotFoundError`, same message)
 
     Returns:
         Universal resolver callback accepting Dict[str, Reference]
@@ -211,6 +216,9 @@ def create_universal_resolver(
         UnsupportedReferenceTypeError,
         EmbedNotFoundError,
     )
+
+    async def _hidden(entity: Any) -> bool:
+        return entity_visible is not None and not await entity_visible(entity)
 
     async def _resolve_revision_with_normalization(
         *,
@@ -306,7 +314,7 @@ def create_universal_resolver(
                         )
                     ),
                 )
-                if not entity or not entity.data:
+                if not entity or not entity.data or await _hidden(entity):
                     raise EmbedNotFoundError(
                         f"Workflow revision not found: {revision_ref}"
                     )
@@ -319,7 +327,7 @@ def create_universal_resolver(
                     workflow_variant_ref=variant_ref,
                     include_archived=include_archived,
                 )
-                if not entity or not entity.data:
+                if not entity or not entity.data or await _hidden(entity):
                     raise EmbedNotFoundError(
                         f"Workflow revision not found for variant: {variant_ref}"
                     )
@@ -332,7 +340,7 @@ def create_universal_resolver(
                     workflow_ref=artifact_ref,
                     include_archived=include_archived,
                 )
-                if not entity or not entity.data:
+                if not entity or not entity.data or await _hidden(entity):
                     raise EmbedNotFoundError(
                         f"Workflow revision not found for workflow: {artifact_ref}"
                     )
@@ -417,7 +425,7 @@ def create_universal_resolver(
                         )
                     ),
                 )
-                if not entity or not entity.data:
+                if not entity or not entity.data or await _hidden(entity):
                     raise EmbedNotFoundError(
                         f"Application revision not found: {revision_ref}"
                     )
@@ -429,7 +437,7 @@ def create_universal_resolver(
                     application_variant_ref=variant_ref,
                     include_archived=include_archived,
                 )
-                if not entity or not entity.data:
+                if not entity or not entity.data or await _hidden(entity):
                     raise EmbedNotFoundError(
                         f"Application revision not found for variant: {variant_ref}"
                     )
@@ -441,7 +449,7 @@ def create_universal_resolver(
                     application_ref=artifact_ref,
                     include_archived=include_archived,
                 )
-                if not entity or not entity.data:
+                if not entity or not entity.data or await _hidden(entity):
                     raise EmbedNotFoundError(
                         f"Application revision not found for application: {artifact_ref}"
                     )
@@ -471,7 +479,7 @@ def create_universal_resolver(
                         )
                     ),
                 )
-                if not entity or not entity.data:
+                if not entity or not entity.data or await _hidden(entity):
                     raise EmbedNotFoundError(
                         f"Evaluator revision not found: {revision_ref}"
                     )
@@ -483,7 +491,7 @@ def create_universal_resolver(
                     evaluator_variant_ref=variant_ref,
                     include_archived=include_archived,
                 )
-                if not entity or not entity.data:
+                if not entity or not entity.data or await _hidden(entity):
                     raise EmbedNotFoundError(
                         f"Evaluator revision not found for variant: {variant_ref}"
                     )
@@ -495,7 +503,7 @@ def create_universal_resolver(
                     evaluator_ref=artifact_ref,
                     include_archived=include_archived,
                 )
-                if not entity or not entity.data:
+                if not entity or not entity.data or await _hidden(entity):
                     raise EmbedNotFoundError(
                         f"Evaluator revision not found for evaluator: {artifact_ref}"
                     )
@@ -1238,29 +1246,27 @@ def _find_embed_tokens(text: str) -> List[str]:
 
     Returns list of token strings including the @ag.embed[...] wrapper.
     """
+    prefix = "@ag.embed["
     tokens = []
-    i = 0
-    while i < len(text):
-        # Look for @ag.embed[ prefix
-        if text[i:].startswith("@ag.embed["):
-            start = i
-            i += len("@ag.embed[")
-            bracket_count = 1
+    i = text.find(prefix)
+    while i != -1:
+        start = i
+        i += len(prefix)
+        bracket_count = 1
 
-            # Find matching closing bracket
-            while i < len(text) and bracket_count > 0:
-                if text[i] == "[":
-                    bracket_count += 1
-                elif text[i] == "]":
-                    bracket_count -= 1
-                i += 1
-
-            if bracket_count == 0:
-                # Found complete token
-                tokens.append(text[start:i])
-            # If bracket_count > 0, token is incomplete - skip it
-        else:
+        # Find matching closing bracket
+        while i < len(text) and bracket_count > 0:
+            if text[i] == "[":
+                bracket_count += 1
+            elif text[i] == "]":
+                bracket_count -= 1
             i += 1
+
+        if bracket_count == 0:
+            # Found complete token
+            tokens.append(text[start:i])
+        # If bracket_count > 0, token is incomplete - skip it
+        i = text.find(prefix, i)
 
     return tokens
 

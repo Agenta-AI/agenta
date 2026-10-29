@@ -60,6 +60,8 @@ interface UseFieldSlotsParams {
     onRefinePrompt?: (promptKey: string) => void
     parameters: Record<string, unknown>
     promptModelInfo: PromptModelInfo
+    /** The picker's own name for the stored model; the raw id only when nothing offers it. */
+    selectedModelLabel: string | null
     schema: PathSchema | null
     setFeedbackMode: (mode: "basic" | "advanced") => void
     siblingGroups: Record<string, unknown>
@@ -81,6 +83,7 @@ export function useFieldSlots({
     onRefinePrompt,
     parameters,
     promptModelInfo,
+    selectedModelLabel,
     schema,
     setFeedbackMode,
     siblingGroups,
@@ -163,7 +166,7 @@ export function useFieldSlots({
             return (
                 <div
                     className={clsx(
-                        "flex items-center justify-between w-full px-3 py-2 bg-[var(--ag-c-FAFAFB)] cursor-pointer select-none sticky z-[2]",
+                        "flex items-center justify-between w-full px-3 py-2 bg-[var(--ag-surface-section-header)] border-0 border-b border-solid border-colorBorderSecondary cursor-pointer select-none sticky z-[2]",
                         // Space above the code/hook section when params precede it.
                         isSibling && hasParameters(activeData) && "mt-4",
                     )}
@@ -221,7 +224,7 @@ export function useFieldSlots({
                             >
                                 <PopoverTrigger asChild>
                                     <Button size="sm" variant="outline">
-                                        {promptModelInfo.currentModel || "Select model"}
+                                        {selectedModelLabel || "Select model"}
                                         <CaretDown size={12} />
                                     </Button>
                                 </PopoverTrigger>

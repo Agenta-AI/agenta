@@ -72,7 +72,9 @@ function CardLayout({
         title={title}>
         {title}
       </Heading>
-      {description && (
+      {/* The OpenAPI pages set the description to the operation name; a
+          line that repeats the title says nothing. */}
+      {description && description.trim() !== title.trim() && (
         <p
           className={clsx('text--truncate', styles.cardDescription)}
           title={description}>

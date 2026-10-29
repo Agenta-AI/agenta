@@ -545,7 +545,7 @@ No changes to `secretkind_enum` or any secrets tables.
 ```python
 class ComposioConfig(BaseModel):
     api_key: str | None = os.getenv("COMPOSIO_API_KEY")
-    api_url: str = os.getenv("COMPOSIO_API_URL") or "https://backend.composio.dev/api/v3"
+    api_url: str = os.getenv("COMPOSIO_API_URL") or "https://backend.composio.dev/api/v3.1"
 
     model_config = ConfigDict(extra="ignore")
 

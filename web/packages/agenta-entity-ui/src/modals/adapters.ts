@@ -47,32 +47,6 @@ export function getEntityAdapter<TEntity = unknown>(
     return adapterRegistry.get(type) as EntityModalAdapter<TEntity> | undefined
 }
 
-/**
- * Check if an adapter is registered for a type
- *
- * @param type The entity type
- * @returns Whether an adapter is registered
- */
-export function hasEntityAdapter(type: EntityType): boolean {
-    return adapterRegistry.has(type)
-}
-
-/**
- * Get all registered entity types
- *
- * @returns Array of registered entity types
- */
-export function getRegisteredEntityTypes(): EntityType[] {
-    return Array.from(adapterRegistry.keys())
-}
-
-/**
- * Clear all registered adapters (for testing)
- */
-export function clearAdapterRegistry(): void {
-    adapterRegistry.clear()
-}
-
 // ============================================================================
 // ADAPTER FACTORY
 // ============================================================================

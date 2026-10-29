@@ -1,14 +1,11 @@
 import {useMemo} from "react"
 
+import {fieldConfigByOptionKey, type FieldConfig} from "@agenta/observability"
+import {getOperator} from "@agenta/observability"
+import {getFilterColumns} from "@agenta/observability"
 import {Typography} from "antd"
 import clsx from "clsx"
 
-import {
-    fieldConfigByOptionKey,
-    type FieldConfig,
-} from "@/oss/components/pages/observability/assets/filters/fieldAdapter"
-import {getOperator} from "@/oss/components/pages/observability/assets/filters/operatorRegistry"
-import getFilterColumns from "@/oss/components/pages/observability/assets/getFilterColumns"
 import type {Filter, FilterConditions, FilterValue} from "@/oss/lib/Types"
 
 import type {QueryFilteringPayload} from "../../../../../services/onlineEvaluations/api"
@@ -154,9 +151,9 @@ const FiltersPreview = ({filtering, filters, className, compact}: FiltersPreview
     return (
         <div className={clsx("flex flex-col gap-1", className)}>
             <div className="grid grid-cols-1 gap-2 md:grid-cols-[1fr,1fr,2fr] mb-1.5">
-                <Text className="text-[11px] uppercase text-[var(--ag-c-667085)]">Field</Text>
-                <Text className="text-[11px] uppercase text-[var(--ag-c-667085)]">Operator</Text>
-                <Text className="text-[11px] uppercase text-[var(--ag-c-667085)]">Value</Text>
+                <Text className="text-xs uppercase text-[var(--ag-c-667085)]">Field</Text>
+                <Text className="text-xs uppercase text-[var(--ag-c-667085)]">Operator</Text>
+                <Text className="text-xs uppercase text-[var(--ag-c-667085)]">Value</Text>
             </div>
             {normalizedFilters.map((item) => (
                 <div key={item.id} className="grid grid-cols-1 gap-2 md:grid-cols-[1fr,1fr,2fr]">

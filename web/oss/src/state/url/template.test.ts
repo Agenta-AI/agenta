@@ -1,7 +1,6 @@
+import type {AgentStarterTemplate} from "@agenta/entities/workflow"
 import {getDefaultStore} from "jotai"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
-
-import {AGENT_TEMPLATES} from "../../components/pages/agent-home/assets/templates"
 
 import {
     activeTemplateAtom,
@@ -9,15 +8,19 @@ import {
     claimTemplate,
     clearTemplate,
     completeTemplateClaim,
-    isValidTemplateKey,
+    handPendingTemplateToMobile,
     parseTemplateFromUrl,
+    pendingTemplateDecision,
     persistTemplateToStorage,
     readTemplateFromStorage,
-    resolveTemplate,
     TEMPLATE_TTL_MS,
 } from "./template"
 
-const KNOWN_KEY = AGENT_TEMPLATES[0].key
+// Capture, storage and claim never read the catalog, so any key string works here.
+const KNOWN_KEY = "pr-reviewer"
+
+// Only the key matters to the decision; the rest of the card is irrelevant to these tests.
+const KNOWN_TEMPLATE = {key: KNOWN_KEY, name: "PR reviewer"} as AgentStarterTemplate
 
 class FakeStorage {
     private map = new Map<string, string>()
@@ -82,17 +85,58 @@ describe("parseTemplateFromUrl", () => {
     })
 })
 
-describe("registry validation", () => {
-    it("resolves a known key to its template and validates it", () => {
-        expect(resolveTemplate(KNOWN_KEY)?.key).toBe(KNOWN_KEY)
-        expect(isValidTemplateKey(KNOWN_KEY)).toBe(true)
+describe("pendingTemplateDecision (catalog validation at consume time)", () => {
+    it("waits, keeping the key, while the catalog is loading", () => {
+        expect(pendingTemplateDecision({status: "pending"})).toEqual({
+            action: "wait",
+            reason: "pending",
+        })
     })
 
-    it("rejects an unknown or stale key without falling back to another template", () => {
-        expect(resolveTemplate("not-a-real-template")).toBeUndefined()
-        expect(isValidTemplateKey("not-a-real-template")).toBe(false)
-        expect(resolveTemplate(null)).toBeUndefined()
-        expect(isValidTemplateKey("")).toBe(false)
+    it("waits, keeping the key, when the catalog read failed", () => {
+        expect(pendingTemplateDecision({status: "error"})).toEqual({
+            action: "wait",
+            reason: "error",
+        })
+    })
+
+    it("discards a key the loaded catalog does not have, without falling back", () => {
+        expect(pendingTemplateDecision({status: "missing"})).toEqual({action: "discard"})
+    })
+
+    it("consumes a key the catalog has, with that exact template", () => {
+        const decision = pendingTemplateDecision({status: "found", template: KNOWN_TEMPLATE})
+        expect(decision).toEqual({action: "consume", template: KNOWN_TEMPLATE})
+    })
+
+    it("keeps a captured key in storage and the atom while the catalog is pending", () => {
+        installWindow("/?template=" + KNOWN_KEY)
+        const pending = capturePending()
+        const decision = pendingTemplateDecision({status: "pending"})
+        // The consumer only clears on "discard"; a "wait" leaves the capture untouched.
+        if (decision.action === "discard") clearTemplate(pending)
+        expect(readTemplateFromStorage()).toEqual(pending)
+        expect(getDefaultStore().get(activeTemplateAtom)).toEqual(pending)
+    })
+
+    it("clears a captured key once the catalog confirms it is missing", () => {
+        const win = installWindow("/?template=not-a-real-template")
+        captureTemplateFromUrl(new URL("https://cloud.agenta.ai/?template=not-a-real-template"))
+        const pending = getDefaultStore().get(activeTemplateAtom)
+        if (!pending) throw new Error("Expected a pending template")
+        const decision = pendingTemplateDecision({status: "missing"})
+        if (decision.action === "discard") clearTemplate(pending)
+        expect(readTemplateFromStorage()).toBeNull()
+        expect(getDefaultStore().get(activeTemplateAtom)).toBeNull()
+        expect(win.location.href).not.toContain("template=")
+    })
+
+    it("lets a found key proceed to the at-most-once claim", async () => {
+        installWindow("/")
+        const pending = capturePending()
+        const decision = pendingTemplateDecision({status: "found", template: KNOWN_TEMPLATE})
+        expect(decision.action).toBe("consume")
+        expect(await claimTemplate(pending)).toBe(true)
     })
 })
 
@@ -148,6 +192,40 @@ describe("captureTemplateFromUrl", () => {
         expect(win.location.href).not.toContain("template=")
     })
 
+    it("ignores the key on the in-app create surface, where it only seeds the composer", () => {
+        const win = installWindow(`/apps?new=1&template=${KNOWN_KEY}`)
+        const url = new URL(`https://cloud.agenta.ai/apps?new=1&template=${KNOWN_KEY}`)
+        expect(captureTemplateFromUrl(url)).toBeNull()
+        expect(getDefaultStore().get(activeTemplateAtom)).toBeNull()
+        expect(readTemplateFromStorage()).toBeNull()
+        // The param stays put — the create surface reads it to pre-select the template. Assert the
+        // browser URL, not the detached one: only the former proves cleanup left it alone.
+        expect(win.location.href).toContain(`template=${KNOWN_KEY}`)
+    })
+
+    it("does not restore a stored key on the create surface, and leaves it for a later load", () => {
+        installWindow(`/apps?new=1&template=${KNOWN_KEY}`)
+        // A record another tab captured from a real website deep-link.
+        persistTemplateToStorage({key: KNOWN_KEY, capturedAt: Date.now()})
+
+        const url = new URL(`https://cloud.agenta.ai/apps?new=1&template=${KNOWN_KEY}`)
+        expect(captureTemplateFromUrl(url)).toBeNull()
+        expect(getDefaultStore().get(activeTemplateAtom)).toBeNull()
+
+        // The record survives: this URL says nothing about the other tab's intent.
+        expect(readTemplateFromStorage()?.key).toBe(KNOWN_KEY)
+        expect(captureTemplateFromUrl(new URL("https://cloud.agenta.ai/apps"))).toBe(KNOWN_KEY)
+    })
+
+    it("disarms an already-active template when the user reaches the create surface", () => {
+        installWindow("/")
+        const pending = capturePending()
+        expect(getDefaultStore().get(activeTemplateAtom)).toEqual(pending)
+
+        captureTemplateFromUrl(new URL("https://cloud.agenta.ai/apps?new=1"))
+        expect(getDefaultStore().get(activeTemplateAtom)).toBeNull()
+    })
+
     it("falls back to the stored key when the URL has none (region recapture leaves storage intact)", () => {
         installWindow("/")
         persistTemplateToStorage({key: KNOWN_KEY, capturedAt: Date.now()})
@@ -170,6 +248,34 @@ describe("clearTemplate", () => {
         expect(win.location.href).toContain("other=1")
         // A capture after clear must not bring the key back from the URL.
         expect(captureTemplateFromUrl(new URL(win.location.href))).toBeNull()
+    })
+})
+
+describe("handPendingTemplateToMobile (Classic mode hop to /m)", () => {
+    it("moves the pending key into the /m create step and forgets it here", () => {
+        installWindow(`/w?template=${KNOWN_KEY}`)
+        persistTemplateToStorage({key: KNOWN_KEY, capturedAt: Date.now()})
+
+        expect(handPendingTemplateToMobile("/m/w/ws1/p/pr1/apps")).toBe(
+            `/m/w/ws1/p/pr1/agents/new?template=${KNOWN_KEY}`,
+        )
+        expect(readTemplateFromStorage()).toBeNull()
+    })
+
+    it("carries the key to the /m root, which resolves the project first", () => {
+        installWindow("/w")
+        persistTemplateToStorage({key: KNOWN_KEY, capturedAt: Date.now()})
+
+        expect(handPendingTemplateToMobile("/m/")).toBe(`/m/?template=${KNOWN_KEY}`)
+    })
+
+    it("leaves the target alone without a pending key or outside a project", () => {
+        installWindow("/w")
+        expect(handPendingTemplateToMobile("/m/w/ws1/p/pr1/apps")).toBe("/m/w/ws1/p/pr1/apps")
+
+        persistTemplateToStorage({key: KNOWN_KEY, capturedAt: Date.now()})
+        expect(handPendingTemplateToMobile("/m/auth")).toBe("/m/auth")
+        expect(readTemplateFromStorage()?.key).toBe(KNOWN_KEY)
     })
 })
 

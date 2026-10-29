@@ -1,5 +1,6 @@
 import {atom} from "jotai"
-import {atomFamily, selectAtom} from "jotai/utils"
+import {selectAtom} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 
 import {activePreviewRunIdAtom} from "./run"
 import {evaluationRunQueryAtomFamily} from "./table/run"

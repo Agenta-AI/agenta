@@ -1,6 +1,5 @@
+import type {Org} from "@agenta/entities/organization"
 import {Spin, Typography} from "antd"
-
-import type {Org} from "@/oss/lib/Types"
 
 import PostSignupHeader from "./PostSignupHeader"
 

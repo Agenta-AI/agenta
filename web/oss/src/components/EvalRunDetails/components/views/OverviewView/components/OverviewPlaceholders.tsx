@@ -11,6 +11,8 @@ import {
     ResponsiveContainer,
 } from "recharts"
 
+import {useChartSeries} from "@/oss/lib/hooks/useChartSeries"
+
 interface PlaceholderProps {
     title?: ReactNode
     description?: ReactNode
@@ -25,6 +27,7 @@ export const OverviewLoadingPlaceholder = ({
     variant = "list",
 }: PlaceholderProps) => {
     const RadarLoadingMock = () => {
+        const series = useChartSeries()
         const subjects = useMemo(
             () => ["Evaluator quality", "Latency", "Tokens", "Cost", "Stability"],
             [],
@@ -121,20 +124,20 @@ export const OverviewLoadingPlaceholder = ({
             <div className="opacity-80 h-full w-full">
                 <ResponsiveContainer width="100%" height="100%">
                     <RadarChart cx="50%" cy="50%" outerRadius="72%" data={data}>
-                        <PolarGrid stroke="#EAEFF5" />
+                        <PolarGrid stroke="var(--ag-colorBorderSecondary)" />
                         <PolarAngleAxis dataKey="subject" tick={false} />
                         <PolarRadiusAxis domain={[0, 100]} axisLine={false} tick={false} />
                         <Radar
                             dataKey="value"
-                            stroke="#6EA8FE"
-                            fill="#3B82F6"
+                            stroke={series[0]}
+                            fill={series[0]}
                             fillOpacity={pulse}
                             isAnimationActive={false}
                         />
                         <Radar
                             dataKey="alt"
-                            stroke="#C4B5FD"
-                            fill="#A78BFA"
+                            stroke={series[1]}
+                            fill={series[1]}
                             fillOpacity={0.04}
                             strokeDasharray="4 3"
                             isAnimationActive={false}

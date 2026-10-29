@@ -1,0 +1,132 @@
+from typing import Annotated, Any, Literal
+from uuid import UUID
+
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
+
+from oss.src.core.sharing.dtos import Visibility
+from oss.src.core.agent_templates.dtos import (
+    TemplateLoadCommand,
+    TemplateSource,
+    TemplateSourcePin,
+    normalize_github_repo_url,
+)
+from oss.src.core.agent_templates.models import AgentTemplateEntry
+from oss.src.core.workflows.dtos import WorkflowRevisionData
+
+
+class _StrictRequestModel(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+
+class GatewayConnectionChoiceRequest(_StrictRequestModel):
+    connection_key: str = Field(min_length=1, max_length=128)
+    kind: Literal["gateway"]
+    provider: Literal["composio"]
+    integration: str = Field(pattern=r"^[a-z0-9]+(?:[_-][a-z0-9]+)*$")
+
+
+class MCPConnectionChoiceRequest(_StrictRequestModel):
+    connection_key: str = Field(min_length=1, max_length=128)
+    kind: Literal["mcp"]
+    server: str = Field(min_length=1, max_length=128)
+
+
+class SkipConnectionChoiceRequest(_StrictRequestModel):
+    connection_key: str = Field(min_length=1, max_length=128)
+    kind: Literal["skip"]
+
+
+TemplateConnectionChoiceRequest = Annotated[
+    GatewayConnectionChoiceRequest
+    | MCPConnectionChoiceRequest
+    | SkipConnectionChoiceRequest,
+    Field(discriminator="kind"),
+]
+
+
+class TemplateValidateRequest(_StrictRequestModel):
+    source: TemplateSource
+    pin: TemplateSourcePin | None = None
+
+
+class TemplateLoadRequest(_StrictRequestModel):
+    source: TemplateSource
+    base_revision: WorkflowRevisionData
+    ui_build_kit_enabled: bool = False
+    ui_disabled_ops: list[str] = Field(default_factory=list, max_length=128)
+    ui_op_permissions: dict[str, Literal["allow", "ask"]] = Field(
+        default_factory=dict, max_length=128
+    )
+    staging_session_id: str | None = Field(default=None, min_length=1, max_length=256)
+    attachment_ids: list[UUID] = Field(default_factory=list, max_length=10)
+    initial_message: str = Field(min_length=1, max_length=20_000)
+    connection_choices: list[TemplateConnectionChoiceRequest] = Field(
+        default_factory=list,
+        max_length=64,
+    )
+    # Requested visibility of the new agent (see `WorkflowCreate.visibility`).
+    visibility: Visibility | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def reject_server_owned_fields(cls, value: Any) -> Any:
+        # Native revision parameters are not template source/binding metadata.
+        # Their own schema and compiler validate them; ordinary names such as
+        # path, version, credentials and connection are legitimate there.
+        if isinstance(value, dict):
+            base = value.get("base_revision")
+            if isinstance(base, dict) and isinstance(base.get("meta"), dict):
+                if "_ag" in base["meta"]:
+                    raise ValueError("'_ag' is server-owned and cannot be supplied.")
+        return value
+
+    @field_validator("initial_message")
+    @classmethod
+    def normalize_initial_message(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("initial_message must not be blank")
+        return value
+
+    def to_domain(self, *, request_key: str) -> TemplateLoadCommand:
+        return TemplateLoadCommand.model_validate(
+            {
+                # Visibility goes to the ownership rule, not into the command (and
+                # not into the idempotency fingerprint).
+                **self.model_dump(mode="json", exclude={"visibility"}),
+                "request_key": request_key,
+            }
+        )
+
+
+class TemplateSourceScanRequest(_StrictRequestModel):
+    repo_url: str = Field(max_length=256)
+
+    @field_validator("repo_url")
+    @classmethod
+    def normalize_repo_url(cls, value: str) -> str:
+        value = value.strip()
+        return normalize_github_repo_url(
+            value if "://" in value else f"https://{value}"
+        )
+
+
+class TemplatesQueryRequest(_StrictRequestModel):
+    search: str | None = Field(default=None, max_length=200)
+    category: str | None = Field(default=None, max_length=64)
+    author_id: str | None = Field(default=None, max_length=64)
+
+
+class TemplatesResponse(BaseModel):
+    count: int
+    templates: list[AgentTemplateEntry]
+
+
+class TemplateResponse(BaseModel):
+    template: AgentTemplateEntry

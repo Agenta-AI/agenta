@@ -1,0 +1,135 @@
+import {
+    appMatchesType,
+    getApp,
+    selectLatestAppRevisions,
+} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
+import type {
+    APP_TYPE,
+    ListAppsItem,
+} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers/types"
+import {expect, test, type Page} from "@playwright/test"
+
+const app = (flags: ListAppsItem["flags"]): ListAppsItem =>
+    ({
+        id: "app-id",
+        name: "test-app",
+        app_type: "completion",
+        flags,
+        created_at: null,
+    }) as ListAppsItem
+
+test("agent revisions are excluded from prompt app matching", () => {
+    const artifact = app({is_application: true})
+    const agentRevision = {
+        flags: {is_agent: true, is_chat: true, is_custom: true},
+    }
+
+    for (const type of ["completion", "chat", "custom"] satisfies APP_TYPE[]) {
+        expect(appMatchesType(artifact, type, agentRevision)).toBe(false)
+    }
+})
+
+test("latest revision flags classify prompt apps", () => {
+    const artifact = app({is_application: true})
+
+    expect(appMatchesType(artifact, "completion", {flags: {}})).toBe(true)
+    expect(appMatchesType(artifact, "chat", {flags: {is_chat: true}})).toBe(true)
+    expect(appMatchesType(artifact, "custom", {flags: {is_custom: true}})).toBe(true)
+})
+
+test("an app with only a seed revision is not reused as a completion prompt", () => {
+    const artifact = app({is_application: true})
+    const revisions = selectLatestAppRevisions([
+        {workflow_id: artifact.id, version: "0", flags: {is_agent: true}},
+    ])
+
+    expect(appMatchesType(artifact, "completion", revisions.get(artifact.id))).toBe(false)
+})
+
+test("latest revision selection ignores v0 records", () => {
+    const latestByAppId = selectLatestAppRevisions([
+        {
+            workflow_id: "app-id",
+            flags: {is_agent: true},
+            version: "0",
+            created_at: "2026-07-31T10:00:00Z",
+        },
+        {
+            workflow_id: "app-id",
+            flags: {},
+            version: "1",
+            created_at: "2026-07-31T09:00:00Z",
+        },
+    ])
+
+    const latest = latestByAppId.get("app-id")
+    expect(latest?.version).toBe("1")
+    expect(appMatchesType(app({is_application: true}), "completion", latest)).toBe(true)
+})
+
+test("latest revision selection keeps records with a missing version", () => {
+    const latestByAppId = selectLatestAppRevisions([
+        {
+            workflow_id: "app-id",
+            flags: {is_agent: true},
+            created_at: "2026-07-31T09:00:00Z",
+        },
+        {
+            workflow_id: "app-id",
+            flags: {},
+            version: "0",
+            created_at: "2026-07-31T10:00:00Z",
+        },
+    ])
+
+    const latest = latestByAppId.get("app-id")
+    expect(latest?.version).toBeUndefined()
+    expect(latest?.flags?.is_agent).toBe(true)
+})
+
+test("app lookup ignores an old document response during navigation", async () => {
+    const artifact = app({is_application: true})
+    let navigationFinished = false
+    const requestedUrls: string[] = []
+    const fakePage = {
+        url: () => "https://example.test/w/workspace/p/project/settings?tab=llms",
+        goto: async () => {
+            navigationFinished = true
+        },
+        waitForURL: async () => {},
+        // A settings-page query can finish while goto replaces its document. Its
+        // status is valid, but Chromium no longer owns the response body.
+        waitForResponse: async () => ({
+            ok: () => true,
+            text: async () => {
+                throw new Error("Network.getResponseBody: No resource with given identifier found")
+            },
+        }),
+        request: {
+            post: async (url: string) => {
+                expect(navigationFinished).toBe(true)
+                requestedUrls.push(url)
+                return {
+                    ok: () => true,
+                    json: async () =>
+                        url.includes("/revisions/query")
+                            ? {
+                                  workflow_revisions: [
+                                      {
+                                          workflow_id: artifact.id,
+                                          version: "1",
+                                          flags: {is_chat: true},
+                                      },
+                                  ],
+                              }
+                            : {workflows: [artifact], count: 1},
+                }
+            },
+        },
+    } as unknown as Page
+
+    expect(await getApp(fakePage, "chat")).toEqual(artifact)
+    expect(requestedUrls).toHaveLength(2)
+    expect(new URL(requestedUrls[0]).pathname).toMatch(/\/workflows\/query$/)
+    expect(new URL(requestedUrls[0]).searchParams.get("project_id")).toBe("project")
+})

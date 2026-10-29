@@ -133,6 +133,27 @@ export interface PreviewTracesRateLimit {
 export interface PreviewTracesWithMetaResult {
     data: SpansResponse | TracesResponse | null
     rateLimit: PreviewTracesRateLimit
+    /**
+     * The windowing of the next page, as the API returned it. Present while more rows
+     * may match; send its fields back (`next` as `cursor`) to read the next page.
+     */
+    nextWindowing?: PreviewTracesWindowing
+}
+
+/** The `windowing` object of a span or trace list response. */
+export interface PreviewTracesWindowing {
+    newest?: string
+    oldest?: string
+    next?: string
+    limit?: number
+    order?: "ascending" | "descending"
+}
+
+const readNextWindowing = (data: unknown): PreviewTracesWindowing | undefined => {
+    const windowing = (data as {windowing?: unknown} | null)?.windowing
+    return windowing && typeof windowing === "object"
+        ? (windowing as PreviewTracesWindowing)
+        : undefined
 }
 
 const parseRateLimitHeader = (headers: Headers, name: string): number | null => {
@@ -176,6 +197,7 @@ export async function fetchAllPreviewTracesWithMeta(
         const headers = rawResponse.headers
         return {
             data: parseSpansOrTraces(params.focus, data),
+            nextWindowing: readNextWindowing(data),
             rateLimit: {
                 remaining: parseRateLimitHeader(headers, "x-ratelimit-remaining"),
                 limit: parseRateLimitHeader(headers, "x-ratelimit-limit"),
@@ -306,7 +328,17 @@ export interface SpansAnalyticsParams {
      * query param expected by the new endpoint.
      */
     filter?: unknown
+    /** Metric specs; omitted means the backend's `DEFAULT_ANALYTICS_SPECS`. */
+    specs?: AnalyticsMetricSpec[]
+    /** Throw on a failed request or a shape mismatch instead of returning null. */
+    strict?: boolean
     abortSignal?: AbortSignal
+}
+
+/** One `MetricSpec`: `path` is the dotted span path, e.g. `attributes.ag.metrics.costs.cumulative.total`. */
+export interface AnalyticsMetricSpec {
+    type: "numeric/continuous" | "numeric/discrete" | "categorical/single" | "binary"
+    path: string
 }
 
 /**
@@ -314,11 +346,10 @@ export interface SpansAnalyticsParams {
  * deprecated `POST /tracing/spans/analytics` used by the observability
  * generation dashboard (AGE-3788 Phase 6).
  *
- * `specs` is intentionally omitted: when absent, the backend applies its
- * `DEFAULT_ANALYTICS_SPECS` (duration / errors / costs / tokens cumulative +
- * trace/span type counts), which is exactly the set the dashboard needs. The
- * response `buckets[].metrics` dict is keyed by each spec's dotted path; the
- * OSS transform (`analyticsToGeneration`) reads the numeric fields it needs.
+ * Without `specs` the backend applies its `DEFAULT_ANALYTICS_SPECS`. The
+ * response `buckets[].metrics` dict is keyed by each spec's dotted path.
+ * `strict` callers (the dashboards) get the Fern error, with its `statusCode` and
+ * `body`, so they can show it; the default returns null on a failure.
  */
 export async function fetchSpansAnalytics(
     params: SpansAnalyticsParams,
@@ -331,6 +362,8 @@ export async function fetchSpansAnalytics(
         oldest,
         newest,
         filter,
+        specs,
+        strict = false,
         abortSignal,
     } = params
 
@@ -342,13 +375,25 @@ export async function fetchSpansAnalytics(
     if (newest) request.newest = newest
     // `filter`/`specs` are JSON-string query params on the new endpoint.
     if (filter !== undefined && filter !== null) request.filter = JSON.stringify(filter)
+    if (specs?.length) request.specs = JSON.stringify(specs)
 
-    const data = await callFern("[fetchSpansAnalytics]", () =>
+    // Strict callers retry through TanStack (`shouldRetryDashboard`), which never retries a 504.
+    // Fern's own transport retry (3 times on any 5xx) would run under that rule and turn one
+    // 15 s statement timeout into about a minute of loading skeleton, so it is off for them.
+    const call = () =>
         getTracesClient().querySpansAnalytics(
             request,
-            projectScopedRequest(projectId, appId ?? undefined, abortSignal),
-        ),
-    )
+            strict
+                ? {
+                      ...projectScopedRequest(projectId, appId ?? undefined, abortSignal),
+                      maxRetries: 0,
+                  }
+                : projectScopedRequest(projectId, appId ?? undefined, abortSignal),
+        )
+
+    if (strict) return analyticsResponseSchema.parse(await call())
+
+    const data = await callFern("[fetchSpansAnalytics]", call)
     if (!data) return null
     return safeParseWithLogging(analyticsResponseSchema, data, "[fetchSpansAnalytics]")
 }

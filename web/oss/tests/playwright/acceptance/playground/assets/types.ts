@@ -1,10 +1,12 @@
-import {GenerationChatRow, GenerationInputRow} from "@/oss/components/Playground/state/types"
 import type {ConfigMetadata} from "@agenta/entities/shared/execution"
 import type {OpenAPISpec} from "@agenta/entities/shared/openapi"
 import type {Workflow} from "@agenta/entities/workflow"
 import {BaseFixture} from "@agenta/web-tests/tests/fixtures/base.fixture/types"
 
-export type InvokedVariant = {
+export type GenerationChatRow = Record<string, unknown>
+export type GenerationInputRow = Record<string, unknown>
+
+export interface InvokedVariant {
     variant: Workflow
     allMetadata: Record<string, ConfigMetadata>
     inputRow: GenerationInputRow
@@ -19,7 +21,7 @@ export type InvokedVariant = {
     headers: Record<string, string>
     projectId: string
     messageId?: string
-    chatHistory?: any[]
+    chatHistory?: unknown[]
     spec: OpenAPISpec
     runId: string
 }

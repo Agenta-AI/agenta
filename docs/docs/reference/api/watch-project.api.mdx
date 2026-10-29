@@ -1,0 +1,75 @@
+---
+id: watch-project
+title: "Watch Project"
+description: "Relay low-frequency entity changes for the authorized project."
+sidebar_label: "Watch Project"
+hide_title: true
+hide_table_of_contents: true
+api: eJztVU1vGzcQ/SuDuSQFtpJr9KRThTZohLSoYLvpwRaCEXekZcIlGXJWzlbY/16QXH3ZcYEAPfakFefNB9/MG+5RaBtxdo+3HKN2NmJ1+lxVWHNUQXvRzuIMb9hQD8Y9fr8J/Lljq3pgK1p6UA3ZLUfYuADSMFAnjQv6b67BB/eRlUwe7IOdW+AdWwFpSMBSyxEIYskILgBZoG0CBCbVcARnTQ8EjySq4QCPjYOWethpfnywWiqIDgh80DsSBi3cvoqga7C843CMQtZJcm+5XXMopYAiY1JILU1J4yxDupgOXOcM4Dm0uhSnyFon4DxbkEZHiBKYWiBbw4aMibAm9QnEPdhEgNFR4ivwzhhtt7DmhnbahQlW6DwHSpQuapxhvtmHkSSs0FOgloVD6sseE0c4w9H+QddYoU7N+Nxx6LHCQ8E4k9BxhVE13BLO9ii9T65RgrZbrHDjQkuCM+y6HEa0mARYltiwqHEYVili9M5GjinI9dVV+rkchNtOKY5x0xm4GcFYoXJW2EqCk/dGq3zJ6ceYfPanwoZhGCr88fr6eeD3ZHSd3eBNCC58Q9REkecgutRds5A26SvNRHwOME5dWMn2f2wy5Ze8DdXxRFvhLQccVkN1OKMQqD8j8zdXCsShwjZuv9aHA/R3jpG2jMdgL0MzGXCXrEPqv+8yIQfzIh8MFSr5chbGrceZOuB+Tlx+ERxO9R8xpzm6z9yU8kfc6hTj1KLSoZep+KW04GvJDpC3d3fLZwHLfLQsjUsC2XKRhTQ4w+m4K+I06wYrjBx2B7F0wSQMeZ3bVv42Ij7OplPuJsq4rp7kBUMT0gW4SjFUF7T0Och8uXjH/VummgPO7lfngNs0bWV+LmFHzsnrd5xYGIU7HxdhGYpRu03xGnIvN+68lfNcHMyXC3y6fi9MSRak8hQcMmUzVk+ufbotVshtFgUKU/vT0ZJ6mDgsaa4mP0yu0pF3UVqyZyn+SpzD8rirLurbn6T6/0vx37wU40wlzU69IZ23Sm7vfhTEPcbTy10ksaqwcVGSbb9fU+Q/gxmGdFyejDTjtY60NknsGzKR/6WTr2/Ga34HLxX0ifunL9SOTJeAWV07Cjply2KqDsOfyiiec6XYy5nXsz2fohz3wa9v7nAY/gE6DQjB
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Watch Project"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/sessions/watch"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Relay low-frequency entity changes for the authorized project.
+
+An event that names a session or an agent reaches only a watcher who may view
+it, so a private item's id never reaches another member.
+
+A caller with only one required view permission cannot open this stream and falls back to
+the lists' polling behavior.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./watch-project.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./watch-project.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./watch-project.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      

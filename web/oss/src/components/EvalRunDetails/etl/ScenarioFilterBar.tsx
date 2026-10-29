@@ -352,7 +352,7 @@ const ScenarioFilterBar = ({runId}: ScenarioFilterBarProps) => {
                 className="inline-flex items-center gap-1"
             >
                 <span
-                    className={`rounded-full px-1.5 text-[10px] font-medium ${
+                    className={`rounded-full px-1.5 text-[12px] font-medium ${
                         appliedCount > 0
                             ? "bg-zinc-700 text-white"
                             : "bg-zinc-100 dark:bg-[var(--ag-rgba-051729-06)] text-zinc-500"

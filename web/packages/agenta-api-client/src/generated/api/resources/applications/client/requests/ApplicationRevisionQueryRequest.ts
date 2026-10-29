@@ -17,6 +17,8 @@ export interface ApplicationRevisionQueryRequest {
     application_revision_refs?: AgentaApi.Reference[] | null;
     /** When `true`, include archived revisions. Defaults to `false`. */
     include_archived?: boolean | null;
+    /** Divide matching revisions by artifact or variant and select one revision from each group. */
+    grouping?: AgentaApi.RevisionGrouping | null;
     /** Cursor pagination and time-range controls. */
     windowing?: AgentaApi.Windowing | null;
 }

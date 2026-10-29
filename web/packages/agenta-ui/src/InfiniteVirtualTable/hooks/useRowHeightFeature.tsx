@@ -1,9 +1,9 @@
 import {useMemo} from "react"
 
-import type {MenuProps} from "antd"
 import {atomWithStorage} from "jotai/utils"
 
 import type {RowHeightContextValue} from "../context/RowHeightContext"
+import type {TableMenuItem} from "../tableMenu"
 
 import {
     DEFAULT_ROW_HEIGHT_CONFIG,
@@ -31,7 +31,7 @@ export interface UseRowHeightFeatureResult {
     /** Context value to provide to RowHeightContext.Provider */
     contextValue: RowHeightContextValue
     /** Menu items for the settings dropdown */
-    menuItems: MenuProps["items"]
+    menuItems: TableMenuItem[]
     /** Row height in pixels (for IVT rowHeight prop) */
     heightPx: number
 }

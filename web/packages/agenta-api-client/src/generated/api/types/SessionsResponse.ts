@@ -4,5 +4,7 @@ import type * as AgentaApi from "../index.js";
 
 export interface SessionsResponse {
     count?: number | undefined;
-    sessions?: AgentaApi.SessionStream[] | undefined;
+    total?: (number | null) | undefined;
+    sessions?: AgentaApi.SessionListItem[] | undefined;
+    windowing?: (AgentaApi.Windowing | null) | undefined;
 }

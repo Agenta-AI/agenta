@@ -1,6 +1,4 @@
-import {ArrowLeft} from "@phosphor-icons/react"
-import {Button} from "antd"
-import clsx from "clsx"
+import {SidebarBackButton as SidebarBackButtonView} from "@agenta/navigation-ui"
 import {useRouter} from "next/router"
 
 interface SidebarBackButtonProps {
@@ -9,27 +7,18 @@ interface SidebarBackButtonProps {
     className?: string
 }
 
+/** OSS binding: "Back" prefers the scope's remembered path, else browser history. */
 const SidebarBackButton = ({collapsed, lastPath, className}: SidebarBackButtonProps) => {
     const router = useRouter()
-
     return (
-        <Button
-            aria-label="Back"
-            className={clsx(
-                "gap-2 flex items-center justify-center",
-                !collapsed && "ml-2",
-                className,
-            )}
-            type="text"
-            size={!collapsed ? "small" : "middle"}
-            icon={<ArrowLeft size={14} />}
-            onClick={() => {
+        <SidebarBackButtonView
+            collapsed={collapsed}
+            className={className}
+            onBack={() => {
                 if (lastPath) router.push(lastPath)
                 else router.back()
             }}
-        >
-            {!collapsed && "Back"}
-        </Button>
+        />
     )
 }
 

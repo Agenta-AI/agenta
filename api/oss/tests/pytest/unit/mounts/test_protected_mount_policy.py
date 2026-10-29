@@ -9,6 +9,7 @@ from pydantic import ValidationError
 
 from oss.src.apis.fastapi.mounts.models import MountCreateRequest, PublicMountCreate
 from oss.src.apis.fastapi.mounts.router import handle_mount_exceptions
+from oss.src.core.store.dtos import StorePutResult
 from oss.src.core.mounts.dtos import (
     Mount,
     MountArchiveSource,
@@ -47,9 +48,11 @@ def _mount(
     session_id: str = _SESSION_ID,
     archived: bool = False,
 ) -> Mount:
+    mount_id = uuid4()
     return Mount(
-        id=uuid4(),
+        id=mount_id,
         project_id=_PROJECT_ID,
+        storage_prefix=f"mounts/{_PROJECT_ID}/{mount_id}",
         slug=mint_session_slug(session_id=session_id, name=name),
         name=name,
         session_id=session_id,
@@ -124,9 +127,11 @@ class _MountsDAO:
         )
         if existing:
             return existing
+        mount_id = uuid4()
         mount = Mount(
-            id=uuid4(),
+            id=mount_id,
             project_id=project_id,
+            storage_prefix=f"mounts/{project_id}/{mount_id}",
             slug=mount_create.slug,
             name=mount_create.name,
             session_id=mount_create.session_id,
@@ -195,19 +200,22 @@ class _ObjectStore:
         self.objects: dict[str, bytes] = {}
         self.deleted_prefixes: list[str] = []
 
-    async def put_object(self, *, bucket, key, body):
+    async def put_object(self, *, bucket, key, body, **_conditions):
         assert bucket == _BUCKET
         self.objects[key] = body
-        return len(body)
+        return StorePutResult(size=len(body), etag="etag")
 
     async def get_object(self, *, bucket, key):
         assert bucket == _BUCKET
         return self.objects[key]
 
+    async def get_object_with_etag(self, *, bucket, key, max_bytes=None):
+        return await self.get_object(bucket=bucket, key=key), "etag"
+
     async def list_objects_v2(self, *, bucket, prefix):
         assert bucket == _BUCKET
         return [
-            SimpleNamespace(key=key, size=len(body), mtime=1)
+            SimpleNamespace(key=key, size=len(body), mtime=1, etag="etag")
             for key, body in self.objects.items()
             if key.startswith(prefix)
         ]

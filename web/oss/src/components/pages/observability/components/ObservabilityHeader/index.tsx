@@ -1,240 +1,101 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useMemo} from "react"
 
 import type {SimpleQueue} from "@agenta/entities/simpleQueue"
-import {exportMatchingTraces} from "@agenta/entities/trace/etl"
+import {getNodeById} from "@agenta/entities/trace"
 import {invalidateEvaluatorsListCache} from "@agenta/entities/workflow"
-import {message, modal} from "@agenta/ui/app-message"
-import {EnhancedButton} from "@agenta/ui/components/presentational"
-import {ArrowsClockwiseIcon, ExportIcon, TrashIcon} from "@phosphor-icons/react"
-import {Button, Input, Radio, RadioChangeEvent, Space, Switch, Tooltip, Typography} from "antd"
-import clsx from "clsx"
+import {
+    buildAttributeKeyTreeOptions,
+    buildTraceQueryParams,
+    fieldConfigByOptionKey,
+    getAgData,
+    getFilterColumns,
+    reconcileFilterRows,
+} from "@agenta/observability"
+import type {Filter as PackagedFilter} from "@agenta/observability"
+import type {FilterItem} from "@agenta/observability/filters"
+import {
+    ObservabilityRangePicker,
+    ObservabilityToolbar,
+    useTracesExport,
+    DeleteTraceModal,
+    AddActionsDropdown,
+} from "@agenta/observability-ui"
+import {deleteTraceModalAtom} from "@agenta/observability-ui"
+import {projectIdAtom} from "@agenta/shared/state"
+import {modal} from "@agenta/ui/app-message"
 import {useAtomValue, useSetAtom} from "jotai"
-import {queryClientAtom} from "jotai-tanstack-query"
-import dynamic from "next/dynamic"
-import Papa from "papaparse"
 
-import {SortResult} from "@/oss/components/Filters/Sort"
-import type {FilterItem} from "@/oss/components/Filters/types"
-import {fieldConfigByOptionKey} from "@/oss/components/pages/observability/assets/filters/fieldAdapter"
-import AddActionsDropdown from "@/oss/components/SharedActions/AddActionsDropdown"
+import AnnotatedFilterDialog from "@/oss/components/Filters/AnnotatedFilterDialog"
+import {FILTER_COLUMN_ICONS} from "@/oss/components/pages/observability/assets/filterColumnIcons"
 import type {TestsetTraceData} from "@/oss/components/SharedDrawers/AddToTestsetDrawer/assets/types"
-import {deleteTraceModalAtom} from "@/oss/components/SharedDrawers/TraceDrawer/components/DeleteTraceModal/store/atom"
-import useLazyEffect from "@/oss/hooks/useLazyEffect"
 import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
-import {getNodeById} from "@/oss/lib/traces/observability_helpers"
-import {Filter, FilterConditions, KeyValuePair} from "@/oss/lib/Types"
+import {KeyValuePair} from "@/oss/lib/Types"
 import {getAppValues} from "@/oss/state/app"
-import {useObservability} from "@/oss/state/newObservability"
-import {buildTraceQueryParams} from "@/oss/state/newObservability/atoms/queryHelpers"
-import {createAdaptiveTracePageFetcher} from "@/oss/state/newObservability/etl/adaptiveTracePageFetcher"
-import {createExportWriter, PICKER_CANCELLED} from "@/oss/state/newObservability/etl/exportWriter"
-import {getAgData} from "@/oss/state/newObservability/selectors/tracing"
+import {useObservability} from "@/oss/state/observability"
 import {currentWorkflowContextAtom} from "@/oss/state/workflow"
 
-import {createTraceObject, DEFAULT_TRACE_EXPORT_HEADERS} from "../../assets/exportUtils"
-import {buildAttributeKeyTreeOptions} from "../../assets/filters/attributeKeyOptions"
-import getFilterColumns from "../../assets/getFilterColumns"
 import {ObservabilityHeaderProps} from "../../assets/types"
-import {AUTO_REFRESH_INTERVAL} from "../../constants"
 
 import {useBatchAddTracesToQueue} from "./useBatchAddTracesToQueue"
 
-const Filters = dynamic(() => import("@/oss/components/Filters/Filters"), {ssr: false})
-const Sort = dynamic(() => import("@/oss/components/Filters/Sort"), {ssr: false})
-
-const DeleteTraceModal = dynamic(
-    () => import("@/oss/components/SharedDrawers/TraceDrawer/components/DeleteTraceModal"),
-    {
-        ssr: false,
-    },
-)
-
-const AutoRefreshControl: React.FC<{
-    checked: boolean
-    onChange: (checked: boolean) => void
-    resetTrigger?: number
-}> = ({checked, onChange, resetTrigger}) => {
-    const [progress, setProgress] = useState(0)
-    const [key, setKey] = useState(0)
-
-    // Reset animation when resetTrigger changes
-    useEffect(() => {
-        if (checked && resetTrigger !== undefined) {
-            setProgress(0)
-            setKey((prev) => prev + 1)
-        }
-    }, [resetTrigger, checked])
-
-    useEffect(() => {
-        if (!checked) {
-            setProgress(0)
-            return
-        }
-
-        // Start fresh animation
-        setProgress(0)
-
-        const startTime = Date.now()
-        const interval = setInterval(() => {
-            const elapsed = Date.now() - startTime
-            const newProgress = Math.min((elapsed / AUTO_REFRESH_INTERVAL) * 100, 100)
-            setProgress(newProgress)
-        }, 100) // Update every 100ms for smooth animation
-
-        return () => clearInterval(interval)
-    }, [checked, key])
-
-    return (
-        <Space size="small" className="ml-4">
-            <Switch size="small" checked={checked} onChange={onChange} />
-            <div className="relative inline-block">
-                <Typography.Text style={{fontSize: 12}} className="text-gray-600">
-                    auto-refresh
-                </Typography.Text>
-                {checked && (
-                    <div
-                        className="absolute bottom-0 left-0 h-[2px] bg-gray-600 transition-[width] duration-100"
-                        style={{width: `${progress}%`}}
-                    />
-                )}
-            </div>
-        </Space>
-    )
-}
-
+/**
+ * The observability / sessions chrome. The controls themselves live in
+ * `@agenta/observability-ui`'s `ObservabilityToolbar`; this file keeps the app-only wiring —
+ * the CSV export pipeline, the delete modal, the add-to-testset / add-to-queue menu, and the
+ * filter dialog's column set — and hands them down as slots and callbacks.
+ */
 const ObservabilityHeader = ({
     columns,
     componentType,
     isLoading: propsLoading,
     onRefresh,
-    realtimeMode,
-    setRealtimeMode,
-    autoRefresh: propsAutoRefresh,
-    setAutoRefresh: propsSetAutoRefresh,
-    refreshTrigger: propsRefreshTrigger,
+    refreshTrigger,
 }: ObservabilityHeaderProps) => {
-    const [internalRefreshTrigger, setInternalRefreshTrigger] = useState(0)
-    const [isExporting, setIsExporting] = useState(false)
-    const exportAbortRef = useRef<AbortController | null>(null)
     const setDeleteModalState = useSetAtom(deleteTraceModalAtom)
     const {canExportData} = useProjectPermissions()
+    const projectId = useAtomValue(projectIdAtom)
 
     const {
         traces,
         isLoading: isTraceLoading,
-        searchQuery,
         setSearchQuery,
         traceTabs,
         setTraceTabs,
         filters,
         setFilters,
         sort,
-        setSort,
         selectedRowKeys,
         setSelectedRowKeys,
         setTestsetDrawerData,
         fetchAnnotations,
         fetchTraces,
-        autoRefresh: hookAutoRefresh,
-        setAutoRefresh: hookSetAutoRefresh,
     } = useObservability()
-    const queryClient = useAtomValue(queryClientAtom)
     const runBatchAdd = useBatchAddTracesToQueue()
 
-    // Use props if provided (sessions), otherwise use hook (traces)
-    const autoRefresh = propsAutoRefresh ?? hookAutoRefresh
-    const setAutoRefresh = propsSetAutoRefresh ?? hookSetAutoRefresh
+    const {onExport: handleExportClick, isExporting} = useTracesExport({
+        columns,
+        canExportData,
+        resolveAppId: () => getAppValues().currentApp?.id || "",
+        resolveFilename: () => {
+            const {currentApp} = getAppValues()
+            return `${currentApp?.name ?? currentApp?.slug ?? ""}_observability.csv`
+        },
+    })
 
     const isLoading = propsLoading || isTraceLoading
     const attributeKeyOptions = useMemo(() => buildAttributeKeyTreeOptions(traces), [traces])
     const filterColumns = useMemo(
-        () => getFilterColumns(attributeKeyOptions),
+        () => getFilterColumns(attributeKeyOptions, FILTER_COLUMN_ICONS),
         [attributeKeyOptions],
     )
 
-    // --- Live label flip for the permanent references row in the dialog -----
-    //
-    // After Apply, the atom regenerates the references row's `attributes.key`
-    // from the effective trace_type (annotation → evaluator, invocation →
-    // application). That's what makes the label switch between "Evaluator ID"
-    // and "Application ID" in the chip outside the dialog. But while the user
-    // is still editing in the dialog, the row sits in local state — changing
-    // the trace_type dropdown there has no visual effect on the references
-    // row's label, which feels broken.
-    //
-    // The reconciler below produces a *display-only* projection of the local
-    // filter rows: if a trace_type row is present, it re-derives the permanent
-    // references row's `selectedField` / `selectedLabel` to match. The
-    // underlying `filter` state is untouched (the reconciler only runs in a
-    // `useMemo` inside the dialog) and the Apply path is unchanged — on
-    // Apply, the atom still strips and re-derives the permanent row, so the
-    // backend value matches the displayed label.
-    //
-    // Skipped for non-evaluator workflows: the references row is always pinned
-    // to `application` there, so flipping the label on trace_type changes
-    // would be misleading.
+    // The label flip itself is a pure projection in @agenta/observability; this
+    // only binds it to the current workflow kind and field map.
     const workflowKind = useAtomValue(currentWorkflowContextAtom).workflowKind
     const filterFieldMap = useMemo(() => fieldConfigByOptionKey(filterColumns), [filterColumns])
-    const reconcileFilterRows = useCallback(
-        (rows: FilterItem[]): FilterItem[] => {
-            if (workflowKind !== "evaluator") return rows
-
-            const tt = rows.find(
-                (r) => r.selectedField === "trace_type" || r.field === "trace_type",
-            )
-            // Mirror the atom's trace_type intent resolution (controls.ts):
-            // honour `is_not`/`not_in` against the 2-value enum by flipping.
-            const op = tt?.operator
-            const rawValue = Array.isArray(tt?.value) ? tt?.value[0] : tt?.value
-            const isAffirm = op === "is" || op === "in"
-            const isNeg = op === "is_not" || op === "not_in"
-            const normalize = (x: unknown): "annotation" | "invocation" | null =>
-                x === "annotation" ? "annotation" : x === "invocation" ? "invocation" : null
-            const flip = (x: unknown): "annotation" | "invocation" | null =>
-                x === "annotation" ? "invocation" : x === "invocation" ? "annotation" : null
-            let effective: "annotation" | "invocation" | null = null
-            if (tt && isAffirm) effective = normalize(rawValue)
-            else if (tt && isNeg) effective = flip(rawValue)
-
-            // When trace_type is absent, fall through to "no opinion" — keep
-            // whatever the row currently shows (which came from the atom's
-            // default for this workflow kind).
-            if (!effective) return rows
-
-            const targetCategory = effective === "invocation" ? "application" : "evaluator"
-
-            return rows.map((row) => {
-                if (!row.isPermanent) return row
-                const optionKey = row.selectedField || row.field
-                if (!optionKey) return row
-                const fc = filterFieldMap.get(optionKey)
-                if (!fc?.referenceCategory) return row
-                if (
-                    fc.referenceCategory !== "application" &&
-                    fc.referenceCategory !== "evaluator"
-                ) {
-                    return row
-                }
-                if (fc.referenceCategory === targetCategory) return row
-                // Find the corresponding FieldConfig for the target category
-                // with the same referenceProperty (id / slug).
-                let target: typeof fc | undefined
-                for (const candidate of filterFieldMap.values()) {
-                    if (candidate.referenceCategory !== targetCategory) continue
-                    if (candidate.referenceProperty !== fc.referenceProperty) continue
-                    target = candidate
-                    break
-                }
-                if (!target) return row
-                return {
-                    ...row,
-                    field: target.optionKey,
-                    selectedField: target.optionKey,
-                    selectedLabel: target.label,
-                    baseField: target.baseField,
-                }
-            })
-        },
+    const reconcileRows = useCallback(
+        (rows: FilterItem[]): FilterItem[] =>
+            reconcileFilterRows(rows, workflowKind, filterFieldMap),
         [workflowKind, filterFieldMap],
     )
     const selectedTraceIds = useMemo(
@@ -249,65 +110,15 @@ const ObservabilityHeader = ({
         [traces, selectedRowKeys],
     )
 
-    useEffect(
-        () => () => {
-            exportAbortRef.current?.abort()
-        },
-        [],
-    )
-
-    const updateFilter = useCallback(
-        ({field, operator, value}: {field: string; operator: FilterConditions; value: string}) => {
-            setFilters((prevFilters) => {
-                const otherFilters = prevFilters.filter((f) => f.field !== field)
-                return value ? [...otherFilters, {field, operator, value}] : otherFilters
-            })
+    const onApplyFilter = useCallback(
+        (newFilters: PackagedFilter[]) => {
+            setFilters(newFilters)
         },
         [setFilters],
     )
 
-    const onSearchChange = useCallback(
-        (e: React.ChangeEvent<HTMLInputElement>) => {
-            const query = e.target.value
-            setSearchQuery(query)
-
-            if (!query) {
-                setFilters((prevFilters) => prevFilters.filter((f) => f.field !== "content"))
-            }
-        },
-        [setSearchQuery, setFilters],
-    )
-
-    const onSearchQueryApply = useCallback(() => {
-        if (searchQuery) {
-            updateFilter({
-                field: "content",
-                operator: "contains",
-                value: searchQuery,
-            })
-        }
-    }, [searchQuery, updateFilter])
-
-    const onSearchClear = useCallback(() => {
-        const isSearchFilterExist = filters.some((item) => item.field === "content")
-
-        if (isSearchFilterExist) {
-            setFilters((prevFilters) => prevFilters.filter((f) => f.field !== "content"))
-        }
-    }, [filters])
-
-    // Sync searchQuery with filters state
-    useLazyEffect(() => {
-        const dataFilter = filters.find((f) => f.field === "content")
-        setSearchQuery(dataFilter && typeof dataFilter.value === "string" ? dataFilter.value : "")
-    }, [filters])
-
-    const onApplyFilter = useCallback((newFilters: Filter[]) => {
-        setFilters(newFilters)
-    }, [])
-
     const onClearFilter = useCallback(
-        (filter: Filter[]) => {
+        (filter: PackagedFilter[]) => {
             setFilters(filter)
             setSearchQuery("")
             if (traceTabs === "chat") {
@@ -316,43 +127,6 @@ const ObservabilityHeader = ({
         },
         [setFilters, setSearchQuery, setTraceTabs, traceTabs],
     )
-
-    const onTraceTabChange = useCallback(
-        (e: RadioChangeEvent) => {
-            const selectedTab = e.target.value
-            queryClient.removeQueries({queryKey: ["tracing"]})
-            setTraceTabs(selectedTab)
-
-            if (selectedTab === "chat") {
-                updateFilter({
-                    field: "span_type",
-                    operator: "is",
-                    value: selectedTab,
-                })
-            } else {
-                const isSpanTypeFilterExist = filters.some(
-                    (item) => item.field === "span_type" && item.value === "chat",
-                )
-
-                if (isSpanTypeFilterExist) {
-                    setFilters((prevFilters) => prevFilters.filter((f) => f.field !== "span_type"))
-                }
-            }
-        },
-        [filters, updateFilter, queryClient, setTraceTabs, setFilters],
-    )
-
-    // Sync traceTabs with filters state
-    useLazyEffect(() => {
-        const spanTypeFilter = filters.find((f) => f.field === "span_type")?.value
-        setTraceTabs((prev) =>
-            spanTypeFilter === "chat" ? "chat" : prev == "chat" ? "trace" : prev,
-        )
-    }, [filters])
-
-    const onSortApply = useCallback(({type, sorted, customRange}: SortResult) => {
-        setSort({type, sorted, customRange})
-    }, [])
 
     const getTestsetTraceData = useCallback(() => {
         if (!traces?.length) return []
@@ -368,162 +142,14 @@ const ObservabilityHeader = ({
         }
     }, [traces, selectedRowKeys, setTestsetDrawerData])
 
-    const onExport = useCallback(async () => {
-        const exportKey = "observability-export"
-
-        if (!canExportData) return
-        if (!traces.length) return
-
-        const {currentApp} = getAppValues()
-        const appId = currentApp?.id || ""
-        const filename = `${currentApp?.name ?? currentApp?.slug ?? ""}_observability.csv`
-
-        const {params, hasAnnotationConditions, hasAnnotationOperator, isHasAnnotationSelected} =
-            buildTraceQueryParams(filters, sort, traceTabs, undefined)
-
-        const headers =
-            columns
-                .map((col) => {
-                    if (col.title === "ID") return "Trace ID"
-                    return typeof col.title === "string" ? col.title : null
-                })
-                .filter((header): header is string => Boolean(header)) || []
-        const csvHeaders = headers.length > 0 ? headers : DEFAULT_TRACE_EXPORT_HEADERS
-
-        // Open the native file picker BEFORE starting the scan when the
-        // browser supports `showSaveFilePicker` (Chromium). User-cancel of
-        // the picker bails before any request is fired. On Safari / Firefox
-        // this falls back to the buffered Blob path — same UX as before.
-        const writer = await createExportWriter({filename, headers: csvHeaders})
-        if (writer === PICKER_CANCELLED) return
-
-        const controller = new AbortController()
-        exportAbortRef.current = controller
-
-        setIsExporting(true)
-        message.loading({
-            content: "Preparing export",
-            key: exportKey,
-            duration: 0,
-        })
-
-        // Last reported row count — kept so a rate-limit pause can keep
-        // showing progress while the scan is paused for backoff.
-        let lastRowCount = 0
-
-        // Shared adaptive fetcher: bucket-aware proactive pacing + 429
-        // retry as the safety net. The queue scan uses the same helper —
-        // both pipelines now pace from the live bucket signal instead of
-        // an arbitrary constant.
-        const fetchPage = createAdaptiveTracePageFetcher({
-            params,
-            appId,
-            isHasAnnotationSelected,
-            hasAnnotationConditions,
-            hasAnnotationOperator,
-            signal: controller.signal,
-            onRateLimitPause: (delayMs) => {
-                message.loading({
-                    content:
-                        `Rate limited — pausing for ${Math.ceil(delayMs / 1000)}s` +
-                        ` (exported ${lastRowCount.toLocaleString()} rows so far)`,
-                    key: exportKey,
-                    duration: 0,
-                })
-            },
-        })
-
-        try {
-            const {rowCount, limitReached} = await exportMatchingTraces({
-                fetchPage,
-                flushBatch: async (batch) => {
-                    const rows = batch.map(createTraceObject)
-                    // The writer streams to disk on Chromium and buffers in
-                    // memory on Safari / Firefox — at this seam they look
-                    // identical to the pipeline, so memory stays bounded by
-                    // one batch on supported browsers.
-                    await writer.write(
-                        "\r\n" +
-                            Papa.unparse(
-                                {fields: csvHeaders, data: rows},
-                                {header: false, escapeFormulae: true},
-                            ),
-                    )
-                },
-                signal: controller.signal,
-                // All pacing is done inside `fetchPage` based on the live
-                // bucket state — disable the source-level fixed delay.
-                pageDelayMs: 0,
-                onProgress: ({rows}) => {
-                    lastRowCount = rows
-                    message.loading({
-                        content: `Exporting ${rows.toLocaleString()} rows`,
-                        key: exportKey,
-                        duration: 0,
-                    })
-                },
-            })
-
-            // `finalize(0)` aborts the streaming writable so no header-only
-            // file is left on disk, and is a no-op on the buffered path.
-            await writer.finalize(rowCount)
-
-            if (!rowCount) {
-                message.info({
-                    content: "No traces to export",
-                    key: exportKey,
-                })
-                return
-            }
-
-            if (limitReached) {
-                message.warning({
-                    content: `Export limit reached. Downloaded first ${rowCount.toLocaleString()} rows.`,
-                    key: exportKey,
-                    duration: 5,
-                })
-            } else {
-                message.success({
-                    content: `Exported ${rowCount.toLocaleString()} rows`,
-                    key: exportKey,
-                })
-            }
-        } catch (error) {
-            // Discard any partial bytes already streamed to disk / buffered.
-            await writer.abort().catch(() => {})
-
-            if ((error as Error).name === "AbortError") {
-                message.info({
-                    content: "Export cancelled",
-                    key: exportKey,
-                })
-
-                return
-            }
-
-            console.error("Export error:", error)
-            message.error({
-                content: "Export failed",
-                key: exportKey,
-            })
-        } finally {
-            exportAbortRef.current = null
-            setIsExporting(false)
-        }
-    }, [canExportData, columns, filters, sort, traceTabs, traces])
-
-    const handleRefresh = async () => {
+    const handleRefresh = useCallback(async () => {
         if (componentType === "sessions") {
             await onRefresh?.()
         } else {
             await Promise.all([fetchAnnotations(), fetchTraces()])
             invalidateEvaluatorsListCache()
         }
-        setInternalRefreshTrigger((prev) => prev + 1)
-    }
-
-    // Use external refresh trigger if provided (from parent auto-refresh), otherwise use internal
-    const refreshTrigger = propsRefreshTrigger ?? internalRefreshTrigger
+    }, [componentType, onRefresh, fetchAnnotations, fetchTraces])
 
     const onDelete = useCallback(() => {
         setDeleteModalState({
@@ -583,6 +209,7 @@ const ObservabilityHeader = ({
                 scanConfig: {
                     params,
                     appId,
+                    projectId: projectId ?? "",
                     isHasAnnotationSelected,
                     hasAnnotationConditions,
                     hasAnnotationOperator,
@@ -590,151 +217,77 @@ const ObservabilityHeader = ({
                 viewQueueUrl: projectURL ? `${projectURL}/annotations/${queue.id}` : undefined,
             })
         },
-        [filters, sort, traceTabs, runBatchAdd],
+        [filters, sort, traceTabs, runBatchAdd, projectId],
     )
 
-    const handleExportClick = useCallback(() => {
-        if (isExporting) {
-            exportAbortRef.current?.abort()
-            return
-        }
+    const filtersSlot = useMemo(
+        () => (
+            <AnnotatedFilterDialog
+                filterData={filters}
+                columns={filterColumns}
+                onApplyFilter={onApplyFilter}
+                onClearFilter={onClearFilter}
+                reconcileFilterRows={reconcileRows}
+            />
+        ),
+        [filters, filterColumns, onApplyFilter, onClearFilter, reconcileRows],
+    )
 
-        void onExport()
-    }, [isExporting, onExport])
-
-    const renderTraceSecondaryActions = (size: "small" | "middle" = "middle") => {
-        if (componentType !== "traces") return null
-
-        return (
-            <Space size="small">
-                {canExportData ? (
-                    <Button
-                        type="text"
-                        size={size}
-                        aria-label={isExporting ? "Cancel export" : "Export traces"}
-                        onClick={handleExportClick}
-                        icon={<ExportIcon size={14} />}
-                        disabled={!isExporting && traces.length === 0}
-                    >
-                        {isExporting ? "Cancel export" : "Export"}
-                    </Button>
-                ) : null}
-                <Tooltip
-                    title={selectedRowKeys.length === 0 ? "Select traces to delete" : undefined}
-                >
-                    <span>
-                        <Button
-                            type="text"
-                            size={size}
-                            danger
-                            aria-label="Delete selected traces"
-                            onClick={onDelete}
-                            icon={<TrashIcon size={14} />}
-                            disabled={selectedRowKeys.length === 0}
-                        >
-                            Delete
-                        </Button>
-                    </span>
-                </Tooltip>
-            </Space>
-        )
-    }
+    const actionsSlot = useMemo(
+        () =>
+            componentType === "traces" ? (
+                <AddActionsDropdown
+                    dataTour="create-testset-button"
+                    testsetAction={{
+                        onSelect: getTestsetTraceData,
+                        disabled: traces.length === 0 || selectedRowKeys.length === 0,
+                    }}
+                    queueAction={{
+                        itemType: "traces",
+                        itemIds: selectedTraceIds,
+                        label:
+                            selectedTraceIds.length > 0
+                                ? `Add ${selectedTraceIds.length} selected to queue`
+                                : "Add selected to queue",
+                        disabled: traces.length === 0 || selectedTraceIds.length === 0,
+                        onItemsAdded: handleQueueItemsAdded,
+                    }}
+                    queueAllMatchingAction={{
+                        label: "Add all matching filter to queue",
+                        disabled: traces.length === 0,
+                        onBeforeOpen: onAddAllMatchingBeforeOpen,
+                        onQueueSelected: onAddAllMatchingQueueSelected,
+                    }}
+                />
+            ) : null,
+        [
+            componentType,
+            getTestsetTraceData,
+            traces.length,
+            selectedRowKeys.length,
+            selectedTraceIds,
+            handleQueueItemsAdded,
+            onAddAllMatchingBeforeOpen,
+            onAddAllMatchingQueueSelected,
+        ],
+    )
 
     return (
         <>
-            <section className="flex justify-between gap-2 flex-col">
-                <div className="w-full flex items-center gap-2 justify-between">
-                    <div className="flex items-center gap-1">
-                        <EnhancedButton
-                            aria-label="Refresh data"
-                            icon={
-                                <ArrowsClockwiseIcon
-                                    size={14}
-                                    className={clsx("mt-[0.8px]", {"animate-spin": isLoading})}
-                                />
-                            }
-                            onClick={handleRefresh}
-                            tooltipProps={{title: "Refresh data"}}
-                        />
-                        <Input.Search
-                            aria-label="Search observability data"
-                            placeholder="Search"
-                            value={searchQuery}
-                            onChange={onSearchChange}
-                            onPressEnter={onSearchQueryApply}
-                            onSearch={onSearchClear}
-                            className="w-[320px] shrink-0"
-                            allowClear
-                        />
-
-                        <Filters
-                            filterData={filters}
-                            columns={filterColumns}
-                            onApplyFilter={onApplyFilter}
-                            onClearFilter={onClearFilter}
-                            reconcileFilterRows={reconcileFilterRows}
-                        />
-
-                        <Sort onSortApply={onSortApply} defaultSortValue="24 hours" />
-
-                        <AutoRefreshControl
-                            checked={autoRefresh}
-                            onChange={setAutoRefresh}
-                            resetTrigger={refreshTrigger}
-                        />
-                    </div>
-                </div>
-                {componentType === "traces" ? (
-                    <div className="w-full flex items-center justify-between">
-                        <Space>
-                            <Radio.Group value={traceTabs} onChange={onTraceTabChange}>
-                                <Radio.Button value="trace">Root</Radio.Button>
-                                <Radio.Button value="chat">LLM</Radio.Button>
-                                <Radio.Button value="span">All</Radio.Button>
-                            </Radio.Group>
-                        </Space>
-                        <Space>
-                            {renderTraceSecondaryActions()}
-                            <AddActionsDropdown
-                                dataTour="create-testset-button"
-                                testsetAction={{
-                                    onSelect: getTestsetTraceData,
-                                    disabled: traces.length === 0 || selectedRowKeys.length === 0,
-                                }}
-                                queueAction={{
-                                    itemType: "traces",
-                                    itemIds: selectedTraceIds,
-                                    label:
-                                        selectedTraceIds.length > 0
-                                            ? `Add ${selectedTraceIds.length} selected to queue`
-                                            : "Add selected to queue",
-                                    disabled: traces.length === 0 || selectedTraceIds.length === 0,
-                                    onItemsAdded: handleQueueItemsAdded,
-                                }}
-                                queueAllMatchingAction={{
-                                    label: "Add all matching filter to queue",
-                                    disabled: traces.length === 0,
-                                    onBeforeOpen: onAddAllMatchingBeforeOpen,
-                                    onQueueSelected: onAddAllMatchingQueueSelected,
-                                }}
-                            />
-                        </Space>
-                    </div>
-                ) : null}
-                {componentType === "sessions" && setRealtimeMode ? (
-                    <div className="w-full flex items-center justify-end">
-                        <Space>
-                            <Radio.Group
-                                value={realtimeMode ? "latest" : "all"}
-                                onChange={(e) => setRealtimeMode(e.target.value === "latest")}
-                            >
-                                <Radio.Button value="all">All activity</Radio.Button>
-                                <Radio.Button value="latest">Latest activity</Radio.Button>
-                            </Radio.Group>
-                        </Space>
-                    </div>
-                ) : null}
-            </section>
+            <ObservabilityToolbar
+                componentType={componentType}
+                isLoading={isLoading}
+                onRefresh={handleRefresh}
+                refreshTrigger={refreshTrigger}
+                onExport={
+                    componentType === "traces" && canExportData ? handleExportClick : undefined
+                }
+                isExporting={isExporting}
+                onDelete={componentType === "traces" ? onDelete : undefined}
+                filtersSlot={filtersSlot}
+                sortSlot={<ObservabilityRangePicker />}
+                actionsSlot={actionsSlot}
+            />
             <DeleteTraceModal />
         </>
     )

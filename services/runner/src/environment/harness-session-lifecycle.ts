@@ -18,9 +18,92 @@
  * instead of resuming, which costs latency and never correctness. What the caller must NOT do is
  * treat a successful `resumeSession` as proof that history loaded — see `loadedFromContinuity`.
  */
-import { conciseError } from "../engines/sandbox_agent/errors.ts";
+import {
+  conciseError,
+  HarnessInitTimeoutError,
+} from "../engines/sandbox_agent/errors.ts";
 import { probeCapabilities } from "../engines/sandbox_agent/capabilities.ts";
+import { envTimerMs } from "../env.ts";
 import type { Log, TimingLog } from "./timing.ts";
+
+/**
+ * ============================================================================================
+ * THE INIT BUDGET
+ * ============================================================================================
+ *
+ * Opening the session is the runner's first round trip to the harness: `session/new` (or
+ * `session/load`) rides an ACP `initialize` the daemon answers only once the adapter is installed
+ * and responsive. NOTHING ON THAT PATH HAD A DEADLINE except the ACP fetch's own (an hour). When
+ * the daemon cold-installs an adapter it verifies the binary by running `codex-acp --help` with
+ * stdin=/dev/null, a probe that never returns and that the daemon does not time out either, so
+ * `initialize` simply never answers.
+ *
+ * What the user saw on 2026-10-27: a turn reported "running" for 17.8 minutes
+ * (`[timing] stage=acquire_total ms=1066709`), heart-beating the whole time while the session's
+ * running lock was renewed, so nothing else could be sent. A wedge that produces no error is the
+ * worst outcome available: nobody can retry what never failed.
+ *
+ * So the open gets a budget. It is deliberately WIDE (two minutes): a cold Claude install is a
+ * real download and a slow box makes it slower. It is not the fix for the wedge (`adapter-seed.ts`
+ * is). It is the backstop that turns any future wedge into an error the person reads in minutes
+ * instead of an hour of silence.
+ *
+ * THIS IS NOT THE DAEMON'S PROMPT TIMEOUT and must never grow into one. A turn runs for as long
+ * as the model needs; only the handshake before it is bounded here.
+ */
+export const ACP_INIT_TIMEOUT_ENV = "AGENTA_RUNNER_ACP_INIT_TIMEOUT_MS";
+export const DEFAULT_ACP_INIT_TIMEOUT_MS = 120_000;
+
+/** Harness ids are wire values (`pi_core`); the person in the chat reads a name. */
+const HARNESS_LABELS: Record<string, string> = {
+  codex: "Codex",
+  claude: "Claude",
+  pi: "Pi",
+  pi_core: "Pi",
+};
+
+export function harnessLabel(harness: string): string {
+  return HARNESS_LABELS[harness] ?? harness;
+}
+
+/** The configured budget, clamped into the timer domain. A bad override warns and falls back. */
+export function acpInitTimeoutMs(log?: (message: string) => void): number {
+  return envTimerMs(ACP_INIT_TIMEOUT_ENV, DEFAULT_ACP_INIT_TIMEOUT_MS, log ? { log } : {});
+}
+
+/**
+ * Race one handshake against the budget.
+ *
+ * The losing promise is NOT abandoned bare: the daemon call keeps running (there is no cancel on
+ * the ACP surface), and an ACP client that rejects after we have moved on would otherwise become
+ * an `unhandledRejection` that the server's handler prints as a mystery. Swallowing it here keeps
+ * the failure attributable to this timeout and nothing else.
+ */
+async function withInitTimeout<T>(
+  work: Promise<T>,
+  input: { harness: string; mode: "load" | "create"; log: Log },
+): Promise<T> {
+  const budgetMs = acpInitTimeoutMs(input.log);
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      work,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => {
+          work.catch(() => {});
+          input.log(
+            `[acp] session ${input.mode} did not answer within ${budgetMs}ms ` +
+              `harness=${input.harness}; failing the run (${ACP_INIT_TIMEOUT_ENV} raises the budget)`,
+          );
+          reject(new HarnessInitTimeoutError(harnessLabel(input.harness), budgetMs));
+        }, budgetMs);
+        timer.unref?.();
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
 
 export interface ProbeInput {
   sandbox: { createSession?: unknown };
@@ -59,7 +142,14 @@ export interface OpenSessionInput {
     createSession: (request: unknown) => Promise<{ id: string }>;
   };
   /** The session persist driver. Typed loosely so this unit does not restate the SDK's record. */
-  persist: { updateSession: (record: never) => Promise<unknown> };
+  persist: {
+    updateSession: (record: never) => Promise<unknown>;
+    listEvents?: (request: {
+      sessionId: string;
+      cursor?: string;
+      limit?: number;
+    }) => Promise<{ items: unknown[]; nextCursor?: string }>;
+  };
   acpAgent: string;
   harness: string;
   cwd: string;
@@ -67,6 +157,8 @@ export interface OpenSessionInput {
   sessionInit: Record<string, unknown>;
   /** The native session id to resume, when the store says one is eligible. */
   priorAgentSessionId: string | undefined;
+  /** Whether the native transcript path is backed by durable storage for this acquire. */
+  nativeHistoryDurable: boolean;
   /** The runner-local key both modes use for the persist record. */
   localSessionId: string | undefined;
   /** For the continuity log line only. */
@@ -87,14 +179,62 @@ export interface OpenSessionResult {
    * reopen may claim continuity; this unit reports what it can observe and no more.
    */
   loadedFromContinuity: boolean;
+  /** Whether `session/load` emitted prior conversation content, not merely accepted the id. */
+  nativeHistoryVerified: boolean;
   mode: "load" | "create";
+}
+
+const HISTORY_SESSION_UPDATES = new Set([
+  "user_message_chunk",
+  "agent_message_chunk",
+  "agent_thought_chunk",
+  "tool_call",
+  "tool_call_update",
+]);
+
+/**
+ * `sandbox-agent` persists every ACP envelope observed while `session/load` runs. A real native
+ * replay therefore leaves at least one conversation update behind; an adapter that merely accepts
+ * the id leaves none. This is the positive proof the id comparison cannot provide.
+ */
+async function loadedHistoryWasObserved(
+  persist: OpenSessionInput["persist"],
+  localSessionId: string,
+  eventCountBeforeLoad: number,
+): Promise<boolean> {
+  if (!persist.listEvents) return false;
+  const items: unknown[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await persist.listEvents({
+      sessionId: localSessionId,
+      cursor,
+      limit: 100,
+    });
+    items.push(...page.items);
+    cursor = page.nextCursor;
+  } while (cursor);
+  return items.slice(eventCountBeforeLoad).some((item) => {
+    const event = item as {
+      sender?: unknown;
+      payload?: { method?: unknown; params?: { update?: { sessionUpdate?: unknown } } };
+    };
+    return (
+      event.sender === "agent" &&
+      event.payload?.method === "session/update" &&
+      HISTORY_SESSION_UPDATES.has(
+        String(event.payload.params?.update?.sessionUpdate ?? ""),
+      )
+    );
+  });
 }
 
 /**
  * Open the harness session: load the native conversation when one is eligible, otherwise create
  * a fresh one.
  *
- * A load that throws degrades to a create. The `finally` still emits the ` mode=load` mark, so
+ * A load that throws degrades to a create, except a load that ran out of the init budget (see
+ * `withInitTimeout`). The `finally` still emits the ` mode=load` mark, so
  * the failed attempt is visible in timing rather than hidden behind the create that follows it.
  */
 export async function openSession(
@@ -102,6 +242,7 @@ export async function openSession(
 ): Promise<OpenSessionResult> {
   let session: { id: string; agentSessionId?: string } | undefined;
   let loadedFromContinuity = false;
+  let nativeHistoryVerified = false;
 
   if (input.priorAgentSessionId && input.localSessionId) {
     await input.persist.updateSession({
@@ -114,14 +255,67 @@ export async function openSession(
     } as never);
     const createSessionStartedAt = Date.now();
     try {
-      session = await input.sandbox.resumeSession(input.localSessionId);
+      let eventCountBeforeLoad: number | undefined;
+      if (input.nativeHistoryDurable && input.persist.listEvents) {
+        try {
+          const page = await input.persist.listEvents({
+            sessionId: input.localSessionId,
+            limit: 100,
+          });
+          eventCountBeforeLoad = page.items.length;
+          let cursor = page.nextCursor;
+          while (cursor) {
+            const next = await input.persist.listEvents({
+              sessionId: input.localSessionId,
+              cursor,
+              limit: 100,
+            });
+            eventCountBeforeLoad += next.items.length;
+            cursor = next.nextCursor;
+          }
+        } catch (err) {
+          input.log(
+            `[continuity] native history baseline failed: ${conciseError(err, input.harness)}`,
+          );
+        }
+      }
+      session = await withInitTimeout(input.sandbox.resumeSession(input.localSessionId), {
+        harness: input.harness,
+        mode: "load",
+        log: input.log,
+      });
       loadedFromContinuity =
         session.agentSessionId === input.priorAgentSessionId;
+      if (
+        loadedFromContinuity &&
+        input.nativeHistoryDurable &&
+        eventCountBeforeLoad !== undefined
+      ) {
+        try {
+          nativeHistoryVerified = await loadedHistoryWasObserved(
+            input.persist,
+            input.localSessionId,
+            eventCountBeforeLoad,
+          );
+        } catch (err) {
+          input.log(
+            `[continuity] native history verification failed: ${conciseError(err, input.harness)}`,
+          );
+        }
+      }
       input.log(
         `[continuity] session/load attempted session=${input.continuitySessionKey} ` +
-          `harness=${input.harness} loaded=${loadedFromContinuity}`,
+          `harness=${input.harness} loaded=${loadedFromContinuity} ` +
+          `historyDurable=${input.nativeHistoryDurable} ` +
+          `historyVerified=${nativeHistoryVerified}`,
       );
     } catch (err) {
+      // A LOAD THAT TIMED OUT IS NOT A LOAD THAT FAILED. The ordinary degrade-to-create exists
+      // for an adapter that refuses an id; a handshake that never answered means the harness
+      // itself is unresponsive, and a create would spend the same budget again before failing
+      // with the same cause. Fail now, at one budget rather than two. (The `finally` below still
+      // emits the ` mode=load` mark for the attempt.)
+      if (err instanceof HarnessInitTimeoutError) throw err;
       input.log(
         `[continuity] resumeSession failed, falling back to cold createSession: ` +
           `${conciseError(err, input.harness)}`,
@@ -134,19 +328,32 @@ export async function openSession(
   if (!session) {
     const createSessionStartedAt = Date.now();
     try {
-      session = await input.sandbox.createSession({
-        ...(input.localSessionId ? { id: input.localSessionId } : {}),
-        agent: input.acpAgent,
-        cwd: input.cwd,
-        sessionInit: input.sessionInit,
-      });
+      session = await withInitTimeout(
+        input.sandbox.createSession({
+          ...(input.localSessionId ? { id: input.localSessionId } : {}),
+          agent: input.acpAgent,
+          cwd: input.cwd,
+          sessionInit: input.sessionInit,
+        }),
+        { harness: input.harness, mode: "create", log: input.log },
+      );
     } finally {
       input.timingLog("create_session", createSessionStartedAt, " mode=create");
     }
-    return { session, loadedFromContinuity, mode: "create" };
+    return {
+      session,
+      loadedFromContinuity,
+      nativeHistoryVerified,
+      mode: "create",
+    };
   }
 
-  return { session, loadedFromContinuity, mode: "load" };
+  return {
+    session,
+    loadedFromContinuity,
+    nativeHistoryVerified,
+    mode: "load",
+  };
 }
 
 /**
@@ -222,6 +429,7 @@ export type ReopenResult =
       ok: true;
       session: { id: string; agentSessionId?: string };
       loadedFromContinuity: boolean;
+      nativeHistoryVerified: boolean;
     }
   | { ok: false; reason: "history-unverifiable" | "reopen-failed" };
 
@@ -251,6 +459,7 @@ export async function reopen(input: ReopenInput): Promise<ReopenResult> {
       ok: true,
       session: opened.session,
       loadedFromContinuity: opened.loadedFromContinuity,
+      nativeHistoryVerified: opened.nativeHistoryVerified,
     };
   } catch (err) {
     input.log(`reopen failed: ${conciseError(err, input.harness)}`);

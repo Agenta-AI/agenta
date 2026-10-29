@@ -13,8 +13,8 @@
  *   • invalidate shape     — list / detail / revisions exposed as functions
  */
 
-import {describe, it, expect} from "vitest"
 import {createStore} from "jotai"
+import {describe, it, expect} from "vitest"
 
 import {environmentMolecule} from "../../src/environment/state/environmentMolecule"
 

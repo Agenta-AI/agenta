@@ -1,0 +1,315 @@
+[
+  {
+    "id": "019fefed-f51e-77e0-9809-6922354745a4",
+    "session_id": "3d99d178-b76b-4eb7-a9e9-ad43295ee2b8",
+    "turn_id": "15afd5eb-0b2e-4e9d-93c3-e05e38a9df91",
+    "token": "474a769d-6115-4cc0-8262-5258e75d4444",
+    "kind": "client_tool",
+    "status": "responded",
+    "created_at": "2026-08-11T08:26:17.246365+00:00",
+    "data": {
+      "request": {
+        "args": {
+          "message": "حدّد وقت الإرسال اليومي ووجهة تيليغرام. لا تُدخل أي رمز سري هنا؛ سيتم طلب الربط الآمن بشكل منفصل عند الحاجة.",
+          "requestedSchema": {
+            "type": "object",
+            "required": [
+              "time",
+              "timezone",
+              "telegram_destination"
+            ],
+            "properties": {
+              "time": {
+                "type": "string",
+                "title": "وقت الإرسال",
+                "default": "08:00"
+              },
+              "timezone": {
+                "type": "string",
+                "title": "المنطقة الزمنية",
+                "default": "Asia/Riyadh",
+                "description": "مثال: Asia/Riyadh أو Europe/Paris"
+              },
+              "telegram_destination": {
+                "type": "string",
+                "title": "وجهة تيليغرام",
+                "description": "@username أو Chat ID"
+              }
+            },
+            "x-ag-stepper": true
+          }
+        },
+        "tool": "request_input",
+        "tool_call_id": "exec-bf533142-0e4b-4e97-a3a7-20622ace0d0a"
+      },
+      "references": {
+        "workflow": {
+          "id": "019fefed-a7c9-7382-9db1-a0f141ac4533",
+          "slug": "create-an-agent-that-send-me-a-daily-arabic-msoebjxbae"
+        },
+        "workflow_variant": {
+          "id": "019fefed-a80a-70d3-95cf-5245f42330c0",
+          "slug": "create-an-agent-that-send-me-a-daily-arabic-msoebjxbae.default"
+        },
+        "workflow_revision": {
+          "id": "019fefed-a8a0-7720-bbe6-85b60d5b2ace",
+          "slug": "b9cda5b228e2",
+          "version": "1"
+        }
+      },
+      "resolution": {
+        "output": {
+          "action": "accept",
+          "content": {
+            "time": "08:00",
+            "timezone": "Berlin",
+            "telegram_destination": "@mmabrouk1987"
+          },
+          "humanFriendlyMessage": "Provided the requested input."
+        },
+        "outcome": "completed",
+        "tool_name": "mcp.agenta-tools.request_input",
+        "tool_call_id": "exec-bf533142-0e4b-4e97-a3a7-20622ace0d0a"
+      }
+    }
+  },
+  {
+    "id": "019fefee-797f-70f3-805f-b9b87fc5601b",
+    "session_id": "3d99d178-b76b-4eb7-a9e9-ad43295ee2b8",
+    "turn_id": "eaf2691a-af15-4c19-a19c-4e93f4ebe02d",
+    "token": "e8324b9a-1c00-4d4d-908f-7a3d0870a40a",
+    "kind": "client_tool",
+    "status": "responded",
+    "created_at": "2026-08-11T08:26:51.13517+00:00",
+    "data": {
+      "request": {
+        "args": {
+          "mode": "oauth",
+          "slug": "telegram-main",
+          "integration": "telegram"
+        },
+        "tool": "request_connection",
+        "tool_call_id": "exec-da6e14d6-e6a6-4afc-b444-4c982fc5e647"
+      },
+      "references": {
+        "workflow": {
+          "id": "019fefed-a7c9-7382-9db1-a0f141ac4533",
+          "slug": "create-an-agent-that-send-me-a-daily-arabic-msoebjxbae"
+        },
+        "workflow_variant": {
+          "id": "019fefed-a80a-70d3-95cf-5245f42330c0",
+          "slug": "create-an-agent-that-send-me-a-daily-arabic-msoebjxbae.default"
+        },
+        "workflow_revision": {
+          "id": "019fefed-a8a0-7720-bbe6-85b60d5b2ace",
+          "slug": "b9cda5b228e2",
+          "version": "1"
+        }
+      },
+      "resolution": {
+        "output": {
+          "slug": "telegram-main",
+          "connected": true,
+          "integration": "telegram"
+        },
+        "outcome": "completed",
+        "tool_name": "mcp.agenta-tools.request_connection",
+        "tool_call_id": "exec-da6e14d6-e6a6-4afc-b444-4c982fc5e647"
+      }
+    }
+  },
+  {
+    "id": "019fefef-139e-7f12-8172-96bd77a915bc",
+    "session_id": "3d99d178-b76b-4eb7-a9e9-ad43295ee2b8",
+    "turn_id": "1f66ce52-0695-4e39-a2ad-8a6f130d1888",
+    "token": "9b6b1049-602d-4b5b-b147-00c12946ae65",
+    "kind": "user_approval",
+    "status": "resolved",
+    "created_at": "2026-08-11T08:27:30.590922+00:00",
+    "data": {
+      "request": {
+        "args": {
+          "description": "تكوين الوكيل لإرسال قصيدة عربية يومية عبر تيليغرام.",
+          "workflow_revision": {
+            "delta": {
+              "operations": [
+                {
+                  "value": "أنت وكيل ودود يرسل قصيدة عربية قصيرة وأصلية يوميًا عبر تيليغرام.\n\nعند تشغيلك بوا… <256 chars elided>",
+                  "target": [
+                    "parameters",
+                    "agent",
+                    "instructions",
+                    "agents_md"
+                  ],
+                  "operation": "set"
+                },
+                {
+                  "value": {
+                    "type": "gateway",
+                    "action": "SEND_MESSAGE",
+                    "provider": "composio",
+                    "connection": "telegram-main",
+                    "integration": "telegram"
+                  },
+                  "target": [
+                    "parameters",
+                    "agent",
+                    "tools"
+                  ],
+                  "operation": "add_item"
+                }
+              ]
+            },
+            "base_revision_id": "019fefed-a8a0-7720-bbe6-85b60d5b2ace"
+          }
+        },
+        "tool": "commit_revision",
+        "tool_call_id": "exec-57e938d0-7b53-4ee3-9008-bc994291ad5e"
+      },
+      "references": {
+        "workflow": {
+          "id": "019fefed-a7c9-7382-9db1-a0f141ac4533",
+          "slug": "create-an-agent-that-send-me-a-daily-arabic-msoebjxbae"
+        },
+        "workflow_variant": {
+          "id": "019fefed-a80a-70d3-95cf-5245f42330c0",
+          "slug": "create-an-agent-that-send-me-a-daily-arabic-msoebjxbae.default"
+        },
+        "workflow_revision": {
+          "id": "019fefed-a8a0-7720-bbe6-85b60d5b2ace",
+          "slug": "b9cda5b228e2",
+          "version": "1"
+        }
+      },
+      "resolution": {
+        "verdict": "approved",
+        "tool_call_id": "exec-57e938d0-7b53-4ee3-9008-bc994291ad5e"
+      }
+    }
+  },
+  {
+    "id": "019fefef-3f6e-7920-b7d1-534641b5bdce",
+    "session_id": "3d99d178-b76b-4eb7-a9e9-ad43295ee2b8",
+    "turn_id": "b313f335-25cd-4050-b7ed-6f4a7da1bb03",
+    "token": "39463b6b-3962-4c36-a881-dcd8920f36c4",
+    "kind": "user_approval",
+    "status": "resolved",
+    "created_at": "2026-08-11T08:27:41.806913+00:00",
+    "data": {
+      "request": {
+        "args": {
+          "description": "تكوين الوكيل لإرسال قصيدة عربية يومية عبر تيليغرام.",
+          "workflow_revision": {
+            "delta": {
+              "operations": [
+                {
+                  "value": "أنت وكيل ودود يرسل قصيدة عربية قصيرة وأصلية يوميًا عبر تيليغرام.\n\nعند تشغيلك بوا… <256 chars elided>",
+                  "target": [
+                    "parameters",
+                    "agent",
+                    "instructions",
+                    "agents_md"
+                  ],
+                  "operation": "set"
+                },
+                {
+                  "value": {
+                    "name": "telegram_send_message",
+                    "type": "gateway",
+                    "action": "SEND_MESSAGE",
+                    "provider": "composio",
+                    "connection": "telegram-main",
+                    "integration": "telegram"
+                  },
+                  "target": [
+                    "parameters",
+                    "agent",
+                    "tools"
+                  ],
+                  "operation": "add_item"
+                }
+              ]
+            },
+            "base_revision_id": "019fefed-a8a0-7720-bbe6-85b60d5b2ace"
+          }
+        },
+        "tool": "commit_revision",
+        "tool_call_id": "exec-54209338-b2ec-4baf-8851-8bf777361c93"
+      },
+      "references": {
+        "workflow": {
+          "id": "019fefed-a7c9-7382-9db1-a0f141ac4533",
+          "slug": "create-an-agent-that-send-me-a-daily-arabic-msoebjxbae"
+        },
+        "workflow_variant": {
+          "id": "019fefed-a80a-70d3-95cf-5245f42330c0",
+          "slug": "create-an-agent-that-send-me-a-daily-arabic-msoebjxbae.default"
+        },
+        "workflow_revision": {
+          "id": "019fefed-a8a0-7720-bbe6-85b60d5b2ace",
+          "slug": "b9cda5b228e2",
+          "version": "1"
+        }
+      },
+      "resolution": {
+        "verdict": "approved",
+        "tool_call_id": "exec-54209338-b2ec-4baf-8851-8bf777361c93"
+      }
+    }
+  },
+  {
+    "id": "019fefef-5fd6-7513-b992-fb174f587db7",
+    "session_id": "3d99d178-b76b-4eb7-a9e9-ad43295ee2b8",
+    "turn_id": "221e3456-8500-4f08-be53-f0fcba4ec5fc",
+    "token": "f5f71920-93cc-4603-9cb3-91ef2e19b9c5",
+    "kind": "user_approval",
+    "status": "resolved",
+    "created_at": "2026-08-11T08:27:50.102869+00:00",
+    "data": {
+      "request": {
+        "args": {
+          "data": {
+            "schedule": "0 7 * * *",
+            "event_key": "daily_arabic_poetry",
+            "inputs_fields": {
+              "payload": {
+                "timezone": "Europe/Berlin",
+                "local_time": "08:00",
+                "destination": "@mmabrouk1987"
+              },
+              "messages": [
+                {
+                  "role": "user",
+                  "content": "أرسل قصيدة عربية صباحية قصيرة (4 إلى 8 أبيات) إلى تيليغرام باستخدام أداة الإرسال… <123 chars elided>"
+                }
+              ]
+            }
+          },
+          "name": "قصيدة عربية صباحية",
+          "description": "إرسال قصيدة عربية يومية إلى @mmabrouk1987 الساعة 08:00 بتوقيت برلين."
+        },
+        "tool": "create_schedule",
+        "tool_call_id": "exec-328ad873-f1f0-4307-b130-1bc33218bd67"
+      },
+      "references": {
+        "workflow": {
+          "id": "019fefed-a7c9-7382-9db1-a0f141ac4533",
+          "slug": "create-an-agent-that-send-me-a-daily-arabic-msoebjxbae"
+        },
+        "workflow_variant": {
+          "id": "019fefed-a80a-70d3-95cf-5245f42330c0",
+          "slug": "create-an-agent-that-send-me-a-daily-arabic-msoebjxbae.default"
+        },
+        "workflow_revision": {
+          "id": "019fefed-a8a0-7720-bbe6-85b60d5b2ace",
+          "slug": "b9cda5b228e2",
+          "version": "1"
+        }
+      },
+      "resolution": {
+        "verdict": "approved",
+        "tool_call_id": "exec-328ad873-f1f0-4307-b130-1bc33218bd67"
+      }
+    }
+  }
+]

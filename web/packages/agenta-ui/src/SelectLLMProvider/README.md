@@ -22,37 +22,37 @@ SelectLLMProvider/
 ### Basic Usage
 
 ```tsx
-import {SelectLLMProviderBase} from '@agenta/ui'
+import {SelectLLMProviderBase} from "@agenta/ui"
 
 const providerOptions = [
-  {
-    label: 'OpenAI',
-    options: [
-      {label: 'gpt-4', value: 'gpt-4', metadata: {input: 30, output: 60}},
-      {label: 'gpt-3.5-turbo', value: 'gpt-3.5-turbo'},
-    ],
-  },
-  {
-    label: 'Anthropic',
-    options: [
-      {label: 'claude-3-opus', value: 'claude-3-opus'},
-      {label: 'claude-3-sonnet', value: 'claude-3-sonnet'},
-    ],
-  },
+    {
+        label: "OpenAI",
+        options: [
+            {label: "gpt-4", value: "gpt-4", metadata: {input: 30, output: 60}},
+            {label: "gpt-3.5-turbo", value: "gpt-3.5-turbo"},
+        ],
+    },
+    {
+        label: "Anthropic",
+        options: [
+            {label: "claude-3-opus", value: "claude-3-opus"},
+            {label: "claude-3-sonnet", value: "claude-3-sonnet"},
+        ],
+    },
 ]
 
 function ModelSelector() {
-  const [model, setModel] = useState<string>()
+    const [model, setModel] = useState<string>()
 
-  return (
-    <SelectLLMProviderBase
-      value={model}
-      onChange={(value) => setModel(value as string)}
-      options={providerOptions}
-      showSearch
-      showGroup
-    />
-  )
+    return (
+        <SelectLLMProviderBase
+            value={model}
+            onChange={(value) => setModel(value as string)}
+            options={providerOptions}
+            showSearch
+            showGroup
+        />
+    )
 }
 ```
 
@@ -60,14 +60,10 @@ function ModelSelector() {
 
 ```tsx
 <SelectLLMProviderBase
-  value={model}
-  onChange={setModel}
-  options={options}
-  footerContent={
-    <Button onClick={handleAddProvider}>
-      Add Provider
-    </Button>
-  }
+    value={model}
+    onChange={setModel}
+    options={options}
+    footerContent={<Button onClick={handleAddProvider}>Add Provider</Button>}
 />
 ```
 
@@ -76,30 +72,25 @@ function ModelSelector() {
 In the OSS codebase, you can wrap this component with vault integration:
 
 ```tsx
-import {SelectLLMProviderBase} from '@agenta/ui'
-import {useVaultSecret} from '@agenta/entities/secret'
+import {SelectLLMProviderBase} from "@agenta/ui"
+import {useVaultSecret} from "@agenta/entities/secret"
 
 function SelectLLMProvider(props) {
-  const {customRowSecrets} = useVaultSecret()
+    const {customRowSecrets} = useVaultSecret()
 
-  // Add vault secrets to options
-  const extendedOptions = useMemo(() => {
-    const vaultOptions = customRowSecrets.map(secret => ({
-      label: secret.name,
-      options: secret.modelKeys.map(key => ({
-        label: key,
-        value: key,
-      })),
-    }))
-    return [...vaultOptions, ...(props.options || [])]
-  }, [customRowSecrets, props.options])
+    // Add vault secrets to options
+    const extendedOptions = useMemo(() => {
+        const vaultOptions = customRowSecrets.map((secret) => ({
+            label: secret.name,
+            options: secret.modelKeys.map((key) => ({
+                label: key,
+                value: key,
+            })),
+        }))
+        return [...vaultOptions, ...(props.options || [])]
+    }, [customRowSecrets, props.options])
 
-  return (
-    <SelectLLMProviderBase
-      {...props}
-      options={extendedOptions}
-    />
-  )
+    return <SelectLLMProviderBase {...props} options={extendedOptions} />
 }
 ```
 
@@ -109,17 +100,17 @@ function SelectLLMProvider(props) {
 
 Base provider select component.
 
-| Prop | Type | Default | Description |
-|------|------|---------|-------------|
-| `value` | `string` | - | Selected value |
-| `onChange` | `(value, option) => void` | - | Change handler |
-| `options` | `ProviderGroup[]` | `[]` | Grouped provider options |
-| `showGroup` | `boolean` | `false` | Show cascading group menu |
-| `showSearch` | `boolean` | `true` | Show search input |
-| `providerDropdownWidth` | `number \| string` | `400` | Total dropdown width for grouped provider/model selection |
-| `modelListWidth` | `number \| string` | half of `providerDropdownWidth` | Width allocated to the model list after hovering a provider |
-| `footerContent` | `ReactNode` | - | Custom footer content |
-| `onSelectValue` | `(value) => void` | - | Additional select handler |
+| Prop                    | Type                      | Default                         | Description                                                 |
+| ----------------------- | ------------------------- | ------------------------------- | ----------------------------------------------------------- |
+| `value`                 | `string`                  | -                               | Selected value                                              |
+| `onChange`              | `(value, option) => void` | -                               | Change handler                                              |
+| `options`               | `ProviderGroup[]`         | `[]`                            | Grouped provider options                                    |
+| `showGroup`             | `boolean`                 | `false`                         | Show cascading group menu                                   |
+| `showSearch`            | `boolean`                 | `true`                          | Show search input                                           |
+| `providerDropdownWidth` | `number \| string`        | `400`                           | Total dropdown width for grouped provider/model selection   |
+| `modelListWidth`        | `number \| string`        | half of `providerDropdownWidth` | Width allocated to the model list after hovering a provider |
+| `footerContent`         | `ReactNode`               | -                               | Custom footer content                                       |
+| `onSelectValue`         | `(value) => void`         | -                               | Additional select handler                                   |
 
 ### Types
 
@@ -127,8 +118,8 @@ Base provider select component.
 
 ```typescript
 interface ProviderGroup {
-  label?: string | null  // Group label (provider name)
-  options: ProviderOption[]
+    label?: string | null // Group label (provider name)
+    options: ProviderOption[]
 }
 ```
 
@@ -136,13 +127,14 @@ interface ProviderGroup {
 
 ```typescript
 interface ProviderOption {
-  label: string          // Display label
-  value: string          // Value when selected
-  key?: string           // Unique key
-  metadata?: {           // Optional metadata for tooltips
-    input?: number       // Input cost per 1M tokens
-    output?: number      // Output cost per 1M tokens
-  }
+    label: string // Display label
+    value: string // Value when selected
+    key?: string // Unique key
+    metadata?: {
+        // Optional metadata for tooltips
+        input?: number // Input cost per 1M tokens
+        output?: number // Output cost per 1M tokens
+    }
 }
 ```
 
@@ -162,7 +154,7 @@ if (Icon) return <Icon className="w-4 h-4" />
 Get the display name for a provider key.
 
 ```typescript
-getProviderDisplayName('together_ai') // "Together AI"
+getProviderDisplayName("together_ai") // "Together AI"
 ```
 
 #### `PROVIDER_ICON_MAP`
@@ -171,9 +163,9 @@ Map of lowercase provider keys to display names for icon lookup.
 
 ```typescript
 const PROVIDER_ICON_MAP = {
-  anthropic: "Anthropic",
-  openai: "OpenAI",
-  // ... more providers
+    anthropic: "Anthropic",
+    openai: "OpenAI",
+    // ... more providers
 }
 ```
 

@@ -1,13 +1,23 @@
 from datetime import datetime
-from typing import Any, Dict, List, Literal, Optional
+from typing import Annotated, Any, Dict, List, Literal, Optional, Union
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from oss.src.core.sessions.dtos import (
+    SessionExpansion,
+    SessionListItem,
+    SessionOrigin,
+)
 from oss.src.core.sessions.streams.dtos import (
     SessionStream,
+    SessionStreamQueryFlags,
 )
-from oss.src.core.sessions.records.dtos import SessionRecord
+from oss.src.core.sessions.records.dtos import (
+    SessionLiveFrame,
+    SessionRecord,
+    SessionRecordsReadState,
+)
 from oss.src.core.sessions.interactions.dtos import (
     SessionInteraction,
     SessionInteractionData,
@@ -18,7 +28,10 @@ from oss.src.core.sessions.interactions.dtos import (
 )
 from oss.src.core.sessions.mounts.dtos import SessionMount, SessionMountQuery
 from oss.src.core.sessions.turns.dtos import HarnessKind, SessionTurn, SessionTurnQuery
-from oss.src.core.shared.dtos import OTelSpanId, Reference, Windowing
+from oss.src.core.sessions.types import SessionReference
+from oss.src.core.sessions.inputs.dtos import PendingInputUpdate, PendingInput
+from oss.src.core.shared.dtos import OTelSpanId, Windowing
+from oss.src.dbs.postgres.sessions.streams.dao import MAX_SESSION_QUERY_LIMIT
 
 
 # ---------------------------------------------------------------------------
@@ -26,23 +39,136 @@ from oss.src.core.shared.dtos import OTelSpanId, Reference, Windowing
 # ---------------------------------------------------------------------------
 
 
+SessionId = Annotated[
+    str,
+    Field(min_length=1, max_length=128, pattern=r"^[a-zA-Z0-9_\-]+$"),
+]
+
+
+class CurrentSessionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    session_id: SessionId
+
+
+class CurrentSessionResponse(BaseModel):
+    session_id: str
+    name: str | None = None
+    url: str | None = None
+    url_unavailable_reason: (
+        Literal["agent_reference_missing", "workspace_missing", "web_url_unavailable"]
+        | None
+    ) = None
+
+
+class SessionPredicatesRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    search: Optional[str] = None
+    liveness: Optional[SessionStreamQueryFlags] = None
+    origins: Optional[List[SessionOrigin]] = None
+
+
+class SessionExcludeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    origins: Optional[List[SessionOrigin]] = None
+    session_ids: Optional[List[SessionId]] = Field(default=None, max_length=500)
+
+
 class SessionQueryRequest(BaseModel):
-    references: Optional[List[Reference]] = None
-    windowing: Optional[Windowing] = None
+    model_config = ConfigDict(extra="forbid")
+
+    session: Optional[SessionPredicatesRequest] = None
+    # Canonical explicit set selection. It intersects with turn_references.
+    session_ids: Optional[List[SessionId]] = Field(default=None, max_length=500)
+    exclude: Optional[SessionExcludeRequest] = None
+    turn_references: Optional[List[SessionReference]] = None
     # Include ended (killed) sessions so the list keeps resumable history, not just live ones.
     include_ended: bool = False
-    # Include archived sessions — off by default (archive hides); on for the archived view.
+    # Include archived sessions — off by default (archive hides); on to widen the active list.
     include_archived: bool = False
+    # Return ONLY archived sessions. Wins over `include_archived`: this is the archived view.
+    archived_only: bool = False
+    # Also return `total`. Off by default — a filter chip wants it, a scroll page does not.
+    include_total: bool = False
+    expand: List[SessionExpansion] = Field(default_factory=list)
+    windowing: Optional[Windowing] = None
+
+    # Compatibility inputs for the currently released flat predicates.
+    references: Optional[List[SessionReference]] = None
+    # Case-insensitive substring match over the session title (`session_streams.name`).
+    search: Optional[str] = None
+    # Liveness filter (alive ⊇ running ⊇ attached) against the row's mirrored flags.
+    flags: Optional[SessionStreamQueryFlags] = None
+    # Released flat exclusion alias for exclude.session_ids.
+    exclude_session_ids: Optional[List[SessionId]] = Field(default=None, max_length=500)
+    # Who started the session. Absent means every origin.
+    origin: Optional[SessionOrigin] = None
+    # Its negation — hides one origin while still showing sessions with no stamp at all.
+    exclude_origin: Optional[SessionOrigin] = None
+
+    @field_validator("windowing")
+    @classmethod
+    def _bound_windowing_limit(cls, value: Optional[Windowing]) -> Optional[Windowing]:
+        # `Windowing` is the shared SDK model (also used by tracing/otel), so its
+        # `limit` carries no bound of its own. `limit: 0` compiled to no SQL LIMIT
+        # at all — an authenticated caller could dump the whole project in one
+        # request (P0-1). Bound it here, at the request model.
+        if value is not None and value.limit is not None:
+            if not (1 <= value.limit <= MAX_SESSION_QUERY_LIMIT):
+                raise ValueError(
+                    f"windowing.limit must be between 1 and {MAX_SESSION_QUERY_LIMIT}."
+                )
+        return value
 
 
 class SessionsResponse(BaseModel):
     count: int = 0
-    sessions: List[SessionStream] = Field(default_factory=list)
+    # Total matching rows ignoring windowing, when `include_total` was requested. `count` stays
+    # the number of rows in THIS page, per the shared envelope convention.
+    total: Optional[int] = None
+    # `SessionListItem` = `SessionStream` + the latest turn's `references` (WP0-R3),
+    # absent (excluded by response_model_exclude_none) when the session has no turns yet.
+    sessions: List[SessionListItem] = Field(default_factory=list)
+    windowing: Optional[Windowing] = None
 
 
 class SessionResponse(BaseModel):
     count: int = 0
     session: Optional[SessionStream] = None
+
+
+class SessionCapabilities(BaseModel):
+    # Durable approvals, queue and steer are always on. The fields stay, pinned true, for
+    # one release so open tabs on an older web bundle still read them; remove them in the
+    # release after.
+    durable_approvals: bool = True
+    queue: bool = True
+    steer: bool = True
+
+
+class SessionExecutionSnapshot(BaseModel):
+    id: Optional[str] = None
+    state: Literal["idle", "running", "stopping"] = "idle"
+
+
+class PendingInputResponse(BaseModel):
+    input: PendingInput
+
+
+class PendingInputAdmissionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    session_id: SessionId
+    content: Dict[str, Any]
+    on_busy: Literal["reject", "queue", "steer"] = "reject"
+
+
+class PendingInputAdmissionResponse(BaseModel):
+    action: Literal["execute", "pending"]
+    input: Optional[PendingInput] = None
+    execution_id: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -63,6 +189,24 @@ class SessionStreamQueryRequest(BaseModel):
 
 class SessionStreamResponse(BaseModel):
     stream: Optional[SessionStream] = None
+    capabilities: SessionCapabilities = Field(default_factory=SessionCapabilities)
+    runner_address: str = Field(
+        default="",
+        description=(
+            "The address of the runner pod that ran the stream's last turn. Filled only for a "
+            "caller that proves it is runner infrastructure; empty when unknown. A routing "
+            "hint, not proof that the pod is alive."
+        ),
+    )
+    runner_replica_id: str = Field(
+        default="",
+        description=(
+            "The replica id of the runner pod at runner_address. The caller checks it against "
+            "the pod's health answer before it uses the address, because a dead pod's IP can "
+            "pass to another pod. Filled under the same condition as runner_address; empty "
+            "when unknown."
+        ),
+    )
 
 
 class SessionStreamsResponse(BaseModel):
@@ -75,13 +219,68 @@ class SessionStreamsResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 
+class SessionTranscriptWindowing(BaseModel):
+    """Deliberate exception to the shared cursor `Windowing`.
+
+    `through_sequence` pins the snapshot, so offset paging over an append-only log inside that
+    bound is stable: a concurrent append raises `latest_sequence`, never the page contents. The
+    transcript reader also needs to seek within one pinned snapshot, which a forward-only cursor
+    cannot express.
+    """
+
+    offset: int = Field(default=0, ge=0)
+    limit: int = Field(default=100, ge=1, le=200)
+    through_sequence: int = Field(ge=0)
+
+
 class SessionRecordQueryRequest(BaseModel):
     session_id: str
+    windowing: Optional[SessionTranscriptWindowing] = None
 
 
 class SessionRecordsQueryResponse(BaseModel):
     count: int
     records: List[SessionRecord]
+    windowing: Optional[SessionTranscriptWindowing] = None
+    # A runner reported that this log lost a record, so it must not rebuild model context.
+    records_incomplete: bool = False
+
+
+class SessionRecordsIncompleteRequest(BaseModel):
+    # No project_id: scope comes from the caller's credential (request.state).
+    session_id: str
+    # The turn whose record was dropped; kept in the log line, not stored.
+    turn_id: Optional[str] = None
+
+
+class SessionSnapshotPending(BaseModel):
+    inputs: List[PendingInput] = Field(default_factory=list)
+    interactions: List[SessionInteraction] = Field(default_factory=list)
+
+
+class SessionSnapshotResponse(BaseModel):
+    """One snapshot for every reader of an open session.
+
+    `session`, `execution` and `read` are the nullable reconnect half: the stream row, the
+    latest turn (whose `end_time` says whether that turn is still live), and the durable
+    sequence watermark a reader replays from. They are absent when the shared reader is off or
+    before a fresh session has a stream row.
+
+    `execution_state` and `pending.inputs` are the queue half. `execution_state` is the
+    session's CURRENT lifecycle derived from the stream row, which is a different question from
+    `execution`: that names the last turn, this says whether anything is running right now.
+    `capabilities` reports the same flags the streams endpoint reports, from the same helper, so
+    a client never sees the two disagree.
+    """
+
+    session: Optional[SessionStream] = None
+    execution: Optional[SessionTurn] = None
+    execution_state: SessionExecutionSnapshot = Field(
+        default_factory=SessionExecutionSnapshot
+    )
+    pending: SessionSnapshotPending
+    read: Optional[SessionRecordsReadState] = None
+    capabilities: SessionCapabilities = Field(default_factory=SessionCapabilities)
 
 
 class SessionRecordResponse(BaseModel):
@@ -117,16 +316,19 @@ class SessionInteractionTransitionRequest(BaseModel):
     session_id: str
     token: str
     status: SessionInteractionStatus
-    resolution: Optional[SessionInteractionResolution] = None
+    # The router owns kind-specific validation because the row kind is not known here.
+    resolution: Optional[Dict[str, Any]] = None
 
     @model_validator(mode="after")
     def validate_resolution_status(self) -> "SessionInteractionTransitionRequest":
-        # Resolution is answer data, so it is valid only on the resolved lifecycle edge.
-        if (
-            self.resolution is not None
-            and self.status != SessionInteractionStatus.resolved
+        # Resolution is valid only on lifecycle edges that settle an answer.
+        if self.resolution is not None and self.status not in (
+            SessionInteractionStatus.responded,
+            SessionInteractionStatus.resolved,
         ):
-            raise ValueError("resolution is only valid when status is resolved")
+            raise ValueError(
+                "resolution is only valid when status is responded or resolved"
+            )
         return self
 
 
@@ -153,8 +355,28 @@ class SessionInteractionsResponse(BaseModel):
     interactions: List[SessionInteraction] = Field(default_factory=list)
 
 
+class SessionInteractionAnswerRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    interaction_id: UUID
+    answer: Dict[str, Any]
+
+
 class SessionInteractionRespondRequest(BaseModel):
+    # For a user_approval interaction the answer is {approved: bool, tool_call_id?: str,
+    # message?: str} — the dispatcher composes the full resume conversation server-side
+    # (interactions_dispatcher.compose_approval_messages). Other kinds pass through as-is.
     answer: Optional[Dict[str, Any]] = None
+    answers: Optional[List[SessionInteractionAnswerRequest]] = Field(
+        default=None, min_length=1, max_length=100
+    )
+    expected_execution_id: Optional[str] = None
+
+    @model_validator(mode="after")
+    def validate_answer_shape(self) -> "SessionInteractionRespondRequest":
+        if self.answer is not None and self.answers is not None:
+            raise ValueError("answer and answers cannot be combined")
+        return self
 
 
 # ---------------------------------------------------------------------------
@@ -219,7 +441,7 @@ class SessionTurnAppendRequest(BaseModel):
     harness_kind: HarnessKind
     agent_session_id: Optional[str] = None
     sandbox_id: Optional[str] = None
-    references: Optional[List[Reference]] = None
+    references: Optional[List[SessionReference]] = None
     trace_id: Optional[UUID] = None
     span_id: Optional[OTelSpanId] = None
     start_time: Optional[datetime] = None
@@ -256,6 +478,7 @@ class SessionTurnsResponse(BaseModel):
 class SessionRecordIngestRequest(BaseModel):
     # project scope comes from the caller's credential, never the body
     session_id: str
+    kind: Optional[Literal["frame"]] = None
     # Optional stable id (uuid5) from the producer; absent when it has no stable key.
     record_id: Optional[UUID] = None
     record_index: Optional[int] = None
@@ -267,3 +490,169 @@ class SessionRecordIngestRequest(BaseModel):
     # Both forward-fill only (tracing-DB rule) — absent on producers that predate this.
     turn_id: Optional[str] = None
     span_id: Optional[OTelSpanId] = None
+    version: Optional[Literal[1]] = None
+    execution_id: Optional[str] = None
+    frame_or_event_id: Optional[str] = None
+    frame_index: Optional[int] = Field(default=None, ge=0)
+    entity_id: Optional[str] = None
+    type: Optional[str] = None
+    payload: Optional[Dict[str, Any]] = None
+    created_at: Optional[datetime] = None
+
+    @model_validator(mode="after")
+    def validate_live_frame(self) -> "SessionRecordIngestRequest":
+        if self.kind != "frame":
+            return self
+        required = (
+            "version",
+            "execution_id",
+            "frame_or_event_id",
+            "frame_index",
+            "entity_id",
+            "type",
+            "payload",
+            "created_at",
+        )
+        missing = [name for name in required if getattr(self, name) is None]
+        if missing:
+            raise ValueError(f"frame fields missing: {', '.join(missing)}")
+        SessionLiveFrame(
+            version=self.version,
+            kind="frame",
+            session_id=self.session_id,
+            execution_id=self.execution_id,
+            frame_or_event_id=self.frame_or_event_id,
+            frame_index=self.frame_index,
+            entity_id=self.entity_id,
+            type=self.type,
+            payload=self.payload,
+            created_at=self.created_at,
+        )
+        return self
+
+
+SessionRecordIngestBatch = Annotated[
+    List[SessionRecordIngestRequest],
+    Field(min_length=1),
+]
+SessionRecordIngestBody = Union[
+    SessionRecordIngestRequest,
+    SessionRecordIngestBatch,
+]
+
+
+# ---------------------------------------------------------------------------
+# Session control: durable commands (Stop)
+# ---------------------------------------------------------------------------
+
+
+class SessionCancelRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # Optional stale-request guard. When present, the API cancels only this execution and
+    # refuses the request if another one is running. When absent, it cancels whichever
+    # execution is active when the request is applied. A person never types this: the browser
+    # fills it from the session's own state, and a first-party client always sends it.
+    expected_execution_id: Optional[str] = Field(
+        default=None,
+        description=(
+            "Optional stale-request guard honored only in cancel mode; ignored for send, "
+            "steer, and attach."
+        ),
+    )
+
+
+class SessionCommandRef(BaseModel):
+    """The durable command an accepted request created. Identity and DELIVERY state only.
+
+    A client must not read execution state from it. `state` says where the command is; the
+    session's own state says what the execution is doing.
+    """
+
+    id: UUID
+    state: Literal["pending", "claimed", "applied", "obsolete"]
+
+
+class SessionExecutionRef(BaseModel):
+    """What the caller should render. `id` is null when the session was idle."""
+
+    id: Optional[str] = None
+    state: Literal["stopping", "idle"]
+
+
+class SessionInteractionContinuationExecution(BaseModel):
+    id: str
+    state: Literal[
+        "awaiting_interactions",
+        "pending_delivery",
+        "recoverable",
+        "running",
+        "terminal",
+    ]
+
+
+class SessionInteractionContinuationResponse(BaseModel):
+    interaction: SessionInteraction
+    command: Optional[SessionCommandRef] = None
+    execution: SessionInteractionContinuationExecution
+
+
+class SessionCancelResponse(BaseModel):
+    command: SessionCommandRef
+    execution: SessionExecutionRef
+
+
+class SessionExecutionOutcome(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    # The execution the runner acted on. Null when it held none.
+    id: Optional[str] = None
+    # stopped: cancelled as asked. not_running: no such execution on this runner.
+    # superseded_by_newer_turn: the held execution started after the command arrived.
+    # failed: the cancel itself failed.
+    state: Literal[
+        "stopped",
+        "failed",
+        "not_running",
+        "superseded_by_newer_turn",
+        "started",
+    ]
+    # Short and human-readable, present only when `state` is "failed".
+    error: Optional[str] = Field(default=None, max_length=2000)
+
+
+class SessionControlOutcomeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    replica_id: str = Field(min_length=1, max_length=128)
+    # The command's terminal state. `applied` means the runner did the work; `obsolete` means
+    # there was nothing to do.
+    result: Literal["applied", "obsolete"]
+    execution: SessionExecutionOutcome
+
+
+class SessionCommandSettlement(BaseModel):
+    id: UUID
+    state: Literal["applied", "obsolete"]
+    outcome: Literal[
+        "stopped",
+        "not_running",
+        "superseded_by_newer_turn",
+        "failed",
+        "lost",
+        "started",
+    ]
+    settled_at: Optional[datetime] = None
+
+
+class SessionControlOutcomeResponse(BaseModel):
+    command: SessionCommandSettlement
+    admitted: bool = False
+
+
+class SessionContinuationResumeResponse(BaseModel):
+    resumed: bool
+
+
+class PendingInputUpdateRequest(PendingInputUpdate):
+    pass

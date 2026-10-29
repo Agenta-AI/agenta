@@ -112,6 +112,25 @@ describe("isHitlPending", () => {
         expect(isHitlPending([assistantText("hello"), user("again")])).toBe(false)
     })
 
+    it("is true when an earlier assistant message still has a pending client tool", () => {
+        const messages = [
+            {
+                id: "a-pending",
+                role: "assistant",
+                parts: [
+                    {
+                        type: "tool-request_connection",
+                        toolCallId: "call-connect",
+                        state: "input-available",
+                    },
+                ],
+            },
+            user("again"),
+            assistantText("starting the next turn"),
+        ]
+        expect(isHitlPending(messages)).toBe(true)
+    })
+
     it("is false for an empty conversation", () => {
         expect(isHitlPending([])).toBe(false)
     })
@@ -201,5 +220,36 @@ describe("canReleaseQueuedMessage", () => {
                 assistantWithTool("output-available"),
             ]),
         ).toBe(true)
+    })
+
+    it("releases an answered approval after its durable terminal record", () => {
+        expect(
+            canReleaseQueuedMessage("ready", [
+                user("do it"),
+                {
+                    ...assistantWithTool("approval-responded", true),
+                    metadata: {recordTerminal: true},
+                },
+            ]),
+        ).toBe(true)
+    })
+
+    it("holds an answered approval while its continuation execution is running", () => {
+        expect(
+            canReleaseQueuedMessage("ready", [
+                user("do it"),
+                {
+                    ...assistantWithTool("approval-responded", true),
+                    metadata: {
+                        approvalContinuation: {
+                            sourceExecutionId: "source-turn",
+                            executionId: "continuation-turn",
+                            state: "running",
+                            approvalIds: ["perm_1"],
+                        },
+                    },
+                },
+            ]),
+        ).toBe(false)
     })
 })

@@ -1,24 +1,18 @@
 import * as React from "react"
 
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu"
-import {Check, ChevronRight, Circle} from "lucide-react"
+import {Check, ChevronRight} from "lucide-react"
 
 import {cn} from "./utils"
 
 /**
- * DropdownMenu — a Radix primitive in @agenta/ui, following shadcn's source conventions (no
- * `forwardRef`, `data-slot` on every part). Chrome copied from SelectContent (antd's borderless overlay: bg-popover,
- * shadow-overlay, rounded-control-lg, font-portal, box-border); item geometry/states copied
- * from SelectItem (min-h-control, rounded-control-sm, px-3 py-1, text-field-md, hover bg-muted).
- *
- * antd → @agenta/ui mapping:
- *   <Dropdown menu={{items:[{key,label,icon,disabled,danger,type:'divider',children}]}}>
- *     → <DropdownMenu><DropdownMenuTrigger/><DropdownMenuContent>
- *         <DropdownMenuItem/> · <DropdownMenuSeparator/> (divider) ·
- *         <DropdownMenuSub><DropdownMenuSubTrigger/><DropdownMenuSubContent/></DropdownMenuSub> (children)
- *       </DropdownMenuContent></DropdownMenu>
- *   open→open · getPopupContainer→container · trigger→Radix defaults · danger→variant="destructive"
+ * DropdownMenu — the shadcn dropdown menu on Radix, styled through the token bridge.
+ * antd Dropdown mapping: getPopupContainer→container, danger→variant="destructive", divider→Separator.
  */
+
+// The global scroll-fade animation never fires `animationend`, so a closed menu would stay
+// mounted; killing the name and resetting the timeline releases it.
+const NO_SCROLL_TIMELINE = "[animation-name:none] [animation-timeline:auto]"
 
 function DropdownMenu(props: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
     return <DropdownMenuPrimitive.Root data-slot="dropdown-menu" {...props} />
@@ -61,12 +55,11 @@ function DropdownMenuContent({
                 data-slot="dropdown-menu-content"
                 sideOffset={sideOffset}
                 className={cn(
-                    // Chrome copied token-for-token from SelectContent: antd `.ant-dropdown-menu`
-                    // is borderless (bg colorBgElevated), radius borderRadiusLG (rounded-control-lg),
-                    // shadow boxShadowSecondary (shadow-overlay), padding 4px (p-1). font-portal: this
-                    // portals to <body>, escaping the app font scope. box-border: preflight is off.
-                    "relative z-50 box-border max-h-96 overflow-y-auto overflow-x-hidden bg-popover text-popover-foreground shadow-overlay font-portal",
-                    "rounded-control-lg p-1",
+                    // Hairline ring in place of a border (color-mix: v3 can't alpha a var() colour).
+                    // font-portal: portalled to <body>, outside the app font scope; box-border: preflight off.
+                    "relative z-50 box-border min-w-32 max-h-96 overflow-y-auto overflow-x-hidden bg-popover text-popover-foreground shadow-md font-portal",
+                    "rounded-control-lg p-1 ring-1 ring-[color:color-mix(in_srgb,var(--ag-colorText)_10%,transparent)]",
+                    NO_SCROLL_TIMELINE,
                     className,
                 )}
                 {...props}
@@ -76,15 +69,13 @@ function DropdownMenuContent({
 }
 
 const itemBase = [
-    "relative flex w-full cursor-pointer select-none items-center gap-2 outline-none",
-    // antd `.ant-dropdown-menu-item` geometry (NOT SelectItem's): 30px tall = 5px×12px padding
-    // + 20px line-height, min-height 0, radius 6px. py-input-y-ghost = 5px (reused 5px token).
-    "box-border rounded-control-sm px-3 py-input-y-ghost text-field-md",
-    // Hover = antd controlItemBgHover (bg-muted); disabled skin — matches SelectItem.
-    "[&[data-highlighted]]:bg-muted",
-    "data-[disabled]:pointer-events-none data-[disabled]:text-disabled",
-    "[&_svg]:pointer-events-none [&_svg]:shrink-0",
-    "data-[inset]:pl-8",
+    "group/dropdown-menu-item relative flex w-full cursor-pointer select-none items-center gap-1.5 outline-none",
+    "box-border rounded-control-sm px-1.5 py-1 text-sm",
+    // `accent`, not `muted`: in dark `--muted` equals the panel's own background.
+    "[&[data-highlighted]]:bg-accent [&[data-highlighted]]:text-accent-foreground",
+    "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
+    "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+    "data-[inset]:pl-7",
 ]
 
 function DropdownMenuItem({
@@ -103,9 +94,9 @@ function DropdownMenuItem({
             data-variant={variant}
             className={cn(
                 itemBase,
-                // antd danger item = colorError text (matches Select's aria-invalid text-error token).
+                // Error text on a 10% error tint (20% in dark) when highlighted.
                 variant === "destructive" &&
-                    "text-error [&[data-highlighted]]:bg-error-bg [&_svg]:text-error",
+                    "text-error [&[data-highlighted]]:bg-[color:color-mix(in_srgb,var(--ag-colorError)_10%,transparent)] [&[data-highlighted]]:text-error dark:[&[data-highlighted]]:bg-[color:color-mix(in_srgb,var(--ag-colorError)_20%,transparent)] [&_svg]:text-error",
                 className,
             )}
             {...props}
@@ -122,13 +113,13 @@ function DropdownMenuCheckboxItem({
     return (
         <DropdownMenuPrimitive.CheckboxItem
             data-slot="dropdown-menu-checkbox-item"
-            className={cn(itemBase, "pl-8", className)}
+            className={cn(itemBase, "pl-7", className)}
             checked={checked}
             {...props}
         >
-            <span className="absolute left-3 flex size-3 items-center justify-center">
+            <span className="pointer-events-none absolute left-1.5 flex size-4 items-center justify-center">
                 <DropdownMenuPrimitive.ItemIndicator>
-                    <Check className="size-3 text-primary" />
+                    <Check className="size-3.5" />
                 </DropdownMenuPrimitive.ItemIndicator>
             </span>
             {children}
@@ -144,15 +135,16 @@ function DropdownMenuRadioItem({
     return (
         <DropdownMenuPrimitive.RadioItem
             data-slot="dropdown-menu-radio-item"
-            className={cn(itemBase, "pl-8", className)}
+            className={cn(itemBase, className)}
             {...props}
         >
-            <span className="absolute left-3 flex size-3 items-center justify-center">
+            <span className="min-w-0 flex-1">{children}</span>
+            {/* One pick: a check on the right, as Select marks it; the slot keeps labels still. */}
+            <span className="pointer-events-none flex size-4 shrink-0 items-center justify-center">
                 <DropdownMenuPrimitive.ItemIndicator>
-                    <Circle className="size-2 fill-current text-primary" />
+                    <Check className="size-3.5" />
                 </DropdownMenuPrimitive.ItemIndicator>
             </span>
-            {children}
         </DropdownMenuPrimitive.RadioItem>
     )
 }
@@ -167,7 +159,7 @@ function DropdownMenuLabel({
             data-slot="dropdown-menu-label"
             data-inset={inset ? "" : undefined}
             className={cn(
-                "px-input-sm py-input-y-sm text-field-sm text-placeholder data-[inset]:pl-8",
+                "px-1.5 py-1 text-xs font-medium text-muted-foreground data-[inset]:pl-7",
                 className,
             )}
             {...props}
@@ -179,11 +171,11 @@ function DropdownMenuSeparator({
     className,
     ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Separator>) {
-    // antd `.ant-dropdown-menu-item-divider`: 1px colorSplit, `marginXXS 0`, inset by the menu's p-1.
+    // Full-bleed hairline (-mx-1 undoes the panel's p-1).
     return (
         <DropdownMenuPrimitive.Separator
             data-slot="dropdown-menu-separator"
-            className={cn("my-1 h-px bg-colorSplit", className)}
+            className={cn("-mx-1 my-1 h-px bg-border", className)}
             {...props}
         />
     )
@@ -193,7 +185,10 @@ function DropdownMenuShortcut({className, ...props}: React.ComponentProps<"span"
     return (
         <span
             data-slot="dropdown-menu-shortcut"
-            className={cn("ml-auto text-field-sm tracking-widest text-placeholder", className)}
+            className={cn(
+                "ml-auto text-xs tracking-widest text-muted-foreground group-[[data-highlighted]]/dropdown-menu-item:text-accent-foreground",
+                className,
+            )}
             {...props}
         />
     )
@@ -209,11 +204,15 @@ function DropdownMenuSubTrigger({
         <DropdownMenuPrimitive.SubTrigger
             data-slot="dropdown-menu-sub-trigger"
             data-inset={inset ? "" : undefined}
-            className={cn(itemBase, "data-[state=open]:bg-muted", className)}
+            className={cn(
+                itemBase,
+                "data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
+                className,
+            )}
             {...props}
         >
             {children}
-            <ChevronRight className="ml-auto size-3 text-placeholder" />
+            <ChevronRight className="ml-auto size-4" />
         </DropdownMenuPrimitive.SubTrigger>
     )
 }
@@ -231,9 +230,10 @@ function DropdownMenuSubContent({
             <DropdownMenuPrimitive.SubContent
                 data-slot="dropdown-menu-sub-content"
                 className={cn(
-                    // Same overlay chrome as DropdownMenuContent / SelectContent.
-                    "relative z-50 box-border max-h-96 overflow-y-auto overflow-x-hidden bg-popover text-popover-foreground shadow-overlay font-portal",
-                    "rounded-control-lg p-1",
+                    // Same panel as DropdownMenuContent.
+                    "relative z-50 box-border min-w-32 max-h-96 overflow-y-auto overflow-x-hidden bg-popover text-popover-foreground shadow-md font-portal",
+                    "rounded-control-lg p-1 ring-1 ring-[color:color-mix(in_srgb,var(--ag-colorText)_10%,transparent)]",
+                    NO_SCROLL_TIMELINE,
                     className,
                 )}
                 {...props}

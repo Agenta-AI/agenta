@@ -109,3 +109,5 @@ Returns the ordered list of revisions committed to a variant. Each entry include
 Artifacts and variants are soft-deleted. `POST /{resource}/{id}/archive` sets `deleted_at`; `POST /{resource}/{id}/unarchive` clears it. Archived items are hidden from `/query` responses unless the request body sets `include_archived: true`. See [Query Pattern](/reference/api-guide/query-pattern#archive-and-unarchive).
 
 Archiving an artifact hides its variants and revisions. Revision IDs remain resolvable so historical traces stay intact.
+
+An invoke that names an archived application by its id alone, with no variant or revision reference and no inline configuration, fails with status `410`, and `status.type` ends in `#v0:references:archived`. Unarchive the application to invoke it again. An invoke that names a variant or revision of an archived application, or that carries an inline configuration, still runs. That gap is tracked in [#7110](https://github.com/Agenta-AI/agenta/issues/7110).

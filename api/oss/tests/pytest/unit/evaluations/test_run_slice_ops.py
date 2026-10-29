@@ -16,6 +16,8 @@ from uuid import uuid4
 
 import pytest
 
+from oss.tests.pytest.utils.principals import any_principal
+
 from oss.src.core.evaluations.service import (
     EvaluationsService,
     SimpleEvaluationsService,
@@ -135,6 +137,7 @@ async def test_dispatch_run_slice_dispatches_to_runner():
         edit_run=AsyncMock(),
         query_scenarios=AsyncMock(return_value=[]),
         edit_scenarios=AsyncMock(),
+        set_run_principal=AsyncMock(),
     )
     service = _simple_service(worker=worker, evaluations_service=evaluations_service)
 
@@ -145,6 +148,7 @@ async def test_dispatch_run_slice_dispatches_to_runner():
         scenario_ids=[scenario_id],
         step_keys=["evaluator-auto"],
         overwrite=True,
+        principal=any_principal(),
     )
 
     assert ok is True
@@ -170,6 +174,7 @@ async def test_dispatch_run_slice_returns_false_without_runner():
         project_id=uuid4(),
         user_id=uuid4(),
         run_id=run_id,
+        principal=any_principal(),
     )
 
     assert ok is False
@@ -187,6 +192,7 @@ async def test_dispatch_run_slice_returns_false_when_run_missing():
         project_id=uuid4(),
         user_id=uuid4(),
         run_id=uuid4(),
+        principal=any_principal(),
     )
 
     assert ok is False
@@ -783,6 +789,7 @@ async def test_run_from_source_routes_queue_topologies(monkeypatch, dispatch):
         id=run_id,
         status=EvaluationStatus.RUNNING,
         data=EvaluationRunData(steps=[_step("input")], repeats=1),
+        principal=any_principal(),
     )
     monkeypatch.setattr(
         run_module,

@@ -34,7 +34,7 @@ const SelectAppEmptyState = ({adapter, onSelect, selectedAppLabel}: SelectAppEmp
                 <AppstoreOutlined style={{fontSize: 26}} />
             </div>
             <div className="flex flex-col gap-1 text-center">
-                <Typography.Text className="text-[15px] font-semibold">
+                <Typography.Text className="text-base font-semibold">
                     Select an app to run the evaluator on
                 </Typography.Text>
                 <Typography.Text type="secondary" className="text-[13px] leading-snug">

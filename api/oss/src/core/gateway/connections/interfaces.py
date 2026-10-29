@@ -120,6 +120,7 @@ class ConnectionsGatewayInterface(ABC):
         callback_url: Optional[str] = None,
         integration_key: Optional[str] = None,
         user_id: Optional[str] = None,
+        auth_scheme: Optional[str] = None,
     ) -> ConnectionRefreshResponse: ...
 
     @abstractmethod

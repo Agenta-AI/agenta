@@ -6,4 +6,5 @@ export interface ToolResolveResponse {
     count?: number | undefined;
     builtins?: string[] | undefined;
     custom?: AgentaApi.ResolvedTool[] | undefined;
+    gateway_connections?: AgentaApi.ResolvedGatewayConnection[] | undefined;
 }

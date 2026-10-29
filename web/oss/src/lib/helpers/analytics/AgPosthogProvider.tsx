@@ -1,13 +1,19 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
+import {
+    CLOUD_CONFIG,
+    OSS_CONFIG,
+    POSTHOG_CONFIG,
+    generateOrRetrieveDistinctId,
+} from "@agenta/shared/analytics"
 import {useAtom} from "jotai"
 import {useRouter} from "next/router"
 import type {PostHog} from "posthog-js"
 
 import {getEnv} from "../dynamicEnv"
-import {generateOrRetrieveDistinctId, isDemo} from "../utils"
+import {isDemo} from "../utils"
 
-import {CLOUD_CONFIG, OSS_CONFIG} from "./assets/constants"
+import {useAgentCreationFailureReporter} from "./hooks/useAgentCreationFailureReporter"
 import {posthogAtom, type PostHogConfig} from "./store/atoms"
 import {CustomPosthogProviderType} from "./types"
 
@@ -23,6 +29,8 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
     const isAuthRoute = currentPath.startsWith("/auth") && !currentPath.startsWith("/auth/callback")
     const isPostSignupRoute = currentPath.startsWith("/post-signup")
 
+    useAgentCreationFailureReporter()
+
     const initPosthog = useCallback(async () => {
         if (posthogClient) return
         if (loadingPosthog) return
@@ -37,8 +45,7 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
             if (!getEnv("NEXT_PUBLIC_POSTHOG_API_KEY")) return
 
             posthog.init(getEnv("NEXT_PUBLIC_POSTHOG_API_KEY"), {
-                api_host: "https://alef.agenta.ai",
-                ui_host: "https://us.posthog.com",
+                ...POSTHOG_CONFIG,
                 // Enable debug mode in development
                 loaded: (posthog) => {
                     // the loaded callback narrows to PostHogInterface; the instance is the full client
@@ -54,7 +61,6 @@ const CustomPosthogProvider: CustomPosthogProviderType = ({children}) => {
                         posthog.capture?.("$pageview", {$current_url: window.location.href})
                     }
                 },
-                capture_pageview: false,
                 ...((isDemo() ? CLOUD_CONFIG : OSS_CONFIG) as Partial<PostHogConfig>),
             })
         } catch (error) {

@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "entry": "content-repurposer",
+  "agents": {
+    "content-repurposer": {
+      "name": "Content repurposer",
+      "description": "Turns a published doc into draft LinkedIn and X posts, ready for review.",
+      "instructions": "./ai.agenta/agents/content-repurposer/AGENTS.md",
+      "setup": "./ai.agenta/agents/content-repurposer/SETUP.md",
+      "connections": [
+        {
+          "key": "read-the-source-and-hold-drafts",
+          "required": true,
+          "purpose": "Read the source and hold drafts",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "notion"
+            }
+          ],
+          "setup_notes": "Read & create pages"
+        },
+        {
+          "key": "read-a-swappable-source",
+          "required": false,
+          "purpose": "Read a swappable source",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "googledrive"
+            }
+          ],
+          "setup_notes": "Read a swappable source"
+        },
+        {
+          "key": "review-the-drafts",
+          "required": false,
+          "purpose": "Review the drafts",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "slack"
+            }
+          ],
+          "setup_notes": "Review the drafts"
+        }
+      ]
+    }
+  }
+}

@@ -70,6 +70,7 @@ async def test_get_blocked_domains_accepts_string_posthog_payload(monkeypatch):
                     blocked_domains=set(),
                     blocked_emails=set(),
                     allowed_domains=set(),
+                    blocklist_cache_ttl=123,
                 ),
             ),
             posthog=SimpleNamespace(enabled=True, api_key="posthog-key"),
@@ -93,9 +94,13 @@ async def test_get_blocked_domains_accepts_string_posthog_payload(monkeypatch):
         ),
     )
 
+    set_cache = AsyncMock()
+    monkeypatch.setattr(auth_helper, "set_cache", set_cache)
+
     blocked_domains = await auth_helper.get_blocked_domains()
 
     assert blocked_domains == {"agenta.dev"}
+    assert set_cache.await_args.kwargs["ttl"] == 123
 
 
 @pytest.mark.asyncio
@@ -109,6 +114,7 @@ async def test_get_blocked_domains_splits_comma_separated_posthog_payload(monkey
                     blocked_domains=set(),
                     blocked_emails=set(),
                     allowed_domains=set(),
+                    blocklist_cache_ttl=60,
                 ),
             ),
             posthog=SimpleNamespace(enabled=True, api_key="posthog-key"),
@@ -150,6 +156,7 @@ async def test_get_blocked_emails_treats_posthog_errors_as_empty(monkeypatch):
                     blocked_domains=set(),
                     blocked_emails=set(),
                     allowed_domains=set(),
+                    blocklist_cache_ttl=60,
                 ),
             ),
             posthog=SimpleNamespace(enabled=True),
@@ -290,3 +297,110 @@ async def test_passwordless_consume_code_does_not_check_turnstile(monkeypatch):
 
     verify_turnstile_or_raise.assert_not_awaited()
     original_consume_code_post.assert_awaited_once()
+
+
+@pytest.fixture
+def _blocked_domain_env(monkeypatch):
+    access = auth_helper.env.agenta.access
+    monkeypatch.setattr(access, "blocked_domains", {"blocked.example"})
+    monkeypatch.setattr(access, "blocked_emails", set())
+    monkeypatch.setattr(access, "allowed_domains", set())
+    # The empty email list falls back to PostHog; keep the test off the network.
+    monkeypatch.setattr(
+        auth_helper, "_get_posthog_string_entries", AsyncMock(return_value=set())
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "email",
+    ["user@blocked.example", "user@007.blocked.example", "User@A.B.Blocked.Example"],
+)
+async def test_signup_on_blocked_domain_or_subdomain_creates_no_account(
+    monkeypatch, _blocked_domain_env, email
+):
+    create_accounts = AsyncMock()
+    monkeypatch.setattr(overrides, "create_accounts", create_accounts)
+    monkeypatch.setattr(overrides, "get_user_with_email", AsyncMock(return_value=None))
+
+    with pytest.raises(UnauthorizedException, match="Access Denied."):
+        await overrides._create_account(email, "uid")
+
+    create_accounts.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "email", ["user@notblocked.example", "user@blocked.example.com"]
+)
+async def test_signup_on_lookalike_domain_is_not_blocked(
+    monkeypatch, _blocked_domain_env, email
+):
+    create_accounts = AsyncMock()
+    monkeypatch.setattr(overrides, "create_accounts", create_accounts)
+    monkeypatch.setattr(overrides, "get_user_with_email", AsyncMock(return_value=None))
+    monkeypatch.setattr(overrides, "_load_posthog", lambda: None)
+
+    assert await overrides._create_account(email, "uid") is True
+
+    create_accounts.assert_awaited_once()
+
+
+def _block_only_emails(monkeypatch, blocked_emails):
+    monkeypatch.setattr(
+        auth_helper,
+        "get_blocked_emails",
+        AsyncMock(return_value=set(blocked_emails)),
+    )
+    monkeypatch.setattr(
+        auth_helper,
+        "get_allowed_domains",
+        AsyncMock(return_value=set()),
+    )
+    monkeypatch.setattr(
+        auth_helper,
+        "get_blocked_domains",
+        AsyncMock(return_value=set()),
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "variant",
+    [
+        "fa.rmer.one@gmail.com",
+        "farmer.o.ne@gmail.com",
+        "farmerone+x@gmail.com",
+        "Farmer.One+promo@googlemail.com",
+    ],
+)
+async def test_is_auth_info_blocked_matches_gmail_variants(monkeypatch, variant):
+    _block_only_emails(monkeypatch, {"f.armer.one@gmail.com"})
+
+    assert await auth_helper.is_auth_info_blocked(auth_helper.parse_auth_info(variant))
+
+
+@pytest.mark.asyncio
+async def test_is_auth_info_blocked_matches_a_blocked_plus_tag_entry(monkeypatch):
+    _block_only_emails(monkeypatch, {"farmerone+old@gmail.com"})
+
+    assert await auth_helper.is_auth_info_blocked(
+        auth_helper.parse_auth_info("farmer.one@gmail.com")
+    )
+
+
+@pytest.mark.asyncio
+async def test_is_auth_info_blocked_matches_exactly_outside_gmail(monkeypatch):
+    _block_only_emails(monkeypatch, {"first.last@acme.test", "sales+eu@acme.test"})
+
+    assert await auth_helper.is_auth_info_blocked(
+        auth_helper.parse_auth_info("First.Last@acme.test")
+    )
+    for other_mailbox in (
+        "firstlast@acme.test",
+        "first.last+tag@acme.test",
+        "sales@acme.test",
+    ):
+        assert not await auth_helper.is_auth_info_blocked(
+            auth_helper.parse_auth_info(other_mailbox)
+        )

@@ -1,0 +1,328 @@
+import {describe, expect, it} from "vitest"
+
+import {
+    agentModelSelectionIsRunnable,
+    firstAgentModelForConnection,
+    buildAgentModelCandidates,
+    resolveAgentModelSelection,
+    selectableAgentHarnesses,
+    type AgentModelCandidate,
+} from "../../src/secret/core/agentModelCandidates"
+import type {ProviderConnection} from "../../src/secret/core/connections"
+
+const candidate = (
+    key: string,
+    overrides: Partial<AgentModelCandidate> = {},
+): AgentModelCandidate => ({
+    modelId: `openai/${key}`,
+    provider: "openai",
+    mode: "agenta",
+    slug: key,
+    harness: "pi_core",
+    source: "connection",
+    connectionKey: key,
+    managed: false,
+    ...overrides,
+})
+
+describe("resolveAgentModelSelection", () => {
+    const first = candidate("first")
+    const managed = candidate("managed", {managed: true})
+    const last = candidate("last")
+    const explicit = candidate("explicit")
+    const candidates = [first, managed, last, explicit]
+
+    it("keeps a runnable explicit draft choice before every automatic default", () => {
+        expect(resolveAgentModelSelection({candidates, explicit, last})).toBe(explicit)
+    })
+
+    it("uses the complete runnable last choice when there is no explicit choice", () => {
+        expect(resolveAgentModelSelection({candidates, last})).toBe(last)
+    })
+
+    it("prefers the first managed connection when saved choices are stale", () => {
+        expect(resolveAgentModelSelection({candidates, last: candidate("gone")})).toBe(managed)
+    })
+
+    it("uses the first model offered by the managed connection", () => {
+        const managedSecondModel = candidate("managed-2", {managed: true})
+        expect(resolveAgentModelSelection({candidates: [first, managed, managedSecondModel]})).toBe(
+            managed,
+        )
+    })
+
+    it("falls back to the deterministic first candidate and then null", () => {
+        expect(resolveAgentModelSelection({candidates: [first, last]})).toBe(first)
+        expect(resolveAgentModelSelection({candidates: []})).toBeNull()
+    })
+
+    it("requires the complete route, including provider", () => {
+        expect(agentModelSelectionIsRunnable(candidates, explicit)).toBe(true)
+        expect(
+            agentModelSelectionIsRunnable(candidates, {...explicit, provider: "anthropic"}),
+        ).toBe(false)
+    })
+
+    it("selects a newly saved connection by its stable API id", () => {
+        expect(firstAgentModelForConnection(candidates, "last")).toBe(last)
+        expect(firstAgentModelForConnection(candidates, "missing")).toBeNull()
+    })
+})
+
+describe("buildAgentModelCandidates", () => {
+    const capabilities = {
+        pi_core: {
+            providers: ["openai"],
+            connection_modes: ["agenta", "self_managed"],
+            model_selection: "provider/id",
+            models: {openai: ["openai/gpt-5"]},
+            default_models: {openai: ["openai/gpt-5"]},
+        },
+        pi_agenta: {
+            providers: ["openai"],
+            connection_modes: ["self_managed"],
+            model_selection: "provider/id",
+            models: {openai: ["openai/gpt-hidden"]},
+            default_models: {openai: ["openai/gpt-hidden"]},
+        },
+    }
+
+    it("does not call an uncredentialed vault row runnable", () => {
+        const candidates = buildAgentModelCandidates({
+            connections: [
+                {
+                    id: "empty",
+                    slug: "openai",
+                    name: "OpenAI",
+                    kind: "openai",
+                    title: "OpenAI",
+                    secretKind: "provider_key" as never,
+                    models: ["gpt-5"],
+                    hasStoredCredential: false,
+                    source: {} as never,
+                },
+            ],
+            capabilities,
+            harnessIds: ["pi_core"],
+            showSubscriptions: false,
+        })
+
+        expect(candidates).toEqual([])
+    })
+
+    it("does not reintroduce a hidden harness through live subscription status", () => {
+        const candidates = buildAgentModelCandidates({
+            connections: [],
+            capabilities,
+            harnessIds: ["pi_core"],
+            subscriptionPairs: [
+                {key: "hidden", harness: "pi_agenta", provider: "openai", name: "OpenAI"},
+            ],
+        })
+
+        expect(candidates).toEqual([])
+    })
+})
+
+describe("a custom endpoint's declared protocol", () => {
+    const capabilities = {
+        pi_core: {
+            providers: ["openai", "anthropic"],
+            deployments: ["direct", "custom"],
+            model_selection: "provider/id",
+        },
+        claude: {
+            providers: ["anthropic"],
+            deployments: ["direct", "custom"],
+            model_selection: "alias",
+        },
+    }
+    const harnessIds = ["pi_core", "claude"]
+
+    const endpoint = (
+        id: string,
+        modelKeys: string[],
+        overrides: Partial<ProviderConnection> = {},
+    ): ProviderConnection => ({
+        id,
+        slug: `gw-${id}`,
+        name: "Gateway",
+        kind: "custom",
+        title: "OpenAI-compatible endpoint",
+        secretKind: "custom_provider" as never,
+        hasStoredCredential: true,
+        source: {name: "Gateway", provider: "custom", modelKeys} as never,
+        ...overrides,
+    })
+
+    const routes = (connection: ProviderConnection) =>
+        buildAgentModelCandidates({
+            connections: [connection],
+            capabilities,
+            harnessIds,
+            showSubscriptions: false,
+        }).map((candidate) => [candidate.harness, candidate.modelId])
+
+    it("offers Claude Code on an endpoint declared as Anthropic Messages", () => {
+        expect(routes(endpoint("1", ["claude-fable-5"], {protocol: "anthropic"}))).toEqual([
+            ["claude", "claude-fable-5"],
+        ])
+    })
+
+    it("withholds Claude Code from an endpoint declared as OpenAI-compatible", () => {
+        // Anthropic-named models and all: the declaration is about the wire format, and Claude Code
+        // against an OpenAI-compatible endpoint is the 422 nobody sees.
+        expect(routes(endpoint("2", ["claude-fable-5"], {protocol: "openai"}))).toEqual([
+            ["pi_core", "claude-fable-5"],
+        ])
+    })
+
+    // The declared protocol is the operator's own statement; the model's vendor is a guess, and a
+    // LiteLLM gateway serving OpenAI-named models over Anthropic Messages is exactly why.
+    it("prefers the declared protocol over the model's vendor", () => {
+        expect(routes(endpoint("3", ["gpt-4o-mini"], {protocol: "anthropic"}))).toEqual([
+            ["claude", "gpt-4o-mini"],
+        ])
+    })
+
+    // A record written before the field declares nothing, so nothing is narrowed on it: the
+    // per-model guess (#6692) stays its only decider. Reading it as `openai` would take Claude Code
+    // away from an Anthropic gateway that has been running since before the field existed.
+    it("still offers Claude Code on an undeclared record whose models are Anthropic-named", () => {
+        expect(routes(endpoint("4", ["anthropic/claude-fable-5", "gpt-4o-mini"]))).toEqual([
+            ["pi_core", "anthropic/claude-fable-5"],
+            ["pi_core", "gpt-4o-mini"],
+            ["claude", "anthropic/claude-fable-5"],
+        ])
+    })
+
+    // The guess is per model, not per connection: one Anthropic id on a mixed undeclared gateway
+    // must not hand Claude Code the OpenAI ids beside it.
+    it("withholds the OpenAI-named models of an undeclared record from Claude Code", () => {
+        expect(routes(endpoint("4b", ["gpt-4o-mini"]))).toEqual([["pi_core", "gpt-4o-mini"]])
+    })
+
+    // The regression this rule exists to prevent: a gateway saved as Anthropic-only before the
+    // protocol field shipped. Its saved policy is the user's own statement and nothing overrides it.
+    it("keeps a saved Claude policy on an undeclared record", () => {
+        expect(routes(endpoint("4c", ["claude-fable-5"], {harnesses: ["claude"]}))).toEqual([
+            ["claude", "claude-fable-5"],
+        ])
+    })
+
+    it("drops a saved harness policy the declared protocol contradicts", () => {
+        expect(
+            routes(endpoint("5", ["claude-fable-5"], {protocol: "openai", harnesses: ["claude"]})),
+        ).toEqual([])
+    })
+})
+
+describe("selectableAgentHarnesses", () => {
+    it("hides the mock test harness and the removed pi_agenta from every picker", () => {
+        expect(
+            selectableAgentHarnesses(["pi_core", "mock", "claude", "pi_agenta", "codex"]),
+        ).toEqual(["pi_core", "claude", "codex"])
+    })
+})
+
+describe("built-in model candidates", () => {
+    const capabilities = {
+        pi_core: {
+            providers: ["openai", "anthropic"],
+            model_selection: "provider/id",
+            connection_modes: ["agenta"],
+            models: {openai: ["gpt-5.5"], anthropic: ["anthropic/claude-sonnet-5"]},
+        },
+        claude: {
+            providers: ["anthropic"],
+            model_selection: "alias",
+            connection_modes: ["agenta"],
+            models: {anthropic: ["sonnet"]},
+        },
+    }
+
+    const build = (models: string[]) =>
+        buildAgentModelCandidates({
+            connections: [],
+            capabilities,
+            harnessIds: ["pi_core", "claude"],
+            showSubscriptions: false,
+            builtinEndpoints: [{slug: "agenta", models, deploymentKind: "mock"}],
+        })
+
+    it("offers each catalogued model to the id-naming harnesses, routed by the endpoint slug", () => {
+        expect(build(["mock/echo", "gpt-5.5", "claude-sonnet-5"])).toEqual([
+            {
+                modelId: "gpt-5.5",
+                provider: "openai",
+                mode: "agenta",
+                slug: "agenta",
+                namespace: "builtin",
+                harness: "pi_core",
+                source: "connection",
+                connectionKey: "builtin:agenta",
+                connectionName: "Built-in: agenta",
+                managed: false,
+            },
+            expect.objectContaining({
+                modelId: "claude-sonnet-5",
+                provider: "anthropic",
+                harness: "pi_core",
+            }),
+        ])
+    })
+
+    it("tells a built-in pick apart from a custom connection of the same slug", () => {
+        // A custom endpoint may be named `agenta` too; only the namespace says which one runs.
+        const [builtin] = build(["gpt-5.5"])
+        const customPick = {...builtin, namespace: null}
+
+        expect(agentModelSelectionIsRunnable([builtin], builtin)).toBe(true)
+        expect(agentModelSelectionIsRunnable([builtin], customPick)).toBe(false)
+    })
+
+    it("offers a real built-in endpoint's models to the OpenAI-compatible custom-route harnesses", () => {
+        const gemini = ["google/gemini-3.7-flash", "google/gemini-3.8-flash"]
+        const candidates = buildAgentModelCandidates({
+            connections: [],
+            capabilities: {
+                ...capabilities,
+                pi_core: {...capabilities.pi_core, deployments: ["direct", "custom"]},
+                // Drives an OpenAI-compatible route with the Responses API, which Vertex lacks.
+                codex: {
+                    providers: ["openai"],
+                    deployments: ["direct", "custom"],
+                    model_selection: "provider/id",
+                    connection_modes: ["agenta"],
+                    models: {openai: ["gpt-5.5"]},
+                },
+            },
+            harnessIds: ["pi_core", "claude", "codex"],
+            showSubscriptions: false,
+            builtinEndpoints: [{slug: "agenta", models: gemini, deploymentKind: "vertex_ai"}],
+        })
+
+        // Uncatalogued ids are offered: the endpoint's allowlist, not a harness catalog, decides.
+        expect(candidates.map((c) => [c.harness, c.modelId, c.provider])).toEqual([
+            ["pi_core", "google/gemini-3.7-flash", "openai"],
+            ["pi_core", "google/gemini-3.8-flash", "openai"],
+        ])
+        expect(candidates[0]).toMatchObject({
+            mode: "agenta",
+            slug: "agenta",
+            namespace: "builtin",
+            connectionKey: "builtin:agenta",
+        })
+    })
+
+    it("offers nothing when the deployment lists no built-in endpoint", () => {
+        expect(
+            buildAgentModelCandidates({
+                connections: [],
+                capabilities,
+                harnessIds: ["pi_core"],
+                showSubscriptions: false,
+            }),
+        ).toEqual([])
+    })
+})

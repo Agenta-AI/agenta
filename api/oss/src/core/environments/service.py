@@ -1,4 +1,5 @@
 from typing import Any, Dict, List, Optional
+from oss.src.core.git.dtos import RevisionGrouping
 from uuid import UUID, uuid4
 
 from pydantic import BaseModel
@@ -1007,6 +1008,8 @@ class EnvironmentsService:
         #
         include_archived: Optional[bool] = None,
         #
+        grouping: Optional[RevisionGrouping] = None,
+        #
         windowing: Optional[Windowing] = None,
     ) -> List[EnvironmentRevision]:
         revision_query = (
@@ -1031,6 +1034,8 @@ class EnvironmentsService:
             references=references,
             #
             include_archived=include_archived,
+            #
+            grouping=grouping,
             #
             windowing=windowing,
         )

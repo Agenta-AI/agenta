@@ -108,7 +108,7 @@ sections of `design.md` and the exact values in `research.md` section 1.
 
 ## Verification plan (dev stack)
 
-- Stack: `144.76.237.122:8280` (EE dev). Use the `debug-local-deployment` skill for
+- Stack: `<dev-host>:8280` (EE dev). Use the `debug-local-deployment` skill for
   login/logs.
 - Flag flip: edit `hosting/docker-compose/ee/.env.ee.dev.local`
   (`NEXT_PUBLIC_AGENT_TEMPLATE_STRIP=true`, and for S5

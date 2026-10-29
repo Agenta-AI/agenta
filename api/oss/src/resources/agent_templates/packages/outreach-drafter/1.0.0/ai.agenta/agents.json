@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "entry": "outreach-drafter",
+  "agents": {
+    "outreach-drafter": {
+      "name": "Outreach drafter",
+      "description": "Drafts a personalized outreach email for each contact on a CRM list, ready for review.",
+      "instructions": "./ai.agenta/agents/outreach-drafter/AGENTS.md",
+      "setup": "./ai.agenta/agents/outreach-drafter/SETUP.md",
+      "connections": [
+        {
+          "key": "read-the-contact-list",
+          "required": true,
+          "purpose": "Read the contact list",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "hubspot"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "salesforce"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "attio"
+            }
+          ],
+          "setup_notes": "Read contact lists"
+        },
+        {
+          "key": "hold-the-drafts",
+          "required": false,
+          "purpose": "Hold the drafts",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "gmail"
+            }
+          ],
+          "setup_notes": "Hold the drafts"
+        }
+      ]
+    }
+  }
+}

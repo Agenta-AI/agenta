@@ -3,9 +3,10 @@
  *
  * Run: pnpm test (or: pnpm exec vitest run tests/unit/sandbox-agent-pi-assets.test.ts)
  */
-import { afterEach, describe, it } from "vitest";
+import { afterEach, describe, it, vi } from "vitest";
 import assert from "node:assert/strict";
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -15,34 +16,53 @@ import {
   statSync,
   writeFileSync,
 } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import type { AgentRunRequest } from "../../src/protocol.ts";
 import { PI_MODEL_PROVIDER_OVERRIDE_ENV } from "../../src/extensions/model-provider-override.ts";
+import { PI_GATEWAY_MCP_SERVERS_ENV } from "../../src/extensions/pi-mcp.ts";
 import {
   buildPiExtensionEnv,
   configurePiSkillSnapshot,
+  GATEWAY_PI_RETRY,
   configurePiSessionWorkspace,
   materializeDaytonaPiSkillSnapshot,
   materializeLocalPiSkillSnapshot,
   PI_SKILL_SNAPSHOT_MARKER,
+  PI_TOOL_SPECS_UNAVAILABLE_MESSAGE,
   piSessionWorkspaceDir,
+  piToolSpecsFilePath,
   prepareLocalAgentDir,
   prepareLocalPiAssets,
   resolvePiSkillSnapshot,
+  resolvePiToolSpecsDelivery,
   uploadDirToSandbox,
-  writeOtlpAuthFile,
+  uploadGatewayPiRetryToSandbox,
+  uploadPiToolSpecsToSandbox,
+  uploadSystemPromptToSandbox,
   writePiModelsConfigLocal,
+  writePiToolSpecsFileLocal,
+  withGatewayPiRetry,
   writeSystemPromptLocal,
 } from "../../src/engines/sandbox_agent/pi-assets.ts";
+import { PUBLIC_SPECS_FILE_ENV } from "../../src/tools/tool-mcp-env.ts";
 import type { PiModelConfigPlan } from "../../src/engines/sandbox_agent/pi-model-config.ts";
+import { InMemoryCredentialStore } from "pi-coding-agent-pi-ai";
+import { createAgentaExtension } from "../../src/extensions/agenta.ts";
+import { daytonaEnvVars } from "../../src/engines/sandbox_agent/daytona.ts";
+import type { RunPlan } from "../../src/engines/sandbox_agent/run-plan.ts";
+import { buildRuntimeEnvironment } from "../../src/environment/runtime-lifecycle.ts";
+import { ExtensionUiChannel } from "../../src/engines/inprocess/pi/extension-ui-channel.ts";
+import { openPiSession } from "../../src/engines/inprocess/pi/pi-session-factory.ts";
 
 const MODEL_CONFIG_PLAN: PiModelConfigPlan = {
   providerId: "my-ollama",
   providerFamily: "openai",
   api: "openai-completions",
   baseUrl: "https://example.test/v1",
+  apiKey: "$OPENAI_API_KEY",
   apiKeyEnv: "OPENAI_API_KEY",
   models: [{ id: "qwen2.5-coder:7b" }],
 };
@@ -95,6 +115,202 @@ afterEach(() => {
 });
 
 describe("buildPiExtensionEnv", () => {
+  it("renders only the gateway route and short-lived gateway credential for Pi MCP", () => {
+    const env = buildPiExtensionEnv({
+      mcpServers: [
+        {
+          name: "mock",
+          connection: {
+            type: "http",
+            url: "https://api.example.test/gateways/mcps/custom/mock",
+            headers: { "X-Agenta-Mock-Profile": "mcp-custom-mock" },
+            credentials: [
+              {
+                binding: { kind: "header", name: "X-AG-Credentials" },
+                value: "short-lived-gateway-token",
+                usage: "opaque_http",
+              },
+            ],
+          },
+          policy: { tools: { mode: "all" } },
+        },
+      ],
+    } as AgentRunRequest);
+    const rendered = env[PI_GATEWAY_MCP_SERVERS_ENV] ?? "";
+    assert.deepEqual(JSON.parse(rendered), {
+      version: 1,
+      servers: [
+        {
+          name: "mock",
+          url: "https://api.example.test/gateways/mcps/custom/mock",
+          headers: {
+            "X-Agenta-Mock-Profile": "mcp-custom-mock",
+            "X-AG-Credentials": "short-lived-gateway-token",
+          },
+          policy: { tools: { mode: "all" } },
+        },
+      ],
+    });
+    assert.equal(rendered.includes("upstream-secret"), false);
+    assert.equal(rendered.includes("mock-mcp-gateway"), false);
+  });
+
+  it("names Pi's own provider for an Agenta key Pi spells differently", () => {
+    const env = buildPiExtensionEnv({
+      modelConnection: {
+        provider: "together_ai",
+        endpoint: {
+          baseUrl:
+            "https://gw.example.test/api/gateways/llms/standard/together_ai/v1",
+        },
+        credentialMode: "none",
+      },
+    } as AgentRunRequest);
+
+    assert.equal(
+      JSON.parse(env[PI_MODEL_PROVIDER_OVERRIDE_ENV]).provider,
+      "together",
+    );
+  });
+
+  describe("a direct Gemini connection", () => {
+    const DEFAULT_GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
+    const gemini = (baseUrl: string) =>
+      ({
+        modelConnection: {
+          provider: "gemini",
+          deployment: "direct",
+          endpoint: { baseUrl },
+          credentialMode: "env",
+          credentials: [],
+        },
+      }) as unknown as AgentRunRequest;
+
+    it("overrides Pi's google provider with the base URL as written", () => {
+      // Pi's Gemini models and GEMINI_API_KEY belong to its provider `google`; an override
+      // named `gemini` reaches no Pi provider and the endpoint is ignored.
+      for (const baseUrl of [
+        DEFAULT_GEMINI_BASE,
+        "https://proxy.example.test/gemini",
+        "https://proxy.example.test",
+      ]) {
+        const env = buildPiExtensionEnv(gemini(baseUrl));
+        assert.deepEqual(JSON.parse(env[PI_MODEL_PROVIDER_OVERRIDE_ENV]), {
+          provider: "google",
+          baseUrl,
+        });
+      }
+    });
+
+    /** A Pi run with only the fields `buildRuntimeEnvironment` reads. */
+    const piPlan = (isDaytona: boolean): RunPlan =>
+      ({
+        acpAgent: "pi",
+        isPi: true,
+        isDaytona,
+        sandboxId: isDaytona ? "daytona" : "local",
+        workspace: {
+          cwd: "/workspace",
+          relayDir: "/tmp/relay",
+          telemetryDir: "/tmp/telemetry",
+          toolMcpDir: "/tmp/toolmcp",
+          skillDirs: [],
+          skillsDropped: [],
+          skillsCleanup: () => {},
+          sourcePiAgentDir: "/tmp/pi",
+        },
+        tools: { builtinGatingActive: false, toolSpecs: [] },
+        credentials: {
+          modelEnvironment: {},
+          sandboxEnvironment: {},
+          harnessApiKeyVar: "GEMINI_API_KEY",
+          hasApiKey: true,
+          credentialMode: "env",
+        },
+      }) as unknown as RunPlan;
+
+    it("puts the override in the environment a local and a Daytona Pi process start with", () => {
+      for (const isDaytona of [false, true]) {
+        const plan = piPlan(isDaytona);
+        const runtime = buildRuntimeEnvironment({
+          plan,
+          request: gemini(DEFAULT_GEMINI_BASE),
+          piSkillSnapshot: undefined,
+          log: (() => {}) as never,
+          deps: { buildDaemonEnv: (() => ({})) as never },
+        });
+        // A local Pi inherits the daemon env; a Daytona sandbox's daemon env is built from
+        // `piExtEnv` and the model environment.
+        const processEnv = isDaytona
+          ? daytonaEnvVars(runtime.piExtEnv, plan.credentials.modelEnvironment)
+          : runtime.env;
+        // The Agenta extension inside that process registers the override with Pi.
+        const registered: Array<{ name: string; config: unknown }> = [];
+        createAgentaExtension(processEnv)({
+          registerProvider: (name: string, config: unknown) =>
+            registered.push({ name, config }),
+          registerTool: () => {},
+          on: () => {},
+        } as never);
+
+        assert.deepEqual(registered, [
+          { name: "google", config: { baseUrl: DEFAULT_GEMINI_BASE } },
+        ]);
+      }
+    });
+
+    it("makes an in-process Pi session call Gemini under the given base URL", async () => {
+      for (const baseUrl of [DEFAULT_GEMINI_BASE, "https://proxy.example.test/gemini"]) {
+        const cwd = tempDir("pi-gemini-inprocess-");
+        const opened = await openPiSession({
+          cwd,
+          sessionDir: join(cwd, "sessions"),
+          skillDir: undefined,
+          modelsPath: undefined,
+          modelEnv: { GEMINI_API_KEY: "not-a-real-gemini-key" },
+          credentials: new InMemoryCredentialStore(),
+          systemPrompt: undefined,
+          appendSystemPrompt: undefined,
+          tools: [],
+          extensionEnv: buildPiExtensionEnv(gemini(baseUrl)),
+          uiContext: new ExtensionUiChannel(),
+          log: () => {},
+        });
+        const requested: string[] = [];
+        vi.stubGlobal("fetch", async (input: string | URL | Request) => {
+          requested.push(
+            typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
+          );
+          return new Response(JSON.stringify({ error: { code: 400, message: "stub" } }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          });
+        });
+        try {
+          const model = opened.runtime.getModel("google", "gemini-2.5-flash");
+          assert.ok(model, "Pi's google provider lists gemini-2.5-flash");
+          await opened.runtime.complete(
+            model,
+            { messages: [{ role: "user", content: "hi", timestamp: Date.now() }] },
+            { maxRetries: 0 } as never,
+          );
+
+          assert.ok(requested.length > 0, "Pi sent a request");
+          for (const url of requested) {
+            assert.ok(
+              url.startsWith(`${baseUrl}/models/${model.id}:`),
+              `${url} is not under ${baseUrl}/models/`,
+            );
+          }
+        } finally {
+          vi.unstubAllGlobals();
+          opened.session.dispose();
+          await opened.cleanup();
+        }
+      }
+    });
+  });
+
   it("carries only public provider endpoint config for Pi", () => {
     const request = {
       modelConnection: {
@@ -116,7 +332,7 @@ describe("buildPiExtensionEnv", () => {
       },
     } as AgentRunRequest;
 
-    const env = buildPiExtensionEnv(request, false);
+    const env = buildPiExtensionEnv(request);
 
     assert.deepEqual(JSON.parse(env[PI_MODEL_PROVIDER_OVERRIDE_ENV]), {
       provider: "anthropic",
@@ -125,6 +341,60 @@ describe("buildPiExtensionEnv", () => {
     assert.equal(JSON.stringify(env).includes("do-not-expose"), false);
     assert.equal(JSON.stringify(env).includes("secret-model-key"), false);
     assert.equal(JSON.stringify(env).includes("PUBLIC_HINT"), false);
+  });
+
+  it("a direct-deployment gateway connection carries the base URL and X-AG-Credentials (WP13 reopen)", () => {
+    // The majority case (a plain provider_key vault connection, deployment "direct") is NOT a
+    // named custom-agenta connection, so isPiModelConfigApplicable is false and this extension
+    // override is the only place the gateway route can reach Pi. Before this fix the override
+    // carried baseUrl alone -- no header, so the gateway would refuse the call for missing
+    // credentials with nothing telling the caller why.
+    const request = {
+      harness: "pi_core",
+      modelConnection: {
+        provider: "anthropic",
+        deployment: "direct",
+        endpoint: {
+          baseUrl:
+            "https://gateway.example.com/gateways/llms/standard/anthropic",
+        },
+        credentialMode: "none",
+        credentials: [],
+        gatewayCredentials: {
+          header: "X-AG-Credentials",
+          value: "ApiKey mock-gateway-credentials",
+        },
+      },
+    } as AgentRunRequest;
+
+    const env = buildPiExtensionEnv(request);
+
+    assert.deepEqual(JSON.parse(env[PI_MODEL_PROVIDER_OVERRIDE_ENV]), {
+      provider: "anthropic",
+      baseUrl: "https://gateway.example.com/gateways/llms/standard/anthropic",
+      headers: { "X-AG-Credentials": "ApiKey mock-gateway-credentials" },
+      apiKey: "agenta-gateway",
+    });
+  });
+
+  it("a non-gateway direct-deployment connection carries no headers or placeholder key (unchanged)", () => {
+    const request = {
+      harness: "pi_core",
+      modelConnection: {
+        provider: "anthropic",
+        deployment: "claude-sonnet-4-5",
+        endpoint: { baseUrl: "https://proxy.example.test/anthropic" },
+        credentialMode: "env",
+        credentials: [],
+      },
+    } as AgentRunRequest;
+
+    const env = buildPiExtensionEnv(request);
+
+    assert.deepEqual(JSON.parse(env[PI_MODEL_PROVIDER_OVERRIDE_ENV]), {
+      provider: "anthropic",
+      baseUrl: "https://proxy.example.test/anthropic",
+    });
   });
 
   it("rejects malformed provider endpoint overrides", () => {
@@ -143,23 +413,18 @@ describe("buildPiExtensionEnv", () => {
       () =>
         buildPiExtensionEnv(
           request("bad/provider", "https://proxy.example.test"),
-          false,
         ),
       /invalid provider/,
     );
     assert.throws(
       () =>
-        buildPiExtensionEnv(
-          request("anthropic", "http://proxy.example.test"),
-          false,
-        ),
-      /must be an HTTPS URL/,
+        buildPiExtensionEnv(request("anthropic", "http://proxy.example.test")),
+      /must be HTTPS, or an HTTP Agenta gateway route/,
     );
     assert.throws(
       () =>
         buildPiExtensionEnv(
           request("anthropic", "https://user:pass@proxy.example.test"),
-          false,
         ),
       /without credentials/,
     );
@@ -211,25 +476,33 @@ describe("buildPiExtensionEnv", () => {
       ],
     } as AgentRunRequest;
 
-    const env = buildPiExtensionEnv(request, true, {
-      relayDir: "/tmp/relay",
+    const relayDir = join(tempDir("agenta-pi-specs-"), "relay");
+    const env = buildPiExtensionEnv(request, {
+      relayDir,
       usageOutPath: "/tmp/usage.json",
-      otlpAuthFilePath: "/tmp/otlp-auth",
+      telemetryControlPath: "/tmp/telemetry/current.control.json",
     });
-
-    assert.equal(env.TRACEPARENT, request.context?.propagation?.traceparent);
-    assert.equal(
-      env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT,
-      request.telemetry?.exporters?.otlp?.endpoint,
+    writePiToolSpecsFileLocal(
+      resolvePiToolSpecsDelivery(request.customTools ?? [], relayDir)!,
     );
-    // the bearer rides a file path, never a plain env var the harness can read/echo.
-    assert.equal(env.AGENTA_AGENT_OTLP_AUTH_FILE, "/tmp/otlp-auth");
+
+    assert.equal(
+      env.AGENTA_AGENT_TELEMETRY_CONTROL_PATH,
+      "/tmp/telemetry/current.control.json",
+    );
+    assert.equal(env.TRACEPARENT, undefined);
+    assert.equal(env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT, undefined);
     assert.equal(env.OTEL_EXPORTER_OTLP_HEADERS, undefined);
-    assert.equal(env.AGENTA_AGENT_CONTENT_CAPTURE_ENABLED, "false");
-    assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, "/tmp/relay");
+    assert.equal(env.AGENTA_AGENT_CONTENT_CAPTURE_ENABLED, undefined);
+    assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, relayDir);
     assert.equal(env.AGENTA_AGENT_USAGE_CAPTURE_PATH, "/tmp/usage.json");
 
-    const specs = JSON.parse(env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS ?? "[]");
+    // The environment carries only the tool-spec file path.
+    assert.equal(env[PUBLIC_SPECS_FILE_ENV], `${relayDir}.tool-specs.json`);
+    assert.equal(env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS, undefined);
+    const specs = JSON.parse(
+      readFileSync(env[PUBLIC_SPECS_FILE_ENV] ?? "", "utf-8"),
+    );
     assert.deepEqual(specs, [
       {
         name: "safe_tool",
@@ -255,42 +528,39 @@ describe("buildPiExtensionEnv", () => {
   });
 
   it("omits trace and tool env when tracing and relay are disabled", () => {
-    const env = buildPiExtensionEnv(
-      {
-        context: {
-          propagation: {
-            traceparent:
-              "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
-          },
+    const env = buildPiExtensionEnv({
+      context: {
+        propagation: {
+          traceparent:
+            "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
         },
-        telemetry: { capture: { content: { enabled: true } } },
-        customTools: [{ name: "safe_tool", kind: "callback" }],
-      } as AgentRunRequest,
-      false,
-    );
+      },
+      telemetry: { capture: { content: { enabled: true } } },
+      customTools: [{ name: "safe_tool", kind: "callback" }],
+    } as AgentRunRequest);
 
     assert.equal(env.TRACEPARENT, undefined);
-    assert.equal(env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS, undefined);
+    assert.equal(env[PUBLIC_SPECS_FILE_ENV], undefined);
     assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, undefined);
     assert.equal(env[PI_MODEL_PROVIDER_OVERRIDE_ENV], undefined);
   });
 
   it("sets builtin gating env WITHOUT a relay dir (the gate rides the ACP dialog plane)", () => {
-    const env = buildPiExtensionEnv({} as AgentRunRequest, false, {
+    const env = buildPiExtensionEnv({} as AgentRunRequest, {
       relayDir: "/tmp/relay",
       builtinGatingActive: true,
     });
 
     assert.equal(env.AGENTA_AGENT_BUILTIN_GATING, "1");
     assert.equal(env.AGENTA_AGENT_TOOLS_RELAY_DIR, undefined);
-    assert.equal(env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS, undefined);
+    assert.equal(env[PUBLIC_SPECS_FILE_ENV], undefined);
   });
 
   it("always sets the builtin activation env and never a grant list", () => {
-    const gating = buildPiExtensionEnv({} as AgentRunRequest, false, {
+    const gating = buildPiExtensionEnv({} as AgentRunRequest, {
       builtinGatingActive: true,
     });
-    const noGating = buildPiExtensionEnv({} as AgentRunRequest, false, {});
+    const noGating = buildPiExtensionEnv({} as AgentRunRequest, {});
 
     assert.equal(gating.AGENTA_AGENT_BUILTIN_ACTIVATION, "1");
     assert.equal(noGating.AGENTA_AGENT_BUILTIN_ACTIVATION, "1");
@@ -300,74 +570,31 @@ describe("buildPiExtensionEnv", () => {
   });
 
   it("accepts snake_case tool schemas from older Python wire payloads", () => {
-    const env = buildPiExtensionEnv(
+    const customTools = [
       {
-        customTools: [
-          {
-            name: "request_connection",
-            kind: "client",
-            input_schema: {
-              type: "object",
-              required: ["integration"],
-              properties: { integration: { type: "string" } },
-            },
-          },
-        ],
-      } as unknown as AgentRunRequest,
-      false,
+        name: "request_connection",
+        kind: "client",
+        input_schema: {
+          type: "object",
+          required: ["integration"],
+          properties: { integration: { type: "string" } },
+        },
+      },
+    ];
+    const env = buildPiExtensionEnv(
+      { customTools } as unknown as AgentRunRequest,
       { relayDir: "/tmp/relay" },
     );
 
-    const specs = JSON.parse(env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS ?? "[]");
+    assert.equal(env[PUBLIC_SPECS_FILE_ENV], "/tmp/relay.tool-specs.json");
+    const specs = JSON.parse(
+      resolvePiToolSpecsDelivery(customTools as never, "/tmp/relay")!.contents,
+    );
     assert.deepEqual(specs[0].inputSchema, {
       type: "object",
       required: ["integration"],
       properties: { integration: { type: "string" } },
     });
-  });
-
-  it("carries the loaded skill names under tracing (F-029)", () => {
-    const request = {
-      context: {
-        propagation: {
-          traceparent:
-            "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
-        },
-      },
-      telemetry: { capture: { content: { enabled: true } } },
-    } as AgentRunRequest;
-
-    const env = buildPiExtensionEnv(request, true, {
-      skills: ["weather-oracle", "_agenta.agenta-getting-started"],
-    });
-
-    assert.deepEqual(JSON.parse(env.AGENTA_AGENT_SKILLS_LOADED ?? "[]"), [
-      "weather-oracle",
-      "_agenta.agenta-getting-started",
-    ]);
-  });
-
-  it("omits the loaded skills env when there are none or tracing is off", () => {
-    const request = {
-      context: {
-        propagation: {
-          traceparent:
-            "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
-        },
-      },
-      telemetry: { capture: { content: { enabled: true } } },
-    } as AgentRunRequest;
-
-    assert.equal(
-      buildPiExtensionEnv(request, true, { skills: [] })
-        .AGENTA_AGENT_SKILLS_LOADED,
-      undefined,
-    );
-    assert.equal(
-      buildPiExtensionEnv(request, false, { skills: ["x"] })
-        .AGENTA_AGENT_SKILLS_LOADED,
-      undefined,
-    );
   });
 
   describe("hop-1 response-watch kill switch forwarding", () => {
@@ -384,7 +611,7 @@ describe("buildPiExtensionEnv", () => {
 
     it("forwards the flag verbatim into the sandbox env when the operator set it", () => {
       process.env[FLAG] = "false";
-      const env = buildPiExtensionEnv(relayRequest, false, {
+      const env = buildPiExtensionEnv(relayRequest, {
         relayDir: "/tmp/relay",
       });
       assert.equal(env[FLAG], "false");
@@ -392,7 +619,7 @@ describe("buildPiExtensionEnv", () => {
 
     it("omits the flag when the operator did not set it (writer defaults to true)", () => {
       delete process.env[FLAG];
-      const env = buildPiExtensionEnv(relayRequest, false, {
+      const env = buildPiExtensionEnv(relayRequest, {
         relayDir: "/tmp/relay",
       });
       assert.equal(env[FLAG], undefined);
@@ -400,35 +627,166 @@ describe("buildPiExtensionEnv", () => {
   });
 
   it("never leaks the bearer into env when no auth file path is given", () => {
-    const env = buildPiExtensionEnv(
-      {
-        telemetry: {
-          exporters: {
-            otlp: {
-              endpoint: "https://otlp.example.test/v1/traces",
-              headers: { authorization: "Bearer trace-token" },
-            },
+    const env = buildPiExtensionEnv({
+      telemetry: {
+        exporters: {
+          otlp: {
+            endpoint: "https://otlp.example.test/v1/traces",
+            headers: { authorization: "Bearer trace-token" },
           },
         },
-      } as AgentRunRequest,
-      true,
-    );
+      },
+    } as AgentRunRequest);
 
-    assert.equal(env.AGENTA_AGENT_OTLP_AUTH_FILE, undefined);
+    assert.equal(env.AGENTA_AGENT_TELEMETRY_CONTROL_PATH, undefined);
     assert.equal(env.OTEL_EXPORTER_OTLP_HEADERS, undefined);
     assert.equal(JSON.stringify(env).includes("trace-token"), false);
   });
 });
 
-describe("writeOtlpAuthFile", () => {
-  it("writes the bearer to a 0600 file, not env", () => {
-    const dir = tempDir("agenta-pi-otlp-auth-test-");
-    const path = join(dir, "nested", "otlp-auth");
+/**
+ * Tool specs are stored in a file so the environment remains bounded.
+ */
+const MAX_ARG_STRLEN = 131_072;
 
-    writeOtlpAuthFile(path, "Bearer trace-token");
+/** 44 tools with fat JSON Schemas: the shape that reproduced the failure in production. */
+function fatToolSpecs(count = 44) {
+  return Array.from({ length: count }, (_, i) => ({
+    name: `composio_tool_${i}`,
+    description: `Tool ${i}. ${"description text ".repeat(60)}`,
+    kind: "callback" as const,
+    inputSchema: {
+      type: "object",
+      properties: Object.fromEntries(
+        Array.from({ length: 40 }, (_, f) => [
+          `field_${f}`,
+          {
+            type: "string",
+            description: `Field ${f}. ${"schema prose ".repeat(20)}`,
+          },
+        ]),
+      ),
+    },
+  }));
+}
 
-    assert.equal(readFileSync(path, "utf-8"), "Bearer trace-token");
-    assert.equal(statSync(path).mode & 0o777, 0o600);
+describe("Pi tool specs delivery", () => {
+  it("keeps a 300 KB tool set out of the env and round-trips it through the file", () => {
+    const relayDir = join(tempDir("agenta-pi-specs-e2big-"), "relay");
+    const customTools = fatToolSpecs();
+    const request = { customTools } as unknown as AgentRunRequest;
+
+    const env = buildPiExtensionEnv(request, { relayDir });
+    const delivery = resolvePiToolSpecsDelivery(customTools as never, relayDir);
+    assert.ok(delivery);
+    writePiToolSpecsFileLocal(delivery);
+
+    assert.ok(
+      Buffer.byteLength(delivery.contents, "utf-8") > 300_000,
+      "the fixture must exceed the single-env-string limit several times over",
+    );
+    for (const [key, value] of Object.entries(env)) {
+      assert.ok(
+        Buffer.byteLength(value, "utf-8") < MAX_ARG_STRLEN,
+        `env ${key} is ${Buffer.byteLength(value, "utf-8")} bytes; execve would fail with E2BIG`,
+      );
+    }
+    assert.equal(env[PUBLIC_SPECS_FILE_ENV], piToolSpecsFilePath(relayDir));
+    assert.equal(env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS, undefined);
+    assert.deepEqual(
+      JSON.parse(readFileSync(env[PUBLIC_SPECS_FILE_ENV] ?? "", "utf-8")),
+      JSON.parse(delivery.contents),
+    );
+    assert.equal(JSON.parse(delivery.contents).length, 44);
+  });
+
+  it("puts the file beside the relay dir, which is cleared every turn", () => {
+    assert.equal(
+      piToolSpecsFilePath("/tmp/agenta/relay/session-1"),
+      "/tmp/agenta/relay/session-1.tool-specs.json",
+    );
+    assert.equal(
+      resolvePiToolSpecsDelivery([], "/tmp/relay"),
+      undefined,
+      "no tools, nothing to deliver",
+    );
+    assert.equal(
+      resolvePiToolSpecsDelivery([{ name: "t" }] as never, undefined),
+      undefined,
+      "no relay dir means no way to execute a tool, so none is advertised",
+    );
+  });
+
+  it("fails loud when the file cannot be written, rather than dropping the tools", () => {
+    const dir = tempDir("agenta-pi-specs-unwritable-");
+    // A FILE where the parent directory must be: mkdir fails with ENOTDIR.
+    const blocked = join(dir, "blocker");
+    writeFileSync(blocked, "not a directory", "utf-8");
+    const delivery = resolvePiToolSpecsDelivery(
+      [{ name: "t" }] as never,
+      join(blocked, "relay"),
+    );
+    assert.ok(delivery);
+
+    assert.throws(
+      () => writePiToolSpecsFileLocal(delivery),
+      (err: Error) => err.message === PI_TOOL_SPECS_UNAVAILABLE_MESSAGE,
+    );
+  });
+
+  it("uploads the same bytes to the deterministic in-sandbox path on Daytona", async () => {
+    const writes: Array<{ path: string; contents: string }> = [];
+    const madeDirs: string[] = [];
+    const sandbox = {
+      mkdirFs: async ({ path }: { path: string }) => {
+        madeDirs.push(path);
+      },
+      writeFsFile: async ({ path }: { path: string }, contents: string) => {
+        writes.push({ path, contents });
+      },
+    };
+    const customTools = fatToolSpecs(2);
+    const delivery = resolvePiToolSpecsDelivery(
+      customTools as never,
+      "/home/sandbox/agenta/relay/session-1",
+    );
+    assert.ok(delivery);
+
+    await uploadPiToolSpecsToSandbox(sandbox, delivery);
+
+    assert.deepEqual(madeDirs, ["/home/sandbox/agenta/relay"]);
+    assert.deepEqual(writes, [
+      {
+        path: "/home/sandbox/agenta/relay/session-1.tool-specs.json",
+        contents: delivery.contents,
+      },
+    ]);
+    // The env the sandbox was created with names exactly this path.
+    assert.equal(
+      buildPiExtensionEnv({ customTools } as unknown as AgentRunRequest, {
+        relayDir: "/home/sandbox/agenta/relay/session-1",
+      })[PUBLIC_SPECS_FILE_ENV],
+      writes[0].path,
+    );
+  });
+
+  it("fails loud when the sandbox upload fails", async () => {
+    const sandbox = {
+      mkdirFs: async () => {},
+      writeFsFile: async () => {
+        throw new Error("sandbox is gone");
+      },
+    };
+    const delivery = resolvePiToolSpecsDelivery(
+      [{ name: "t" }] as never,
+      "/home/sandbox/agenta/relay/session-1",
+    );
+    assert.ok(delivery);
+
+    await assert.rejects(
+      uploadPiToolSpecsToSandbox(sandbox, delivery),
+      (err: Error) => err.message === PI_TOOL_SPECS_UNAVAILABLE_MESSAGE,
+    );
   });
 });
 
@@ -854,6 +1212,290 @@ describe("prepareLocalPiAssets (runtime_provided runs out of the mount, read-wri
     dirs.push(runDir as string);
   });
 
+  it("reports agentDirWritable=true and prepares sessions/ on a writable mount", () => {
+    const mount = tempDir("agenta-pi-subscription-mount-");
+    writeFileSync(join(mount, "auth.json"), '{"token":"live"}', "utf-8");
+
+    const { agentDirWritable } = prepareLocalPiAssets({
+      plan: subscriptionPlan(mount) as never,
+      env: {},
+    });
+
+    assert.equal(agentDirWritable, true);
+    // The probe's side effect is exactly what Pi needs at startup; no probe file survives.
+    assert.ok(existsSync(join(mount, "sessions")));
+    assert.equal(readdirSync(join(mount, "sessions")).length, 0);
+  });
+
+  /**
+   * Pi persists session rollouts and its OAuth refresh into the mounted agent dir; on an
+   * unwritable mount it dies at startup with zero output, which the user sees as a silently
+   * stuck session. The probe must report it so the engine can fail closed with a visible error.
+   */
+  it("reports agentDirWritable=false when only sessions/ is writable", () => {
+    const mount = tempDir("agenta-pi-subscription-mount-");
+    const authFile = join(mount, "auth.json");
+    const sessionsDir = join(mount, "sessions");
+    writeFileSync(authFile, '{"token":"live"}', "utf-8");
+    mkdirSync(sessionsDir);
+    // Pi can write a rollout under
+    // sessions/, but it cannot write at the agent-dir root to refresh auth.json.
+    chmodSync(sessionsDir, 0o755);
+    chmodSync(authFile, 0o444);
+    chmodSync(mount, 0o555);
+    try {
+      const { agentDirWritable } = prepareLocalPiAssets({
+        plan: subscriptionPlan(mount) as never,
+        env: {},
+      });
+      if (typeof process.getuid === "function" && process.getuid() === 0) {
+        // root bypasses mode bits, so the probe cannot fail in a root test run
+        assert.equal(agentDirWritable, true);
+      } else {
+        assert.equal(agentDirWritable, false);
+      }
+    } finally {
+      chmodSync(mount, 0o755);
+      chmodSync(authFile, 0o644);
+    }
+  });
+
+  it("managed runs always report agentDirWritable=true (per-run dir is runtime-owned)", () => {
+    const source = tempDir("agenta-pi-managed-source-");
+    writeFileSync(join(source, "auth.json"), '{"token":"managed"}', "utf-8");
+
+    const result = prepareLocalPiAssets({
+      plan: subscriptionPlan(source, {
+        credentials: { credentialMode: "env" },
+      }) as never,
+      env: {},
+    });
+
+    assert.equal(result.agentDirWritable, true);
+    if (result.dir) dirs.push(result.dir);
+  });
+});
+
+/**
+ * Every session on one hosted subscription connection shares ONE Pi agent dir, because that dir
+ * holds `auth.json` and the lock that serializes Pi's OAuth refresh. Prompt files written there
+ * are read by every other session on the connection, and two sessions that start at once race on
+ * them. These tests drive the real wrapper `prepareLocalPiAssets` installs and resolve the prompt
+ * the way pinned Pi 0.80.6 does.
+ */
+describe("prepareLocalPiAssets (per-session prompts on a shared connection dir)", () => {
+  /** A stand-in `pi` that records the argument list it was called with. */
+  function stubPiCommand(): { command: string; argvFile: string } {
+    const dir = tempDir("agenta-pi-stub-");
+    const argvFile = join(dir, "argv.json");
+    const command = join(dir, "pi");
+    writeFileSync(
+      command,
+      [
+        "#!/bin/sh",
+        `printf '%s\\n' "$@" > ${JSON.stringify(argvFile)}`,
+        "",
+      ].join("\n"),
+      { mode: 0o700 },
+    );
+    return { command, argvFile };
+  }
+
+  /**
+   * What Pi 0.80.6 would load for this run. `--system-prompt` and `--append-system-prompt`
+   * SUPPRESS the agent-dir discovery (`resource-loader.js:332-340`); with no flag Pi falls back to
+   * `<agentDir>/SYSTEM.md` and `<agentDir>/APPEND_SYSTEM.md` (`:750-770`). Either input may be a
+   * path or literal text, and a path that exists is read (`resolvePromptInput`, `:15-29`).
+   */
+  function loadedPrompts(
+    env: Record<string, string>,
+    argvFile: string,
+  ): { system?: string; append?: string } {
+    spawnSync(env.PI_ACP_PI_COMMAND, ["--mode", "rpc", "--no-themes"], {
+      encoding: "utf-8",
+    });
+    const argv = readFileSync(argvFile, "utf-8").split("\n").slice(0, -1);
+    // THE AGENT DIR IS THE DAEMON ENV'S, exactly as Pi resolves it. Reading the run's own prompt
+    // dir instead would hide the whole defect: production points Pi at the shared connection dir.
+    const agentDir = env.PI_CODING_AGENT_DIR as string;
+    const read = (path: string): string =>
+      existsSync(path) ? readFileSync(path, "utf-8") : path;
+    const discovered = (name: string): string | undefined => {
+      const path = join(agentDir, name);
+      return existsSync(path) ? readFileSync(path, "utf-8") : undefined;
+    };
+    /**
+     * `systemPromptSource ?? discoverSystemPromptFile()`. A flag VALUE that is present, even an
+     * empty one, is not nullish, so it suppresses the discovery; `resolvePromptInput("")` then
+     * yields undefined, which is Pi's own default. Only an absent flag falls back to the dir.
+     */
+    const resolve = (flag: string, name: string): string | undefined => {
+      const at = argv.indexOf(flag);
+      if (at < 0) return discovered(name);
+      const value = argv[at + 1] as string;
+      return value === "" ? undefined : read(value);
+    };
+    return {
+      system: resolve("--system-prompt", "SYSTEM.md"),
+      append: resolve("--append-system-prompt", "APPEND_SYSTEM.md"),
+    };
+  }
+
+  function subscriptionRun(
+    connectionDir: string,
+    prompt: {
+      hasSystemPrompt: boolean;
+      systemPrompt?: string;
+      appendSystemPrompt?: string;
+    },
+  ): { env: Record<string, string>; argvFile: string; promptDir?: string } {
+    const { command, argvFile } = stubPiCommand();
+    const env: Record<string, string> = { PI_ACP_PI_COMMAND: command };
+    const { promptDir } = prepareLocalPiAssets({
+      plan: {
+        isPi: true,
+        isDaytona: false,
+        credentials: {
+          credentialMode: "runtime_provided",
+          subscriptionHome: connectionDir,
+        },
+        workspace: { skillDirs: [], sourcePiAgentDir: "/unused" },
+        prompt: {
+          systemPrompt: undefined,
+          appendSystemPrompt: undefined,
+          ...prompt,
+        },
+      } as never,
+      env,
+    });
+    if (promptDir) dirs.push(promptDir);
+    return { env, argvFile, promptDir };
+  }
+
+  it("keeps two sessions' prompts apart, and leaves the shared dir with none", () => {
+    const connectionDir = tempDir("agenta-pi-connection-");
+    writeFileSync(join(connectionDir, "auth.json"), '{"t":"live"}', "utf-8");
+
+    // Both sessions are prepared BEFORE either starts Pi: this is the concurrent case, where
+    // deleting a leftover file at start time would not have been enough.
+    const a = subscriptionRun(connectionDir, {
+      hasSystemPrompt: true,
+      systemPrompt: "you are agent A",
+    });
+    const b = subscriptionRun(connectionDir, {
+      hasSystemPrompt: true,
+      appendSystemPrompt: "agent B extra framing",
+    });
+
+    assert.deepEqual(loadedPrompts(a.env, a.argvFile), {
+      system: "you are agent A",
+      append: undefined,
+    });
+    assert.deepEqual(loadedPrompts(b.env, b.argvFile), {
+      system: undefined,
+      append: "agent B extra framing",
+    });
+    // Nothing was written into the dir the two sessions share.
+    assert.equal(existsSync(join(connectionDir, "SYSTEM.md")), false);
+    assert.equal(existsSync(join(connectionDir, "APPEND_SYSTEM.md")), false);
+    // The login the dir exists for is untouched.
+    assert.ok(existsSync(join(connectionDir, "auth.json")));
+  });
+
+  it("does not read a prompt file another writer left in the shared dir", () => {
+    const connectionDir = tempDir("agenta-pi-connection-");
+    // What an earlier runner build wrote, or anything else with access to the dir.
+    writeFileSync(join(connectionDir, "SYSTEM.md"), "you are agent A", "utf-8");
+    writeFileSync(
+      join(connectionDir, "APPEND_SYSTEM.md"),
+      "stale extra",
+      "utf-8",
+    );
+
+    const run = subscriptionRun(connectionDir, { hasSystemPrompt: false });
+
+    assert.deepEqual(loadedPrompts(run.env, run.argvFile), {
+      system: undefined,
+      append: undefined,
+    });
+    // Both were also cleared out of the dir the runner owns, so nothing is left to find.
+    assert.equal(existsSync(join(connectionDir, "SYSTEM.md")), false);
+    assert.equal(existsSync(join(connectionDir, "APPEND_SYSTEM.md")), false);
+  });
+
+  /**
+   * The sequence the wrapper's empty flags exist for. Suppose the clearing step above had not run,
+   * or another writer put the file back between the two runs: run B must still see nothing.
+   */
+  it("gives run B no prompt after run A had one, even with a file back in the shared dir", () => {
+    const connectionDir = tempDir("agenta-pi-connection-");
+
+    const a = subscriptionRun(connectionDir, {
+      hasSystemPrompt: true,
+      systemPrompt: "you are agent A",
+      appendSystemPrompt: "agent A framing",
+    });
+    assert.deepEqual(loadedPrompts(a.env, a.argvFile), {
+      system: "you are agent A",
+      append: "agent A framing",
+    });
+
+    // Put both files back, as a writer this runner does not control would.
+    writeFileSync(join(connectionDir, "SYSTEM.md"), "you are agent A", "utf-8");
+    writeFileSync(
+      join(connectionDir, "APPEND_SYSTEM.md"),
+      "agent A framing",
+      "utf-8",
+    );
+
+    const b = subscriptionRun(connectionDir, { hasSystemPrompt: false });
+    assert.deepEqual(loadedPrompts(b.env, b.argvFile), {
+      system: undefined,
+      append: undefined,
+    });
+  });
+
+  it("keeps an appended prompt from picking up a shared base prompt", () => {
+    const connectionDir = tempDir("agenta-pi-connection-");
+    const run = subscriptionRun(connectionDir, {
+      hasSystemPrompt: true,
+      appendSystemPrompt: "only framing",
+    });
+    // Between the wrapper being written and Pi starting, as a concurrent writer would.
+    writeFileSync(join(connectionDir, "SYSTEM.md"), "you are agent A", "utf-8");
+
+    assert.deepEqual(loadedPrompts(run.env, run.argvFile), {
+      system: undefined,
+      append: "only framing",
+    });
+  });
+
+  it("reports no prompt dir when the daemon environment names no pi command", () => {
+    const connectionDir = tempDir("agenta-pi-connection-");
+    const env: Record<string, string> = {};
+
+    const { promptDir } = prepareLocalPiAssets({
+      plan: {
+        isPi: true,
+        isDaytona: false,
+        credentials: {
+          credentialMode: "runtime_provided",
+          subscriptionHome: connectionDir,
+        },
+        workspace: { skillDirs: [], sourcePiAgentDir: "/unused" },
+        prompt: {
+          hasSystemPrompt: true,
+          systemPrompt: "you are agent A",
+          appendSystemPrompt: undefined,
+        },
+      } as never,
+      env,
+    });
+
+    // The caller fails the run closed on this; it must never fall back to the shared dir.
+    assert.equal(promptDir, undefined);
+    assert.equal(existsSync(join(connectionDir, "SYSTEM.md")), false);
+  });
 });
 
 describe("sandbox uploads", () => {
@@ -882,6 +1524,60 @@ describe("sandbox uploads", () => {
         body: "child",
       },
       { op: "write", path: "/agent/skills/custom/top.txt", body: "top" },
+    ]);
+  });
+
+  /**
+   * A Daytona subscription agent dir is keyed by connection and survives a warm reuse, so a
+   * prompt this run does not have must be removed rather than left for the next session.
+   */
+  it("removes the prompt files a sandbox run does not have", async () => {
+    const writes: Array<{ path: string; body: string }> = [];
+    const commands: string[] = [];
+    const sandbox = {
+      mkdirFs: async () => {},
+      writeFsFile: async ({ path }: { path: string }, body: string) =>
+        writes.push({ path, body }),
+      runProcess: async ({ args }: { args: string[] }) =>
+        commands.push(args[1] as string),
+    };
+
+    await uploadSystemPromptToSandbox(
+      sandbox,
+      "/home/sandbox/agenta/subscriptions/c1",
+      undefined,
+      "only an append prompt",
+    );
+
+    assert.deepEqual(writes, [
+      {
+        path: "/home/sandbox/agenta/subscriptions/c1/APPEND_SYSTEM.md",
+        body: "only an append prompt",
+      },
+    ]);
+    assert.deepEqual(commands, [
+      "rm -f '/home/sandbox/agenta/subscriptions/c1/SYSTEM.md'",
+    ]);
+  });
+
+  it("removes both prompt files when a sandbox run has no prompt", async () => {
+    const commands: string[] = [];
+    const sandbox = {
+      mkdirFs: async () => {},
+      writeFsFile: async () => assert.fail("nothing to write"),
+      runProcess: async ({ args }: { args: string[] }) =>
+        commands.push(args[1] as string),
+    };
+
+    await uploadSystemPromptToSandbox(
+      sandbox,
+      "/pi-agent",
+      undefined,
+      undefined,
+    );
+
+    assert.deepEqual(commands, [
+      "rm -f '/pi-agent/SYSTEM.md' '/pi-agent/APPEND_SYSTEM.md'",
     ]);
   });
 
@@ -940,5 +1636,102 @@ describe("sandbox uploads", () => {
 
     await materializeDaytonaPiSkillSnapshot(sandbox, snapshot);
     assert.equal(moves.length, 1);
+  });
+});
+
+describe("Pi retries on a run through the LLM gateway", () => {
+  const plan = (throughGateway: boolean, sourcePiAgentDir = "/unused") => ({
+    isPi: true,
+    isDaytona: false,
+    credentials: { throughGateway },
+    workspace: { skillDirs: [], sourcePiAgentDir },
+    prompt: {
+      hasSystemPrompt: false,
+      systemPrompt: undefined,
+      appendSystemPrompt: undefined,
+    },
+  });
+
+  it("keeps the operator's settings and their other retry fields", () => {
+    const merged = JSON.parse(
+      withGatewayPiRetry('{"theme":"dark","retry":{"maxRetries":5,"baseDelayMs":10}}'),
+    );
+
+    assert.deepEqual(merged, {
+      theme: "dark",
+      retry: { maxRetries: 1, baseDelayMs: 10 },
+    });
+    assert.deepEqual(JSON.parse(withGatewayPiRetry(undefined)), {
+      retry: GATEWAY_PI_RETRY,
+    });
+    assert.deepEqual(JSON.parse(withGatewayPiRetry("not json")), {
+      retry: GATEWAY_PI_RETRY,
+    });
+  });
+
+  it("writes one retry into a local run's settings.json when the run goes through the gateway", () => {
+    const source = tempDir("agenta-pi-gateway-retry-source-");
+    writeFileSync(join(source, "settings.json"), '{"model":"x"}', "utf-8");
+
+    const { dir: runDir } = prepareLocalPiAssets({
+      plan: plan(true, source),
+      env: {},
+    });
+    dirs.push(runDir as string);
+
+    assert.deepEqual(
+      JSON.parse(readFileSync(join(runDir as string, "settings.json"), "utf-8")),
+      { model: "x", retry: { maxRetries: 1 } },
+    );
+  });
+
+  it("leaves Pi's own retries on a run that goes straight to the provider", () => {
+    const { dir: runDir } = prepareLocalPiAssets({ plan: plan(false), env: {} });
+    dirs.push(runDir as string);
+
+    assert.equal(existsSync(join(runDir as string, "settings.json")), false);
+  });
+
+  it("merges the retry into a Daytona sandbox's settings.json", async () => {
+    const written: Record<string, string> = {};
+    const sandbox = {
+      readFsFile: async () => new TextEncoder().encode('{"model":"y"}'),
+      mkdirFs: async () => {},
+      writeFsFile: async ({ path }: { path: string }, body: string) => {
+        written[path] = body;
+      },
+    };
+
+    await uploadGatewayPiRetryToSandbox(sandbox, "/home/sandbox/.pi/agent");
+
+    assert.deepEqual(JSON.parse(written["/home/sandbox/.pi/agent/settings.json"]), {
+      model: "y",
+      retry: { maxRetries: 1 },
+    });
+  });
+
+  it("gives an in-process session the retry it is handed", async () => {
+    const cwd = tempDir("pi-gateway-retry-inprocess-");
+    const opened = await openPiSession({
+      cwd,
+      sessionDir: join(cwd, "sessions"),
+      skillDir: undefined,
+      modelsPath: undefined,
+      modelEnv: {},
+      retry: GATEWAY_PI_RETRY,
+      credentials: new InMemoryCredentialStore(),
+      systemPrompt: undefined,
+      appendSystemPrompt: undefined,
+      tools: [],
+      extensionEnv: {},
+      uiContext: new ExtensionUiChannel(),
+      log: () => {},
+    });
+    try {
+      assert.equal(opened.session.settingsManager.getRetrySettings().maxRetries, 1);
+    } finally {
+      opened.session.dispose();
+      await opened.cleanup();
+    }
   });
 });

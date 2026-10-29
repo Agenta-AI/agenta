@@ -12,6 +12,13 @@ import {
 
 import {traceSpanMolecule} from "@agenta/entities/trace"
 import {
+    buildDecodedJsonOutput,
+    normalizeEscapedLineBreaks,
+    parseStructuredJson,
+} from "@agenta/observability-ui/drillIn"
+import {getDefaultJsonViewMode} from "@agenta/observability-ui/drillIn"
+import {sanitizeDataWithBlobUrls} from "@agenta/shared/utils"
+import {
     CopyButton,
     Editor as EditorWrapper,
     EditorProvider,
@@ -38,17 +45,12 @@ import yaml from "js-yaml"
 import dynamic from "next/dynamic"
 
 import {copyToClipboard} from "@/oss/lib/helpers/copyToClipboard"
-import {getStringOrJson, sanitizeDataWithBlobUrls} from "@/oss/lib/helpers/utils"
+import {getStringOrJson} from "@/oss/lib/helpers/utils"
 
-import {
-    buildDecodedJsonOutput,
-    normalizeEscapedLineBreaks,
-    parseStructuredJson,
-} from "./decodedJsonHelpers"
 import type {DrillInContentProps} from "./DrillInContent"
 import {EntityDrillInView} from "./EntityDrillInView"
 import {PrettyJsonView} from "./PrettyJsonView"
-import {getDefaultJsonViewMode} from "./viewModes"
+
 const ImagePreview = dynamic(() => import("@agenta/ui").then((mod) => mod.ImagePreview), {
     ssr: false,
 })
@@ -225,7 +227,7 @@ const TextModeViewer = ({
             showToolbar={false}
             enableTokens={false}
             readOnly
-            className="[&_.editor-inner]:!border-0 [&_.editor-inner]:!rounded-none [&_.editor-container]:!bg-transparent [&_.editor-input]:!min-h-0 [&_.editor-input]:!px-4 [&_.editor-input]:!py-[6px] [&_.editor-input]:!text-[12.5px] [&_.editor-paragraph]:!mb-1 [&_.editor-paragraph:last-child]:!mb-0 [&_.editor-input.markdown-view_.editor-code]:!m-0 [&_.editor-input.markdown-view_.editor-code]:!p-0 [&_.editor-input.markdown-view_.editor-code]:!bg-transparent"
+            className="[&_.editor-inner]:!border-0 [&_.editor-inner]:!rounded-none [&_.editor-container]:!bg-transparent [&_.editor-input]:!min-h-0 [&_.editor-input]:!px-4 [&_.editor-input]:!py-[6px] [&_.editor-input]:!text-xs [&_.editor-paragraph]:!mb-1 [&_.editor-paragraph:last-child]:!mb-0 [&_.editor-input.markdown-view_.editor-code]:!m-0 [&_.editor-input.markdown-view_.editor-code]:!p-0 [&_.editor-input.markdown-view_.editor-code]:!bg-transparent"
         >
             <MarkdownModeSync isMarkdownView={mode === "text"} />
             <EditorWrapper
@@ -610,7 +612,7 @@ export const TraceSpanDrillInView = memo(
                                     >
                                         <div className="w-full flex items-start gap-1">
                                             <FileTextIcon size={16} className="shrink-0" />
-                                            <span className="text-[10px] truncate">
+                                            <span className="text-[12px] truncate">
                                                 {file.filename || `File ${index + 1}`}
                                             </span>
                                         </div>

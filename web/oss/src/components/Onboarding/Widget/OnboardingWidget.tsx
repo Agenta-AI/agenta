@@ -2,6 +2,7 @@
 
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {traceCountAtom, tracesQueryAtom} from "@agenta/observability"
 import {useNextStep} from "@agentaai/nextstepjs"
 import {CaretDown, CaretUp, RocketLaunch, X} from "@phosphor-icons/react"
 import {Button, Collapse, message, Typography} from "antd"
@@ -34,7 +35,6 @@ import {
     firstIncompleteSectionIdAtom,
     setWidgetSectionManuallyCollapsedAtom,
 } from "@/oss/lib/onboarding/widget"
-import {traceCountAtom, tracesQueryAtom} from "@/oss/state/newObservability/atoms/queries"
 
 import {ANNOTATE_TRACES_TOUR_ID, registerAnnotateTracesTour} from "../tours/annotateTracesTour"
 import {DEPLOY_PROMPT_TOUR_ID, registerDeployPromptTour} from "../tours/deployPromptTour"

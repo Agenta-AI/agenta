@@ -13,6 +13,14 @@ from pydantic import BaseModel
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse
 
+from oss.src.core.access.principals import access_denied_error
+from oss.src.core.access.service import get_access_service
+from oss.src.core.access.types import AccessDenied
+from oss.src.core.access.dtos import RunEnvelope
+from oss.src.core.access.principals import child_envelope
+from oss.src.core.sharing.admission import CHILD_RUN_BOUNDARY, RunAdmission
+from oss.src.core.sharing.types import AdmissionDenied
+from oss.src.middlewares.auth import request_run_envelope
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, invalidate_cache, set_cache
@@ -48,6 +56,9 @@ from oss.src.core.tools.dtos import (
     ToolResult,
     ToolResultData,
     #
+    AgentError,
+    GatewaySearchResults,
+    #
     CapabilitiesResult,
 )
 from oss.src.core.tools.exceptions import (
@@ -57,17 +68,30 @@ from oss.src.core.tools.exceptions import (
     ConnectionInvalidError,
     ConnectionNotFoundError,
     DiscoveryUnsupportedError,
+    ProviderNotConfiguredError,
     ProviderNotFoundError,
+    ToolKeyNotFoundError,
+    ToolNotInIntegrationError,
     ToolSlugInvalidError,
 )
 from oss.src.core.tools.service import (
     ToolsService,
 )
+from oss.src.core.gateway.connections.exceptions import (
+    AdapterError as ConnectionAdapterError,
+)
 from oss.src.core.gateway.connections.utils import decode_oauth_state
 from oss.src.core.workflows.service import WorkflowsService
+from oss.src.core.mounts.service import MountsService
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.tools.exceptions import PlatformToolHandlerError
 from oss.src.core.tools.platform_handlers import (
+    COMMIT_REVISION_CALL_REF,
+    CREATE_APP_CALL_REF,
+    LIST_STARTERS_CALL_REF,
+    READ_CONFIG_CALL_REF,
+    required_agent_owner,
+    required_envelope,
     dispatch_platform_tool_handler,
     is_reserved_agenta_call_ref,
     required_elevated_permission,
@@ -82,6 +106,15 @@ from oss.src.utils.env import env
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
+from oss.src.apis.fastapi.sharing.utils import (
+    agent_owner_for_request,
+    allow_agent,
+    allow_resource,
+    artifact_id_of,
+    not_found_exception,
+    session_resource,
+)
+from oss.src.core.access.permissions.types import Permission as _Permission
 
 # A workflow referenced as an agent tool (a ``type:"reference"`` tool) carries this call_ref
 # prefix. Distinct from the Composio 5-segment grammar (``tools.{provider}.{integration}.
@@ -89,18 +122,40 @@ from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 # ``workflow.variant.{slug}[.{version}]`` or ``workflow.environment.{environment}.{slug}``.
 _WORKFLOW_CALL_REF_PREFIX = "workflow."
 
+# The two runtime gateway tools. The names carry no integration, connection, action or
+# policy: the caller sends resource identity in ``context`` instead (contracts §6).
+_GATEWAY_SEARCH_CALL_REF = "gateway.search"
+_GATEWAY_RUN_CALL_REF = "gateway.run"
+
 _SLUG_SEGMENT_RE = re.compile(r"[a-zA-Z0-9_-]+")
 
 log = get_module_logger(__name__)
 
 
+def _upstream_status(error: AdapterError) -> Optional[int]:
+    """The provider's own HTTP status, when the failure carries one."""
+    cause = error.__cause__
+    if isinstance(cause, httpx.HTTPStatusError) and cause.response is not None:
+        return cause.response.status_code
+    return None
+
+
+def _is_retryable_upstream(error: AdapterError) -> bool:
+    """A provider 4xx means the request itself was wrong, so repeating it cannot work."""
+    upstream_status = _upstream_status(error)
+    return upstream_status is None or upstream_status >= 500
+
+
 def handle_adapter_exceptions():
     """Map provider/adapter failures to HTTP, surfacing the upstream detail.
 
-    Unknown providers → 404. Any upstream failure (Composio 4xx such as a
-    rejected argument set, or a malformed response) → 424 carrying the
-    provider's own message so the client can show it instead of a generic 500.
-    A true upstream 5xx → 502.
+    Unknown providers, and tool keys the integration's catalog does not hold → 404.
+    A recognized provider missing required configuration (e.g. composio without
+    COMPOSIO_API_KEY) → 503, naming the env var, so a self-hoster can tell
+    "not set up" from "endpoint missing".
+    Any upstream failure (Composio 4xx such as a rejected argument set, or a
+    malformed response) → 424 carrying the provider's own message so the
+    client can show it instead of a generic 500. A true upstream 5xx → 502.
     """
 
     def decorator(func):
@@ -108,20 +163,24 @@ def handle_adapter_exceptions():
         async def wrapper(*args, **kwargs):
             try:
                 return await func(*args, **kwargs)
+            except ProviderNotConfiguredError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=str(e),
+                ) from e
             except ProviderNotFoundError as e:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=str(e),
+                ) from e
+            except ActionNotFoundError as e:
                 raise HTTPException(
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=str(e),
                 ) from e
             except AdapterError as e:
                 detail = e.detail or e.message
-                cause = e.__cause__
-                upstream_status = (
-                    cause.response.status_code
-                    if isinstance(cause, httpx.HTTPStatusError)
-                    and cause.response is not None
-                    else None
-                )
+                upstream_status = _upstream_status(e)
                 if upstream_status is not None and upstream_status >= 500:
                     raise HTTPException(
                         status_code=status.HTTP_502_BAD_GATEWAY,
@@ -137,20 +196,231 @@ def handle_adapter_exceptions():
     return decorator
 
 
+def _tool_result(
+    *,
+    body: ToolCall,
+    content: str,
+    successful: bool,
+    message: Optional[str] = None,
+) -> ToolCallResponse:
+    """Wrap a tool result for the caller, echoing the call id it must be matched to."""
+    return ToolCallResponse(
+        call=ToolResult(
+            id=uuid4(),
+            data=ToolResultData(
+                tool_call_id=body.data.id,
+                content=content,
+            ),
+            status=Status(
+                timestamp=datetime.now(timezone.utc),
+                code="STATUS_CODE_OK" if successful else "STATUS_CODE_ERROR",
+                message=message,
+            ),
+        )
+    )
+
+
+def _invalid_arguments(
+    *,
+    body: ToolCall,
+    message: str,
+    next_step: str,
+) -> ToolCallResponse:
+    """Refuse a malformed argument payload. Never repaired, never coerced to ``{}``."""
+    return _agent_error_result(
+        body=body,
+        error=AgentError(
+            code="invalid_arguments",
+            message=message,
+            retryable=False,
+            next_step=next_step,
+        ),
+    )
+
+
+def _agent_error_result(*, body: ToolCall, error: AgentError) -> ToolCallResponse:
+    """An expected failure the model can act on, over HTTP 200.
+
+    The runner hides a non-2xx body from the model, so an error that must reach the
+    model rides a 200 with ``STATUS_CODE_ERROR`` and the envelope as the content.
+    """
+    return _tool_result(
+        body=body,
+        content=error.model_dump_json(exclude_none=True),
+        successful=False,
+        message=error.message,
+    )
+
+
+async def _deny_child_run(
+    *,
+    body: ToolCall,
+    child: RunEnvelope,
+) -> Optional[ToolCallResponse]:
+    """A child run is rechecked as the parent's principal (`RUN_WORKFLOWS`). A refusal
+    is a tool result the model can read, not an HTTP error."""
+
+    try:
+        await get_access_service().require(
+            envelope=child, action=Permission.RUN_WORKFLOWS
+        )
+        return None
+    except AccessDenied as denied:
+        return _agent_error_result(
+            body=body,
+            error=access_denied_error(
+                decision=denied.decision,
+                principal_kind=child.authority.principal.kind,
+                project_id=child.authority.project_id,
+            ),
+        )
+
+
+def _admission_error_result(
+    *,
+    body: ToolCall,
+    child: RunEnvelope,
+    refusal: AdmissionDenied,
+) -> ToolCallResponse:
+    """A child run into an agent its principal may not run: a tool result the model
+    can read (`access_denied`), not an HTTP error."""
+
+    return _agent_error_result(
+        body=body,
+        error=access_denied_error(
+            decision=refusal.decision,
+            principal_kind=child.authority.principal.kind,
+            project_id=child.authority.project_id,
+        ),
+    )
+
+
+# The reserved tools that act on an agent the arguments name (by its variant), with the
+# argument key that carries it, those that read an agent's drive by its artifact id, and
+# those that act on a session's drive. The ids are
+# "bound from the run" by the runner, but a direct caller of /tools/call sets them: each
+# is checked against the item's policy before the handler runs.
+_AGENT_TARGET_KEYS = {
+    READ_CONFIG_CALL_REF: "target",
+    COMMIT_REVISION_CALL_REF: "workflow_revision",
+}
+_SESSION_TARGET_ACTIONS = {
+    CREATE_APP_CALL_REF: _Permission.RUN_SESSIONS,
+}
+# The reserved tools that read an agent's drive by its artifact id.
+_AGENT_ARTIFACT_TARGETS = {LIST_STARTERS_CALL_REF}
+
+
+def _arguments_dict(arguments: Any) -> Optional[dict]:
+    if isinstance(arguments, dict):
+        return dict(arguments)
+    if isinstance(arguments, str):
+        try:
+            parsed = json.loads(arguments)
+        except ValueError:
+            return None
+        return parsed if isinstance(parsed, dict) else None
+    return None
+
+
+async def _checked_reserved_arguments(
+    request: Request,
+    *,
+    call_ref: str,
+    arguments: Any,
+    workflows_service: Any,
+) -> Any:
+    """The arguments the handler runs with, after the policy of the agent or session they
+    name. A hidden agent's variant becomes an id that names nothing, so the handler
+    answers exactly what it answers for an unknown variant. A hidden session answers the
+    canonical not-found body: an unknown id creates its drive, a hidden one must not.
+    Arguments the handler would refuse anyway (not an object, no id) pass unchanged."""
+
+    if call_ref in _AGENT_TARGET_KEYS:
+        parsed = _arguments_dict(arguments)
+        key = _AGENT_TARGET_KEYS[call_ref]
+        target = parsed.get(key) if parsed is not None else None
+        raw = target.get("workflow_variant_id") if isinstance(target, dict) else None
+        try:
+            variant_id = UUID(str(raw)) if raw else None
+        except ValueError:
+            variant_id = None
+        if variant_id is None or workflows_service is None:
+            return arguments
+        variant = await workflows_service.fetch_workflow_variant(
+            project_id=UUID(str(request.state.project_id)),
+            workflow_variant_ref=Reference(id=variant_id),
+        )
+        if variant is None or await allow_agent(
+            request,
+            action=_Permission.VIEW_WORKFLOWS,
+            artifact_id=artifact_id_of(variant),
+        ):
+            return arguments
+        parsed[key] = {**target, "workflow_variant_id": str(uuid4())}
+        return parsed
+
+    if call_ref in _AGENT_ARTIFACT_TARGETS:
+        parsed = _arguments_dict(arguments)
+        raw = parsed.get("artifact_id") if parsed is not None else None
+        if not isinstance(raw, str) or not raw.strip():
+            return arguments
+        try:
+            artifact_id = UUID(raw.strip())
+        except ValueError:
+            return arguments
+        if await allow_agent(
+            request, action=_Permission.VIEW_WORKFLOWS, artifact_id=artifact_id
+        ):
+            return arguments
+        # A hidden agent answers what an agent with no drive answers: the bundle only.
+        parsed.pop("artifact_id", None)
+        return parsed
+
+    if call_ref in _SESSION_TARGET_ACTIONS:
+        parsed = _arguments_dict(arguments)
+        session_id = parsed.get("session_id") if parsed is not None else None
+        if not isinstance(session_id, str) or not session_id.strip():
+            return arguments
+        if not await allow_resource(
+            request,
+            action=_SESSION_TARGET_ACTIONS[call_ref],
+            resource=session_resource(session_id.strip()),
+        ):
+            raise not_found_exception()
+        return arguments
+
+    return arguments
+
+
+def _child_run_envelope(request: Request) -> Optional[RunEnvelope]:
+    """The envelope of a run this request starts as a tool call: the parent's
+    principal, authority and sender; origin `child`; the parent's run id."""
+
+    parent = request_run_envelope(request)
+    return child_envelope(parent=parent) if parent is not None else None
+
+
 class ToolsRouter:
     def __init__(
         self,
         *,
         tools_service: ToolsService,
+        run_admission: RunAdmission,
         workflows_service: Optional[WorkflowsService] = None,
         tracing_service: Optional[TracingService] = None,
+        mounts_service: Optional[MountsService] = None,
     ):
         self.tools_service = tools_service
+        # Admits each child run (the parent's principal and the child's agent).
+        self.run_admission = run_admission
         # Used to execute a referenced-workflow (@ag.reference) agent tool server-side: a
         # ``workflow.{slug}[.{version}]`` call_ref routes here instead of the Composio adapter.
         # Optional so a deployment that wires only the tools service still serves gateway tools.
         self.workflows_service = workflows_service
         self.tracing_service = tracing_service
+        # Drive-backed platform handlers (create_app, list_starters) write through it.
+        self.mounts_service = mounts_service
 
         self.router = APIRouter()
 
@@ -770,12 +1040,32 @@ class ToolsRouter:
                 },
             )
 
-        connection = await self.tools_service.create_connection(
-            project_id=UUID(request.state.project_id),
-            user_id=UUID(request.state.user_id),
-            #
-            connection_create=body.connection,
-        )
+        try:
+            connection = await self.tools_service.create_connection(
+                project_id=UUID(request.state.project_id),
+                user_id=UUID(request.state.user_id),
+                #
+                connection_create=body.connection,
+            )
+        except ConnectionAdapterError as e:
+            # Composio has no managed ("use_composio_managed_auth") auth config for
+            # this toolkit in this environment — it only offers use_custom_auth.
+            # Surface an actionable 422 instead of letting this fall through to
+            # @intercept_exceptions' bare 500.
+            if e.operation == "initiate_connection.create_auth_config":
+                raise HTTPException(
+                    status_code=422,
+                    detail=(
+                        f"The '{body.connection.integration_key}' integration has no "
+                        "managed OAuth configuration available in this environment. "
+                        "It requires custom OAuth credentials (use_custom_auth) to "
+                        "be configured for this provider before it can be connected."
+                    ),
+                ) from e
+            raise HTTPException(
+                status_code=422,
+                detail=e.detail or e.message,
+            ) from e
 
         return ToolConnectionResponse(
             count=1,
@@ -1084,13 +1374,14 @@ class ToolsRouter:
             raise HTTPException(status_code=400, detail=e.message) from e
         except ToolSlugInvalidError as e:
             raise HTTPException(status_code=400, detail=e.message) from e
-        except ActionNotFoundError as e:
-            raise HTTPException(status_code=404, detail=e.message) from e
 
         return ToolResolveResponse(
+            # ``count`` keeps its original meaning: the model-ready tools resolved.
+            # A connection group is one policy input, not a tool the model can call.
             count=len(resolution.builtins) + len(resolution.custom),
             builtins=resolution.builtins,
             custom=resolution.custom,
+            gateway_connections=resolution.gateway_connections,
         )
 
     @intercept_exceptions()
@@ -1154,6 +1445,12 @@ class ToolsRouter:
             )
         if call_ref.startswith(_WORKFLOW_CALL_REF_PREFIX):
             return await self._call_workflow_tool(request=request, body=body)
+        # The two runtime gateway tools route on a stable name and read their identity
+        # from the private context, so they are matched before the five-segment parse.
+        if call_ref == _GATEWAY_SEARCH_CALL_REF:
+            return await self._call_gateway_search(request=request, body=body)
+        if call_ref == _GATEWAY_RUN_CALL_REF:
+            return await self._call_gateway_run(request=request, body=body)
         # Parse tool slug — accept both dot and double-underscore formats.
         # Double-underscore is used for LLM function names where dots are forbidden.
         slug_parts = body.data.function.name.replace("__", ".").split(".")
@@ -1216,10 +1513,13 @@ class ToolsRouter:
         # Upstream 401 AdapterError (e.g. bad API key) → @handle_adapter_exceptions → 424.
         # Other adapter errors are treated as internal failures; unsuccessful tool
         # execution responses remain business-level errors → 200.
+        # The legacy reference carries no version, so it reads and runs on the mutable
+        # alias, as it always has. Only the gateway route pins a run to one version.
         execution_result = await self.tools_service.execute_tool(
             provider_key=provider_key,
             integration_key=integration_key,
             action_key=action_key,
+            toolkit_version="latest",
             provider_connection_id=connection.provider_connection_id,
             user_id=user_id,
             arguments=arguments,
@@ -1264,16 +1564,37 @@ class ToolsRouter:
             if not has_permission:
                 raise FORBIDDEN_EXCEPTION
 
+        envelope = _child_run_envelope(request)
+        if envelope is not None and required_envelope(call_ref=call_ref):
+            denied = await _deny_child_run(body=body, child=envelope)
+            if denied is not None:
+                return denied
+        arguments = await _checked_reserved_arguments(
+            request,
+            call_ref=call_ref,
+            arguments=body.data.function.arguments,
+            workflows_service=self.workflows_service,
+        )
         try:
             response = await dispatch_platform_tool_handler(
                 call_ref=call_ref,
-                arguments=body.data.function.arguments,
+                arguments=arguments,
                 headers=request.headers,
                 project_id=UUID(request.state.project_id),
                 user_id=UUID(request.state.user_id),
                 workflows_service=self.workflows_service,
                 tracing_service=self.tracing_service,
+                mounts_service=self.mounts_service,
+                envelope=envelope,
+                run_admission=self.run_admission,
+                agent_owner_user_id=(
+                    agent_owner_for_request(request)
+                    if required_agent_owner(call_ref=call_ref)
+                    else None
+                ),
             )
+        except AdmissionDenied as refusal:
+            return _admission_error_result(body=body, child=envelope, refusal=refusal)
         except PlatformToolHandlerError as e:
             raise HTTPException(status_code=e.status_code, detail=e.message) from e
 
@@ -1316,6 +1637,215 @@ class ToolsRouter:
         )
 
         return ToolCallResponse(call=result)
+
+    async def _call_gateway_search(
+        self,
+        *,
+        request: Request,
+        body: ToolCall,
+    ) -> ToolCallResponse:
+        """``gateway.search`` — find integration tools for a task description.
+
+        The provider comes from the trusted context; the query and the optional
+        integration come from the model. Agent permission is deliberately absent: the
+        configured set lives in the runner's private policy, so the runner filters what
+        this returns and rejects an integration the agent never configured.
+        """
+        context = body.context
+        if context is None or not context.provider or not context.toolkit_versions:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "gateway.search requires a context carrying a provider and a "
+                    "toolkit version for each configured integration."
+                ),
+            )
+
+        arguments = body.data.function.arguments
+        if not isinstance(arguments, dict):
+            return _invalid_arguments(
+                body=body,
+                message="Tool arguments must be a JSON object.",
+                next_step="Send an object with a non-empty `query`.",
+            )
+
+        query = arguments.get("query")
+        if not isinstance(query, str) or not query.strip():
+            return _invalid_arguments(
+                body=body,
+                message="`query` must be a non-empty description of the task.",
+                next_step="Search again with a concrete task description.",
+            )
+
+        integration = arguments.get("integration")
+        if integration is not None and (
+            not isinstance(integration, str) or not integration.strip()
+        ):
+            return _invalid_arguments(
+                body=body,
+                message="`integration` must be the name of one integration.",
+                next_step="Search again without `integration`, or name one.",
+            )
+
+        try:
+            results = await self.tools_service.search_gateway_tools(
+                project_id=UUID(request.state.project_id),
+                provider_key=context.provider,
+                query=query.strip(),
+                toolkit_versions=context.toolkit_versions,
+                integration_key=integration.strip() if integration else None,
+            )
+        except AdapterError:
+            return _agent_error_result(
+                body=body,
+                error=AgentError(
+                    code="tool_search_unavailable",
+                    message="Tool search is temporarily unavailable.",
+                    retryable=True,
+                    next_step="Retry the search once.",
+                ),
+            )
+
+        return _tool_result(
+            body=body,
+            content=GatewaySearchResults(results=results).model_dump_json(),
+            successful=True,
+        )
+
+    async def _call_gateway_run(
+        self,
+        *,
+        request: Request,
+        body: ToolCall,
+    ) -> ToolCallResponse:
+        """``gateway.run`` — run one integration tool through its selected connection.
+
+        Every routing value is read from the trusted context, never from the model's
+        arguments, and the arguments are forwarded exactly as they arrive. The caller
+        has already applied the agent's policy; this route checks identity and access.
+        """
+        context = body.context
+        if context is None or not (
+            context.provider
+            and context.integration
+            and context.connection
+            and context.tool
+            and context.toolkit_version
+        ):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "gateway.run requires a context carrying a provider, an "
+                    "integration, a connection, a tool, and a toolkit version."
+                ),
+            )
+
+        arguments = body.data.function.arguments
+        if not isinstance(arguments, dict):
+            # An empty argument set is a different call, and one that can still succeed
+            # against the provider with the wrong effect.
+            return _invalid_arguments(
+                body=body,
+                message="`arguments` must be a JSON object.",
+                next_step="Send `arguments` as an object matching the tool's input schema.",
+            )
+
+        try:
+            execution_result = await self.tools_service.run_gateway_tool(
+                project_id=UUID(request.state.project_id),
+                provider_key=context.provider,
+                integration_key=context.integration,
+                connection_slug=context.connection,
+                tool_key=context.tool,
+                toolkit_version=context.toolkit_version,
+                arguments=arguments,
+            )
+        except ToolKeyNotFoundError as e:
+            return _agent_error_result(
+                body=body,
+                error=AgentError(
+                    code="tool_not_found",
+                    message=f"{e.tool_key} is not a tool of {e.integration_key}.",
+                    retryable=False,
+                    next_step="Call the tool by a key that search returned.",
+                    # From the whole integration catalog, so a key here may be one the
+                    # agent denied. The caller holds the policy and sanitizes the list.
+                    details={"suggestions": e.suggestions} if e.suggestions else None,
+                ),
+            )
+        except ToolNotInIntegrationError as e:
+            return _agent_error_result(
+                body=body,
+                error=AgentError(
+                    code="tool_not_in_integration",
+                    message=(
+                        f"{e.tool_key} is not a tool of {e.integration_key}. It names "
+                        "a different integration."
+                    ),
+                    retryable=False,
+                    next_step="Search again and run the tool from the integration search returned.",
+                ),
+            )
+        except (
+            ConnectionNotFoundError,
+            ConnectionInactiveError,
+            ConnectionInvalidError,
+        ) as e:
+            # The domain messages name the connection — its slug, or its id — and a
+            # connection is private routing the model never sees anywhere else: it is
+            # chosen from the agent's own configuration and `run_tool` takes no
+            # connection argument. So the detail is logged and the model is told only
+            # that the integration is unavailable. It could not act on the identifier
+            # in any case; reconnecting is the person's job, and `next_step` says so.
+            log.warning(
+                "[gateway.run] connection unavailable",
+                integration=context.integration,
+                tool=context.tool,
+                reason=e.message,
+            )
+            return _agent_error_result(
+                body=body,
+                error=AgentError(
+                    code="connection_unavailable",
+                    message=(
+                        "The configured connection for this integration is unavailable."
+                    ),
+                    retryable=False,
+                    next_step=(
+                        "Ask the user to reconnect this integration in Agenta, then "
+                        "try again."
+                    ),
+                ),
+            )
+        except AdapterError as e:
+            # Not a 424: the runner hides a non-2xx body from the model, and this
+            # detail is exactly what the model needs to correct a rejected request.
+            detail = e.detail or e.message
+            retryable = _is_retryable_upstream(e)
+            return _agent_error_result(
+                body=body,
+                error=AgentError(
+                    code="tool_execution_failed",
+                    message=f"The provider could not run the tool: {detail}",
+                    retryable=retryable,
+                    next_step=(
+                        "Retry the call once."
+                        if retryable
+                        else "Correct the arguments against the tool's schema, then try again."
+                    ),
+                ),
+            )
+        except ToolSlugInvalidError as e:
+            raise HTTPException(status_code=400, detail=e.message) from e
+
+        # The provider's own failure passes through with its detail intact, which is
+        # what lets the model correct a rejected but well-formed request.
+        return _tool_result(
+            body=body,
+            content=json.dumps(execution_result.model_dump()),
+            successful=execution_result.successful,
+            message=execution_result.error,
+        )
 
     @staticmethod
     def _validate_slug_segments(*, segments: List[str]) -> None:
@@ -1409,11 +1939,34 @@ class ToolsRouter:
             data=WorkflowServiceRequestData(inputs=arguments),
         )
 
+        # The child runs as its parent: same principal and authority, and it names the
+        # parent run.
+        child = _child_run_envelope(request)
+        if child is None:
+            raise HTTPException(status_code=401, detail="Unauthorized")
+        denied = await _deny_child_run(body=body, child=child)
+        if denied is not None:
+            return denied
+        project_id = UUID(request.state.project_id)
+        try:
+            # Resolves the child's target once and leaves it on the request, so the
+            # invoke runs what was checked.
+            await self.run_admission.admit_request(
+                envelope=child,
+                session_id=None,
+                project_id=project_id,
+                request=invoke_request,
+                boundary=CHILD_RUN_BOUNDARY,
+            )
+        except AdmissionDenied as refusal:
+            return _admission_error_result(body=body, child=child, refusal=refusal)
+
         try:
             response = await self.workflows_service.invoke_workflow(
-                project_id=UUID(request.state.project_id),
+                project_id=project_id,
                 user_id=UUID(request.state.user_id),
                 request=invoke_request,
+                envelope=child,
             )
         except Exception as e:
             log.error("Workflow tool invocation failed", exc_info=True)

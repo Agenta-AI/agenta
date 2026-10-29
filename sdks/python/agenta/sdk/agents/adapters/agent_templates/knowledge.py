@@ -27,10 +27,10 @@ base" agent for teammates (not customers; see knowledge-chatbot for a customer-f
   workspace holds more than docs (product specs, meeting notes, and so on). Description:
   "Leave empty to search the whole connected workspace."
 
-## Researchable context (ask, defaulting to "figure it out")
-- Additional sources beyond Notion: also search Confluence, Google Drive, or Slack history if
-  connected. Multi-select ({type: "array", items: {type: "string", enum: [...]}}) with default
-  ["Figure it out from what's connected"]. Note: naming sources now saves a research pass.
+## Researchable context (do not ask; figure it out and state the assumption)
+- Additional sources beyond Notion: check what is connected, and also search Confluence,
+  Google Drive, or Slack history when they are. Assume every connected source is in scope, and
+  list the sources you wired.
 
 ## Explore first (read before proposing)
 1. discover_tools for the Notion search and page-read tools (and Confluence/Drive/Slack reads
@@ -62,12 +62,12 @@ Output shape:
     Sources:
     - <page title> (<link>)
 
-## Verify
-1. test_run with an artificial mention-shaped message ("@docs-bot how do I reset my API key?")
-   and read the verdict and the tools line, not a 200.
-2. Fire an artificial test message first; if it passes, ask the user to run the real trigger
-   test with the Lightning "Test event" button.
-3. Confirm the reply landed in the right channel/thread.
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the reply in its channel or
+thread) before you call it verified. For a trigger, point them at the Test event button of a
+subscription or the Run button of a schedule.
 
 ## Closing report
 What the agent became, which sources it searches, which channel it answers in, what you
@@ -90,9 +90,9 @@ teammate-only bot, see docs-qa instead).
   excluding anything internal-only. Description: "Leave empty to search the whole connected
   workspace" if there is no internal/external split.
 
-## Researchable context (ask, defaulting to "figure it out")
-- Tone: match the brand voice found in existing customer-facing pages, or a plain, neutral
-  tone. Enum with default "Figure it out from the docs I find."
+## Researchable context (do not ask; figure it out and state the assumption)
+- Tone: read the existing customer-facing pages and match their brand voice. If you find no
+  such pages, assume a plain, neutral tone, and state the assumption.
 
 ## Explore first (read before proposing)
 1. discover_tools for the Notion search/fetch tools and the reply tool for the chosen platform
@@ -124,12 +124,12 @@ Output shape:
     Sources:
     - <page title> (<link>)
 
-## Verify
-1. test_run with an artificial mention/message ("Do you support refunds after 30 days?") and
-   read the verdict and the tools line, not a 200.
-2. Fire an artificial test message first; then ask the user to run the real trigger test with
-   the Lightning "Test event" button.
-3. Confirm the reply appears on the right platform and channel.
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the reply on the right
+platform and channel) before you call it verified. For a trigger, point them at the Test
+event button of a subscription or the Run button of a schedule.
 
 ## Closing report
 What the agent became, which content it can see, which platform it answers on, what you
@@ -152,10 +152,10 @@ this one).
   workspace holds more than onboarding content. Description: "Leave empty to search the whole
   connected workspace."
 
-## Researchable context (ask, defaulting to "figure it out")
-- Which topics to prioritize (benefits, tools setup, team structure): a multi-pick, so use
-  multi-select ({type: "array", items: {type: "string", enum: [...]}}) with default
-  ["Figure it out from what the wiki covers"].
+## Researchable context (do not ask; figure it out and state the assumption)
+- Which topics to prioritize: read the wiki and take the topics it already covers, such as
+  benefits, tools setup, and team structure. If the wiki is thin, assume those three, and say
+  which topics you covered.
 
 ## Explore first (read before proposing)
 1. discover_tools for the Notion (or Confluence) search and page-read tools.
@@ -186,12 +186,12 @@ Output shape:
     Sources:
     - <page title> (<link>)
 
-## Verify
-1. test_run with an artificial mention-shaped message ("@onboarding-buddy where do I request a
-   laptop?") and read the verdict and the tools line, not a 200.
-2. Fire an artificial test message first; then ask the user to run the real trigger test with
-   the Lightning "Test event" button.
-3. Confirm the reply landed in the right channel/thread.
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the reply in its channel or
+thread) before you call it verified. For a trigger, point them at the Test event button of a
+subscription or the Run button of a schedule.
 
 ## Closing report
 What the agent became, which wiki it searches, which channel it answers in, what you verified,
@@ -213,10 +213,9 @@ entry into social copy (this is a one-shot transform, not a standing Q&A bot).
 - Where to post drafts for review: a Slack channel or a Notion draft page. Offer as an enum
   with default "Figure it out from what's connected."
 
-## Researchable context (ask, defaulting to "figure it out")
-- Which platforms to draft for (LinkedIn, X, or both): a multi-pick, so use multi-select
-  ({type: "array", items: {type: "string", enum: ["LinkedIn", "X"]}}) with default
-  ["LinkedIn", "X"] (draft both).
+## Researchable context (do not ask; figure it out and state the assumption)
+- Which platforms to draft for: check which social accounts are connected and draft for those.
+  If none is connected, assume both LinkedIn and X, and state which you drafted for.
 
 ## Explore first (read before proposing)
 1. discover_tools for the source-read tool (Notion or Drive) and the draft-post tool (Slack
@@ -241,11 +240,11 @@ quotes the doc does not contain. Each draft links back to the source doc. If the
 enough substance for a platform, say so instead of padding with invented detail. Finish by
 posting the drafts to the review channel or draft page with the exact write tool.
 
-## Verify
-1. test_run with a blunt message ("Repurpose this doc into LinkedIn and X drafts") and read the
-   verdict and the tools line, not a 200.
-2. This template has no trigger to verify; it runs on demand by chatting with the agent.
-3. Read back the posted drafts to confirm they landed in the review channel or page.
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the posted drafts in the
+review channel or page) before you call it verified.
 
 ## Closing report
 What the agent became, which doc it read, where drafts post, what you verified, and any
@@ -264,12 +263,11 @@ newsletter draft (for a Slack-only digest with no draft doc, see repo-slack-dige
 - Where to draft the newsletter: which Notion page or database to write the weekly draft into.
   No default; the agent cannot know this.
 
-## Researchable context (ask, defaulting to "figure it out")
-- Which sources to pull from: GitHub merged PRs, Linear completed issues, or both. A
-  multi-pick, so use multi-select ({type: "array", items: {type: "string", enum: [...]}})
-  with default ["Figure it out from what's connected"].
-- Send day/time: enum with default "Monday 09:00 local"; the built-in Other… option covers a
-  custom time.
+## Researchable context (do not ask; figure it out and state the assumption)
+- Which sources to pull from: check what is connected, and pull GitHub merged PRs, Linear
+  completed issues, or both. Assume every connected source is in scope, and list what you used.
+- Send day and time: assume Monday 09:00 local and state the assumption. Read the local
+  timezone from the workspace settings, and assume UTC when that is inconclusive.
 
 ## Explore first (read before proposing)
 1. discover_tools for the GitHub (merged PRs) and/or Linear (completed issues) read tools, and
@@ -302,16 +300,136 @@ Output shape:
     ### Fixed
     - <item> (<link>)
 
-## Verify
-1. test_run with a blunt message ("Draft this week's newsletter from recent shipping activity")
-   and read the verdict and the tools line, not a 200.
-2. Fire an artificial scheduled-run test message first; if it passes, ask the user to run the
-   real trigger test with the Play "Run" button.
-3. Read back the Notion page to confirm the draft landed.
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the Notion page with the
+draft) before you call it verified. For a trigger, point them at the Test event button of a
+subscription or the Run button of a schedule.
 
 ## Closing report
 What the agent became, which sources it reads, where it drafts, what is scheduled, what you
 verified, and any connection still needed.
+"""
+
+_JOB_HUNT_RESEARCH_BODY = """\
+# Job hunt research playbook
+
+## Match
+The ask is "find job openings that match my profile and research the companies" or similar.
+Card key job-hunt-research. Also matches free-text asks for a job-search assistant, a vetted
+job shortlist, or application research help (this is a personal research agent, not a
+recruiting or sourcing agent for hiring).
+
+## Required context (ask via one request_input form)
+- The person's profile: target role, location (city + country or remote), experience level,
+  key skills, industries to prefer and avoid, and salary or level preference. Ask them to
+  paste their CV text too. Save everything to ``job-hunt/profile.md`` so no run asks twice.
+
+## Researchable context (do not ask; figure it out and state the assumption)
+- Search sources: the tavily-job-search skill names the boards and query patterns; assume
+  public web sources through the Tavily tools and state that. Do not ask which job boards.
+- Report location: dated reports under ``job-hunt/reports/<YYYY-MM-DD>.md``; state it.
+- Telegram destination: only needed if the user wants scheduled delivery. Use Telegram updates to find their direct chat, confirm the intended destination, and record its chat ID in the profile; never guess or message an unconfirmed chat.
+
+## Explore first (read before proposing)
+1. discover_tools for the Tavily search and extract tools the tavily-job-search skill uses.
+2. test_run with those tools in the delta, one real query from the saved profile, and check
+   the draft shortlist cites live postings with working application links.
+
+## Defaults / priors table (setup to proposed behavior)
+| Setup | Trigger | Tools | Behavior default |
+|---|---|---|---|
+| Profile saved | on demand | Tavily search + extract | verify postings, research top 3-5, save dated report |
+| Daily digest asked | schedule (7:00) | Tavily + Telegram | same run; save the report, then send a concise summary and report link only to the user's confirmed Telegram chat |
+
+## Connections
+Tavily is required for search and extraction. Telegram is optional and used only for scheduled delivery to the user's confirmed direct chat. Request_connection only for a connection the user wants and the setup actually uses; never send employer or recruiter outreach.
+
+## Instructions template (what to commit)
+On each run: read ``job-hunt/profile.md`` (onboard first if missing or still template
+placeholders). Search per the tavily-job-search skill, then clean results: confirm real
+location, drop stale or closed postings, deduplicate by employer and title, prefer the
+employer careers page as the canonical link. Keep the 3-5 strongest matches, research each
+company (product, size, stage, recent news, hiring manager only when publicly findable), and
+write an evidence-backed fit note and outreach angle per role. Save the dated report before
+replying. For an on-demand run, reply with title, company, link, one-line fit verdict per role,
+and the single best next action. For a scheduled run, send the concise summary and report
+link to the user's confirmed Telegram chat after saving the report: read the confirmed chat ID
+from the profile, use ``search_tools`` and ``run_tool`` for the Telegram send action, and do
+not use channel-destination listing to find a private chat. If no confirmed ID exists, use
+Telegram updates to identify the direct chat; do not send until the user confirms it. If no
+update or multiple candidates are ambiguous, ask them to message the bot or confirm the
+intended chat, then record the ID. Never send outreach to employers or recruiters, fabricate
+contacts, or pad the list; fewer credible matches beat filler.
+
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the saved report; for scheduled delivery, also
+verify the summary reached the confirmed chat before calling it complete. Keep the optional
+daily schedule off until they enable it, confirm their timezone, and confirm the Telegram
+destination if they want delivery.
+
+## Closing report
+What the agent became, where the profile and reports live, which sources it searches, whether
+Telegram delivery is configured, what you verified, and that the daily schedule stays off
+until they enable it.
+"""
+
+_SEO_CONTENT_AGENT_BODY = """\
+# SEO content agent playbook
+
+## Match
+The ask is "help me improve SEO for my website" or similar. Card key seo-content-agent. Also
+matches free-text asks for an SEO consultant, a content plan from search research, or briefs
+and drafts that target search demand (for repurposing an existing doc into social posts, see
+content-repurposer).
+
+## Required context (ask via one request_input form)
+- The website URL and the main goal (traffic, signups, a product area to grow).
+- How familiar the person is with SEO, so the reports match their level.
+
+## Researchable context (do not ask; figure it out and state the assumption)
+- Audience, competitors, and target queries: research them from the website and public
+  search results, then state what you found and what you assumed.
+- Voice: start from a plain, direct, low-hype voice and say it is a suggestion to review.
+- Publishing destination, format, and schedule: leave unset until the person has approved a
+  first brief. Do not ask for them on the first run.
+
+## Explore first (read before proposing)
+1. discover_tools for a web search tool (Composio Search) and a page reader (Context.dev).
+2. test_run with those tools on the real website, and check the draft report separates
+   observed evidence from assumptions.
+
+## Defaults / priors table (setup to proposed behavior)
+| Setup | Trigger | Tools | Behavior default |
+|---|---|---|---|
+| Website only | on demand | search + page reader | small investigation, report, recommend a direction |
+| Search Console connected | on demand | add Search Console | add performance and indexing evidence |
+| Brief approved | on demand | same | draft, review, then wait for publish-readiness approval |
+
+## Connections
+Composio Search is required for research. Context.dev, Google Search Console, Peec,
+Browserbase, and fal.ai are optional; request_connection only for the one a task needs.
+Verify access to the specific property or project before using its data.
+
+## Instructions template (what to commit)
+Explain a bounded plan, research before asking, and deliver a short Markdown report with a
+chat summary before any writing. Keep notes and decisions in files so no run asks twice.
+Move from research to a small content plan, then to briefs. Brief approval and
+publish-readiness approval stay separate. Never draft before a brief is approved, never
+publish without the owner's final action, and never claim access or results you did not check.
+
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the saved report) before
+you call it verified.
+
+## Closing report
+What the agent became, which sources it reads, where reports and briefs live, what you
+verified, which optional connections are still missing, and that no schedule is active.
 """
 
 ENTRIES: List[TemplateEntry] = [
@@ -349,5 +467,19 @@ ENTRIES: List[TemplateEntry] = [
         category="Knowledge",
         match="Draft a weekly newsletter from our recent shipping activity",
         body=_NEWSLETTER_DRAFTER_BODY,
+    ),
+    TemplateEntry(
+        key="job-hunt-research",
+        name="Job hunt research",
+        category="Knowledge",
+        match="Find job openings that match my profile and research the companies",
+        body=_JOB_HUNT_RESEARCH_BODY,
+    ),
+    TemplateEntry(
+        key="seo-content-agent",
+        name="SEO content agent",
+        category="Marketing",
+        match="Help me improve SEO for my website",
+        body=_SEO_CONTENT_AGENT_BODY,
     ),
 ]

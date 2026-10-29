@@ -14,7 +14,13 @@ import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-proto";
 import { ExportResultCode, type ExportResult } from "@opentelemetry/core";
 import type { ReadableSpan, SpanExporter } from "@opentelemetry/sdk-trace-base";
 
-import { seedForRun } from "../../src/redaction.ts";
+import {
+  curatedEnvSecretValues,
+  modelEnvironmentSecretValues,
+  Redactor,
+  sandboxVisibleSecretValues,
+  seedForRun,
+} from "../../src/redaction.ts";
 import { buildPersistingEmitter } from "../../src/sessions/persist.ts";
 import { createSandboxAgentOtel } from "../../src/tracing/otel.ts";
 
@@ -24,6 +30,12 @@ const PER_RUN_KEY = "sk-per-run-fake-key-DO-NOT-USE-a1b2c3d4e5f6";
 const MCP_HEADER_KEY = "Bearer mcp-per-run-fake-DO-NOT-USE-f6e5d4";
 /** The invoke caller's credential, which rides the OTLP auth header. */
 const RUN_CREDENTIAL = "ApiKey ag-run-cred-9f8e7d6c5b4a";
+const MOUNT_ACCESS_KEY = "mount-access-key-a1b2c3d4";
+const MOUNT_SECRET_KEY = "mount-secret-placeholder-placeholder";
+const MOUNT_SESSION_TOKEN = "mount-session-token-i9j0k1l2";
+const AGENT_MOUNT_ACCESS_KEY = "agent-mount-access-key-m3n4o5p6";
+const AGENT_MOUNT_SECRET_KEY = "agent-mount-secret-key-q7r8s9t0";
+const AGENT_MOUNT_SESSION_TOKEN = "agent-mount-session-token-u1v2w3x4";
 
 /** A request carrying this run's resolved typed credentials + run credential. */
 const runRequest = {
@@ -77,6 +89,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
 });
 
 /** The shared base prototype real exporters inherit `export` from (see otel-flush-export.test). */
@@ -127,6 +140,64 @@ describe("seedForRun (WP1.1 — the deny-set source)", () => {
     ).not.toContain(PER_RUN_KEY);
   });
 
+  it("keeps approved public model bindings readable and unknown legacy bindings fail-safe", () => {
+    expect(
+      modelEnvironmentSecretValues({
+        AWS_REGION: "eu-west-1",
+        GOOGLE_CLOUD_PROJECT: "plain-project-name",
+        LEGACY_GATEWAY_AUTH: "legacy-secret-value",
+      }),
+    ).toEqual(["legacy-secret-value"]);
+  });
+
+  it("keeps public model configuration and credential locator paths readable", () => {
+    const adcPath = "/run/secrets/service-account";
+    const serviceAccountJson =
+      '{"private_key":"fake-private-key-DO-NOT-USE"}';
+    const redactor = seedForRun({
+      modelConnection: {
+        environment: {
+          AWS_REGION: "eu-west-1",
+          GOOGLE_CLOUD_PROJECT: "plain-project-name",
+        },
+        credentials: [
+          {
+            binding: {
+              kind: "environment",
+              name: "GOOGLE_APPLICATION_CREDENTIALS",
+            },
+            value: adcPath,
+            usage: "local_use",
+          },
+          {
+            binding: {
+              kind: "environment",
+              name: "GOOGLE_APPLICATION_CREDENTIALS",
+            },
+            value: serviceAccountJson,
+            usage: "local_use",
+          },
+        ],
+      },
+    });
+
+    const ordinary = `region=eu-west-1 project=plain-project-name credentials=${adcPath}`;
+    expect(redactor.redactString(ordinary, "test")).toBe(ordinary);
+    expect(
+      redactor.redactString(`credentials=${serviceAccountJson}`, "test"),
+    ).not.toContain(serviceAccountJson);
+  });
+
+  it("does not infer that GOOGLE_APPLICATION_CREDENTIALS paths are secret values", () => {
+    const adcPath = "/run/secrets/service-account";
+    vi.stubEnv("GOOGLE_APPLICATION_CREDENTIALS", adcPath);
+    vi.stubEnv("OPENAI_API_KEY", PER_RUN_KEY);
+
+    const values = curatedEnvSecretValues();
+    expect(values).not.toContain(adcPath);
+    expect(values).toContain(PER_RUN_KEY);
+  });
+
   it("also seeds the run credential from the OTLP auth header", () => {
     const redactor = seedForRun(runRequest);
     expect(
@@ -139,6 +210,47 @@ describe("seedForRun (WP1.1 — the deny-set source)", () => {
     expect(
       redactor.redactString(`header was ${MCP_HEADER_KEY}`, "test"),
     ).not.toContain(MCP_HEADER_KEY);
+  });
+});
+
+describe("sandbox-visible redaction inputs", () => {
+  it("returns all three credentials from both mount sets", () => {
+    const values = sandboxVisibleSecretValues({
+      mountCreds: {
+        accessKey: MOUNT_ACCESS_KEY,
+        secretKey: MOUNT_SECRET_KEY,
+        sessionToken: MOUNT_SESSION_TOKEN,
+      },
+      agentMountCreds: {
+        accessKey: AGENT_MOUNT_ACCESS_KEY,
+        secretKey: AGENT_MOUNT_SECRET_KEY,
+        sessionToken: AGENT_MOUNT_SESSION_TOKEN,
+      },
+    });
+
+    expect(values).toEqual([
+      MOUNT_ACCESS_KEY,
+      MOUNT_SECRET_KEY,
+      MOUNT_SESSION_TOKEN,
+      AGENT_MOUNT_ACCESS_KEY,
+      AGENT_MOUNT_SECRET_KEY,
+      AGENT_MOUNT_SESSION_TOKEN,
+    ]);
+  });
+
+  it("forces known-value redaction even when the process-wide mode is off", () => {
+    vi.stubEnv("AGENTA_REDACTION_MODE", "off");
+    const inherited = new Redactor().withKnownSecrets([MOUNT_SECRET_KEY]);
+    const alwaysOn = new Redactor({ mode: "known" }).withKnownSecrets([
+      MOUNT_SECRET_KEY,
+    ]);
+
+    expect(
+      inherited.redactString(`credential=${MOUNT_SECRET_KEY}`, "test"),
+    ).toContain(MOUNT_SECRET_KEY);
+    expect(
+      alwaysOn.redactString(`credential=${MOUNT_SECRET_KEY}`, "test"),
+    ).not.toContain(MOUNT_SECRET_KEY);
   });
 });
 
@@ -214,22 +326,46 @@ describe("persisted transcript sink (WP1.4)", () => {
     expect(JSON.stringify(postedBodies[0])).not.toContain(PER_RUN_KEY);
   });
 
-  it("leaves ordinary user content untouched (we redact leaks, not conversation)", async () => {
+  it("leaves ordinary user content and public model configuration untouched", async () => {
+    const adcPath = "/run/secrets/service-account";
+    const publicRegion = "eu-west-1";
+    const redactor = seedForRun({
+      ...runRequest,
+      modelConnection: {
+        ...runRequest.modelConnection,
+        environment: { AWS_REGION: publicRegion },
+        credentials: [
+          ...runRequest.modelConnection.credentials,
+          {
+            binding: {
+              kind: "environment",
+              name: "GOOGLE_APPLICATION_CREDENTIALS",
+            },
+            value: adcPath,
+            usage: "local_use",
+          },
+        ],
+      },
+    });
     const { emit, flush } = buildPersistingEmitter(
       "sess-redact-content",
       () => RUN_CREDENTIAL,
       undefined,
-      seedForRun(runRequest),
+      redactor,
     );
 
-    // A deliberately-pasted key-SHAPED string that is not a live secret must survive: the
-    // known-value pass has zero false positives by construction.
+    // A deliberately-pasted key-shaped string that is not a live secret must survive too.
     const userPasted = "sk-user-pasted-this-on-purpose-000";
-    emit({ type: "message", text: `here is my sample ${userPasted}` });
+    emit({
+      type: "message",
+      text: `sample=${userPasted} region=${publicRegion} credentials=${adcPath}`,
+    });
     await flush();
 
     const persisted = JSON.stringify(postedBodies[0]);
     expect(persisted).toContain(userPasted);
+    expect(persisted).toContain(publicRegion);
+    expect(persisted).toContain(adcPath);
     expect(persisted).not.toContain("[ag:redacted");
   });
 });
@@ -322,7 +458,9 @@ describe("exported span sink (WP1.5)", () => {
     const agentSpan = exported.find((s) => s.name === "invoke_agent");
     expect(agentSpan).toBeTruthy();
 
-    const eventAttrs = JSON.stringify(agentSpan!.events.map((e) => e.attributes));
+    const eventAttrs = JSON.stringify(
+      agentSpan!.events.map((e) => e.attributes),
+    );
     expect(eventAttrs).not.toContain(PER_RUN_KEY);
     expect(eventAttrs).toContain("[ag:redacted");
 
@@ -375,7 +513,11 @@ describe("exported span sink (WP1.5)", () => {
 
     expect(exported.length).toBeGreaterThanOrEqual(2);
     const allText = JSON.stringify(
-      exported.map((s) => ({ attrs: s.attributes, events: s.events, status: s.status })),
+      exported.map((s) => ({
+        attrs: s.attributes,
+        events: s.events,
+        status: s.status,
+      })),
     );
     expect(allText).not.toContain(SECRET_A);
     expect(allText).not.toContain(SECRET_B);

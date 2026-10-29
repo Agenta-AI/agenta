@@ -11,6 +11,7 @@ import {
   type DaytonaSecretCandidate,
   type DaytonaSecretPlan,
 } from "./daytona-secret-plan.ts";
+import { PI_GATEWAY_MCP_SERVERS_ENV } from "../../extensions/pi-mcp.ts";
 
 export interface DaytonaSecretRecord {
   id: string;
@@ -55,6 +56,123 @@ export interface DaytonaSecretAllocation {
    * so this map never leaves the provider layer and nothing in it is ever logged.
    */
   bySlot: ReadonlyMap<CredentialSlotKey, DaytonaSecretRecord>;
+  /**
+   * True when the plan's gateway credential got no Secret because the Daytona API key may not
+   * manage Secrets, so it stays a plain sandbox environment value. See the provider's `allocate`.
+   */
+  gatewayLeftPlain?: true;
+}
+
+/**
+ * Who owns one allocation right now, and therefore whether `release` may delete it.
+ *
+ *  - `detached`      No sandbox holds these Secrets. A release deletes them.
+ *  - `attached`      A live sandbox was registered against them. Its teardown deletes them, so a
+ *                    release from anywhere else must do nothing.
+ *  - `indeterminate` A sandbox create failed WITHOUT proving remote absence. Daytona may hold a
+ *                    partially created sandbox that mounts these Secrets, so a release must not
+ *                    delete them. This is the same fail-safe the fresh-allocation create path has
+ *                    always applied, named instead of implied.
+ *  - `released`      The Secrets were deleted. Terminal.
+ */
+export type DaytonaSecretLeaseState =
+  | "detached"
+  | "attached"
+  | "indeterminate"
+  | "released";
+
+/**
+ * A move-only claim on one Secret allocation, so exactly one owner can delete it.
+ *
+ * WHY THIS EXISTS. A sandbox the credential preflight convicts is destroyed while its Secrets are
+ * KEPT, because a new sandbox on the same Secret works and a new Secret often does not. The
+ * allocation therefore outlives its sandbox and moves to the next one, and "who deletes this, and
+ * when" stops being answerable from any single object's own fields. The lease answers it: the
+ * provider moves the state as ownership moves, and every other holder just calls `release`, which
+ * deletes only from `detached`.
+ *
+ * The state is the ONLY ownership signal. Do not infer ownership from the registry, from a
+ * sandbox id, or from call order.
+ */
+export class DaytonaSecretLease {
+  private leaseState: DaytonaSecretLeaseState = "detached";
+
+  constructor(
+    readonly allocation: DaytonaSecretAllocation,
+    private readonly api: DaytonaSecretApi,
+    private readonly log: (message: string) => void = () => {},
+  ) {}
+
+  get state(): DaytonaSecretLeaseState {
+    return this.leaseState;
+  }
+
+  /** A sandbox now holds these Secrets. Called by the provider when it registers the sandbox. */
+  attach(): void {
+    this.leaseState = "attached";
+  }
+
+  /** The sandbox that held these Secrets is gone, and nothing has claimed them yet. */
+  detach(): void {
+    this.leaseState = "detached";
+  }
+
+  /** A create failed without proving remote absence. Nothing may delete these Secrets. */
+  markIndeterminate(): void {
+    this.leaseState = "indeterminate";
+  }
+
+  /**
+   * Delete the Secrets if this lease still owns them.
+   *
+   * Safe to call on every exit path, safe to call twice, and safe to call CONCURRENTLY. Two
+   * things make that true, and both matter:
+   *
+   *  - The state advances to `released` only after the delete resolves, so a failed delete leaves
+   *    the lease releasable and a later call retries it. The error is re-raised so the caller can
+   *    log it.
+   *  - Overlapping callers share the one in-flight delete. Without that, the second caller would
+   *    read a state that is still `detached` (the first has not finished) and issue a second
+   *    delete of the same records. Both would then be racing the same provider ids, and the
+   *    loser's 404 would be swallowed as success, which is a wrong answer arrived at by luck.
+   */
+  release(): Promise<void> {
+    if (this.leaseState === "attached" || this.leaseState === "released") {
+      return Promise.resolve();
+    }
+    if (this.leaseState === "indeterminate") {
+      // Once, however many callers ask. The refusal is one fact about one allocation, and the
+      // create catch has already said the same thing; repeating it per release would make a
+      // retried teardown look like several separate leaks.
+      if (this.allocation.created.length > 0 && !this.refusalLogged) {
+        this.refusalLogged = true;
+        const hosts = [
+          ...new Set(this.allocation.created.flatMap((s) => s.hosts ?? [])),
+        ];
+        this.log(
+          `[daytona-secrets] retained n=${this.allocation.created.length} ` +
+            `hosts=[${hosts.join(",")}] reason=create-outcome-unknown`,
+        );
+      }
+      return Promise.resolve();
+    }
+    this.pendingRelease ??= this.deleteAndMarkReleased();
+    return this.pendingRelease;
+  }
+
+  private pendingRelease?: Promise<void>;
+  /** Whether the `indeterminate` refusal has already been said. See `release`. */
+  private refusalLogged = false;
+
+  /** The one delete every overlapping `release` awaits. Clears itself so a failure can retry. */
+  private async deleteAndMarkReleased(): Promise<void> {
+    try {
+      await deleteDaytonaSecrets(this.allocation, this.api, this.log);
+      this.leaseState = "released";
+    } finally {
+      this.pendingRelease = undefined;
+    }
+  }
 }
 
 /**
@@ -139,19 +257,128 @@ function assertCreatedSecret(
   return secret;
 }
 
+/**
+ * The sandbox variable the gateway credential's Secret is attached under.
+ *
+ * Daytona attaches a Secret only through a variable, and substitutes its placeholder wherever it
+ * appears in a request to the allowed host. The harness does not read this variable: it reads the
+ * placeholder from its own connection settings, which `swapGatewayCredentials` rewrites. The name
+ * only has to be stable and unclaimable by a request, which the `AGENTA_` prefix guarantees.
+ */
+export const GATEWAY_SECRET_ATTACHMENT = "AGENTA_GATEWAY_SECRET";
+
+/** What the sandbox environment's runner-built settings must carry instead of raw credentials. */
+export interface GatewayCredentialPlaceholders {
+  /** The model gateway credential and its placeholder, when the allocation hides it. */
+  gateway?: { value: string; placeholder: string };
+  /** Per MCP server, header name to placeholder: the same map MCP session config is built from. */
+  mcpHeaders: Record<string, Record<string, string>>;
+}
+
+/**
+ * The placeholders the sandbox environment needs, built at create time from the plan and the
+ * allocation and not retained, because the allocation deliberately holds no values.
+ *
+ * Empty when the allocation holds nothing, so a run whose Secrets were not created keeps its
+ * values where they were.
+ */
+export function gatewayCredentialPlaceholders(
+  plan: DaytonaSecretPlan,
+  allocation: DaytonaSecretAllocation,
+): GatewayCredentialPlaceholders {
+  const candidate = plan.candidates.find(
+    (entry) => entry.consumer.kind === "gateway",
+  );
+  const record = candidate
+    ? allocation.bySlot.get(slotKey(credentialSlotFor(candidate)))
+    : undefined;
+  return {
+    ...(candidate && record
+      ? { gateway: { value: candidate.value, placeholder: record.placeholder } }
+      : {}),
+    mcpHeaders: allocation.mcpHeaderPlaceholders,
+  };
+}
+
+/**
+ * Replace the gateway credentials in a sandbox environment with their placeholders.
+ *
+ * The runner builds the harness connection settings before any Secret exists, so they carry raw
+ * values. Two kinds are rewritten here:
+ *
+ *  - The model gateway credential, wherever it appears: the gateway variable itself, the Pi model
+ *    endpoint override, and Claude Code's custom headers. The value is the run's
+ *    `gatewayCredentials.value`, which the platform minted for this run, so any copy of it in the
+ *    environment is that credential. Plain and JSON-escaped copies are both replaced.
+ *  - The Pi extension's MCP config, field by field: each server's headers get the same
+ *    placeholders the MCP session config of the other harnesses gets (`materializeMcpServers`).
+ *    Structural rather than textual, because an MCP header value can be any short string.
+ */
+export function swapGatewayCredentials(
+  environment: Record<string, string>,
+  placeholders: GatewayCredentialPlaceholders,
+): Record<string, string> {
+  const swapped: Record<string, string> = { ...environment };
+  const gateway = placeholders.gateway;
+  if (gateway) {
+    const escaped = JSON.stringify(gateway.value).slice(1, -1);
+    for (const [name, value] of Object.entries(swapped)) {
+      swapped[name] = value
+        .replaceAll(gateway.value, gateway.placeholder)
+        .replaceAll(escaped, gateway.placeholder);
+    }
+  }
+  const mcpConfig = swapped[PI_GATEWAY_MCP_SERVERS_ENV];
+  if (mcpConfig && Object.keys(placeholders.mcpHeaders).length > 0) {
+    const config = JSON.parse(mcpConfig) as {
+      servers: Array<{ name: string; headers: Record<string, string> }>;
+    };
+    for (const server of config.servers) {
+      const serverPlaceholders = placeholders.mcpHeaders[server.name] ?? {};
+      for (const name of Object.keys(server.headers)) {
+        const placeholder = serverPlaceholders[name];
+        if (!placeholder) {
+          throw new Error(
+            `Daytona Secret allocation is missing MCP placeholder '${name}'.`,
+          );
+        }
+        server.headers[name] = placeholder;
+      }
+    }
+    swapped[PI_GATEWAY_MCP_SERVERS_ENV] = JSON.stringify(config);
+  }
+  return swapped;
+}
+
 function generatedName(candidate: DaytonaSecretCandidate): string {
   return `agenta_${randomBytes(18).toString("hex")}_${candidate.ordinal}`;
 }
 
-/** Allocate every Secret before sandbox create, compensating in reverse order on any failure. */
+/**
+ * Allocate every Secret before sandbox create, compensating in reverse order on any failure.
+ *
+ * `log` gets one line per allocation and deletion with the COUNT, the allowed HOSTS, and the
+ * elapsed time — never an id, a generated name, a placeholder, or a value. This is a deliberate,
+ * narrow exception to the delivery layer's log-nothing rule: Daytona applies a new Secret's
+ * substitution rule asynchronously, and diagnosing a raw-placeholder 401 (see
+ * `classifyRunError`'s `credential_delivery_failed`) needs the create/delete timeline that today
+ * has to be reconstructed by inference from eviction lines. Hosts are config, not credential
+ * material (the same hosts appear in the vault UI and in the resolved-model log line).
+ */
 export async function allocateDaytonaSecrets(
   plan: DaytonaSecretPlan,
   api: DaytonaSecretApi,
   nameFor: (candidate: DaytonaSecretCandidate) => string = generatedName,
+  log: (message: string) => void = () => {},
 ): Promise<DaytonaSecretAllocation> {
+  const startedAt = Date.now();
   const created: DaytonaSecretRecord[] = [];
   const attachments: Record<string, string> = {};
-  const mcpHeaderPlaceholders: Record<string, Record<string, string>> = {};
+  // Keyed by user-supplied server name, so no inherited keys.
+  const mcpHeaderPlaceholders: Record<
+    string,
+    Record<string, string>
+  > = Object.create(null);
   const bySlot = new Map<CredentialSlotKey, DaytonaSecretRecord>();
   try {
     for (const candidate of plan.candidates) {
@@ -179,12 +406,21 @@ export async function allocateDaytonaSecrets(
       bySlot.set(slotKey(credentialSlotFor(candidate)), secret);
       if (candidate.consumer.kind === "model") {
         attachments[candidate.binding.name] = secret.name;
+      } else if (candidate.consumer.kind === "gateway") {
+        attachments[GATEWAY_SECRET_ATTACHMENT] = secret.name;
       } else {
         attachments[`AGENTA_MCP_SECRET_${candidate.ordinal}`] = secret.name;
         (mcpHeaderPlaceholders[candidate.consumer.server] ??= {})[
           candidate.binding.name
         ] = secret.placeholder;
       }
+    }
+    if (created.length > 0) {
+      const hosts = [...new Set(plan.candidates.map((c) => c.allowedHost))];
+      log(
+        `[daytona-secrets] allocated n=${created.length} hosts=[${hosts.join(",")}] ` +
+          `ms=${Date.now() - startedAt}`,
+      );
     }
     return { attachments, mcpHeaderPlaceholders, created, bySlot };
   } catch (cause) {
@@ -210,7 +446,9 @@ export async function allocateDaytonaSecrets(
 export async function deleteDaytonaSecrets(
   allocation: DaytonaSecretAllocation,
   api: DaytonaSecretApi,
+  log: (message: string) => void = () => {},
 ): Promise<void> {
+  const startedAt = Date.now();
   const failures: unknown[] = [];
   for (const secret of [...allocation.created].reverse()) {
     try {
@@ -223,6 +461,15 @@ export async function deleteDaytonaSecrets(
     throw new AggregateError(
       failures,
       "Daytona Secret cleanup was incomplete.",
+    );
+  }
+  if (allocation.created.length > 0) {
+    const hosts = [
+      ...new Set(allocation.created.flatMap((s) => s.hosts ?? [])),
+    ];
+    log(
+      `[daytona-secrets] deleted n=${allocation.created.length} hosts=[${hosts.join(",")}] ` +
+        `ms=${Date.now() - startedAt}`,
     );
   }
 }

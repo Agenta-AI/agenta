@@ -80,7 +80,7 @@ def test_runner_config_reads_enabled_pair(monkeypatch):
     monkeypatch.setenv("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS", "local,daytona")
     monkeypatch.setenv("AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER", "daytona")
     config = env.RunnerConfig()
-    assert config.enabled_sandbox_providers == ["local", "daytona"]
+    assert config.enabled_sandbox_providers == ["local", "daytona", "inprocess"]
     assert config.default_sandbox_provider == "daytona"
 
 
@@ -112,3 +112,74 @@ def test_sandbox_runner_honors_explicit_restricted(monkeypatch):
     finally:
         monkeypatch.delenv("AGENTA_SERVICES_CODE_SANDBOX_RUNNER", raising=False)
         importlib.reload(env)
+
+
+@pytest.mark.parametrize(
+    "configured, expected", [(None, True), ("", True), ("true", True), ("false", False)]
+)
+def test_session_features_default_on_and_honor_overrides(
+    monkeypatch, configured, expected
+):
+    try:
+        with monkeypatch.context() as context:
+            for name in (
+                "AGENTA_SESSIONS_SHARED_READER",
+                "AGENTA_SESSIONS_SEQUENCE_WRITES",
+            ):
+                if configured is None:
+                    context.delenv(name, raising=False)
+                else:
+                    context.setenv(name, configured)
+            importlib.reload(env)
+            redis_config = env.SessionsRedisConfig()
+            assert redis_config.shared_reader is expected
+            assert redis_config.sequence_writes is expected
+    finally:
+        importlib.reload(env)
+
+
+@pytest.mark.parametrize(
+    "shared_reader, sequence_writes", [("false", "true"), ("true", "false")]
+)
+def test_session_redis_features_honor_independent_overrides(
+    monkeypatch, shared_reader, sequence_writes
+):
+    try:
+        with monkeypatch.context() as context:
+            context.setenv("AGENTA_SESSIONS_SHARED_READER", shared_reader)
+            context.setenv("AGENTA_SESSIONS_SEQUENCE_WRITES", sequence_writes)
+            importlib.reload(env)
+            config = env.SessionsRedisConfig()
+            assert config.shared_reader is (shared_reader == "true")
+            assert config.sequence_writes is (sequence_writes == "true")
+    finally:
+        importlib.reload(env)
+
+
+# --- `inprocess` follows `daytona` (the runner's withImpliedProviders) ------------ #
+
+
+def test_inprocess_follows_daytona_in_the_effective_list(monkeypatch):
+    monkeypatch.setenv("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS", "daytona")
+    monkeypatch.setenv("AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER", "daytona")
+    config = env.RunnerConfig()
+    assert config.enabled_sandbox_providers == ["daytona", "inprocess"]
+    assert config.default_sandbox_provider == "daytona"
+
+
+def test_inprocess_is_not_added_without_daytona(monkeypatch):
+    monkeypatch.setenv("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS", "local")
+    monkeypatch.delenv("AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER", raising=False)
+    assert env.RunnerConfig().enabled_sandbox_providers == ["local"]
+
+
+def test_implied_providers_keep_an_explicit_list_as_written():
+    assert env._with_implied_sandbox_providers(["daytona", "inprocess"]) == [
+        "daytona",
+        "inprocess",
+    ]
+    assert env._with_implied_sandbox_providers(["local", "daytona"]) == [
+        "local",
+        "daytona",
+        "inprocess",
+    ]

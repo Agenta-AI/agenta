@@ -43,7 +43,7 @@ These share `sandbox-agent` / `sandbox_agent` strings but are separate concepts 
 - **`AGENTA_API_INTERNAL_URL`** — an optional in-cluster bypass with no active consumer;
   unrelated to the runner knob.
 - **`AGENTA_MOUNTS_TUNNEL_API`** — store/tunnel var consumed by `mount.ts`; belongs to W6
-  (store-generalization), not here.
+  (store-generalization), not here. (Superseded: later removed outright.)
 - **Agent-behaviour `AGENTA_AGENT_*`** not touched: tools/skills/content+usage/`SANDBOX_PI_*`.
 - **Docs prose** under `docs/design/agent-workflows/` — optional follow-up (W7).
 

@@ -1,12 +1,14 @@
 {
     "name": "agenta-web",
-    "version": "0.110.0",
+    "version": "0.127.1",
     "workspaces": [
         "ee",
+        "mobile",
         "oss",
         "tests",
         "variants-state",
-        "packages/*"
+        "packages/*",
+        "website"
     ],
     "dependencies": {
         "ajv-formats": "^3.0.1",
@@ -14,7 +16,7 @@
         "jotai-history": "^0.5.1",
         "jotai-transaction": "^0.2.0",
         "json5": "^2.2.3",
-        "next": "15.5.21"
+        "next": "15.5.28"
     },
     "devDependencies": {
         "@agenta/ee": "link:ee",
@@ -48,8 +50,10 @@
     "scripts": {
         "build-oss": "turbo run build --filter=@agenta/oss",
         "build-ee": "turbo run build --filter=@agenta/ee",
+        "build-mobile": "turbo run build --filter=@agenta/mobile",
         "dev-ee": "turbo run dev --filter=@agenta/ee",
         "dev-oss": "turbo run dev --filter=@agenta/oss",
+        "dev-mobile": "turbo run dev --filter=@agenta/mobile",
         "lint": "turbo run lint",
         "lint-fix": "turbo run lint -- --fix",
         "type-check": "pnpm --filter @agenta/oss exec tsc --noEmit && pnpm --filter @agenta/ee exec tsc --noEmit",
@@ -68,26 +72,7 @@
         "test:datalayer": "pnpm test:revision-centric && pnpm test:apps && pnpm test:environments && pnpm test:deployments && pnpm test:orgs && pnpm test:profile && pnpm test:workspace && pnpm test:project && pnpm test:newPlayground && pnpm test:observability",
         "format": "prettier --check \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts,mdx}\" --ignore-path ./.prettierignore --ignore-path ./ee/.gitignore --ignore-path ./oss/.gitignore",
         "format-fix": "prettier --write \"**/*.{js,jsx,cjs,mjs,ts,tsx,cts,mts,mdx}\" --ignore-path ./.prettierignore --ignore-path ./ee/.gitignore --ignore-path ./oss/.gitignore",
-        "generate:tailwind-tokens": "GEN_WRITE=1 tsx scripts/generate-tailwind-tokens.ts"
-    },
-    "pnpm": {
-        "overrides": {
-            "prismjs@<1.30.0": ">=1.30.0",
-            "@babel/runtime@<7.26.10": ">=7.26.10",
-            "mdast-util-to-hast@<13.2.1": ">=13.2.1",
-            "diff@>=4.0.0 <4.0.4": ">=4.0.4",
-            "lodash@<4.17.23": ">=4.17.23",
-            "lodash-es@<4.17.23": ">=4.17.23",
-            "minimatch": "5.1.8",
-            "glob@>=10.2.0 <10.5.0": ">=10.5.0",
-            "picomatch": "4.0.4",
-            "picomatch@4.0.3": "4.0.4",
-            "webpack@>=5.49.0 <=5.104.0": ">=5.104.1",
-            "yaml@>=2.0.0 <2.8.3": ">=2.8.3",
-            "flatted": "3.4.2",
-            "axios": "1.18.0",
-            "postcss@<8.5.10": ">=8.5.10",
-            "next@<15.5.21": ">=15.5.21"
-        }
+        "generate:tailwind-tokens": "GEN_WRITE=1 tsx scripts/generate-tailwind-tokens.ts && pnpm --filter @agenta/mobile generate:tokens",
+        "generate:phosphor-catalog": "pnpm --filter @agenta/ui generate:icons"
     }
 }

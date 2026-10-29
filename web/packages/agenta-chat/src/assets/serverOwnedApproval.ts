@@ -1,0 +1,26 @@
+/**
+ * Keep the server as the sole continuation owner even when its HTTP response is ambiguous.
+ * A rejected request may have committed before the connection failed, so the browser must retire
+ * its local auto-resume marker on both success and failure while still propagating the error.
+ */
+export async function submitServerOwnedApproval<T>({
+    submit,
+    retire,
+}: {
+    submit: () => Promise<T>
+    retire: () => void
+}): Promise<T> {
+    try {
+        return await submit()
+    } finally {
+        retire()
+    }
+}
+
+export interface ApprovalSubmissionOutcome {
+    durable: boolean
+    recoverable: boolean
+    /** `execution.id` from the respond body — the continuation turn the server just started.
+     *  The queue holds every send until this execution writes its own terminal record. */
+    executionId?: string
+}

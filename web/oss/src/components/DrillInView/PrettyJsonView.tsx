@@ -479,27 +479,27 @@ const COPY_ICON = (
 const ScalarValue = ({value}: {value: unknown}) => {
     if (value === null || value === undefined) {
         return (
-            <span className="font-mono text-[12.5px] text-[var(--ant-color-text-quaternary)] italic">
+            <span className="font-mono text-xs text-[var(--ant-color-text-quaternary)] italic">
                 null
             </span>
         )
     }
     if (typeof value === "boolean") {
         return (
-            <span className={`font-mono text-[12.5px] ${booleanValueColorClass(value)}`}>
+            <span className={`font-mono text-xs ${booleanValueColorClass(value)}`}>
                 {String(value)}
             </span>
         )
     }
     if (typeof value === "number") {
         return (
-            <span className="font-mono text-[12.5px] text-blue-7 dark:text-[var(--ant-blue-7)] tabular-nums">
+            <span className="font-mono text-xs text-blue-7 dark:text-[var(--ant-blue-7)] tabular-nums">
                 {String(value)}
             </span>
         )
     }
     if (typeof value === "string") {
-        return <span className="font-mono text-[12.5px] text-[var(--ant-color-text)]">{value}</span>
+        return <span className="font-mono text-xs text-[var(--ant-color-text)]">{value}</span>
     }
     return null
 }
@@ -542,11 +542,7 @@ const CopyButton = ({value}: {value: unknown}) => {
             onClick={handleCopy}
             onKeyDown={handleKeyDown}
         >
-            {copied ? (
-                <span className="text-[11px] text-green-6 font-medium">Copied</span>
-            ) : (
-                COPY_ICON
-            )}
+            {copied ? <span className="text-xs text-green-6 font-medium">Copied</span> : COPY_ICON}
         </button>
     )
 }
@@ -633,20 +629,20 @@ const NodeRow = memo(function NodeRow({
                     <span className="whitespace-nowrap shrink-0 text-xs">{keyLabel}</span>
                 ) : (
                     <span
-                        className={`font-mono whitespace-nowrap shrink-0 text-[var(--ant-color-text)] ${isSection ? "font-medium text-[13px]" : "text-[12.5px]"}`}
+                        className={`font-mono whitespace-nowrap shrink-0 text-[var(--ant-color-text)] ${isSection ? "font-medium text-[13px]" : "text-xs"}`}
                     >
                         {keyLabel}
                     </span>
                 )}
 
                 {meta ? (
-                    <span className="text-[11px] text-[var(--ant-color-text-quaternary)] font-mono shrink-0 whitespace-nowrap">
+                    <span className="text-xs text-[var(--ant-color-text-quaternary)] font-mono shrink-0 whitespace-nowrap">
                         {meta}
                     </span>
                 ) : null}
 
                 {inlineValue ? (
-                    <span className="font-mono text-[12.5px] break-words ml-1 min-w-0">
+                    <span className="font-mono text-xs break-words ml-1 min-w-0">
                         {inlineValue}
                     </span>
                 ) : null}
@@ -675,7 +671,7 @@ const NodeRow = memo(function NodeRow({
 const TRUNCATE_HEIGHT_PX = 160
 
 const PILL_BUTTON_CLASSES =
-    "text-[11px] font-medium text-[var(--ant-color-text-secondary)] bg-[var(--ant-color-fill-quaternary)] hover:bg-[var(--ant-color-fill-tertiary)] border border-solid border-[var(--ant-color-border-secondary)] rounded-full px-3 py-0.5 cursor-pointer focus-visible:ring-1 focus-visible:ring-[var(--ant-color-primary)] focus-visible:outline-none motion-safe:transition-colors"
+    "text-xs font-medium text-[var(--ant-color-text-secondary)] bg-[var(--ant-color-fill-quaternary)] hover:bg-[var(--ant-color-fill-tertiary)] border border-solid border-[var(--ant-color-border-secondary)] rounded-full px-3 py-0.5 cursor-pointer focus-visible:ring-1 focus-visible:ring-[var(--ant-color-primary)] focus-visible:outline-none motion-safe:transition-colors"
 
 const TruncatedMessageBody = memo(function TruncatedMessageBody({
     editorId,
@@ -1147,7 +1143,7 @@ const RecursiveNode = memo(function RecursiveNode({
         <NodeRow
             keyLabel={keyLabel}
             inlineValue={
-                <span className="font-mono text-[12.5px] text-[var(--ant-color-text)]">
+                <span className="font-mono text-xs text-[var(--ant-color-text)]">
                     {valueToString(value)}
                 </span>
             }

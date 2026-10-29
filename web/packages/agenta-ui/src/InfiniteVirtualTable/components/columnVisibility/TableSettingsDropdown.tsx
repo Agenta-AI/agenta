@@ -1,10 +1,16 @@
 import {type ReactNode, useState, useMemo, useCallback} from "react"
 
 import {DownloadSimple, Eye, GearSix, Trash} from "@phosphor-icons/react"
-import {Dropdown, Popover, Tooltip} from "antd"
-import type {MenuProps} from "antd"
 
 import {Button} from "../../../components/ui/button"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuTrigger,
+} from "../../../components/ui/dropdown-menu"
+import {Popover, PopoverAnchor, PopoverContent} from "../../../components/ui/popover"
+import {SimpleTooltip} from "../../../components/ui/tooltip-composed"
+import {renderTableMenuItems, type TableMenuItem} from "../../tableMenu"
 import type {ColumnVisibilityState} from "../../types"
 
 export interface TableSettingsDropdownProps<RowType extends object> {
@@ -19,7 +25,7 @@ export interface TableSettingsDropdownProps<RowType extends object> {
         close: () => void,
     ) => ReactNode
     /** Additional menu items to render after Column visibility */
-    additionalMenuItems?: MenuProps["items"]
+    additionalMenuItems?: TableMenuItem[]
 }
 
 /**
@@ -53,17 +59,14 @@ const TableSettingsDropdown = <RowType extends object>({
     }, [])
 
     const menuItems = useMemo(() => {
-        const items: MenuProps["items"] = []
+        const items: TableMenuItem[] = []
 
         // Column Visibility option
         items.push({
             key: "column-visibility",
             label: "Column visibility",
             icon: <Eye size={16} />,
-            onClick: (e) => {
-                e.domEvent.stopPropagation()
-                handleOpenColumnVisibility()
-            },
+            onClick: handleOpenColumnVisibility,
         })
 
         // Additional menu items (e.g., Row height)
@@ -80,8 +83,7 @@ const TableSettingsDropdown = <RowType extends object>({
                 label: isExporting ? "Exporting..." : "Export to CSV",
                 icon: <DownloadSimple size={16} />,
                 disabled: isExporting,
-                onClick: (e) => {
-                    e.domEvent.stopPropagation()
+                onClick: () => {
                     onExport()
                     setDropdownOpen(false)
                 },
@@ -97,8 +99,7 @@ const TableSettingsDropdown = <RowType extends object>({
                 icon: <Trash size={16} />,
                 disabled: deleteDisabled,
                 danger: true,
-                onClick: (e) => {
-                    e.domEvent.stopPropagation()
+                onClick: () => {
                     onDelete()
                     setDropdownOpen(false)
                 },
@@ -117,41 +118,43 @@ const TableSettingsDropdown = <RowType extends object>({
     ])
 
     return (
-        <Popover
-            trigger={[]}
-            placement="bottomRight"
-            open={columnVisibilityOpen}
-            onOpenChange={setColumnVisibilityOpen}
-            content={renderColumnVisibilityContent(controls, handleCloseColumnVisibility)}
-            destroyOnHidden
-        >
-            <Dropdown
-                trigger={["click"]}
-                placement="bottomRight"
-                open={dropdownOpen}
-                onOpenChange={(open) => {
-                    // Don't open dropdown if column visibility popover is open
-                    if (columnVisibilityOpen && open) return
-                    setDropdownOpen(open)
-                }}
-                menu={{items: menuItems}}
-                styles={{
-                    root: {
-                        minWidth: 180,
-                    },
-                }}
-            >
-                <Tooltip title="Table settings">
-                    <Button
-                        className="rounded-control-round"
-                        size="icon"
-                        variant="ghost"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        {<GearSix size={16} weight="bold" />}
-                    </Button>
-                </Tooltip>
-            </Dropdown>
+        // The column-visibility popover is anchored to the same gear, so it wraps the menu and
+        // opens with no trigger of its own.
+        <Popover open={columnVisibilityOpen} onOpenChange={setColumnVisibilityOpen}>
+            <PopoverAnchor>
+                <DropdownMenu
+                    open={dropdownOpen}
+                    onOpenChange={(open) => {
+                        // Don't open dropdown if column visibility popover is open
+                        if (columnVisibilityOpen && open) return
+                        setDropdownOpen(open)
+                    }}
+                >
+                    {/* Span keeps the tooltip trigger off the menu trigger's own element (see
+                        SimpleTooltip) — hygiene, not the /evaluations loop fix. */}
+                    <SimpleTooltip title="Table settings">
+                        <span className="inline-flex">
+                            <DropdownMenuTrigger asChild>
+                                <Button
+                                    className="rounded-control-round"
+                                    size="icon"
+                                    variant="ghost"
+                                    aria-label="Table settings"
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    <GearSix size={16} weight="bold" />
+                                </Button>
+                            </DropdownMenuTrigger>
+                        </span>
+                    </SimpleTooltip>
+                    <DropdownMenuContent align="end" className="min-w-[180px]">
+                        {renderTableMenuItems(menuItems)}
+                    </DropdownMenuContent>
+                </DropdownMenu>
+            </PopoverAnchor>
+            <PopoverContent align="end" className="w-auto p-3">
+                {renderColumnVisibilityContent(controls, handleCloseColumnVisibility)}
+            </PopoverContent>
         </Popover>
     )
 }

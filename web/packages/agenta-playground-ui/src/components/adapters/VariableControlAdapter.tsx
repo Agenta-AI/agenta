@@ -494,7 +494,7 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                     showShapeHint ? (
                         <Typography.Text
                             type="secondary"
-                            className="block mt-1 px-1 text-[11px] font-mono"
+                            className="block mt-1 px-1 text-xs font-mono"
                         >
                             Expected shape: <code>{shapeHint}</code>
                         </Typography.Text>
@@ -565,7 +565,7 @@ const VariableControlAdapter: React.FC<VariableControlAdapterProps> = ({
                 />
             </EditorProvider>
             {showShapeHint && (
-                <Typography.Text type="secondary" className="block mt-1 px-1 text-[11px] font-mono">
+                <Typography.Text type="secondary" className="block mt-1 px-1 text-xs font-mono">
                     Expected shape: <code>{shapeHint}</code>
                 </Typography.Text>
             )}

@@ -2,7 +2,8 @@ from typing import Optional, List
 from datetime import datetime, timezone
 from uuid import UUID
 
-from sqlalchemy import select, text, or_, Text
+from sqlalchemy import select, text, or_, Text, bindparam, cast
+from sqlalchemy_utils import LtreeType
 from sqlalchemy.exc import IntegrityError
 
 from oss.src.utils.logging import get_module_logger
@@ -32,6 +33,14 @@ from oss.src.dbs.postgres.folders.mappings import (
 )
 
 log = get_module_logger(__name__)
+
+
+def _path_under(prefix: str):
+    """Match the folder at `prefix` and every descendant, with the prefix as a
+    bound parameter cast to ltree."""
+    return FolderDBE.path.op("<@")(
+        cast(bindparam(None, prefix, type_=Text), LtreeType())
+    )
 
 
 async def _get_folder_row(
@@ -360,19 +369,12 @@ class FoldersDAO(FoldersDAOInterface):
                 stmt = stmt.filter(FolderDBE.path.cast(Text).in_(folder_query.paths))
 
             if folder_query.prefix is not None:
-                escaped_prefix = folder_query.prefix.replace("'", "''")
-                stmt = stmt.filter(
-                    FolderDBE.path.op("<@")(text(f"'{escaped_prefix}'::ltree"))
-                )
+                stmt = stmt.filter(_path_under(folder_query.prefix))
 
             if folder_query.prefixes:
-                prefix_filters = []
-                for prefix in folder_query.prefixes:
-                    escaped_prefix = prefix.replace("'", "''")
-                    prefix_filters.append(
-                        FolderDBE.path.op("<@")(text(f"'{escaped_prefix}'::ltree"))
-                    )
-                stmt = stmt.filter(or_(*prefix_filters))
+                stmt = stmt.filter(
+                    or_(*(_path_under(prefix) for prefix in folder_query.prefixes))
+                )
 
             if folder_query.tags is not None:
                 stmt = stmt.filter(FolderDBE.tags.contains(folder_query.tags))

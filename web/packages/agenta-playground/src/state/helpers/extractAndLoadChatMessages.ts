@@ -5,11 +5,7 @@
  * normalizes them into ChatMessage objects, and writes them to the chat
  * message atoms (messageIdsAtomFamily / messagesByIdAtomFamily).
  *
- * Extracted from loadTestsetNormalizedMutationAtom so it can be reused in both:
- * - The legacy LoadTestsetButton path (via loadTestsetNormalizedMutationAtom)
- * - The new TestsetDropdown → playgroundController path
- *
- * @see loadTestsetNormalizedMutation.ts for the original implementation
+ * Used by the TestsetDropdown → playgroundController path.
  */
 
 import type {MessageContent} from "@agenta/shared/types"
@@ -24,7 +20,6 @@ import {displayedEntityIdsAtom} from "../execution/displayedEntities"
 
 // ============================================================================
 // CONTENT NORMALIZATION HELPERS
-// (shared with loadTestsetNormalizedMutation.ts)
 // ============================================================================
 
 type NormalizedContentPart =
@@ -238,7 +233,7 @@ export const extractAndLoadChatMessagesAtom = atom(
 
         // Resolve messages from testcase rows.
         // Testcase data can arrive in two shapes:
-        // 1. Flat: { messages: [...], ... }  — from the legacy LoadTestsetButton path
+        // 1. Flat: { messages: [...], ... }
         // 2. Nested: { data: { messages: [...] }, ... }  — from testcaseMolecule.get.data()
         const resolveMessages = (row: Record<string, unknown>): unknown => {
             if (row.messages !== undefined) return row.messages

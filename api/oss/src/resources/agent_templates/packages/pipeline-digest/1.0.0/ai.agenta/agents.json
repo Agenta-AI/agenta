@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "entry": "pipeline-digest",
+  "agents": {
+    "pipeline-digest": {
+      "name": "Pipeline digest",
+      "description": "Posts a daily digest of pipeline changes and stale deals to Slack.",
+      "instructions": "./ai.agenta/agents/pipeline-digest/AGENTS.md",
+      "setup": "./ai.agenta/agents/pipeline-digest/SETUP.md",
+      "connections": [
+        {
+          "key": "read-the-deals",
+          "required": true,
+          "purpose": "Read the deals",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "hubspot"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "salesforce"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "attio"
+            }
+          ],
+          "setup_notes": "Read deals"
+        },
+        {
+          "key": "post-the-digest",
+          "required": true,
+          "purpose": "Post the digest",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "slack"
+            }
+          ],
+          "setup_notes": "Post the pipeline digest"
+        }
+      ]
+    }
+  }
+}

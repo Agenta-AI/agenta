@@ -328,6 +328,23 @@ describe("agentShouldResumeAfterApproval", () => {
         expect(agentShouldResumeAfterApproval({messages})).toBe(true)
     })
 
+    it("resumes a named client-tool result in an earlier message only with its live marker", () => {
+        const messages = [
+            user("connect github"),
+            assistantWithClientTool("output-available", {connected: true}),
+            user("continue"),
+            {id: "a2", role: "assistant", parts: [{type: "text", text: "Starting"}]},
+        ]
+
+        expect(
+            agentShouldResumeAfterApproval({
+                messages,
+                liveInteraction: {kind: "client_tool", id: "call_c"},
+            }),
+        ).toBe(true)
+        expect(agentShouldResumeAfterApproval({messages})).toBe(false)
+    })
+
     it("does NOT resume while a client tool is still parked (input-available)", () => {
         const messages = [user("connect github"), assistantWithClientTool("input-available")]
         expect(agentShouldResumeAfterApproval({messages})).toBe(false)
@@ -563,5 +580,47 @@ describe("agentShouldResumeAfterApproval", () => {
             },
         ]
         expect(agentShouldResumeAfterApproval({messages})).toBe(true)
+    })
+})
+
+/**
+ * A gateway approval keeps the run stream open, so the SDK skips its own dispatch at click time
+ * (`status === "streaming"`) and only re-evaluates when the stream finally ends. By then the failed
+ * turn may have stamped a run-error carrier — an assistant message with NO parts — onto the tail.
+ * The answered approval is then second-to-last, and the resume has to survive that.
+ */
+describe("an answered approval behind an empty run-error carrier", () => {
+    const carrier = () => ({id: "run-error-1", role: "assistant", parts: []})
+
+    it("resumes when the marker names the approval", () => {
+        const messages = [
+            user("delete it"),
+            assistantWithTool("approval-responded", true),
+            carrier(),
+        ]
+        expect(
+            agentShouldResumeAfterApproval({
+                messages,
+                liveInteraction: {kind: "approval", id: "perm_1"},
+            }),
+        ).toBe(true)
+    })
+
+    it("resumes on the markerless path too, looking past the carrier", () => {
+        const messages = [
+            user("delete it"),
+            assistantWithTool("approval-responded", true),
+            carrier(),
+        ]
+        expect(agentShouldResumeAfterApproval({messages})).toBe(true)
+    })
+
+    it("still refuses when the approval behind the carrier is unanswered", () => {
+        const messages = [user("delete it"), assistantWithTool("approval-requested"), carrier()]
+        expect(agentShouldResumeAfterApproval({messages})).toBe(false)
+    })
+
+    it("does not look past a carrier into a previous USER turn", () => {
+        expect(agentShouldResumeAfterApproval({messages: [user("hi"), carrier()]})).toBe(false)
     })
 })

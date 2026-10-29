@@ -1,10 +1,12 @@
 import {useLayoutEffect, useRef, useState} from "react"
 
+import {isLocalDraftId} from "@agenta/entities/shared"
 import {workflowMolecule} from "@agenta/entities/workflow"
+import {useAgentIconChrome} from "@agenta/entity-ui/agent"
 import {agentSelfCommitSignalAtom} from "@agenta/shared/state"
 import {HeightCollapse} from "@agenta/ui"
+import {Button} from "@agenta/ui/ui"
 import {Robot} from "@phosphor-icons/react"
-import {Button} from "antd"
 import {useAtom, useAtomValue} from "jotai"
 
 /**
@@ -47,6 +49,19 @@ const AgentCommitNotice = ({revisionId}: {revisionId: string}) => {
         setOverflowing(el.scrollHeight - el.clientHeight > 1)
     }, [commitMessage, expanded, active])
 
+    // The agent's own mark on its own notice.
+    const rawWorkflowId = useAtomValue(
+        workflowMolecule.selectors.workflowId(shownSignal?.revisionId ?? ""),
+    )
+    const chrome = useAgentIconChrome(
+        rawWorkflowId && !isLocalDraftId(rawWorkflowId) ? rawWorkflowId : null,
+        {
+            size: 15,
+            fallbackGlyph: <Robot size={15} weight="fill" />,
+            fallbackClassName: "bg-[var(--ag-type-agent-bg)] text-[var(--ag-type-agent-text)]",
+        },
+    )
+
     const rawVersion = shownSignal?.version ? String(shownSignal.version) : null
     const version = rawVersion ? (rawVersion.startsWith("v") ? rawVersion : `v${rawVersion}`) : null
 
@@ -56,8 +71,11 @@ const AgentCommitNotice = ({revisionId}: {revisionId: string}) => {
                 <div className="border-0 border-t border-solid border-colorBorderSecondary bg-[var(--ag-colorBgElevated)] px-4 py-2.5">
                     <div className="flex items-start justify-between gap-3">
                         <div className="flex min-w-0 items-start gap-2.5">
-                            <span className="mt-px flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-[color-mix(in_srgb,var(--ag-c-13C2C2,#13c2c2)_15%,transparent)] text-[var(--ag-c-13C2C2,#13c2c2)]">
-                                <Robot size={15} weight="fill" />
+                            <span
+                                className={`mt-px flex h-6 w-6 shrink-0 items-center justify-center rounded-md ${chrome.className}`}
+                                style={chrome.style}
+                            >
+                                {chrome.glyph}
                             </span>
                             <div className="flex min-w-0 flex-col gap-0.5">
                                 <span className="text-xs font-medium leading-5 text-colorText">
@@ -68,7 +86,7 @@ const AgentCommitNotice = ({revisionId}: {revisionId: string}) => {
                                     <div className="flex min-w-0 flex-col items-start gap-0.5">
                                         <p
                                             ref={messageRef}
-                                            className={`m-0 min-w-0 break-words text-[11px] leading-4 text-colorTextSecondary ${
+                                            className={`m-0 min-w-0 break-words text-xs leading-4 text-colorTextSecondary ${
                                                 expanded
                                                     ? "max-h-24 overflow-y-auto pr-1"
                                                     : "line-clamp-2 overflow-hidden"
@@ -79,7 +97,7 @@ const AgentCommitNotice = ({revisionId}: {revisionId: string}) => {
                                         {overflowing || expanded ? (
                                             <button
                                                 type="button"
-                                                className="cursor-pointer border-0 bg-transparent p-0 text-[11px] font-medium leading-4 text-colorPrimary hover:underline"
+                                                className="cursor-pointer border-0 bg-transparent p-0 text-xs font-medium leading-4 text-colorPrimary hover:underline"
                                                 onClick={() => setExpanded((v) => !v)}
                                             >
                                                 {expanded ? "Show less" : "Show more"}
@@ -90,8 +108,8 @@ const AgentCommitNotice = ({revisionId}: {revisionId: string}) => {
                             </div>
                         </div>
                         <Button
-                            type="text"
-                            className="!h-6 shrink-0 !px-2 !text-xs"
+                            variant="ghost"
+                            className="h-6 shrink-0 px-2 text-xs"
                             onClick={() => setSignal(null)}
                         >
                             Dismiss

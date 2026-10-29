@@ -2,8 +2,8 @@ import {useEffect, useRef} from "react"
 
 import {providerKeyAddedSignalAtom} from "@agenta/shared/state"
 import {HeightCollapse} from "@agenta/ui"
+import {Button} from "@agenta/ui/ui"
 import {CheckCircle, X} from "@phosphor-icons/react"
-import {Button} from "antd"
 import {useAtom} from "jotai"
 
 /**
@@ -52,18 +52,20 @@ const ProviderKeyNotice = ({revisionId}: {revisionId: string}) => {
                                     "API key added"
                                 )}
                             </span>
-                            <span className="text-[11px] leading-4 text-colorTextSecondary">
+                            <span className="text-xs leading-4 text-colorTextSecondary">
                                 The agent is ready to run.
                             </span>
                         </div>
                     </div>
                     <Button
-                        type="text"
+                        variant="ghost"
+                        size="icon-sm"
                         aria-label="Dismiss"
-                        className="!h-6 !w-6 shrink-0 !px-0 !text-colorTextTertiary hover:!bg-colorFillTertiary hover:!text-colorText"
-                        icon={<X size={13} />}
+                        className="h-6 w-6 shrink-0 p-0 text-colorTextTertiary hover:bg-colorFillTertiary hover:text-colorText"
                         onClick={() => setSignal(null)}
-                    />
+                    >
+                        <X size={13} />
+                    </Button>
                 </div>
             </div>
         </HeightCollapse>

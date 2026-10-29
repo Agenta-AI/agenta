@@ -16,7 +16,7 @@
  */
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
-import {atomFamily} from "jotai/utils"
+import {atomFamily} from "jotai-family"
 import {queryClientAtom} from "jotai-tanstack-query"
 
 import {mountPathMatchesToolPath, type FileActivity} from "../core/fileActivity"

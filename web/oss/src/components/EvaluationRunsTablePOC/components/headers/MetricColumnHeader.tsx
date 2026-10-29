@@ -141,7 +141,7 @@ const MetricColumnHeader = ({
                 {primaryLabel}
             </Typography.Text>
             {/* {evaluatorLabel ? (
-                <Typography.Text className="text-[11px] text-gray-500" ellipsis>
+                <Typography.Text className="text-xs text-gray-500" ellipsis>
                     {evaluatorLabel}
                 </Typography.Text>
             ) : null} */}

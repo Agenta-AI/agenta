@@ -145,6 +145,164 @@ async def test_record_ingest_threads_turn_id_and_span_id():
     assert event.span_id == span_id
 
 
+async def test_terminal_continuation_settles_core_before_stream_acceptance(monkeypatch):
+    records_service = AsyncMock()
+    commands_service = AsyncMock()
+    router = RecordsRouter(
+        records_service=records_service,
+        commands_service=commands_service,
+    )
+    project_id = uuid4()
+    request = _make_authed_request(FastAPI(), project_id, uuid4(), uuid4())
+    body = SessionRecordIngestRequest(
+        session_id="session-1",
+        record_type="done",
+        record_source="agent",
+        turn_id="continuation-1",
+        attributes={"stopReason": "end_turn"},
+    )
+    order = []
+    commands_service.settle_execution_ended.side_effect = lambda **_: order.append(
+        "settled"
+    )
+
+    async def publish(**kwargs):
+        order.append("published")
+        return True
+
+    with (
+        patch(
+            "oss.src.apis.fastapi.sessions.router.check_action_access",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+        patch(
+            "oss.src.apis.fastapi.sessions.router.publish_record", side_effect=publish
+        ),
+    ):
+        await router.ingest_record_event(request=request, body=body)
+
+    assert order == ["settled", "published"]
+    commands_service.settle_execution_ended.assert_awaited_once_with(
+        project_id=project_id,
+        session_id="session-1",
+        execution_id="continuation-1",
+        terminal_outcome="completed",
+    )
+
+
+@pytest.mark.parametrize("stop_reason", ["paused", "cancelled"])
+async def test_non_ending_terminal_does_not_settle_the_continuation(
+    monkeypatch, stop_reason
+):
+    commands_service = AsyncMock()
+    router = RecordsRouter(
+        records_service=AsyncMock(),
+        commands_service=commands_service,
+    )
+    project_id = uuid4()
+    request = _make_authed_request(FastAPI(), project_id, uuid4(), uuid4())
+    body = SessionRecordIngestRequest(
+        session_id="session-1",
+        record_type="done",
+        record_source="agent",
+        turn_id="continuation-1",
+        attributes={"stopReason": stop_reason},
+    )
+
+    with (
+        patch(
+            "oss.src.apis.fastapi.sessions.router.check_action_access",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+        patch(
+            "oss.src.apis.fastapi.sessions.router.publish_record",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+    ):
+        await router.ingest_record_event(request=request, body=body)
+
+    commands_service.settle_execution_ended.assert_not_awaited()
+
+
+async def test_error_terminal_settles_the_continuation_as_failed(monkeypatch):
+    # Production EU, 2026-10-06: a continuation that ended with a provider error kept its
+    # execution `running`, so the next Send saw a busy session.
+    commands_service = AsyncMock()
+    router = RecordsRouter(
+        records_service=AsyncMock(),
+        commands_service=commands_service,
+    )
+    project_id = uuid4()
+    request = _make_authed_request(FastAPI(), project_id, uuid4(), uuid4())
+    body = SessionRecordIngestRequest(
+        session_id="session-1",
+        record_type="done",
+        record_source="agent",
+        turn_id="continuation-1",
+        attributes={"stopReason": "error"},
+    )
+
+    with (
+        patch(
+            "oss.src.apis.fastapi.sessions.router.check_action_access",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+        patch(
+            "oss.src.apis.fastapi.sessions.router.publish_record",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+    ):
+        await router.ingest_record_event(request=request, body=body)
+
+    commands_service.settle_execution_ended.assert_awaited_once_with(
+        project_id=project_id,
+        session_id="session-1",
+        execution_id="continuation-1",
+        terminal_outcome="failed",
+    )
+
+
+async def test_terminal_publish_failure_is_retryable_after_core_settlement(monkeypatch):
+    from fastapi import HTTPException
+
+    commands_service = AsyncMock()
+    router = RecordsRouter(
+        records_service=AsyncMock(),
+        commands_service=commands_service,
+    )
+    project_id = uuid4()
+    request = _make_authed_request(FastAPI(), project_id, uuid4(), uuid4())
+    body = SessionRecordIngestRequest(
+        session_id="session-1",
+        record_type="done",
+        record_source="agent",
+        turn_id="continuation-1",
+    )
+
+    with (
+        patch(
+            "oss.src.apis.fastapi.sessions.router.check_action_access",
+            new_callable=AsyncMock,
+            return_value=True,
+        ),
+        patch(
+            "oss.src.apis.fastapi.sessions.router.publish_record",
+            new_callable=AsyncMock,
+            return_value=False,
+        ),
+        pytest.raises(HTTPException) as exc_info,
+    ):
+        await router.ingest_record_event(request=request, body=body)
+
+    assert exc_info.value.status_code == 503
+    commands_service.settle_execution_ended.assert_awaited_once()
+
+
 async def test_record_ingest_defaults_turn_id_and_span_id_to_none():
     records_service = AsyncMock()
     router = RecordsRouter(records_service=records_service)

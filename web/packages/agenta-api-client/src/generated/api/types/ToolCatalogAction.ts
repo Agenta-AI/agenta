@@ -6,5 +6,6 @@ export interface ToolCatalogAction {
     description?: (string | null) | undefined;
     categories?: string[] | undefined;
     logo?: (string | null) | undefined;
+    provider_action_id?: (string | null) | undefined;
     read_only?: (boolean | null) | undefined;
 }

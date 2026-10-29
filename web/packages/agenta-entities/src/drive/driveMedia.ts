@@ -1,0 +1,453 @@
+/**
+ * Raw-bytes access for drive files (build-spec 3): media/binary bodies and downloads go through
+ * `GET /mounts/{id}/files/download` (bytes + guessed content-type). DEVIATION from the spec's
+ * "signed short-lived URL as src": the endpoint sends `Content-Disposition: attachment` and auth
+ * can be header-based cross-origin, so a direct `src=` is unreliable — phase 1 fetches the bytes
+ * through the authenticated client once (cached blob → object URL). BACKEND ASK: an inline
+ * disposition (or real signed URLs) to let media stream natively.
+ */
+import {useEffect, useMemo, useState} from "react"
+
+import {getMountsClient} from "@agenta/sdk/resources"
+import {axios, getAgentaApiUrl} from "@agenta/shared/api"
+import {projectIdAtom} from "@agenta/shared/state"
+import {useAtomValue} from "jotai"
+import {atomFamily} from "jotai-family"
+import {atomWithQuery} from "jotai-tanstack-query"
+
+import {type Mount, projectScopedRequest} from "@agenta/entities/session"
+
+/** Subset of the File System Access API we use to stream a download straight to disk (Chromium).
+ * Declared locally — the global typings aren't present in every browser even when the runtime is,
+ * and the buffered fallback needs none of it. Mirrors the ETL `exportWriter` feature-detect. We
+ * write chunks with `writable.write()` (NOT `ReadableStream.pipeTo(writable)`, which no-ops into a
+ * FileSystemWritableFileStream and leaves a 0-byte file). */
+interface WritableFileStreamLike {
+    write(chunk: Uint8Array): Promise<void>
+    close(): Promise<void>
+    abort(reason?: unknown): Promise<void>
+}
+type ShowSaveFilePicker = (options?: {
+    suggestedName?: string
+    types?: {description?: string; accept: Record<string, string[]>}[]
+}) => Promise<{createWritable(): Promise<WritableFileStreamLike>}>
+
+const getShowSaveFilePicker = (): ShowSaveFilePicker | undefined => {
+    if (typeof window === "undefined") return undefined
+    const picker = (window as unknown as {showSaveFilePicker?: ShowSaveFilePicker})
+        .showSaveFilePicker
+    return typeof picker === "function" ? picker : undefined
+}
+
+export async function fetchMountFileBlob({
+    mountId,
+    projectId,
+    path,
+    signal,
+}: {
+    mountId: string
+    projectId: string
+    path: string
+    signal?: AbortSignal
+}): Promise<Blob | null> {
+    if (!mountId || !projectId || !path) return null
+    try {
+        const response = await getMountsClient().downloadMountFile(
+            {mount_id: mountId, path},
+            // One attempt: a failure already maps to null, and retries hold a thumbnail slot.
+            projectScopedRequest(projectId, undefined, signal, 0),
+        )
+        return await response.blob()
+    } catch {
+        return null
+    }
+}
+
+/** One drive file's raw bytes (up to the 25 MB media cap). MEMORY POLICY: a blob lives only
+ * while a body renders it — `gcTime: 0` drops it the moment the viewer unmounts (paging away,
+ * closing the preview), so browsing N media files never pins N blobs. Deliberately keyed OUTSIDE
+ * the content-key prefix: the drive revalidation must not re-download an actively-viewed video
+ * on every finished turn — reopening refetches anyway since nothing is retained. */
+export const mountFileBlobQueryFamily = atomFamily(
+    ({mountId, path}: {mountId: string; path: string}) =>
+        atomWithQuery<Blob | null>((get) => {
+            const projectId = get(projectIdAtom) ?? ""
+            return {
+                queryKey: ["mounts", "file-blob", projectId, mountId, path],
+                queryFn: () => fetchMountFileBlob({mountId, projectId, path}),
+                enabled: Boolean(mountId && path && projectId),
+                staleTime: Infinity,
+                gcTime: 0,
+                refetchOnWindowFocus: false,
+            }
+        }),
+    (a, b) => a.mountId === b.mountId && a.path === b.path,
+)
+
+/** Object URL for a drive file's bytes — revoked on change/unmount. */
+export function useMountFileObjectUrl(
+    mount: Mount | null,
+    path: string,
+): {url: string | null; isPending: boolean; failed: boolean} {
+    const query = useAtomValue(mountFileBlobQueryFamily({mountId: mount?.id ?? "", path}))
+    const blob = query.data ?? null
+    const url = useMemo(() => (blob ? URL.createObjectURL(blob) : null), [blob])
+    useEffect(() => {
+        return () => {
+            if (url) URL.revokeObjectURL(url)
+        }
+    }, [url])
+    return {url, isPending: query.isPending, failed: !query.isPending && !blob}
+}
+
+/** Longest side of a generated grid thumbnail, in px. */
+const THUMB_PX = 256
+
+/** A downscaled image: a small data URL, its drawn size, and the original's byte size. */
+export interface DriveImageThumb {
+    src: string
+    width: number
+    height: number
+    /** The original image's size, before scaling. */
+    sourceWidth: number
+    sourceHeight: number
+    bytes: number
+}
+
+/** Thumbnails fetch and decode at most this many at a time; the rest wait their turn. */
+const MAX_THUMBNAILS_IN_FLIGHT = 2
+let thumbnailsInFlight = 0
+const thumbnailQueue: (() => void)[] = []
+
+async function withThumbnailSlot<T>(run: () => Promise<T>): Promise<T> {
+    if (thumbnailsInFlight >= MAX_THUMBNAILS_IN_FLIGHT)
+        await new Promise<void>((resolve) => thumbnailQueue.push(resolve))
+    else thumbnailsInFlight += 1
+    try {
+        return await run()
+    } finally {
+        // Hand the slot straight to a waiter, so a new caller cannot slip in between.
+        const next = thumbnailQueue.shift()
+        if (next) next()
+        else thumbnailsInFlight -= 1
+    }
+}
+
+/** The image's own size, read from its header without decoding the pixels. */
+async function imageSize(blob: Blob): Promise<{width: number; height: number} | null> {
+    const url = URL.createObjectURL(blob)
+    try {
+        return await new Promise((resolve) => {
+            const img = new Image()
+            img.onload = () => resolve({width: img.naturalWidth, height: img.naturalHeight})
+            img.onerror = () => resolve(null)
+            img.src = url
+        })
+    } finally {
+        URL.revokeObjectURL(url)
+    }
+}
+
+const readAsDataUrl = (blob: Blob): Promise<string | null> =>
+    new Promise((resolve) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : null)
+        reader.onerror = () => resolve(null)
+        reader.readAsDataURL(blob)
+    })
+
+/** WebP-encode at the target size; the canvas scales a bitmap the browser did not resize. */
+async function encodeWebp(
+    bitmap: ImageBitmap,
+    width: number,
+    height: number,
+): Promise<Blob | null> {
+    if (typeof OffscreenCanvas === "function") {
+        const canvas = new OffscreenCanvas(width, height)
+        canvas.getContext("2d")?.drawImage(bitmap, 0, 0, width, height)
+        return canvas.convertToBlob({type: "image/webp", quality: 0.7})
+    }
+    const canvas = document.createElement("canvas")
+    canvas.width = width
+    canvas.height = height
+    canvas.getContext("2d")?.drawImage(bitmap, 0, 0, width, height)
+    return new Promise((resolve) => canvas.toBlob(resolve, "image/webp", 0.7))
+}
+
+/** Webp data URL, `px` on its longest side, decoded already scaled; null when undecodable. */
+async function downscaleImage(blob: Blob, px: number): Promise<DriveImageThumb | null> {
+    if (typeof createImageBitmap !== "function") return null
+    let bitmap: ImageBitmap | null = null
+    try {
+        const size = await imageSize(blob)
+        if (!size?.width || !size.height) return null
+        const scale = Math.min(1, px / Math.max(size.width, size.height))
+        const width = Math.max(1, Math.round(size.width * scale))
+        const height = Math.max(1, Math.round(size.height * scale))
+        bitmap = await createImageBitmap(blob, {
+            resizeWidth: width,
+            resizeHeight: height,
+            resizeQuality: "medium",
+        })
+        const encoded = await encodeWebp(bitmap, width, height)
+        const src = encoded ? await readAsDataUrl(encoded) : null
+        return src
+            ? {
+                  src,
+                  width,
+                  height,
+                  sourceWidth: size.width,
+                  sourceHeight: size.height,
+                  bytes: blob.size,
+              }
+            : null
+    } catch {
+        return null
+    } finally {
+        bitmap?.close()
+    }
+}
+
+/** A file's thumbnail as a small data URL; the full bytes are fetched, scaled, then dropped. */
+// Keyed by one string: an object key with a comparator is a linear scan on every lookup.
+const mountFileThumbnailByKey = atomFamily((key: string) =>
+    atomWithQuery<DriveImageThumb | null>((get) => {
+        const [mountId, path, pxText] = key.split("\0")
+        const px = Number(pxText)
+        const projectId = get(projectIdAtom) ?? ""
+        return {
+            queryKey: ["mounts", "thumb", projectId, mountId, path, px],
+            queryFn: ({signal}) =>
+                withThumbnailSlot(async () => {
+                    if (signal.aborted) return null
+                    const blob = await fetchMountFileBlob({mountId, projectId, path, signal})
+                    return blob ? downscaleImage(blob, px) : null
+                }),
+            enabled: Boolean(mountId && path && projectId),
+            staleTime: Infinity,
+            // The larger chat previews are dropped sooner once nothing shows them.
+            gcTime: px > THUMB_PX ? 60_000 : 5 * 60_000,
+            refetchOnWindowFocus: false,
+        }
+    }),
+)
+
+export const mountFileThumbnailQueryFamily = ({
+    mountId,
+    path,
+    px = THUMB_PX,
+}: {
+    mountId: string
+    path: string
+    px?: number
+}) => mountFileThumbnailByKey(`${mountId}\0${path}\0${px}`)
+
+/** Download one drive file (any type) via the bytes endpoint. */
+/**
+ * Upload a file into a mount folder, reporting real progress via axios `onUploadProgress` (the
+ * Fern client uses fetch, which can't stream upload progress). `destFolder` is the mount-relative
+ * directory ("" = root); `destName` is appended to it, defaulting to the filename.
+ */
+export async function uploadMountFile({
+    mountId,
+    destFolder,
+    file,
+    destName,
+    projectId,
+    onProgress,
+    signal,
+}: {
+    mountId: string
+    destFolder: string
+    file: File
+    /** Destination path relative to `destFolder`. May be nested ("sub/a.txt") — a dropped folder
+     * keeps its structure, and the backend creates the intermediate directories. */
+    destName?: string
+    projectId?: string | null
+    onProgress?: (percent: number) => void
+    signal?: AbortSignal
+}): Promise<void> {
+    const form = new FormData()
+    form.append("file", file, file.name)
+    const name = destName || file.name
+    const path = destFolder ? `${destFolder.replace(/\/$/, "")}/${name}` : name
+    // The explicit header matters: the shared instance defaults to application/json, and
+    // axios then JSON-serializes the FormData, collapsing the File to {}.
+    await axios.post(`${getAgentaApiUrl()}/mounts/${mountId}/files/upload`, form, {
+        params: {path, project_id: projectId},
+        headers: {"Content-Type": "multipart/form-data"},
+        signal,
+        onUploadProgress: (e) => {
+            if (onProgress && e.total) onProgress(Math.round((e.loaded / e.total) * 100))
+        },
+    })
+}
+
+/** Raw-bytes save of one file. Module-private on purpose: it reports failure as `false`, which every
+ * call site used to drop on the floor — go through {@link useDriveFileDownload}, which reports it. */
+export async function downloadMountFile({
+    mount,
+    path,
+    projectId,
+}: {
+    mount: Mount | null
+    path: string
+    projectId: string | null | undefined
+}): Promise<boolean> {
+    if (!mount || !projectId) return false
+    const blob = await fetchMountFileBlob({mountId: mount.id, projectId, path})
+    if (!blob) return false
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement("a")
+    anchor.href = url
+    anchor.download = path.split("/").pop() ?? "download"
+    document.body.appendChild(anchor)
+    anchor.click()
+    anchor.remove()
+    URL.revokeObjectURL(url)
+    return true
+}
+
+const EXPORT_TIMEOUT_SECONDS = 600
+
+/** Download the WHOLE drive as ONE zip ("download all") — spanning every mount the drive folds in
+ * (cwd at the root, the agent's durable folder under `agent-files/`). The backend STREAMS the zip
+ * (never buffered whole) and reads file bodies with bounded concurrency.
+ *
+ * On Chromium (File System Access API) the server's zip stream is piped STRAIGHT TO DISK — client
+ * memory stays bounded by one chunk, matching the server. Safari/Firefox (no picker) fall back to
+ * buffering the blob + an anchor-click (the whole zip transits the JS heap there). `cancelled` is
+ * returned when the user dismisses the native save dialog, so the caller can skip the error toast. */
+export async function downloadMountArchive({
+    mounts,
+    projectId,
+    filename = "files.zip",
+}: {
+    /** Each mount: `prefix` = where in the zip its files go (folded drive); `path` = a source folder
+     * within the mount to scope to ("" = whole mount, for "download all"). */
+    mounts: {mountId: string; prefix?: string; path?: string}[]
+    projectId: string | null | undefined
+    filename?: string
+}): Promise<{ok: boolean; error?: string; cancelled?: boolean}> {
+    const valid = mounts.filter((m) => m.mountId)
+    if (!valid.length || !projectId) return {ok: false}
+    const payload = {
+        mounts: valid.map((m) => ({
+            mount_id: m.mountId,
+            prefix: m.prefix ?? "",
+            path: m.path ?? "",
+        })),
+        filename,
+    }
+    // The server lists every file before it sends headers, so Fern's 30s default is too short.
+    const exportOptions = {
+        ...projectScopedRequest(projectId, undefined, undefined, 0),
+        timeoutInSeconds: EXPORT_TIMEOUT_SECONDS,
+    }
+
+    // ─── Streaming-to-disk (Chromium) ────────────────────────────────────────────────────────────
+    const showSaveFilePicker = getShowSaveFilePicker()
+    if (showSaveFilePicker) {
+        let handle: {createWritable(): Promise<WritableFileStreamLike>} | null = null
+        try {
+            handle = await showSaveFilePicker({
+                suggestedName: filename,
+                types: [{description: "Zip archive", accept: {"application/zip": [".zip"]}}],
+            })
+        } catch (error) {
+            // User dismissed the picker → bail without downloading; other failures fall through.
+            if ((error as Error)?.name === "AbortError") return {ok: false, cancelled: true}
+        }
+        if (handle) {
+            // `createWritable()` belongs INSIDE the try: it rejects when the write permission is
+            // refused, and this function's whole contract is to report failure as a value — a throw
+            // here escapes every caller's result handling and strands their in-flight UI.
+            let writable: WritableFileStreamLike | null = null
+            try {
+                writable = await handle.createWritable()
+                const response = await getMountsClient().exportMountFiles(payload, exportOptions)
+                const body = response.stream()
+                if (!body) throw new Error("archive has no body")
+                // Manual read → write per chunk (pipeTo into a FileSystemWritableFileStream no-ops).
+                const reader = body.getReader()
+                for (;;) {
+                    const {done, value} = await reader.read()
+                    if (done) break
+                    if (value) await writable.write(value)
+                }
+                await writable.close()
+                return {ok: true}
+            } catch {
+                await writable?.abort().catch(() => undefined)
+                return {ok: false, error: "Couldn't prepare the download."}
+            }
+        }
+    }
+
+    // ─── Buffered fallback (Safari / Firefox / no picker) ─────────────────────────────────────────
+    try {
+        const response = await getMountsClient().exportMountFiles(payload, exportOptions)
+        const url = URL.createObjectURL(await response.blob())
+        const anchor = document.createElement("a")
+        anchor.href = url
+        anchor.download = filename
+        document.body.appendChild(anchor)
+        anchor.click()
+        anchor.remove()
+        URL.revokeObjectURL(url)
+        return {ok: true}
+    } catch {
+        return {ok: false, error: "Couldn't prepare the download."}
+    }
+}
+
+/** The raw-bytes URL for one drive file. Media tags can use it DIRECTLY on same-origin
+ * cookie-auth deployments (the browser streams progressively — bytes never enter the JS heap;
+ * Content-Disposition is ignored by <img>/<audio>/<video>). Header-auth/cross-origin setups 401
+ * on it — callers must handle onError and fall back to the blob path. */
+export function mountFileDownloadUrl(
+    mount: Mount | null,
+    path: string,
+    projectId: string | null | undefined,
+): string | null {
+    if (!mount || !projectId || !path) return null
+    const params = new URLSearchParams({path, project_id: projectId})
+    return `${getAgentaApiUrl()}/mounts/${mount.id}/files/download?${params.toString()}`
+}
+
+/**
+ * Media source with streaming-first semantics: try the direct URL (zero JS-heap, progressive
+ * playback), and only on tag error (auth/cross-origin) fetch the cached blob. `src` is null
+ * while the blob fallback loads. Wire `onError` to the media element.
+ */
+export function useMountFileMediaSrc(
+    mount: Mount | null,
+    path: string,
+): {src: string | null; isPending: boolean; failed: boolean; onError: () => void} {
+    const projectId = useAtomValue(projectIdAtom)
+    const directUrl = mountFileDownloadUrl(mount, path, projectId)
+    const [mode, setMode] = useState<"direct" | "blob">(directUrl ? "direct" : "blob")
+
+    // New file (paging) → try direct again.
+    useEffect(() => {
+        setMode(directUrl ? "direct" : "blob")
+    }, [directUrl])
+
+    const blobQuery = useAtomValue(
+        mountFileBlobQueryFamily({mountId: mode === "blob" ? (mount?.id ?? "") : "", path}),
+    )
+    const blob = mode === "blob" ? (blobQuery.data ?? null) : null
+    const blobUrl = useMemo(() => (blob ? URL.createObjectURL(blob) : null), [blob])
+    useEffect(() => {
+        return () => {
+            if (blobUrl) URL.revokeObjectURL(blobUrl)
+        }
+    }, [blobUrl])
+
+    return {
+        src: mode === "direct" ? directUrl : blobUrl,
+        isPending: mode === "blob" && blobQuery.isPending,
+        failed: mode === "blob" && !blobQuery.isPending && !blob,
+        onError: () => setMode("blob"),
+    }
+}

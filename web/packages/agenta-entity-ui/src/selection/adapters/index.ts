@@ -23,25 +23,12 @@ export {
     createAdapter,
     registerSelectionAdapter,
     getSelectionAdapter,
-    hasSelectionAdapter,
-    getRegisteredAdapterNames,
-    clearSelectionAdapterRegistry,
-    createAndRegisterAdapter,
     resolveAdapter,
 } from "./createAdapter"
 
 // Revision level factory for git-based entities
-export {
-    createRevisionLevel,
-    createTestsetRevisionLevel,
-    createAppRevisionLevel,
-    createEvaluatorRevisionLevel,
-} from "./revisionLevelFactory"
-export type {
-    RevisionEntity,
-    RevisionFieldMappings,
-    CreateRevisionLevelOptions,
-} from "./revisionLevelFactory"
+export {createRevisionLevel} from "./revisionLevelFactory"
+export type {RevisionFieldMappings, CreateRevisionLevelOptions} from "./revisionLevelFactory"
 
 // Relation-based factories
 export {

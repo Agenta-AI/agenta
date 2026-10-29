@@ -328,12 +328,18 @@ class ConnectionsService:
         # Delegate provider-specific refresh logic to the adapter.
         # For OAuth providers (e.g. Composio), the adapter re-initiates the link.
         provider_connection_id = conn.provider_connection_id
+        stored_auth_scheme = (
+            conn.data.get("auth_scheme") if isinstance(conn.data, dict) else None
+        )
         result = await adapter.refresh_connection(
             provider_connection_id=conn.provider_connection_id,
             force=force,
             callback_url=callback_url,
             integration_key=conn.integration_key,
             user_id=str(project_id),
+            auth_scheme=stored_auth_scheme
+            if isinstance(stored_auth_scheme, str)
+            else None,
         )
         provider_connection_id = result.id or provider_connection_id
         auth_config_id = result.auth_config_id

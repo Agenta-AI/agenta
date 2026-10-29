@@ -1,17 +1,21 @@
 import {useCallback, useMemo, type MouseEvent} from "react"
 
+import {buildHelpDocsNavItem, buildInviteTeammateNavItem} from "@agenta/navigation"
+import type {SidebarConfig, SidebarSection} from "@agenta/navigation"
+import {buildReleaseNavItems} from "@agenta/navigation-ui"
 import {GithubFilled} from "@ant-design/icons"
 import {
     ChatCircleIcon,
     GearIcon,
+    KeyboardIcon,
     PaperPlaneIcon,
-    PhoneIcon,
     QuestionIcon,
     RocketLaunchIcon,
     ScrollIcon,
     SlackLogoIcon,
 } from "@phosphor-icons/react"
-import {useSetAtom} from "jotai"
+import {atom, useAtomValue, useSetAtom} from "jotai"
+import {loadable} from "jotai/utils"
 
 import {useCrispChat} from "@/oss/hooks/useCrispChat"
 import {useSession} from "@/oss/hooks/useSession"
@@ -19,9 +23,7 @@ import useURL from "@/oss/hooks/useURL"
 import {useWorkspacePermissions} from "@/oss/hooks/useWorkspacePermissions"
 import {isDemo} from "@/oss/lib/helpers/utils"
 import {openWidgetAtom} from "@/oss/lib/onboarding"
-import {useOrgData} from "@/oss/state/org"
-
-import type {SidebarConfig, SidebarSection} from "../engine/types"
+import {selectedOrgIdAtom} from "@/oss/state/org/selectors/org"
 
 interface SidebarBottomSectionOptions {
     includeSettingsLink?: boolean
@@ -30,13 +32,18 @@ interface SidebarBottomSectionOptions {
 // Hidden pending the new onboarding widget; flip back to true to restore the sidebar entry.
 const SHOW_GET_STARTED_GUIDE = false
 
+// Lazy-load package.json so its version stays out of the initial bundle.
+const versionAtom = loadable(atom(async () => (await import("../../../../package.json")).version))
+
 export const useSidebarBottomSection = ({
     includeSettingsLink = true,
 }: SidebarBottomSectionOptions = {}): SidebarSection => {
     const {doesSessionExist} = useSession()
-    const {selectedOrg} = useOrgData()
+    // Route-derived and synchronous, so it survives the org switch's cache eviction:
+    // `changeSelectedOrg` removes the ["selectedOrg", id] query BEFORE navigating, which left
+    // this row hidden for a whole GET /organizations/{id} round-trip on every switch.
+    const selectedOrgId = useAtomValue(selectedOrgIdAtom)
     const {canInviteMembers} = useWorkspacePermissions()
-    const {toggle, isVisible, isCrispEnabled} = useCrispChat()
     const {projectURL} = useURL()
     const openWidget = useSetAtom(openWidgetAtom)
     const hasProjectURL = Boolean(projectURL)
@@ -47,14 +54,6 @@ export const useSidebarBottomSection = ({
             openWidget()
         },
         [openWidget],
-    )
-
-    const handleToggleSupport = useCallback(
-        (e: MouseEvent) => {
-            e.preventDefault()
-            toggle()
-        },
-        [toggle],
     )
 
     const settingsLink = useMemo<SidebarConfig>(
@@ -70,16 +69,13 @@ export const useSidebarBottomSection = ({
     )
 
     const inviteItem = useMemo<SidebarConfig>(
-        () => ({
-            key: "invite-teammate-link",
-            title: "Invite Teammate",
-            link: `${projectURL}/settings?tab=workspace&inviteModal=open`,
-            icon: <PaperPlaneIcon size={14} />,
-            tooltip: "Invite Teammate",
-            isHidden: !doesSessionExist || !selectedOrg || !canInviteMembers,
-            disabled: !hasProjectURL,
-        }),
-        [canInviteMembers, doesSessionExist, hasProjectURL, projectURL, selectedOrg],
+        () =>
+            buildInviteTeammateNavItem({
+                projectURL: hasProjectURL ? projectURL : "",
+                icon: <PaperPlaneIcon size={14} />,
+                isHidden: !doesSessionExist || !selectedOrgId || !canInviteMembers,
+            }),
+        [canInviteMembers, doesSessionExist, hasProjectURL, projectURL, selectedOrgId],
     )
 
     const sharedItems = useMemo<SidebarConfig[]>(
@@ -96,50 +92,8 @@ export const useSidebarBottomSection = ({
                 isHidden: !SHOW_GET_STARTED_GUIDE || !doesSessionExist,
                 onClick: handleOpenWidget,
             },
-            {
-                key: "help-docs-link",
-                title: "Help & Docs",
-                icon: <QuestionIcon size={14} />,
-                submenu: [
-                    {
-                        key: "docs",
-                        title: "Documentation",
-                        link: "https://agenta.ai/docs/",
-                        icon: <ScrollIcon size={14} />,
-                        divider: true,
-                    },
-                    {
-                        key: "github-support",
-                        title: "GitHub Support",
-                        link: "https://github.com/Agenta-AI/agenta/issues",
-                        icon: <GithubFilled style={{fontSize: 14}} />,
-                    },
-                    {
-                        key: "slack-connect",
-                        title: "Slack Support",
-                        link: "https://join.slack.com/t/agenta-hq/shared_invite/zt-37pnbp5s6-mbBrPL863d_oLB61GSNFjw",
-                        icon: <SlackLogoIcon size={14} />,
-                    },
-                    {
-                        key: "book-call",
-                        title: "Book a call",
-                        link: "https://cal.com/mahmoud-mabrouk-ogzgey/demo",
-                        icon: <PhoneIcon size={14} />,
-                        // Live Chat relocates here from a standalone row; keep the divider only
-                        // when it will actually render (demo + Crisp), else it dangles.
-                        divider: isDemo() && isCrispEnabled,
-                    },
-                    {
-                        key: "support-chat-link",
-                        title: `Live Chat Support: ${isVisible ? "On" : "Off"}`,
-                        icon: <ChatCircleIcon size={14} />,
-                        isHidden: !isDemo() || !isCrispEnabled,
-                        onClick: handleToggleSupport,
-                    },
-                ],
-            },
         ],
-        [doesSessionExist, handleOpenWidget, handleToggleSupport, isCrispEnabled, isVisible],
+        [doesSessionExist, handleOpenWidget],
     )
 
     return useMemo(
@@ -152,5 +106,71 @@ export const useSidebarBottomSection = ({
             mode: "vertical",
         }),
         [includeSettingsLink, settingsLink, inviteItem, sharedItems],
+    )
+}
+
+/**
+ * Help & Docs, as an item the rail renders as an icon button beside the project switcher.
+ *
+ * It carries the releases that used to be sidebar banner cards. News belongs in a list you
+ * open, not in a card you dismiss one at a time.
+ *
+ * `onOpenShortcuts` is the host's: the sheet is a modal, and the menu that names it has closed
+ * by the time it opens.
+ */
+export const useSidebarHelpItem = ({
+    onOpenShortcuts,
+}: {onOpenShortcuts?: () => void} = {}): SidebarConfig => {
+    const {toggle, isVisible, isCrispEnabled} = useCrispChat()
+    const versionState = useAtomValue(versionAtom)
+    const version = versionState.state === "hasData" ? versionState.data : undefined
+
+    const handleToggleSupport = useCallback(
+        (e: MouseEvent) => {
+            e.preventDefault()
+            toggle()
+        },
+        [toggle],
+    )
+
+    return useMemo(
+        () =>
+            // The four destinations are shared with the mobile drawer; Live Chat needs Crisp,
+            // so it rides in as an extra rather than being reproduced there.
+            buildHelpDocsNavItem({
+                icons: {
+                    help: <QuestionIcon size={15} />,
+                    docs: <ScrollIcon size={14} />,
+                    github: <GithubFilled style={{fontSize: 14}} />,
+                    slack: <SlackLogoIcon size={14} />,
+                },
+                extraItems: [
+                    {
+                        key: "support-chat-link",
+                        title: "Live Chat Support",
+                        // The state reads as the row's VALUE, not as part of its name: a row
+                        // called "Live Chat Support: Off" scans as a different destination.
+                        suffix: (
+                            <span className="text-[12px] leading-none text-colorTextTertiary">
+                                {isVisible ? "On" : "Off"}
+                            </span>
+                        ),
+                        icon: <ChatCircleIcon size={14} />,
+                        isHidden: !isDemo() || !isCrispEnabled,
+                        onClick: handleToggleSupport,
+                    },
+                    {
+                        key: "keyboard-shortcuts",
+                        title: "Keyboard shortcuts",
+                        icon: <KeyboardIcon size={14} />,
+                        isHidden: !onOpenShortcuts,
+                        onClick: () => onOpenShortcuts?.(),
+                        // The rule between the destinations and the release list.
+                        divider: true,
+                    },
+                    ...buildReleaseNavItems(version),
+                ],
+            }),
+        [handleToggleSupport, isCrispEnabled, isVisible, onOpenShortcuts, version],
     )
 }

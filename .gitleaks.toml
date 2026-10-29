@@ -24,6 +24,14 @@ paths = [
   '''^.*/\.next/.*''',
   # -------------------------------------------------------------- ALL ENV FILES
   '''^.*\.env.*$''',
+  # ------------------------------------------------- MERGE-CONFLICT TOOL ARTIFACTS
+  # A conflict-resolution tool committed its scratch state in 98ef076243: full copies
+  # of both merge sides, the base, and its own working dir. Deleted from the tree by
+  # later commits; the blobs remain in history, so a --git scan still walks them.
+  '''^\.conflict-side-\d+/.*''',
+  '''^\.conflict-base-\d+/.*''',
+  '''^\.conflict-files$''',
+  '''^\.auto-resolution/.*''',
   # -------------------------------------------------- LOCAL-DEV STORE FALLBACK KEY
   # webidentity.py ships a hardcoded RSA key used ONLY as the local-dev fallback for
   # signing the object-store's web-identity token (production setups must set
@@ -42,16 +50,46 @@ regexes = [
   # Fake token in the runner's redaction test — the test asserts this marker never
   # reaches the transcript. Named to be obviously synthetic; not a credential.
   '''marker-live-secret-42bd''',
+  # Two dead fixture strings from the write-only vault work. The fixtures themselves were
+  # rewritten to digit-free names, but these spellings survive in commits whose amend
+  # could not be replayed, and both scans read history rather than the tree. Exempted by
+  # VALUE, not by path, and deliberately not by fingerprint: a fingerprint names the
+  # commit it was seen in, so it goes stale every time a lane below is rebased.
+  '''sk-live-1234567890abc''',
+  '''sk-mine-9876543210xyz''',
+  # Organization credentials (M5) fixtures: synthetic keys named to be obviously fake
+  # (sentinels and digit runs), and a keyword argument the generic rule misreads. Exact
+  # values only, so a real key never matches.
+  '''^sk-m5acc-inherit-0123456789abcdef$''',
+  '''^sk-m5sentinel-owner-dto$''',
+  '''^sk-m5sentinel-0123456789abcdef$''',
+  '''^sk-mis-123456789$''',
+  '''^sk-(proj-)?0123456789(-x)?$''',
+  '''^owner_kind=self\.secret_owner_kind$''',
+  '''^organization_id=None$''',
   # ------------------------------------------------------------ PUBLIC KEYS
   '''phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7''',  # POSTHOG
   '''phc_3urGRy5TL1HhaHnRYL0JSHxJxigRVackhphHtozUmdp''',  # POSTHOG
   '''phc_CwyyDlHGNnRFptVWhTe0HOeKnq1jeOZNk9hduYiOClp''',  # POSTHOG
   '''phc_qH8GezjMAeToR9ygdsnTH0C9c2njhO7CFqf66pTUX7H''',  # POSTHOG
+  '''phc_cFT4a4081mXuKxYIrhIt6cmDwSjAO8zQlw9CFE05oSI''',  # POSTHOG
   '''18ab633e81d706cbda7c78d25d0fe763''',                 # ALGOLIA
   # ------------------------------------------------- LOCAL-DEV STORE SIGNING KEY
   # Dummy SeaweedFS STS signing key shown (commented) as a format hint in the dev
   # env examples. Decodes to "this-is-a-signing-key-for-mounts" — not a real secret.
   '''dGhpcy1pcy1hLXNpZ25pbmcta2V5LWZvci1tb3VudHM=''',
+  # ------------------------------------------- INTERACTION-ROW JOIN KEYS (uuids)
+  # The replayed-transcript fixtures under AgentChatSlice carry a recorded session's
+  # interaction rows, whose `token` is the uuid joining a row to its tool call — a
+  # durable interaction id, not a credential. generic-api-key reads each one as a
+  # secret. Exempts the VALUE only, never a path: a `paths` entry makes gitleaks skip
+  # the whole file before scanning it, so a real key added to a fixture would go
+  # unseen. Anchored, so only an exact lowercase uuid is exempt.
+  # Scoping this further to a `"token": "<uuid>"` LINE needs a second `[[allowlists]]`
+  # block with regexTarget = "line"; gitleaks 8.24.3 (pinned by 17-secret-scan.yml)
+  # silently ignores the plural form and drops every allowlist above with it. Tighten
+  # this when that pin moves past 8.26.
+  '''^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$''',
   # ----------------------------------------------------------------------------
 ]
 

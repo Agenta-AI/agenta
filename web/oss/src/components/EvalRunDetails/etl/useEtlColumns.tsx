@@ -19,8 +19,8 @@
 import {useMemo} from "react"
 
 import {groupRunColumns, type ColumnGroup, type RunSchema} from "@agenta/entities/evaluationRun/etl"
+import type {ColumnDefs} from "@agenta/ui/table"
 import {Tooltip} from "antd"
-import type {ColumnsType} from "antd/es/table"
 
 import type {PreviewTableRow} from "../atoms/tableRows"
 
@@ -57,8 +57,8 @@ export const useEtlColumns = ({
     runId,
     schema,
     comparisonSchemas,
-}: UseEtlColumnsArgs): ColumnsType<PreviewTableRow> => {
-    return useMemo<ColumnsType<PreviewTableRow>>(() => {
+}: UseEtlColumnsArgs): ColumnDefs<PreviewTableRow> => {
+    return useMemo<ColumnDefs<PreviewTableRow>>(() => {
         if (!schema || !projectId || !runId) return []
 
         // "metrics"-kind columns are intentionally skipped here. The

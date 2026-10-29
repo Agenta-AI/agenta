@@ -7,17 +7,17 @@ Two layers:
 - ``deliver_subprocess_stream`` against a fake NDJSON emitter — proves records arrive
   incrementally (not buffered then dumped) and that closing the stream kills the child.
 
-A final integration test drives the real ``cli.ts --stream`` when ``pnpm`` is available.
+Both layers are pure: no external process beyond ``sys.executable``. The real
+``cli.ts --stream`` boundary is an integration test, in
+``integration/agents/test_cli_stream_boundary.py``.
 
 Run: ``uv run pytest oss/tests/pytest/unit/agents/test_streaming.py`` from ``sdks/python``.
 """
 
 from __future__ import annotations
 
-import shutil
 import sys
 import time
-from pathlib import Path
 from typing import Any, Dict, List
 
 import pytest
@@ -142,26 +142,3 @@ async def test_subprocess_stream_cancellation_kills_child() -> None:
     await agen.aclose()  # runs the finally: proc.kill() + await proc.wait()
     elapsed = time.monotonic() - started
     assert elapsed < 5, "aclose() killed the child instead of waiting out its 60s sleep"
-
-
-# --- Real cli.ts --stream boundary (integration) ----------------------------
-
-
-@pytest.mark.skipif(shutil.which("pnpm") is None, reason="pnpm not available")
-async def test_cli_stream_terminal_only_on_empty_request() -> None:
-    agent_dir = Path(__file__).resolve().parents[7] / "services" / "runner"
-    cmd = ["pnpm", "exec", "tsx", "src/cli.ts"]
-    records = []
-    async for record in deliver_subprocess_stream(cmd, {}, cwd=str(agent_dir)):
-        records.append(record)
-
-    # An empty request fails before any event, so the stream is exactly one result record.
-    assert len(records) == 1, records
-    assert records[0]["kind"] == "result"
-    assert records[0]["result"]["ok"] is False
-
-    # AgentStream surfaces that failure as a RuntimeError, just like the one-shot path.
-    run = AgentStream(deliver_subprocess_stream(cmd, {}, cwd=str(agent_dir)))
-    with pytest.raises(RuntimeError):
-        async for _ in run:
-            pass

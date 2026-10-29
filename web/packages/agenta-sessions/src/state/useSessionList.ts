@@ -1,0 +1,210 @@
+import {
+    nextSessionCursor,
+    queryInteractions,
+    sessionListQueryOptions,
+    sessionRowsFromPages,
+    SESSIONS_PAGE_SIZE,
+    type SessionInteraction,
+    type SessionExpansion,
+    type SessionListCursor,
+} from "@agenta/entities/session"
+import {projectIdAtom} from "@agenta/shared/state"
+import {keepPreviousData, useInfiniteQuery, useQuery} from "@tanstack/react-query"
+import {useAtomValue} from "jotai"
+
+import {type SessionStatusFilter} from "./filters"
+import {
+    sessionListIdGroupLimit,
+    sessionListRequestFilters,
+    type SessionOriginPolicy,
+} from "./sessionListPolicy"
+
+export {SESSIONS_PAGE_SIZE}
+
+/**
+ * Every session in the project with a pending human gate, in one unpaginated call. Two jobs: the
+ * per-row "waiting" badge, and the id set the "Waiting" filter pushes down to the server.
+ *
+ * Cadence mirrors mobile: 15s while anything is pending (a running turn is what mints new gates),
+ * stopped when idle, re-checked on focus.
+ */
+/** The project's actionable gates: every reader shares this key, and the watch invalidates it. */
+export const actionableInteractionsQueryKey = (projectId: string) =>
+    ["sessions-page", "actionable-interactions", projectId] as const
+
+/** One flight for every reader of the gated rows; it keeps TanStack's own signal. */
+export const actionableInteractionsQueryOptions = (projectId: string) => ({
+    queryKey: actionableInteractionsQueryKey(projectId),
+    queryFn: ({signal}: {signal?: AbortSignal}) =>
+        queryInteractions({projectId, actionableOnly: true, abortSignal: signal}),
+    staleTime: 10_000,
+})
+
+export const useActionableInteractions = (projectId: string) =>
+    useQuery<SessionInteraction[] | null>({
+        ...actionableInteractionsQueryOptions(projectId),
+        enabled: Boolean(projectId),
+        refetchInterval: (query) => ((query.state.data?.length ?? 0) > 0 ? 15_000 : 30_000),
+        refetchOnWindowFocus: true,
+    })
+
+export interface SessionPending {
+    count: number
+    /** Distinct gate kinds still open. Carries what the session is asking for, not just that it
+     * asks — "approve" and "needs input" are different calls to action. */
+    kinds: string[]
+}
+
+/** `session_id → pending gates`; `undefined` until the poll resolves. */
+export const pendingBySessionId = (
+    interactions: SessionInteraction[] | null | undefined,
+): Map<string, SessionPending> | undefined => {
+    if (!interactions) return undefined
+    const bySession = new Map<string, SessionPending>()
+    for (const interaction of interactions) {
+        const entry = bySession.get(interaction.session_id) ?? {count: 0, kinds: []}
+        entry.count += 1
+        if (interaction.kind && !entry.kinds.includes(interaction.kind))
+            entry.kinds.push(interaction.kind)
+        bySession.set(interaction.session_id, entry)
+    }
+    return bySession
+}
+
+export interface SessionListOptions {
+    originPolicy: SessionOriginPolicy
+    expansions: readonly SessionExpansion[]
+    /** Ids rendered as their own group (pins) — excluded so nothing appears twice. */
+    excludeSessionIds?: string[]
+    /** Restrict to these ids; used by the pinned group to fetch exactly its own rows. */
+    sessionIds?: string[]
+    status?: SessionStatusFilter
+    search?: string
+    agentId?: string | null
+    includeArchived?: boolean
+    archivedOnly?: boolean
+    /** ISO lower bound on last activity — the "Last activity" facet. */
+    activityFloor?: string
+    /** Ids of sessions with a pending gate — the pushdown behind the "Waiting" filter. */
+    waitingSessionIds?: string[]
+    /** Page size. Drop it for callers that want one row (a roster's "last active") rather than
+     * a list — a full page per row is a lot of list to throw away. */
+    limit?: number
+    enabled?: boolean
+    /** Fetch-priority hint for a list beside the screen's content; the caller decides. */
+    lowPriority?: boolean
+}
+
+export const sessionListIdWindow = ({
+    sessionIds,
+    waitingSessionIds,
+    status,
+    limit,
+}: Pick<SessionListOptions, "sessionIds" | "waitingSessionIds" | "status" | "limit">): {
+    sessionIds: string[] | undefined
+    limit: number | undefined
+} => {
+    const restricted =
+        status === "waiting" ? intersectIds(sessionIds, waitingSessionIds ?? []) : sessionIds
+    return {
+        sessionIds: restricted,
+        limit: sessionListIdGroupLimit(restricted, limit),
+    }
+}
+
+/**
+ * The status filter as the server's own liveness predicate. `all` and `waiting` are absent on
+ * purpose: the first restricts nothing, and the second is an id intersection (see `idWindow`),
+ * not a flag.
+ */
+const STATUS_FLAGS: Partial<
+    Record<SessionStatusFilter, {is_alive?: boolean; is_running?: boolean}>
+> = {
+    live: {is_alive: true},
+    running: {is_running: true},
+    // The complement of `live`, so it covers ended and archived rows too — anything with no
+    // sandbox up. Passed as an explicit `false`, which the request builder forwards as given.
+    idle: {is_alive: false},
+}
+
+/**
+ * The project-wide session list, windowed on the server's activity ordering.
+ *
+ * Every filter is a server predicate: `search`, `references` (agent), `include_archived`, `flags`
+ * (live), and a `session_ids` pushdown for the predicates that live outside the stream row
+ * (waiting-on-you, pins). Narrowing a fetched page in the browser would filter the window rather
+ * than the set — wrong counts, and an empty first page while later pages hold matches.
+ *
+ * The key and the request come from `@agenta/entities/session`; the query-client policy (stale
+ * time, refetch cadence) stays here, because desktop and mobile don't agree on it. Mobile adopts
+ * the same factory once its session PRs stop moving.
+ */
+
+export const useSessionList = ({
+    excludeSessionIds,
+    sessionIds,
+    status = "all",
+    search = "",
+    agentId = null,
+    includeArchived = false,
+    archivedOnly = false,
+    activityFloor,
+    originPolicy,
+    expansions,
+    lowPriority = false,
+    waitingSessionIds,
+    limit,
+    enabled = true,
+}: SessionListOptions) => {
+    const projectId = useAtomValue(projectIdAtom) ?? ""
+
+    // "Waiting" narrows to the gated ids; combined with an explicit set, the server intersects.
+    const idWindow = sessionListIdWindow({sessionIds, waitingSessionIds, status, limit})
+    // A waiting filter whose poll hasn't resolved must not query — an absent id set would read as
+    // "no restriction" and show every session under a "Waiting" chip.
+    const waitingUnresolved = status === "waiting" && waitingSessionIds === undefined
+
+    const options = sessionListQueryOptions({
+        projectId,
+        search,
+        agentId,
+        includeArchived,
+        archivedOnly,
+        activityFloor,
+        ...sessionListRequestFilters({origin: originPolicy, expansions}),
+        flags: STATUS_FLAGS[status],
+        sessionIds: idWindow.sessionIds,
+        excludeSessionIds,
+        limit: idWindow.limit,
+        lowPriority,
+    })
+
+    return useInfiniteQuery({
+        queryKey: options.queryKey,
+        // A waiting filter whose poll hasn't resolved must not query: an absent id set reads as
+        // "no restriction", which would show every session under a "Waiting" chip.
+        enabled: Boolean(projectId) && enabled && !waitingUnresolved,
+        initialPageParam: null as SessionListCursor | null,
+        queryFn: ({pageParam, signal}) => options.queryFn({pageParam, signal}),
+        getNextPageParam: (lastPage) => nextSessionCursor(lastPage, options.limit, options.order),
+        // Pins and filters are part of the key, so every toggle mints a new query. Without this
+        // the list would fall back to `pending` and flash its skeleton — the rows are still valid,
+        // only their membership is being rechecked.
+        placeholderData: keepPreviousData,
+        staleTime: 30_000,
+        // Explicit because the hosts disagree on the default: the desktop inherits TanStack's
+        // `true`, `/m` sets `false` app-wide. On a phone, coming back to the tab IS the "what
+        // changed?" signal — a backgrounded PWA never remounts, so without this the list only
+        // ever refreshed via the project watch.
+        refetchOnWindowFocus: true,
+    })
+}
+
+/** Flatten loaded pages, dropping failed ones. */
+export const rowsFromPages = sessionRowsFromPages
+
+const intersectIds = (a: string[] | undefined, b: string[]): string[] => {
+    if (!a) return b
+    const other = new Set(b)
+    return a.filter((id) => other.has(id))
+}

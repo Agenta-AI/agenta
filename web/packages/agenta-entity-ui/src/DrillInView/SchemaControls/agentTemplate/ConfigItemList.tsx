@@ -4,8 +4,6 @@
  */
 import type {ReactNode} from "react"
 
-import type {ConfigItemView} from "../ConfigItemDrawer"
-
 import {ITEM_KINDS, type ItemKind} from "./itemKinds"
 import {ItemRow, type ItemRowStatus} from "./ItemRow"
 
@@ -16,19 +14,22 @@ export function ConfigItemList({
     removeItem,
     closeEditor,
     disabled,
-    emptyAdd,
     statusFor,
+    extraFor,
 }: {
     kind: ItemKind
     items: unknown[]
-    openEdit: (kind: ItemKind, index: number, item: unknown, view: ConfigItemView) => void
+    openEdit: (kind: ItemKind, index: number, item: unknown) => void
     removeItem: (kind: ItemKind, index: number) => void
     closeEditor: () => void
     disabled?: boolean
-    /** The add trigger shown in the empty state (a popover for tools, a text link otherwise). */
-    emptyAdd: ReactNode
     /** Per-row draft/validation status (unsaved edits, missing fields). */
     statusFor?: (item: unknown, index: number) => ItemRowStatus | undefined
+    /**
+     * Per-row slot ahead of the tags. The MCP rail renders an expired connection's
+     * "Login expired" through it; `ItemRow` has always had the slot.
+     */
+    extraFor?: (item: unknown, index: number) => ReactNode
 }) {
     const def = ITEM_KINDS[kind]
     if (items.length > 0) {
@@ -38,7 +39,7 @@ export function ConfigItemList({
                     <ItemRow
                         key={`${kind}-${index}`}
                         descriptor={def.describe(item)}
-                        onEdit={() => openEdit(kind, index, item, def.editView(item))}
+                        onEdit={() => openEdit(kind, index, item)}
                         onRemove={() => {
                             removeItem(kind, index)
                             closeEditor()
@@ -46,15 +47,13 @@ export function ConfigItemList({
                         // Read-only items (static `__ag__*` skills) can't be removed and open disabled.
                         disabled={disabled || def.isReadOnly(item)}
                         status={statusFor?.(item, index)}
+                        extra={extraFor?.(item, index)}
                     />
                 ))}
             </div>
         )
     }
     if (disabled) return null
-    return (
-        <span className="text-xs text-[var(--ag-c-97A4B0,#97a4b0)]">
-            {def.emptyLabel} — {emptyAdd}
-        </span>
-    )
+    // One quiet line; the section header's "+" is the way to add one.
+    return <span className="text-xs text-colorTextTertiary">{def.emptyLabel}</span>
 }

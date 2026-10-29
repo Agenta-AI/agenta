@@ -21,22 +21,23 @@
  *    merged draft + server) so unsaved left-panel edits apply to the agent run.
  *  - the execution sections (`harness`/`runner`/`sandbox`) are nested in the agent template at
  *    `parameters.agent`, defaulted but never overriding a value the resolved config carries.
- *  - `project_id` / `application_id` ride the URL QUERY (never the body), and
- *    `project_id` only travels alongside auth — mirroring `executionItems.ts`.
+ *  - `project_id` / `application_id` ride the URL QUERY (never the body). `project_id` is
+ *    always sent: a cookie session names its project the same way a Bearer one does.
  */
 import {
     workflowAgentTemplateOverlayAtomFamily,
-    workflowBuildKitEnabledAtomFamily,
+    workflowBuildKitUiStateAtomFamily,
+    migrateBuildKitStateAtom,
+    resolveBuildKitPermissions,
     workflowMolecule,
     type AgentTemplate,
 } from "@agenta/entities/workflow"
-import {isSessionsLastMessageOnlyEnabled} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import {getDefaultStore} from "jotai"
 
 import {withBuildKitOverlay} from "./buildKitOverlay"
 import {agentChannelModeAtomFamily} from "./channelMode"
-import {executionHeadersAtom} from "./webWorkerIntegration"
+import {executionHeadersAtom} from "./executionHeaders"
 
 // Re-exported so existing consumers keep importing it from the request builder; the merge
 // implementation now lives in `buildKitOverlay.ts`.
@@ -48,8 +49,13 @@ export interface AgentRequest {
     headers: Record<string, string>
 }
 
+/** Client-only transport marker: the invoke stream carries acceptance/errors while session
+ * frames provide the rendered response. The API forwards it harmlessly; AgentChatTransport
+ * consumes it before parsing the response. */
+export const SHARED_SESSION_RESPONSE_HEADER = "x-ag-session-response"
+
 /** Minimal store surface — the default Jotai store, or a test store. */
-type StoreLike = Pick<ReturnType<typeof getDefaultStore>, "get">
+type StoreLike = Pick<ReturnType<typeof getDefaultStore>, "get" | "set">
 
 // Backend rejects local-draft ids; only forward real UUIDs in `references`.
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -301,7 +307,7 @@ const withQuery = (url: string, params: Record<string, string | undefined>): str
 export async function buildAgentRequest(
     entityId: string,
     messages: unknown[],
-    opts: {sessionId: string; store?: StoreLike},
+    opts: {sessionId: string; store?: StoreLike; sharedResponse?: boolean; secretSetup?: boolean},
 ): Promise<AgentRequest | null> {
     const store = opts.store ?? getDefaultStore()
 
@@ -323,17 +329,37 @@ export async function buildAgentRequest(
         | undefined
     // The execution sections (`harness`/`runner`/`sandbox`) are nested in the template at
     // `parameters.agent`. Default them, never overriding values the resolved config carries.
-    const buildKitEnabled = store.get(workflowBuildKitEnabledAtomFamily(entityId)) as boolean
+    store.set(migrateBuildKitStateAtom, entityId)
+    const buildKitState = store.get(workflowBuildKitUiStateAtomFamily(entityId))
     const agentTemplateOverlay = store.get(
         workflowAgentTemplateOverlayAtomFamily(entityId),
     ) as AgentTemplate | null
-    const parameters = pruneBlankEntries(
+    let parameters = pruneBlankEntries(
         withBuildKitOverlay(
             withAgentRunDefaults(config ?? {}) as Record<string, unknown>,
             agentTemplateOverlay,
-            buildKitEnabled,
+            buildKitState.enabled,
+            buildKitState.disabledOps,
+            resolveBuildKitPermissions(agentTemplateOverlay, buildKitState),
         ),
     ) as Record<string, unknown>
+
+    if (opts.secretSetup) {
+        parameters = withBuildKitOverlay(
+            parameters,
+            {
+                tools: [
+                    {
+                        "@ag.embed": {
+                            "@ag.references": {workflow: {slug: "__ag__request_secret"}},
+                            "@ag.selector": {path: "parameters.tool"},
+                        },
+                    },
+                ],
+            } as AgentTemplate,
+            true,
+        )
+    }
 
     const entity = store.get(workflowMolecule.selectors.data(entityId)) as
         | RevisionLike
@@ -383,8 +409,14 @@ export async function buildAgentRequest(
     // the UIMessage request body (`data.inputs.messages`) and the response projection.
     const channelMode = store.get(agentChannelModeAtomFamily(opts.sessionId))
     const headers: Record<string, string> = {
-        Accept: channelMode === "batch" ? "application/json" : "text/event-stream",
+        // The shared sender still consumes invoke acceptance/errors as SSE; its response content
+        // is deliberately not the render source, regardless of the local batch preference.
+        Accept:
+            opts.sharedResponse || channelMode !== "batch"
+                ? "text/event-stream"
+                : "application/json",
         "x-ag-messages-format": "vercel",
+        ...(opts.sharedResponse ? {[SHARED_SESSION_RESPONSE_HEADER]: "shared"} : {}),
         ...(headersFactory ? await headersFactory() : {}),
     }
 
@@ -394,29 +426,28 @@ export async function buildAgentRequest(
     const appId = fullReferences?.application?.id
     const url = withQuery(invocationUrl, {
         application_id: appId,
-        // Mirror executionItems.ts: project_id only travels alongside auth.
-        project_id: headers.Authorization ? projectId : undefined,
+        // Always: without it the run resolves against the caller's DEFAULT project. A tab whose
+        // session lives only in cookies (no readable access token) sent none and ran there.
+        project_id: projectId,
     })
 
     // Strip answer-less assistant turns so a "no response" turn can't poison the next request.
     const history = messages.filter(hasAnswer)
 
-    // Last-message-only (on by default; disable ONLY together with the backend's AGENTA_SESSIONS_RECONSTRUCT).
     // On a fresh user turn, send just the trailing user message and let the runner rebuild prior
     // turns from the durable record log — smaller request + trace payloads. A HITL resume, whose
     // trailing turn carries the settled answer (not a user turn), keeps the full history so the
     // answer still binds to its tool call.
     const lastMessage = history[history.length - 1] as {role?: unknown} | undefined
     const outboundMessages =
-        isSessionsLastMessageOnlyEnabled() && opts.sessionId && lastMessage?.role === "user"
-            ? [lastMessage]
-            : history
+        opts.sessionId && lastMessage?.role === "user" ? [lastMessage] : history
 
     return {
         invocationUrl: url,
         headers,
         requestBody: {
             session_id: opts.sessionId,
+            ...(opts.sharedResponse ? {flags: {detached: true}} : {}),
             references,
             data: {inputs: {messages: outboundMessages}, parameters},
         },

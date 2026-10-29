@@ -1,0 +1,10 @@
+{
+  "commits": 2,
+  "dirtyGuidance": "Save or discard the current agent changes before changing secret attachments.",
+  "attachDisabled": true,
+  "editDisabled": true,
+  "removeDisabled": true,
+  "failedRemovalStayedOpen": true,
+  "retryClosed": true,
+  "failed": true
+}

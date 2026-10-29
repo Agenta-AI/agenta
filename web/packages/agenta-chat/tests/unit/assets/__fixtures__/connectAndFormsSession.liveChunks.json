@@ -1,0 +1,499 @@
+[
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_lBRmuwVnEUCMwsfW3Z5T83M9|fc_06ee41bfe9bafc80016a79e6e1d02081a28d8a6af70d6bb829",
+    "toolName": "read"
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_lBRmuwVnEUCMwsfW3Z5T83M9|fc_06ee41bfe9bafc80016a79e6e1d02081a28d8a6af70d6bb829",
+    "toolName": "read",
+    "input": {
+      "path": "/tmp/agenta/mounts/019fe1f4-c599-7c82-9350-c1f0ed5d660c/019fec2d-b859-70e1-827c-5bc2c9060a67/agents/skills/7fbe65435054f77ee392d890f704c382d76f27d6e9f638893a19479487201174/build-an-agent/SKILL.md"
+    }
+  },
+  {
+    "type": "tool-output-available",
+    "toolCallId": "call_lBRmuwVnEUCMwsfW3Z5T83M9|fc_06ee41bfe9bafc80016a79e6e1d02081a28d8a6af70d6bb829",
+    "output": "---\nname: \"build-an-agent\"\ndescription: \"Build or configure an Agenta agent end … <12740 chars elided>"
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_vBZWFzFej71NAy58wAwtjGDc|fc_06ee41bfe9bafc80016a79e6e457b481a28c5c35cf9c95d4f3",
+    "toolName": "ls"
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_vBZWFzFej71NAy58wAwtjGDc|fc_06ee41bfe9bafc80016a79e6e457b481a28c5c35cf9c95d4f3",
+    "toolName": "ls",
+    "input": {
+      "path": "/tmp/agenta/mounts/019fe1f4-c599-7c82-9350-c1f0ed5d660c/019fec2d-b859-70e1-827c-5bc2c9060a67/agents/skills/7fbe65435054f77ee392d890f704c382d76f27d6e9f638893a19479487201174/build-an-agent"
+    }
+  },
+  {
+    "type": "tool-output-available",
+    "toolCallId": "call_vBZWFzFej71NAy58wAwtjGDc|fc_06ee41bfe9bafc80016a79e6e457b481a28c5c35cf9c95d4f3",
+    "output": "references/\nSKILL.md"
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_rDpew8MsXztp6br8VvIBIsaH|fc_06ee41bfe9bafc80016a79e6e6629c81a2a8e60d1aa92d943a",
+    "toolName": "read"
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_rDpew8MsXztp6br8VvIBIsaH|fc_06ee41bfe9bafc80016a79e6e6629c81a2a8e60d1aa92d943a",
+    "toolName": "read",
+    "input": {
+      "path": "/tmp/agenta/mounts/019fe1f4-c599-7c82-9350-c1f0ed5d660c/019fec2d-b859-70e1-827c-… <139 chars elided>"
+    }
+  },
+  {
+    "type": "tool-output-error",
+    "toolCallId": "call_rDpew8MsXztp6br8VvIBIsaH|fc_06ee41bfe9bafc80016a79e6e6629c81a2a8e60d1aa92d943a",
+    "errorText": "ENOENT: no such file or directory, access '/tmp/agenta/mounts/019fe1f4-c599-7c82… <183 chars elided>"
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_wgHuIh11ZTgze2uRoRudUadp|fc_06ee41bfe9bafc80016a79e6e8aefc81a292791c5e07b24a03",
+    "toolName": "ls"
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_wgHuIh11ZTgze2uRoRudUadp|fc_06ee41bfe9bafc80016a79e6e8aefc81a292791c5e07b24a03",
+    "toolName": "ls",
+    "input": {
+      "path": "/tmp/agenta/mounts/019fe1f4-c599-7c82-9350-c1f0ed5d660c/019fec2d-b859-70e1-827c-5bc2c9060a67/agents/skills/7fbe65435054f77ee392d890f704c382d76f27d6e9f638893a19479487201174/build-an-agent/references"
+    }
+  },
+  {
+    "type": "tool-output-available",
+    "toolCallId": "call_wgHuIh11ZTgze2uRoRudUadp|fc_06ee41bfe9bafc80016a79e6e8aefc81a292791c5e07b24a03",
+    "output": "agent-templates/\nconfig-schema.md\ntrigger-inputs.md"
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_xleFrGiGjCTaEYQAvWfSrwHp|fc_06ee41bfe9bafc80016a79e6ebb7b481a2b795d9514db67742",
+    "toolName": "read"
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_xleFrGiGjCTaEYQAvWfSrwHp|fc_06ee41bfe9bafc80016a79e6ebb7b481a2b795d9514db67742",
+    "toolName": "read",
+    "input": {
+      "path": "/tmp/agenta/mounts/019fe1f4-c599-7c82-9350-c1f0ed5d660c/019fec2d-b859-70e1-827c-… <142 chars elided>"
+    }
+  },
+  {
+    "type": "tool-output-available",
+    "toolCallId": "call_xleFrGiGjCTaEYQAvWfSrwHp|fc_06ee41bfe9bafc80016a79e6ebb7b481a2b795d9514db67742",
+    "output": "# Agent template playbooks\n\nMatch the user's ask to a row, then read the named p… <4452 chars elided>"
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_4Glz6VcncRObF0lMKi28Opja|fc_06ee41bfe9bafc80016a79e6f09a0081a2b6d78ac43c77d7e4",
+    "toolName": "discover_tools"
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_4Glz6VcncRObF0lMKi28Opja|fc_06ee41bfe9bafc80016a79e6f09a0081a2b6d78ac43c77d7e4",
+    "toolName": "discover_tools",
+    "input": {
+      "provider": "composio",
+      "use_cases": [
+        "send a Telegram message"
+      ],
+      "limit_alternatives": 5
+    }
+  },
+  {
+    "type": "tool-output-available",
+    "toolCallId": "call_4Glz6VcncRObF0lMKi28Opja|fc_06ee41bfe9bafc80016a79e6f09a0081a2b6d78ac43c77d7e4",
+    "output": "{\"capabilities\":[{\"use_case\":\"send a Telegram message\",\"integration\":\"telegram\",… <6750 chars elided>"
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_UuNIUWzL6usJyTv4fonM1MVD|fc_06ee41bfe9bafc80016a79e6f72cd481a297c5892f04a2e3ab",
+    "toolName": "request_connection"
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_UuNIUWzL6usJyTv4fonM1MVD|fc_06ee41bfe9bafc80016a79e6f72cd481a297c5892f04a2e3ab",
+    "toolName": "request_connection",
+    "input": {
+      "mode": "api_key",
+      "slug": "telegram-main",
+      "integration": "telegram"
+    }
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_UuNIUWzL6usJyTv4fonM1MVD|fc_06ee41bfe9bafc80016a79e6f72cd481a297c5892f04a2e3ab",
+    "toolName": "request_connection",
+    "input": {
+      "mode": "api_key",
+      "slug": "telegram-main",
+      "integration": "telegram"
+    }
+  },
+  {
+    "type": "data-render",
+    "data": {
+      "toolCallId": "call_UuNIUWzL6usJyTv4fonM1MVD|fc_06ee41bfe9bafc80016a79e6f72cd481a297c5892f04a2e3ab",
+      "render": {
+        "kind": "connect"
+      }
+    }
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_gSb5q9yeCF5kLzxDZSSyQj7b|fc_0675e2f2ddf77962016a79e7b82fcc8192adf4cb52bee72fdb",
+    "toolName": "request_input"
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_gSb5q9yeCF5kLzxDZSSyQj7b|fc_0675e2f2ddf77962016a79e7b82fcc8192adf4cb52bee72fdb",
+    "toolName": "request_input",
+    "input": {
+      "message": "The Telegram connection attempt timed out, but we can continue configuring the a… <182 chars elided>",
+      "requestedSchema": {
+        "type": "object",
+        "required": [
+          "morning_time",
+          "timezone",
+          "chat_id"
+        ],
+        "properties": {
+          "chat_id": {
+            "type": "string",
+            "title": "Telegram chat ID",
+            "default": "",
+            "description": "Numeric chat ID or @channel username. For a private chat, message the bot first."
+          },
+          "timezone": {
+            "type": "string",
+            "title": "Time zone",
+            "default": "Asia/Riyadh",
+            "description": "IANA time zone used to convert your preferred local morning time, such as Europe/Paris or Asia/Riyadh."
+          },
+          "morning_time": {
+            "type": "string",
+            "title": "Daily schedule",
+            "format": "cron",
+            "default": "0 7 * * *",
+            "description": "Five-field UTC cron expression for the delivery time. Example: 0 7 * * * means 07:00 UTC every day."
+          }
+        },
+        "x-ag-stepper": true
+      }
+    }
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_gSb5q9yeCF5kLzxDZSSyQj7b|fc_0675e2f2ddf77962016a79e7b82fcc8192adf4cb52bee72fdb",
+    "toolName": "request_input",
+    "input": {
+      "message": "The Telegram connection attempt timed out, but we can continue configuring the a… <182 chars elided>",
+      "requestedSchema": {
+        "type": "object",
+        "required": [
+          "morning_time",
+          "timezone",
+          "chat_id"
+        ],
+        "properties": {
+          "chat_id": {
+            "type": "string",
+            "title": "Telegram chat ID",
+            "default": "",
+            "description": "Numeric chat ID or @channel username. For a private chat, message the bot first."
+          },
+          "timezone": {
+            "type": "string",
+            "title": "Time zone",
+            "default": "Asia/Riyadh",
+            "description": "IANA time zone used to convert your preferred local morning time, such as Europe/Paris or Asia/Riyadh."
+          },
+          "morning_time": {
+            "type": "string",
+            "title": "Daily schedule",
+            "format": "cron",
+            "default": "0 7 * * *",
+            "description": "Five-field UTC cron expression for the delivery time. Example: 0 7 * * * means 07:00 UTC every day."
+          }
+        },
+        "x-ag-stepper": true
+      }
+    }
+  },
+  {
+    "type": "data-render",
+    "data": {
+      "toolCallId": "call_gSb5q9yeCF5kLzxDZSSyQj7b|fc_0675e2f2ddf77962016a79e7b82fcc8192adf4cb52bee72fdb",
+      "render": {
+        "kind": "elicitation"
+      }
+    }
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_sZkmXv4b22ZLXSfLe00ljAyX|fc_0efd0b0daec5dc77016a7a3479eee4819ebe68006ecacc4851",
+    "toolName": "rename_session"
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_sZkmXv4b22ZLXSfLe00ljAyX|fc_0efd0b0daec5dc77016a7a3479eee4819ebe68006ecacc4851",
+    "toolName": "rename_session",
+    "input": {
+      "name": "Daily Arabic Poetry",
+      "description": "Setting up a Telegram agent to send Arabic poetry each morning; delivery time, time zone, chat destination, and Telegram connection are still needed."
+    }
+  },
+  {
+    "type": "tool-output-available",
+    "toolCallId": "call_sZkmXv4b22ZLXSfLe00ljAyX|fc_0efd0b0daec5dc77016a7a3479eee4819ebe68006ecacc4851",
+    "output": "{\"stream\":{\"created_at\":\"2026-08-10T14:57:26.954046Z\",\"updated_at\":\"2026-08-10T2… <666 chars elided>"
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_hrfjocnwl6NsJUwFv7qpf8ig|fc_0efd0b0daec5dc77016a7a348802cc819ebc221962d9853064",
+    "toolName": "request_input"
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_hrfjocnwl6NsJUwFv7qpf8ig|fc_0efd0b0daec5dc77016a7a348802cc819ebc221962d9853064",
+    "toolName": "request_input",
+    "input": {
+      "message": "Choose the daily local delivery time and time zone for your Arabic poetry message.",
+      "requestedSchema": {
+        "type": "object",
+        "required": [
+          "morning_time",
+          "timezone"
+        ],
+        "properties": {
+          "timezone": {
+            "type": "string",
+            "title": "Time zone",
+            "default": "Asia/Riyadh",
+            "description": "IANA time zone, such as Asia/Riyadh, Europe/Paris, or America/New_York."
+          },
+          "morning_time": {
+            "type": "string",
+            "title": "Morning delivery time",
+            "format": "cron",
+            "default": "0 7 * * *",
+            "description": "Five-field cron expression in UTC; the schedule builder can help set the local time."
+          }
+        },
+        "x-ag-stepper": true
+      }
+    }
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_hrfjocnwl6NsJUwFv7qpf8ig|fc_0efd0b0daec5dc77016a7a348802cc819ebc221962d9853064",
+    "toolName": "request_input",
+    "input": {
+      "message": "Choose the daily local delivery time and time zone for your Arabic poetry message.",
+      "requestedSchema": {
+        "type": "object",
+        "required": [
+          "morning_time",
+          "timezone"
+        ],
+        "properties": {
+          "timezone": {
+            "type": "string",
+            "title": "Time zone",
+            "default": "Asia/Riyadh",
+            "description": "IANA time zone, such as Asia/Riyadh, Europe/Paris, or America/New_York."
+          },
+          "morning_time": {
+            "type": "string",
+            "title": "Morning delivery time",
+            "format": "cron",
+            "default": "0 7 * * *",
+            "description": "Five-field cron expression in UTC; the schedule builder can help set the local time."
+          }
+        },
+        "x-ag-stepper": true
+      }
+    }
+  },
+  {
+    "type": "data-render",
+    "data": {
+      "toolCallId": "call_hrfjocnwl6NsJUwFv7qpf8ig|fc_0efd0b0daec5dc77016a7a348802cc819ebc221962d9853064",
+      "render": {
+        "kind": "elicitation"
+      }
+    }
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_XQIUlFOVdWHTXGrC3XtyIC6B|fc_04a6a06044dd409d016a7a349c7d7481a2bcbcf779ae5e27df",
+    "toolName": "request_input"
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_XQIUlFOVdWHTXGrC3XtyIC6B|fc_04a6a06044dd409d016a7a349c7d7481a2bcbcf779ae5e27df",
+    "toolName": "request_input",
+    "input": {
+      "message": "Please confirm the time zone for the daily Telegram delivery.",
+      "requestedSchema": {
+        "type": "object",
+        "required": [
+          "timezone"
+        ],
+        "properties": {
+          "timezone": {
+            "type": "string",
+            "title": "Time zone",
+            "default": "Europe/Berlin",
+            "description": "IANA time-zone name, for example Europe/Berlin or Asia/Riyadh."
+          }
+        }
+      }
+    }
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_XQIUlFOVdWHTXGrC3XtyIC6B|fc_04a6a06044dd409d016a7a349c7d7481a2bcbcf779ae5e27df",
+    "toolName": "request_input",
+    "input": {
+      "message": "Please confirm the time zone for the daily Telegram delivery.",
+      "requestedSchema": {
+        "type": "object",
+        "required": [
+          "timezone"
+        ],
+        "properties": {
+          "timezone": {
+            "type": "string",
+            "title": "Time zone",
+            "default": "Europe/Berlin",
+            "description": "IANA time-zone name, for example Europe/Berlin or Asia/Riyadh."
+          }
+        }
+      }
+    }
+  },
+  {
+    "type": "data-render",
+    "data": {
+      "toolCallId": "call_XQIUlFOVdWHTXGrC3XtyIC6B|fc_04a6a06044dd409d016a7a349c7d7481a2bcbcf779ae5e27df",
+      "render": {
+        "kind": "elicitation"
+      }
+    }
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_Kb9sHoiYpWYSLt9TlfgQgJOn|fc_003fa00ff68094b6016a7a34ab2d88819eb5114fe6b34bee42",
+    "toolName": "read"
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_Kb9sHoiYpWYSLt9TlfgQgJOn|fc_003fa00ff68094b6016a7a34ab2d88819eb5114fe6b34bee42",
+    "toolName": "read",
+    "input": {
+      "path": "/tmp/agenta/mounts/019fe1f4-c599-7c82-9350-c1f0ed5d660c/019fec2d-b859-70e1-827c-… <134 chars elided>"
+    }
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_UNiPSa9Yve89KPw88Osv2uil|fc_003fa00ff68094b6016a7a34ab2d9c819eb0f16812dc03456b",
+    "toolName": "read"
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_UNiPSa9Yve89KPw88Osv2uil|fc_003fa00ff68094b6016a7a34ab2d9c819eb0f16812dc03456b",
+    "toolName": "read",
+    "input": {
+      "path": "/tmp/agenta/mounts/019fe1f4-c599-7c82-9350-c1f0ed5d660c/019fec2d-b859-70e1-827c-… <135 chars elided>"
+    }
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_ALQN5hGLZnULtlcMELhNTwtV|fc_003fa00ff68094b6016a7a34ab2da4819ea0066314829b7c7b",
+    "toolName": "read"
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_ALQN5hGLZnULtlcMELhNTwtV|fc_003fa00ff68094b6016a7a34ab2da4819ea0066314829b7c7b",
+    "toolName": "read",
+    "input": {
+      "path": "/tmp/agenta/mounts/019fe1f4-c599-7c82-9350-c1f0ed5d660c/019fec2d-b859-70e1-827c-… <142 chars elided>"
+    }
+  },
+  {
+    "type": "tool-output-available",
+    "toolCallId": "call_ALQN5hGLZnULtlcMELhNTwtV|fc_003fa00ff68094b6016a7a34ab2da4819ea0066314829b7c7b",
+    "output": "# Agent template playbooks\n\nMatch the user's ask to a row, then read the named p… <4452 chars elided>"
+  },
+  {
+    "type": "tool-output-available",
+    "toolCallId": "call_Kb9sHoiYpWYSLt9TlfgQgJOn|fc_003fa00ff68094b6016a7a34ab2d88819eb5114fe6b34bee42",
+    "output": "# The agent config, field by field\n\nRead this before your first `commit_revision… <17740 chars elided>"
+  },
+  {
+    "type": "tool-output-available",
+    "toolCallId": "call_UNiPSa9Yve89KPw88Osv2uil|fc_003fa00ff68094b6016a7a34ab2d9c819eb0f16812dc03456b",
+    "output": "# What a schedule or subscription passes to the run\n\nRead this when you create a… <4692 chars elided>"
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_uB0CfsIvyzGrxnRwJnIFtuEx|fc_003fa00ff68094b6016a7a34ad9af8819e9bdd632bd58a737b",
+    "toolName": "request_connection"
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_uB0CfsIvyzGrxnRwJnIFtuEx|fc_003fa00ff68094b6016a7a34ad9af8819e9bdd632bd58a737b",
+    "toolName": "request_connection",
+    "input": {
+      "mode": "api_key",
+      "slug": "telegram-main",
+      "integration": "telegram"
+    }
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_uB0CfsIvyzGrxnRwJnIFtuEx|fc_003fa00ff68094b6016a7a34ad9af8819e9bdd632bd58a737b",
+    "toolName": "request_connection",
+    "input": {
+      "mode": "api_key",
+      "slug": "telegram-main",
+      "integration": "telegram"
+    }
+  },
+  {
+    "type": "data-render",
+    "data": {
+      "toolCallId": "call_uB0CfsIvyzGrxnRwJnIFtuEx|fc_003fa00ff68094b6016a7a34ad9af8819e9bdd632bd58a737b",
+      "render": {
+        "kind": "connect"
+      }
+    }
+  },
+  {
+    "type": "tool-input-start",
+    "toolCallId": "call_pqSSnHadzjhDWjoxKBYrAbMe|fc_0363efaf4edf4457016a7a34bf6244819fa11049629969decf",
+    "toolName": "request_connection"
+  },
+  {
+    "type": "tool-input-available",
+    "toolCallId": "call_pqSSnHadzjhDWjoxKBYrAbMe|fc_0363efaf4edf4457016a7a34bf6244819fa11049629969decf",
+    "toolName": "request_connection",
+    "input": {
+      "mode": "api_key",
+      "slug": "telegram-main",
+      "integration": "telegram"
+    }
+  },
+  {
+    "type": "tool-output-available",
+    "toolCallId": "call_pqSSnHadzjhDWjoxKBYrAbMe|fc_0363efaf4edf4457016a7a34bf6244819fa11049629969decf",
+    "output": "{\"connected\":false,\"integration\":\"telegram\",\"slug\":\"telegram-main\",\"reason\":\"Connection failed. Please try again.\"}"
+  }
+]

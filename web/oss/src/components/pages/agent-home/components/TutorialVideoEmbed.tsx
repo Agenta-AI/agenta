@@ -70,7 +70,7 @@ const TutorialVideoEmbed = ({video, className}: TutorialVideoEmbedProps) => {
                             </button>
                         </Tooltip>
                         {video.durationLabel ? (
-                            <span className="absolute bottom-2 right-2 rounded bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">
+                            <span className="absolute bottom-2 right-2 rounded bg-black/60 px-1.5 py-0.5 text-[12px] font-medium text-white">
                                 {video.durationLabel}
                             </span>
                         ) : null}
@@ -80,7 +80,7 @@ const TutorialVideoEmbed = ({video, className}: TutorialVideoEmbedProps) => {
 
             <div className="flex flex-col gap-0.5">
                 <span className="text-xs font-medium">{TUTORIAL.title}</span>
-                <span className="text-[11px] leading-snug text-[var(--ag-colorTextSecondary)]">
+                <span className="text-xs leading-snug text-[var(--ag-colorTextSecondary)]">
                     {TUTORIAL.caption}
                 </span>
             </div>

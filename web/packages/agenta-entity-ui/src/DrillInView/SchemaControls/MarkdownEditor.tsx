@@ -21,6 +21,8 @@
 import {
     type CSSProperties,
     type DragEvent,
+    type MouseEvent,
+    type RefObject,
     useCallback,
     useEffect,
     useId,
@@ -39,6 +41,10 @@ import {SharedEditor} from "@agenta/ui/shared-editor"
 import {cn} from "@agenta/ui/styles"
 import {Badge} from "@agenta/ui/ui"
 import {registerCodeHighlighting} from "@lexical/code"
+import {$isLinkNode} from "@lexical/link"
+import {$findMatchingParent} from "@lexical/utils"
+import {$getNearestNodeFromDOMNode, $getRoot} from "lexical"
+import {createPortal} from "react-dom"
 
 import {CodeBlockLanguageMenu} from "./CodeBlockLanguageMenu"
 
@@ -58,15 +64,23 @@ export interface MarkdownEditorProps {
     onChange: (next: string) => void
     placeholder?: string
     disabled?: boolean
+    /** Focus the editor on mount (e.g. a drawer whose only task is this document). */
+    autoFocus?: boolean
     /** Optional file-name tag shown on the left of the editor toolbar (e.g. "AGENTS.md"). */
     filename?: string
     /** Show a formatting toolbar (heading/bold/italic/lists/link/code/quote) above the editor. */
     showToolbar?: boolean
+    /** Portal the toolbar into a host-owned element instead of rendering its own row. */
+    toolbarContainer?: HTMLElement | null
+    /** `inline` for the compact H1/H2/H3 bar. */
+    toolbarLayout?: "default" | "inline"
     /** Initial view when uncontrolled. @default "source" */
     defaultView?: MarkdownView
     /** Controlled view. When set, the toggle calls `onViewChange` instead of local state. */
     view?: MarkdownView
     onViewChange?: (view: MarkdownView) => void
+    /** Fires once the Lexical editor has taken the requested view (the first paint may precede it). */
+    onViewApplied?: () => void
     /** Read-only when false (e.g. a Preview pane). @default true */
     editable?: boolean
     /** Drop the built-in filename/toggle header (the host supplies its own chrome). */
@@ -76,9 +90,16 @@ export interface MarkdownEditorProps {
     /** Fill the drawer height (fixed, tall) with the toolbar pinned and content scrolling. For an
      * editor that IS the whole drawer body. @default false */
     fill?: boolean
+    /** Fill whatever height the flex parent gives it (no viewport math), toolbar pinned and content
+     * scrolling. The parent chain must be a flex column with `min-h-0`. @default false */
+    grow?: boolean
     /** Cap the editor height (px or CSS length): content-sized up to the cap, then the toolbar pins
      * and the content scrolls inside. For an editor that's one field among others. */
     maxHeight?: number | string
+    /** A click on a link in the rich view, with the URL AS WRITTEN (Lexical's anchor carries a
+     * normalised one: `notes.md` renders as `https://notes.md`). Return true to take the click;
+     * otherwise Lexical opens the link in a new tab. */
+    onLinkClick?: (url: string, event: globalThis.MouseEvent) => boolean
 }
 
 /**
@@ -87,20 +108,57 @@ export interface MarkdownEditorProps {
  * handles updates, and a post-paint `requestAnimationFrame` re-dispatch covers the initial-mount
  * race where this effect can fire before the descendant MarkdownPlugin registers the command.
  */
-function MarkdownViewSync({enabled}: {enabled: boolean}) {
+function MarkdownViewSync({enabled, onApplied}: {enabled: boolean; onApplied?: () => void}) {
     const [editor] = useLexicalComposerContext()
 
     useLayoutEffect(() => {
-        editor.dispatchCommand(SET_MARKDOWN_VIEW, enabled)
-    }, [editor, enabled])
+        if (editor.dispatchCommand(SET_MARKDOWN_VIEW, enabled)) onApplied?.()
+    }, [editor, enabled, onApplied])
 
     useEffect(() => {
         const frame = requestAnimationFrame(() => {
-            editor.dispatchCommand(SET_MARKDOWN_VIEW, enabled)
+            if (editor.dispatchCommand(SET_MARKDOWN_VIEW, enabled)) onApplied?.()
         })
         return () => cancelAnimationFrame(frame)
-    }, [editor, enabled])
+    }, [editor, enabled, onApplied])
 
+    return null
+}
+
+/**
+ * Hands a link click to the host with the link node's own URL. Capture phase on the editor root, so
+ * it runs before the clickable-link plugin's bubble listener there and can stop it.
+ */
+function LinkClickSync({
+    onLinkClick,
+}: {
+    onLinkClick: NonNullable<MarkdownEditorProps["onLinkClick"]>
+}) {
+    const [editor] = useLexicalComposerContext()
+    useEffect(() => {
+        const onClick = (event: globalThis.MouseEvent) => {
+            const target = event.target
+            if (!(target instanceof Node)) return
+            const url = editor.read(() => {
+                const node = $getNearestNodeFromDOMNode(target)
+                const link = node ? $findMatchingParent(node, $isLinkNode) : null
+                return link ? link.getURL() : null
+            })
+            if (url == null || !onLinkClick(url, event)) return
+            event.preventDefault()
+            event.stopImmediatePropagation()
+        }
+        let current: HTMLElement | null = null
+        const unregister = editor.registerRootListener((root) => {
+            current?.removeEventListener("click", onClick, true)
+            current = root
+            root?.addEventListener("click", onClick, true)
+        })
+        return () => {
+            unregister()
+            current?.removeEventListener("click", onClick, true)
+        }
+    }, [editor, onLinkClick])
     return null
 }
 
@@ -115,21 +173,66 @@ function CodeHighlightSync() {
     return null
 }
 
+/**
+ * Focuses the editor once on mount with the caret at the document start, then pins the scroll
+ * region to the top. Not Lexical's AutoFocusPlugin: that keeps whatever selection the markdown
+ * import left behind, which put the caret (and the scroll) mid-document.
+ */
+function FocusStartOnMount({
+    hasContent,
+    scrollRef,
+}: {
+    hasContent: boolean
+    scrollRef: RefObject<HTMLDivElement | null>
+}) {
+    const [editor] = useLexicalComposerContext()
+
+    useEffect(() => {
+        let frame = 0
+        let attempts = 0
+        const tick = () => {
+            const ready =
+                editor.getRootElement() !== null &&
+                (!hasContent ||
+                    editor.getEditorState().read(() => $getRoot().getChildrenSize() > 0))
+            // The content editable and the import both land a frame or two after mount.
+            if (!ready && attempts++ < 60) {
+                frame = requestAnimationFrame(tick)
+                return
+            }
+            editor.update(() => $getRoot().selectStart(), {tag: "skip-scroll-into-view"})
+            editor.focus(undefined, {defaultSelection: "rootStart"})
+            frame = requestAnimationFrame(() => scrollRef.current?.scrollTo({top: 0}))
+        }
+        frame = requestAnimationFrame(tick)
+        return () => cancelAnimationFrame(frame)
+        // Mount-only: re-running on a value edit would yank the caret back to the top.
+    }, [editor])
+
+    return null
+}
+
 export function MarkdownEditor({
     value,
     onChange,
     placeholder,
     disabled,
+    autoFocus = false,
     filename,
     showToolbar = false,
+    toolbarContainer,
+    toolbarLayout,
     defaultView = "source",
     view,
     onViewChange,
+    onViewApplied,
     editable = true,
     hideHeader = false,
     bordered = true,
     fill = false,
+    grow = false,
     maxHeight,
+    onLinkClick,
 }: MarkdownEditorProps) {
     // Stable id shared by the provider and the editor so they target one composer. Colons from
     // useId() are dropped to keep it id/atom-key safe.
@@ -138,6 +241,7 @@ export function MarkdownEditor({
 
     const [text, setText] = useState(value ?? "")
     const lastExternal = useRef(value ?? "")
+    const scrollRef = useRef<HTMLDivElement>(null)
     const [internalView, setInternalView] = useState<MarkdownView>(defaultView)
 
     const effectiveView = view ?? internalView
@@ -213,7 +317,7 @@ export function MarkdownEditor({
             type="button"
             onClick={() => setView(markdownView ? "rendered" : "source")}
             disabled={disabled}
-            className="shrink-0 cursor-pointer border-0 bg-transparent px-1 text-xs text-[var(--ag-c-97A4B0,#97a4b0)] transition-colors hover:text-[var(--ag-c-586673,#586673)] disabled:cursor-not-allowed disabled:opacity-50"
+            className="shrink-0 cursor-pointer border-0 bg-transparent px-1 text-xs text-[var(--ag-zinc-5)] transition-colors hover:text-[var(--ag-c-586673)] disabled:cursor-not-allowed disabled:opacity-50"
         >
             {markdownView ? "Rich text" : "Source"}
         </button>
@@ -221,19 +325,30 @@ export function MarkdownEditor({
 
     // Toolbar row pinned above a scroll area this component owns, so it never moves with content.
     // `justify-between` puts formatting on the left and the source/rich toggle hard-right.
-    const toolbar = (
-        <div className="flex shrink-0 items-center justify-between gap-1 border-b border-solid border-[var(--ag-c-EAEFF5,#eaeff5)] px-3 py-1.5">
-            <MarkdownToolbar disabled={editorDisabled || markdownView} />
-            {viewToggle}
-        </div>
+    const toolbarControls = (
+        <MarkdownToolbar disabled={editorDisabled || markdownView} layout={toolbarLayout} />
     )
+    // `null` = the host's slot isn't mounted yet (render nothing); `undefined` = no slot.
+    const toolbar =
+        toolbarContainer !== undefined ? (
+            toolbarContainer ? (
+                createPortal(toolbarControls, toolbarContainer)
+            ) : null
+        ) : (
+            // border-0 first: preflight is off, so a bare `border-b` still paints the UA's other
+            // three sides — the top one doubling up with the container's own border.
+            <div className="flex shrink-0 items-center justify-between gap-1 border-0 border-b border-solid border-[var(--ag-c-EAEFF5)] px-3 py-1.5">
+                {toolbarControls}
+                {viewToggle}
+            </div>
+        )
 
     const plainHeader = hideHeader ? undefined : (
         <div className="flex w-full items-center justify-between gap-2">
             {filename ? (
                 // antd v6's default Tag variant is `filled` (borderless), so the `bordered` this
                 // carried was a no-op — the neutral Badge is the exact equivalent.
-                <Badge className="font-mono text-[11px] font-normal leading-[22.4px] text-[var(--ag-c-586673,#586673)]">
+                <Badge className="font-mono text-xs font-normal leading-[22.4px] text-[var(--ag-c-586673)]">
                     {filename}
                 </Badge>
             ) : (
@@ -246,11 +361,13 @@ export function MarkdownEditor({
     // Bound the box on this component's own wrapper (self-sized, so it doesn't depend on the parent
     // flex/height chain). `fill` = fixed drawer-body height (≈ header+footer+padding). `maxHeight` =
     // content-sized up to a cap. Either way the toolbar pins and content scrolls inside.
-    const boundStyle: CSSProperties | undefined = fill
-        ? {height: "calc(100vh - 152px)"}
-        : maxHeight != null
-          ? {maxHeight: typeof maxHeight === "number" ? `${maxHeight}px` : maxHeight}
-          : undefined
+    const boundStyle: CSSProperties | undefined = grow
+        ? undefined
+        : fill
+          ? {height: "calc(100vh - 152px)"}
+          : maxHeight != null
+            ? {maxHeight: typeof maxHeight === "number" ? `${maxHeight}px` : maxHeight}
+            : undefined
 
     const editorEl = (
         <SharedEditor
@@ -274,25 +391,64 @@ export function MarkdownEditor({
         />
     )
 
+    // The contenteditable is only as tall as its content, so a click in the empty space below it
+    // would otherwise land on the scroll region and focus nothing. Redirect those to the editor,
+    // caret at the end. Clicks on the text itself fall through untouched.
+    const focusOnBlankClick = (e: MouseEvent<HTMLDivElement>) => {
+        if (editorDisabled) return
+        const target = e.target as HTMLElement
+        if (target.closest('[contenteditable="true"]')) return
+        // Classic (space-taking) scrollbars dispatch mousedown to the scroll box itself; without
+        // this the handler would preventDefault the drag and jerk the caret to the end.
+        const rect = e.currentTarget.getBoundingClientRect()
+        if (
+            e.clientX - rect.left >= e.currentTarget.clientWidth ||
+            e.clientY - rect.top >= e.currentTarget.clientHeight
+        )
+            return
+        const input = e.currentTarget.querySelector<HTMLElement>('[contenteditable="true"]')
+        if (!input) return
+        e.preventDefault()
+        input.focus()
+        const range = document.createRange()
+        range.selectNodeContents(input)
+        range.collapse(false)
+        const selection = window.getSelection()
+        selection?.removeAllRanges()
+        selection?.addRange(range)
+    }
+
     // `md-prose` scopes the document prose styles (Option B) defined in editor-theme.css to these
     // Markdown editors only, so the shared prompt/chat editor theme is untouched.
     const body = showToolbar ? (
         <div
             className={cn(
                 "flex flex-col overflow-hidden",
-                bordered && "rounded-md border border-solid border-[var(--ag-c-BDC7D1,#bdc7d1)]",
+                grow && "min-h-0 flex-1",
+                bordered && "rounded-md border border-solid border-[var(--ag-c-BDC7D1)]",
             )}
             style={boundStyle}
         >
             {toolbar}
             {/* tabIndex: a scroll region must be keyboard-reachable (axe scrollable-region-focusable)
                 — in rendered/read-only view it has no focusable content of its own. */}
-            <div tabIndex={0} className="md-prose min-h-0 flex-1 overflow-y-auto">
+            <div
+                ref={scrollRef}
+                tabIndex={0}
+                className="md-prose min-h-0 flex-1 overflow-y-auto"
+                onMouseDown={focusOnBlankClick}
+            >
                 {editorEl}
             </div>
         </div>
-    ) : boundStyle ? (
-        <div tabIndex={0} className="md-prose overflow-y-auto" style={boundStyle}>
+    ) : boundStyle || grow ? (
+        <div
+            ref={scrollRef}
+            tabIndex={0}
+            className={cn("md-prose overflow-y-auto", grow && "min-h-0 flex-1")}
+            style={boundStyle}
+            onMouseDown={focusOnBlankClick}
+        >
             {editorEl}
         </div>
     ) : (
@@ -306,10 +462,12 @@ export function MarkdownEditor({
             enableTokens={false}
             showToolbar={false}
             disabled={editorDisabled}
+            // `!`: the provider hardcodes a `min-h-[70px]` floor that would block shrinking.
+            className={grow ? "!min-h-0 flex-1" : undefined}
         >
             {dropEnabled ? (
                 <div
-                    className="relative"
+                    className={cn("relative", grow && "flex min-h-0 flex-1 flex-col")}
                     onDragOverCapture={handleDragOver}
                     onDragLeaveCapture={handleDragLeave}
                     onDropCapture={handleDrop}
@@ -317,7 +475,7 @@ export function MarkdownEditor({
                     {body}
                     {dragOver ? (
                         <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center rounded-md border-2 border-dashed border-[var(--ant-color-primary)] bg-[var(--ant-color-primary-bg,rgba(22,119,255,0.08))]">
-                            <span className="rounded-md bg-[var(--ant-color-bg-elevated,#fff)] px-3 py-1.5 text-xs font-medium text-[var(--ag-c-586673,#586673)] shadow-sm">
+                            <span className="rounded-md bg-[var(--ant-color-bg-elevated,#fff)] px-3 py-1.5 text-xs font-medium text-[var(--ag-c-586673)] shadow-sm">
                                 Drop a Markdown file to replace the content
                             </span>
                         </div>
@@ -326,9 +484,15 @@ export function MarkdownEditor({
             ) : (
                 body
             )}
-            <MarkdownViewSync enabled={markdownView} />
+            <MarkdownViewSync enabled={markdownView} onApplied={onViewApplied} />
             <CodeHighlightSync />
-            <CodeBlockLanguageMenu editable={!editorDisabled} />
+            {onLinkClick ? <LinkClickSync onLinkClick={onLinkClick} /> : null}
+            {autoFocus && !editorDisabled ? (
+                <FocusStartOnMount hasContent={Boolean(value)} scrollRef={scrollRef} />
+            ) : null}
+            {/* Source view wraps the whole document in one markdown CodeNode — its picker is
+                meaningless there, so the menu is for author-inserted blocks in rich text only. */}
+            {!markdownView && <CodeBlockLanguageMenu editable={!editorDisabled} />}
         </EditorProvider>
     )
 }

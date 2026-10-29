@@ -76,9 +76,11 @@ class InMemoryMountsDAO:
 
     @staticmethod
     def _mount(project_id, mount_create):
+        mount_id = uuid4()
         return Mount(
-            id=uuid4(),
+            id=mount_id,
             project_id=project_id,
+            storage_prefix=f"mounts/{project_id}/{mount_id}",
             slug=mount_create.slug,
             name=mount_create.name,
             session_id=mount_create.session_id,

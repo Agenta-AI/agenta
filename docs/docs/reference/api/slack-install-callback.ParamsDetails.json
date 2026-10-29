@@ -1,0 +1,1 @@
+{"parameters":[{"name":"code","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Code"}},{"name":"state","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"State"}},{"name":"error","in":"query","required":false,"schema":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Error"}}]}

@@ -1,3 +1,4 @@
+import {isMcpRelayUrl} from "@agenta/shared/api"
 import {sessionAtom} from "@agenta/shared/state"
 import {getDefaultStore} from "jotai"
 import Router from "next/router"
@@ -146,6 +147,19 @@ export const frontendConfig = (): SuperTokensConfig => {
                 if (event.action === "UNAUTHORISED" || event.action === "SIGN_OUT") {
                     getDefaultStore().set(sessionAtom, false)
                 }
+            },
+            override: {
+                functions: (original) => ({
+                    ...original,
+                    // The MCP relay is the one route under this domain where a 401 is not
+                    // ours. See `isMcpRelayUrl`: refreshing and retrying somebody else's
+                    // refused API key ten times is what stopped the rejected-key screen from
+                    // ever being reached (D175).
+                    shouldDoInterceptionBasedOnUrl: (url, apiDomain, cookieDomain) =>
+                        isMcpRelayUrl(url)
+                            ? false
+                            : original.shouldDoInterceptionBasedOnUrl(url, apiDomain, cookieDomain),
+                }),
             },
         }),
     )

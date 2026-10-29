@@ -4,7 +4,6 @@ import {useAtomValue} from "jotai"
 import dynamic from "next/dynamic"
 import {useRouter} from "next/router"
 
-import {PLAYGROUND_NATIVE_ONBOARDING} from "@/oss/components/pages/agent-home/assets/constants"
 import OnboardingLoader from "@/oss/components/pages/agent-home/PlaygroundOnboarding/OnboardingLoader"
 import PageTitle from "@/oss/components/PageTitle"
 import {currentWorkflowContextAtom} from "@/oss/state/workflow"
@@ -53,11 +52,10 @@ const PlaygroundRouter = () => {
     const ctx = useAtomValue(currentWorkflowContextAtom)
     const router = useRouter()
 
-    // Flag ON + landing on the bare project playground → the real playground in ONBOARDING mode (it
-    // mints + drives an ephemeral agent and shows the templates + "what do you want to build?" composer).
-    // Reuses the full Playground machinery; the app-scoped/evaluator routes and flag-off are unchanged.
-    const onboardingActive =
-        PLAYGROUND_NATIVE_ONBOARDING && router.pathname === PROJECT_PLAYGROUND_PATHNAME
+    // Landing on the bare project playground → the real playground in ONBOARDING mode (it mints +
+    // drives an ephemeral agent and shows the templates + "what do you want to build?" composer).
+    // Reuses the full Playground machinery; the app-scoped/evaluator routes are unchanged.
+    const onboardingActive = router.pathname === PROJECT_PLAYGROUND_PATHNAME
     if (onboardingActive) {
         // Key on the project so switching projects (a Next nav to the SAME `/playground` route) REMOUNTS
         // the onboarding: without this the mounted instance keeps the previous project's committed state

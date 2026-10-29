@@ -1,1 +1,1 @@
-{"title":"Body"}
+{"title":"Body","body":{"required":true,"content":{"application/octet-stream":{"schema":{"type":"string","format":"binary"}}}}}

@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "entry": "knowledge-chatbot",
+  "agents": {
+    "knowledge-chatbot": {
+      "name": "Knowledge chatbot",
+      "description": "Answers customer questions from your knowledge base, in chat or when mentioned.",
+      "instructions": "./ai.agenta/agents/knowledge-chatbot/AGENTS.md",
+      "setup": "./ai.agenta/agents/knowledge-chatbot/SETUP.md",
+      "connections": [
+        {
+          "key": "read-the-knowledge-base",
+          "required": true,
+          "purpose": "Read the knowledge base",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "notion"
+            }
+          ],
+          "setup_notes": "Read pages"
+        },
+        {
+          "key": "reply-to-the-asker",
+          "required": true,
+          "purpose": "Reply to the asker",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "slack"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "discord"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "telegram"
+            }
+          ],
+          "setup_notes": "Reply to customer questions"
+        }
+      ]
+    }
+  }
+}

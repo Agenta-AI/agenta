@@ -29,22 +29,32 @@ const selectTriggerVariants = cva(
     [
         // CONTROL_RESET — see button.tsx (preflight is off app-wide for antd's sake).
         "box-border border-solid font-[inherit]",
-        "flex w-full items-center justify-between gap-1 border text-foreground outline-none transition-colors",
+        // text-left: preflight is off, so the UA's `button { text-align: center }` would centre
+        // the selected label on the button-based triggers (Select, and every consumer of this variant).
+        "flex w-full items-center justify-between gap-1 border text-left text-foreground outline-none transition-colors",
+        // Radix's Value span doesn't take a className, so shrink it from here — without this a
+        // long selected label overflows the trigger and pushes the chevron out. Scoped to the value
+        // slot: a bare `[&>span]` also stretched the trailing adornment span (Combobox/Cascader wrap
+        // their chevron + clear in one), floating the chevron mid-trigger instead of at its edge.
+        "[&>[data-slot=select-value]]:min-w-0 [&>[data-slot=select-value]]:flex-1",
         "cursor-pointer disabled:cursor-not-allowed disabled:bg-disabled-bg disabled:text-disabled disabled:border-disabled-border",
         // antd greys only the placeholder TEXT; the root keeps the foreground colour.
         "[&[data-placeholder]_[data-slot=select-value]]:text-placeholder",
         // antd's error state colours the border AND the text/arrow/placeholder, + red focus glow.
-        "aria-[invalid=true]:border-error aria-[invalid=true]:text-error aria-[invalid=true]:focus:shadow-[0_0_0_2px_var(--ag-errorOutline)] aria-[invalid=true]:data-[state=open]:shadow-[0_0_0_2px_var(--ag-errorOutline)]",
+        "aria-[invalid=true]:border-error aria-[invalid=true]:text-error aria-[invalid=true]:shadow-[0_0_0_3px_var(--ag-errorOutline)]",
         "[&_svg]:pointer-events-none [&_svg]:shrink-0",
+        // Below md, 16px like Input (iOS Safari zooms the page on a smaller focused control), so
+        // a phone form does not mix two text sizes. The size variants set the desktop ramp.
+        "max-md:text-base",
     ],
     {
         variants: {
             variant: {
-                // Focus glow (antd controlOutline) on: Radix Select button (focus / data-open)
+                // Focus glow (the neutral ring) on: Radix Select button (focus / data-open)
                 // AND the Combobox div-trigger (has a focused input inside).
                 default:
-                    "bg-background border-border hover:border-btn-primary-hover focus:border-primary data-[state=open]:border-primary focus:shadow-[0_0_0_2px_var(--ag-controlOutline)] data-[state=open]:shadow-[0_0_0_2px_var(--ag-controlOutline)] [&:has(:focus)]:border-primary [&:has(:focus)]:shadow-[0_0_0_2px_var(--ag-controlOutline)]",
-                filled: "bg-muted border-transparent hover:bg-secondary focus:bg-background focus:border-primary focus:shadow-[0_0_0_2px_var(--ag-controlOutline)] data-[state=open]:shadow-[0_0_0_2px_var(--ag-controlOutline)] [&:has(:focus)]:shadow-[0_0_0_2px_var(--ag-controlOutline)]",
+                    "bg-background border-border focus:border-ring data-[state=open]:border-ring focus:shadow-[0_0_0_3px_var(--ag-controlOutline)] data-[state=open]:shadow-[0_0_0_3px_var(--ag-controlOutline)] [&:has(:focus)]:border-ring [&:has(:focus)]:shadow-[0_0_0_3px_var(--ag-controlOutline)]",
+                filled: "bg-muted border-transparent hover:bg-secondary focus:bg-background focus:border-ring focus:shadow-[0_0_0_3px_var(--ag-controlOutline)] data-[state=open]:shadow-[0_0_0_3px_var(--ag-controlOutline)] [&:has(:focus)]:shadow-[0_0_0_3px_var(--ag-controlOutline)]",
                 // Transparent, not `border-0`: antd keeps a 1px transparent border so the
                 // content box stays identical to the outlined variant.
                 ghost: "bg-transparent border-transparent",
@@ -160,12 +170,15 @@ function SelectItem({
             data-slot="select-item"
             className={cn(
                 "relative flex w-full cursor-pointer select-none items-center justify-between gap-2 outline-none",
+                // Radix's ItemText span doesn't take a className, so shrink it from here —
+                // without this a long option overflows the panel instead of truncating.
+                "[&>span]:min-w-0 [&>span]:flex-1",
                 // antd option geometry: min-h 28px, 4px×12px padding, 6px radius, selected weight 600.
-                "box-border min-h-control rounded-control-sm px-3 py-1 text-field-md",
+                "box-border min-h-control-sm rounded-control-sm px-3 py-1 text-field-md",
                 // antd colours: highlighted-but-not-selected = controlItemBgHover; selected =
                 // controlItemBgActive (a cool bluish tint, not the neutral accent gray). The
                 // `:not()` keeps the selected row's active bg from being overridden by hover.
-                "[&[data-highlighted]:not([data-state=checked])]:bg-muted",
+                "[&[data-highlighted]:not([data-state=checked])]:bg-controlItemBgHover",
                 "data-[state=checked]:bg-controlItemBgActive data-[state=checked]:font-semibold",
                 "data-[disabled]:pointer-events-none data-[disabled]:text-disabled",
                 className,

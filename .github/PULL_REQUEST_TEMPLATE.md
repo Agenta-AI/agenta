@@ -16,10 +16,21 @@
 
 ## Demo
 <!-- Required for UI changes. Add screenshots, GIFs, or a short video. -->
-<!-- If this is not a UI change, write N/A. -->
+<!--
+  Screenshots must come from the real app running your branch.
+
+  Run it locally (see AGENTS.md -> "Local dev loop"), open the screen you changed, and capture it there.
+
+  Do NOT paste mock-ups: a standalone HTML page, an isolated component harness,
+  or any UI recreated by hand or by an agent to imitate the screen. A picture
+  that resembles the app but was not produced by the app is not a demo -- it
+  proves nothing about this change and hides real layout, theme, and data bugs.
+
+  If you cannot run the app having issues then contact with the team instead of substituting a mock-up.
+-->
 
 ## Checklist
-- [ ] I have included a video or screen recording for UI changes, or marked Demo as N/A
+- [ ] Demo shows the real app running this branch (not a mock-up or recreated UI), or is marked N/A
 - [ ] Relevant tests pass locally
 - [ ] Relevant linting and formatting pass locally
 - [ ] I have signed the CLA, or I will sign it when the bot prompts me

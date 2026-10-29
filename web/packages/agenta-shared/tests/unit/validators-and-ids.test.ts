@@ -1,8 +1,8 @@
 import {describe, expect, it} from "vitest"
 
-import {isValidHttpUrl, isValidRegex, isValidUUID, validateUUID} from "../../src/utils/validators"
 import {uuidToSpanId, uuidToTraceId} from "../../src/utils/traceIds"
 import {removeTrailingSlash} from "../../src/utils/uriUtils"
+import {isValidHttpUrl, isValidRegex, isValidUUID, validateUUID} from "../../src/utils/validators"
 
 // ---------------------------------------------------------------------------
 // isValidUUID

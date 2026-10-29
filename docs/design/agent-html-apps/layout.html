@@ -1,0 +1,673 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Agent App Layout</title>
+<style>img{max-width:100%}[hidden]{display:none!important}</style>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#F4F5F7; --surface:#FFFFFF; --sunken:#ECEEF2; --ink:#16181D; --muted:#5B6270; --line:#D9DCE3; --line-strong:#B8BEC9;
+  --accent:#0F766E; --accent-soft:#D9F0EC; --accent-ink:#0B5A54;
+  --warn:#B45309; --warn-soft:#FBEBD5; --crit:#B91C1C; --crit-soft:#F8DEDE; --ok:#15803D; --ok-soft:#DCF1E3;
+  --code-bg:#EEF0F4;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --ground:#121417; --surface:#1A1D22; --sunken:#15181D; --ink:#E8EAEE; --muted:#9AA2B1; --line:#2A2F38; --line-strong:#3C4350;
+  --accent:#34C4B0; --accent-soft:#12312D; --accent-ink:#7EE0D2;
+  --warn:#F0A34A; --warn-soft:#3A2A14; --crit:#F07070; --crit-soft:#3C1C1C; --ok:#5FCF83; --ok-soft:#173523;
+  --code-bg:#22262D;
+}}
+:root[data-theme="dark"]{
+  --ground:#121417; --surface:#1A1D22; --sunken:#15181D; --ink:#E8EAEE; --muted:#9AA2B1; --line:#2A2F38; --line-strong:#3C4350;
+  --accent:#34C4B0; --accent-soft:#12312D; --accent-ink:#7EE0D2;
+  --warn:#F0A34A; --warn-soft:#3A2A14; --crit:#F07070; --crit-soft:#3C1C1C; --ok:#5FCF83; --ok-soft:#173523;
+  --code-bg:#22262D;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;font-size:15px;line-height:1.55;padding-inline:20px;padding-block:0 96px;-webkit-font-smoothing:antialiased}
+a{color:var(--accent-ink);text-decoration:none;border-bottom:1px solid var(--line-strong)}
+a:hover{border-bottom-color:var(--accent)}
+a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+code,pre{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+code{font-size:.88em;background:var(--code-bg);padding:.1em .35em;border-radius:4px}
+pre{background:var(--code-bg);padding:12px 14px;border-radius:6px;overflow-x:auto;font-size:12px;line-height:1.5;margin:0}
+pre code{background:none;padding:0;font-size:inherit}
+h1,h2,h3,h4{font-family:"Bricolage Grotesque","IBM Plex Sans",system-ui,sans-serif;text-wrap:balance;line-height:1.15;margin:0}
+h1{font-size:clamp(30px,4.2vw,44px);font-weight:700;letter-spacing:-.01em}
+h2{font-size:26px;font-weight:700;margin-top:64px;padding-top:24px;border-top:1px solid var(--line)}
+h3{font-size:18px;font-weight:600;margin-top:28px}
+h4{font-size:14px;font-weight:600;margin-top:18px}
+p{margin:12px 0;max-width:72ch}
+ul,ol{max-width:72ch;padding-left:22px;margin:10px 0}
+li{margin:5px 0}
+.wrap{max-width:1080px;margin:0 auto}
+.layout{display:grid;grid-template-columns:200px minmax(0,1fr);gap:48px;align-items:start}
+@media (max-width:860px){.layout{grid-template-columns:minmax(0,1fr)}.toc{display:none}}
+.toc{position:sticky;top:24px;font-size:13px;padding-top:88px}
+.toc a{display:block;border:0;color:var(--muted);padding:4px 0}
+.toc a:hover{color:var(--ink)}
+.toc .lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:8px}
+header.hero{padding-block:56px 12px}
+.eyebrow{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:500;margin-bottom:14px}
+.lede{font-size:18px;color:var(--muted);max-width:64ch;margin-top:14px}
+figure{margin:20px 0;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:14px 14px 10px}
+figure svg{display:block;max-width:100%;height:auto;color:var(--ink);font-family:"IBM Plex Sans",system-ui,sans-serif}
+figcaption{font-size:13px;color:var(--muted);margin-top:10px;max-width:80ch}
+.tbl{overflow-x:auto;margin:16px 0}
+table{border-collapse:collapse;width:100%;font-size:14px;background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500;background:var(--sunken)}
+tr:last-child td{border-bottom:0}
+td.mono{font-family:"IBM Plex Mono",monospace;font-size:12px;white-space:nowrap}
+td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+.grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-top:14px}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px}
+.box .lbl{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500;margin-bottom:6px}
+.callout{border-left:3px solid var(--accent);background:var(--accent-soft);padding:12px 16px;border-radius:0 6px 6px 0;margin:16px 0;max-width:80ch;font-size:14px}
+.callout.warn{border-left-color:var(--warn);background:var(--warn-soft)}
+.callout.crit{border-left-color:var(--crit);background:var(--crit-soft)}
+.callout p{margin:4px 0}
+.facts{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-top:16px}
+.fact{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:12px 14px;font-size:14px}
+.fact b{display:block;font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;font-weight:500}
+.fact .src{font-size:11px;color:var(--muted);margin-top:6px;font-family:"IBM Plex Mono",monospace}
+.recipe{margin-top:40px;border-top:1px solid var(--line);padding-top:8px}
+.recipe h3{margin-top:12px}
+.recipe .who{font-size:12px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);font-weight:500;margin-top:2px}
+.steps{list-style:none;padding:0;margin:12px 0;max-width:80ch;display:grid;gap:6px}
+.steps li{display:grid;grid-template-columns:26px 88px minmax(0,1fr);gap:10px;align-items:baseline;font-size:13.5px;padding:8px 10px;background:var(--sunken);border-radius:6px}
+.steps .k{width:20px;height:20px;border-radius:50%;font-size:11px;font-weight:600;display:grid;place-items:center;background:var(--accent-soft);color:var(--accent-ink)}
+.steps .lv{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+.steps .lv.a{color:var(--accent-ink)}.steps .lv.s{color:var(--warn)}.steps .lv.p{color:var(--muted)}
+.dec{background:var(--surface);border:1px solid var(--line);border-radius:8px;margin-top:16px}
+.dec .row{display:grid;grid-template-columns:minmax(180px,.9fr) minmax(0,1.6fr);gap:16px;padding:12px 16px;border-bottom:1px solid var(--line);font-size:14px}
+.dec .row:last-child{border-bottom:0}
+.dec .q{font-weight:500}.dec .a{color:var(--muted)}.dec .a b{color:var(--ink);font-weight:600}
+@media (max-width:560px){.dec .row{grid-template-columns:minmax(0,1fr)}}
+.small{font-size:13px;color:var(--muted)}
+.ok{color:var(--ok)}.wn{color:var(--warn)}.cr{color:var(--crit)}
+</style>
+</head>
+<body>
+
+<div class="wrap"><div class="layout">
+<nav class="toc" aria-label="Sections">
+  <div class="lbl">Contents</div>
+  <a href="#facts">What is already true</a>
+  <a href="#map">The two levels</a>
+  <a href="#folder">The durable folder, file by file</a>
+  <a href="#schemas">Schemas</a>
+  <a href="#mounts">One mount or two</a>
+  <a href="#config">Configuration on the agent</a>
+  <a href="#permissions">Permissions</a>
+  <a href="#ui">What the user sees</a>
+  <a href="#lifecycle">Lifecycle</a>
+  <a href="#recipes">Setup by app type</a>
+  <a href="#ops">Operations that touch the layout</a>
+  <a href="#failures">Failure modes</a>
+  <a href="#decisions">Decisions</a>
+  <a href="#work">Work packages</a>
+</nav>
+<main>
+<header class="hero">
+  <div class="eyebrow">Agenta · agent HTML apps · agent-level layout</div>
+  <h1>What lives with the agent, so every session finds it</h1>
+  <p class="lede">A session holds an app. The agent holds everything that makes the next session's app the same one: starters, a record of what was built, notes, a place for apps that outlive a conversation, and the configuration that feeds them. This page specifies that layer file by file and setting by setting. Companion to <a href="creation.html">Agent App Creation</a>, the <a href="plan.html">plan</a>, the <a href="walkthrough.html">walkthrough</a> and the <a href="six-apps.html">field test</a>.</p>
+</header>
+
+<section id="facts">
+  <h2 style="margin-top:36px">What is already true</h2>
+  <p>The layout builds on things the platform does today. Each of these was checked in the code, and the design leans on them rather than adding new mechanisms.</p>
+  <div class="facts">
+    <div class="fact"><b>One durable mount per agent</b>Every agent artifact gets a mount, created on first use, keyed by artifact id and a name that defaults to <code>default</code>. It is shared by all of that agent's sessions and runs.<div class="src">mounts/service.py · get_or_create_agent_mount</div></div>
+    <div class="fact"><b>Mounted as agent-files/</b>The runner symlinks that mount into the sandbox working directory as <code>agent-files/</code>. The agent's instructions already say it is durable and survives sessions.<div class="src">platform_instructions.py · Files and storage</div></div>
+    <div class="fact"><b>Hidden infrastructure precedent</b><code>agent-files/.tools/</code> holds the agent's own binaries; <code>.tools/bin/</code> is copied into the working directory before each session and <code>setup.sh</code> runs with a two-minute limit.<div class="src">platform_instructions.py · Installing tools</div></div>
+    <div class="fact"><b>Dot folders are dimmed, not hidden</b>The Files pane greys out dot-prefixed paths like a file browser does. Only <code>.agenta-*</code> segments and the <code>agents/</code> folder are hidden outright as runner plumbing.<div class="src">driveTree.ts · isHiddenPath · isInternalDrivePath</div></div>
+    <div class="fact"><b>Agent files fold into the session view</b>The Files pane shows both mounts in one tree, with the agent mount under <code>agent-files/</code> and an origin tag on each row when a listing mixes the two.<div class="src">useSessionDrive.ts · fileOrigin · driveHasMixedOrigins</div></div>
+    <div class="fact"><b>Credentials are prefix-scoped</b>The sandbox gets short-lived credentials scoped to one mount's prefix. A session cannot reach another agent's mount.<div class="src">mounts/service.py · sign_mount_credentials</div></div>
+    <div class="fact"><b>Schedules exist</b>Triggers include cron schedules: a five-field expression in UTC on a one-minute floor, bound to a workflow revision. A scheduled run is an ordinary agent turn with no browser attached.<div class="src">triggers/dtos.py · schedule</div></div>
+    <div class="fact"><b>Agent mounts can be named</b>The mount API takes a <code>name</code>, so one agent can have more than one durable mount. Nothing uses a second name today.<div class="src">mounts/router.py · sign_agent_mount_credentials</div></div>
+  </div>
+</section>
+
+<section id="map">
+  <h2>The two levels</h2>
+  <p>An app instance is session-level: its folder, its data, its grant. Everything that should be identical across sessions is agent-level. The rule for placing something is one question: if a second session asked the same thing, would it need this? If yes, it is agent-level.</p>
+
+  <figure>
+    <svg viewBox="0 0 960 420" role="img" aria-label="Agent level on the left: configuration entities (skills, schedules, tool connections, permissions) and the durable mount agent-files with .tools, .apps (registry, notes, starters, kit) and a visible apps folder. Session level on the right: three sessions, each with its own mount holding apps/<slug> instances and their grants, plus a scheduled run with no browser. Arrows show the skill and starters feeding create_app, schedules and connections feeding data files, and each session writing one registry entry back.">
+      <defs><marker id="m1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+      <g font-size="11" fill="currentColor">
+        <text x="20" y="22" font-size="12" font-weight="600" letter-spacing=".06em" opacity=".6">AGENT LEVEL · shared by every session and run</text>
+        <rect x="20" y="34" width="250" height="150" rx="6" fill="none" stroke="currentColor"/>
+        <text x="36" y="56" font-weight="600">Configuration entities</text>
+        <text x="36" y="78">Skills: agenta-apps · starter skills</text>
+        <text x="36" y="96">Schedules: cron triggers</text>
+        <text x="36" y="114">Tool connections: Slack, Linear, analytics</text>
+        <text x="36" y="132">Permissions: project roles</text>
+        <text x="36" y="158" opacity=".7">all exist in the Build panel today</text>
+
+        <rect x="20" y="204" width="250" height="196" rx="6" fill="currentColor" opacity=".05"/><rect x="20" y="204" width="250" height="196" rx="6" fill="none" stroke="currentColor"/>
+        <text x="36" y="226" font-weight="600">Durable mount · agent-files/</text>
+        <text x="36" y="248" font-family="IBM Plex Mono, monospace" opacity=".6">.tools/            (exists)</text>
+        <text x="36" y="268" font-family="IBM Plex Mono, monospace">.apps/layout.json</text>
+        <text x="36" y="286" font-family="IBM Plex Mono, monospace">.apps/registry/&lt;session&gt;.json</text>
+        <text x="36" y="304" font-family="IBM Plex Mono, monospace">.apps/notes/&lt;date&gt;-&lt;slug&gt;.md</text>
+        <text x="36" y="322" font-family="IBM Plex Mono, monospace">.apps/starters/&lt;slug&gt;@N/</text>
+        <text x="36" y="340" font-family="IBM Plex Mono, monospace">.apps/kit/brand.json</text>
+        <text x="36" y="366" font-family="IBM Plex Mono, monospace">apps/&lt;slug&gt;/        (visible)</text>
+        <text x="36" y="386" opacity=".7">cross-session apps only</text>
+
+        <text x="420" y="22" font-size="12" font-weight="600" letter-spacing=".06em" opacity=".6">SESSION LEVEL · one mount per conversation</text>
+        <rect x="420" y="34" width="220" height="80" rx="6" fill="var(--accent)" opacity=".1"/><rect x="420" y="34" width="220" height="80" rx="6" fill="none" stroke="var(--accent)"/>
+        <text x="530" y="56" text-anchor="middle" font-weight="600">Session A</text>
+        <text x="530" y="76" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10">apps/launch-board/ · board@1</text>
+        <text x="530" y="94" text-anchor="middle" opacity=".7" font-size="10">grant: read-write · Arda's browser</text>
+        <rect x="420" y="130" width="220" height="80" rx="6" fill="var(--accent)" opacity=".1"/><rect x="420" y="130" width="220" height="80" rx="6" fill="none" stroke="var(--accent)"/>
+        <text x="530" y="152" text-anchor="middle" font-weight="600">Session B</text>
+        <text x="530" y="172" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10">apps/retro/ · agent:retro-board@2</text>
+        <text x="530" y="190" text-anchor="middle" opacity=".7" font-size="10">grant: read-write</text>
+        <rect x="420" y="226" width="220" height="80" rx="6" fill="var(--accent)" opacity=".1"/><rect x="420" y="226" width="220" height="80" rx="6" fill="none" stroke="var(--accent)"/>
+        <text x="530" y="248" text-anchor="middle" font-weight="600">Session C</text>
+        <text x="530" y="268" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10">apps/metrics/ · dashboard@1</text>
+        <text x="530" y="286" text-anchor="middle" opacity=".7" font-size="10">grant: read</text>
+        <rect x="420" y="322" width="220" height="78" rx="6" fill="none" stroke="currentColor" stroke-dasharray="5 4"/>
+        <text x="530" y="344" text-anchor="middle" font-weight="600">Scheduled run · Mon 09:00 UTC</text>
+        <text x="530" y="364" text-anchor="middle" font-family="IBM Plex Mono, monospace" font-size="10">writes apps/metrics/data.csv</text>
+        <text x="530" y="382" text-anchor="middle" opacity=".7" font-size="10">its own session mount; no browser</text>
+
+        <rect x="700" y="120" width="240" height="160" rx="6" fill="none" stroke="currentColor" stroke-dasharray="5 4"/>
+        <text x="820" y="144" text-anchor="middle" font-weight="600">The placement question</text>
+        <text x="820" y="170" text-anchor="middle" opacity=".85">"Would a second session asking</text>
+        <text x="820" y="186" text-anchor="middle" opacity=".85">the same thing need this?"</text>
+        <text x="820" y="212" text-anchor="middle" fill="var(--accent-ink)" font-weight="500">yes → agent level</text>
+        <text x="820" y="232" text-anchor="middle" fill="var(--warn)" font-weight="500">no → session level</text>
+        <text x="820" y="262" text-anchor="middle" opacity=".7" font-size="10">data is always session-level, except team tools</text>
+      </g>
+      <g stroke="currentColor" fill="none">
+        <path d="M270 90 C 340 90, 360 74, 420 74" marker-end="url(#m1)"/>
+        <path d="M270 322 C 340 322, 360 170, 420 170" marker-end="url(#m1)"/>
+        <path d="M270 100 C 340 100, 380 361, 420 361" marker-end="url(#m1)"/>
+        <path d="M420 100 C 360 100, 340 286, 270 286" stroke-dasharray="4 3" marker-end="url(#m1)"/>
+        <path d="M420 196 C 360 196, 340 290, 270 290" stroke-dasharray="4 3" marker-end="url(#m1)"/>
+      </g>
+      <g font-size="10" fill="currentColor">
+        <text x="300" y="70">skill → create_app</text>
+        <text x="300" y="240">agent starter</text>
+        <text x="330" y="378">schedule + tools</text>
+        <text x="300" y="150" opacity=".7">registry entry per session</text>
+      </g>
+    </svg>
+    <figcaption>Two mounts, two jobs. The dashed arrows are the only writes from session to agent level, and each session writes its own file so they never collide.</figcaption>
+  </figure>
+</section>
+
+<section id="folder">
+  <h2>The durable folder, file by file</h2>
+  <p>Everything under <code>agent-files/.apps/</code> is the agent's app infrastructure. It follows <code>.tools/</code>: dot-prefixed so the Files pane dims it, durable, created by the agent on first use, never provisioned by the platform. The visible <code>agent-files/apps/</code> holds only apps that must outlive a session.</p>
+
+<div class="tbl"><pre><code>agent-files/
+├── .tools/                          exists today; the precedent
+└── .apps/                           app infrastructure, dimmed in the Files pane
+    ├── layout.json                  {"version": 1}: lets the skill migrate the shape later
+    ├── registry/
+    │   ├── &lt;session-id&gt;.json        one file per session that created or updated an app
+    │   └── …
+    ├── notes/
+    │   ├── 2026-09-18-board-wip.md   one note per observation, never edited, only added
+    │   └── …
+    ├── starters/                    agent-owned starters (only if not skill-backed)
+    │   └── retro-board@2/
+    │       ├── SKILL.md             when to use it, config keys, provenance
+    │       ├── index.html
+    │       ├── app.json             template manifest: no data, "template": "agent:retro-board@2"
+    │       ├── config.defaults.json
+    │       └── NOTES.md             starter-specific lessons
+    └── kit/
+        ├── brand.json               optional: accent, display name for app toolbars
+        └── overrides.css            optional: token-level additions; CSS only
+apps/                                visible; cross-session apps
+└── standup/
+    ├── app.json
+    ├── index.html
+    └── people/&lt;name&gt;.json</code></pre></div>
+
+  <div class="tbl"><table>
+    <thead><tr><th>Path</th><th>Purpose</th><th>Created</th><th>Written by</th><th>Read by</th><th>Size · churn</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">.apps/layout.json</td><td>Version marker for this whole layout</td><td>First <code>create_app</code></td><td>Skill, once; bumped only by a migration</td><td>Skill, before anything else</td><td>Bytes · never</td></tr>
+      <tr><td class="mono">.apps/registry/&lt;session&gt;.json</td><td>What this session built: slug, path, starter and version, times, last known state</td><td>First app in that session</td><td>That session only. One writer per file, so no two sessions ever write the same registry file</td><td>Any session's skill step "have I built this before?"; promotion evidence; the Build panel</td><td>&lt; 2 KB each · one write per app event</td></tr>
+      <tr><td class="mono">.apps/notes/&lt;date&gt;-&lt;slug&gt;.md</td><td>One observation the agent wants a future session to know: repeated feedback, a pattern, a pitfall</td><td>When the agent notices something twice</td><td>Any session, add only, never edit; filename carries date and topic so two sessions cannot collide</td><td>Skill, before instantiating or promoting a starter</td><td>&lt; 1 KB each · rare</td></tr>
+      <tr><td class="mono">.apps/starters/&lt;slug&gt;@N/</td><td>An agent-owned starter, copied verbatim by <code>create_app</code></td><td><code>promote_app</code></td><td><code>promote_app</code> only; a new version is a new folder</td><td><code>create_app</code>; the skill's match step; the Build panel</td><td>10 to 50 KB · on promotion</td></tr>
+      <tr><td class="mono">.apps/kit/brand.json</td><td>A display name and accent for app toolbars</td><td>Only on an explicit branding request</td><td>Agent, once</td><td>Assembler, after the platform kit</td><td>Bytes · never</td></tr>
+      <tr><td class="mono">.apps/kit/overrides.css</td><td>Token-level CSS additions for every app this agent runs</td><td>Only on an explicit branding request</td><td>Agent</td><td>Assembler, after the platform kit and before the app's CSS</td><td>&lt; 2 KB · rare</td></tr>
+      <tr><td class="mono">apps/&lt;slug&gt;/</td><td>An app instance that every session of this agent shares: team tools</td><td>Agent, only when the skill's cross-session rule allows it</td><td>Any session's app, through the bridge; scheduled runs, through the mount</td><td>Any session; the Files pane under <code>agent-files/apps/</code></td><td>Same as a session app</td></tr>
+    </tbody>
+  </table></div>
+
+  <div class="callout">
+    <p><strong>Why folders, not single files, for registry and notes.</strong> Several sessions of the same agent can run at once, and the agent's writes through the mount are unconditional. A single <code>registry.json</code> would be a two-writer file with no conflict detection. One file per session, and one file per note, is the same rule the field test gave apps: one writer per file. The reader lists the folder; listing is cheap.</p>
+  </div>
+  <div class="callout warn">
+    <p><strong>Dimmed is not hidden.</strong> Users will see <code>.apps/</code> greyed out in the agent-files tree, and can open it. That is acceptable and arguably right: starters and notes are the user's to inspect. If a truly hidden folder is wanted, the platform's hidden prefix is <code>.agenta-</code>, so the alternative name is <code>.agenta-apps/</code>. Recommendation: <code>.apps/</code>, dimmed, consistent with <code>.tools/</code>.</p>
+  </div>
+</section>
+
+<section id="schemas">
+  <h2>Schemas</h2>
+  <div class="grid2">
+    <div class="box"><div class="lbl">.apps/registry/&lt;session-id&gt;.json</div>
+<pre><code>{
+  "version": 1,
+  "session_id": "s_41",
+  "apps": [
+    {
+      "slug": "launch-board",
+      "path": "apps/launch-board",
+      "template": "board@1",          // or "agent:retro-board@2", or null for custom
+      "created_at": "2026-09-17T19:02:11Z",
+      "updated_at": "2026-09-17T21:48:03Z",
+      "state": "active",              // active · archived · missing
+      "notes": "user asked for WIP limits"
+    }
+  ]
+}</code></pre>
+    <p class="small" style="margin:8px 0 0">The agent rewrites its own session's file whole after each app event. Another session reads all files under <code>registry/</code> and merges by slug.</p>
+    </div>
+    <div class="box"><div class="lbl">.apps/starters/&lt;slug&gt;@N/SKILL.md · front matter</div>
+<pre><code>---
+name: retro-board
+version: 2
+kind: app-starter
+origin:
+  agent: ag_8f2…
+  session: s_41
+  promoted_at: 2026-09-18T00:12:40Z
+  promoted_by: user_id
+supersedes: retro-board@1
+access: read-write
+config_keys: [title, columns, votes_per_person, timer_minutes]
+data_files: [retro.json]
+---
+# Retro board
+Use when the user wants a retrospective, a
+voting board, or "what went well / what didn't".
+Not for task tracking: use board.
+…</code></pre>
+    </div>
+    <div class="box"><div class="lbl">.apps/kit/brand.json</div>
+<pre><code>{
+  "version": 1,
+  "name": "Acme Support",
+  "accent": "#1D4ED8",          // one colour; the kit derives soft and ink variants
+  "logo": null                  // v2: a data URI, inlined by the assembler
+}</code></pre>
+    <p class="small" style="margin:8px 0 0">The assembler maps <code>accent</code> onto <code>--ag-accent</code> and derived tokens. Nothing else in the kit is overridable from this file.</p>
+    </div>
+    <div class="box"><div class="lbl">.apps/kit/overrides.css · rules</div>
+<pre><code>/* Allowed: token redefinitions and .ag-* additions */
+:root { --ag-radius: 4px; }
+.ag-btn-primary { letter-spacing: .02em; }
+
+/* Rejected by the assembler: */
+/*  @import, url() to http(s), @font-face with     */
+/*  remote src, anything outside :root and .ag-*   */</code></pre>
+    <p class="small" style="margin:8px 0 0">The assembler parses this file and drops disallowed rules with a note in the Run tab's error strip. CSS cannot execute code, but it can exfiltrate through <code>url()</code>; the CSP's <code>img-src</code> is the second line.</p>
+    </div>
+  </div>
+  <div class="grid2">
+    <div class="box"><div class="lbl">.apps/notes/&lt;date&gt;-&lt;slug&gt;.md</div>
+<pre><code># 2026-09-18 · board · WIP limits
+Second session in a week where the user asked
+for a per-column limit on a board. Consider
+adding `wip_limit` to board config, or promoting
+the session-B variant.
+Sessions: s_41, s_58</code></pre>
+    </div>
+    <div class="box"><div class="lbl">.apps/layout.json</div>
+<pre><code>{ "version": 1, "created_at": "2026-09-17T19:02:11Z" }</code></pre>
+    <p class="small" style="margin:8px 0 0">If the skill ever renames a folder or changes the registry shape, it checks this first and migrates once. Without it, every future change is a guess about what an old agent has.</p>
+    </div>
+  </div>
+</section>
+
+<section id="mounts">
+  <h2>One mount or two</h2>
+  <p>Agent mounts are named, and nothing uses a second name yet. That opens a choice: keep app infrastructure inside the <code>default</code> mount under <code>.apps/</code>, or give apps their own mount, say <code>apps</code>, with its own prefix and credentials.</p>
+  <div class="tbl"><table>
+    <thead><tr><th></th><th>A · inside <code>default</code>, under <code>.apps/</code></th><th>B · a second named mount <code>apps</code></th></tr></thead>
+    <tbody>
+      <tr><td>Sandbox path</td><td><code>agent-files/.apps/</code>; nothing new for the runner</td><td>A second symlink, say <code>agent-apps/</code>; runner change, instructions change</td></tr>
+      <tr><td>Files pane</td><td>Folds into the existing agent-files tree, dimmed</td><td>A third origin; the drive UI would need a new tag and filter</td></tr>
+      <tr><td>Credentials</td><td>Same prefix-scoped token the agent already gets</td><td>A second token per session; separately revocable</td></tr>
+      <tr><td>Visibility control</td><td>Same as agent-files: project members who can see the agent</td><td>Could be permissioned separately, for example promote requires a role</td></tr>
+      <tr><td>Cost</td><td>One paragraph in the instructions</td><td>Runner, API defaults, drive UI, instructions</td></tr>
+      <tr><td>When it pays off</td><td>Now</td><td>If starters become a shared, permissioned asset across agents, or if agent-files quota needs to exclude apps</td></tr>
+    </tbody>
+  </table></div>
+  <p><b>Recommendation: A.</b> The named-mount lever exists and is worth knowing about, but nothing in v1 needs a separate prefix. Skill-backed starters already give cross-agent sharing through the registry, which is the case that would otherwise justify B.</p>
+</section>
+
+<section id="config">
+  <h2>Configuration on the agent</h2>
+  <p>Files are half of the agent level. The other half is configuration on the agent entity. Six of the seven items exist; the design only says how apps use them.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Element</th><th>Where it lives</th><th>What apps need from it</th><th>New work</th></tr></thead>
+    <tbody>
+      <tr><td><b>agenta-apps skill</b></td><td>Agent → Skills, first-party, from the registry</td><td>The only reason an agent knows apps exist. Carries the folder shape, the bridge contract, the starter catalogue, the agent-level rules (registry, notes, promotion)</td><td>Auto-attach to agents with a drive. Detachable. Registry refresh keeps it current</td></tr>
+      <tr><td><b>Starter skills</b></td><td>Agent → Skills, kind <code>app-starter</code></td><td>Agent-owned and forked starters, if option B in the creation doc is taken</td><td>The kind, and a preview in the Skills UI. Replaces <code>.apps/starters/</code> when adopted</td></tr>
+      <tr><td><b>Schedules</b></td><td>Agent → Triggers, cron in UTC</td><td>Any app whose data the agent produces on a timer: dashboard, weekly review sweep, standup archive. The run is a normal turn; it writes files; the app shows "data as of" from <code>fs.stat</code></td><td>The Run tab reads the schedule bound to the app's folder and shows "next refresh". The skill tells the agent to propose a schedule when an app's data is periodic</td></tr>
+      <tr><td><b>Tool connections</b></td><td>Agent → Tools, via the gateway</td><td>Feeding apps from outside: analytics, Linear, Slack. The agent calls them and writes files; the app never does</td><td>None</td></tr>
+      <tr><td><b>Instructions</b></td><td>Agent → system prompt, and the platform instructions</td><td>One paragraph in the platform instructions introducing <code>.apps/</code> beside <code>.tools/</code>. Nothing per agent</td><td>Work package L1</td></tr>
+      <tr><td><b>Drive</b></td><td>Implicit: session mount plus agent mount</td><td>Everything</td><td>None</td></tr>
+      <tr><td><b>Apps section in the Build panel</b></td><td>Does not exist</td><td>Seeing what this agent has built, its starters, the skill toggle, archive a starter, branding on or off</td><td>Phase 3 or later. Until then: Skills page plus the Files pane</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="permissions">
+  <h2>Permissions</h2>
+  <p>No new permission is proposed. The existing mount permissions and project roles decide who can do what, and the app surfaces only need to respect them.</p>
+  <div class="tbl"><table>
+    <thead><tr><th>Action</th><th>Needs</th><th>Where enforced</th></tr></thead>
+    <tbody>
+      <tr><td>Open an app in Preview</td><td><code>VIEW_MOUNTS</code></td><td>API, on the read</td></tr>
+      <tr><td>Run with read access</td><td><code>VIEW_MOUNTS</code></td><td>Grant prompt offers it; API enforces on each read</td></tr>
+      <tr><td>Run with read-write access</td><td><code>EDIT_MOUNTS</code></td><td>Grant prompt hides the write option without it; API enforces on each write</td></tr>
+      <tr><td>Agent creates an app in a session</td><td>The agent's own prefix-scoped credentials</td><td>Store</td></tr>
+      <tr><td>Agent writes to <code>agent-files/.apps/</code> or <code>apps/</code></td><td>Same credentials; the agent mount is in its prefix set</td><td>Store</td></tr>
+      <tr><td>User asks the agent to promote a starter</td><td>Same as creating a skill for this agent, if skill-backed; otherwise the agent's own write to <code>.apps/starters/</code></td><td>Skill create path, or store</td></tr>
+      <tr><td>See another member's session apps</td><td>Whatever lets them see that session today</td><td>Unchanged</td></tr>
+      <tr><td>See agent-level apps and starters</td><td>Whatever lets them see the agent's files today: project membership</td><td>Unchanged</td></tr>
+    </tbody>
+  </table></div>
+  <div class="callout warn">
+    <p><strong>The one thing to say out loud.</strong> Anything the agent writes under <code>agent-files/</code> is visible to every project member who can see the agent, and anything under <code>apps/</code> there is runnable by them. Promotion and cross-session apps are publishing actions inside the project. The skill's confirmation text says so.</p>
+  </div>
+</section>
+
+<section id="ui">
+  <h2>What the user sees</h2>
+  <p>Two surfaces today, one later. The Files pane already shows the agent mount folded under <code>agent-files/</code>; it needs only to recognize app folders. The Skills page already lists skills; it needs a preview for the starter kind. The Build panel section is the later one.</p>
+
+  <figure>
+    <svg viewBox="0 0 960 360" role="img" aria-label="Files pane mockup with origin tags. Session files: apps/launch-board shown as an App tile with Open; notes.md. Agent files under agent-files/: apps/standup as an App tile tagged agent; .apps dimmed and collapsed with a caption 'app infrastructure: starters, registry, notes'; .tools dimmed.">
+      <rect x="0" y="0" width="960" height="360" rx="8" fill="var(--sunken)"/>
+      <g font-size="11" fill="currentColor">
+        <rect x="0" y="0" width="960" height="28" fill="currentColor" opacity=".05"/>
+        <rect x="8" y="4" width="60" height="20" rx="4" fill="currentColor" opacity=".1"/><text x="38" y="18" text-anchor="middle">Files</text>
+        <text x="90" y="18" opacity=".7">v0.119 launch · session + agent files</text>
+        <rect x="12" y="40" width="936" height="308" rx="6" fill="var(--surface)" stroke="var(--line)"/>
+        <!-- session -->
+        <text x="28" y="66" font-weight="600" font-size="12">Session</text>
+        <rect x="28" y="78" width="200" height="56" rx="6" fill="none" stroke="var(--accent)"/>
+        <rect x="38" y="88" width="28" height="28" rx="5" fill="var(--accent)" opacity=".25"/>
+        <text x="74" y="100" font-weight="500">Launch board</text><text x="74" y="116" opacity=".65" font-size="10">App · board@1 · Open</text>
+        <rect x="240" y="78" width="200" height="56" rx="6" fill="none" stroke="var(--line)"/>
+        <rect x="250" y="88" width="28" height="28" rx="5" fill="currentColor" opacity=".08"/>
+        <text x="286" y="100" font-weight="500">notes.md</text><text x="286" y="116" opacity=".65" font-size="10">1.2 KB · 2 h ago</text>
+        <!-- agent -->
+        <text x="28" y="172" font-weight="600" font-size="12">agent-files/</text>
+        <rect x="120" y="160" width="40" height="16" rx="8" fill="currentColor" opacity=".1"/><text x="140" y="172" text-anchor="middle" font-size="10">agent</text>
+        <rect x="28" y="184" width="200" height="56" rx="6" fill="none" stroke="var(--accent)"/>
+        <rect x="38" y="194" width="28" height="28" rx="5" fill="var(--accent)" opacity=".25"/>
+        <text x="74" y="206" font-weight="500">Standup</text><text x="74" y="222" opacity=".65" font-size="10">App · shared · apps/standup · Open</text>
+        <rect x="240" y="184" width="200" height="56" rx="6" fill="none" stroke="var(--line)"/>
+        <rect x="250" y="194" width="28" height="28" rx="5" fill="currentColor" opacity=".08"/>
+        <text x="286" y="206" font-weight="500">report.md</text><text x="286" y="222" opacity=".65" font-size="10">4.0 KB · yesterday</text>
+        <g opacity=".45">
+          <text x="28" y="272" font-family="IBM Plex Mono, monospace">▸ .apps/</text><text x="110" y="272" font-size="10">app infrastructure: starters, registry, notes</text>
+          <text x="28" y="294" font-family="IBM Plex Mono, monospace">▸ .tools/</text><text x="110" y="294" font-size="10">agent tools</text>
+        </g>
+        <text x="28" y="334" opacity=".6" font-size="10">Dot folders are dimmed, as today. An App tile replaces the folder row when app.json is present.</text>
+      </g>
+    </svg>
+    <figcaption>The only new behaviour in the Files pane: a folder with <code>app.json</code> renders as an App tile, and a shared one says so. Everything else is the existing tree.</figcaption>
+  </figure>
+
+  <figure>
+    <svg viewBox="0 0 960 340" role="img" aria-label="Build panel Apps section mockup, later phase. A toggle: Let this agent build apps, on. A list, Starters this agent owns: retro-board v2, used by 3 apps, from session B, with Preview and Archive actions; board (platform) v1. A list, Apps built: launch-board in session A, retro in session B, metrics in session C, with Open session links. Branding: off, with a note it applies to all apps.">
+      <rect x="0" y="0" width="960" height="340" rx="8" fill="var(--sunken)"/>
+      <g font-size="11" fill="currentColor">
+        <rect x="0" y="0" width="960" height="28" fill="currentColor" opacity=".05"/>
+        <text x="16" y="18" font-weight="600">Build · Apps</text><text x="120" y="18" opacity=".6">later phase</text>
+        <rect x="12" y="40" width="936" height="288" rx="6" fill="var(--surface)" stroke="var(--line)"/>
+        <rect x="28" y="56" width="36" height="18" rx="9" fill="var(--accent)"/><circle cx="55" cy="65" r="7" fill="#fff"/>
+        <text x="74" y="69" font-weight="500">Let this agent build apps</text><text x="74" y="84" opacity=".65" font-size="10">agenta-apps skill attached · detach to turn off</text>
+        <text x="28" y="116" font-weight="600" font-size="12">Starters this agent owns</text>
+        <rect x="28" y="126" width="440" height="44" rx="5" fill="none" stroke="var(--line)"/>
+        <rect x="38" y="136" width="24" height="24" rx="4" fill="var(--accent)" opacity=".25"/>
+        <text x="70" y="146" font-weight="500">retro-board</text><text x="150" y="146" font-family="IBM Plex Mono, monospace" font-size="10">v2</text>
+        <text x="70" y="161" opacity=".65" font-size="10">promoted from session B · used by 3 apps · supersedes v1</text>
+        <text x="400" y="151" text-anchor="end" fill="var(--accent-ink)">Preview · Archive</text>
+        <rect x="28" y="178" width="440" height="44" rx="5" fill="none" stroke="var(--line)"/>
+        <rect x="38" y="188" width="24" height="24" rx="4" fill="currentColor" opacity=".08"/>
+        <text x="70" y="198" font-weight="500">board</text><text x="110" y="198" font-family="IBM Plex Mono, monospace" font-size="10">v1 · platform</text>
+        <text x="70" y="213" opacity=".65" font-size="10">used by 5 apps</text>
+        <text x="28" y="252" font-weight="600" font-size="12">Branding</text>
+        <rect x="28" y="262" width="36" height="18" rx="9" fill="currentColor" opacity=".2"/><circle cx="37" cy="271" r="7" fill="#fff"/>
+        <text x="74" y="275" opacity=".85">Off · applies to every app this agent runs · tokens only</text>
+        <text x="500" y="116" font-weight="600" font-size="12">Apps built · from .apps/registry/</text>
+        <g font-size="11">
+          <text x="500" y="142" font-weight="500">launch-board</text><text x="600" y="142" font-family="IBM Plex Mono, monospace" font-size="10">board@1</text><text x="700" y="142" opacity=".65">session A · 17 Sep</text><text x="930" y="142" text-anchor="end" fill="var(--accent-ink)">Open</text>
+          <text x="500" y="168" font-weight="500">retro</text><text x="600" y="168" font-family="IBM Plex Mono, monospace" font-size="10">agent:retro-board@2</text><text x="700" y="168" opacity=".65">session B · 18 Sep</text><text x="930" y="168" text-anchor="end" fill="var(--accent-ink)">Open</text>
+          <text x="500" y="194" font-weight="500">metrics</text><text x="600" y="194" font-family="IBM Plex Mono, monospace" font-size="10">dashboard@1</text><text x="700" y="194" opacity=".65">session C · Mondays</text><text x="930" y="194" text-anchor="end" fill="var(--accent-ink)">Open</text>
+          <text x="500" y="220" font-weight="500">standup</text><text x="600" y="220" font-family="IBM Plex Mono, monospace" font-size="10">agent:standup@1</text><text x="700" y="220" opacity=".65">shared · agent-files/apps</text><text x="930" y="220" text-anchor="end" fill="var(--accent-ink)">Open</text>
+        </g>
+        <text x="500" y="262" opacity=".6" font-size="10">Everything on this panel is read from files and the skill list. It writes nothing except the toggle and Archive.</text>
+      </g>
+    </svg>
+    <figcaption>The Build panel section is a view over the registry folder and the Skills list. It earns its place once an agent has more than a couple of starters; before that the Skills page and the Files pane are enough.</figcaption>
+  </figure>
+</section>
+
+<section id="lifecycle">
+  <h2>Lifecycle</h2>
+  <p>What happens to the agent level at each moment in an agent's life. Two of these, duplication and deletion, are questions the platform has to answer regardless of apps and are listed as decisions.</p>
+  <figure>
+    <svg viewBox="0 0 960 250" role="img" aria-label="Timeline of an agent's app layer: agent created, skill attached automatically; first app request creates .apps with layout.json and a registry entry; more sessions add registry entries; a scheduled run writes data; a promotion adds a starter; a later promotion adds version 2; a starter is archived; the agent is duplicated or deleted, marked as open questions.">
+      <defs><marker id="m5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+      <line x1="30" y1="120" x2="940" y2="120" stroke="currentColor" opacity=".3" marker-end="url(#m5)"/>
+      <g font-size="11" fill="currentColor">
+        <circle cx="60" cy="120" r="6" fill="currentColor"/><text x="60" y="96" text-anchor="middle" font-weight="600">Agent created</text><text x="60" y="150" text-anchor="middle" opacity=".8">skill auto-attached</text><text x="60" y="164" text-anchor="middle" opacity=".8">nothing on disk yet</text>
+        <circle cx="200" cy="120" r="6" fill="var(--accent)"/><text x="200" y="96" text-anchor="middle" font-weight="600">First app</text><text x="200" y="150" text-anchor="middle" opacity=".8">.apps/layout.json</text><text x="200" y="164" text-anchor="middle" opacity=".8">registry/s_41.json</text>
+        <circle cx="330" cy="120" r="6" fill="currentColor"/><text x="330" y="96" text-anchor="middle" font-weight="600">More sessions</text><text x="330" y="150" text-anchor="middle" opacity=".8">one registry file each</text><text x="330" y="164" text-anchor="middle" opacity=".8">notes when patterns repeat</text>
+        <circle cx="460" cy="120" r="6" fill="currentColor"/><text x="460" y="96" text-anchor="middle" font-weight="600">Scheduled run</text><text x="460" y="150" text-anchor="middle" opacity=".8">writes data files</text><text x="460" y="164" text-anchor="middle" opacity=".8">touches no layout</text>
+        <circle cx="590" cy="120" r="6" fill="var(--accent)"/><text x="590" y="96" text-anchor="middle" font-weight="600">Promotion</text><text x="590" y="150" text-anchor="middle" opacity=".8">starters/retro-board@1</text><text x="590" y="164" text-anchor="middle" opacity=".8">or a starter skill</text>
+        <circle cx="710" cy="120" r="6" fill="var(--accent)"/><text x="710" y="96" text-anchor="middle" font-weight="600">Version 2</text><text x="710" y="150" text-anchor="middle" opacity=".8">new folder or revision</text><text x="710" y="164" text-anchor="middle" opacity=".8">v1 kept; instances unchanged</text>
+        <circle cx="820" cy="120" r="6" fill="currentColor"/><text x="820" y="96" text-anchor="middle" font-weight="600">Archive</text><text x="820" y="150" text-anchor="middle" opacity=".8">starter hidden from match</text><text x="820" y="164" text-anchor="middle" opacity=".8">instances keep working</text>
+        <circle cx="915" cy="120" r="6" fill="none" stroke="var(--warn)" stroke-width="2"/><text x="915" y="96" text-anchor="middle" font-weight="600" fill="var(--warn)">Duplicate · delete</text><text x="915" y="150" text-anchor="middle" fill="var(--warn)">open questions</text>
+      </g>
+    </svg>
+    <figcaption>Nothing in the layout is created ahead of need, and nothing is deleted by the platform. Versions are additive. Archive hides; it does not remove.</figcaption>
+  </figure>
+  <div class="tbl"><table>
+    <thead><tr><th>Moment</th><th>Agent level effect</th><th>Who acts</th></tr></thead>
+    <tbody>
+      <tr><td>Agent created with a drive</td><td>agenta-apps skill attached. No files</td><td>Platform</td></tr>
+      <tr><td>Session start</td><td>None. Unlike <code>.tools/bin/</code>, nothing is copied; the skill reads <code>.apps/</code> on demand</td><td>—</td></tr>
+      <tr><td>First <code>create_app</code> in the agent's life</td><td><code>.apps/layout.json</code>, <code>.apps/registry/&lt;session&gt;.json</code></td><td>Agent, per the skill</td></tr>
+      <tr><td>Any later app event in a session</td><td>That session's registry file rewritten</td><td>Agent</td></tr>
+      <tr><td>Repeated feedback across sessions</td><td>A note added</td><td>Agent</td></tr>
+      <tr><td>Scheduled run</td><td>None on the layout. Data files in the app's folder, session or agent, are written</td><td>Agent, in the run</td></tr>
+      <tr><td>Promotion</td><td>A starter folder or a starter skill revision; a note; the instance's manifest gains <code>template</code></td><td><code>promote_app</code>, on the user's word</td></tr>
+      <tr><td>Starter revised</td><td>New version beside the old. Instances stay on their version until asked to update</td><td><code>promote_app</code></td></tr>
+      <tr><td>Starter archived</td><td>Excluded from the match step; kept on disk or as an archived skill</td><td>User, Skills page or Build panel</td></tr>
+      <tr><td>Skill detached</td><td>The agent stops making apps. Existing instances still run; the layout stays</td><td>User</td></tr>
+      <tr><td>Agent duplicated</td><td><b>Open.</b> Skills travel with the agent today; whether <code>agent-files/</code> is copied is a platform decision. If it is, starters and notes travel; registry entries point at sessions that do not belong to the copy and should be dropped</td><td>Decision</td></tr>
+      <tr><td>Agent archived or deleted</td><td><b>Open.</b> Whether the agent mount is retained follows whatever the platform does for <code>agent-files/</code> generally. Starter skills survive as skills either way</td><td>Decision</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="recipes">
+  <h2>Setup by app type</h2>
+  <p>For each app type: what must exist at the agent level before the first session can succeed, what the session ends up with, and who does each step. Level markers: <span class="steps" style="display:inline"><span class="lv a">agent</span></span> is agent-level, <span class="lv s" style="font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--warn)">session</span> is session-level, <span class="lv p" style="font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)">platform</span> ships with Agenta.</p>
+
+  <div class="recipe">
+    <h3>Board · checklist · sheet · form</h3>
+    <div class="who">The common case. Needs nothing beyond the skill.</div>
+    <ul class="steps">
+      <li><span class="k">1</span><span class="lv p">platform</span><span>Starter in the bundle: <code>board@1</code>, <code>checklist@1</code>, <code>sheet@1</code>, <code>form@1</code></span></li>
+      <li><span class="k">2</span><span class="lv a">agent</span><span>agenta-apps skill attached. That is the entire agent-level setup</span></li>
+      <li><span class="k">3</span><span class="lv s">session</span><span>User asks; skill matches; <code>create_app("board", "apps/&lt;slug&gt;")</code>; agent writes <code>config.json</code> and the first data file</span></li>
+      <li><span class="k">4</span><span class="lv a">agent</span><span>Registry entry for this session. Nothing else changes</span></li>
+    </ul>
+    <p class="small">Failure mode to design for: the agent writes a board by hand because it did not read the skill. The registry makes this visible: an app with <code>template: null</code> and a slug that matches a starter name is a signal for the Build panel and for the skill's self-check.</p>
+  </div>
+
+  <div class="recipe">
+    <h3>Review queue</h3>
+    <div class="who">A starter plus a convention plus, usually, a schedule.</div>
+    <ul class="steps">
+      <li><span class="k">1</span><span class="lv p">platform</span><span><code>review-queue@1</code> starter: lists a source folder, records decisions to <code>review.json</code></span></li>
+      <li><span class="k">2</span><span class="lv a">agent</span><span>Skill attached. The agent's own instructions say what it reviews (PRs, tickets, drafts), which is the source of the convention</span></li>
+      <li><span class="k">3</span><span class="lv a">agent</span><span>Optional: a cron schedule that sweeps new items into the source folder each Monday. Agent proposes it; user confirms in Triggers</span></li>
+      <li><span class="k">4</span><span class="lv s">session</span><span><code>create_app("review-queue", …)</code>; <code>config.json</code> names the source folder <code>drafts/</code> and the decision set</span></li>
+      <li><span class="k">5</span><span class="lv s">session</span><span>User approves and requests changes in the app; the agent reads <code>review.json</code> next turn and acts</span></li>
+    </ul>
+    <p class="small">Agent-level subtlety: a scheduled sweep runs in its own session mount, not the one where the app lives. Either the app lives in the session that owns the schedule, or the review queue is placed in <code>agent-files/apps/</code> as a cross-session app. The skill should ask which when a schedule is involved.</p>
+  </div>
+
+  <div class="recipe">
+    <h3>Dashboard</h3>
+    <div class="who">Read-only app; everything live is agent-level.</div>
+    <figure>
+      <svg viewBox="0 0 960 200" role="img" aria-label="Dashboard setup flow: agent-level, a tool connection to analytics and a Monday cron schedule; the scheduled run queries analytics and writes data.csv into the app folder; the session-level dashboard app reads the file with a read-only grant and renders 'data as of Monday 09:00'.">
+        <defs><marker id="m6" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+        <g font-size="11" fill="currentColor">
+          <rect x="20" y="30" width="180" height="56" rx="5" fill="none" stroke="currentColor"/><text x="110" y="52" text-anchor="middle" font-weight="600">Tool connection</text><text x="110" y="70" text-anchor="middle" opacity=".8">analytics · agent-level</text>
+          <rect x="20" y="114" width="180" height="56" rx="5" fill="none" stroke="currentColor"/><text x="110" y="136" text-anchor="middle" font-weight="600">Schedule</text><text x="110" y="154" text-anchor="middle" opacity=".8">0 9 * * 1 UTC · agent-level</text>
+          <rect x="300" y="72" width="200" height="56" rx="5" fill="none" stroke="currentColor" stroke-dasharray="5 4"/><text x="400" y="94" text-anchor="middle" font-weight="600">Scheduled run</text><text x="400" y="112" text-anchor="middle" opacity=".8">query → write data.csv</text>
+          <rect x="600" y="72" width="140" height="56" rx="5" fill="currentColor" opacity=".06"/><rect x="600" y="72" width="140" height="56" rx="5" fill="none" stroke="currentColor"/><text x="670" y="94" text-anchor="middle" font-family="IBM Plex Mono, monospace">data.csv</text><text x="670" y="112" text-anchor="middle" opacity=".8">in the app folder</text>
+          <rect x="800" y="60" width="140" height="80" rx="5" fill="var(--accent)" opacity=".12"/><rect x="800" y="60" width="140" height="80" rx="5" fill="none" stroke="var(--accent)" stroke-width="1.5"/><text x="870" y="84" text-anchor="middle" font-weight="600">dashboard@1</text><text x="870" y="102" text-anchor="middle" opacity=".8">grant: read</text><text x="870" y="120" text-anchor="middle" opacity=".8">"data as of Mon 09:00"</text>
+        </g>
+        <g stroke="currentColor" fill="none">
+          <path d="M200 58 C 250 58, 260 92, 300 92" marker-end="url(#m6)"/><path d="M200 142 C 250 142, 260 108, 300 108" marker-end="url(#m6)"/>
+          <line x1="500" y1="100" x2="600" y2="100" marker-end="url(#m6)"/><line x1="740" y1="100" x2="800" y2="100" marker-end="url(#m6)"/>
+        </g>
+        <text x="480" y="186" font-size="11" text-anchor="middle" fill="currentColor" opacity=".7">The app never calls analytics. If the schedule is missing, the dashboard is a snapshot; the skill says to propose one.</text>
+      </svg>
+    </figure>
+    <ul class="steps">
+      <li><span class="k">1</span><span class="lv a">agent</span><span>A tool connection that can produce the numbers. Without it the agent cannot fill the file and should say so instead of inventing data</span></li>
+      <li><span class="k">2</span><span class="lv a">agent</span><span>A schedule, proposed by the agent, confirmed by the user in Triggers. The run must target the folder where the app lives</span></li>
+      <li><span class="k">3</span><span class="lv s">session</span><span><code>create_app("dashboard", …)</code>; <code>config.json</code> names series and chart types; the first <code>data.csv</code> is written in the same turn</span></li>
+      <li><span class="k">4</span><span class="lv s">session</span><span>User runs it read-only. Refresh after each Monday</span></li>
+    </ul>
+    <p class="small">Same placement question as the review queue: a schedule's run writes into its own session unless the app is at agent level. A standing dashboard belongs in <code>agent-files/apps/</code>.</p>
+  </div>
+
+  <div class="recipe">
+    <h3>Wizard or brief</h3>
+    <div class="who">Structured input for the agent's own job.</div>
+    <ul class="steps">
+      <li><span class="k">1</span><span class="lv p">platform</span><span><code>form@1</code> starter: schema-driven steps, autosave to <code>answers.json</code></span></li>
+      <li><span class="k">2</span><span class="lv a">agent</span><span>Skill attached. The questions come from the agent's instructions: what it needs to know to do its work. That knowledge is already agent-level</span></li>
+      <li><span class="k">3</span><span class="lv s">session</span><span><code>create_app("form", …)</code>; agent writes <code>schema.json</code>; user fills; agent reads answers next turn</span></li>
+      <li><span class="k">4</span><span class="lv a">agent</span><span>If the same schema is written in three sessions, that is a note and a promotion candidate: <code>agent:campaign-brief@1</code> with the schema baked in as defaults</span></li>
+    </ul>
+  </div>
+
+  <div class="recipe">
+    <h3>Team tools · standup</h3>
+    <div class="who">The only type that lives at agent level by design.</div>
+    <ul class="steps">
+      <li><span class="k">1</span><span class="lv a">agent</span><span>Skill rule permitting cross-session placement for this agent. Off by default in v1; on when the user asks for "something the whole team uses"</span></li>
+      <li><span class="k">2</span><span class="lv a">agent</span><span>Slack connection for the morning post; a 09:00 schedule</span></li>
+      <li><span class="k">3</span><span class="lv p">platform</span><span><code>agenta.user</code> in the bridge hello, so the app can write <code>people/&lt;name&gt;.json</code></span></li>
+      <li><span class="k">4</span><span class="lv a">agent</span><span><code>create_app("agent:standup", "agent-files/apps/standup")</code>: the instance itself is agent-level</span></li>
+      <li><span class="k">5</span><span class="lv s">session</span><span>Each person opens it from any session; grant is per person per browser; writes go to their own file</span></li>
+      <li><span class="k">6</span><span class="lv a">agent</span><span>The scheduled run reads <code>people/*</code>, posts, archives to <code>archive/&lt;date&gt;.json</code>, clears</span></li>
+    </ul>
+    <p class="small">This is the type that makes the permissions section matter: everything under <code>agent-files/apps/</code> is runnable by every project member who can see the agent.</p>
+  </div>
+
+  <div class="recipe">
+    <h3>Custom, then promoted</h3>
+    <div class="who">Where the registry and notes earn their keep.</div>
+    <ul class="steps">
+      <li><span class="k">1</span><span class="lv a">agent</span><span>Skill attached; the kit available</span></li>
+      <li><span class="k">2</span><span class="lv s">session</span><span>No starter matches. Agent writes <code>index.html</code> on the kit, <code>app.json</code> with <code>template: null</code>, data files. Registry entry says custom</span></li>
+      <li><span class="k">3</span><span class="lv s">session</span><span>User iterates; the error relay carries what broke; the app settles</span></li>
+      <li><span class="k">4</span><span class="lv a">agent</span><span>User: "save this as a template". <code>promote_app</code> writes <code>.apps/starters/&lt;slug&gt;@1/</code> or a starter skill, strips data files, writes SKILL.md from the conversation</span></li>
+      <li><span class="k">5</span><span class="lv a">agent</span><span>A note records why it was promoted. The instance's manifest gains <code>template: "agent:&lt;slug&gt;@1"</code></span></li>
+      <li><span class="k">6</span><span class="lv s">session</span><span>Next session's match step finds it first</span></li>
+    </ul>
+  </div>
+</section>
+
+<section id="ops">
+  <h2>Operations that touch the layout</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>Operation</th><th>Kind</th><th>Reads</th><th>Writes</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">create_app(starter, dir)</td><td>Platform op</td><td>Platform bundle, or <code>.apps/starters/</code>, or a starter skill's files</td><td>The target folder in the session or agent mount; stamps <code>template</code> in <code>app.json</code></td><td>Server-side copy. Refuses if <code>dir/app.json</code> exists unless <code>{update: true}</code>, which replaces non-data files only</td></tr>
+      <tr><td class="mono">promote_app(dir, slug)</td><td>Platform op</td><td>The instance folder and its manifest</td><td><code>.apps/starters/&lt;slug&gt;@N/</code> or a skill revision; the instance's <code>template</code> field</td><td>Excludes files under <code>data</code>; runs the custom-app checks; refuses near-duplicate slugs</td></tr>
+      <tr><td class="mono">list_starters()</td><td>Platform op</td><td>Bundle + agent starters + attached starter skills</td><td>—</td><td>What the skill's match step calls. Returns name, version, when-to-use, config keys</td></tr>
+      <tr><td>Registry update</td><td>Skill rule, agent file write</td><td>Own session's registry file</td><td>Own session's registry file, whole</td><td>Unconditional write is safe: one writer</td></tr>
+      <tr><td>Registry read</td><td>Skill rule</td><td>All files under <code>.apps/registry/</code></td><td>—</td><td>Merge by slug; latest <code>updated_at</code> wins for display</td></tr>
+      <tr><td>Note</td><td>Skill rule</td><td>—</td><td>A new file under <code>.apps/notes/</code></td><td>Never edits an existing note</td></tr>
+      <tr><td>Kit override</td><td>Skill rule, on explicit request</td><td>—</td><td><code>.apps/kit/*</code></td><td>Assembler validates on load, not on write</td></tr>
+      <tr><td>Layout migration</td><td>Skill rule</td><td><code>.apps/layout.json</code></td><td>Whatever the migration says, then the version</td><td>Only when a newer skill meets an older layout</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="failures">
+  <h2>Failure modes</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>What goes wrong</th><th>Why it can</th><th>Guard</th></tr></thead>
+    <tbody>
+      <tr><td>Two sessions write the registry at once</td><td>Agent writes are unconditional</td><td>One registry file per session. There is no shared registry file</td></tr>
+      <tr><td>The agent ignores the skill and hand-writes a board</td><td>Model behaviour</td><td>Registry shows <code>template: null</code> with a starter-like slug; the Build panel flags it; the skill's self-check asks the agent to explain a custom app whose slug matches a starter</td></tr>
+      <tr><td>A scheduled run writes data into the wrong place</td><td>Its session mount is not the app's session</td><td>Skill: when an app has a schedule, place it at agent level or bind the schedule to the app's session explicitly. Recipe notes say which</td></tr>
+      <tr><td>Kit overrides break every app at once</td><td>They apply agent-wide</td><td>Tokens only; assembler drops disallowed rules; Branding toggle in the Build panel turns them off without deleting</td></tr>
+      <tr><td>A promoted starter leaks session data</td><td>Data files copied by mistake</td><td><code>promote_app</code> excludes everything under <code>data</code> and refuses if <code>data</code> is empty on an app that has JSON siblings</td></tr>
+      <tr><td>The layout shape changes and old agents break</td><td>Folder renames, schema changes</td><td><code>layout.json</code> version; the skill migrates once and records it</td></tr>
+      <tr><td><code>.apps/</code> grows without bound</td><td>Notes and registry files accumulate</td><td>Each is small; a note per repeated observation is rare. Registry files for deleted sessions can be pruned by a migration step; not needed in v1</td></tr>
+      <tr><td>A user deletes <code>.apps/</code> from the Files pane</td><td>It is visible, dimmed</td><td>Nothing breaks. Instances keep working; the skill recreates the layout on the next app event; agent-owned starters are lost unless skill-backed, which is one more argument for skill-backed</td></tr>
+      <tr><td>Agent duplicated, registry points at foreign sessions</td><td>Whether agent-files is copied is undecided</td><td>If copied: the skill drops registry entries whose session is not in this agent's history on first run</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<section id="decisions">
+  <h2>Decisions</h2>
+  <div class="dec">
+    <div class="row"><div class="q">Name of the infrastructure folder</div><div class="a"><b><code>.apps/</code>, dimmed.</b> Consistent with <code>.tools/</code>. <code>.agenta-apps/</code> if fully hidden is preferred.</div></div>
+    <div class="row"><div class="q">One mount or a second named mount</div><div class="a"><b>One.</b> Inside <code>default</code>. Revisit if starters need separate permissions.</div></div>
+    <div class="row"><div class="q">Registry and notes as folders</div><div class="a"><b>Yes.</b> One writer per file. No shared JSON at agent level.</div></div>
+    <div class="row"><div class="q">Agent-owned starters: folder or skill</div><div class="a"><b>Skill</b>, per the creation doc. The folder layout is the fallback and the transitional form.</div></div>
+    <div class="row"><div class="q">Cross-session apps in v1</div><div class="a"><b>Off by default.</b> The skill enables it only when the user asks for something team-wide.</div></div>
+    <div class="row"><div class="q">Kit overrides</div><div class="a"><b>Allowed, tokens only, on explicit request.</b> Assembler validates.</div></div>
+    <div class="row"><div class="q">Does agent-files travel when an agent is duplicated?</div><div class="a"><b>Platform decision, outside apps.</b> Either answer works; the skill drops foreign registry entries if it does.</div></div>
+    <div class="row"><div class="q">Build panel Apps section</div><div class="a"><b>Phase 3 or later.</b> Skills page plus Files pane until then.</div></div>
+    <div class="row"><div class="q">Where a scheduled app lives</div><div class="a"><b>Agent level</b> when a schedule feeds it, because the run's session is not the app's. Skill asks.</div></div>
+  </div>
+</section>
+
+<section id="work">
+  <h2>Work packages</h2>
+  <div class="tbl"><table>
+    <thead><tr><th>#</th><th>Package</th><th>Lands in</th><th>Done when</th><th>Phase</th><th>Size</th></tr></thead>
+    <tbody>
+      <tr><td class="num">L1</td><td>Platform instructions paragraph</td><td><code>sdks/python/agenta/sdk/agents/platform_instructions.py</code></td><td><code>agent-files/.apps/</code> introduced beside <code>.tools/</code> in one paragraph; unit test updated</td><td>1</td><td class="num">0.5 d</td></tr>
+      <tr><td class="num">L2</td><td>Agent-level rules in the agenta-apps skill</td><td>Skill content</td><td><code>layout.json</code> on first use; per-session registry write; registry read-and-merge before creating; notes on repeated feedback; placement question for scheduled apps</td><td>1</td><td class="num">1 d</td></tr>
+      <tr><td class="num">L3</td><td><code>list_starters</code> platform op</td><td>API, beside <code>create_app</code></td><td>Returns bundle + agent starters + attached starter skills with when-to-use and config keys</td><td>1</td><td class="num">1 d</td></tr>
+      <tr><td class="num">L4</td><td>App tile for manifest folders in the agent-files tree</td><td><code>@agenta/entity-ui/drive</code></td><td>A folder with <code>app.json</code> under <code>agent-files/apps/</code> renders as an App tile marked shared; same behaviour as session apps; covered by the App tile stories from C4 with an agent-origin variant</td><td>3</td><td class="num">0.5 d, with C4</td></tr>
+      <tr><td class="num">L5</td><td>Kit override loading and validation</td><td>Assembler, with C3</td><td>Reads <code>.apps/kit/brand.json</code> and <code>overrides.css</code> from the agent mount; drops disallowed CSS; reports drops in the error strip</td><td>3</td><td class="num">1 d</td></tr>
+      <tr><td class="num">L6</td><td><code>promote_app</code> with layout awareness</td><td>API</td><td>Writes to <code>.apps/starters/</code> or a skill revision; excludes data files; runs custom-app checks; refuses near-duplicate slugs</td><td>Exploration</td><td class="num">2 d</td></tr>
+      <tr><td class="num">L7</td><td>Build panel Apps section</td><td><code>@agenta/playground-ui</code> or the agent build panel package</td><td>Toggle, starters list with preview and archive, apps built from the registry, branding toggle; stories: no apps yet, starters only, a long registry, branding on, read-only member</td><td>Later</td><td class="num">3 d</td></tr>
+    </tbody>
+  </table></div>
+  <p class="small">L1 to L3 are cheap and belong with phase 1, because an agent that builds apps without a registry is an agent that cannot tell it built the same thing twice.</p>
+</section>
+</main>
+</div></div>
+
+</body>
+</html>

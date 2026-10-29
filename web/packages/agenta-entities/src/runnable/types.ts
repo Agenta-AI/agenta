@@ -19,13 +19,6 @@ export type EntityType = "workflow" | "testcase" | "span"
 export type RunnableType = "workflow"
 
 /**
- * Execution mode for a runnable.
- * - "chat": Interactive conversation with message history
- * - "completion": Single input → output execution
- */
-export type RunnableExecutionMode = "chat" | "completion"
-
-/**
  * Entity selection result from the entity selector modal
  */
 export interface EntitySelection {
@@ -353,16 +346,6 @@ export interface PathInfo {
 }
 
 /**
- * Extended path info with additional display properties
- */
-export interface ExtendedPathInfo extends PathInfo {
-    /** Full path string for display (e.g., "testcase.input") */
-    pathString: string
-    /** Value type for type matching */
-    valueType: string
-}
-
-/**
  * PathItem for DrillIn navigation (re-exported for convenience)
  */
 export interface PathItem {
@@ -417,19 +400,6 @@ export interface RequestPayloadData {
 // ============================================================================
 // PLAYGROUND STATE
 // ============================================================================
-
-/**
- * Main playground state
- */
-export interface PlaygroundState {
-    nodes: PlaygroundNode[]
-    selectedNodeId: string | null
-    connectedTestset: ConnectedTestset | null
-    extraColumns: ExtraColumn[]
-    testsetModalOpen: boolean
-    mappingModalOpen: boolean
-    editingConnectionId: string | null
-}
 
 /**
  * Playground action types for dispatch

@@ -14,9 +14,11 @@ import pytest
 
 from agenta.sdk.agents import (
     AgentTemplate,
+    AgentTemplateShapeError,
     BuiltinToolConfig,
     InvalidPermissionDefaultError,
 )
+from agenta.sdk.utils.types import AgentTemplateSchema, build_agent_v0_default
 
 _DEFAULTS = AgentTemplate(instructions="default-md", model="default-model", tools=["d"])
 
@@ -240,6 +242,34 @@ def test_run_selection_defaults():
     )
 
 
+@pytest.mark.parametrize("harness", ["pi_core", "claude", "codex"])
+def test_creation_default_allows_for_every_harness_without_changing_fallback(harness):
+    template = build_agent_v0_default()
+    template["harness"]["kind"] = harness
+    config = AgentTemplate.from_params({"agent": template})
+    assert config.harness == harness
+    assert config.permission_default == "allow"
+    assert AgentTemplateSchema().runner.permissions.default == "allow_reads"
+    del template["runner"]["permissions"]
+    assert (
+        AgentTemplate.from_params({"agent": template}).permission_default
+        == "allow_reads"
+    )
+
+
+@pytest.mark.parametrize("harness", ["pi_core", "claude", "codex"])
+@pytest.mark.parametrize("permission", ["allow", "ask", "deny", "allow_reads"])
+def test_existing_permission_survives_harness_selection(harness, permission):
+    template = build_agent_v0_default()
+    template["runner"]["permissions"]["default"] = permission
+    template["harness"]["kind"] = harness
+    assert (
+        AgentTemplate.from_params({"agent": template}).permission_default == permission
+    )
+    assert template["runner"]["permissions"]["default"] == permission
+    assert build_agent_v0_default()["runner"]["permissions"]["default"] == "allow"
+
+
 def test_run_selection_reads_envelope_sections_and_lowercases():
     config = AgentTemplate.from_params(
         {
@@ -281,3 +311,60 @@ def test_run_selection_honors_defaults():
     config = AgentTemplate.from_params({}, defaults=defaults)
     assert config.harness == "claude"
     assert config.sandbox == "daytona"
+
+
+def test_from_params_parses_sandbox_credentials():
+    config = AgentTemplate.from_params(
+        {
+            "agent": {
+                "sandbox": {
+                    "credentials": [
+                        {
+                            "secret": {"slug": "github-token"},
+                            "binding": {"type": "env", "name": "GITHUB_TOKEN"},
+                        }
+                    ]
+                }
+            }
+        }
+    )
+    assert config.sandbox_credentials[0].secret.slug == "github-token"
+    assert config.sandbox_credentials[0].binding.name == "GITHUB_TOKEN"
+
+
+def test_from_params_accepts_binding_without_type():
+    config = AgentTemplate.from_params(
+        {
+            "agent": {
+                "sandbox": {
+                    "credentials": [
+                        {
+                            "secret": {"slug": "github-token"},
+                            "binding": {"name": "GITHUB_TOKEN"},
+                        }
+                    ]
+                }
+            }
+        }
+    )
+    assert config.sandbox_credentials[0].binding.type == "env"
+    assert config.sandbox_credentials[0].binding.name == "GITHUB_TOKEN"
+
+
+def test_from_params_rejects_unknown_sandbox_credential_fields():
+    with pytest.raises(AgentTemplateShapeError, match="sandbox.credentials is invalid"):
+        AgentTemplate.from_params(
+            {
+                "agent": {
+                    "sandbox": {
+                        "credentials": [
+                            {
+                                "secret": {"slug": "x"},
+                                "binding": {"type": "env", "name": "X"},
+                                "value": "no",
+                            }
+                        ]
+                    }
+                }
+            }
+        )

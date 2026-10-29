@@ -399,7 +399,12 @@ Table `session_turns`, core database, created by unmerged migration
   id. Read by the sandbox-reconnect ladder.
 - `references`: JSONB list of `{id, slug, version}` entity references (the workflow,
   variant, and revision this turn ran), GIN-indexed with `jsonb_path_ops` for containment
-  queries (`dbes.py:44-49`). This is what the root session list joins on.
+  queries (`dbes.py:44-49`). This is what the root session list joins on. Elements may
+  also carry `key` (`workflow` / `workflow_variant` / `workflow_revision`), the family
+  discriminator the flat list otherwise loses; readers that need the workflow read the
+  `key` rather than guessing at the first UUID. Optional and additive, so rows written
+  before it exists stay untagged (`core/sessions/types.py`, `SessionReference`). It is the
+  same spelling `evaluation_runs.references` and the tracing reference attributes use.
 - `trace_id`, `span_id`: observability bridge. `trace_id` is a 128-bit OTel trace id
   stored as UUID; `span_id` would be the 16-hex span id (`dbas.py:36-38`).
 - `start_time`, `end_time`: reserved timing columns.
@@ -438,9 +443,18 @@ Readers:
   (`session-continuity-durable.ts:104-148`,
   `environment.ts:937-948`).
 - The sandbox-reconnect ladder, which reads the latest row's `sandbox_id`.
-- The root session list: `POST /sessions/query` with `references` filters resolves
-  matching sessions *through the turns' GIN index* rather than denormalizing references
-  onto the stream row (`api/oss/src/core/sessions/service.py:41-74`).
+- The root session list: `POST /sessions/query` with `references` filters resolves matching
+  sessions through a GIN index on each reference column, and takes the UNION of the two
+  (`SessionsService._resolve_session_ids`). A session whose turn append was dropped is
+  findable only through the stream row; one that predates that column only through its
+  turns; matching either is what makes an agent-scoped list agree with what the list can
+  open. Each side is capped at 500 ids ordered by last activity, and the union is trimmed
+  back to 500 arbitrarily, because the two id lists carry no timestamp to merge on. That
+  final trim is approximate by design and only bites a project with more than 500 sessions
+  on one reference, where the list is windowed anyway.
+- What each listed row *displays* is a separate question from what the filter matches: the
+  row's own `references` win, and the latest turn is the fallback for rows written before
+  the stream column existed (`SessionsService.query_sessions`).
 - The turns API surface: `POST /sessions/turns/` (append), `POST /sessions/turns/query`,
   `GET /sessions/turns/{turn_id}` (`api/oss/src/apis/fastapi/sessions/router.py:1065-1178`).
 
@@ -598,9 +612,16 @@ session_id)` (`api/oss/src/dbs/postgres/sessions/streams/dbes.py:22-74`):
   when idle (`dbes.py:48-50`). The heartbeat handler also uses it to disambiguate "first
   heartbeat of a new turn" from "the lock was taken by a cancel"
   (`streams/service.py:287-303`).
-- `name`, `description`: the session header, written only by the rename edit, never by
-  the heartbeat path, so liveness writes cannot churn identity fields and vice versa
-  (`streams/dtos.py:54-59`, `streams/service.py:422-464`).
+- `name`, `description`: the session header. The rename edit is the only writer that can
+  *change* them, so liveness writes cannot churn identity fields and vice versa
+  (`streams/dtos.py:54-59`, `streams/service.py:422-464`). The heartbeat may additionally
+  propose a `name`, which the DAO writes only while the column is NULL. That fill-once
+  guard is what lets a headless run title its own session without ever overwriting a
+  rename or the browser's auto-title.
+- `references`: the workflow family this session runs, same shape as the turns column
+  above. Also fill-once from the heartbeat, because a turn append is fire-and-forget: a
+  session whose only reference carrier was a dropped append would otherwise be unopenable
+  forever (migration `oss000000021`).
 - `updated_at` doubles as the heartbeat timestamp (`dbes.py:37`).
 - `sandbox_id` is deliberately NOT here; it lives on the latest turns row (`dbes.py:40`).
 
@@ -637,6 +658,13 @@ stealing; a replica that lost the claim mutates nothing and is told the true own
 (`streams/service.py:266-284`), which the runner uses to refuse serving a local sandbox
 session on the wrong host (`session-continuity.ts:157-210`).
 
+A beat may also carry two fill-once proposals, `name` and `references`, which the handler
+writes only onto a NULL column. They ride every beat rather than only the first: a repeat
+is a no-op under the guard, so the runner sends one payload instead of tracking which beat
+was first.
+The runner is the only component present on every execution path, browser or headless, so
+it is the only place that can title and attribute a session no browser will ever render.
+
 The response carries `is_current_turn`. It is false when this turn's lock was gone or
 reassigned at the moment of the beat, disambiguated against the row's recorded `turn_id`
 so a turn's very first heartbeat is not misread as an interruption
@@ -659,7 +687,7 @@ sequenceDiagram
     participant P as Postgres session_streams
 
     loop every 30 s while turn runs
-        R->>A: heartbeat {session_id, replica_id, turn_id, is_running:true}
+        R->>A: heartbeat {session_id, replica_id, turn_id, is_running:true,<br/>name?, references?}
         A->>X: claim_owner(replica_id) - never steals
         alt lost the claim
             A-->>R: {replica_id: other, is_current_turn:false}
@@ -1033,7 +1061,7 @@ the closest external signal is the streams plane's liveness flags.
 |---|---|---|---|---|---|---|
 | Records (`records`, tracing DB) | Upsert log (append-style, stable-id upserts) | Runner via async ingest worker | Web replay, records endpoints | Until tracing retention; untouched by session delete | No (only turn_id/span_id bridge) | Yes |
 | Turns (`session_turns`, core DB) | Append-only INSERT, hard delete on session delete | Runner, at completed-turn end only | Runner hydrate/reconnect, root session query, turns endpoints | Until session delete | Yes (`references`, GIN) | Yes |
-| Streams row (`session_streams`, core DB) | Mutable, 1 row per session | API only (heartbeat, commands, header edit) | Web session fetch, concurrency cap, turns FK | Soft-deleted by kill/archive, hard by delete | No | Yes (mirror may be stale) |
+| Streams row (`session_streams`, core DB) | Mutable, 1 row per session | API only (heartbeat, commands, header edit) | Web session fetch, concurrency cap, turns FK | Soft-deleted by kill/archive, hard by delete | Yes (`references`, fill-once, GIN) | Yes (mirror may be stale) |
 | Alive nest (Redis) | Ephemeral TTL locks | API only (runner drives via HTTP) | API (liveness, 409 bodies) | Seconds to an hour, TTL | No | Yes (Redis), but locks expire |
 | Interactions (`session_interactions`, core DB) | Mutable rows, guarded transitions | Runner (create/resolve/sweep), API (respond CAS, kill cancel) | Interactions endpoints, future inbox | Until session delete (hard) or cancel (terminal state) | Yes (in `data.references`) | Yes |
 | Mounts (rows + object store) | Filesystem (mutable), deterministic slugs | Agent through geesefs; API file endpoints | Agent, browser file panel, harness `session/load` | Until session delete (prefix wiped); archive is reversible | No (`agent_id` coming) | Yes |
@@ -1049,14 +1077,15 @@ reload but localStorage is the fallback when records are absent.
 
 Six known gaps, each tied to the plane it lands on.
 
-**1. Agent references on records and streams.** The turns ledger carries workflow
-references and mounts are growing `agent_id` (migration `oss000000016`), but neither the
-records rows nor the `session_streams` row says which agent a session belongs to. The
-session list can only be filtered per agent by joining through the turns' references
-(`api/oss/src/core/sessions/service.py:57-67`), and a records row is agent-anonymous
-forever. Lands on: records (new column, forward-fill only, tracing DB is never
-backfilled) and streams (a reference or `agent_id` on the row, written by the first
-heartbeat or the invoke path).
+**1. Agent references on records.** The streams half of this gap is closed: the row now
+carries `references`, filled once from the heartbeat exactly as predicted here (migration
+`oss000000021`, see the durable-row section). The column is GIN-indexed with
+`jsonb_path_ops`, the same shape the turns column uses, and an agent-scoped filter matches
+the union of the two (`SessionsService._resolve_session_ids`), so a session is findable
+whichever column carries its references. Nothing changed on the records side: a records
+row is still agent-anonymous forever, and mounts are still growing `agent_id` (migration
+`oss000000016`). Lands on: records (new column, forward-fill only, tracing DB is never
+backfilled).
 
 **2. Trace id at turn start.** The turn append happens only at turn *end*
 (`run-turn.ts:847-866`), so a turn that pauses, crashes, or is cancelled leaves no ledger
@@ -1077,6 +1106,17 @@ rename endpoint that cannot collide with liveness writes
 `SessionTagBar` writes only local state. Until the chat writes and reads the header, a
 title exists only in the browser that set it. Lands on: streams (server side is done on
 the unmerged lane) and the frontend session state.
+
+One case no longer depends on the browser at all: a run that no browser ever renders (a
+headless invoke, a scheduled trigger) now gets a durable title from the server, because
+the heartbeat proposes one and the fill-once guard accepts it into a NULL `name`. The
+runner's proposal is the first user text, when present, trimmed to 60 code points to match
+the browser's `AUTO_TITLE_MAX_CHARS`. When present is the operative clause: a first
+message carrying only an image proposes nothing, and the row stays untitled until a later
+writer fills it (`services/runner/src/sessions/name.ts`, `proposeSessionName`). The
+browser send path proposes from the first user message rather than the first one with
+text (`derive_session_name`), and the two rules stay complementary rather than aligned
+because fill-once means only the first non-empty proposal ever lands.
 
 **4. Cross-plane deletion.** `DELETE /sessions/` fans out to turns, interactions, mounts
 (rows and prefixes), and the stream row (`api/oss/src/core/sessions/service.py:76-107`),
@@ -1121,13 +1161,17 @@ belongs to neither yet.
   displacing any prior watcher via the `displaced` pub/sub channel.
 - **cold native load.** Continuation tier two: a fresh environment whose harness resumes
   its own session file via `session/load` with the ledger's `agent_session_id`.
+- **fill-once.** A write the service applies only while the stored column is NULL, used
+  for the heartbeat's `name` and `references` proposals. It is what lets a beat give a
+  session its first title without ever being able to change one.
 - **gate.** A human-approval request raised by the harness mid-turn; stored as an
   interaction row and an `interaction_request` record.
 - **geesefs.** FUSE-over-S3 filesystem used to attach mount prefixes into sandboxes.
 - **harness.** The coding-agent program the runner drives: Pi (`pi_core`, `pi_agenta`) or
   Claude Code (`claude`).
 - **heartbeat.** The runner's 30-second `POST /sessions/streams/heartbeat`, refreshing
-  locks, claiming ownership, mirroring the row, and carrying back `is_current_turn`.
+  locks, claiming ownership, mirroring the row, proposing the fill-once `name` and
+  `references`, and carrying back `is_current_turn`.
 - **keepalive pool.** Per-replica in-memory map of parked live environments; 60 s idle
   TTL, 300 s approval TTL; not storage.
 - **mount.** A durable object-store prefix (`mounts/<project>/<mount_id>`) attached into

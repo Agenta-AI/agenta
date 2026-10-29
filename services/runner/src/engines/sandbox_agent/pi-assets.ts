@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
+  chmodSync,
   copyFileSync,
   cpSync,
   existsSync,
@@ -16,19 +17,36 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 
 import type { AgentRunRequest, ResolvedToolSpec } from "../../protocol.ts";
+import { PI_TRACE_CONTROL_ENV } from "../../tracing/pi-spool-protocol.ts";
 import {
   encodePiModelProviderOverride,
+  GATEWAY_PLACEHOLDER_API_KEY,
   PI_MODEL_PROVIDER_OVERRIDE_ENV,
 } from "../../extensions/model-provider-override.ts";
-import { advertisedToolSpecs } from "../../tools/public-spec.ts";
+import {
+  PI_GATEWAY_MCP_SERVERS_ENV,
+  piGatewayMcpServersFromWire,
+  serializePiGatewayMcpConfig,
+} from "../../extensions/pi-mcp.ts";
+import {
+  advertisedToolSpecs,
+  type AdvertisedToolSpec,
+} from "../../tools/public-spec.ts";
+import { PUBLIC_SPECS_FILE_ENV } from "../../tools/tool-mcp-env.ts";
 import type { MaterializedSkill } from "../skills.ts";
 import { PKG_ROOT } from "./daemon.ts";
+import { shellQuote } from "./mount.ts";
+import { sandboxFileText } from "./subscription-login/files.ts";
 import {
+  describePiModelsJsonPlan,
   isPiModelConfigApplicable,
+  isPiModelRegistrationPlan,
   PI_MODELS_JSON_FILENAME,
   serializePiModelsJson,
-  type PiModelConfigPlan,
+  type PiModelsJsonPlan,
 } from "./pi-model-config.ts";
+import { materializeGatewayHeaders } from "./run-plan.ts";
+import { commandTimeoutSeconds, PI_COMMAND_TIMEOUT_ENV } from "./run-limits.ts";
 import type {
   RunPlan,
   RunPlanCredentials,
@@ -290,14 +308,14 @@ export const PI_PERMISSION_EXTENSION_UNAVAILABLE_MESSAGE =
   "republish the runner image.";
 
 /**
- * Thrown (via the engine's named-message pattern) when a managed OpenAI-compatible custom run has
- * a model-config plan but its `models.json` could not be materialized. Fail closed: the custom
- * provider would not be registered, so the run must stop rather than fall back to a default
- * provider (design Decision 6). Single line so `conciseError` surfaces it verbatim.
+ * Thrown (via the engine's named-message pattern) when a run has a `models.json` plan but the file
+ * could not be materialized. Fail closed: the selected model would not be registered, so the run
+ * must stop rather than fall back to a default provider (design Decision 6). Single line so
+ * `conciseError` surfaces it verbatim.
  */
 export const PI_MODEL_CONFIG_WRITE_FAILED_MESSAGE =
-  "The agent could not write its model configuration (models.json), so the OpenAI-compatible " +
-  "custom provider could not be registered. The run was stopped rather than fall back to a " +
+  "The agent could not write its model configuration (models.json), so the selected model could " +
+  "not be registered. The run was stopped rather than fall back to a " +
   "default provider. Ask your deployment operator to make the runner's Pi agent directory writable.";
 
 /**
@@ -313,6 +331,31 @@ export const PI_MODEL_OVERRIDE_EXTENSION_UNAVAILABLE_MESSAGE =
   "default endpoint. Ask your deployment operator to rebuild and republish the runner image.";
 
 /**
+ * Thrown (via the engine's named-message pattern) when a local subscription run's Pi agent dir —
+ * the operator's mounted login — is not writable by the runner user. Pi persists its session
+ * rollouts and OAuth refresh into that dir, so an unwritable mount makes the harness die at
+ * startup with no output at all: the turn ends instantly and the UI shows nothing (the exact
+ * "session looks stuck, user retries forever" failure). Fail closed with a visible error instead.
+ * Single line so `conciseError` surfaces it verbatim.
+ */
+export const PI_AGENT_DIR_UNWRITABLE_MESSAGE =
+  "The agent could not use the mounted Pi login directory: it is not writable by the runner's " +
+  "user, so the harness cannot persist its session or refresh its login. The run was stopped. " +
+  "Ask your deployment operator to make the mounted Pi agent directory writable by the runner's uid.";
+
+/**
+ * Thrown (via the engine's named-message pattern) when a local subscription run could not build
+ * its per-run Pi prompt channel (`preparePiPromptChannel`). Fail closed: the only other place to
+ * put a system prompt is the agent dir every session on that connection shares, so the run would
+ * either take another session's instructions or hand its own to the next one. Single line so
+ * `conciseError` surfaces it verbatim.
+ */
+export const PI_PROMPT_CHANNEL_UNAVAILABLE_MESSAGE =
+  "The agent could not set up its own system-prompt files for this run, so it was stopped rather " +
+  "than share them with the other sessions on this connection. Ask your deployment operator to " +
+  "check that the runner's temporary directory is writable.";
+
+/**
  * Write the Pi `models.json` into a local (throwaway) agent dir with mode `0600` via an atomic
  * temp-file-plus-rename. THROWS on failure so the caller can make materialization terminal — a
  * managed custom run must never fall through to a default provider (design Decision 6). The file
@@ -320,7 +363,7 @@ export const PI_MODEL_OVERRIDE_EXTENSION_UNAVAILABLE_MESSAGE =
  */
 export function writePiModelsConfigLocal(
   agentDir: string,
-  plan: PiModelConfigPlan,
+  plan: PiModelsJsonPlan,
 ): void {
   const document = serializePiModelsJson(plan);
   const target = join(agentDir, PI_MODELS_JSON_FILENAME);
@@ -339,59 +382,174 @@ export function writePiModelsConfigLocal(
 }
 
 /**
- * Env the Agenta Pi extension reads. Tool env contains only public metadata plus the
- * relay directory; private specs/auth stay in the runner.
+ * Thrown (via the engine's named-message pattern) when the run's tool specs could not be
+ * delivered to the harness. Fail loud rather than start a run whose tools the model never sees —
+ * the silent-tool-drop failure (F-042) is indistinguishable from a model that chose not to call
+ * them. Mirrors `TOOL_MCP_UNAVAILABLE_MESSAGE` for the non-Pi shim. Single line so
+ * `conciseError` surfaces it verbatim.
+ */
+export const PI_TOOL_SPECS_UNAVAILABLE_MESSAGE =
+  "The agent could not deliver its tool definitions to the harness, so none of its tools would " +
+  "have been available to the model. The run was stopped rather than run without them. Ask your " +
+  "deployment operator to check that the runner can write its relay directory.";
+
+/**
+ * The file the run's advertised tool specs ride to the Pi extension.
  *
- * The OTLP bearer is deliberately NOT placed in `OTEL_EXPORTER_OTLP_HEADERS` (or any other
- * plain env var): that env is inherited by the harness process, so a prompt-injected sandbox
- * could read/echo the caller's reusable Authorization bearer and impersonate the caller. It
- * rides a runner-written 0600 read-once file whose PATH is the only thing env carries
- * (`opts.otlpAuthFilePath` -> `AGENTA_AGENT_OTLP_AUTH_FILE`, see `writeOtlpAuthFile`).
+ * A FILE, NEVER AN ENV VALUE. Linux caps a single argv/env string at `MAX_ARG_STRLEN`
+ * (131,072 bytes) and fails the whole `execve` with `E2BIG` when one exceeds it. Tool JSON
+ * Schemas are unbounded, so no size threshold is safe: a session with 44 hydrated Composio
+ * tools serialized to ~250 KB and every run died with "spawn E2BIG" before the harness
+ * started. The non-Pi stdio shim already rides a file for the same reason — see
+ * `PUBLIC_SPECS_FILE_ENV` in `tools/tool-mcp-env.ts`, whose name this reuses.
+ *
+ * A SIBLING of the relay dir, like the OTLP auth file, because `prepareWorkspace` clears and
+ * recreates the relay dir itself on every turn. It is keyed on the conversation (the relay dir
+ * is) and rewritten per run. On the runner host it is owner-only and goes with the relay dir at
+ * teardown (`environment.ts`).
+ */
+export function piToolSpecsFilePath(relayDir: string): string {
+  return `${relayDir}.tool-specs.json`;
+}
+
+/** The run's advertised specs plus the path the extension reads them from. */
+export interface PiToolSpecsDelivery {
+  /** A runner host path on local; the deterministic in-sandbox path on Daytona. */
+  path: string;
+  /** The serialized `AdvertisedToolSpec` array — the exact bytes written to `path`. */
+  contents: string;
+  specs: AdvertisedToolSpec[];
+}
+
+/**
+ * The tool specs this Pi run advertises, or `undefined` when there is nothing to advertise (no
+ * tools, or no relay dir to relay their execution back through). Takes the resolved specs so
+ * both sides derive from one source: the env builder from `request.customTools`, the Daytona
+ * upload from `plan.tools.toolSpecs` (the same array).
+ */
+export function resolvePiToolSpecsDelivery(
+  toolSpecs: ResolvedToolSpec[],
+  relayDir: string | undefined,
+): PiToolSpecsDelivery | undefined {
+  const specs = advertisedToolSpecs(toolSpecs);
+  if (specs.length === 0 || !relayDir) return undefined;
+  return {
+    path: piToolSpecsFilePath(relayDir),
+    contents: JSON.stringify(specs),
+    specs,
+  };
+}
+
+/**
+ * Write the specs file for a LOCAL Pi run. THROWS the named message on failure: without the file
+ * the extension registers no tools, and a run whose tools silently vanished is worse than one
+ * that stops with a reason.
+ */
+export function writePiToolSpecsFileLocal(
+  delivery: PiToolSpecsDelivery,
+  log: Log = () => {},
+): void {
+  try {
+    mkdirSync(dirname(delivery.path), { recursive: true });
+    writeFileSync(delivery.path, delivery.contents, {
+      encoding: "utf-8",
+      mode: 0o600,
+    });
+    // `mode` applies only to a new file; one an older runner left behind keeps its own.
+    chmodSync(delivery.path, 0o600);
+  } catch (err) {
+    log(`pi tool specs write failed: ${(err as Error).message}`);
+    throw new Error(PI_TOOL_SPECS_UNAVAILABLE_MESSAGE);
+  }
+  log(
+    `pi tool specs written path=${delivery.path} tools=${delivery.specs.length} ` +
+      `bytes=${Buffer.byteLength(delivery.contents, "utf-8")}`,
+  );
+}
+
+/**
+ * Upload the specs file into a Daytona sandbox: the runner's filesystem is not the sandbox's, and
+ * the sandbox env map is fixed at creation, so the env var names a deterministic in-sandbox path
+ * that this fills in before the session starts. THROWS the named message on failure, for the same
+ * reason the local write does.
+ */
+export async function uploadPiToolSpecsToSandbox(
+  sandbox: any,
+  delivery: PiToolSpecsDelivery,
+  log: Log = () => {},
+): Promise<void> {
+  try {
+    await sandbox.mkdirFs({ path: dirname(delivery.path) });
+    await sandbox.writeFsFile({ path: delivery.path }, delivery.contents);
+  } catch (err) {
+    log(`pi tool specs upload failed: ${(err as Error).message}`);
+    throw new Error(PI_TOOL_SPECS_UNAVAILABLE_MESSAGE);
+  }
+  log(
+    `pi tool specs uploaded path=${delivery.path} tools=${delivery.specs.length} ` +
+      `bytes=${Buffer.byteLength(delivery.contents, "utf-8")}`,
+  );
+}
+
+/**
+ * Agenta's provider keys that Pi names differently. The override must name Pi's own provider,
+ * or it registers a provider Pi has no models for and nothing is selectable.
+ */
+const PI_PROVIDER_IDS: Record<string, string> = {
+  together_ai: "together",
+  gemini: "google",
+};
+
+export function piProviderId(provider: string | undefined): string | undefined {
+  return provider ? (PI_PROVIDER_IDS[provider] ?? provider) : provider;
+}
+
+/**
+ * Env the Agenta Pi extension reads. Per-turn trace context, capture policy, and redaction values
+ * ride the stable read-once control file; the endpoint and authorization stay in the runner.
  */
 export function buildPiExtensionEnv(
   request: AgentRunRequest,
-  tracing: boolean,
   opts: {
     relayDir?: string;
     usageOutPath?: string;
-    otlpAuthFilePath?: string;
-    skills?: string[];
+    telemetryControlPath?: string;
     builtinGatingActive?: boolean;
   } = {},
 ): Record<string, string> {
   const env: Record<string, string> = {};
-  const propagation = tracing ? request.context?.propagation : undefined;
-  const telemetry = tracing ? request.telemetry : undefined;
-  const otlp = telemetry?.exporters?.otlp;
-  if (propagation?.traceparent) env.TRACEPARENT = propagation.traceparent;
-  if (otlp?.endpoint) env.OTEL_EXPORTER_OTLP_TRACES_ENDPOINT = otlp.endpoint;
-  if (otlp?.headers?.authorization && opts.otlpAuthFilePath)
-    env.AGENTA_AGENT_OTLP_AUTH_FILE = opts.otlpAuthFilePath;
-  if (telemetry?.capture?.content?.enabled === false)
-    env.AGENTA_AGENT_CONTENT_CAPTURE_ENABLED = "false";
-  // The skills that materialized for this run (author + forced `_agenta.*`), so Pi's own agent
-  // span records which skills loaded (F-029). Only set under tracing (the extension's only span
-  // consumer); a JSON array string the extension parses.
-  if (telemetry && opts.skills && opts.skills.length > 0)
-    env.AGENTA_AGENT_SKILLS_LOADED = JSON.stringify(opts.skills);
+  if (opts.telemetryControlPath)
+    env[PI_TRACE_CONTROL_ENV] = opts.telemetryControlPath;
 
   // Point Pi's built-in provider at the resolved custom base URL via the Agenta extension
   // (`model-provider-override.ts`). Skipped when the managed OpenAI-compatible custom path
   // already routes this run through its own `models.json` provider (`pi-model-config.ts`) —
-  // two competing registrations for the same run would race for the provider.
+  // two competing registrations for the same run would race for the provider. A gateway-routed
+  // non-custom connection goes through the same override, which is how Pi receives the gateway
+  // credential header.
   const modelBaseUrl = request.modelConnection?.endpoint?.baseUrl;
   if (modelBaseUrl !== undefined && !isPiModelConfigApplicable(request)) {
+    const gatewayHeaders = materializeGatewayHeaders(request);
+    const isGatewayRoute = Object.keys(gatewayHeaders).length > 0;
     env[PI_MODEL_PROVIDER_OVERRIDE_ENV] = encodePiModelProviderOverride({
-      provider: request.modelConnection?.provider,
+      provider: piProviderId(request.modelConnection?.provider),
       baseUrl: modelBaseUrl,
+      ...(isGatewayRoute ? { headers: gatewayHeaders } : {}),
+      // credentialMode "none" leaves no real key anywhere; without SOME apiKey Pi may treat the
+      // model as unavailable for selection (see PiModelProviderOverride.apiKey).
+      ...(isGatewayRoute ? { apiKey: GATEWAY_PLACEHOLDER_API_KEY } : {}),
     });
   }
 
-  const specs = advertisedToolSpecs(
+  // The specs themselves ride a file whose PATH is all env carries: one env string holding every
+  // hydrated tool spec overflows Linux's per-string execve limit and kills the spawn with E2BIG.
+  // See `piToolSpecsFilePath`. The runner writes that file locally, or uploads it on Daytona.
+  const toolSpecs = resolvePiToolSpecsDelivery(
     (request.customTools as ResolvedToolSpec[]) ?? [],
+    opts.relayDir,
   );
-  if (specs.length && opts.relayDir) {
-    env.AGENTA_AGENT_TOOLS_PUBLIC_SPECS = JSON.stringify(specs);
+  if (toolSpecs && opts.relayDir) {
+    env[PUBLIC_SPECS_FILE_ENV] = toolSpecs.path;
     env.AGENTA_AGENT_TOOLS_RELAY_DIR = opts.relayDir;
     // Hop-1 response-watch kill switch (event-driven-tool-relay plan, decision 7): the
     // in-sandbox writer defaults it to true, so it is only forwarded — verbatim — when
@@ -401,6 +559,14 @@ export function buildPiExtensionEnv(
     if (responseWatch !== undefined)
       env.AGENTA_AGENT_TOOLS_RELAY_RESPONSE_WATCH_ENABLED = responseWatch;
   }
+  const mcpServers = piGatewayMcpServersFromWire(request.mcpServers);
+  if (mcpServers.length > 0) {
+    env[PI_GATEWAY_MCP_SERVERS_ENV] = serializePiGatewayMcpConfig(mcpServers);
+  }
+  // Pi's own shell tool runs in the sandbox, where the runner cannot stop it; the extension gives
+  // every call this timeout instead, so a command that runs too long is stopped by Pi and the
+  // model is told so, rather than the per-tool-call watchdog ending the whole turn.
+  env[PI_COMMAND_TIMEOUT_ENV] = String(commandTimeoutSeconds(undefined));
   // Only reached for a Pi run (environment-setup gates on `plan.isPi`), and every Pi run
   // activates all seven builtins.
   env.AGENTA_AGENT_BUILTIN_ACTIVATION = "1";
@@ -410,25 +576,6 @@ export function buildPiExtensionEnv(
   if (opts.usageOutPath)
     env.AGENTA_AGENT_USAGE_CAPTURE_PATH = opts.usageOutPath;
   return env;
-}
-
-/**
- * Write the OTLP bearer to a 0600 file at `path`: the runner still holds this value
- * in memory for its own out-of-band use (session/mount calls), but the harness process only
- * ever gets a path, never the value, via env. Best-effort: a write failure just means the
- * extension traces without export auth (falls back to its own env fallback, if any).
- */
-export function writeOtlpAuthFile(
-  path: string,
-  authorization: string,
-  log: Log = () => {},
-): void {
-  try {
-    mkdirSync(dirname(path), { recursive: true });
-    writeFileSync(path, authorization, { encoding: "utf-8", mode: 0o600 });
-  } catch (err) {
-    log(`otlp auth file write skipped: ${(err as Error).message}`);
-  }
 }
 
 /**
@@ -457,8 +604,10 @@ export function installPiExtensionLocal(
 }
 
 /**
- * Pi reads system-prompt files from the non-trust-gated agent dir. Only call this on a
- * throwaway per-run agent dir so prompts cannot leak into later runs.
+ * Pi reads `SYSTEM.md` and `APPEND_SYSTEM.md` from whichever directory it is given. Call this on
+ * a directory ONE session owns: a throwaway per-run agent dir, or the per-run prompt dir
+ * `preparePiPromptChannel` created. A directory shared by two sessions leaks one session's
+ * prompt into the other.
  */
 export function writeSystemPromptLocal(
   agentDir: string,
@@ -482,7 +631,105 @@ export function writeSystemPromptLocal(
   }
 }
 
-/** Upload the system/append-system prompts into a Daytona sandbox's Pi agent dir. */
+/** The two names Pi discovers in its agent dir. */
+const PI_PROMPT_FILES = ["SYSTEM.md", "APPEND_SYSTEM.md"] as const;
+
+/**
+ * Clear the prompt files out of a per-connection agent dir the RUNNER owns.
+ *
+ * Nothing writes them there any more, and the wrapper's empty flags already stop Pi reading them,
+ * so this is the second lock on the same door: it clears what an earlier runner build left behind
+ * and keeps the dir honest for anyone reading it. Best effort — the wrapper is the guarantee.
+ *
+ * Only for the runner-owned dir. An operator's own mounted agent dir may hold a `SYSTEM.md` that
+ * the operator put there on purpose, and deleting someone's configuration is not this function's
+ * business; the empty flags neutralize it without touching it.
+ */
+function clearSharedPiPrompts(agentDir: string, log: Log = () => {}): void {
+  for (const name of PI_PROMPT_FILES) {
+    try {
+      rmSync(join(agentDir, name), { force: true });
+    } catch (err) {
+      log(`stale pi prompt not removed: ${(err as Error).message}`);
+    }
+  }
+}
+
+/**
+ * The per-run dir that carries this run's Pi prompts, and the `pi` wrapper that delivers them.
+ *
+ * A hosted subscription run's agent dir belongs to the CONNECTION, not to the session, because
+ * Pi's `auth.json` and the lock that serializes its OAuth refresh both live there and both must
+ * be shared. Prompt files written into that dir are read by every other session on the same
+ * connection, and two sessions that start at once race on them. Pi has no per-session prompt
+ * file, but it does take `--system-prompt` and `--append-system-prompt`, and those suppress the
+ * agent-dir discovery. pi-acp spawns `pi` with a fixed argument list, so the flags ride a small
+ * wrapper that `PI_ACP_PI_COMMAND` points at. The wrapper is per run, so the prompts are per run.
+ *
+ * BOTH FLAGS ARE ALWAYS PASSED, empty when this run has no such prompt. An omitted flag is not
+ * neutral: pinned 0.80.6 resolves `systemPromptSource ?? discoverSystemPromptFile()`, so with no
+ * flag Pi falls back to the shared dir and reads whatever another writer left there. An empty
+ * value is not nullish, so the discovery is skipped, and `resolvePromptInput("")` then returns
+ * undefined, which is exactly the no-prompt case. An empty FILE would not do: the loader reads it
+ * and hands Pi an empty prompt instead of its default.
+ *
+ * The wrapper tests each file rather than baking the choice in: the agent-mount guidance rewrites
+ * the prompts after the wrapper exists and can add an append prompt that was not there before.
+ *
+ * `undefined` means the channel could not be built. The caller treats that as terminal: the only
+ * fallback is the shared agent dir, which is the leak this exists to close, and a run that
+ * silently drops its system prompt answers with the wrong persona.
+ */
+export function preparePiPromptChannel(
+  env: Record<string, string>,
+  log: Log = () => {},
+): string | undefined {
+  const piCommand = env.PI_ACP_PI_COMMAND;
+  if (!piCommand) {
+    log("pi prompt channel: the daemon environment names no pi command");
+    return undefined;
+  }
+  try {
+    const dir = mkdtempSync(join(tmpdir(), "agenta-pi-prompt-"));
+    const wrapper = join(dir, "pi");
+    const flags = [
+      ["SYSTEM.md", "--system-prompt"],
+      ["APPEND_SYSTEM.md", "--append-system-prompt"],
+    ] as const;
+    const lines = [
+      "#!/bin/sh",
+      "# Agenta: deliver this run's Pi prompts as arguments, never through the shared agent dir.",
+      "# The empty branches are load-bearing: they stop Pi discovering a prompt file in that dir.",
+      ...flags.flatMap(([file, flag]) => {
+        const path = shellQuote(join(dir, file));
+        return [
+          `if [ -f ${path} ]; then`,
+          `  set -- ${flag} ${path} "$@"`,
+          "else",
+          `  set -- ${flag} '' "$@"`,
+          "fi",
+        ];
+      }),
+      `exec ${shellQuote(piCommand)} "$@"`,
+      "",
+    ];
+    writeFileSync(wrapper, lines.join("\n"), { mode: 0o700 });
+    env.PI_ACP_PI_COMMAND = wrapper;
+    return dir;
+  } catch (err) {
+    log(`pi prompt channel write failed: ${(err as Error).message}`);
+    return undefined;
+  }
+}
+
+/**
+ * Upload the system/append-system prompts into a Daytona sandbox's Pi agent dir.
+ *
+ * A prompt the run does not have is REMOVED, not left alone. A subscription sandbox's agent dir
+ * is keyed by connection and survives a warm reuse, so a leftover `SYSTEM.md` would otherwise be
+ * loaded by the next session on that connection. One sandbox serves one session at a time, so
+ * there is no race here and no need for the local wrapper.
+ */
 export async function uploadSystemPromptToSandbox(
   sandbox: any,
   agentDir: string,
@@ -490,19 +737,27 @@ export async function uploadSystemPromptToSandbox(
   appendSystemPrompt: string | undefined,
   log: Log = () => {},
 ): Promise<void> {
+  const contents: Record<string, string | undefined> = {
+    "SYSTEM.md": systemPrompt,
+    "APPEND_SYSTEM.md": appendSystemPrompt,
+  };
   try {
     await sandbox.mkdirFs({ path: agentDir });
-    if (systemPrompt) {
-      await sandbox.writeFsFile(
-        { path: `${agentDir}/SYSTEM.md` },
-        systemPrompt,
-      );
+    const stale: string[] = [];
+    for (const name of PI_PROMPT_FILES) {
+      const content = contents[name];
+      if (content) {
+        await sandbox.writeFsFile({ path: `${agentDir}/${name}` }, content);
+      } else {
+        stale.push(`${agentDir}/${name}`);
+      }
     }
-    if (appendSystemPrompt) {
-      await sandbox.writeFsFile(
-        { path: `${agentDir}/APPEND_SYSTEM.md` },
-        appendSystemPrompt,
-      );
+    if (stale.length > 0 && typeof sandbox.runProcess === "function") {
+      await sandbox.runProcess({
+        command: "sh",
+        args: ["-lc", `rm -f ${stale.map(shellQuote).join(" ")}`],
+        timeoutMs: 15_000,
+      });
     }
   } catch (err) {
     log(`system prompt upload skipped: ${(err as Error).message}`);
@@ -535,6 +790,69 @@ export async function uploadPiExtensionToSandbox(
   } catch (err) {
     log(`pi extension upload skipped: ${(err as Error).message}`);
     return false;
+  }
+}
+
+/**
+ * Pi's retry setting for a run that reaches its model through the Agenta LLM gateway. The gateway
+ * already retries the provider's 408, 409, 429 and 5xx answers, so Pi keeps one retry, for a
+ * dropped connection to the gateway, instead of its default three on top of the gateway's. A run
+ * that goes straight to a provider keeps Pi's default: there Pi is the only layer that retries.
+ */
+export const GATEWAY_PI_RETRY = { maxRetries: 1 };
+const PI_SETTINGS_FILENAME = "settings.json";
+
+/** A Pi `settings.json` with the gateway retry merged over whatever the file already holds. */
+export function withGatewayPiRetry(existing: string | undefined): string {
+  let settings: Record<string, unknown> = {};
+  try {
+    const parsed: unknown = existing ? JSON.parse(existing) : {};
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed))
+      settings = parsed as Record<string, unknown>;
+  } catch {
+    // An unreadable file configures nothing Pi could use; the gateway retry replaces it.
+  }
+  const retry =
+    settings.retry && typeof settings.retry === "object" ? settings.retry : {};
+  return JSON.stringify(
+    { ...settings, retry: { ...retry, ...GATEWAY_PI_RETRY } },
+    null,
+    2,
+  );
+}
+
+/**
+ * Best-effort, like the Daytona upload below: a run whose write failed keeps Pi's default retries,
+ * which is how every run behaved before, so it is not stopped for it.
+ */
+function writeGatewayPiRetryLocal(agentDir: string, log: Log): void {
+  const file = join(agentDir, PI_SETTINGS_FILENAME);
+  try {
+    const existing = existsSync(file) ? readFileSync(file, "utf-8") : undefined;
+    writeFileSync(file, withGatewayPiRetry(existing));
+  } catch (err) {
+    log(`pi settings.json write skipped: ${(err as Error).message}`);
+  }
+}
+
+/** Merge the gateway retry into the `settings.json` of a Daytona sandbox's Pi agent dir. */
+export async function uploadGatewayPiRetryToSandbox(
+  sandbox: any,
+  agentDir: string,
+  log: Log = () => {},
+): Promise<void> {
+  const path = `${agentDir}/${PI_SETTINGS_FILENAME}`;
+  let existing: string | undefined;
+  try {
+    existing = sandboxFileText(await sandbox.readFsFile({ path }));
+  } catch {
+    // No settings file yet.
+  }
+  try {
+    // The extension upload before this one created the agent dir.
+    await sandbox.writeFsFile({ path }, withGatewayPiRetry(existing));
+  } catch (err) {
+    log(`pi settings.json upload skipped: ${(err as Error).message}`);
   }
 }
 
@@ -581,7 +899,10 @@ export function prepareLocalAgentDir(
 
 export interface PrepareLocalPiAssetsInput {
   plan: Pick<RunPlan, "isPi" | "isDaytona"> & {
-    credentials: Pick<RunPlanCredentials, "credentialMode">;
+    credentials: Pick<
+      RunPlanCredentials,
+      "credentialMode" | "subscriptionHome" | "throughGateway"
+    >;
     workspace: Pick<RunPlanWorkspace, "skillDirs" | "sourcePiAgentDir">;
     prompt: Pick<
       RunPlanPrompt,
@@ -590,11 +911,16 @@ export interface PrepareLocalPiAssetsInput {
   };
   env: Record<string, string>;
   /**
-   * A managed OpenAI-compatible custom run's Pi provider config. When set, the isolated per-run
-   * agent dir receives a `models.json` for this provider and does NOT get the operator's personal
-   * `auth.json`; the run authenticates from the vault key referenced by `$OPENAI_API_KEY`.
+   * The run's Pi `models.json` plan, when it has one. The isolated per-run agent dir receives the
+   * file.
+   *
+   * A CUSTOM-PROVIDER plan additionally suppresses seeding the operator's personal `auth.json`:
+   * that run authenticates purely from the vault key referenced by `$OPENAI_API_KEY`, and a copied
+   * login could let Pi fall back to the operator's own provider. A REGISTRATION plan is the
+   * opposite case — it merges a model into a provider Pi already has, which authenticates exactly
+   * like that provider's catalog models do, so credential seeding is left untouched.
    */
-  piModelConfig?: PiModelConfigPlan;
+  piModelConfig?: PiModelsJsonPlan;
   log?: Log;
 }
 
@@ -606,6 +932,16 @@ export interface PrepareLocalPiAssetsResult {
    */
   dir: string | undefined;
   /**
+   * The throwaway per-run dir holding this run's Pi prompt files, for a `runtime_provided` run
+   * whose agent dir is shared with other sessions. The caller `rmSync`s it at teardown.
+   *
+   * Undefined on every other run, whose prompts already live in a per-run agent dir, and on a
+   * `runtime_provided` run whose channel could not be built — the caller fails THAT run closed
+   * (see `preparePiPromptChannel`), which is why the two cases are told apart by the run shape
+   * and not by this field alone.
+   */
+  promptDir: string | undefined;
+  /**
    * False when the Agenta permission extension could not be installed for this run. The caller
    * fails the run closed when the policy could gate a Pi built-in tool (`builtinGatingActive`).
    */
@@ -616,6 +952,48 @@ export interface PrepareLocalPiAssetsResult {
    * when this is false (materialization is terminal — design Decision 6).
    */
   modelConfigWritten: boolean;
+  /**
+   * False only for a subscription run whose operator-mounted agent dir failed the write probe. Pi
+   * persists session rollouts and its OAuth refresh into that dir, so an unwritable mount makes
+   * the harness die at startup with zero output; the caller fails the run closed with
+   * `PI_AGENT_DIR_UNWRITABLE_MESSAGE` instead. Always true for the per-run-dir paths (the dir is
+   * created by the runtime user) and for non-local-Pi runs.
+   */
+  agentDirWritable: boolean;
+}
+
+/**
+ * Probe whether the runner user can write to both Pi state targets: the agent-dir root for login
+ * refreshes and extension assets, plus `sessions/` for transcript rollouts. A partially writable
+ * mount is still unusable, and Pi fails on EACCES with an instant silent exit.
+ */
+export function probePiAgentDirWritable(
+  agentDir: string,
+  log: Log = () => {},
+): boolean {
+  const sessionsDir = join(agentDir, "sessions");
+  const probes = [
+    join(agentDir, `.agenta-write-probe-${randomUUID()}`),
+    join(sessionsDir, `.agenta-write-probe-${randomUUID()}`),
+  ];
+  try {
+    mkdirSync(sessionsDir, { recursive: true });
+    for (const probe of probes) {
+      writeFileSync(probe, "", "utf-8");
+      rmSync(probe, { force: true });
+    }
+    return true;
+  } catch (err) {
+    for (const probe of probes) {
+      try {
+        rmSync(probe, { force: true });
+      } catch {
+        // the probe file was never created; nothing to clean up
+      }
+    }
+    log(`pi agent dir write probe failed: ${(err as Error).message}`);
+    return false;
+  }
 }
 
 /**
@@ -637,7 +1015,9 @@ export interface PrepareLocalPiAssetsResult {
  *   user: the install no longer depends on that directory being writable.
  *
  * Tradeoff (interface.md section 6): concurrent local subscription runs share the one agent dir,
- * the same way two local `pi` sessions do. This path is single-trusted-operator only.
+ * the same way two local `pi` sessions do. That sharing is correct for the login and its lock, and
+ * wrong for the system prompts, so the subscription path delivers those through the per-run
+ * channel `preparePiPromptChannel` builds instead of through the shared dir.
  */
 export function prepareLocalPiAssets({
   plan,
@@ -649,37 +1029,76 @@ export function prepareLocalPiAssets({
   if (!plan.isPi || plan.isDaytona)
     return {
       dir: undefined,
+      promptDir: undefined,
       extensionInstalled: true,
       modelConfigWritten: true,
+      agentDirWritable: true,
     };
 
-  // buildRunPlan already rejected a local runtime_provided run with no configured
-  // PI_CODING_AGENT_DIR, so `sourcePiAgentDir` here IS the operator's mount. A model-config plan
-  // never reaches here (it requires credentialMode "env"), so there is no models.json to write.
+  // Two subscription shapes reach here. A HOSTED connection brings its own per-connection agent
+  // dir (`subscriptionHome`), owned by the runner and holding only this connection's login. An
+  // OPERATOR-mount run has none, and `sourcePiAgentDir` IS the operator's mount — buildRunPlan
+  // already rejected that shape when PI_CODING_AGENT_DIR was unset.
   if (plan.credentials.credentialMode === "runtime_provided") {
-    const agentDir = plan.workspace.sourcePiAgentDir;
+    const subscriptionHome = plan.credentials.subscriptionHome;
+    const agentDir = subscriptionHome ?? plan.workspace.sourcePiAgentDir;
+    // Pi's own mode for an agent dir holding a login. Created here, before the probe, because the
+    // probe and the extension install both write into it.
+    if (subscriptionHome) {
+      mkdirSync(subscriptionHome, { recursive: true, mode: 0o700 });
+      clearSharedPiPrompts(subscriptionHome, log);
+    }
+    // A custom-provider plan cannot reach here (it requires credentialMode "env"). A model
+    // REGISTRATION plan can, and it is deliberately dropped: this dir is the operator's own Pi
+    // login, shared by every subscription run and rewritten by Pi's own OAuth refresh, so a
+    // per-run models.json would outlive the run that wanted it and change which models every
+    // later session sees. Pi reads models.json only from its agent dir — there is no
+    // session-scoped model config to write instead — so a subscription run keeps Pi's built-in
+    // registry, and a hand-entered model id fails loudly at model selection as it does today.
+    if (piModelConfig) {
+      log(
+        `pi models.json skipped on the operator's mounted agent dir (subscription run): ` +
+          describePiModelsJsonPlan(piModelConfig),
+      );
+    }
+    const agentDirWritable = probePiAgentDirWritable(agentDir, log);
     const extensionInstalled = installPiExtensionLocal(agentDir, log);
-    if (plan.prompt.hasSystemPrompt) {
+    // The prompts go to this run's own dir, never to the shared agent dir. The channel is built
+    // even when the run has no prompt: with nothing written there, Pi's own default stands, and
+    // the flags a wrapper without prompt files adds are none.
+    const promptDir = preparePiPromptChannel(env, log);
+    if (promptDir && plan.prompt.hasSystemPrompt) {
       writeSystemPromptLocal(
-        agentDir,
+        promptDir,
         plan.prompt.systemPrompt,
         plan.prompt.appendSystemPrompt,
         log,
       );
     }
     env.PI_CODING_AGENT_DIR = agentDir;
-    // Deliberately NOT returned as a throwaway: this is the operator's login, not a temp dir.
-    return { dir: undefined, extensionInstalled, modelConfigWritten: true };
+    // `dir` is deliberately NOT the agent dir: that is a real login, not a temp dir, and the
+    // caller deletes whatever `dir` names.
+    return {
+      dir: undefined,
+      promptDir,
+      extensionInstalled,
+      modelConfigWritten: true,
+      agentDirWritable,
+    };
   }
 
   // Managed / none: always route through a throwaway per-run dir the runtime user owns, so the
-  // extension install never depends on the configured PI_CODING_AGENT_DIR being writable. A
-  // managed OpenAI-compatible custom run (a model-config plan is present) additionally gets a
-  // models.json and does NOT receive the operator's personal auth.json.
+  // extension install never depends on the configured PI_CODING_AGENT_DIR being writable, and any
+  // models.json is scoped to this run alone. A managed OpenAI-compatible custom run (a
+  // custom-provider plan) additionally does NOT receive the operator's personal auth.json.
   const { dir: runAgentDir, extensionInstalled } = prepareLocalAgentDir(
     plan.workspace.sourcePiAgentDir,
     log,
-    { seedCredentials: !piModelConfig },
+    {
+      seedCredentials: !(
+        piModelConfig && !isPiModelRegistrationPlan(piModelConfig)
+      ),
+    },
   );
   if (plan.prompt.hasSystemPrompt) {
     writeSystemPromptLocal(
@@ -689,14 +1108,12 @@ export function prepareLocalPiAssets({
       log,
     );
   }
+  if (plan.credentials.throughGateway) writeGatewayPiRetryLocal(runAgentDir, log);
   let modelConfigWritten = true;
   if (piModelConfig) {
     try {
       writePiModelsConfigLocal(runAgentDir, piModelConfig);
-      log(
-        `pi models.json written provider=${piModelConfig.providerId} ` +
-          `api=${piModelConfig.api} model=${piModelConfig.models.map((m) => m.id).join(",")}`,
-      );
+      log(`pi models.json written ${describePiModelsJsonPlan(piModelConfig)}`);
     } catch (err) {
       // Terminal: the caller stops the run rather than fall back to a default provider.
       modelConfigWritten = false;
@@ -704,7 +1121,13 @@ export function prepareLocalPiAssets({
     }
   }
   env.PI_CODING_AGENT_DIR = runAgentDir;
-  return { dir: runAgentDir, extensionInstalled, modelConfigWritten };
+  return {
+    dir: runAgentDir,
+    promptDir: undefined,
+    extensionInstalled,
+    modelConfigWritten,
+    agentDirWritable: true,
+  };
 }
 
 /** Upload materialized skill dirs into a Daytona sandbox's Pi `skills/` user scope. */

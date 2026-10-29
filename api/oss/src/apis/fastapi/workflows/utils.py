@@ -1,4 +1,5 @@
 from typing import Optional, Literal, List
+from oss.src.core.git.dtos import RevisionGrouping
 from uuid import UUID
 from datetime import datetime
 
@@ -519,29 +520,19 @@ def parse_workflow_revision_query_request_from_body(
     #
     include_archived: Optional[bool] = None,
     #
+    grouping: Optional[RevisionGrouping] = None,
+    #
     windowing: Optional[Windowing] = None,
 ) -> WorkflowRevisionQueryRequest:
-    workflow_revision_query_request = None
-
-    try:
-        workflow_revision_query_request = WorkflowRevisionQueryRequest(
-            workflow_revision=workflow_revision,
-            #
-            workflow_refs=workflow_refs,
-            workflow_variant_refs=workflow_variant_refs,
-            workflow_revision_refs=workflow_revision_refs,
-            #
-            include_archived=include_archived,
-            #
-            windowing=windowing,
-        )
-
-    except Exception as e:  # pylint: disable=broad-except
-        log.warn(e)
-
-        workflow_revision_query_request = WorkflowRevisionQueryRequest()
-
-    return workflow_revision_query_request
+    return WorkflowRevisionQueryRequest(
+        workflow_revision=workflow_revision,
+        workflow_refs=workflow_refs,
+        workflow_variant_refs=workflow_variant_refs,
+        workflow_revision_refs=workflow_revision_refs,
+        include_archived=include_archived,
+        grouping=grouping,
+        windowing=windowing,
+    )
 
 
 def merge_workflow_revision_query_requests(
@@ -571,6 +562,8 @@ def merge_workflow_revision_query_requests(
                 if query_request_body.include_archived is not None
                 else query_request_params.include_archived
             ),
+            #
+            grouping=query_request_body.grouping or query_request_params.grouping,
             #
             windowing=query_request_body.windowing or query_request_params.windowing,
         )

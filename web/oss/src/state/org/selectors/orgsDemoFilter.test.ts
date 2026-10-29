@@ -7,9 +7,8 @@
  * them there would leave an empty, dead-end workspace UI.
  */
 
+import type {Org} from "@agenta/entities/organization"
 import {describe, expect, it} from "vitest"
-
-import type {Org} from "@/oss/lib/Types"
 
 import {filterOutDemoOrgs} from "./org"
 

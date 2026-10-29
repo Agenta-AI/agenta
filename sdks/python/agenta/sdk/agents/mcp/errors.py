@@ -42,3 +42,14 @@ class MCPServerURLBlockedError(MCPError):
         )
         self.server_name = server_name
         self.url = url
+
+
+class MCPGatewayUnavailableError(MCPError):
+    """A platform MCP route was selected without platform credentials."""
+
+    def __init__(self, *, server_name: str) -> None:
+        super().__init__(
+            f"MCP server '{server_name}' selects a gateway route, but no Agenta "
+            "gateway connection is configured"
+        )
+        self.server_name = server_name

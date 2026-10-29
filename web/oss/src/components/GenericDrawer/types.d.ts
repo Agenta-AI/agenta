@@ -14,6 +14,5 @@ export interface GenericDrawerProps extends DrawerProps {
     sideContentDefaultSize?: number
     mainContentDefaultSize?: number
     extraContentDefaultSize?: number
-    closeOnLayoutClick?: boolean
     closeButtonProps?: ButtonProps
 }

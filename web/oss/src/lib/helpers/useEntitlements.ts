@@ -1,5 +1,6 @@
 import {useMemo} from "react"
 
+import {idleReadyAtom} from "@agenta/shared/state"
 import {useAtomValue} from "jotai"
 
 import {currentSubscriptionQueryAtom, plansQueryAtom} from "@/oss/state/access/atoms"
@@ -23,6 +24,7 @@ export enum Feature {
 export const useEntitlements = () => {
     const subscriptionQuery = useAtomValue(currentSubscriptionQueryAtom)
     const plansQuery = useAtomValue(plansQueryAtom)
+    const idleReady = useAtomValue(idleReadyAtom)
 
     const plan = subscriptionQuery.data?.plan
     const flags = useMemo(() => {
@@ -42,7 +44,12 @@ export const useEntitlements = () => {
     // from "feature disabled" — callers that gate UI on these should defer
     // rendering until `isLoading` is false to avoid a flash of the locked
     // state on first paint / soft navigation.
-    const isLoading = subscriptionQuery.isPending || plansQuery.isPending
+    // Loading before the idle-deferred fetches may start, or while either is in flight. A
+    // disabled query (billing off) stays `pending`/idle forever, so never gate on `isPending`.
+    const isLoading =
+        !idleReady ||
+        (subscriptionQuery.isPending && subscriptionQuery.fetchStatus !== "idle") ||
+        (plansQuery.isPending && plansQuery.fetchStatus !== "idle")
 
     return {
         hasAccessControl,

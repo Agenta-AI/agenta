@@ -1,162 +1,173 @@
-/**
- * BuildKitSection / PermissionOverrideHint — the presentational half of `useBuildKit`.
- *
- * The hook owns the atom reads (overlay + enabled flag) and the derivation; everything that
- * renders lives here so it can be storied with plain props (container reads atoms,
- * presentational takes props).
- */
-import type {ReactNode} from "react"
+import {buildKitDefaultPermission, type BuildKitUiState} from "@agenta/entities/workflow"
 
-import {ConfigAccordionSection, Tag} from "@agenta/ui/components/presentational"
-import {Switch, Tooltip, TooltipContent, TooltipProvider, TooltipTrigger} from "@agenta/ui/ui"
-import {Warning, Wrench} from "@phosphor-icons/react"
+import type {GatewayConnectionPermissions} from "../toolUtils"
 
-import {RailField} from "../../../drawers/shared/RailField"
-
+import {PermissionDrawerBody, type PermissionPresetOption} from "./IntegrationPermissionDrawer"
 import type {ItemDescriptor} from "./itemDescriptors"
 import {ItemRow} from "./ItemRow"
+import {PolicyGlyph} from "./PermissionGlyph"
+import type {PermissionPolicyOption} from "./PermissionPolicySelect"
 
-export function formatPermissionValue(value: unknown): string {
-    if (typeof value === "string") return value
-    if (typeof value === "number" || typeof value === "boolean") return String(value)
-    if (value == null) return "null"
-    try {
-        return JSON.stringify(value)
-    } catch {
-        return String(value)
-    }
+export interface BuildKitTool {
+    key: string
+    descriptor: ItemDescriptor
+    readOnly?: boolean
+    op?: string
 }
 
 export interface BuildKitSectionProps {
-    /** Build-kit on/off (the persisted atom, or a drawer's draft buffer). */
-    enabled: boolean
-    onEnabledChange: (value: boolean) => void
+    state: BuildKitUiState
+    onChange: (next: BuildKitUiState) => void
     disabled?: boolean
-    platformTools: ItemDescriptor[]
-    embeddedTools: ItemDescriptor[]
-    embeddedSkills: ItemDescriptor[]
-    /** Sandbox permission overlay, rendered read-only as `key → value` rows. */
-    permissions?: Record<string, unknown> | null
-    /** Collapsed in the app (it is background information); stories open it. @default false */
-    defaultOpen?: boolean
+    tools: BuildKitTool[]
 }
 
-/** The read-only build-kit block: enable switch, caption, and the overlay's items/permissions. */
-export function BuildKitSection({
-    enabled,
-    onEnabledChange,
-    disabled,
-    platformTools,
-    embeddedTools,
-    embeddedSkills,
-    permissions,
-    defaultOpen = false,
-}: BuildKitSectionProps) {
+const presets: PermissionPresetOption[] = [
+    {value: "allow_all", label: "Allow all", help: "Tools run without asking."},
+    {value: "always_ask", label: "Ask all", help: "Ask before each tool runs."},
+    {value: "ask_writes", label: "Allow reads", help: "Read-only tools run; write tools ask."},
+    {value: "deny_all", label: "Deactivate", help: "Do not add the build kit to runs."},
+    {
+        value: "custom",
+        label: "Custom",
+        help: "Per-tool choices below.",
+        disabled: true,
+        separatorBefore: true,
+    },
+]
+export const buildKitToolOptions: PermissionPolicyOption[] = [
+    {
+        value: "allow",
+        title: "Allow",
+        help: "Run without asking.",
+        icon: <PolicyGlyph value="allow" />,
+    },
+    {value: "ask", title: "Ask", help: "Ask before running.", icon: <PolicyGlyph value="ask" />},
+    {
+        value: "deny",
+        title: "Deactivate",
+        help: "Remove this tool from the run.",
+        icon: <PolicyGlyph value="deny" />,
+    },
+]
+
+export function BuildKitSection({state, onChange, disabled, tools}: BuildKitSectionProps) {
+    const platform = tools.filter((tool) => tool.op)
+    const permissions: GatewayConnectionPermissions = {
+        default: "allow",
+        tools: Object.fromEntries(
+            platform.map((tool) => [
+                tool.key,
+                state.disabledOps.includes(tool.key)
+                    ? "deny"
+                    : (state.permissionOverrides?.[tool.key] ??
+                      buildKitDefaultPermission(state, tool.readOnly === true)),
+            ]),
+        ),
+    }
+    const overrideCount = platform.filter(
+        (tool) =>
+            permissions.tools?.[tool.key] !==
+            buildKitDefaultPermission(state, tool.readOnly === true),
+    ).length
+    const preset = !state.enabled
+        ? "deny_all"
+        : overrideCount
+          ? "custom"
+          : state.permissionDefault === "ask"
+            ? "always_ask"
+            : state.permissionDefault === "allow_reads"
+              ? "ask_writes"
+              : "allow_all"
     return (
-        <ConfigAccordionSection
-            size="compact"
-            defaultOpen={defaultOpen}
-            icon={<Wrench size={15} />}
-            title="Playground build kit"
-            summary={
-                <span className="inline-flex items-center gap-1.5">
-                    <span className="h-1.5 w-1.5 rounded-full bg-[var(--ag-colorWarning)]" />
-                    Removed on commit
+        <div className="flex min-h-0 flex-col">
+            <div className="flex flex-col gap-1">
+                <span className="text-sm font-medium">Playground build kit</span>
+                <span className="text-xs text-colorTextDescription">
+                    Tools the assistant uses only while you build in the playground. They are not
+                    available in Slack, Telegram, WhatsApp, automations or the API. Saved in this
+                    browser.
                 </span>
-            }
-            extra={
-                <Switch
-                    checked={enabled}
-                    onCheckedChange={onEnabledChange}
-                    disabled={disabled}
-                    aria-label="Enable the playground build kit"
-                />
-            }
-        >
-            <span className="text-[11px] leading-snug text-colorTextDescription">
-                These playground-only tools, skills, and permissions help the assistant build and
-                revise this agent. None of this is part of the published agent.
-            </span>
-            {!enabled ? (
-                <div className="rounded border border-solid border-[var(--ant-color-info-border)] bg-[var(--ant-color-info-bg)] px-2.5 py-2 text-[11.5px] leading-snug text-[var(--ant-color-info-text)]">
-                    The assistant can no longer create files, run code, or edit the agent here.
-                </div>
-            ) : null}
-            {platformTools.length > 0 ? (
-                <RailField label="Platform tools">
-                    {platformTools.map((descriptor, index) => (
-                        <ItemRow
-                            key={`build-kit-platform-tool-${index}`}
-                            descriptor={descriptor}
-                            locked
-                        />
-                    ))}
-                </RailField>
-            ) : null}
-            {embeddedTools.length > 0 ? (
-                <RailField label="Embedded tools">
-                    {embeddedTools.map((descriptor, index) => (
-                        <ItemRow
-                            key={`build-kit-embedded-tool-${index}`}
-                            descriptor={descriptor}
-                            locked
-                        />
-                    ))}
-                </RailField>
-            ) : null}
-            {embeddedSkills.length > 0 ? (
-                <RailField label="Embedded skills">
-                    {embeddedSkills.map((descriptor, index) => (
-                        <ItemRow
-                            key={`build-kit-embedded-skill-${index}`}
-                            descriptor={descriptor}
-                            locked
-                        />
-                    ))}
-                </RailField>
-            ) : null}
-            {permissions && Object.keys(permissions).length > 0 ? (
-                <RailField label="Sandbox permissions">
-                    <div className="flex flex-col gap-1.5 opacity-70">
-                        {Object.entries(permissions).map(([key, value]) => (
-                            <div
-                                key={key}
-                                className="flex items-center justify-between gap-3 rounded border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ant-color-fill-quaternary)] px-3 py-2 text-xs"
-                            >
-                                <span className="font-mono">{key}</span>
-                                {/* leading-[22.4px]: antd's `.ant-tag` keeps its own 22.4px
-                                    line-height under a font-size override, but `text-[11px]`
-                                    replaces the Badge ramp's bundled line-height — restate it
-                                    or the chip renders 6px shorter. */}
-                                <Tag className="font-mono text-[11px] leading-[22.4px]">
-                                    {formatPermissionValue(value)}
-                                </Tag>
-                            </div>
-                        ))}
+            </div>
+            <PermissionDrawerBody
+                flush
+                catalogKey="playground-build-kit"
+                catalog={{
+                    status: "ready",
+                    complete: true,
+                    tools: platform.map((tool) => ({
+                        key: tool.key,
+                        name: tool.descriptor.name,
+                        description: tool.descriptor.description,
+                        readOnly: tool.readOnly,
+                    })),
+                }}
+                emptyLabel="No build kit tools available."
+                permissions={state.enabled ? permissions : {default: "deny", tools: {}}}
+                onChangePermissions={() => undefined}
+                onChangeToolPermission={(op, permission) => {
+                    if (permission === "inherit" || permission === "allow_reads") return
+                    const overrides = {...state.permissionOverrides}
+                    delete overrides[op]
+                    if (permission !== "deny") overrides[op] = permission
+                    onChange({
+                        ...state,
+                        disabledOps: [
+                            ...state.disabledOps.filter((key) => key !== op),
+                            ...(permission === "deny" ? [op] : []),
+                        ],
+                        permissionOverrides: overrides,
+                    })
+                }}
+                presets={{
+                    options: presets,
+                    value: preset,
+                    overrideCount,
+                    onPick: (value) => {
+                        if (value === "custom" || value === "follow_agent") return
+                        onChange(
+                            value === "deny_all"
+                                ? {...state, enabled: false}
+                                : {
+                                      enabled: true,
+                                      disabledOps: [],
+                                      permissionOverrides: {},
+                                      permissionDefault:
+                                          value === "always_ask"
+                                              ? "ask"
+                                              : value === "ask_writes"
+                                                ? "allow_reads"
+                                                : "allow",
+                                  },
+                        )
+                    },
+                }}
+                disabled={disabled}
+                lockedTool={() => (state.enabled ? null : "The build kit is deactivated.")}
+                toolOptions={buildKitToolOptions}
+                writeLabel="Write"
+                readOnlyLabel="Read-only"
+                banner={
+                    !state.enabled ? (
+                        <span className="text-xs text-colorTextDescription">
+                            The build kit is off. Its tools, skills and sandbox permissions will not
+                            be added to the next run. The agent's own tools remain available.
+                        </span>
+                    ) : null
+                }
+                footNote={
+                    <div className="flex flex-col gap-2">
+                        <span className="text-xs text-colorTextDescription">
+                            Included while the build kit is active
+                        </span>
+                        {tools
+                            .filter((tool) => !tool.op)
+                            .map((tool) => (
+                                <ItemRow key={tool.key} descriptor={tool.descriptor} />
+                            ))}
                     </div>
-                </RailField>
-            ) : null}
-        </ConfigAccordionSection>
-    )
-}
-
-/** Inline warning above SandboxPermissionControl when the build kit overrides a permission. */
-export function PermissionOverrideHint({keys}: {keys: string[]}): ReactNode {
-    if (keys.length === 0) return null
-    return (
-        <TooltipProvider>
-            <Tooltip>
-                <TooltipTrigger asChild>
-                    <div className="inline-flex w-fit items-center gap-1.5 rounded bg-[var(--ant-color-warning-bg)] px-2 py-1 text-[11px] text-[var(--ant-color-warning-text)]">
-                        <Warning size={12} />
-                        Build kit overrides {keys.join(", ")}
-                    </div>
-                </TooltipTrigger>
-                <TooltipContent>
-                    This value is overridden by the build kit in playground. Turn the build kit off
-                    to match the published agent.
-                </TooltipContent>
-            </Tooltip>
-        </TooltipProvider>
+                }
+            />
+        </div>
     )
 }

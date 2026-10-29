@@ -1,0 +1,566 @@
+from contextlib import asynccontextmanager
+from datetime import datetime, timezone
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
+from uuid import uuid4
+
+import pytest
+
+from oss.src.core.sessions.interactions.dtos import SessionInteractionStatus
+from oss.src.core.sessions.inputs.dtos import PendingInput, PendingInputState
+from oss.src.core.sessions.inputs.service import SessionInputsService
+from oss.src.core.sessions.inputs.types import (
+    SessionInputIdempotencyConflict,
+)
+from oss.tests.pytest.utils.principals import make_envelope
+
+
+class MemoryInputsDAO:
+    def __init__(self):
+        self.items = []
+
+    @asynccontextmanager
+    async def transaction(self):
+        yield self
+
+    async def fetch_by_idempotency_key(self, **kwargs):
+        return next(
+            (
+                item
+                for item in self.items
+                if item.project_id == kwargs["project_id"]
+                and item.session_id == kwargs["session_id"]
+                and item.idempotency_key == kwargs["idempotency_key"]
+            ),
+            None,
+        )
+
+    async def create_input(
+        self, *, user_id, pending_input, prioritize=False, **_kwargs
+    ):
+        existing = await self.fetch_by_idempotency_key(
+            project_id=pending_input.project_id,
+            session_id=pending_input.session_id,
+            idempotency_key=pending_input.idempotency_key,
+        )
+        if existing is not None:
+            return existing
+        item = PendingInput(
+            id=uuid4(),
+            created_at=datetime.now(timezone.utc),
+            created_by_id=user_id,
+            position=(-1 if prioritize else len(self.items) + 1),
+            state=PendingInputState.pending,
+            **pending_input.model_dump(),
+        )
+        self.items.append(item)
+        return item
+
+    async def promote_next(
+        self, *, project_id, session_id, execution_id, input_id=None, **_kwargs
+    ):
+        item = next(
+            (
+                candidate
+                for candidate in self.items
+                if candidate.project_id == project_id
+                and candidate.session_id == session_id
+                and candidate.state == PendingInputState.pending
+                and (input_id is None or candidate.id == input_id)
+            ),
+            None,
+        )
+        if item is None:
+            return None
+        item.state = PendingInputState.promoted
+        item.promoted_execution_id = execution_id
+        return item
+
+    async def list_pending(self, *, project_id, session_id):
+        return sorted(
+            [
+                item
+                for item in self.items
+                if item.project_id == project_id
+                and item.session_id == session_id
+                and item.state == PendingInputState.pending
+            ],
+            key=lambda item: item.position,
+        )
+
+    async def fetch_input(self, *, project_id, session_id, input_id):
+        return next(
+            (
+                item
+                for item in self.items
+                if item.project_id == project_id
+                and item.session_id == session_id
+                and item.id == input_id
+            ),
+            None,
+        )
+
+    async def remove_pending(self, *, project_id, session_id, input_id, **_kwargs):
+        item = await self.fetch_input(
+            project_id=project_id, session_id=session_id, input_id=input_id
+        )
+        if item is None or item.state != PendingInputState.pending:
+            return None
+        item.state = PendingInputState.removed
+        return item
+
+
+class Streams:
+    def __init__(self, *, running=True):
+        self.running = running
+
+    async def fetch_header(self, **_kwargs):
+        return SimpleNamespace(
+            flags=SimpleNamespace(is_running=self.running), turn_id="execution-1"
+        )
+
+
+@pytest.mark.asyncio
+async def test_claim_for_execution_promotes_without_exposing_pending_input():
+    project_id = uuid4()
+    user_id = uuid4()
+    dao = MemoryInputsDAO()
+    service = SessionInputsService(inputs_dao=dao, streams_service=Streams())
+
+    claimed = await service.claim_for_execution(
+        project_id=project_id,
+        user_id=user_id,
+        session_id="session-1",
+        execution_id="execution-1",
+        content={"message": "Configure the agent."},
+        idempotency_key="load-1",
+        envelope=make_envelope(),
+    )
+
+    assert claimed.state == PendingInputState.promoted
+    assert claimed.promoted_execution_id == "execution-1"
+    assert (
+        await service.list_pending(project_id=project_id, session_id="session-1") == []
+    )
+
+
+@pytest.mark.asyncio
+async def test_claim_for_execution_rejects_changed_content():
+    project_id = uuid4()
+    user_id = uuid4()
+    service = SessionInputsService(
+        inputs_dao=MemoryInputsDAO(), streams_service=Streams()
+    )
+    first = await service.claim_for_execution(
+        project_id=project_id,
+        user_id=user_id,
+        session_id="session-1",
+        execution_id="execution-1",
+        content={"message": "Configure the agent."},
+        idempotency_key="load-1",
+        envelope=make_envelope(),
+    )
+
+    with pytest.raises(SessionInputIdempotencyConflict):
+        await service.claim_for_execution(
+            project_id=project_id,
+            user_id=user_id,
+            session_id="session-1",
+            execution_id="execution-1",
+            content={"message": "Different setup text."},
+            idempotency_key="load-1",
+            envelope=make_envelope(),
+        )
+
+    assert first.state == PendingInputState.promoted
+
+
+@pytest.mark.asyncio
+async def test_claim_for_execution_rejects_a_different_execution():
+    project_id = uuid4()
+    user_id = uuid4()
+    service = SessionInputsService(
+        inputs_dao=MemoryInputsDAO(), streams_service=Streams()
+    )
+    await service.claim_for_execution(
+        project_id=project_id,
+        user_id=user_id,
+        session_id="session-1",
+        execution_id="execution-1",
+        content={"message": "Configure the agent."},
+        idempotency_key="load-1",
+        envelope=make_envelope(),
+    )
+
+    with pytest.raises(SessionInputIdempotencyConflict):
+        await service.claim_for_execution(
+            project_id=project_id,
+            user_id=user_id,
+            session_id="session-1",
+            execution_id="execution-2",
+            content={"message": "Configure the agent."},
+            idempotency_key="load-1",
+            envelope=make_envelope(),
+        )
+
+
+@pytest.mark.asyncio
+async def test_busy_queue_is_durable_and_removable(monkeypatch):
+    project_id = uuid4()
+    user_id = uuid4()
+    dao = MemoryInputsDAO()
+    service = SessionInputsService(inputs_dao=dao, streams_service=Streams())
+
+    admitted = await service.admit(
+        project_id=project_id,
+        user_id=user_id,
+        session_id="session-1",
+        content={"message": "later"},
+        policy="queue",
+        idempotency_key="key-1",
+        envelope=make_envelope(),
+    )
+
+    assert admitted.action == "pending"
+    assert admitted.input is not None
+    assert await service.list_pending(
+        project_id=project_id, session_id="session-1"
+    ) == [admitted.input]
+    removed = await service.remove(
+        project_id=project_id,
+        user_id=user_id,
+        session_id="session-1",
+        input_id=admitted.input.id,
+    )
+    assert removed.state == PendingInputState.removed
+    assert (
+        await service.list_pending(project_id=project_id, session_id="session-1") == []
+    )
+
+
+@pytest.mark.asyncio
+async def test_idle_input_executes_without_being_queued(monkeypatch):
+    dao = MemoryInputsDAO()
+    service = SessionInputsService(
+        inputs_dao=dao, streams_service=Streams(running=False)
+    )
+
+    admitted = await service.admit(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        session_id="session-1",
+        content={"message": "now"},
+        policy="queue",
+        idempotency_key="key-1",
+        envelope=make_envelope(),
+    )
+
+    assert admitted.action == "execute"
+    assert dao.items == []
+
+
+@pytest.mark.asyncio
+async def test_detached_executing_continuation_keeps_input_in_the_queue(monkeypatch):
+    continuation_resumer = AsyncMock(return_value="continuation-1")
+    dao = MemoryInputsDAO()
+    service = SessionInputsService(
+        inputs_dao=dao,
+        streams_service=Streams(running=False),
+        continuation_resumer=continuation_resumer,
+    )
+
+    admitted = await service.admit(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        session_id="session-1",
+        content={"message": "after the continuation"},
+        policy="queue",
+        idempotency_key="key-1",
+        envelope=make_envelope(),
+    )
+
+    assert admitted.action == "pending"
+    assert admitted.input is not None
+    continuation_resumer.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_no_recoverable_continuation_keeps_idle_input_executable(monkeypatch):
+    continuation_resumer = AsyncMock(return_value=None)
+    dao = MemoryInputsDAO()
+    service = SessionInputsService(
+        inputs_dao=dao,
+        streams_service=Streams(running=False),
+        continuation_resumer=continuation_resumer,
+    )
+
+    admitted = await service.admit(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        session_id="session-1",
+        content={"message": "normal idle input"},
+        policy="queue",
+        idempotency_key="key-1",
+        envelope=make_envelope(),
+    )
+
+    assert admitted.action == "execute"
+    assert dao.items == []
+
+
+@pytest.mark.asyncio
+async def test_steer_targets_the_execution_reopened_by_continuation_resume(monkeypatch):
+    continuation_resumer = AsyncMock(return_value="continuation-2")
+    executions = SimpleNamespace(
+        lock_for_control=AsyncMock(return_value=SimpleNamespace(terminal_outcome=None))
+    )
+    service = SessionInputsService(
+        inputs_dao=MemoryInputsDAO(),
+        streams_service=Streams(running=False),
+        executions_dao=executions,
+        continuation_resumer=continuation_resumer,
+    )
+
+    admitted = await service.admit(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        session_id="session-1",
+        content={"message": "steer the resumed continuation"},
+        policy="steer",
+        idempotency_key="key-1",
+        envelope=make_envelope(),
+    )
+
+    assert admitted.execution_id == "continuation-2"
+    assert (
+        executions.lock_for_control.await_args.kwargs["execution_id"]
+        == "continuation-2"
+    )
+
+
+@pytest.mark.asyncio
+async def test_queue_idempotency_returns_same_input_and_rejects_conflicting_reuse(
+    monkeypatch,
+):
+    project_id = uuid4()
+    service = SessionInputsService(
+        inputs_dao=MemoryInputsDAO(), streams_service=Streams()
+    )
+    kwargs = {
+        "project_id": project_id,
+        "user_id": uuid4(),
+        "session_id": "session-1",
+        "content": {"message": "later"},
+        "policy": "queue",
+        "idempotency_key": "key-1",
+        "envelope": make_envelope(),
+    }
+
+    first = await service.admit(**kwargs)
+    retry = await service.admit(**kwargs)
+    assert retry.input.id == first.input.id
+
+    with pytest.raises(SessionInputIdempotencyConflict):
+        await service.admit(**{**kwargs, "content": {"message": "different"}})
+
+
+@pytest.mark.asyncio
+async def test_idle_retry_returns_the_existing_promoted_input(monkeypatch):
+    project_id = uuid4()
+    dao = MemoryInputsDAO()
+    streams = Streams()
+    service = SessionInputsService(inputs_dao=dao, streams_service=streams)
+    kwargs = {
+        "project_id": project_id,
+        "user_id": uuid4(),
+        "session_id": "session-1",
+        "content": {"message": "once"},
+        "policy": "queue",
+        "idempotency_key": "key-1",
+        "envelope": make_envelope(),
+    }
+
+    first = await service.admit(**kwargs)
+    first.input.state = PendingInputState.promoted
+    first.input.promoted_execution_id = "execution-2"
+    streams.running = False
+
+    retry = await service.admit(**kwargs)
+
+    assert retry.action == "pending"
+    assert retry.input.id == first.input.id
+    assert retry.execution_id == "execution-2"
+    with pytest.raises(SessionInputIdempotencyConflict):
+        await service.admit(**{**kwargs, "content": {"message": "different"}})
+
+
+@pytest.mark.asyncio
+async def test_steer_is_saved_ahead_of_queued_input(monkeypatch):
+    project_id = uuid4()
+    dao = MemoryInputsDAO()
+    service = SessionInputsService(inputs_dao=dao, streams_service=Streams())
+
+    queued = await service.admit(
+        project_id=project_id,
+        user_id=uuid4(),
+        session_id="session-1",
+        content={"message": "later"},
+        policy="queue",
+        idempotency_key="queue-1",
+        envelope=make_envelope(),
+    )
+    steered = await service.admit(
+        project_id=project_id,
+        user_id=uuid4(),
+        session_id="session-1",
+        content={"message": "now"},
+        policy="steer",
+        idempotency_key="steer-1",
+        envelope=make_envelope(),
+    )
+
+    pending = await service.list_pending(project_id=project_id, session_id="session-1")
+    assert [item.id for item in pending] == [steered.input.id, queued.input.id]
+    assert steered.execution_id == "execution-1"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("terminal_outcome", [None, "completed"])
+async def test_queue_waits_for_unanswered_approval_even_after_execution_settles(
+    monkeypatch, terminal_outcome
+):
+    pending = SimpleNamespace(status=SessionInteractionStatus.pending)
+    interactions = SimpleNamespace(
+        fetch_turn_interactions=AsyncMock(return_value=[pending])
+    )
+    executions = SimpleNamespace(
+        lock_for_control=AsyncMock(
+            return_value=SimpleNamespace(terminal_outcome=terminal_outcome)
+        )
+    )
+    resumer = AsyncMock(return_value=None)
+    dao = MemoryInputsDAO()
+    service = SessionInputsService(
+        inputs_dao=dao,
+        streams_service=Streams(running=False),
+        executions_dao=executions,
+        interactions_dao=interactions,
+        continuation_resumer=resumer,
+    )
+    admitted = await service.admit(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        session_id="session-1",
+        content={"message": "after approval"},
+        policy="queue",
+        idempotency_key="queued-1",
+        envelope=make_envelope(),
+    )
+    assert admitted.action == "pending"
+    assert admitted.input == dao.items[0]
+    assert admitted.execution_id == "execution-1"
+    assert pending.status == SessionInteractionStatus.pending
+    resumer.assert_not_awaited()
+    if terminal_outcome:
+        assert (
+            interactions.fetch_turn_interactions.await_args.kwargs["for_update"] is True
+        )
+
+
+@pytest.mark.asyncio
+async def test_steer_can_replace_unanswered_approval(monkeypatch):
+    interactions = SimpleNamespace(fetch_turn_interactions=AsyncMock())
+    dao = MemoryInputsDAO()
+    service = SessionInputsService(
+        inputs_dao=dao,
+        streams_service=Streams(running=False),
+        interactions_dao=interactions,
+        continuation_resumer=AsyncMock(return_value=None),
+    )
+    admitted = await service.admit(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        session_id="session-1",
+        content={"message": "replace this"},
+        policy="steer",
+        idempotency_key="steer-1",
+        envelope=make_envelope(),
+    )
+    assert admitted.action == "execute"
+    assert dao.items == []
+    interactions.fetch_turn_interactions.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "status", [SessionInteractionStatus.resolved, SessionInteractionStatus.cancelled]
+)
+async def test_idle_queue_does_not_wait_on_old_answered_approval(monkeypatch, status):
+    interactions = SimpleNamespace(
+        fetch_turn_interactions=AsyncMock(return_value=[SimpleNamespace(status=status)])
+    )
+    service = SessionInputsService(
+        inputs_dao=MemoryInputsDAO(),
+        streams_service=Streams(running=False),
+        interactions_dao=interactions,
+        continuation_resumer=AsyncMock(return_value=None),
+    )
+    admitted = await service.admit(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        session_id="session-1",
+        content={"message": "now"},
+        policy="queue",
+        idempotency_key="idle-1",
+        envelope=make_envelope(),
+    )
+    assert admitted.action == "execute"
+
+
+@pytest.mark.asyncio
+async def test_approval_winning_queue_lock_keeps_input_behind_its_continuation(
+    monkeypatch,
+):
+    interactions = SimpleNamespace(
+        fetch_turn_interactions=AsyncMock(
+            side_effect=[
+                [SimpleNamespace(status=SessionInteractionStatus.pending)],
+                [SimpleNamespace(status=SessionInteractionStatus.responded)],
+                [SimpleNamespace(status=SessionInteractionStatus.responded)],
+            ]
+        )
+    )
+    executions = SimpleNamespace(
+        lock_for_control=AsyncMock(
+            side_effect=[
+                SimpleNamespace(terminal_outcome="completed"),
+                SimpleNamespace(terminal_outcome=None),
+            ]
+        )
+    )
+    resumer = AsyncMock(return_value="approved-continuation")
+    dao = MemoryInputsDAO()
+    service = SessionInputsService(
+        inputs_dao=dao,
+        streams_service=Streams(running=False),
+        interactions_dao=interactions,
+        executions_dao=executions,
+        continuation_resumer=resumer,
+    )
+    admitted = await service.admit(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        session_id="session-1",
+        content={"message": "after the approved tool"},
+        policy="queue",
+        idempotency_key="queue-approval-race",
+        envelope=make_envelope(),
+    )
+    assert admitted.action == "pending"
+    assert admitted.execution_id == "approved-continuation"
+    assert len(dao.items) == 1
+    resumer.assert_awaited_once()
+    assert (
+        executions.lock_for_control.await_args.kwargs["execution_id"]
+        == "approved-continuation"
+    )

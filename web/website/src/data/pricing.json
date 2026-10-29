@@ -1,0 +1,1048 @@
+{
+  "_note": "This file drives the ENTIRE pricing page (website/src/pages/pricing.astro). Every visible string lives here — nothing is hardcoded in the component. Edit this file to change the hero, prices, plans, chips, CTAs, the comparison tables, or the FAQ. Structure: `hero` = the eyebrow/headline/description at the top of the page; `hostingToggle` = the two-option Cloud/Self-hosted switch; `plansByMode` = the plan cards shown for each toggle option (cloud = 4 cards, selfHosted = 2 cards); `cardsNoteByMode` = an optional one-line note under the plan cards for a toggle option (null or missing = no note); `comparisonByMode` = the comparison table shown for each toggle option, rendered server-side for BOTH modes and swapped by the same toggle (cloud = 4 plan columns, selfHosted = 2 plan columns); `faqs` = the FAQ accordion; `links` = a lookup that turns any occurrence of a `text` token in a feature, comparison label, comparison cell, or FAQ answer into a link to `href` (this is how the visible strings stay the source of truth while still linking — no link text is hardcoded in the components). In `comparisonByMode[mode].groups[].rows[].cells`, `true` renders a check, `false` renders a dash, and a string renders as-is. Plan card `chip` is a small pill that straddles the card's top border (null = no chip); `cta.style` is `primary` (yellow) or `outline`. Card chrome is uniform across every plan. Adding or removing a feature keeps the CTA divider aligned across a row automatically (the grid uses subgrid row tracks, so no per-card heights to tune).",
+  "hero": {
+    "eyebrow": "Pricing",
+    "headline": "Unlimited users. Unlimited agents and automations. Pay only when your agents run.",
+    "description": "Start free. Paid plans have no per-seat price: every paid plan includes unlimited users, projects, agents, automations, schedules, and triggers."
+  },
+  "hostingToggle": {
+    "defaultMode": "cloud",
+    "options": [
+      {
+        "mode": "cloud",
+        "label": "Agenta Cloud",
+        "sublabel": "(we host)"
+      },
+      {
+        "mode": "selfHosted",
+        "label": "Self-hosted",
+        "sublabel": "(you host)"
+      }
+    ]
+  },
+  "links": [
+    {
+      "text": "Community support on GitHub",
+      "href": "https://github.com/Agenta-AI/agenta/issues"
+    },
+    {
+      "text": "team@agenta.ai",
+      "href": "mailto:team@agenta.ai"
+    },
+    {
+      "text": "See what each thing costs",
+      "href": "https://agenta.ai/docs/administration/billing/plans-and-credits"
+    },
+    {
+      "text": "Plans and credits",
+      "href": "https://agenta.ai/docs/administration/billing/plans-and-credits"
+    },
+    {
+      "text": "Control what an agent can do",
+      "href": "https://agenta.ai/docs/guides/control-what-an-agent-can-do"
+    }
+  ],
+  "plansByMode": {
+    "cloud": [
+      {
+        "id": "hobby",
+        "name": "Hobby",
+        "tagline": "For individuals trying Agenta and building their first agents.",
+        "price": "$0",
+        "unit": "forever",
+        "chip": null,
+        "cta": {
+          "label": "Start for free",
+          "href": "https://cloud.agenta.ai/",
+          "style": "outline"
+        },
+        "includesLabel": "Includes",
+        "features": [
+          "500 bonus credits when you sign up",
+          "75 free credits a day, on up to 10 days a month",
+          "2 concurrent tasks",
+          "1 project and 2 team members",
+          "Agents get their own computer and browser",
+          "AI Drive: a shared drive for your agents' knowledge and files",
+          "1,000+ integrations and MCP servers",
+          "Publish agents to Slack, WhatsApp, and Telegram",
+          "Approvals and tool permissions",
+          "Public REST API, API keys, and Python SDK",
+          "Use your own API key or ChatGPT subscription",
+          "Community support on GitHub"
+        ]
+      },
+      {
+        "id": "starter",
+        "name": "Starter",
+        "tagline": "For teams running agents in their daily work.",
+        "price": "$29",
+        "unit": "/month",
+        "chip": "Recommended",
+        "cta": {
+          "label": "Get Starter",
+          "href": "https://cloud.agenta.ai/",
+          "style": "primary"
+        },
+        "includesLabel": "Everything in Hobby, plus",
+        "features": [
+          "2,900 credits a month",
+          "Buy more credits any time: 1,000 for $10",
+          "20 concurrent tasks",
+          "Unlimited projects",
+          "Unlimited team members, with no per-seat price",
+          "Unlimited schedules and event triggers",
+          "Shared credentials for the whole team",
+          "Live chat support"
+        ]
+      },
+      {
+        "id": "business",
+        "name": "Business",
+        "tagline": "For teams that need more capacity, governance, and priority support.",
+        "price": "$299",
+        "unit": "/month",
+        "chip": null,
+        "cta": {
+          "label": "Upgrade to Business",
+          "href": "https://cloud.agenta.ai/",
+          "style": "outline"
+        },
+        "includesLabel": "Everything in Starter, plus",
+        "features": [
+          "32,000 credits a month",
+          "50 concurrent tasks",
+          "SSO and role-based access control",
+          "SOC 2 Type II report",
+          "Priority support in a private Slack channel"
+        ]
+      },
+      {
+        "id": "enterprise-cloud",
+        "name": "Enterprise",
+        "tagline": "For organizations that need custom limits, security reviews, and dedicated support.",
+        "price": "Custom",
+        "unit": "",
+        "chip": null,
+        "cta": {
+          "label": "Contact sales",
+          "href": "https://cal.com/mahmoud-mabrouk-ogzgey/demo",
+          "style": "outline"
+        },
+        "includesLabel": "Everything in Business, plus",
+        "features": [
+          "Custom credits and limits",
+          "Custom data retention",
+          "Audit logs",
+          "Custom domains",
+          "Custom security and legal terms",
+          "Deployment and onboarding support",
+          "Dedicated support and a custom service-level agreement"
+        ]
+      }
+    ],
+    "selfHosted": [
+      {
+        "id": "open-source",
+        "name": "Open source",
+        "tagline": "The open-source agent workspace, running on your infrastructure.",
+        "price": "Free",
+        "unit": "forever",
+        "chip": null,
+        "cta": {
+          "label": "Read the docs",
+          "href": "https://docs.agenta.ai",
+          "style": "outline"
+        },
+        "includesLabel": "Includes",
+        "features": [
+          "Unlimited users and projects",
+          "Unlimited agents and automations",
+          "Unlimited schedules and event triggers",
+          "Build and use agents through chat",
+          "Bring your own models and credentials",
+          "Instructions, skills, tools, integrations, and MCP servers",
+          "AI Drive and persistent context",
+          "Shared agents and conversations",
+          "Role-based access control",
+          "SSO",
+          "Run logs, evaluations, and versioned agent configuration",
+          "Docker Compose deployment",
+          "Community support on GitHub"
+        ]
+      },
+      {
+        "id": "enterprise",
+        "name": "Enterprise",
+        "tagline": "For organizations that need advanced controls and commercial support on their own infrastructure.",
+        "price": "Custom",
+        "unit": "",
+        "chip": null,
+        "cta": {
+          "label": "Book a demo",
+          "href": "https://cal.com/mahmoud-mabrouk-ogzgey/demo",
+          "style": "primary"
+        },
+        "includesLabel": "Everything in Open source, plus",
+        "features": [
+          "Audit logs",
+          "Custom domains",
+          "Deployment and upgrade support",
+          "Security and architecture reviews",
+          "Priority support",
+          "Private Slack Connect channel",
+          "Dedicated support",
+          "Custom service-level agreement"
+        ]
+      }
+    ]
+  },
+  "cardsNoteByMode": {
+    "cloud": "Credits pay for Agenta's included models and for runtime, the time your agents run. Every plan also gets 75 free credits a day, on up to 10 days a month. See what each thing costs.",
+    "selfHosted": null
+  },
+  "comparisonByMode": {
+    "cloud": {
+      "title": "Compare Agenta Cloud plans",
+      "columns": [
+        {
+          "name": "Hobby",
+          "price": "Free"
+        },
+        {
+          "name": "Starter",
+          "price": "$29/mo"
+        },
+        {
+          "name": "Business",
+          "price": "$299/mo"
+        },
+        {
+          "name": "Enterprise",
+          "price": "Custom"
+        }
+      ],
+      "groups": [
+        {
+          "title": "Usage and credits",
+          "rows": [
+            {
+              "label": "Monthly credits",
+              "cells": [
+                "None",
+                "2,900",
+                "32,000",
+                "Custom"
+              ]
+            },
+            {
+              "label": "Daily free credits",
+              "cells": [
+                "75 a day, on up to 10 days a month",
+                "75 a day, on up to 10 days a month",
+                "75 a day, on up to 10 days a month",
+                "Custom"
+              ]
+            },
+            {
+              "label": "Signup bonus for new organizations",
+              "cells": [
+                "500 credits",
+                "500 credits",
+                "500 credits",
+                "500 credits"
+              ]
+            },
+            {
+              "label": "Buy more credits",
+              "cells": [
+                false,
+                "1,000 for $10",
+                "1,000 for $10",
+                "Custom"
+              ]
+            },
+            {
+              "label": "Concurrent tasks",
+              "cells": [
+                "2",
+                "20",
+                "50",
+                "Custom"
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Agents and automations",
+          "rows": [
+            {
+              "label": "Projects",
+              "cells": [
+                "1",
+                "Unlimited",
+                "Unlimited",
+                "Unlimited"
+              ]
+            },
+            {
+              "label": "Agents and automations",
+              "cells": [
+                "Unlimited",
+                "Unlimited",
+                "Unlimited",
+                "Unlimited"
+              ]
+            },
+            {
+              "label": "Schedules and event triggers",
+              "cells": [
+                "Unlimited",
+                "Unlimited",
+                "Unlimited",
+                "Unlimited"
+              ]
+            },
+            {
+              "label": "Start from templates",
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Build and use agents through chat",
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Use skills from the open agent ecosystem",
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Agents get their own computer and browser",
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
+            },
+            {
+              "label": "AI Drive for knowledge and files",
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Persistent context",
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Integrations",
+              "cells": [
+                "1,000+",
+                "1,000+",
+                "1,000+",
+                "1,000+"
+              ]
+            },
+            {
+              "label": "MCP servers",
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Approvals and tool permissions",
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Publish agents to Slack, WhatsApp, and Telegram",
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Models and keys",
+          "rows": [
+            {
+              "label": "Agenta's included models",
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Your own API key",
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Your ChatGPT subscription",
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Choice of model for each agent",
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Improve your agents",
+          "rows": [
+            {
+              "label": "Logs and errors for every run",
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Agent and prompt version history",
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Playground and side-by-side comparison",
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Evaluations",
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Usage analytics",
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Model spend insights",
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Developers",
+          "rows": [
+            {
+              "label": "Public REST API and API keys",
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Python SDK",
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Webhooks",
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Team and security",
+          "rows": [
+            {
+              "label": "Team members",
+              "cells": [
+                "2",
+                "Unlimited",
+                "Unlimited",
+                "Unlimited"
+              ]
+            },
+            {
+              "label": "Per-seat price",
+              "cells": [
+                "None",
+                "None",
+                "None",
+                "None"
+              ]
+            },
+            {
+              "label": "Shared credentials for the whole team",
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Shared agents and conversations",
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Team roles and role-based access control",
+              "cells": [
+                false,
+                false,
+                true,
+                true
+              ]
+            },
+            {
+              "label": "SSO",
+              "cells": [
+                false,
+                false,
+                true,
+                true
+              ]
+            },
+            {
+              "label": "SOC 2 Type II report",
+              "cells": [
+                false,
+                false,
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Audit logs",
+              "cells": [
+                false,
+                false,
+                false,
+                true
+              ]
+            },
+            {
+              "label": "Custom domains",
+              "cells": [
+                false,
+                false,
+                false,
+                true
+              ]
+            },
+            {
+              "label": "Custom data retention",
+              "cells": [
+                false,
+                false,
+                false,
+                true
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Support",
+          "rows": [
+            {
+              "label": "Community support on GitHub",
+              "cells": [
+                true,
+                true,
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Live chat",
+              "cells": [
+                false,
+                true,
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Priority support",
+              "cells": [
+                false,
+                false,
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Private Slack channel",
+              "cells": [
+                false,
+                false,
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Dedicated support",
+              "cells": [
+                false,
+                false,
+                false,
+                true
+              ]
+            },
+            {
+              "label": "Custom service-level agreement",
+              "cells": [
+                false,
+                false,
+                false,
+                true
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "selfHosted": {
+      "title": "Compare self-hosted plans",
+      "columns": [
+        {
+          "name": "Open source",
+          "price": "Free"
+        },
+        {
+          "name": "Enterprise",
+          "price": "Custom"
+        }
+      ],
+      "groups": [
+        {
+          "title": "Usage and core product",
+          "rows": [
+            {
+              "label": "Team members",
+              "cells": [
+                "Unlimited",
+                "Unlimited"
+              ]
+            },
+            {
+              "label": "Projects",
+              "cells": [
+                "Unlimited",
+                "Unlimited"
+              ]
+            },
+            {
+              "label": "Agents and automations",
+              "cells": [
+                "Unlimited",
+                "Unlimited"
+              ]
+            },
+            {
+              "label": "Schedules and event triggers",
+              "cells": [
+                "Unlimited",
+                "Unlimited"
+              ]
+            },
+            {
+              "label": "Agent runs",
+              "cells": [
+                "Unlimited",
+                "Unlimited"
+              ]
+            },
+            {
+              "label": "Evaluations",
+              "cells": [
+                "Unlimited",
+                "Unlimited"
+              ]
+            },
+            {
+              "label": "Data retention",
+              "cells": [
+                "Self-managed",
+                "Self-managed"
+              ]
+            },
+            {
+              "label": "Model usage",
+              "cells": [
+                "Bring your own",
+                "Bring your own"
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Build and use agents",
+          "rows": [
+            {
+              "label": "Build and use agents through chat",
+              "cells": [
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Use skills from the open agent ecosystem",
+              "cells": [
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Tools and integrations",
+              "cells": [
+                true,
+                true
+              ]
+            },
+            {
+              "label": "MCP servers",
+              "cells": [
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Choice of model for each agent",
+              "cells": [
+                true,
+                true
+              ]
+            },
+            {
+              "label": "AI Drive and persistent context",
+              "cells": [
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Shared agents and conversations",
+              "cells": [
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Approvals and tool permissions",
+              "cells": [
+                true,
+                true
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Run, observe, and improve",
+          "rows": [
+            {
+              "label": "Interactive, scheduled, and event-triggered runs",
+              "cells": [
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Logs and errors for every run",
+              "cells": [
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Agent and prompt version history",
+              "cells": [
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Playground and side-by-side comparison",
+              "cells": [
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Evaluations",
+              "cells": [
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Model spend insights",
+              "cells": [
+                true,
+                true
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Collaboration and security",
+          "rows": [
+            {
+              "label": "Role-based access control",
+              "cells": [
+                true,
+                true
+              ]
+            },
+            {
+              "label": "SSO",
+              "cells": [
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Audit logs",
+              "cells": [
+                false,
+                true
+              ]
+            },
+            {
+              "label": "Custom domains",
+              "cells": [
+                false,
+                true
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Deployment and support",
+          "rows": [
+            {
+              "label": "Docker Compose",
+              "cells": [
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Deployment and upgrade support",
+              "cells": [
+                "Community",
+                "Included"
+              ]
+            },
+            {
+              "label": "Community support on GitHub",
+              "cells": [
+                true,
+                true
+              ]
+            },
+            {
+              "label": "Priority support",
+              "cells": [
+                false,
+                true
+              ]
+            },
+            {
+              "label": "Private Slack Connect channel",
+              "cells": [
+                false,
+                true
+              ]
+            },
+            {
+              "label": "Dedicated support",
+              "cells": [
+                false,
+                true
+              ]
+            },
+            {
+              "label": "Custom service-level agreement",
+              "cells": [
+                false,
+                true
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "faqs": [
+    {
+      "question": "What are credits?",
+      "answer": "Credits pay for two things: Agenta's included models, and runtime, the time your agents run. Each plan includes credits. The Plans and credits page lists what each thing costs."
+    },
+    {
+      "question": "How many credits does each plan include?",
+      "answer": "Every plan gets 75 free credits a day, on up to 10 days a month. Starter adds 2,900 credits a month, and Business adds 32,000 credits a month. New organizations also get 500 bonus credits when they sign up."
+    },
+    {
+      "question": "How many credits does a task use?",
+      "answer": "It depends on the model, how much the agent reads and writes, and how long it runs. A short task, such as summarizing a page, uses about 3 credits. One hour of runtime uses about 50 credits, plus the model use. The Plans and credits page has more examples."
+    },
+    {
+      "question": "Do I pay when I use my own API key or my ChatGPT subscription?",
+      "answer": "The model costs no credits. Runtime still uses credits, because your agent still runs on Agenta. Every plan can use your own API key or ChatGPT subscription."
+    },
+    {
+      "question": "Do unused credits roll over?",
+      "answer": "No. Daily credits expire at the end of the day (midnight UTC), and monthly credits expire at the end of the billing period."
+    },
+    {
+      "question": "What happens when I run out of credits?",
+      "answer": "There are no overage charges. Tasks that are already running finish. New tasks do not start until you have credits again. This includes agents that use your own API key, because runtime uses credits. Daily credits come back the next day, on up to 10 days a month. On Starter and Business, you can also buy more credits or upgrade."
+    },
+    {
+      "question": "Do team members share credits?",
+      "answer": "Yes. Credits belong to the organization, and everyone in it draws from the same balance. There is no per-seat price."
+    },
+    {
+      "question": "Can I buy more credits?",
+      "answer": "Yes, on Starter and Business. 1,000 credits cost $10, 2,500 credits cost $25, and 10,000 credits cost $100."
+    },
+    {
+      "question": "How many tasks can run at once?",
+      "answer": "Hobby runs 2 concurrent tasks, Starter runs 20, and Business runs 50. A task is one agent turn: from your message until the agent finishes answering. The Plans and credits page says how long a task can run on each plan."
+    },
+    {
+      "question": "Are users, projects, agents, and automations really unlimited?",
+      "answer": "Yes, on Starter, Business, and Enterprise, and on both self-hosted plans. Invite as many team members as you need and create as many projects, agents, automations, schedules, and triggers as you want. Hobby includes 2 team members and 1 project. You pay for credits, not for seats, projects, or agents."
+    },
+    {
+      "question": "Will my agent act without my approval?",
+      "answer": "Only where you allow it. Tool permissions decide which actions an agent takes on its own and which wait for your approval. Set a default for each agent, change it for single tools, and approve or deny actions while the agent runs. See Control what an agent can do."
+    },
+    {
+      "question": "Which models are included?",
+      "answer": "Agenta's included models are Gemini 3.7 Flash, Gemini 3.8 Flash, and Gemini 4 Argon. They use credits, so you need no API key to start."
+    },
+    {
+      "question": "Which model providers can I use?",
+      "answer": "Connect OpenAI, Anthropic, Google Gemini, Mistral AI, xAI, Groq, Cohere, Perplexity AI, DeepInfra, Together AI, Anyscale, MiniMax, or OpenRouter with an API key. You can also connect AWS Bedrock, Azure OpenAI, Google Vertex AI, or any OpenAI-compatible endpoint, or sign in with your ChatGPT subscription."
+    },
+    {
+      "question": "Can I switch plans or cancel at any time?",
+      "answer": "Yes. Upgrade, downgrade, or cancel from Settings, then Usage & Billing."
+    },
+    {
+      "question": "What happens if I cancel?",
+      "answer": "Your organization keeps its data and moves to Hobby at the end of the billing period. Members beyond the Hobby limit of 2 are removed."
+    },
+    {
+      "question": "How do I get an invoice?",
+      "answer": "Open Settings, then Usage & Billing, then Open billing portal. The billing portal lists your invoices and payment methods."
+    },
+    {
+      "question": "Do you use my data to train AI models?",
+      "answer": "No. Agenta does not use your prompts or data to train AI models."
+    },
+    {
+      "question": "Where can I see my credits?",
+      "answer": "Open Settings, then Credits to see your balance and what used your credits. Open Settings, then Usage & Billing to see your plan."
+    },
+    {
+      "question": "What is the difference between Agenta Cloud and self-hosted Agenta?",
+      "answer": "Agenta Cloud is operated by us. We run the application, storage, agent runner, upgrades, and backups. With self-hosted Agenta, you deploy and operate those components in your own infrastructure, connect your own model and integration accounts, and control where your data is stored."
+    },
+    {
+      "question": "What is included in the free open-source edition?",
+      "answer": "The open-source edition includes the core agent workspace: chat, projects, agent configuration, instructions, skills, tools, integrations, MCP servers, files, schedules, event triggers, run logs, evaluations, version history, role-based access control, and SSO. You can create unlimited users, projects, agents, and automations on your own infrastructure."
+    },
+    {
+      "question": "Why pay for Enterprise if Agenta is open source?",
+      "answer": "Enterprise adds audit logs, custom domains, deployment and upgrade support, priority support, a private Slack Connect channel, dedicated support, and a custom service-level agreement. The open-source edition remains free for teams that can operate it themselves and do not need those commercial features or services."
+    },
+    {
+      "question": "Do you offer discounts for startups, students, or researchers?",
+      "answer": "Yes. Early-stage startups, students, and researchers can email team@agenta.ai to ask about discounted or free access. Include what you are building and how you plan to use Agenta."
+    }
+  ]
+}

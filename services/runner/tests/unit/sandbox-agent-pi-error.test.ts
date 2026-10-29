@@ -16,12 +16,21 @@
  */
 import { afterEach, describe, it } from "vitest";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { appendFileSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import {
+  capturePiTranscriptCursor,
+  findSwallowedPiError,
+} from "../../src/engines/sandbox_agent/pi-error.ts";
 import { piSessionWorkspaceDir } from "../../src/engines/sandbox_agent/pi-assets.ts";
-import { findSwallowedPiError } from "../../src/engines/sandbox_agent/pi-error.ts";
+// The transcript encoder is shared with the silent-turn suites, so the format lives in one
+// place: two hand-rolled copies could drift together and both stop matching what Pi writes.
+import {
+  piTranscriptFileName,
+  writePiTranscript as writeTranscript,
+} from "../utils/silent-turn.ts";
 
 const dirs: string[] = [];
 
@@ -31,52 +40,44 @@ function tempDir(): string {
   return dir;
 }
 
-/**
- * Write a Pi-style .jsonl transcript into `piSessionWorkspaceDir(cwd)` (flat, like Pi does
- * when pointed at an explicit session dir). `recordCwd` overrides the cwd stamped on the
- * transcript's `session` record, to simulate a stale or copied transcript.
- */
-function writeTranscript(
-  cwd: string,
-  name: string,
-  messages: Array<Record<string, unknown>>,
-  recordCwd: string = cwd,
-): void {
-  const dir = piSessionWorkspaceDir(cwd);
-  mkdirSync(dir, { recursive: true });
-  const lines = [
-    JSON.stringify({ type: "session", version: 3, id: name, cwd: recordCwd }),
-    ...messages.map((m) => JSON.stringify(m)),
-  ];
-  writeFileSync(join(dir, `${name}.jsonl`), lines.join("\n") + "\n");
-}
-
 afterEach(() => {
-  for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+  for (const dir of dirs.splice(0))
+    rmSync(dir, { recursive: true, force: true });
 });
 
 describe("findSwallowedPiError", () => {
   it("returns the last assistant errorMessage from the session-workspace transcript", () => {
     const cwd = tempDir();
+    const cursor = capturePiTranscriptCursor(cwd, "sess-quota");
+    assert.ok(cursor);
     writeTranscript(cwd, "sess-quota", [
-      { type: "message", message: { role: "user", content: [{ type: "text", text: "hi" }] } },
+      {
+        type: "message",
+        message: { role: "user", content: [{ type: "text", text: "hi" }] },
+      },
       {
         type: "message",
         message: {
           role: "assistant",
           content: [],
           stopReason: "error",
-          errorMessage: "You exceeded your current quota, please check your plan.",
+          errorMessage:
+            "You exceeded your current quota, please check your plan.",
         },
       },
     ]);
 
-    const error = findSwallowedPiError(cwd);
-    assert.equal(error, "You exceeded your current quota, please check your plan.");
+    const error = findSwallowedPiError(cwd, cursor);
+    assert.equal(
+      error,
+      "You exceeded your current quota, please check your plan.",
+    );
   });
 
   it("returns undefined for a successful turn", () => {
     const cwd = tempDir();
+    const cursor = capturePiTranscriptCursor(cwd, "sess-ok");
+    assert.ok(cursor);
     writeTranscript(cwd, "sess-ok", [
       {
         type: "message",
@@ -88,15 +89,22 @@ describe("findSwallowedPiError", () => {
       },
     ]);
 
-    assert.equal(findSwallowedPiError(cwd), undefined);
+    assert.equal(findSwallowedPiError(cwd, cursor), undefined);
   });
 
   it("does not surface an error cleared by a later successful turn", () => {
     const cwd = tempDir();
+    const cursor = capturePiTranscriptCursor(cwd, "sess-recovered");
+    assert.ok(cursor);
     writeTranscript(cwd, "sess-recovered", [
       {
         type: "message",
-        message: { role: "assistant", content: [], stopReason: "error", errorMessage: "transient" },
+        message: {
+          role: "assistant",
+          content: [],
+          stopReason: "error",
+          errorMessage: "transient",
+        },
       },
       {
         type: "message",
@@ -108,27 +116,68 @@ describe("findSwallowedPiError", () => {
       },
     ]);
 
-    assert.equal(findSwallowedPiError(cwd), undefined);
+    assert.equal(findSwallowedPiError(cwd, cursor), undefined);
+  });
+
+  it("reads only the records appended after an existing transcript cursor", () => {
+    const cwd = tempDir();
+    writeTranscript(cwd, "sess-continued", [
+      {
+        type: "message",
+        message: {
+          role: "assistant",
+          content: [],
+          stopReason: "error",
+          errorMessage: "古いエラー",
+        },
+      },
+    ]);
+    const cursor = capturePiTranscriptCursor(cwd, "sess-continued");
+    assert.ok(cursor);
+    appendFileSync(
+      join(piSessionWorkspaceDir(cwd), piTranscriptFileName("sess-continued")),
+      `${JSON.stringify({
+        type: "message",
+        message: {
+          role: "assistant",
+          content: [],
+          stopReason: "error",
+          errorMessage: "current error",
+        },
+      })}\n`,
+    );
+
+    assert.equal(findSwallowedPiError(cwd, cursor), "current error");
   });
 
   it("ignores transcripts whose session record was stamped with a different cwd", () => {
     const cwd = tempDir();
+    const cursor = capturePiTranscriptCursor(cwd, "sess-stale");
+    assert.ok(cursor);
     writeTranscript(
       cwd,
       "sess-stale",
       [
         {
           type: "message",
-          message: { role: "assistant", content: [], stopReason: "error", errorMessage: "nope" },
+          message: {
+            role: "assistant",
+            content: [],
+            stopReason: "error",
+            errorMessage: "nope",
+          },
         },
       ],
       "/tmp/some-other-cwd",
     );
 
-    assert.equal(findSwallowedPiError(cwd), undefined);
+    assert.equal(findSwallowedPiError(cwd, cursor), undefined);
   });
 
   it("returns undefined when the transcript dir is absent", () => {
-    assert.equal(findSwallowedPiError(tempDir()), undefined);
+    const cwd = tempDir();
+    const cursor = capturePiTranscriptCursor(cwd, "sess-missing");
+    assert.ok(cursor);
+    assert.equal(findSwallowedPiError(cwd, cursor), undefined);
   });
 });

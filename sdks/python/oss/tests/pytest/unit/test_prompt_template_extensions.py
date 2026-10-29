@@ -1,5 +1,3 @@
-from contextlib import nullcontext
-
 import pytest
 
 from agenta.sdk.engines.running.handlers import (
@@ -325,17 +323,143 @@ async def test_prompt_runner_moves_to_fallback_after_candidate_failure(monkeypat
     assert calls == ["primary", "fallback"]
 
 
+@pytest.mark.parametrize(
+    ("standard_data", "custom_data"),
+    [
+        pytest.param(
+            {},
+            {"model_keys": ["legacy-gateway/custom/other-model"]},
+            id="standard-models-missing",
+        ),
+        pytest.param(
+            {"models": None},
+            {"model_keys": ["legacy-gateway/custom/other-model"]},
+            id="standard-models-null",
+        ),
+        pytest.param(
+            {"models": []},
+            {"model_keys": ["legacy-gateway/custom/other-model"]},
+            id="standard-models-empty",
+        ),
+        pytest.param(
+            {"models": [{"slug": "gpt-4o-mini"}]},
+            {"model_keys": ["legacy-gateway/custom/other-model"]},
+            id="standard-models-populated",
+        ),
+        pytest.param(
+            {"models": [{"slug": "gpt-4o-mini"}]}, {}, id="custom-model-keys-missing"
+        ),
+        pytest.param(
+            {"models": [{"slug": "gpt-4o-mini"}]},
+            {"model_keys": None},
+            id="custom-model-keys-null",
+        ),
+        pytest.param(
+            {"models": [{"slug": "gpt-4o-mini"}]},
+            {"model_keys": []},
+            id="custom-model-keys-empty",
+        ),
+        pytest.param(
+            {"models": [{"slug": "gpt-4o-mini"}]},
+            {"model_keys": ["legacy-gateway/custom/other-model"]},
+            id="custom-model-keys-unrelated",
+        ),
+    ],
+)
+@pytest.mark.parametrize("handler_name", ["completion", "chat"])
+@pytest.mark.asyncio
+async def test_prompt_handlers_accept_provider_model_list_wire_shapes(
+    monkeypatch, standard_data, custom_data, handler_name
+):
+    from types import SimpleNamespace
+
+    from agenta.sdk.engines.running import handlers as running_handlers
+
+    secrets = [
+        {
+            "kind": "provider_key",
+            "slug": "openai",
+            "data": {
+                "kind": "openai",
+                "provider": {"key": "sk-openai"},
+                **standard_data,
+            },
+        },
+        {
+            "kind": "custom_provider",
+            "slug": "legacy-gateway",
+            "data": {
+                "kind": "custom",
+                "provider_slug": "legacy-gateway",
+                "provider": {"extras": {"api_key": "sk-gateway"}},
+                **custom_data,
+            },
+        },
+    ]
+    monkeypatch.setattr(
+        "agenta.sdk.managers.secrets.RunningContext",
+        SimpleNamespace(
+            get=lambda: SimpleNamespace(
+                secrets=secrets, vault_secrets=secrets, local_secrets=[]
+            )
+        ),
+    )
+
+    async def ensure_secrets(*args, **kwargs):
+        del args, kwargs
+
+    calls = []
+
+    async def acompletion(**kwargs):
+        calls.append(kwargs)
+        return SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(
+                        content="Paris",
+                        model_dump=lambda exclude_none=True: {
+                            "role": "assistant",
+                            "content": "Paris",
+                        },
+                    )
+                )
+            ]
+        )
+
+    monkeypatch.setattr(
+        running_handlers.SecretsManager,
+        "ensure_secrets_in_workflow",
+        ensure_secrets,
+    )
+    monkeypatch.setattr(running_handlers.mockllm, "acompletion", acompletion)
+
+    parameters = {
+        "prompt": {
+            "messages": [{"role": "user", "content": "Name Paris."}],
+            "llm_config": {"model": "gpt-4o-mini"},
+        }
+    }
+    if handler_name == "completion":
+        result = await running_handlers.completion_v0.__wrapped__(
+            parameters=parameters, inputs={}
+        )
+        assert result == "Paris"
+    else:
+        result = await running_handlers.chat_v0.__wrapped__(
+            parameters=parameters, inputs={}, messages=[]
+        )
+        assert result == {"role": "assistant", "content": "Paris"}
+    assert calls[0]["model"] == "gpt-4o-mini"
+    assert calls[0]["api_key"] == "sk-openai"
+
+
 @pytest.mark.asyncio
 async def test_retry_runner_retries_explicit_transient_provider_errors(monkeypatch):
     calls = []
 
     monkeypatch.setattr(
         "agenta.sdk.engines.running.handlers.SecretsManager.get_provider_settings_from_workflow",
-        lambda model: {"model": model},
-    )
-    monkeypatch.setattr(
-        "agenta.sdk.engines.running.handlers.mockllm.user_aws_credentials_from",
-        lambda provider_settings: nullcontext(),
+        lambda model, connection=None: {"model": model},
     )
 
     async def fake_completion(**kwargs):
@@ -364,7 +488,7 @@ async def test_retry_runner_retries_explicit_transient_provider_errors(monkeypat
 async def test_retry_runner_does_not_retry_deterministic_secret_errors(monkeypatch):
     calls = []
 
-    def fake_provider_settings(model):
+    def fake_provider_settings(model, connection=None):
         calls.append(model)
         return None
 
@@ -552,11 +676,7 @@ async def test_retry_exhaustion_raises_after_max_attempts(monkeypatch):
 
     monkeypatch.setattr(
         "agenta.sdk.engines.running.handlers.SecretsManager.get_provider_settings_from_workflow",
-        lambda model: {"model": model},
-    )
-    monkeypatch.setattr(
-        "agenta.sdk.engines.running.handlers.mockllm.user_aws_credentials_from",
-        lambda provider_settings: nullcontext(),
+        lambda model, connection=None: {"model": model},
     )
 
     async def fake_completion(**kwargs):
@@ -720,3 +840,58 @@ def test_mustache_unresolved_jsonpath_error_names_mustache_not_curly():
         prompt.format()
     assert "mustache template" in str(exc.value)
     assert "curly template" not in str(exc.value)
+
+
+def _json_schema_template(json_schema):
+    return PromptTemplate(
+        messages=[{"role": "user", "content": "hi"}],
+        llm_config=ModelConfig(
+            model="gpt-4o-mini",
+            response_format={"type": "json_schema", "json_schema": json_schema},
+        ),
+    )
+
+
+def test_to_openai_kwargs_omits_unset_response_format_fields():
+    template = _json_schema_template(
+        {
+            "name": "answer_schema",
+            "strict": True,
+            "schema": {
+                "type": "object",
+                "properties": {"answer": {"type": "string", "default": None}},
+            },
+        }
+    )
+
+    response_format = template.to_openai_kwargs()["response_format"]
+
+    assert response_format == {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "answer_schema",
+            "strict": True,
+            "schema": {
+                "type": "object",
+                "properties": {"answer": {"type": "string", "default": None}},
+            },
+        },
+    }
+
+
+def test_to_openai_kwargs_keeps_response_format_description_when_set():
+    template = _json_schema_template(
+        {
+            "name": "answer_schema",
+            "description": "The answer",
+            "schema": {"type": "object"},
+        }
+    )
+
+    json_schema = template.to_openai_kwargs()["response_format"]["json_schema"]
+
+    assert json_schema == {
+        "name": "answer_schema",
+        "description": "The answer",
+        "schema": {"type": "object"},
+    }

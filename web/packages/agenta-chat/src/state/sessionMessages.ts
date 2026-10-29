@@ -1,0 +1,303 @@
+// Canonical since the desktop re-plumb: OSS's sessions.ts deleted its copied blocks and both
+// apps read/write THIS store (localStorage keys `agenta:agent-chat:{messages,record-counts}:v2`).
+// The rest of that OSS file (scope-keyed history/tabs, server reconciliation, archive/delete
+// remotes, timestamps) is app-layer session-LIST state and stays out of the package deliberately.
+// Deletion is exposed as `dropSessionMessagesAtom` so a consumer that forgets a session cannot
+// drop the transcript store without its watermark (the two must never diverge).
+import type {UIMessage} from "ai"
+import {atom, type Getter, type Setter} from "jotai"
+import {atomWithStorage, selectAtom} from "jotai/utils"
+import {atomFamily} from "jotai-family"
+
+import type {SessionRunStatus} from "../model/sessionStatus"
+
+import {tabLocalStorage} from "./tabStorage"
+
+// `getOnInit: true` — read localStorage synchronously on init. Without it the atom starts as
+// the empty default `{}` on every mount and only hydrates afterwards, so a mount-time seed
+// read would see an empty store on every reload.
+const STORAGE_OPTS = {getOnInit: true} as const
+
+// The stores below use `tabLocalStorage` (see ./tabStorage): a write in one browser tab must not
+// replace these records live in every other one. The open-tab list drives the antd `Tabs` items, so
+// an incoming replacement UNMOUNTED a streaming conversation, orphaning its `useChat` stream mid-turn
+// (the in-flight transcript is not persisted until the stream settles, so it was lost).
+
+/**
+ * The pre-`:v2` stores. Nothing reads them any more — the key bump below is precisely how the
+ * duplicated-approval-part caches were retired — but `dropSessionMessagesAtom` only ever deletes
+ * the `:v2` keys, so without this they sit in localStorage forever, taking quota from the stores
+ * that ARE used (transcripts with inline attachments make the ~5MB ceiling reachable).
+ *
+ * Dropped once at module load rather than on a re-sync: the v2 stores are already authoritative
+ * from the first read, so there is nothing to migrate and nothing to wait for. Idempotent —
+ * `removeItem` on an absent key is a no-op, so a second import (or a second browser tab) costs
+ * nothing. Guarded for SSR and for browsers that deny storage access entirely.
+ */
+const dropLegacySessionStores = () => {
+    if (typeof window === "undefined") return
+    try {
+        window.localStorage.removeItem("agenta:agent-chat:messages")
+        window.localStorage.removeItem("agenta:agent-chat:record-counts")
+    } catch {
+        // Storage disabled (private mode, blocked cookies) — nothing to clean up there anyway.
+    }
+}
+dropLegacySessionStores()
+
+/** Persisted messages per session id. Written when a conversation's stream settles. Session ids
+ * are globally unique, so this store has no scope dimension.
+ * v2: caches written by the pre-fix mapper hold duplicated approval parts; the key bump forces
+ * one re-sync from records (the watermark otherwise keeps the stale copy authoritative). */
+export const sessionMessagesAtom = atomWithStorage<Record<string, UIMessage[]>>(
+    "agenta:agent-chat:messages:v2",
+    {},
+    tabLocalStorage(),
+    STORAGE_OPTS,
+)
+
+/**
+ * Per-session adoption watermark: how many durable records the CACHED transcript above was built
+ * from. Absent means "not server-derived" (a locally-streamed turn, or a pre-#5530 cache) and reads
+ * as 0, so the next open re-syncs from the server once.
+ *
+ * Private on purpose — it must only ever move together with `sessionMessagesAtom`, so every write
+ * goes through `persistSessionMessagesAtom` and every delete through `dropSessionMessagesAtom`.
+ */
+const sessionRecordCountsAtom = atomWithStorage<Record<string, number>>(
+    "agenta:agent-chat:record-counts:v2",
+    {},
+    tabLocalStorage(),
+    STORAGE_OPTS,
+)
+
+/** Read-only view of the watermarks; the guards read one non-reactively via `store.get`. */
+export const sessionRecordCountsReadAtom = atom((get) => get(sessionRecordCountsAtom))
+
+/** A localStorage-full error, across browsers (Chrome/Safari code 22, Firefox 1014). */
+const isQuotaExceeded = (e: unknown): boolean =>
+    e instanceof DOMException &&
+    (e.code === 22 ||
+        e.code === 1014 ||
+        e.name === "QuotaExceededError" ||
+        e.name === "NS_ERROR_DOM_QUOTA_REACHED")
+
+/**
+ * Persist the messages store, degrading gracefully when it overflows the ~5MB localStorage quota
+ * (large inline `data:` attachments make this reachable). On overflow we shed OTHER sessions'
+ * persisted messages, oldest-first, and retry, so the active conversation (`keepId`) still
+ * persists and the panel never crashes on a full store. Evicted sessions are closed/history and
+ * re-hydrate from the server when reopened.
+ */
+const writeMessagesWithQuotaGuard = (
+    set: Setter,
+    next: Record<string, UIMessage[]>,
+    keepId: string,
+): {evicted: string[]; persisted: boolean} => {
+    let candidate = next
+    const evicted: string[] = []
+    for (;;) {
+        try {
+            set(sessionMessagesAtom, candidate)
+            return {evicted, persisted: true}
+        } catch (e) {
+            if (!isQuotaExceeded(e)) throw e
+            // Object keys keep insertion order, so the first non-active id is the oldest.
+            const oldest = Object.keys(candidate).find((k) => k !== keepId)
+            if (oldest === undefined) {
+                // Even the active session alone won't fit — keep it in memory, skip persistence.
+                console.warn("[agent-chat] message store over quota; skipping persistence")
+                return {evicted, persisted: false}
+            }
+            evicted.push(oldest)
+            candidate = {...candidate}
+            delete candidate[oldest]
+        }
+    }
+}
+
+export type HeldSessionStatus = "awaiting" | "error"
+
+/** How a run this tab started ended with no mount watching: on an open ask, or refused. */
+const heldStatusByIdAtom = atom<Record<string, HeldSessionStatus>>({})
+
+const setHeldStatus = (
+    get: Getter,
+    set: Setter,
+    id: string,
+    held: HeldSessionStatus | null,
+): void => {
+    const cur = get(heldStatusByIdAtom)
+    if ((cur[id] ?? null) === held) return
+    const next = {...cur}
+    if (held) next[id] = held
+    else delete next[id]
+    set(heldStatusByIdAtom, next)
+}
+
+/**
+ * Drop cached transcripts AND their watermarks for `ids` — the two stores must never diverge, or a
+ * re-adopted session would be judged against a watermark belonging to a transcript that's gone.
+ * The single deletion path for both; every caller that forgets a session routes through here.
+ */
+const dropSessionMessages = (get: Getter, set: Setter, ids: string[]): void => {
+    if (ids.length === 0) return
+    const messages = {...get(sessionMessagesAtom)}
+    const counts = {...get(sessionRecordCountsAtom)}
+    let messagesChanged = false
+    let countsChanged = false
+    for (const id of ids) {
+        if (id in messages) {
+            delete messages[id]
+            messagesChanged = true
+        }
+        if (id in counts) {
+            delete counts[id]
+            countsChanged = true
+        }
+    }
+    if (messagesChanged) set(sessionMessagesAtom, messages)
+    if (countsChanged) set(sessionRecordCountsAtom, counts)
+    for (const id of ids) setHeldStatus(get, set, id, null)
+}
+
+/** Forget the given sessions' cached transcripts and watermarks together. */
+export const dropSessionMessagesAtom = atom(null, (get, set, ids: string[]) => {
+    dropSessionMessages(get, set, ids)
+})
+
+/**
+ * Write a session's messages to the persisted store (called when its stream settles), together with
+ * the record watermark the transcript reflects. Pass `recordCount: undefined` for a locally-streamed
+ * transcript — we can't know how many records the server logged for it, and clearing the watermark
+ * makes the next open re-sync from the durable log rather than trust a stale number.
+ */
+export const persistSessionMessagesAtom = atom(
+    null,
+    (
+        get,
+        set,
+        {id, messages, recordCount}: {id: string; messages: UIMessage[]; recordCount?: number},
+    ) => {
+        const {evicted, persisted} = writeMessagesWithQuotaGuard(
+            set,
+            {...get(sessionMessagesAtom), [id]: messages},
+            id,
+        )
+        const counts = {...get(sessionRecordCountsAtom)}
+        // If the transcript write itself was skipped (a single session over quota), the persisted
+        // store still holds the OLD messages — filing the NEW watermark against them would make
+        // `shouldAdoptServerTranscript` reject the complete server log as "not newer" on every
+        // future open, freezing the stale cache. The stores must never diverge (see
+        // `dropSessionMessages`), so drop the watermark and let the next open re-sync.
+        if (!persisted || recordCount === undefined) delete counts[id]
+        else counts[id] = recordCount
+        // A quota eviction dropped those transcripts, so their watermarks go too.
+        for (const evictedId of evicted) delete counts[evictedId]
+        set(sessionRecordCountsAtom, counts)
+    },
+)
+
+/**
+ * Canonical per-session run state, keyed by the globally-unique session id (no scope dimension).
+ * Written by the mounted conversation (from its useChat status / approval / error); everything
+ * status-related derives from this one record so there's no competing streaming flag to keep in
+ * sync. In-memory only (not persisted): it describes the current browser tab, not history.
+ */
+const sessionStatusByIdAtom = atom<Record<string, SessionRunStatus>>({})
+
+/** Open run streams this tab started, per session; they outlive the mount that started them. */
+const ownedRunCountByIdAtom = atom<Record<string, number>>({})
+
+const unmountedStatus = (get: Getter, id: string): SessionRunStatus =>
+    get(ownedRunCountByIdAtom)[id] ? "running" : (get(heldStatusByIdAtom)[id] ?? "idle")
+
+/** A single session's run state. Defaults to "idle" for sessions with no mounted conversation.
+ * Backs a session list's status dot; reads repaint only when this session's status changes. */
+export const sessionStatusAtomFamily = atomFamily((id: string) =>
+    atom((get) => get(sessionStatusByIdAtom)[id] ?? unmountedStatus(get, id)),
+)
+
+/** Is THIS browser currently streaming the given session? Derived from the run state. */
+export const isSessionStreamingAtomFamily = atomFamily((id: string) =>
+    atom((get) => get(sessionStatusByIdAtom)[id] === "running"),
+)
+
+/** Every session's non-idle run state in this browser tab, read-only; idle is absence. */
+export const sessionStatusesAtom = atom((get) => {
+    const statuses = {...get(sessionStatusByIdAtom)}
+    for (const id of Object.keys(get(heldStatusByIdAtom))) statuses[id] ??= unmountedStatus(get, id)
+    for (const id of Object.keys(get(ownedRunCountByIdAtom))) statuses[id] ??= "running"
+    return statuses
+})
+
+/** Set a session's run state. "idle" is the default, so it's stored as ABSENCE: passing "idle"
+ * deletes the entry (clear-on-unmount) instead of accumulating idle keys for every closed session. */
+/**
+ * When each session's LOCAL run last settled (ms epoch), stamped on the active → settled edge.
+ *
+ * Read by the running-elsewhere derivation: backend liveness is a poll snapshot up to 15s stale, so
+ * a flag fetched BEFORE our own turn ended says nothing about whether anyone else is running it
+ * (#5844). In-memory only — it describes this browser tab, not history.
+ *
+ * Lives here, not in the app, because this atom already owns the run-state record and observes
+ * exactly the transition that stamps it. (The app previously carried a mirror for this; it is gone.)
+ */
+const sessionLocalSettledAtByIdAtom = atom<Record<string, number>>({})
+
+/** When this browser's run of a session last settled; `undefined` if it never ran one here. */
+export const sessionLocalSettledAtAtomFamily = atomFamily((id: string) =>
+    selectAtom(sessionLocalSettledAtByIdAtom, (map) => map[id]),
+)
+
+export const setSessionStatusAtom = atom(
+    null,
+    (get, set, {id, status}: {id: string; status: SessionRunStatus}) => {
+        // A mounted conversation reads its own state, so it takes over any held status.
+        setHeldStatus(get, set, id, null)
+        const cur = get(sessionStatusByIdAtom)
+        const prev = cur[id] ?? "idle"
+        // Stamp on the active → settled edge only: `idle → idle` is a no-op so an unvisited session
+        // never looks like one that just finished, an error IS a settle, and the `error → idle`
+        // cleanup write must not restamp a run that already settled.
+        const wasActive = prev === "running" || prev === "awaiting"
+        if (wasActive && (status === "idle" || status === "error")) {
+            set(sessionLocalSettledAtByIdAtom, {
+                ...get(sessionLocalSettledAtByIdAtom),
+                [id]: Date.now(),
+            })
+        }
+        if (status === "idle") {
+            if (!(id in cur)) return
+            const next = {...cur}
+            delete next[id]
+            set(sessionStatusByIdAtom, next)
+            return
+        }
+        if (cur[id] === status) return
+        set(sessionStatusByIdAtom, {...cur, [id]: status})
+    },
+)
+
+/** Count a run stream this tab opened for a session, or retire it once that stream ends. */
+export const trackOwnedRunAtom = atom(
+    null,
+    (get, set, {id, open, held}: {id: string; open: boolean; held?: HeldSessionStatus}) => {
+        const cur = get(ownedRunCountByIdAtom)
+        const count = (cur[id] ?? 0) + (open ? 1 : -1)
+        const next = {...cur}
+        if (count > 0) next[id] = count
+        else delete next[id]
+        set(ownedRunCountByIdAtom, next)
+        // A new run supersedes what the last one left; a closed stream may leave an ask or a refusal.
+        if (open || held) setHeldStatus(get, set, id, open ? null : (held ?? null))
+    },
+)
+
+/** Hold a session's ask or failure after the conversation that saw it is gone. */
+export const holdSessionStatusAtom = atom(
+    null,
+    (get, set, {id, status}: {id: string; status: HeldSessionStatus}) => {
+        setHeldStatus(get, set, id, status)
+    },
+)

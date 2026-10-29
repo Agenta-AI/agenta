@@ -1,0 +1,237 @@
+// Assembled from web/oss/src/components/AgentChatSlice/components/AgentMessage.tsx and
+// AgentConversation.tsx (2026-07-25): the per-turn derivations the desktop computes inline —
+// the tool-parts signature memo key, the executed-identity dedup set, the render-item folding,
+// the status derivation, the empty-turn collapse gate, and the borrowed turn trace for user
+// rows. Pure so the conversation hook can memoize the whole list per commit.
+import type {ToolUIPart, UIMessage} from "ai"
+
+import {displayMessage, getDisplayContent} from "../assets/displayContent"
+import {getMessageRunError, getMessageRunErrorCode, getMessageTraceId} from "../assets/trace"
+
+import {toolHadApproval} from "./approvals"
+import {getTurnGrouping} from "./grouping"
+import {isEmptyAssistantTurn, isToolPart} from "./parts"
+import {buildTurnRenderItems, executedToolIdentities, type RenderItem} from "./renderModel"
+import {deriveTurnStatus, type TurnStatus} from "./turnStatus"
+
+/**
+ * The cheap signature the desktop memoizes `executedToolIdentities` on: tool-call id + state
+ * per tool part. It stays STABLE while text streams, so the tool-input JSON.stringify behind
+ * the identity set doesn't re-run on every streamed token of a tool-heavy turn.
+ */
+export const toolPartsSignature = (parts: UIMessage["parts"]): string =>
+    parts
+        .filter((p) => isToolPart(p.type))
+        .map((p) => `${(p as ToolUIPart).toolCallId ?? ""}:${(p as ToolUIPart).state ?? ""}`)
+        .join("|")
+
+/**
+ * Recreates the desktop's per-message `useMemo(executedToolIdentities, [toolSignature])`
+ * outside a component: one cache instance per conversation mount, keyed by message id and
+ * invalidated only when that message's tool signature changes.
+ */
+export const createExecutedToolIdentityCache = (): ((message: UIMessage) => Set<string>) => {
+    const cache = new Map<string, {sig: string; executed: Set<string>}>()
+    return (message) => {
+        const sig = toolPartsSignature(message.parts)
+        const hit = cache.get(message.id)
+        if (hit && hit.sig === sig) return hit.executed
+        const executed = executedToolIdentities(message.parts)
+        cache.set(message.id, {sig, executed})
+        return executed
+    }
+}
+
+/**
+ * Per-mount view-model cache: a turn whose message object and derived flags are unchanged keeps
+ * its previous `TurnViewModel` object, so a memoized row can skip it.
+ *
+ * Without this every commit (one per streamed chunk) rebuilt all N view models, and the whole
+ * transcript re-rendered on every token.
+ */
+export const createTurnViewModelCache = () => {
+    const cache = new Map<
+        string,
+        {
+            message: UIMessage
+            key: string
+            executed: Set<string>
+            classify: ClientToolPartPredicate | undefined
+            vm: TurnViewModel
+        }
+    >()
+    return {
+        reuse(
+            message: UIMessage,
+            key: string,
+            executed: Set<string>,
+            // Classification reads state built across the WHOLE conversation, so a later
+            // message can change an earlier turn while that message object is unchanged.
+            classify: ClientToolPartPredicate | undefined,
+            build: () => TurnViewModel,
+        ): TurnViewModel {
+            const hit = cache.get(message.id)
+            if (
+                hit &&
+                hit.message === message &&
+                hit.key === key &&
+                hit.executed === executed &&
+                hit.classify === classify
+            )
+                return hit.vm
+            const vm = build()
+            cache.set(message.id, {message, key, executed, classify, vm})
+            return vm
+        },
+        /** Drop entries for messages no longer in the transcript (rewind, truncation). */
+        prune(liveIds: Set<string>) {
+            for (const id of cache.keys()) if (!liveIds.has(id)) cache.delete(id)
+        },
+    }
+}
+
+export type TurnViewModelCache = ReturnType<typeof createTurnViewModelCache>
+
+/** Registry-backed client-tool predicate, parameterized: the skin closes over its widget
+ * registry + render map the way the desktop message component does. */
+export type ClientToolPartPredicate = (
+    part: ToolUIPart,
+    ctx: {isStreaming: boolean; isLastMessage: boolean},
+) => boolean
+
+export interface TurnViewModel {
+    message: UIMessage
+    /** Position in the conversation (mirrors the messages array). */
+    index: number
+    isUser: boolean
+    isLast: boolean
+    /** Part of the active turn group (the last user message + its response). */
+    isActive: boolean
+    /** This is the turn currently being generated. */
+    isStreamingTurn: boolean
+    /** Stream-side status (answer/reasoning presence, no-response, run-error surfacing). The
+     * trace-side error refinement stays per-turn in the skin, where the trace summary loads. */
+    status: TurnStatus
+    /** Pre-folded render items (tool grouping, superseded-gate dedup, client-tool split). */
+    items: RenderItem[]
+    /** A tool waited on the reader, including tools hidden or merged in the activity fold. */
+    hadGate: boolean
+    /** The previous message is a settled, contentless assistant turn. */
+    precededByEmptyAssistant: boolean
+    /** Collapse this row entirely — a repeated empty "no response" turn after another one. */
+    hidden: boolean
+    /** The turn's own trace id (assistant turns). */
+    traceId?: string
+    /** A user turn borrows the paired (next) assistant turn's trace for its timestamp. */
+    turnTraceId?: string
+}
+
+export interface BuildTurnViewModelsContext {
+    /** The conversation is submitted/streaming (turn-level streaming derives from position). */
+    busy: boolean
+    /** Executed-identity resolver — pass a `createExecutedToolIdentityCache()` instance. */
+    executedFor: (message: UIMessage) => Set<string>
+    /** Defaults to "nothing is a client tool" — parts fold into the regular tool groups.
+     *  Must be stable across renders: the cache keys on its identity. */
+    isClientToolPart?: ClientToolPartPredicate
+    /** Pass a `createTurnViewModelCache()` instance to keep unchanged turns identity-stable. */
+    cache?: TurnViewModelCache
+}
+
+/** Derive the full per-turn view model list for one conversation commit. */
+export const buildTurnViewModels = (
+    messages: UIMessage[],
+    {busy, executedFor, isClientToolPart, cache}: BuildTurnViewModelsContext,
+): TurnViewModel[] => {
+    const {activeStart} = getTurnGrouping(messages)
+    cache?.prune(new Set(messages.map((m) => m.id)))
+    return messages.map((message, index) => {
+        const isUser = message.role === "user"
+        const isLast = index === messages.length - 1
+        const isStreamingTurn = busy && isLast
+        const executed = executedFor(message)
+        const precededByEmptyAssistant = index > 0 && isEmptyAssistantTurn(messages[index - 1])
+        const isActive = index >= activeStart
+        const turnTraceId =
+            isUser && messages[index + 1] ? getMessageTraceId(messages[index + 1]) : undefined
+        // Everything the view model derives from beyond the message object itself.
+        const key = `${index}|${isLast}|${isStreamingTurn}|${isActive}|${precededByEmptyAssistant}|${turnTraceId ?? ""}`
+        const build = () =>
+            buildOneTurn(message, {
+                index,
+                isUser,
+                isLast,
+                isStreamingTurn,
+                isActive,
+                precededByEmptyAssistant,
+                turnTraceId,
+                executed,
+                isClientToolPart,
+            })
+        return cache ? cache.reuse(message, key, executed, isClientToolPart, build) : build()
+    })
+}
+
+interface OneTurnContext {
+    index: number
+    isUser: boolean
+    isLast: boolean
+    isStreamingTurn: boolean
+    isActive: boolean
+    precededByEmptyAssistant: boolean
+    turnTraceId?: string
+    executed: Set<string>
+    isClientToolPart?: ClientToolPartPredicate
+}
+
+const buildOneTurn = (source: UIMessage, ctx: OneTurnContext): TurnViewModel => {
+    const message = displayMessage(source)
+    const {
+        index,
+        isUser,
+        isLast,
+        isStreamingTurn,
+        isActive,
+        precededByEmptyAssistant,
+        turnTraceId,
+        executed,
+        isClientToolPart,
+    } = ctx
+    const status = deriveTurnStatus(message, {
+        isUser,
+        isStreaming: isStreamingTurn,
+        runError: getMessageRunError(message) ?? null,
+        errorCode: getMessageRunErrorCode(message) ?? null,
+        traceError: null,
+    })
+    // The empty-turn collapse: only a truly-empty, non-error turn that follows another empty one.
+    const hidden =
+        getDisplayContent(source) === null ||
+        (status.noResponse && !status.showError && !status.hasContent && precededByEmptyAssistant)
+    const classifyClientTool = (part: ToolUIPart): boolean =>
+        isClientToolPart?.(part, {isStreaming: isStreamingTurn, isLastMessage: isLast}) ?? false
+    const hadGate = message.parts.some((part) => {
+        if (!isToolPart(part.type)) return false
+        const tool = part as ToolUIPart
+        return toolHadApproval(tool) || classifyClientTool(tool)
+    })
+    const items = buildTurnRenderItems(message.parts, {
+        executed,
+        isClientToolPart: classifyClientTool,
+    })
+    return {
+        message,
+        index,
+        isUser,
+        isLast,
+        isActive,
+        isStreamingTurn,
+        status,
+        items,
+        hadGate,
+        precededByEmptyAssistant,
+        hidden,
+        traceId: getMessageTraceId(message),
+        turnTraceId,
+    }
+}

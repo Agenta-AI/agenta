@@ -1,0 +1,240 @@
+import {useCallback, useEffect, useMemo} from "react"
+
+import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
+import {
+    applySessionScopeAtom,
+    resetSessionFiltersAtom,
+    sessionScopeFromRouteQuery,
+    sessionSearchAtom,
+    useSessionsList,
+} from "@agenta/sessions/state"
+import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
+import {useFilterMenuView} from "@agenta/ui/filter-menu"
+import {ListTableToolbar} from "@agenta/ui/list-table"
+import {Button} from "@agenta/ui/ui"
+import {Plus} from "@phosphor-icons/react"
+import {useAtomValue, useSetAtom} from "jotai"
+import Link from "next/link"
+import {useRouter} from "next/router"
+
+import {PageTitle} from "@/components/PageTitle"
+import {ScreenScaffold} from "@/components/ScreenScaffold"
+import {useStartBlankSession} from "@/features/chat/useStartBlankSession"
+
+import {useBindProjectContext} from "../context/useBindProjectContext"
+import {FeatureOnboarding} from "../education/FeatureOnboarding"
+import {HowThisWorksButton} from "../education/HowThisWorksButton"
+import {AppShell} from "../nav/AppShell"
+import {NavDrawer} from "../nav/NavDrawer"
+
+import {SESSIONS_PAGE_FRAME} from "./pageFrame"
+import {SessionAutomationDrawers} from "./SessionAutomationDrawers"
+import {SessionFilterMenu} from "./SessionFilterMenu"
+import {SessionListTable} from "./SessionListTable"
+import {activityFloorIso, DEFAULT_SESSION_LIST_VIEW, type SessionListView} from "./sessionListView"
+import {showSessionsOnboarding, useProjectHasSessions} from "./useProjectHasSessions"
+import {useSessionRowMenu} from "./useSessionRowMenu"
+
+/**
+ * The sessions page — the same table, toolbar and filter menu the automations page renders, over
+ * the shared session list state.
+ *
+ * One search field and one filter button, not a row of switches: type, status, agent and how the
+ * rows are cut all live inside the menu, so this app has ONE way to configure a list rather than
+ * one per page. Filtering still runs on the shared atoms `@agenta/sessions/state` owns, so this
+ * page and the desktop one narrow the same set the same way; only the controls differ.
+ */
+export const SessionListScreen = ({
+    workspaceId,
+    projectId,
+}: {
+    workspaceId: string
+    projectId: string
+}) => {
+    useBindProjectContext(projectId)
+    const base = `/w/${workspaceId}/p/${projectId}`
+    // `?mode=automation` — what the agent overview's "Automation runs" card links to, so a cold
+    // load or a pasted link lands on the same set the card was showing. Applied below, once the
+    // search field exists to be cleared with it.
+    const router = useRouter()
+    const applyScope = useSetAtom(applySessionScopeAtom)
+    const routeMode = typeof router.query.mode === "string" ? router.query.mode : undefined
+
+    // Grouping is a display preference a reader sets once; the filters are a question they were
+    // asking at the time, so only the first survives a reload — and the rest live in the shared
+    // atoms anyway.
+    const [view, setView] = useFilterMenuView<SessionListView>({
+        key: "agenta:sessions:view",
+        fallback: DEFAULT_SESSION_LIST_VIEW,
+        persist: ["group"],
+    })
+
+    // Computed once per mount and per facet change, never per render — a floor read from
+    // `Date.now()` on every render would mint a fresh query key each time and refetch forever.
+    //
+    // So it does NOT follow the clock: a tab left open all day keeps the floor it started with,
+    // and "Last 7 days" quietly becomes seven days and a bit. That is a boundary drifting, not a
+    // wrong answer, and a timer to correct it would cost a refetch of the whole list to move a
+    // line nobody is looking at.
+    const activityFloor = useMemo(() => activityFloorIso(view.activity), [view.activity])
+
+    // The SAME arguments `SessionListTable` passes, so both hooks resolve to one query rather
+    // than two. This one is only here for the waiting count the filter menu shows.
+    const list = useSessionsList({
+        activityFloor,
+        defaultPolicy: {origin: "exclude-trigger", expansions: []},
+        automationPolicy: {origin: "trigger-only", expansions: ["trigger"]},
+    })
+
+    // Debounced: the search is a server predicate on two queries, so every keystroke would
+    // otherwise refetch both. Seeded from the atom, which outlives this mount — coming back to a
+    // narrowed list with an empty box reads as broken rather than as filtered.
+    const setSearch = useSetAtom(sessionSearchAtom)
+    const seedSearch = useAtomValue(sessionSearchAtom)
+    const listSettledEmpty = list.isEmpty && !list.isPlaceholder && !list.isPending
+    const probe = useProjectHasSessions(listSettledEmpty)
+    const projectEmpty = showSessionsOnboarding({
+        listSettledEmpty,
+        listError: list.isError,
+        probe,
+        search: seedSearch,
+    })
+    const search = useDebouncedAtomSearch(setSearch, 300, seedSearch)
+
+    const resetFilters = useSetAtom(resetSessionFiltersAtom)
+    // Two undos, because they answer different questions. A search that matched nothing is undone
+    // by clearing the SEARCH — wiping the reader's other narrowing at the same time hands back a
+    // list far wider than the one they were searching in, without saying so.
+    const clearSearch = search.reset
+    // The whole view: every facet, the grouping and the search draft. The draft matters — a reset
+    // that only touched the atoms would leave the box showing a term that no longer applies to
+    // the rows under it.
+    const resetView = useCallback(() => {
+        resetFilters()
+        search.reset()
+        setView(DEFAULT_SESSION_LIST_VIEW)
+    }, [resetFilters, search, setView])
+
+    useEffect(() => {
+        const scope = sessionScopeFromRouteQuery({mode: routeMode})
+        if (!scope) return
+        applyScope(scope)
+        // The scope clears the search ATOM, but a keystroke already on the debounce would land
+        // after it and re-narrow the list the route just scoped. The hook cannot see that on its
+        // own: the atom was already empty, so its value never changed and nothing told the draft.
+        clearSearch()
+    }, [applyScope, clearSearch, routeMode])
+
+    // The shared row verbs — rename, pin, archive, delete — the same ones the agent overview and
+    // the desktop list bind. Without them a row here offers only the pin.
+    const sessionMenu = useSessionRowMenu(base)
+    // An agent heading's "+": the same blank start every other "+" in the app makes.
+    const startBlank = useStartBlankSession(base)
+    const verbs = useMemo(
+        () => ({
+            open: sessionMenu.open,
+            menuFor: sessionMenu.menuFor,
+            onMenuSelect: sessionMenu.onMenuSelect,
+            onRenameRow: sessionMenu.onRenameRow,
+        }),
+        [sessionMenu.menuFor, sessionMenu.onMenuSelect, sessionMenu.onRenameRow, sessionMenu.open],
+    )
+
+    const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
+    // The menu's Agent row offers this roster; the group headings label from it.
+    const agents = useMemo(
+        () =>
+            (agentsQuery.data ?? [])
+                .map((agent: Workflow) => ({
+                    id: agent.id,
+                    name: (agent.name || agent.slug || "").trim(),
+                }))
+                .filter((agent: {id: string; name: string}) => agent.id && agent.name),
+        [agentsQuery.data],
+    )
+    const agentNames = useMemo(
+        () => new Map(agents.map((agent: {id: string; name: string}) => [agent.id, agent.name])),
+        [agents],
+    )
+
+    return (
+        <>
+            <PageTitle title="Sessions" />
+            <AppShell workspaceId={workspaceId} projectId={projectId}>
+                <ScreenScaffold
+                    header={
+                        // The same frame the automations header uses, so the two pages line up at
+                        // every width: page column, 16px gutters on a phone, 64px and a deeper
+                        // top from `lg`.
+                        <div
+                            className={`box-border shrink-0 px-4 pb-3 pt-3 lg:pt-14 ${SESSIONS_PAGE_FRAME}`}
+                        >
+                            <div className="flex min-w-0 items-center gap-2">
+                                <NavDrawer workspaceId={workspaceId} projectId={projectId} />
+                                <h1 className="m-0 min-w-0 flex-1 truncate text-[16px] font-semibold leading-[1.5] text-foreground sm:text-[24px] sm:leading-[1.3333333333333333]">
+                                    Sessions
+                                </h1>
+                                {projectEmpty ? null : (
+                                    <HowThisWorksButton
+                                        guide="sessions"
+                                        className="max-sm:hidden"
+                                    />
+                                )}
+                                {/* Sessions start from Home's composer. */}
+                                {projectEmpty ? (
+                                    <Button asChild>
+                                        <Link href={`${base}/apps`}>
+                                            <Plus />
+                                            New session
+                                        </Link>
+                                    </Button>
+                                ) : null}
+                            </div>
+                        </div>
+                    }
+                >
+                    <div className={`min-w-0 px-4 pb-12 pt-3 ${SESSIONS_PAGE_FRAME}`}>
+                        {projectEmpty ? (
+                            <FeatureOnboarding guideKey="sessions" base={base} />
+                        ) : (
+                            <>
+                                {/* Search belongs to the list, not to the page: it sits on the
+                                    table's own left edge so it reads as the control that narrows
+                                    what is below it. One control beside the field, not four — type,
+                                    status, agent and grouping are rows inside it, so the bar stays
+                                    a search bar. */}
+                                <ListTableToolbar
+                                    search={search.value}
+                                    onSearchChange={search.onChange}
+                                    searchPlaceholder="Search sessions"
+                                    actions={
+                                        <SessionFilterMenu
+                                            view={view}
+                                            onChange={setView}
+                                            agents={agents}
+                                            waitingCount={list.waitingCount}
+                                            onReset={resetView}
+                                        />
+                                    }
+                                />
+                                <SessionListTable
+                                    group={view.group}
+                                    activityFloor={activityFloor}
+                                    agentNames={agentNames}
+                                    agentNamesReady={!agentsQuery.isPending}
+                                    verbs={verbs}
+                                    onNewSession={startBlank}
+                                    onClearSearch={clearSearch}
+                                    onResetView={resetView}
+                                />
+                            </>
+                        )}
+                    </div>
+                </ScreenScaffold>
+            </AppShell>
+            {/* The trigger drawers the automation row verbs open, at screen level so one survives
+                its row unmounting underneath it. */}
+            <SessionAutomationDrawers base={base} workspaceId={workspaceId} projectId={projectId} />
+        </>
+    )
+}

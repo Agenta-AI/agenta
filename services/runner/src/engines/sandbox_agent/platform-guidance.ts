@@ -40,83 +40,53 @@ import {
 } from "./system-prompt-appendix.ts";
 
 /**
- * Where a skill actually lives.
+ * The READ side of the skills folder: its real absolute path.
  *
- * THE OBSERVED FAILURE. Asked to save a skill, an agent copied the skill file into the harness's
- * own skills folder inside its working directory and reported success. Nothing was saved: that
- * folder is rendered FROM the configuration on every run, so a file written into it is invisible
- * to the user, absent from the next session, and gone the moment the sandbox is rebuilt. The user
- * then asks for the skill they were told existed and the agent cannot find it.
- *
- * The confusion is reasonable, which is why it needs a sentence rather than a stricter tool: the
- * folder is right there, it is writable, and writing a file into it looks exactly like the job.
- * The fix is to name the one place that counts and to say plainly that the other place does not.
+ * THE OBSERVED FAILURE (live session 2026-08-10): asked about its own skills, a model emitted a
+ * fully-formed absolute path from pattern memory as its FIRST move — structurally wrong (one id
+ * segment where the mount has two) — got ENOENT, and only then listed its real cwd to find the
+ * true path, a self-correction that cost a failed call and an approval interruption. Nothing
+ * told it where the rendered skills live; the mount paragraph covers only `agent-files/`.
  */
-export function skillLocationAppendix(): SystemPromptAppendix {
+export function skillsReadPathAppendix(
+  skillsPath: string,
+): SystemPromptAppendix {
   return {
-    id: "skill-location",
+    id: "skills-read-path",
     text:
-      "Your skills are part of your configuration, at `parameters.agent.skills`. To add or " +
-      "change a skill, edit that configuration with the commit_revision tool. Writing a skill " +
-      "file into the skills folder in your working directory does NOT add a skill: that folder " +
-      "is rendered from your configuration on every run, so a file you put there is never " +
-      "saved and the user cannot see it.",
+      `Your rendered skill files live at \`${skillsPath}\` (one folder per skill, each with ` +
+      "its SKILL.md). To read a skill, list that directory; never construct the path from memory.",
   };
 }
 
 /**
- * The tool that changes a configuration. BOTH config sentences name it, so both apply only to a
- * run that HAS it.
+ * The tool that changes a configuration. The codex rebuttal names it, so it applies only to a
+ * run that HAS it. The SDK platform text gates its own configuration sections on the same name
+ * (`platform_instructions.py`, `CONFIG_COMMIT_TOOL`), so the two layers cannot disagree.
  *
- * It is checked by name here rather than by a flag at the call site, deliberately. The natural
- * guess is the ordered-operations flag, since that is what gates the config-editing surface, but
- * the flag is the wrong axis: `commit_revision` is in `DEFAULT_BUILD_KIT_OPS` unconditionally and
- * the flag changes the commit's DELTA SHAPE rather than the tool's existence, so a flag-off agent
- * with the build kit really can do what the sentence says (its legacy description covers skills by
- * sending the whole list). Presence is the honest test, and it also catches the case a flag check
- * would miss: a flag-ON agent that simply has no config tools.
+ * It is checked by name, deliberately: presence is the honest test, and it catches an agent that
+ * simply has no config tools.
  */
 const CONFIG_COMMIT_TOOL = "commit_revision";
 
 /**
- * The rendered instructions file is a COPY, and the model must not trust it in either direction.
+ * The path format the chat file-link resolver can open.
  *
- * TWO OBSERVED FAILURES, ONE WRONG MENTAL MODEL: models treat this file as the source of truth for
- * their configuration.
- *
- *  - WRITING to it. Asked to change its instructions, an agent edits the rendered file and reports
- *    "Done". Nothing is stored. 64 of 117 benchmark failures across claude, pi and codex.
- *  - READING from it. Asked to re-check a value that changed out of band, an agent re-reads the
- *    rendered file and reports the stale value while stating that it checked. 9 of 9 trials, all
- *    three harnesses; one told the user their information was mistaken. The model was not lying.
- *    It checked a copy.
- *
- * The rule for writing is already in `commit_revision`'s tool description, and that is exactly why
- * it does not work: a model that never opens the tool never reads its description. The file is open
- * in front of it, and both using and editing it look exactly like the job.
- *
- * ON THE READ HALF, WHICH IS NOT A BUG THE RUNNER SHOULD FIX. This file is rendered from the
- * REQUEST's parameters (`run-plan.ts`, `agentsMd: request.agentsMd`), so it is a faithful render of
- * the configuration THIS RUN was given. When a request carries changed instructions the file IS
- * re-rendered, which `matrix_l5_live_route_observed.py` proves live. What it cannot show is a
- * change made somewhere else while the run holds the parameters it was opened with. Re-rendering
- * from stored state instead would break running an UNSAVED draft, which is the playground's central
- * interaction. See open-issues, "The rendered instructions file follows the request, not the
- * stored revision".
- *
- * SELF-REFERENTIAL ON PURPOSE. "This file" costs fewer tokens than naming a per-harness path and is
- * accurate on every harness, because this block is rendered INSIDE the file it describes
- * (`CLAUDE.md` on Claude, `AGENTS.md` elsewhere).
+ * THE OBSERVED FAILURES. A model names only `README.md` after working on a nested file, and the
+ * client cannot know which file it means (#6004). A model links a file outside the session and
+ * agent drives (`/tmp`, a throwaway run dir), which no drive holds, so the link cannot open. The
+ * link gate (`chatFileRefs.tsx`) resolves a path RELATIVE to the working directory, with
+ * `agent-files/` for the durable folder (#7715).
  */
-export function instructionsSourceAppendix(): SystemPromptAppendix {
+export function fileCitationAppendix(): SystemPromptAppendix {
   return {
-    id: "instructions-source",
+    id: "file-citations",
     text:
-      "This file is a copy of your configuration at " +
-      "`parameters.agent.instructions.agents_md`, rendered for this run. Editing it here does " +
-      "NOT change your instructions: the edit is overwritten and the user never sees it. It can " +
-      "also be out of date: a change made after this run started may not appear here. Use " +
-      "read_config for current values, and commit_revision to change them.",
+      "When you mention a local file in your response, use a Markdown link whose target is the " +
+      "file's path relative to your working directory, with no leading slash: " +
+      "`[report.md](agent-files/report.md)` or `[notes.md](drafts/notes.md)`. Link only files " +
+      "in your working directory or `agent-files/`; nothing else, such as `/tmp`, can open. A " +
+      "bare basename such as `README.md` does not open for a nested file.",
   };
 }
 
@@ -151,7 +121,7 @@ export function codexBundledSkillsAppendix(): SystemPromptAppendix {
       "Your sandbox also has codex's own `skill-creator` and `skill-installer` skills. They " +
       "install into this machine's `.codex/skills` folder, which is NOT your configuration: a " +
       "skill installed that way is not saved and the user cannot see it. Ignore them for your " +
-      "own skills and use commit_revision as described above.",
+      "own skills; skills live in your configuration and are added with commit_revision.",
   };
 }
 
@@ -163,6 +133,8 @@ export interface PlatformGuidanceInput {
   readonly isPi: boolean;
   /** The resolved absolute mount path, when the durable agent folder is live. */
   readonly agentMountedPath: string | undefined;
+  /** The absolute rendered-skills directory, when this run materialized any skills. */
+  readonly skillsPath?: string | undefined;
   /** True when a durable agent folder was ATTEMPTED for this run and refused. */
   readonly agentMountSkipped: boolean;
   /** The names of the tools this run offers the model. */
@@ -189,19 +161,17 @@ function mountGuidanceServedElsewhere(input: PlatformGuidanceInput): boolean {
 /**
  * The composed guidance for one run, or undefined when there is nothing to say.
  *
- * ORDER IS A DECISION, and it was re-made when the instructions sentence arrived. The two config
- * sentences come before the mount paragraph, which is long and describes where things go rather
- * than what to do; a reader who stops early should have read the ones that change an action.
+ * ORDER IS A DECISION. The short, action-changing sentences come first and the mount paragraph,
+ * which is long and describes where things go, comes last; a reader who stops early should have
+ * read the ones that change an action.
  *
- * INSTRUCTIONS BEFORE SKILLS, on two independent grounds. The benchmark measures editing the
- * rendered instructions file as the DOMINANT failure shape across all three harnesses, well ahead
- * of the skill mistake, so by expected value it is the sentence to read first. And it is
- * self-referential: it describes the document the model is currently reading, so it belongs at the
- * top of that document rather than after a sentence about something else. The earlier rationale
- * ("short and specific") no longer separates them, since both are now short and specific.
- *
- * The ordering itself has NOT been measured. It is cheap to swap and worth testing once the
- * sentence has a baseline.
+ * WHAT MOVED OUT (2026-09-07). The two config sentences that opened this block, "this file is a
+ * copy of your configuration" and "skills live at parameters.agent.skills", now ship once in the
+ * SDK platform text (`platform_instructions.py`, "Your configuration"), which every harness reads
+ * FIRST. Delivering them here as well would spend the same context twice and invite a model to
+ * look for a difference between two wordings of one rule. The benchmark evidence behind them
+ * (64 of 117 failures were edits to the rendered file) still stands; it is now the reason that
+ * section exists in the SDK text.
  *
  * The mount arm is the same three states the Claude channel uses, for the same reason: a folder
  * that WORKED advertises its resolved path; one that was attempted and SKIPPED says so, because
@@ -211,12 +181,17 @@ function mountGuidanceServedElsewhere(input: PlatformGuidanceInput): boolean {
 export function platformGuidanceAppendix(
   input: PlatformGuidanceInput,
 ): string | undefined {
-  // Both config sentences tell the model to use a tool. A run that does not offer that tool would
-  // be reading about a capability it does not have, which is the confusion this block exists to
-  // remove rather than create. One gate, both sentences, so they can never disagree.
+  // The two config sentences that used to open this block (the rendered instructions file is a
+  // copy; skills live in the configuration) now ship in the SDK platform text, which every
+  // harness reads first (`platform_instructions.py`, gated on the same tool name). Only the
+  // codex rebuttal still keys on the commit tool here.
   const hasCommitTool = input.toolNames.includes(CONFIG_COMMIT_TOOL);
-  const instructions = hasCommitTool ? instructionsSourceAppendix() : undefined;
-  const skills = hasCommitTool ? skillLocationAppendix() : undefined;
+  // Gated only on materialized skills, not on the commit tool: the read path is true for any
+  // run that has skills, and stating it prevents the guessed-absolute-path failure above.
+  const skillsReadPath = input.skillsPath
+    ? skillsReadPathAppendix(input.skillsPath)
+    : undefined;
+  const fileCitations = fileCitationAppendix();
   const mount = mountGuidanceServedElsewhere(input)
     ? undefined
     : input.agentMountedPath
@@ -224,12 +199,17 @@ export function platformGuidanceAppendix(
       : input.agentMountSkipped
         ? agentMountUnavailableAppendix()
         : undefined;
-  // Codex only, and placed immediately after the skill sentence it defends, because it is a
-  // rebuttal to a specific tool rather than standalone guidance. It costs codex context that the
-  // other harnesses do not pay, which is correct: they do not have the problem.
+  // Codex only. It is a rebuttal to a specific bundled tool rather than standalone guidance, and
+  // it costs codex context that the other harnesses do not pay, which is correct: they do not
+  // have the problem.
   const codexSkills =
     hasCommitTool && input.acpAgent === "codex"
       ? codexBundledSkillsAppendix()
       : undefined;
-  return composeSystemPromptAppendix([instructions, skills, codexSkills, mount]);
+  return composeSystemPromptAppendix([
+    skillsReadPath,
+    codexSkills,
+    fileCitations,
+    mount,
+  ]);
 }

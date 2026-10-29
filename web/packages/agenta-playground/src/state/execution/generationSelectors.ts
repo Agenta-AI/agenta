@@ -603,10 +603,9 @@ export const runAllWithContextAtom = atom(null, (get, set, params?: {entityId?: 
     const isChat = get(isChatModeAtom)
     const isComparisonView = !entityId
 
-    // Agent entities run via their own composer (AgentChatPanel.sendMessage), NOT the
-    // buffered-fetch fan-out — skip them everywhere here. A run-all over a mixed grid
-    // executes the non-agent variants and no-ops the agent columns. (Surfacing that to
-    // the user is the deferred design decision D6 — see TODOS.md.)
+    // Agent entities run via their own chat composer, NOT the buffered-fetch fan-out —
+    // skip them everywhere here. A run-all over a mixed grid executes the non-agent
+    // variants and silently no-ops the agent columns.
     const isAgent = (id: string) => get(isAgentModeAtomFamily(id))
 
     // Targeted run on an agent entity is a no-op at this level.
@@ -668,12 +667,12 @@ export const runRowAtom = atom(null, (get, set, params: {rowId: string; entityId
 /**
  * Run a specific chain step for a single row.
  *
- * Always dispatches from the primary entity (so the downstream skip guard
+ * Always dispatches from root entities (so the downstream skip guard
  * doesn't block execution). The `targetNodeId` parameter tells the runner
  * which single stage to execute, skipping all other stages.
  *
  * @param rowId - The test case row to run
- * @param entityId - Unused (kept for backward compat); primary entity is resolved internally
+ * @param entityId - Optional root entity to dispatch from; omitted, every root node runs
  * @param targetNodeId - Entity ID of the chain node to run (resolved to node ID internally)
  */
 export const runRowStepAtom = atom(

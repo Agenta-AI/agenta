@@ -2,6 +2,7 @@ import {useCallback, useEffect, useMemo, useState} from "react"
 
 import {UserAuthorLabel} from "@agenta/entities/shared/user"
 import {getEvaluationsClient} from "@agenta/sdk/resources"
+import {formatDate24} from "@agenta/shared/utils/dateTime"
 import {message} from "@agenta/ui/app-message"
 import {PencilSimple} from "@phosphor-icons/react"
 import {Button, Input, Skeleton, Tag, Typography} from "antd"
@@ -9,7 +10,6 @@ import {useAtomValue, useSetAtom} from "jotai"
 
 import {invalidateEvaluationRunsTableAtom} from "@/oss/components/EvaluationRunsTablePOC/atoms/tableStore"
 import {CopyIconButton, middleTruncateId} from "@/oss/components/References/ReferenceTag"
-import {formatDate24} from "@/oss/lib/helpers/dateTimeHelper"
 import {invalidatePreviewRunCache} from "@/oss/lib/hooks/usePreviewEvaluations/assets/previewRunBatcher"
 
 import {effectiveProjectIdAtom} from "../../../../atoms/run"
@@ -21,11 +21,11 @@ import {V2Card} from "./SectionPrimitives"
 const {Text} = Typography
 
 const STATUS_DOT_COLORS: Record<string, string> = {
-    success: "#12B76A",
-    processing: "#3B82F6",
-    default: "#98A2B3",
-    error: "#F04438",
-    warning: "#F79009",
+    success: "var(--ag-run-status-success)",
+    processing: "var(--ag-run-status-processing)",
+    default: "var(--ag-run-status-default)",
+    error: "var(--ag-run-status-error)",
+    warning: "var(--ag-run-status-warning)",
 }
 
 const humanizeStatus = (value: string) =>
@@ -136,7 +136,7 @@ const RunSummaryCard = ({runId}: {runId: string}) => {
         return (
             <V2Card className="gap-2.5 p-4">
                 <div className="flex flex-col gap-1">
-                    <Text className="text-[11px] text-colorTextTertiary">Name</Text>
+                    <Text className="text-xs text-colorTextTertiary">Name</Text>
                     <Input
                         value={editName}
                         onChange={(e) => setEditName(e.target.value)}
@@ -146,7 +146,7 @@ const RunSummaryCard = ({runId}: {runId: string}) => {
                     />
                 </div>
                 <div className="flex flex-col gap-1">
-                    <Text className="text-[11px] text-colorTextTertiary">Description</Text>
+                    <Text className="text-xs text-colorTextTertiary">Description</Text>
                     <Input.TextArea
                         value={editDescription}
                         onChange={(e) => setEditDescription(e.target.value)}
@@ -205,9 +205,9 @@ const RunSummaryCard = ({runId}: {runId: string}) => {
                     Edit
                 </Button>
             </div>
-            <Text className="text-[13.5px] font-semibold leading-[1.45]">{runName || "—"}</Text>
+            <Text className="text-sm font-semibold leading-[1.45]">{runName || "—"}</Text>
             {runDescription ? (
-                <Text className="text-[12.5px] leading-[1.55] text-colorTextTertiary">
+                <Text className="text-xs leading-[1.55] text-colorTextTertiary">
                     {runDescription}
                 </Text>
             ) : null}
@@ -230,7 +230,7 @@ const RunSummaryCard = ({runId}: {runId: string}) => {
                 </div>
             ) : null}
             <div className="flex items-center gap-1.5">
-                <span title={runId} className="font-mono text-[11px] text-colorTextSecondary">
+                <span title={runId} className="font-mono text-xs text-colorTextSecondary">
                     {middleTruncateId(runId)}
                 </span>
                 <CopyIconButton value={runId} title="Copy run ID" />

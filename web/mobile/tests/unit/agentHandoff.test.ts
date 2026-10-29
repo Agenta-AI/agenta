@@ -1,0 +1,36 @@
+import {describe, expect, it} from "vitest"
+
+import {agentHandoffPath, isSeededCreate} from "../../src/features/agents/agentHandoff"
+
+const base = "/w/ws-1/p/proj-1"
+
+describe("agentHandoffPath", () => {
+    it("opens the chat for a seeded create, carrying the agent", () => {
+        // A session with no turns cannot name its agent from records, hence `?agent=`.
+        expect(agentHandoffPath({base, appId: "app-1", sessionId: "session-1"})).toBe(
+            "/w/ws-1/p/proj-1/sessions/session-1?agent=app-1",
+        )
+    })
+
+    // A blank create lands in the playground too — a fresh session, not the overview.
+    it("opens a fresh session for a blank create, never the overview", () => {
+        expect(agentHandoffPath({base, appId: "app-1", sessionId: "session-2"})).not.toContain(
+            "/agents/",
+        )
+    })
+})
+
+describe("isSeededCreate", () => {
+    it("counts a typed instruction", () => {
+        expect(isSeededCreate({seed: "Triage my tickets", partCount: 0})).toBe(true)
+    })
+
+    it("counts attachments with no text", () => {
+        // The composer submits "" once staged files settle, and that is still a first turn.
+        expect(isSeededCreate({seed: "", partCount: 1})).toBe(true)
+    })
+
+    it("is a blank create when neither is present", () => {
+        expect(isSeededCreate({seed: "", partCount: 0})).toBe(false)
+    })
+})

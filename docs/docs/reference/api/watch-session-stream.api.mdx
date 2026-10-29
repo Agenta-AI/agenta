@@ -1,0 +1,94 @@
+---
+id: watch-session-stream
+title: "Watch Session Stream"
+description: "Server-sent events relay for one session (M3 live relay)."
+sidebar_label: "Watch Session Stream"
+hide_title: true
+hide_table_of_contents: true
+api: eJztWM1y5EQMfhVVX0gKz0xYOM1eyEKAFD+7tQlwWKew0taMm9jdpiVP1gyu4iF4Qp6EUvdMMsmyUFw45ZTErZa+/qRPUmVrBNdslm/MBTG74NkU979eFaYmttH14oI3S3NBcUNxxuQFaENeGCK1OMIqRAiegPNVOPr2Y2jdhvLx8bz0pT/rnDDYBv2awAdxK2dRHTME347w5+9/gKcNRYhkQ6yhx7ENWPNzsK3TYKWPtMHW1SgE0sQwrBuQRqOshxYj/DJQHIF83Qen4IIHQttkrEsFMYOqyn/tovAsI6qrKiGoqm1pds/4ydWlmarqOXi6XQy9xq0hhlsuPUCLvqYanN9BSJjbsIajfrhuHTdUQx9YZp+/mNnQdU6UhwMArVuRHW1L7wtdQGlYUKg0SyhNHLx3fl2a30pDGjuBe+jTeaGIVmn9N68DZ7c9+XrvNhKHdvPQ8xIawijXhFJVoC/R9K8idsRw27iWwNUtwdENUT9DTXtO+OkgDThO9LCgrzHW0Lm6bukWI8GRDeHGEVQVn1pLzJfhhnxVFXDau69pLCDE0r8gjBSPQTM/pAQEbwlQwAbvycpzYBt62keykWry4rD9gKGP4WeyMi/9C00bRQYcpNFzq0V0PcIORKbqTFm8CEO0mhSL3gcBJlEKar395+9/lJ4D4D56KgPn11pr6IHe9i5SDZgeBKIvgk9OPmJo3Q0B+hGCNBS1lH8ZiGUOlw3FhN6HnD5LvYQIEiDSKhI3M/T1LJLEERBYImFXAAd9bumzNqAbWPb2mfGdFJ0wtStAX0Ok0JOHIyZKJrd0DU0IN5zzdZnypN6hwQQnUt/iuLBD5BCBqUMljv+WLBVAYoRLr8F2moUDyabEqSY3KtOqUjSa7tvG2QZs2KT8+BE6x0x16R90iYTxu5eXZ3DEPVngIa7Q0vESpHEMMQxCgH1PGFlV+bInf/rqPPWmOthByzZ5Kkp/PQh8QdFDHUhfKtCFmlq4uDhLj7PB89AROIFbJw0geBTtZ49eXfojxo5mIbq181BVC+xdVcGH+7LSagNPVCc+7cASun0xHRcpcsrimjzFVN2Zt7kpTOj1kwv+vDZLc4tim5/2Qs55MoXpUYUoFLWLb43HjszyQO+mME5bd2qNpjBadlqhZilxoMKwbahDs9waGft0VaLza1MYcdJSavq5kM5rM01X6oH74JlYLz07OdEfj8bEkKp/NbTwemdsCmODF/Ki5tj37S6ti59Z72zvgUzTNBXmk2fP3nX8Q64kRXMWY4j/wavpo/IpLuOuSdC1+psT6vhdgzbYB6fox5erRPFDnqbi7ouKd03RTFdTsf+GMeJ4QOY3IQM0U2E6Xv8T798SM67J3Dl7v2kiAy71dNJ890MiZH98nj5MhbHy9sBNuNbeeODmM+XyrZjpHv+dzX3dvEncZPg7u6t7H/cpyhl6PxWf5xT8XbC9yVeXl6/ecZjroyNpgupiTZJkII1ZmsWu8HmRBcKLJBtTGE6rSxbJEFu1xd6l9OU/G5Gel4sFDXPbhqGe41obxhxdNrxSH3aITsbk5PTV+dc0fpWkbJZvrg4NLrTqch09NLvjHtOEM8VesDorQ3S/5uLYaTb3icSQ86twmNLTBA5OX52bx0vagyOVB9pUDftI6dgUj559/1pTGOqSOIwQdp/enWgulcMc5mT+0fxEP+mO06E/CPGjcg77vnGxb1UPYG7vlfu0Vj6tlU9r5dNa+bRW/i9r5W4C6aRf9C26tIukYbDdjdE3e2HrfwN2g9QUeQPVWd8EFrXabq+R6fvYTpN+ziumzsbaMV63uiyssGX6h9Z/9Hq3VxzD+6Dd0Ph4o1XNqmGayhuMTqOlIVzsh6bCyDe1CfRycOudPVG93O0TX55dmmn6C+GSHy8=
+sidebar_class_name: "get api-method"
+info_path: reference/api/agenta-api
+custom_edit_url: null
+---
+
+import MethodEndpoint from "@theme/ApiExplorer/MethodEndpoint";
+import ParamsDetails from "@theme/ParamsDetails";
+import RequestSchema from "@theme/RequestSchema";
+import StatusCodes from "@theme/StatusCodes";
+import OperationTabs from "@theme/OperationTabs";
+import TabItem from "@theme/TabItem";
+import Heading from "@theme/Heading";
+import Translate from "@docusaurus/Translate";
+
+<Heading
+  as={"h1"}
+  className={"openapi__heading"}
+  children={"Watch Session Stream"}
+>
+</Heading>
+
+<MethodEndpoint
+  method={"get"}
+  path={"/sessions/streams/watch"}
+  context={"endpoint"}
+>
+  
+</MethodEndpoint>
+
+
+
+Server-sent events relay for one session (M3 live relay).
+
+Emits change notifications only — never record payloads; clients
+revalidate through the regular query endpoints on each event:
+
+- ``event: records-changed`` — ``{"session_id"}``; new/updated rows
+  landed in the record log (published post-DB-commit).
+- ``event: lifecycle`` — ``{"session_id", "state": "running"|"ended"}``.
+- ``event: interaction`` — ``{"session_id", "status": "pending"|"resolved"}``.
+- ``: heartbeat`` comment frames while idle (keep-alive).
+
+Auth is the standard middleware (cookie ``sAccessToken``, ApiKey, or
+Bearer) evaluated once at connect; scope is the credential's project.
+Browsers authenticate by cookie — ``EventSource`` cannot set headers —
+so a connect landing on an expired access token 401s like any other
+request. There is no interceptor to refresh-and-retry a stream, so the
+client must refresh the session itself and reopen (see the web hooks).
+
+The stream has no replay/cursor semantics — ``EventSource`` reconnects
+and clients revalidate once on every ``open``, which covers any missed
+notifications.
+
+NOTE (spec surface): this route appears in OpenAPI for documentation,
+but Fern does not model SSE — consume it with a native ``EventSource``
+(same-origin ``/api`` + cookie auth needs no custom headers), not the
+generated client.
+
+<Heading
+  id={"request"}
+  as={"h2"}
+  className={"openapi-tabs__heading"}
+>
+  <Translate id="theme.openapi.request.title">Request</Translate>
+</Heading>
+
+<ParamsDetails
+  {...require("./watch-session-stream.ParamsDetails.json")}
+>
+  
+</ParamsDetails>
+
+<RequestSchema
+  {...require("./watch-session-stream.RequestSchema.json")}
+>
+  
+</RequestSchema>
+
+<StatusCodes
+  {...require("./watch-session-stream.StatusCodes.json")}
+>
+  
+</StatusCodes>
+
+
+      
