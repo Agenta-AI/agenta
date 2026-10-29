@@ -152,7 +152,8 @@ describe("agent mount alongside the cwd mount", () => {
         depsFor(new AbortController().signal, async () => true),
         { cwdReady },
       );
-      assert.equal(mounted, false);
+      // The agent mount is live; the acquire rethrows the cwd failure.
+      assert.equal(mounted, true);
       // Committed, so teardown still unmounts it.
       assert.deepEqual(commits, ["agent"]);
       assert.equal(exists(linkPath(cwd)), false);

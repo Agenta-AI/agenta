@@ -774,12 +774,9 @@ async function acquireEnvironmentOnce(
       agentMount,
     ]);
     if (cwdResult.status === "rejected") throw cwdResult.reason;
-    if (cwdMount) {
-      if (cwdResult.value && piSessionDir) environment.nativeHistoryDurable = true;
-      throwIfAcquireAborted(signal);
-    }
     if (agentResult.status === "rejected") throw agentResult.reason;
-    if (agentMount) throwIfAcquireAborted(signal);
+    if (cwdResult.value && piSessionDir) environment.nativeHistoryDurable = true;
+    if (cwdMount || agentMount) throwIfAcquireAborted(signal);
     // A harness in the runner (`inprocess`) mounts the drive in its own command sandbox when a
     // tool first needs it, so nothing is mounted here. The credentials' expiry bounds this
     // environment as a remote mount's does; the harness keeps the conversation file in the drive
@@ -1254,9 +1251,9 @@ async function acquireEnvironmentOnce(
               log: logger,
             });
             // `agent-files` lives in the cwd: link it only once the cwd mount settled, or the
-            // link would land in the directory that mount then hides. A failed cwd mount (a
-            // rejection) skips the link and the guidance, as it stopped the acquire before.
-            await daytonaCwdMount;
+            // link would land in the directory that mount then hides. A rejected cwd mount skips
+            // the link and the guidance; the acquire rethrows that rejection below.
+            if (!(await daytonaCwdMount.then(() => true, () => false))) return;
             await linkAgentFilesRemote(
               environment.sandbox,
               plan.workspace.cwd,

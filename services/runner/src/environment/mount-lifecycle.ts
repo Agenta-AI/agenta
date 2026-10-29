@@ -265,8 +265,8 @@ export interface MountLocalAgentCwdOptions {
    * lives inside the cwd, so linking before the cwd mount is live would put the link in the
    * directory the mount then shadows. The mount itself does not wait: the agent home is a
    * sibling path (`<cwd>-agent`), never inside the cwd. A rejected cwd mount skips the link,
-   * the README seed, and the guidance, as it did when that rejection stopped the acquire before
-   * this mount started.
+   * the README seed, and the guidance; the acquire rethrows that rejection and the teardown
+   * unmounts this mount.
    */
   cwdReady?: Promise<unknown>;
 }
@@ -298,7 +298,8 @@ export async function mountLocalAgentCwd(
       return false;
     }
     ctx.commitLocalMount("agent", mountPath, creds);
-    if (opts.cwdReady) await opts.cwdReady;
+    if (opts.cwdReady && !(await opts.cwdReady.then(() => true, () => false)))
+      return true;
     throwIfAcquireAborted(deps.signal);
     await seedAgentReadme(mountPath, { log: ctx.log });
     await linkAgentFiles(plan.workspace.cwd, mountPath, { log: ctx.log });

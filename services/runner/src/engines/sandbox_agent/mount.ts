@@ -310,19 +310,9 @@ export async function isMounted(
   }
 }
 
-/** One started geesefs process. `alive` is true when the attempt itself already saw the mount serve I/O. */
-export interface GeesefsAttempt {
-  stop: () => Promise<void>;
-  alive?: boolean;
-}
-
-/** The line geesefs writes to stderr once the FUSE mount is attached. */
-const GEESEFS_MOUNTED_LINE = /successfully mounted/i;
-
 export interface WaitForMountReadyOptions {
   /** One readiness probe (production: `isMounted`). */
   check: () => Promise<boolean>;
-  /** Waits up to `ms`; production resolves early when geesefs reports the mount or exits. */
   sleep: (ms: number) => Promise<void>;
   /** True once the geesefs process exited: a foreground geesefs that exited serves nothing. */
   exited?: () => boolean;
@@ -333,16 +323,16 @@ export interface WaitForMountReadyOptions {
 }
 
 /**
- * Probe until the mount serves I/O, geesefs exits, or the timeout passes. The interval starts
- * short and doubles to a cap, so a mount that attaches in under a second is seen within ~50 ms
- * instead of on the next 500 ms tick, while a slow mount is not probed in a tight loop.
+ * Probe until the mount serves I/O, geesefs exits, or the timeout passes. The interval starts at
+ * 50 ms and doubles to a 100 ms cap, so a mount is seen within about 100 ms of attaching instead
+ * of on the next 500 ms tick.
  */
 export async function waitForMountReady(
   opts: WaitForMountReadyOptions,
 ): Promise<boolean> {
   const now = opts.now ?? Date.now;
   const deadline = now() + (opts.timeoutMs ?? 15_000);
-  const maxInterval = opts.maxIntervalMs ?? 500;
+  const maxInterval = opts.maxIntervalMs ?? 100;
   let interval = opts.firstIntervalMs ?? 50;
   for (;;) {
     if (await opts.check()) return true;
@@ -359,7 +349,7 @@ export interface MountStorageDeps {
   runGeesefs?: (
     args: string[],
     env: Record<string, string>,
-  ) => Promise<GeesefsAttempt | void>;
+  ) => Promise<{ stop: () => Promise<void> } | void>;
   checkMounted?: (cwd: string) => Promise<boolean>;
   /** Opt-in geesefs behaviors; absent keeps today's argv. */
   geesefs?: GeesefsOptions;
@@ -429,60 +419,25 @@ export async function mountStorage(
         stdio: ["ignore", "ignore", "pipe"],
       });
       let processExited = false;
-      // Wakes a pending readiness sleep early. `pendingWake` covers a signal that arrives while a
-      // probe is running, so the next sleep returns at once instead of waiting out its interval.
-      let wake: (() => void) | undefined;
-      let pendingWake = false;
-      const signalReady = () => {
-        if (wake) wake();
-        else pendingWake = true;
-      };
-      const sleep = (ms: number) =>
-        new Promise<void>((resolve) => {
-          if (pendingWake) {
-            pendingWake = false;
-            resolve();
-            return;
-          }
-          const timer = setTimeout(() => {
-            wake = undefined;
-            resolve();
-          }, ms);
-          wake = () => {
-            clearTimeout(timer);
-            wake = undefined;
-            resolve();
-          };
-        });
       const exited = new Promise<void>((resolve) => {
         child.once("exit", () => {
           processExited = true;
-          signalReady();
           resolve();
         });
       });
-      // A chunk can split the line, so match against the tail of what was read so far.
-      let stderrTail = "";
       child.stderr?.on("data", (d) => {
-        const raw = String(d);
-        stderrTail = (stderrTail + raw).slice(-512);
-        if (GEESEFS_MOUNTED_LINE.test(stderrTail)) {
-          stderrTail = "";
-          signalReady();
-        }
-        const s = raw.trim();
+        const s = String(d).trim();
         if (s) log(`geesefs stderr: ${s.slice(0, 400)}`);
       });
       child.unref();
-      // Wait up to ~15s for the mountpoint to serve I/O; geesefs logs "successfully mounted"
-      // within ~1s normally, and that line (or the process exiting) wakes the wait at once.
-      const alive = await waitForMountReady({
+      // Wait up to ~15s for the mountpoint to serve I/O (geesefs mounts within ~1s normally), and
+      // stop at once if the foreground geesefs exits. The caller re-verifies after.
+      await waitForMountReady({
         check: () => isMounted(cwd, () => {}),
-        sleep,
+        sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
         exited: () => processExited,
       });
       return {
-        alive,
         stop: async () => {
           const waitForExit = async (): Promise<boolean> => {
             if (processExited) return true;
@@ -504,7 +459,7 @@ export async function mountStorage(
       };
     });
 
-  let attempt: GeesefsAttempt | undefined;
+  let attempt: { stop: () => Promise<void> } | undefined;
   let failure: unknown;
   try {
     log(`geesefs mount argv: ${args.join(" ")}`);
@@ -517,14 +472,7 @@ export async function mountStorage(
     attempt = started || undefined;
     // Confirm the new mount actually serves I/O — a still-not-alive cwd means geesefs failed
     // to mount (invalid STS creds, store unreachable) or did not come up within the poll window.
-    // The default attempt already ran this same probe and saw the mount alive, so a second probe
-    // adds only latency; an attempt that did not report `alive` is still checked here. The abort
-    // check keeps the skipped probe's one other effect: an abort that landed meanwhile still wins.
-    if (attempt?.alive === true) throwIfAcquireAborted(signal);
-    const alive =
-      attempt?.alive === true ||
-      (await waitForAcquire(() => checkMounted(cwd), signal));
-    if (!alive) {
+    if (!(await waitForAcquire(() => checkMounted(cwd), signal))) {
       failure = new Error(
         `mount reported success but cwd is NOT alive ${creds.bucket}:${creds.prefix} -> ${cwd} ` +
           `— likely expired/invalid STS creds or store unreachable`,
@@ -765,18 +713,22 @@ export interface MountStorageRemoteDeps {
   geesefs?: GeesefsOptions;
   mountTimeoutMs?: number;
   /**
-   * Liveness poll budget, in 500 ms units: the mount script probes every 50 ms for
-   * `aliveAttempts x 500 ms` (default 12, about 6 s). Each probe's `ls` is capped at 5 s, and two
+   * How long the mount script waits for the mount to serve I/O (default 10 s, about what the old
+   * twelve probe execs with a 500 ms pause took on Daytona). Each probe is capped at 5 s, and two
    * capped probes in a row end the wait early. Lowered by tests.
    */
-  aliveAttempts?: number;
+  aliveTimeoutMs?: number;
   log?: (msg: string) => void;
   signal?: AbortSignal;
 }
 
 /** Exit code of the remote mount script when the mount did not serve I/O in time. */
 export const REMOTE_MOUNT_NOT_ALIVE_EXIT = 11;
-const REMOTE_MOUNT_POLL_MS = 50;
+
+/** The geesefs log of one remote mount. Mounts run at the same time, so each has its own. */
+export function remoteMountLogFile(cwd: string): string {
+  return `/tmp/geesefs-mount${cwd.replace(/[^A-Za-z0-9._-]+/g, "_")}.log`;
+}
 
 /**
  * The whole remote mount as ONE `sh` script, so a mount costs one round trip to the sandbox
@@ -785,9 +737,9 @@ const REMOTE_MOUNT_POLL_MS = 50;
  * 1. Detach whatever is at `cwd` (a reattached sandbox can hold a mount with expired credentials).
  * 2. `mkdir -p` the mountpoint.
  * 3. Start geesefs in the background, its output to `logFile`, so it does not hold the exec open.
- * 4. Probe `mountpoint -q && ls` every 50 ms, `pollIterations` times. Each `ls` is capped at 5 s
- *    when `timeout` exists (a dead-but-registered FUSE node hangs it), and two capped probes in a
- *    row stop the wait, as two timed-out probe execs did before.
+ * 4. Probe `mountpoint -q && ls` every 50 ms until `aliveSeconds` pass. Each probe is capped at
+ *    5 s (a dead-but-registered FUSE node hangs it), and two capped probes in a row stop the
+ *    wait, as two timed-out probe execs did before.
  *
  * Exit 0 means the mount serves I/O. Exit `REMOTE_MOUNT_NOT_ALIVE_EXIT` means it did not, and the
  * script prints the tail of the geesefs log for the operator line. The caller detaches on any
@@ -797,26 +749,23 @@ export function remoteMountScript(
   cwd: string,
   geesefsArgs: string[],
   logFile: string,
-  pollIterations: number,
+  aliveSeconds: number,
 ): string {
   const q = shellQuote;
-  const sleepSeconds = (REMOTE_MOUNT_POLL_MS / 1000).toFixed(2);
   return [
     `cwd=${q(cwd)}`,
     `log=${q(logFile)}`,
     `fusermount -u "$cwd" 2>/dev/null || umount -l "$cwd" 2>/dev/null || true`,
     `mkdir -p "$cwd"`,
     `geesefs --log-file "$log" ${geesefsArgs.map(q).join(" ")} >>"$log" 2>&1 &`,
-    `cap=""; command -v timeout >/dev/null 2>&1 && cap="timeout 5"`,
-    `i=0; hung=0`,
-    `while [ "$i" -lt ${Math.max(1, Math.floor(pollIterations))} ]; do`,
-    `  if mountpoint -q "$cwd"; then`,
-    `    $cap ls "$cwd" >/dev/null 2>&1; rc=$?`,
-    `    [ "$rc" -eq 0 ] && exit 0`,
-    `    if [ "$rc" -eq 124 ]; then hung=$((hung+1)); [ "$hung" -ge 2 ] && break; else hung=0; fi`,
-    `  fi`,
-    // A `sleep` without fractions sleeps one second and counts as that many steps.
-    `  if sleep ${sleepSeconds} 2>/dev/null; then i=$((i+1)); else sleep 1; i=$((i+${1000 / REMOTE_MOUNT_POLL_MS})); fi`,
+    `end=$(( $(date +%s) + ${Math.max(1, Math.ceil(aliveSeconds))} )); hung=0`,
+    `while :; do`,
+    `  timeout 5 sh -c 'mountpoint -q "$1" && ls "$1" >/dev/null 2>&1' _ "$cwd"; rc=$?`,
+    `  [ "$rc" -eq 0 ] && exit 0`,
+    // 124 is a GNU timeout, 143 and 137 a busybox one.
+    `  case "$rc" in 124|137|143) hung=$((hung+1)); [ "$hung" -ge 2 ] && break ;; *) hung=0 ;; esac`,
+    `  [ "$(date +%s)" -ge "$end" ] && break`,
+    `  sleep 0.05 2>/dev/null || sleep 1`,
     `done`,
     `tail -5 "$log" 2>/dev/null`,
     `exit ${REMOTE_MOUNT_NOT_ALIVE_EXIT}`,
@@ -878,8 +827,8 @@ export async function mountStorageRemote(
             remoteMountScript(
               cwd,
               args,
-              "/tmp/geesefs-mount.log",
-              (deps.aliveAttempts ?? 12) * (500 / REMOTE_MOUNT_POLL_MS),
+              remoteMountLogFile(cwd),
+              (deps.aliveTimeoutMs ?? 10_000) / 1000,
             ),
           ],
           env: credEnv(creds),
@@ -959,8 +908,7 @@ export async function mountHarnessSessionDirs(
     deps.signSessionMountCredentials ?? signSessionMountCredentials;
   const mountRemote = deps.mountStorageRemote ?? mountStorageRemote;
 
-  // Each dir is its own sign call and mount, independent of the others, so they run together.
-  await Promise.all(dirs.map(async (dir) => {
+  for (const dir of dirs) {
     const creds = await signMount(
       sessionId,
       {
@@ -978,12 +926,12 @@ export async function mountHarnessSessionDirs(
       log(
         `mount degraded kind=harness_transcript cause=sign_returned_no_mount session=${sessionId} dir=${dir.name}`,
       );
-      return;
+      continue;
     }
     await mountRemote(sandbox, dir.path, creds, {
       endpoint: tunnelEndpoint,
       log,
       signal: deps.signal,
     });
-  }));
+  }
 }

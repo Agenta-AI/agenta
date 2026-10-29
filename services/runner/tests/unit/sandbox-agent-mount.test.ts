@@ -35,6 +35,7 @@ import {
   storeReachableFromSandbox,
   shellQuote,
   waitForMountReady,
+  remoteMountLogFile,
   remoteMountScript,
   REMOTE_MOUNT_NOT_ALIVE_EXIT,
   type MountCredentials,
@@ -483,26 +484,7 @@ describe("mountStorage", () => {
 });
 
 describe("mountStorage readiness", () => {
-  it("skips the second probe when the attempt already saw the mount alive", async () => {
-    let checks = 0;
-    const ok = await mountStorage("/work/cwd", CREDS, {
-      checkMounted: async () => {
-        checks += 1;
-        return false;
-      },
-      runGeesefs: async () => ({ alive: true, stop: async () => {} }),
-      unmountDeps: {
-        runUnmount: async () => {},
-        checkMountpoint: async () => "gone",
-      },
-      log: SILENT,
-    });
-    assert.equal(ok, true);
-    // Only the already-mounted probe ran; the post-start probe was skipped.
-    assert.equal(checks, 1);
-  });
-
-  it("still probes after an attempt that did not report alive, and fails when not alive", async () => {
+  it("probes after the attempt and fails when the mount is not alive", async () => {
     let checks = 0;
     const calls: string[] = [];
     const ok = await mountStorage("/work/cwd", CREDS, {
@@ -511,7 +493,6 @@ describe("mountStorage readiness", () => {
         return false;
       },
       runGeesefs: async () => ({
-        alive: false,
         stop: async () => {
           calls.push("stop");
         },
@@ -527,7 +508,7 @@ describe("mountStorage readiness", () => {
     assert.deepEqual(calls, ["stop"]);
   });
 
-  it("an abort during an alive attempt still stops it and throws", async () => {
+  it("an abort during the attempt still stops it and throws", async () => {
     const controller = new AbortController();
     const calls: string[] = [];
     const mount = mountStorage("/work/cwd", CREDS, {
@@ -536,7 +517,6 @@ describe("mountStorage readiness", () => {
       runGeesefs: async () => {
         controller.abort();
         return {
-          alive: true,
           stop: async () => {
             calls.push("stop");
           },
@@ -583,7 +563,7 @@ describe("waitForMountReady", () => {
     assert.deepEqual(c.sleeps, []);
   });
 
-  it("starts at 50 ms and doubles to a 500 ms cap", async () => {
+  it("starts at 50 ms and doubles to a 100 ms cap", async () => {
     const c = clock();
     let probes = 0;
     const ok = await waitForMountReady({
@@ -592,7 +572,7 @@ describe("waitForMountReady", () => {
       now: c.now,
     });
     assert.equal(ok, true);
-    assert.deepEqual(c.sleeps, [50, 100, 200, 400, 500, 500, 500]);
+    assert.deepEqual(c.sleeps, [50, 100, 100, 100, 100, 100, 100]);
   });
 
   it("gives up after the 15 s timeout", async () => {
@@ -1049,7 +1029,8 @@ describe("remoteMountScript in a real shell", () => {
   const withStubs = (opts: {
     aliveAfterProbes?: number;
     lsHangs?: boolean;
-    iterations: number;
+    mountpointHangs?: boolean;
+    aliveSeconds: number;
   }) => {
     const dir = mkdtempSync(join(tmpdir(), "agenta-remote-mount-"));
     const bin = join(dir, "bin");
@@ -1064,10 +1045,11 @@ describe("remoteMountScript in a real shell", () => {
     stub(
       "mountpoint",
       `n=$(cat ${dir}/probes 2>/dev/null || echo 0); n=$((n+1)); echo $n > ${dir}/probes; ` +
+        (opts.mountpointHangs ? "sleep 30; " : "") +
         `[ $n -ge ${opts.aliveAfterProbes ?? 1_000_000} ]`,
     );
     if (opts.lsHangs) stub("ls", "sleep 30");
-    const script = remoteMountScript(cwd, ["--endpoint", "http://x", "b:p", cwd], join(dir, "g.log"), opts.iterations);
+    const script = remoteMountScript(cwd, ["--endpoint", "http://x", "b:p", cwd], join(dir, "g.log"), opts.aliveSeconds);
     const started = Date.now();
     const r = spawnSync("sh", ["-c", script], {
       env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
@@ -1088,7 +1070,7 @@ describe("remoteMountScript in a real shell", () => {
   };
 
   it("exits 0 as soon as the mount serves I/O, polling at about 50 ms", () => {
-    const r = withStubs({ aliveAfterProbes: 3, iterations: 120 });
+    const r = withStubs({ aliveAfterProbes: 3, aliveSeconds: 10 });
     assert.equal(r.status, 0);
     assert.equal(r.probes, 3);
     assert.equal(r.geesefs.trim(), "started");
@@ -1097,17 +1079,33 @@ describe("remoteMountScript in a real shell", () => {
     assert.ok(r.elapsed < 2_000, `took ${r.elapsed} ms`);
   });
 
-  it("exits not-alive with the log tail after the poll budget", () => {
-    const r = withStubs({ iterations: 4 });
+  it("exits not-alive with the log tail once the time budget passes", () => {
+    const r = withStubs({ aliveSeconds: 1 });
     assert.equal(r.status, REMOTE_MOUNT_NOT_ALIVE_EXIT);
-    assert.equal(r.probes, 4);
+    assert.ok(r.probes > 2, `probed ${r.probes} times`);
+    assert.ok(r.elapsed < 4_000, `took ${r.elapsed} ms`);
     assert.match(r.stdout, /geesefs log line/);
   });
 
   it("stops after two hung ls probes in a row", { timeout: 20_000 }, () => {
-    const r = withStubs({ aliveAfterProbes: 1, lsHangs: true, iterations: 120 });
+    const r = withStubs({ aliveAfterProbes: 1, lsHangs: true, aliveSeconds: 60 });
     assert.equal(r.status, REMOTE_MOUNT_NOT_ALIVE_EXIT);
     assert.equal(r.probes, 2);
+  });
+
+  it("caps a hung mountpoint probe too, and stops after two", { timeout: 20_000 }, () => {
+    const r = withStubs({ mountpointHangs: true, aliveSeconds: 60 });
+    assert.equal(r.status, REMOTE_MOUNT_NOT_ALIVE_EXIT);
+    assert.equal(r.probes, 2);
+    assert.ok(r.elapsed < 15_000, `took ${r.elapsed} ms`);
+  });
+
+  it("gives each mountpoint its own geesefs log, since mounts run at the same time", () => {
+    assert.notEqual(
+      remoteMountLogFile("/home/sandbox/work"),
+      remoteMountLogFile("/home/sandbox/work-agent"),
+    );
+    assert.match(remoteMountLogFile("/home/sandbox/work"), /^\/tmp\/geesefs-mount[^/]+\.log$/);
   });
 });
 
@@ -1155,7 +1153,7 @@ describe("shell injection hardening (RUN-SHELL-1)", () => {
 
     await mountStorageRemote(sandbox, hostileCwd, CREDS, {
       endpoint: "https://abc.ngrok.io",
-      aliveAttempts: 1,
+      aliveTimeoutMs: 1_000,
       log: SILENT,
     });
 
