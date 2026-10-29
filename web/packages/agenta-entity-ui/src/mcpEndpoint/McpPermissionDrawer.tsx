@@ -117,6 +117,8 @@ export interface McpPermissionDrawerProps {
     agentPolicy?: PermissionPolicy | null
     /** Settings' "View tools": the same drawer with nothing to set. */
     readOnly?: boolean
+    /** The "Account" block, above the preset select. Absent in Settings' "View tools". */
+    account?: ReactNode
     disabled?: boolean
     /** The drawer's panel element, so a reconnect opened from it can open inside it. */
     panelRef?: Ref<HTMLDivElement>
@@ -270,6 +272,7 @@ export default function McpPermissionDrawer({
     readOnly,
     disabled,
     panelRef,
+    account,
 }: McpPermissionDrawerProps) {
     const projectId = useAtomValue(projectIdAtom) ?? undefined
     const [tools, setTools] = useState<ToolsState>({status: "idle"})
@@ -530,6 +533,7 @@ export default function McpPermissionDrawer({
             onChangeToolPermission={setTool}
             agentPolicy={agentPolicy}
             disabled={disabled}
+            account={account}
             source={{
                 catalogKey: slug ?? "mcp",
                 title: (
