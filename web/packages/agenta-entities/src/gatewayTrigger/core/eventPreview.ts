@@ -30,14 +30,13 @@ export function formatEventText(eventType: unknown, attributes: unknown): string
 export function renderMessagePreview(
     template: string,
     event: Record<string, unknown> | null,
-    labels: Record<string, string>,
     includeEvent: boolean,
 ): string {
     const text = splitTemplate(template)
         .map((segment) => {
             if (segment.selector === undefined) return segment.literal ?? ""
             if (event) return eventValueText(resolveSelectorPreview(segment.selector, {event}))
-            return `[${selectorLabel(segment.selector, labels)}]`
+            return `[${selectorLabel(segment.selector)}]`
         })
         .join("")
     if (!includeEvent || !event || event.attributes == null) return text

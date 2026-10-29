@@ -27,6 +27,5 @@ export async function runNowText(
 
     const {deliveries} = await queryDeliveries({subscription_id: automation.id})
     const includeEvent = (automation.raw as TriggerSubscription).data?.include_event ?? true
-    // The field labels are `fieldLabel` of the path, which `selectorLabel` falls back to.
-    return renderMessagePreview(template, latestDeliveryEvent(deliveries), {}, includeEvent).trim()
+    return renderMessagePreview(template, latestDeliveryEvent(deliveries), includeEvent).trim()
 }

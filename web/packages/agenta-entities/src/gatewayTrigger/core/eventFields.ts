@@ -33,10 +33,8 @@ export function eventFieldSelector(path: string[]): string {
     return EVENT_ATTRIBUTES + path.map(selectorStep).join("")
 }
 
-/** A pill's label: the field's label when known, else the field path made readable. */
-export function selectorLabel(selector: string, labels: Record<string, string>): string {
-    const known = labels[selector]
-    if (known) return known
+/** A pill's label: the field path made readable, the same label its tag shows. */
+export function selectorLabel(selector: string): string {
     const path = selectorPath(selector)
     const prefix = ["event", "attributes"]
     if (!path) return selector
@@ -78,9 +76,4 @@ export function eventFieldsFromSchema(payloadSchema: unknown): EventField[] {
         if (!children.length) return [field([key], property)]
         return children.map(([child, value]) => field([key, child], value))
     })
-}
-
-/** Selector → label for every field, the lookup the preview and the pills read. */
-export function eventFieldLabels(fields: EventField[]): Record<string, string> {
-    return Object.fromEntries(fields.map((f) => [f.selector, f.label] as const))
 }

@@ -8,7 +8,6 @@
 import {describe, expect, it} from "vitest"
 
 import {
-    eventFieldLabels,
     eventFieldSelector,
     eventFieldsFromSchema,
     fieldLabel,
@@ -112,11 +111,11 @@ describe("labels and selectors", () => {
         expect(eventFieldSelector(["title"])).toBe("$.event.attributes.title")
     })
 
-    it("labels a pill from the fields, else from its path", () => {
-        const labels = eventFieldLabels(eventFieldsFromSchema(GITHUB_PULL_REQUEST_SCHEMA))
-        expect(selectorLabel("$.event.attributes.title", labels)).toBe("Title")
-        expect(selectorLabel("$.event.attributes.headRef", labels)).toBe("Head ref")
-        expect(selectorLabel('$.event.attributes["a.b"]', {})).toBe("A.b")
+    it("labels a pill from its path, the same label its tag shows", () => {
+        const fields = eventFieldsFromSchema(GITHUB_PULL_REQUEST_SCHEMA)
+        for (const field of fields) expect(selectorLabel(field.selector)).toBe(field.label)
+        expect(selectorLabel("$.event.attributes.headRef")).toBe("Head ref")
+        expect(selectorLabel('$.event.attributes["a.b"]')).toBe("A.b")
     })
 })
 
@@ -145,25 +144,20 @@ describe("formatEventText", () => {
 })
 
 describe("renderMessagePreview", () => {
-    const labels = eventFieldLabels(eventFieldsFromSchema(GITHUB_PULL_REQUEST_SCHEMA))
     const template = "Review {{event.attributes.title}} (#{{event.attributes.number}})"
 
     it("fills pills from the event and adds the event text", () => {
-        expect(renderMessagePreview(template, EVENT, labels, true)).toBe(
+        expect(renderMessagePreview(template, EVENT, true)).toBe(
             "Review Fix the login page (#42)" + EVENT_TEXT,
         )
     })
 
     it("leaves the event text out when the option is off", () => {
-        expect(renderMessagePreview(template, EVENT, labels, false)).toBe(
-            "Review Fix the login page (#42)",
-        )
+        expect(renderMessagePreview(template, EVENT, false)).toBe("Review Fix the login page (#42)")
     })
 
     it("shows labels in square brackets without an event", () => {
-        expect(renderMessagePreview(template, null, labels, true)).toBe(
-            "Review [Title] (#[Number])",
-        )
+        expect(renderMessagePreview(template, null, true)).toBe("Review [Title] (#[Number])")
     })
 
     it("fills an absent field with nothing and a quoted key whole", () => {
@@ -172,14 +166,13 @@ describe("renderMessagePreview", () => {
             renderMessagePreview(
                 '{{event.attributes.missing}}|{{event.attributes["a.b"]}}',
                 event,
-                {},
                 false,
             ),
         ).toBe("|whole")
     })
 
     it("sends the event text alone for an empty template", () => {
-        expect(renderMessagePreview("", EVENT, labels, true)).toBe(EVENT_TEXT.slice(2))
+        expect(renderMessagePreview("", EVENT, true)).toBe(EVENT_TEXT.slice(2))
     })
 })
 

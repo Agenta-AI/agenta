@@ -1,5 +1,5 @@
 /** The token composer's contenteditable surface: `{{selector}}` segments render as chips. */
-import {useCallback, useEffect, useRef, useState, type ReactNode} from "react"
+import {useCallback, useEffect, useRef, type ReactNode} from "react"
 
 import {splitTemplate} from "@agenta/entities/gatewayTrigger"
 
@@ -9,26 +9,21 @@ import {splitTemplate} from "@agenta/entities/gatewayTrigger"
 export function PillEditor({
     value,
     onChange,
-    placeholder,
     insertApi,
     labelFor,
-    disabled,
     footer,
 }: {
     value: string
     onChange: (next: string) => void
-    placeholder?: string
     /** `insert(selector)` puts a pill at the caret, or at the end when the box is not focused. */
     insertApi?: React.MutableRefObject<{insert: (selector: string) => void} | null>
     /** The label a pill shows for its selector. */
     labelFor: (selector: string) => string
-    disabled?: boolean
     /** Shown inside the box, under the text, so the two read as one control. */
     footer?: ReactNode
 }) {
     const ref = useRef<HTMLDivElement>(null)
     const lastSerialized = useRef<string>("")
-    const [empty, setEmpty] = useState(!value.trim())
 
     const makePill = useCallback(
         (selector: string) => {
@@ -85,14 +80,10 @@ export function PillEditor({
         return out
     }, [])
 
-    const renderedWith = useRef(render)
     useEffect(() => {
-        // New labels (the event schema landed) redraw the pills too.
-        if (value !== lastSerialized.current || render !== renderedWith.current) {
+        if (value !== lastSerialized.current) {
             render(value)
-            renderedWith.current = render
             lastSerialized.current = value
-            setEmpty(!value.trim())
         }
     }, [value, render])
 
@@ -101,7 +92,6 @@ export function PillEditor({
         if (!el) return
         const next = serialize(el)
         lastSerialized.current = next
-        setEmpty(!next.trim())
         onChange(next)
     }, [serialize, onChange])
 
@@ -174,7 +164,7 @@ export function PillEditor({
     // The pill's × removes the pill, like Backspace does.
     const onClick = (e: React.MouseEvent) => {
         const remove = (e.target as HTMLElement).closest("[data-remove]")
-        if (!remove || disabled) return
+        if (!remove) return
         e.preventDefault()
         remove.parentElement?.remove()
         commit()
@@ -189,26 +179,18 @@ export function PillEditor({
 
     return (
         <div className="box-border w-full rounded-lg border border-solid border-[var(--ag-colorBorder)] bg-[var(--ag-colorBgContainer)] focus-within:border-[var(--ag-colorPrimary)]">
-            <div className="relative">
-                <div
-                    ref={ref}
-                    contentEditable={!disabled}
-                    suppressContentEditableWarning
-                    role="textbox"
-                    aria-multiline="true"
-                    aria-disabled={disabled}
-                    onInput={commit}
-                    onPaste={onPaste}
-                    onKeyDown={onKeyDown}
-                    onClick={onClick}
-                    className="box-border max-h-[280px] min-h-[88px] w-full overflow-y-auto whitespace-pre-wrap break-words px-3 py-2 text-base leading-relaxed text-foreground outline-none aria-disabled:cursor-not-allowed aria-disabled:opacity-60 md:text-sm"
-                />
-                {empty && placeholder && (
-                    <div className="pointer-events-none absolute left-3 top-2 text-base text-[var(--ag-colorTextPlaceholder)] md:text-sm">
-                        {placeholder}
-                    </div>
-                )}
-            </div>
+            <div
+                ref={ref}
+                contentEditable
+                suppressContentEditableWarning
+                role="textbox"
+                aria-multiline="true"
+                onInput={commit}
+                onPaste={onPaste}
+                onKeyDown={onKeyDown}
+                onClick={onClick}
+                className="box-border max-h-[280px] min-h-[88px] w-full overflow-y-auto whitespace-pre-wrap break-words px-3 py-2 text-base leading-relaxed text-foreground outline-none md:text-sm"
+            />
             {footer ? <div className="px-3 pb-2">{footer}</div> : null}
         </div>
     )

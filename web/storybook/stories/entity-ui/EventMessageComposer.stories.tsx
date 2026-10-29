@@ -1,7 +1,6 @@
 import {useMemo, useRef, useState} from "react"
 
 import {
-    eventFieldLabels,
     eventFieldsFromSchema,
     parseMessageTemplate,
     templateSelectors,
@@ -51,7 +50,6 @@ const RICH_MAPPING = JSON.stringify({
 const Row = ({label, initial, schema}: {label: string; initial: string; schema?: unknown}) => {
     const [inputsText, setInputsText] = useState(initial)
     const fields = useMemo(() => eventFieldsFromSchema(schema ?? null), [schema])
-    const labels = useMemo(() => eventFieldLabels(fields), [fields])
     const used = useMemo(
         () => new Set(templateSelectors(parseMessageTemplate(inputsText, true, "messages") ?? "")),
         [inputsText],
@@ -66,7 +64,6 @@ const Row = ({label, initial, schema}: {label: string; initial: string; schema?:
                     onChange={setInputsText}
                     isChat
                     primaryKey="messages"
-                    labels={labels}
                     insertApi={insertApi}
                     fields={
                         <EventFieldTags
@@ -87,7 +84,6 @@ export const States: Story = {
         onChange: () => undefined,
         isChat: true,
         primaryKey: "messages",
-        labels: {},
     },
     render: () => (
         <div className="flex flex-col">

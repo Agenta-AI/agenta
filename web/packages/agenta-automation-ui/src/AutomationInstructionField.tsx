@@ -1,7 +1,6 @@
 import {useCallback, useEffect, useMemo, useRef} from "react"
 
 import {
-    eventFieldLabels,
     eventFieldsFromSchema,
     latestDeliveryEvent,
     parseMessageTemplate,
@@ -190,7 +189,6 @@ function EventInstruction({
         () => eventFieldsFromSchema(catalogEvent?.payload ?? null),
         [catalogEvent?.payload],
     )
-    const labels = useMemo(() => eventFieldLabels(fields), [fields])
 
     const {runs} = useAutomationRuns(automation)
     const lastEvent = useMemo(() => latestDeliveryEvent(runs), [runs])
@@ -198,7 +196,7 @@ function EventInstruction({
     const template = parseMessageTemplate(inputsText, isChat, primaryKey)
     const used = useMemo(() => new Set(templateSelectors(template ?? "")), [template])
     const preview =
-        template === null ? null : renderMessagePreview(template, lastEvent, labels, includeEvent)
+        template === null ? null : renderMessagePreview(template, lastEvent, includeEvent)
 
     const insertApi = useRef<{insert: (selector: string) => void} | null>(null)
     const onInsert = useCallback((field: EventField) => {
@@ -213,7 +211,6 @@ function EventInstruction({
                     onChange={onChange}
                     isChat={isChat}
                     primaryKey={primaryKey}
-                    labels={labels}
                     insertApi={insertApi}
                     fields={<EventFieldTags fields={fields} used={used} onInsert={onInsert} />}
                 />

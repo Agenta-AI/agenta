@@ -105,8 +105,8 @@ Composio key from the local-only EE env file and a GitHub account connected in t
   moves a template to the new input shape with `parseMessageTemplate` and
   `compileMessageTemplate`, removes the old key, keeps sibling keys, and returns a mapping it
   cannot show unchanged (design decision 10).
-- [x] 7.4 `eventPreview.ts`: `renderMessagePreview(template, event, labels, includeEvent)`
-  returns the whole text the agent gets. `labels` maps a selector to its tag label. It fills
+- [x] 7.4 `eventPreview.ts`: `renderMessagePreview(template, event, includeEvent)`
+  returns the whole text the agent gets. A pill's label is `selectorLabel(selector)`. It fills
   pills from `{event}` with `resolveSelectorPreview` and the text rule of design decision 5
   (`null` or `undefined` gives `""`), else `[Label]`. When `includeEvent` is on and `event` has
   attributes, it adds `formatEventText(event.event_type, event.attributes)`, which mirrors the
