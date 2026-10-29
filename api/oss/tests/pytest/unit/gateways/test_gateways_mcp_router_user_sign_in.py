@@ -91,7 +91,7 @@ class _PersonOAuthService(MockMCPOAuthConnectService):
         )
 
     async def sign_in_with_token(
-        self, *, organization_id, project_id, user_id, endpoint_id, token
+        self, *, organization_id, project_id, user_id, endpoint_id, server_url, token
     ):
         self.tokens.append((organization_id, user_id, endpoint_id, token))
         return object() if self.token_server_still_there else None
@@ -296,6 +296,21 @@ def test_a_person_signs_in_to_a_token_server_with_a_token(
         (FIXED_SCOPE.organization_id, PERSON, server.id, "tk-secret")
     ]
     assert "tk-secret" not in response.text
+
+
+def test_a_token_server_that_changed_meanwhile_answers_409_server_changed(
+    client, service, oauth_service, allow, person
+):
+    """The route read a token server, but under the server's lock it was gone or no
+    longer took a token: nothing is stored, and the person is told so."""
+    server = _server(MCPAuthScheme.API_KEY)
+    service.fetch_return = server
+    oauth_service.token_server_still_there = False
+
+    response = _connect(client, server.id, {"token": "tk"})
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "server_changed"
 
 
 def test_a_token_server_needs_a_token(client, service, oauth_service, allow, person):

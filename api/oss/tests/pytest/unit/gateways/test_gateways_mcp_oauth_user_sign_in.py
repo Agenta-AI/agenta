@@ -77,6 +77,7 @@ async def _token(service, *, organization_id, person, server, token="t"):
         project_id=PROJECT,
         user_id=person,
         endpoint_id=server.id,
+        server_url=server.data.route.base_url,
         token=token,
     )
 
@@ -464,3 +465,26 @@ async def test_signing_out_cancels_only_the_persons_own_attempts():
 
     assert attempts.attempts[mine.state].status.value == "cancelled"
     assert attempts.attempts[projects.state].status.value == "pending"
+
+
+@pytest.mark.asyncio
+async def test_a_token_for_a_server_that_moved_to_another_address_is_not_written():
+    """An edit moved the server and deleted every token before this write took the lock.
+    The token was entered for the old address and must not reach the new one."""
+    service, vault, _ = _service()
+    server = _server(MCPAuthScheme.API_KEY, service)
+    moved = server.model_copy(
+        update={
+            "data": MCPEndpointData(
+                route=MCPEndpointRoute(base_url="https://elsewhere.example/mcp")
+            )
+        }
+    )
+    service.endpoints_dao.put(moved)
+
+    stored = await _token(
+        service, organization_id=uuid4(), person=uuid4(), server=server
+    )
+
+    assert stored is None
+    assert vault.person_rows == {}

@@ -136,3 +136,36 @@ async def test_a_token_server_at_a_new_address_loses_every_token():
     )
 
     assert refresher.deleted_sign_ins == [token_slug(endpoint.id)]
+
+
+@pytest.mark.asyncio
+async def test_the_old_sign_ins_go_before_the_new_address_is_written():
+    """A relay reads the server, then the sign-in, without the server's lock. If the new
+    address were written first, a relay in between could send an old token to it."""
+    service, refresher, project_id, endpoint = await _setup(MCPAuthScheme.API_KEY)
+    order = []
+    dao = service.mcp_endpoints_dao
+    original_edit = dao.edit_endpoint
+
+    async def edit_endpoint(**kwargs):
+        order.append("edit")
+        return await original_edit(**kwargs)
+
+    original_delete = refresher.delete_sign_ins
+
+    async def delete_sign_ins(**kwargs):
+        order.append("delete_sign_ins")
+        return await original_delete(**kwargs)
+
+    dao.edit_endpoint = edit_endpoint
+    refresher.delete_sign_ins = delete_sign_ins
+
+    await _edit(
+        service,
+        project_id,
+        endpoint,
+        auth_mode=MCPAuthScheme.API_KEY,
+        url="https://elsewhere.example/mcp",
+    )
+
+    assert order == ["delete_sign_ins", "edit"]

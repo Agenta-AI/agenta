@@ -753,6 +753,7 @@ class MCPGatewayRouter:
                 project_id=scope.project_id,
                 user_id=user_id,
                 endpoint_id=endpoint_id,
+                server_url=endpoint.data.route.base_url or "",
                 token=body.token,
             )
             if stored is None:

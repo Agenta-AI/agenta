@@ -442,39 +442,59 @@ class MCPGatewayService:
                 await self._check_name_is_free(
                     project_id=project_id, name=endpoint.name, excluding=endpoint.id
                 )
+            if current is not None and self.oauth_refresher is not None:
+                await self._retire_for_edit(
+                    organization_id=organization_id,
+                    project_id=project_id,
+                    current=current,
+                    endpoint=endpoint,
+                )
             # Clears the binding itself when the connection leaves OAuth at its address.
-            edited = await self.mcp_endpoints_dao.edit_endpoint(
+            return await self.mcp_endpoints_dao.edit_endpoint(
                 project_id=project_id,
                 user_id=user_id,
                 #
                 endpoint=endpoint,
             )
-            if edited is None or current is None or self.oauth_refresher is None:
-                return edited
-            moved = (
-                current.auth_mode != edited.auth_mode
-                or current.data.route.base_url != edited.data.route.base_url
+
+    async def _retire_for_edit(
+        self,
+        *,
+        organization_id: UUID,
+        project_id: UUID,
+        current: MCPEndpoint,
+        endpoint: MCPEndpointEdit,
+    ) -> None:
+        """Retire what an edit leaves behind, BEFORE the edit is written.
+
+        A consent begun for another mode, address or client must not finish on the
+        edited server; a grant whose client changed stays, because it renews only as the
+        client it was issued to. On a change of mode or address, every sign-in of the old
+        mode goes too, the project's grant and each person's grant or token, because it
+        was issued for the old address or mode.
+
+        Before, not after: a relay reads the server and then the sign-in without this
+        lock, so a new address written first could receive an old credential in between,
+        and a failure between the two writes would leave it so. If the edit then fails,
+        the sign-ins are gone and people sign in again, which is the safe side.
+        """
+        moved = (
+            current.auth_mode != endpoint.auth_mode
+            or current.data.route.base_url != endpoint.data.route.base_url
+        )
+        if moved or configured_oauth_client(current) != configured_oauth_client(
+            endpoint
+        ):
+            await self.oauth_refresher.cancel_attempts(
+                project_id=project_id, endpoint_id=current.id
             )
-            if moved or configured_oauth_client(current) != configured_oauth_client(
-                edited
-            ):
-                # A consent begun for another mode, address or client must not finish
-                # on this one. A grant whose client changed stays: it renews only as the
-                # client it was issued to.
-                await self.oauth_refresher.cancel_attempts(
-                    project_id=project_id, endpoint_id=endpoint.id
-                )
-            stale_slug = sign_in_slug(current)
-            if moved and stale_slug is not None:
-                # Every sign-in of the old mode, the project's grant and each person's
-                # grant or token: it was issued for the old address or mode, and must
-                # never reach the new one.
-                await self.oauth_refresher.delete_sign_ins(
-                    organization_id=organization_id,
-                    project_id=project_id,
-                    slugs=[stale_slug],
-                )
-            return edited
+        stale_slug = sign_in_slug(current)
+        if moved and stale_slug is not None:
+            await self.oauth_refresher.delete_sign_ins(
+                organization_id=organization_id,
+                project_id=project_id,
+                slugs=[stale_slug],
+            )
 
     async def delete_endpoint(
         self,

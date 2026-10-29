@@ -713,6 +713,7 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         project_id: UUID,
         user_id: UUID,
         endpoint_id: UUID,
+        server_url: str,
         token: str,
     ) -> Optional[SecretResponseDTO]:
         """Store a person's own token for a token server, replacing the one they had.
@@ -720,8 +721,10 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         The row is the person's, at `token_slug(endpoint id)`, so one sign-in serves every
         agent of the project and never touches the project's own key. Under the server's
         OAuth lock, which an edit and a delete also take, and only while the server still
-        takes a token: a token written after its server was deleted or moved to OAuth
-        would outlive the cleanup. None when the server no longer takes one.
+        takes a token at `server_url`, the address the person entered it for: a token
+        written after its server was deleted, moved to OAuth or moved to another address
+        would outlive that cleanup and reach a server it was not meant for. None when the
+        server changed.
         """
         async with self.endpoints_dao.oauth_lock(
             project_id=project_id, endpoint_id=endpoint_id
@@ -729,7 +732,11 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
             endpoint = await self.endpoints_dao.fetch_endpoint(
                 project_id=project_id, endpoint_id=endpoint_id
             )
-            if endpoint is None or sign_in_kind(endpoint) != SecretKind.MCP_TOKEN:
+            if (
+                endpoint is None
+                or sign_in_kind(endpoint) != SecretKind.MCP_TOKEN
+                or endpoint.data.route.base_url != server_url
+            ):
                 return None
             return await self.vault_service.put_personal_secret(
                 organization_id=organization_id,
