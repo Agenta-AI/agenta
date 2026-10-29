@@ -180,7 +180,11 @@ def test_only_custom_secrets_are_personal(world):
         ("post", "/secrets/", _custom()),
         ("get", "/secrets/?scope=user", None),
         ("get", "/secrets/github?scope=user", None),
-        ("put", "/secrets/0193d1a0-0000-7000-8000-000000000001?scope=user", {"header": {"name": "x"}}),
+        (
+            "put",
+            "/secrets/0193d1a0-0000-7000-8000-000000000001?scope=user",
+            {"header": {"name": "x"}},
+        ),
         ("delete", "/secrets/0193d1a0-0000-7000-8000-000000000001?scope=user", None),
     ],
 )
@@ -217,6 +221,9 @@ async def test_sign_ins_are_never_listed_or_read_through_the_vault(world):
     client = world["client"]
     assert client.get("/secrets/?scope=user").json() == []
     assert client.get(f"/secrets/{row.id}?scope=user").status_code == 404
+    # The vault delete answers 204 and leaves a sign-in in place.
+    assert client.delete(f"/secrets/{row.id}?scope=user").status_code == 204
+    assert row.id in world["dao"].records
 
 
 async def test_put_personal_secret_replaces_in_place_and_keeps_the_id(world):

@@ -238,6 +238,9 @@ async def test_initiate_for_a_person_stores_no_project_and_signs_the_owner(
 
 
 async def test_the_callback_activates_nothing_while_the_switch_is_off(monkeypatch):
+    monkeypatch.setattr(
+        policy_module.env.agenta.access, "personal_accounts_enabled", False
+    )
     from oss.src.core.gateway.connections.utils import make_oauth_state
     import oss.src.apis.fastapi.tools.router as router_module
 
@@ -259,3 +262,15 @@ async def test_the_callback_activates_nothing_while_the_switch_is_off(monkeypatc
         state=state,
     )
     assert response.status_code == 403
+
+
+async def test_with_the_switch_off_a_persons_own_row_answers_403(person, monkeypatch):
+    monkeypatch.setattr(
+        policy_module.env.agenta.access, "personal_accounts_enabled", False
+    )
+    with pytest.raises(HTTPException) as error:
+        await _router(_Service(owned=_connection())).delete_connection(
+            person.request, uuid4()
+        )
+    assert error.value.status_code == 403
+    assert error.value.detail["code"] == "personal_accounts_disabled"

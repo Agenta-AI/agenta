@@ -15,7 +15,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 
 from oss.src.core.access.principals import access_denied_error
 from oss.src.core.secrets.dtos import SecretOwner
-from oss.src.apis.fastapi.shared.personal import person_or_none, require_person
+from oss.src.apis.fastapi.shared.personal import require_person, signed_in_person
 from oss.src.core.account_choices.policy import personal_accounts_enabled
 from oss.src.core.access.service import get_access_service
 from oss.src.core.access.types import AccessDenied
@@ -1229,16 +1229,17 @@ class ToolsRouter:
         self, request: Request, connection_id: UUID, *, permission: Permission
     ) -> Tuple[Optional[SecretOwner], Optional[ToolConnection]]:
         """Who a by-id route acts for, and the caller's own row when it is one. An id
-        names one row: the caller's own row (a person, with the switch on), or else a row
-        of the request's project with today's permission (owner None, no row read). A
-        row of neither answers 404 in the route."""
-        person = person_or_none(request)
+        names one row: the caller's own row (a signed-in person; with the switch off that
+        answers 403 `personal_accounts_disabled`), or else a row of the request's project
+        with today's permission (owner None). A row of neither answers 404 in the route."""
+        person = signed_in_person(request)
         if person is not None:
             owner = SecretOwner.for_user(organization_id=person[0], user_id=person[1])
             connection = await self.tools_service.get_connection(
                 project_id=None, connection_id=connection_id, owner=owner
             )
             if connection is not None:
+                require_person(request)
                 return owner, connection
 
         has_permission = await check_action_access(

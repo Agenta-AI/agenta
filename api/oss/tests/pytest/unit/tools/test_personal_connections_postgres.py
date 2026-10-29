@@ -139,7 +139,7 @@ async def test_after_the_default_is_deleted_a_new_connection_is_not_the_default(
 
 async def test_make_default_moves_the_flag_and_concurrent_calls_leave_one(person):
     dao = ConnectionsDAO()
-    await _create_for(dao, person, "gmail-main")
+    first = await _create_for(dao, person, "gmail-main")
     second = await _create_for(dao, person, "gmail-other")
     third = await _create_for(dao, person, "gmail-third")
 
@@ -147,9 +147,10 @@ async def test_make_default_moves_the_flag_and_concurrent_calls_leave_one(person
     assert moved.is_default is True
     assert await _defaults(dao, person) == ["gmail-other"]
 
+    # Both calls move the flag away from `second`, so both clear and both set.
     results = await asyncio.gather(
         dao.make_default(owner=person, connection_id=third.id),
-        dao.make_default(owner=person, connection_id=second.id),
+        dao.make_default(owner=person, connection_id=first.id),
     )
     assert all(result is not None for result in results)
     assert len(await _defaults(dao, person)) == 1

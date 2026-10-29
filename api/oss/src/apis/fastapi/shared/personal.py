@@ -25,7 +25,9 @@ from oss.src.core.account_choices.policy import (
 USER_REQUIRED_CODE = "user_required"
 
 
-def _person(request: Request) -> Optional[Tuple[UUID, UUID]]:
+def signed_in_person(request: Request) -> Optional[Tuple[UUID, UUID]]:
+    """The organization and the person when the caller is a signed-in person (the
+    Person check alone, without the switch); otherwise None."""
     access = get_request_access()
     organization_id = getattr(request.state, "organization_id", None)
     if (
@@ -40,7 +42,7 @@ def _person(request: Request) -> Optional[Tuple[UUID, UUID]]:
 
 def require_person(request: Request) -> Tuple[UUID, UUID]:
     """The organization and the person a person route acts for, after both checks."""
-    person = _person(request)
+    person = signed_in_person(request)
     if person is None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -56,11 +58,3 @@ def require_person(request: Request) -> Tuple[UUID, UUID]:
             detail={"code": error.code, "message": error.message},
         )
     return person
-
-
-def person_or_none(request: Request) -> Optional[Tuple[UUID, UUID]]:
-    """The organization and the person, when both checks pass; otherwise None. For a
-    route that also serves project rows and must not refuse other callers."""
-    if not personal_accounts_enabled():
-        return None
-    return _person(request)
