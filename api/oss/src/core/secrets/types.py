@@ -231,3 +231,13 @@ class SecretStorageError(SecretsError):
 
     def __init__(self):
         super().__init__("The credential could not be stored.")
+
+
+class PersonalSecretKindNotSupported(SecretsError):
+    """A person may store only custom secrets through the vault routes."""
+
+    code = "kind_not_supported"
+
+    def __init__(self, kind):
+        self.kind = getattr(kind, "value", kind)
+        super().__init__("You can only add custom secrets to your own accounts.")

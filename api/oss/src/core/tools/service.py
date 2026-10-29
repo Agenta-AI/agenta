@@ -8,6 +8,7 @@ from uuid import UUID
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
+from oss.src.core.secrets.dtos import SecretOwner
 from oss.src.core.gateway.catalog.service import CatalogService
 from oss.src.core.gateway.connections.service import ConnectionsService
 
@@ -435,12 +436,14 @@ class ToolsService:
     async def get_connection(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID],
         connection_id: UUID,
+        owner: Optional[SecretOwner] = None,
     ) -> Optional[ToolConnection]:
         conn = await self.connections_service.get_connection(
             project_id=project_id,
             connection_id=connection_id,
+            owner=owner,
         )
         return self._as_tool_connection(conn)
 
@@ -475,35 +478,41 @@ class ToolsService:
         user_id: UUID,
         #
         connection_create: ToolConnectionCreate,
+        owner: Optional[SecretOwner] = None,
     ) -> ToolConnection:
         conn = await self.connections_service.initiate_connection(
             project_id=project_id,
             user_id=user_id,
             #
             connection_create=connection_create,
+            owner=owner,
         )
         return ToolConnection.model_validate(conn.model_dump())
 
     async def delete_connection(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID],
         connection_id: UUID,
+        owner: Optional[SecretOwner] = None,
     ) -> bool:
         return await self.connections_service.delete_connection(
             project_id=project_id,
             connection_id=connection_id,
+            owner=owner,
         )
 
     async def revoke_connection(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID],
         connection_id: UUID,
+        owner: Optional[SecretOwner] = None,
     ) -> ToolConnection:
         conn = await self.connections_service.revoke_connection(
             project_id=project_id,
             connection_id=connection_id,
+            owner=owner,
         )
         return ToolConnection.model_validate(conn.model_dump())
 
@@ -514,13 +523,51 @@ class ToolsService:
         connection_id: UUID,
         #
         force: bool = False,
+        owner: Optional[SecretOwner] = None,
     ) -> ToolConnection:
         conn = await self.connections_service.refresh_connection(
             project_id=project_id,
             connection_id=connection_id,
             force=force,
+            owner=owner,
         )
         return ToolConnection.model_validate(conn.model_dump())
+
+    async def query_personal_connections(
+        self,
+        *,
+        organization_id: UUID,
+        user_id: UUID,
+        provider_key: Optional[str] = None,
+        integration_key: Optional[str] = None,
+    ) -> List[ToolConnection]:
+        conns = await self.connections_service.query_personal_connections(
+            organization_id=organization_id,
+            user_id=user_id,
+            provider_key=provider_key,
+            integration_key=integration_key,
+        )
+        return [ToolConnection.model_validate(c.model_dump()) for c in conns]
+
+    async def activate_personal_connection(
+        self, *, organization_id: UUID, user_id: UUID, provider_connection_id: str
+    ) -> Optional[ToolConnection]:
+        conn = await self.connections_service.activate_personal_connection(
+            organization_id=organization_id,
+            user_id=user_id,
+            provider_connection_id=provider_connection_id,
+        )
+        return self._as_tool_connection(conn)
+
+    async def make_default_connection(
+        self, *, organization_id: UUID, user_id: UUID, connection_id: UUID
+    ) -> Optional[ToolConnection]:
+        conn = await self.connections_service.make_default(
+            organization_id=organization_id,
+            user_id=user_id,
+            connection_id=connection_id,
+        )
+        return self._as_tool_connection(conn)
 
     # -----------------------------------------------------------------------
     # Tool execution

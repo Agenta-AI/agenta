@@ -47,6 +47,7 @@ CREDENTIAL_FIELDS: Dict[str, Tuple[str, Tuple[str, ...]]] = {
     ),
     "oauth_provider": ("provider", ("client_secret",)),
     "oauth_grant": ("grant", ("access_token", "refresh_token")),
+    "mcp_token": ("secret", ("content",)),
 }
 
 

@@ -21,6 +21,7 @@ def make_oauth_state(
     slug: Optional[str] = None,
     integration_key: Optional[str] = None,
     is_human: bool = False,
+    owner_organization_id: Optional[UUID] = None,
 ) -> str:
     """Generate an HMAC-signed state token to embed in OAuth callback URLs.
 
@@ -41,6 +42,11 @@ def make_oauth_state(
         payload["integration"] = integration_key
     if is_human:
         payload["human"] = True
+    # A person's own connection: the callback activates the row of `user_id` in this
+    # organization, never a project row.
+    if owner_organization_id is not None:
+        payload["owner"] = "user"
+        payload["organization_id"] = str(owner_organization_id)
     payload_bytes = json.dumps(payload, sort_keys=True).encode()
     payload_b64 = base64.urlsafe_b64encode(payload_bytes).decode().rstrip("=")
     sig = hmac.new(

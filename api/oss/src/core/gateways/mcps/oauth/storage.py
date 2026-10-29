@@ -72,6 +72,13 @@ def grant_slug(endpoint_id: UUID) -> str:
     return get_slug_from_name_and_id("oauth-grant", endpoint_id)
 
 
+def token_slug(endpoint_id: UUID) -> str:
+    """The vault slug of a person's pasted token for one MCP server (kind `mcp_token`).
+
+    Built like `grant_slug`, with its own name part, so the two never collide."""
+    return get_slug_from_name_and_id("mcp-token", endpoint_id)
+
+
 # Written on every registration this module creates, and preferred by both the lookup and
 # the scan when more than one row could answer.
 #

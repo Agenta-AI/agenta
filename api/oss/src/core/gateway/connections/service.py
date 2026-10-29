@@ -4,11 +4,13 @@ from uuid import UUID
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.env import env
 
+from oss.src.core.secrets.dtos import SecretOwner
 from oss.src.core.gateway.connections.dtos import (
     Connection,
     ConnectionCreate,
     ConnectionRequest,
     Usage,
+    entity_for,
 )
 from oss.src.core.gateway.connections.interfaces import ConnectionsDAOInterface
 from oss.src.core.gateway.connections.registry import ConnectionsGatewayRegistry
@@ -27,7 +29,8 @@ _CALLBACK_PATH = "/tools/connections/callback"
 
 
 class ConnectionsService:
-    """Project-scoped service that owns gateway_connections.
+    """The service that owns gateway_connections: a project's connections, and a
+    person's own connections (`owner`, a user `SecretOwner`).
 
     Returns domain ``Connection`` DTOs. Downstream domains (tools, triggers)
     consume this service; it never imports from them.
@@ -80,14 +83,16 @@ class ConnectionsService:
     async def get_connection(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID],
         connection_id: UUID,
+        owner: Optional[SecretOwner] = None,
     ) -> Optional[Connection]:
-        """Return a single connection by ID scoped to the project, or None."""
+        """Return a single connection by ID, of the project or of the person `owner`."""
         # Read-only by design: do not mutate local state during GET.
         return await self.connections_dao.get_connection(
             project_id=project_id,
             connection_id=connection_id,
+            owner=owner,
         )
 
     async def find_connection_by_provider_connection_id(
@@ -149,8 +154,13 @@ class ConnectionsService:
         user_id: UUID,
         #
         connection_create: ConnectionCreate,
+        owner: Optional[SecretOwner] = None,
     ) -> Connection:
-        """Initiate a provider connection and persist it locally in pending state."""
+        """Initiate a provider connection and persist it locally in pending state.
+
+        With a user `owner` the connection is that person's own, in their organization:
+        the provider user is the person's entity, the OAuth state signs the owner so the
+        callback activates that row only, and no project is stored."""
         provider_key = connection_create.provider_key.value
         integration_key = connection_create.integration_key
 
@@ -164,6 +174,7 @@ class ConnectionsService:
             secret_key=env.agenta.crypt_key,
             slug=connection_create.slug,
             integration_key=integration_key,
+            owner_organization_id=owner.organization_id if owner else None,
         )
         callback_url = f"{env.agenta.api_url}{_CALLBACK_PATH}?state={state}"
 
@@ -171,7 +182,7 @@ class ConnectionsService:
         connection_create_data = connection_create.data
         provider_result = await adapter.initiate_connection(
             request=ConnectionRequest(
-                user_id=str(project_id),
+                user_id=entity_for(owner=owner, project_id=project_id),
                 integration_key=integration_key,
                 auth_scheme=connection_create_data.auth_scheme.value
                 if connection_create_data and connection_create_data.auth_scheme
@@ -190,7 +201,8 @@ class ConnectionsService:
         # Merge provider-returned connection_data with service-level project_id.
         # The adapter owns provider-specific field names; the service adds project scope.
         data: Dict[str, Any] = dict(provider_result.connection_data)
-        data["project_id"] = str(project_id)
+        if owner is None:
+            data["project_id"] = str(project_id)
         data["auth_scheme"] = auth_scheme
         connection_create.data = data
 
@@ -206,22 +218,25 @@ class ConnectionsService:
 
         # Persist locally
         return await self.connections_dao.create_connection(
-            project_id=project_id,
+            project_id=None if owner is not None else project_id,
             user_id=user_id,
             #
             connection_create=connection_create,
+            owner=owner,
         )
 
     async def delete_connection(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID],
         connection_id: UUID,
+        owner: Optional[SecretOwner] = None,
     ) -> bool:
         """Revoke provider-side connection and delete locally. Raises ConnectionNotFoundError if missing."""
         conn = await self.connections_dao.get_connection(
             project_id=project_id,
             connection_id=connection_id,
+            owner=owner,
         )
 
         if not conn:
@@ -246,13 +261,15 @@ class ConnectionsService:
         return await self.connections_dao.delete_connection(
             project_id=project_id,
             connection_id=connection_id,
+            owner=owner,
         )
 
     async def revoke_connection(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID],
         connection_id: UUID,
+        owner: Optional[SecretOwner] = None,
     ) -> Connection:
         """Mark a connection invalid locally without touching the provider.
 
@@ -264,6 +281,7 @@ class ConnectionsService:
         conn = await self.connections_dao.get_connection(
             project_id=project_id,
             connection_id=connection_id,
+            owner=owner,
         )
 
         if not conn:
@@ -274,6 +292,7 @@ class ConnectionsService:
         updated = await self.connections_dao.update_connection(
             project_id=project_id,
             connection_id=connection_id,
+            owner=owner,
             is_valid=False,
         )
 
@@ -286,10 +305,14 @@ class ConnectionsService:
         connection_id: UUID,
         #
         force: bool = False,
+        owner: Optional[SecretOwner] = None,
     ) -> Connection:
+        """`project_id` is the request's project. It names the OAuth state's project for
+        both owners; with a user `owner` the row read is the person's own."""
         conn = await self.connections_dao.get_connection(
             project_id=project_id,
             connection_id=connection_id,
+            owner=owner,
         )
 
         if not conn:
@@ -316,10 +339,13 @@ class ConnectionsService:
         # Callback URL is server-owned with a signed state token.
         state = make_oauth_state(
             project_id=project_id,
-            user_id=project_id,  # refresh has no user_id; use project_id as entity
+            # A project refresh has no user; a person's refresh names the person, whom
+            # the callback activates the row for.
+            user_id=owner.id if owner else project_id,
             secret_key=env.agenta.crypt_key,
             slug=conn.slug,
             integration_key=conn.integration_key,
+            owner_organization_id=owner.organization_id if owner else None,
         )
         callback_url = f"{env.agenta.api_url}{_CALLBACK_PATH}?state={state}"
 
@@ -336,7 +362,7 @@ class ConnectionsService:
             force=force,
             callback_url=callback_url,
             integration_key=conn.integration_key,
-            user_id=str(project_id),
+            user_id=entity_for(owner=owner, project_id=project_id),
             auth_scheme=stored_auth_scheme
             if isinstance(stored_auth_scheme, str)
             else None,
@@ -354,9 +380,74 @@ class ConnectionsService:
         updated = await self.connections_dao.update_connection(
             project_id=project_id,
             connection_id=connection_id,
+            owner=owner,
             is_valid=is_valid,
             provider_connection_id=provider_connection_id,
             data_update=data_update,
         )
 
         return updated or conn
+
+    # -----------------------------------------------------------------------
+    # A person's own connections
+    # -----------------------------------------------------------------------
+
+    async def query_personal_connections(
+        self,
+        *,
+        organization_id: UUID,
+        user_id: UUID,
+        provider_key: Optional[str] = None,
+        integration_key: Optional[str] = None,
+    ) -> List[Connection]:
+        return await self.connections_dao.query_owned_connections(
+            owner=SecretOwner.for_user(
+                organization_id=organization_id, user_id=user_id
+            ),
+            provider_key=provider_key,
+            integration_key=integration_key,
+        )
+
+    async def activate_personal_connection(
+        self, *, organization_id: UUID, user_id: UUID, provider_connection_id: str
+    ) -> Optional[Connection]:
+        return await self.connections_dao.activate_owned_connection_by_provider_id(
+            owner=SecretOwner.for_user(
+                organization_id=organization_id, user_id=user_id
+            ),
+            provider_connection_id=provider_connection_id,
+        )
+
+    async def make_default(
+        self, *, organization_id: UUID, user_id: UUID, connection_id: UUID
+    ) -> Optional[Connection]:
+        """Make one of the person's connections their default for its integration. None
+        when the connection is not the person's."""
+        return await self.connections_dao.make_default(
+            owner=SecretOwner.for_user(
+                organization_id=organization_id, user_id=user_id
+            ),
+            connection_id=connection_id,
+        )
+
+    async def delete_personal_connections(
+        self, *, organization_id: UUID, user_id: UUID
+    ) -> int:
+        """Delete every connection of the person in the organization (they left it).
+        The provider revoke is best effort and never blocks the local delete."""
+        owner = SecretOwner.for_user(organization_id=organization_id, user_id=user_id)
+        connections = await self.connections_dao.query_owned_connections(owner=owner)
+        for connection in connections:
+            if not connection.provider_connection_id:
+                continue
+            try:
+                await self.adapter_registry.get(
+                    connection.provider_key.value
+                ).revoke_connection(
+                    provider_connection_id=connection.provider_connection_id
+                )
+            except Exception:  # noqa: BLE001 - best effort, the local delete still runs
+                log.warning("Failed to revoke a personal provider connection")
+        if not connections:
+            return 0
+        return await self.connections_dao.delete_owned_connections(owner=owner)

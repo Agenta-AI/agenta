@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
+from oss.src.core.secrets.dtos import SecretOwner
 from oss.src.core.gateway.connections.dtos import (
     Connection,
     ConnectionCreate,
@@ -19,26 +20,32 @@ class ConnectionsDAOInterface(ABC):
     async def create_connection(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID],
         user_id: UUID,
         #
         connection_create: ConnectionCreate,
+        owner: Optional[SecretOwner] = None,
     ) -> Optional[Connection]: ...
+
+    # The by-id methods address a project's row, or a person's own row when `owner` is
+    # set (then `project_id` is not read).
 
     @abstractmethod
     async def get_connection(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID],
         connection_id: UUID,
+        owner: Optional[SecretOwner] = None,
     ) -> Optional[Connection]: ...
 
     @abstractmethod
     async def update_connection(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID],
         connection_id: UUID,
+        owner: Optional[SecretOwner] = None,
         #
         is_valid: Optional[bool] = None,
         is_active: Optional[bool] = None,
@@ -50,8 +57,9 @@ class ConnectionsDAOInterface(ABC):
     async def delete_connection(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID],
         connection_id: UUID,
+        owner: Optional[SecretOwner] = None,
     ) -> bool: ...
 
     @abstractmethod
@@ -79,6 +87,30 @@ class ConnectionsDAOInterface(ABC):
         *,
         project_id: UUID,
         provider_connection_id: str,
+    ) -> Optional[Connection]: ...
+
+    # -- a person's own connections: always by the person AND the organization.
+
+    @abstractmethod
+    async def query_owned_connections(
+        self,
+        *,
+        owner: SecretOwner,
+        provider_key: Optional[str] = None,
+        integration_key: Optional[str] = None,
+    ) -> List[Connection]: ...
+
+    @abstractmethod
+    async def delete_owned_connections(self, *, owner: SecretOwner) -> int: ...
+
+    @abstractmethod
+    async def activate_owned_connection_by_provider_id(
+        self, *, owner: SecretOwner, provider_connection_id: str
+    ) -> Optional[Connection]: ...
+
+    @abstractmethod
+    async def make_default(
+        self, *, owner: SecretOwner, connection_id: UUID
     ) -> Optional[Connection]: ...
 
 
