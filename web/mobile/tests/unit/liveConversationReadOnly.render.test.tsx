@@ -165,7 +165,13 @@ vi.mock("@agenta/entity-ui/agent", () => ({AgentIntroCard: () => null}))
 vi.mock("@agenta/entity-ui/clientTools", () => ({
     SecretRequestDock: () => <div data-testid="secret-dock" />,
 }))
-vi.mock("@agenta/entity-ui/onboarding", () => ({AgentSetupCard: () => null}))
+vi.mock("@agenta/entity-ui/onboarding", () => ({
+    AgentSetupCard: () => null,
+    PersonalAccountsCard: () => null,
+}))
+vi.mock("@/features/chat/usePersonalSetupStep", () => ({
+    usePersonalSetupStep: () => ({open: false, items: [], pendingKeys: new Set()}),
+}))
 vi.mock("@agenta/shared/utils", () => ({isOnScreen: () => true, isOverlayOpen: () => false}))
 vi.mock("@agenta/ui/app-message", () => ({
     message: {warning: vi.fn()},

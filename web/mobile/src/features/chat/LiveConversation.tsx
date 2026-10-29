@@ -47,7 +47,7 @@ import {
 } from "@agenta/entities/workflow"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {SecretRequestDock} from "@agenta/entity-ui/clientTools"
-import {AgentSetupCard} from "@agenta/entity-ui/onboarding"
+import {AgentSetupCard, PersonalAccountsCard} from "@agenta/entity-ui/onboarding"
 import {isOnScreen, isOverlayOpen} from "@agenta/shared/utils"
 import {message, modal} from "@agenta/ui/app-message"
 import {ChatBubble} from "@agenta/ui/components/presentational"
@@ -94,6 +94,7 @@ import {mergeAssistantRuns} from "./turnRuns"
 import {deriveMobileRemoteTurnPresentation, showTrailingWorkingPulse} from "./turnStatus"
 import {useApprovalActions, type ApprovalActions} from "./useApprovalActions"
 import {useOpenModelSetup} from "./useOpenModelSetup"
+import {usePersonalSetupStep} from "./usePersonalSetupStep"
 import {useSessionSetupStep} from "./useSessionSetupStep"
 import {useSessionWatch} from "./useSessionWatch"
 import {useStartBlankSession} from "./useStartBlankSession"
@@ -424,6 +425,8 @@ export const LiveConversation = ({
     // its own. Holds the first message while it does; declines silently when there is nothing to
     // ask, which is every other way into this screen.
     const setup = useSessionSetupStep(sessionId)
+    // The viewer's own missing "user" items. Optional: it never holds a message.
+    const personalSetup = usePersonalSetupStep(sessionId, entityId)
     useEffect(() => {
         if (!pendingTask || pendingTask.delivery || locked) return
         const decision = pendingTaskDecision({
@@ -1016,6 +1019,21 @@ export const LiveConversation = ({
                                         onCreate={setup.resolve}
                                         onDismiss={setup.resolve}
                                         createLabel="Continue"
+                                    />
+                                </ContentRail>
+                            </div>
+                        ) : null}
+                        {/* The viewer's own accounts for this agent's "user" items. After the
+                        template step, which asks first when both would show. */}
+                        {personalSetup.open && !setup.open && !locked ? (
+                            <div className="bg-background shrink-0 px-3 pt-3 pb-0">
+                                <ContentRail>
+                                    <PersonalAccountsCard
+                                        workflowId={personalSetup.workflowId}
+                                        items={personalSetup.items}
+                                        pendingKeys={personalSetup.pendingKeys}
+                                        onContinue={personalSetup.close}
+                                        onDismiss={personalSetup.close}
                                     />
                                 </ContentRail>
                             </div>
