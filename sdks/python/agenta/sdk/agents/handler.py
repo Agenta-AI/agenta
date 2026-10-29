@@ -50,12 +50,12 @@ from agenta.sdk.agents.platform import resolve_mcp as _platform_resolve_mcp
 from agenta.sdk.agents.platform import (
     unready_mcp_servers as _platform_unready_mcp_servers,
 )
+from agenta.sdk.agents.platform.requirements import readiness_checked
 from agenta.sdk.agents.requirements import (
     AgentNeedsSetupError,
     LlmReference,
     model_requirement_from_error,
 )
-from agenta.sdk.agents.mcp import MCPGatewayConnection
 from agenta.sdk.agents.tools import MissingSecretPolicy
 from agenta.sdk.agents.platform import resolve_tools as _platform_resolve_tools
 from agenta.sdk.agents.platform import CHANNEL_TOOL_OPS
@@ -249,8 +249,7 @@ def _without_unready_mcp(
     left_out = {
         config.name
         for config in configs
-        if isinstance(config.connection, MCPGatewayConnection)
-        and config.connection.slug in unready_slugs
+        if readiness_checked(config) and config.connection.slug in unready_slugs
     }
     return [server for server in resolved if server.name not in left_out]
 

@@ -322,7 +322,19 @@ def _mcp_servers(agent: Dict[str, Any], prefix: str) -> List[ItemReference]:
     return list(items.values())
 
 
-def _secret_item(slug: str, path: str) -> ItemReference:
+def _secret_item(
+    slug: str, path: str, *, namespace: Optional[str] = None
+) -> ItemReference:
+    """A project secret, or with ``namespace="organization"`` an organization secret
+    shared with the project (a different item, even with the same slug)."""
+    if namespace == "organization":
+        return ItemReference(
+            kind=KIND_SECRET,
+            key=f"{KIND_SECRET}:organization/{slug}",
+            label=slug,
+            reference={"slug": slug, "namespace": namespace},
+            paths=[path],
+        )
     return ItemReference(
         kind=KIND_SECRET,
         key=f"{KIND_SECRET}:{slug}",
@@ -353,7 +365,11 @@ def _secrets_and_apps(
         if slug:
             _add(
                 secrets,
-                _secret_item(slug, f"{prefix}sandbox.credentials[{index}].secret"),
+                _secret_item(
+                    slug,
+                    f"{prefix}sandbox.credentials[{index}].secret",
+                    namespace=_string(secret.get("namespace")),
+                ),
             )
 
     tools = agent.get("tools")

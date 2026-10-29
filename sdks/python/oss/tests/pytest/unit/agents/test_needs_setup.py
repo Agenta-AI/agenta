@@ -454,3 +454,82 @@ async def test_the_mcp_readiness_check_sends_nothing_for_a_user_server(monkeypat
         == set()
     )
     assert sent == []
+
+
+async def test_a_project_server_that_needs_setup_keeps_the_same_server_for_the_person():
+    """The project's sign-in to `linear` is missing, so its entry is left out. The
+    person's own entry for `linear` is the gateway's to decide, so it stays."""
+    backend = _FakeBackend()
+    seen: List[Any] = []
+
+    async def _mcp(servers, **kwargs):
+        return [
+            ResolvedMCPServer(name=server.name, url="https://gw/x", headers={})
+            for server in servers
+        ]
+
+    async def _unready(servers):
+        return {"linear"}
+
+    async def _credentials(credentials, *, resolved_connection, mcp_servers):
+        seen.extend(server.name for server in mcp_servers)
+        return []
+
+    handler = make_agent_handler(
+        AgentComposition(
+            select_backend=lambda template: backend,
+            resolve_connection=_no_connection,
+            resolve_mcp_servers=_mcp,
+            unready_mcp_servers=_unready,
+            resolve_sandbox_credentials=_credentials,
+        )
+    )
+    parameters = _params(model="openai/gpt-5.5")
+    parameters["agent"]["mcps"] = [
+        {
+            "name": "team-linear",
+            "connection": {"type": "gateway", "namespace": "custom", "slug": "linear"},
+        },
+        {
+            "name": "my-linear",
+            "connection": {
+                "type": "gateway",
+                "namespace": "custom",
+                "slug": "linear",
+                "account_source": "user",
+            },
+        },
+    ]
+
+    await handler(
+        request=_request(),
+        messages=[{"role": "user", "content": "hi"}],
+        parameters=parameters,
+    )
+
+    assert seen == ["my-linear"]
+
+
+def test_an_organization_secret_is_its_own_item():
+    references = read_agent_references(
+        {
+            "agent": {
+                "sandbox": {
+                    "credentials": [
+                        {
+                            "secret": {"slug": "gh", "namespace": "organization"},
+                            "binding": {"type": "env", "name": "ORG_GH"},
+                        },
+                        {
+                            "secret": {"slug": "gh"},
+                            "binding": {"type": "env", "name": "GH"},
+                        },
+                    ]
+                }
+            }
+        }
+    )
+    assert [(item.key, item.reference) for item in references.secrets] == [
+        ("secret:organization/gh", {"slug": "gh", "namespace": "organization"}),
+        ("secret:gh", {"slug": "gh"}),
+    ]

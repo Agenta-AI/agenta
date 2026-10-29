@@ -22,14 +22,14 @@ from .connection import PlatformConnection
 log = get_module_logger(__name__)
 
 
-def _checked(server: MCPServerConfig) -> bool:
+def readiness_checked(server: MCPServerConfig) -> bool:
+    """Whether the run asks about this server: a project server named by slug. A
+    `"user"` server is the gateway's to leave out (no account in the run's claim)."""
     connection = server.connection
     return (
         isinstance(connection, MCPGatewayConnection)
         and connection.namespace == "custom"
         and bool(connection.slug)
-        # A "user" server is the gateway's to leave out (no account in the run's claim),
-        # so the run start sends nothing for it.
         and getattr(connection, "account_source", None) != "user"
     )
 
@@ -40,7 +40,7 @@ async def unready_mcp_servers(
     connection: Optional[PlatformConnection] = None,
 ) -> Set[str]:
     """The slugs of the named MCP servers that are missing, turned off or signed out."""
-    servers = [server for server in mcp_servers if _checked(server)]
+    servers = [server for server in mcp_servers if readiness_checked(server)]
     if not servers:
         return set()
 

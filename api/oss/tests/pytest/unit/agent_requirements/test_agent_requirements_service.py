@@ -670,3 +670,37 @@ async def test_a_subscription_the_harness_cannot_drive_makes_the_model_not_avail
         "model",
         "not_available",
     )
+
+
+@pytest.mark.asyncio
+async def test_an_organization_secret_is_checked_against_the_organization():
+    parameters = _agent(
+        sandbox={
+            "credentials": [
+                {
+                    "secret": {"slug": "gh", "namespace": "organization"},
+                    "binding": {"type": "env", "name": "ORG_GH"},
+                },
+                {
+                    "secret": {"slug": "shared", "namespace": "organization"},
+                    "binding": {"type": "env", "name": "SHARED"},
+                },
+            ]
+        }
+    )
+    # A project secret named `shared` does not stand in for the organization's.
+    vault = _Vault(project=[_text_secret("shared")], organization=[_text_secret("gh")])
+    result = await _service(vault=vault).check(
+        scope=_scope(),
+        parameters=parameters,
+        artifact_id=None,
+        run_person_id=None,
+        can_edit_agent=_yes,
+        allowed=_Allowed(),
+        may_run_agent=_yes,
+        manages_organization=_no,
+    )
+    [missing] = result.requirements
+    assert missing.key == "secret:organization/shared"
+    assert missing.reason.value == "not_found"
+    assert missing.fix.candidates == 1

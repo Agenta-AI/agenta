@@ -24,7 +24,7 @@ from agenta.sdk.agents.capabilities import (
     harness_allows_pair,
     harness_allows_provider,
 )
-from agenta.sdk.agents.accounts import UserItem
+from agenta.sdk.agents.accounts import UserItem, read_user_items
 from agenta.sdk.agents.dtos import AgentTemplate
 from agenta.sdk.agents.platform.connections import subscription_runs_on
 from agenta.sdk.agents.requirements import (
@@ -37,7 +37,6 @@ from agenta.sdk.agents.requirements import (
 )
 
 from oss.src.core.access.permissions.types import Permission
-from oss.src.core.account_choices.items import user_items_of_revision
 from oss.src.core.account_choices.policy import personal_accounts_enabled
 from oss.src.core.account_choices.service import AccountChoicesService
 from oss.src.core.agent_requirements.dtos import (
@@ -174,7 +173,7 @@ class AgentRequirementsService:
         found.extend(
             await self._user_items(
                 scope=scope,
-                items=user_items_of_revision(parameters),
+                items=read_user_items(parameters),
                 artifact_id=artifact_id,
                 run_person_id=run_person_id,
             )
@@ -231,7 +230,7 @@ class AgentRequirementsService:
                 scope=scope,
                 items=[
                     item
-                    for item in user_items_of_revision(parameters)
+                    for item in read_user_items(parameters)
                     if item.kind == _KIND.SUBSCRIPTION.value
                 ],
                 artifact_id=artifact_id,
@@ -282,7 +281,13 @@ class AgentRequirementsService:
                 await self._mcp_servers(scope=scope, items=references.mcp_servers)
             )
         if references.secrets:
-            found.extend(self._secrets(items=references.secrets, rows=project_rows))
+            found.extend(
+                self._secrets(
+                    items=references.secrets,
+                    project_rows=project_rows,
+                    organization_rows=organization_rows,
+                )
+            )
         if references.app_connections:
             found.extend(
                 await self._app_connections(
@@ -542,14 +547,27 @@ class AgentRequirementsService:
 
     @staticmethod
     def _secrets(
-        *, items: Sequence[ItemReference], rows: Sequence[SecretResponseDTO]
+        *,
+        items: Sequence[ItemReference],
+        project_rows: Sequence[SecretResponseDTO],
+        organization_rows: Sequence[SecretResponseDTO],
     ) -> List[_Found]:
-        present = {row.slug for row in rows if _is_text_secret(row)}
-        return [
-            _Found(item, reason=_REASON.NOT_FOUND, candidates=len(present))
-            for item in items
-            if item.reference.get("slug") not in present
-        ]
+        """A project reference reads the project's secrets; an organization reference
+        (`namespace: "organization"`) reads the organization's secrets shared with it."""
+        present = {
+            None: {row.slug for row in project_rows if _is_text_secret(row)},
+            "organization": {
+                row.slug for row in organization_rows if _is_text_secret(row)
+            },
+        }
+        found: List[_Found] = []
+        for item in items:
+            slugs = present.get(item.reference.get("namespace"), set())
+            if item.reference.get("slug") not in slugs:
+                found.append(
+                    _Found(item, reason=_REASON.NOT_FOUND, candidates=len(slugs))
+                )
+        return found
 
     async def _app_connections(
         self, *, scope: AuthScope, items: Sequence[ItemReference]
