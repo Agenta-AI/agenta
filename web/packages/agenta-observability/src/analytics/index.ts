@@ -1,5 +1,11 @@
 export * from "./types"
-export {PATH, type AnalyticsFocus, type AnalyticsQueryName} from "./queries"
+export {
+    PATH,
+    toBucketsResult,
+    type AnalyticsBucketsResult,
+    type AnalyticsFocus,
+    type AnalyticsQueryName,
+} from "./queries"
 export {
     OTHER_KEY,
     rangeWindow,
@@ -47,6 +53,7 @@ export {
     analyticsGroupAtom,
     EMPTY_FILTERS,
     analyticsBucketsAtomFamily,
+    analyticsRestrictedAtomFamily,
     analyticsSplitAtomFamily,
     analyticsModelProvidersAtomFamily,
     analyticsRunsAtomFamily,

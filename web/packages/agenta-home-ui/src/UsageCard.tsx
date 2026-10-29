@@ -15,8 +15,6 @@ import {AnalyticsRangePicker} from "./AnalyticsRangePicker"
 /** No data reads as an em dash. A falsy check would print it for a genuine zero. */
 const EMPTY = "—"
 
-const PARTIAL_NOTE = "Partial: these totals leave out private chats you cannot open."
-
 /** Five-digit milliseconds are unreadable; past a second the useful unit is seconds. */
 const formatLatency = (ms: number | null | undefined) => {
     if (ms == null) return EMPTY
@@ -59,10 +57,7 @@ export interface UsageCardProps {
  */
 export const UsageCard = ({appId = null, expandedContent}: UsageCardProps) => {
     const [expanded, setExpanded] = useState(false)
-    const dashboard = useObservabilityDashboard(appId)
-    const {loading, errorMessage} = dashboard
-    // A failed read shows every figure as unavailable, never the last answer or zero.
-    const data = errorMessage ? null : dashboard.data
+    const {data, loading, errorMessage} = useObservabilityDashboard(appId)
 
     const summary = useMemo(
         () => [
@@ -117,9 +112,6 @@ export const UsageCard = ({appId = null, expandedContent}: UsageCardProps) => {
                 <span role="alert" className="text-xs text-colorError">
                     {errorMessage}
                 </span>
-            ) : null}
-            {data?.partial && !loading ? (
-                <span className="text-xs text-colorTextSecondary">{PARTIAL_NOTE}</span>
             ) : null}
 
             {/* Stacked, not gridded: the grid's breakpoints read the viewport, and this column is

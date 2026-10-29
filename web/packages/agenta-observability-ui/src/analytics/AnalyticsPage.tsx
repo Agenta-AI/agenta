@@ -36,7 +36,7 @@ import {
 } from "./cards/OverviewCards"
 import {ANALYTICS_COLOR_CSS} from "./colors"
 import {AnalyticsDrawer} from "./drawer/AnalyticsDrawer"
-import {bucketUnit, fullLabel, groupKeyLabel, shortLabel} from "./labels"
+import {PARTIAL_TOTALS_NOTE, bucketUnit, fullLabel, groupKeyLabel, shortLabel} from "./labels"
 import {useAgentNames, useFailureReasons, usePageAnalytics} from "./useAnalyticsData"
 
 export interface AnalyticsPageProps {
@@ -237,6 +237,11 @@ export const AnalyticsPage = ({
                     <Button size="xs" onClick={clearFilters}>
                         Clear filters
                     </Button>
+                </div>
+            ) : null}
+            {data.restricted && !overviewStatus.error ? (
+                <div className="rounded-lg bg-muted px-3.5 py-2.5 text-sm text-muted-foreground">
+                    {PARTIAL_TOTALS_NOTE}
                 </div>
             ) : null}
             <CostCard ctx={ctx} />

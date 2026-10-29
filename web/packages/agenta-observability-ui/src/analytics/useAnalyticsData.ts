@@ -11,6 +11,7 @@ import {
     toOverview,
     analyticsAgentNamesAtomFamily,
     analyticsBucketsAtomFamily,
+    analyticsRestrictedAtomFamily,
     analyticsSplitAtomFamily,
     analyticsRunsAtomFamily,
     categorizeFailure,
@@ -62,6 +63,10 @@ export const useAnalyticsWindowData = (
     focus: AnalyticsFocus | null = null,
 ) => {
     const overviewQ = useAnalyticsBuckets("overview", window, filters, focus)
+    // Same cache entry as the overview: no extra request.
+    const restrictedQ = useAtomValue(
+        analyticsRestrictedAtomFamily({name: "overview", window, filters, focus}),
+    )
     const failedQ = useAnalyticsBuckets("failed", window, filters, focus)
     const agentsQ = useAnalyticsBuckets("agents", window, filters, focus)
     const agentsFailedQ = useAnalyticsBuckets("agentsFailed", window, filters, focus)
@@ -110,6 +115,8 @@ export const useAnalyticsWindowData = (
                     status: statusOf(providersQ, providersFailedQ),
                 },
             },
+            /** The totals leave out traces of private chats the reader cannot open. */
+            restricted: restrictedQ.data === true,
             status: {
                 overview: statusOf(overviewQ, failedQ),
                 agents,
@@ -119,6 +126,7 @@ export const useAnalyticsWindowData = (
     }, [
         window,
         overviewQ,
+        restrictedQ,
         failedQ,
         agentsQ,
         agentsFailedQ,

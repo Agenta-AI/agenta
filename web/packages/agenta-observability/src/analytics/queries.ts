@@ -131,7 +131,17 @@ export interface AnalyticsQueryParams {
     signal?: AbortSignal
 }
 
-export const fetchAnalyticsBuckets = async ({
+/** One analytics answer: the buckets, and whether the caller's trace access left traces out. */
+export interface AnalyticsBucketsResult {
+    buckets: MetricsBucket[]
+    restricted: boolean
+}
+
+export const fetchAnalyticsBuckets = async (
+    params: AnalyticsQueryParams,
+): Promise<MetricsBucket[]> => (await fetchAnalyticsResult(params)).buckets
+
+export const fetchAnalyticsResult = async ({
     projectId,
     name,
     window,
@@ -139,7 +149,7 @@ export const fetchAnalyticsBuckets = async ({
     focus,
     scope,
     signal,
-}: AnalyticsQueryParams): Promise<MetricsBucket[]> => {
+}: AnalyticsQueryParams): Promise<AnalyticsBucketsResult> => {
     const def: QueryDef = ANALYTICS_QUERIES[name]
     const conditions = [
         ...def.where,
@@ -158,8 +168,16 @@ export const fetchAnalyticsBuckets = async ({
         strict: true,
         abortSignal: signal,
     })
-    return res?.buckets ?? []
+    return toBucketsResult(res)
 }
+
+/** The buckets and the `access.restricted` flag of an analytics response. */
+export const toBucketsResult = (
+    res: {buckets?: MetricsBucket[] | null; access?: {restricted?: boolean} | null} | null,
+): AnalyticsBucketsResult => ({
+    buckets: res?.buckets ?? [],
+    restricted: res?.access?.restricted === true,
+})
 
 export interface AnalyticsRunsParams {
     projectId: string
