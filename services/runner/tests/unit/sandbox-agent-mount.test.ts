@@ -1101,10 +1101,11 @@ describe("remoteMountScript in a real shell", () => {
   });
 
   it("exits not-alive with the log tail once the time budget passes", () => {
-    const r = withStubs({ aliveSeconds: 1 });
+    // The clock has whole seconds, so a 2 s budget lasts between 1 and 2 s.
+    const r = withStubs({ aliveSeconds: 2 });
     assert.equal(r.status, REMOTE_MOUNT_NOT_ALIVE_EXIT);
-    assert.ok(r.probes > 2, `probed ${r.probes} times`);
-    assert.ok(r.elapsed < 4_000, `took ${r.elapsed} ms`);
+    assert.ok(r.probes >= 2, `probed ${r.probes} times`);
+    assert.ok(r.elapsed < 5_000, `took ${r.elapsed} ms`);
     assert.match(r.stdout, /geesefs log line/);
   });
 
