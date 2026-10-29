@@ -10,6 +10,7 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
 
 from oss.src.core.events.utils import publish_revision_event
+from oss.src.apis.fastapi.embeds.exceptions import handle_embed_exceptions
 from oss.src.apis.fastapi.git.exceptions import handle_git_exceptions
 
 from oss.src.core.shared.dtos import (
@@ -778,6 +779,7 @@ class EnvironmentsRouter:
 
     @intercept_exceptions()
     @handle_git_exceptions()
+    @handle_embed_exceptions()
     async def retrieve_environment_revision(
         self,
         request: Request,
@@ -824,6 +826,7 @@ class EnvironmentsRouter:
 
     @intercept_exceptions()
     @handle_git_exceptions()
+    @handle_embed_exceptions()
     async def resolve_environment_revision_endpoint(
         self,
         request: Request,

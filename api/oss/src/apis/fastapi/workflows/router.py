@@ -18,6 +18,7 @@ from oss.src.core.shared.dtos import (
 from oss.src.core.git.utils import build_retrieval_info
 from oss.src.core.git.types import CommitLockTimeout
 from oss.src.core.embeds.exceptions import NonEmbeddableWorkflowReferenceError
+from oss.src.apis.fastapi.embeds.exceptions import handle_embed_exceptions
 from oss.src.apis.fastapi.git.exceptions import handle_git_exceptions
 from oss.src.apis.fastapi.workflows.exceptions import handle_workflow_exceptions
 from oss.src.core.workflows.change_set import ChangeSetError
@@ -2326,6 +2327,7 @@ class WorkflowsRouter:
     @intercept_exceptions()
     @handle_workflow_exceptions()
     @handle_git_exceptions()
+    @handle_embed_exceptions()
     async def resolve_workflow_revision_endpoint(
         self,
         request: Request,

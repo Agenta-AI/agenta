@@ -105,7 +105,7 @@ class TestWorkflowEmbedsErrorHandling:
 
         # ASSERT ---------------------------------------------------------------
         # Should return error status
-        assert response.status_code in [400, 404, 500]  # Depends on implementation
+        assert response.status_code == 404
         # ----------------------------------------------------------------------
 
     def test_resolve_with_placeholder_error_policy(self, authed_api):
@@ -409,7 +409,8 @@ class TestWorkflowEmbedsCircular:
 
         # ASSERT ---------------------------------------------------------------
         # Should detect circular reference
-        assert response.status_code in [400, 500]  # Error status
+        assert response.status_code == 400
+        assert "Circular embed detected" in response.json()["detail"]
         # ----------------------------------------------------------------------
 
     def test_circular_reference_chain(self, authed_api):
@@ -567,7 +568,8 @@ class TestWorkflowEmbedsCircular:
 
         # ASSERT ---------------------------------------------------------------
         # Should detect circular reference
-        assert response.status_code in [400, 500]
+        assert response.status_code == 400
+        assert "Circular embed detected" in response.json()["detail"]
         # ----------------------------------------------------------------------
 
 
@@ -781,7 +783,7 @@ class TestWorkflowEmbedsLimits:
 
         # ASSERT ---------------------------------------------------------------
         # Should fail due to max depth exceeded
-        assert response.status_code in [400, 500]
+        assert response.status_code == 400
         # ----------------------------------------------------------------------
 
     def test_max_embeds_limit(self, authed_api):
@@ -929,5 +931,5 @@ class TestWorkflowEmbedsLimits:
 
         # ASSERT ---------------------------------------------------------------
         # Should fail due to max embeds exceeded
-        assert response.status_code in [400, 500]
+        assert response.status_code == 400
         # ----------------------------------------------------------------------

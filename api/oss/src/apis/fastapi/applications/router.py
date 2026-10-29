@@ -10,6 +10,7 @@ from oss.src.utils.caching import invalidate_cache
 from oss.src.core.events.utils import publish_revision_event
 
 from oss.src.core.git.utils import build_retrieval_info
+from oss.src.apis.fastapi.embeds.exceptions import handle_embed_exceptions
 from oss.src.apis.fastapi.git.exceptions import handle_git_exceptions
 from oss.src.apis.fastapi.workflows.exceptions import handle_workflow_exceptions
 from oss.src.core.shared.dtos import (
@@ -1379,6 +1380,7 @@ class ApplicationsRouter:
     @intercept_exceptions()
     @suppress_exceptions(default=ApplicationRevisionResponse(), exclude=[HTTPException])
     @handle_git_exceptions()
+    @handle_embed_exceptions()
     async def retrieve_application_revision(
         self,
         request: Request,
@@ -1908,6 +1910,7 @@ class ApplicationsRouter:
 
     @intercept_exceptions()
     @handle_git_exceptions()
+    @handle_embed_exceptions()
     async def resolve_application_revision(
         self,
         request: Request,

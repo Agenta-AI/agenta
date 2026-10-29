@@ -10,6 +10,7 @@ from oss.src.utils.caching import invalidate_cache
 from oss.src.core.events.utils import publish_revision_event
 
 from oss.src.core.git.utils import build_retrieval_info
+from oss.src.apis.fastapi.embeds.exceptions import handle_embed_exceptions
 from oss.src.apis.fastapi.git.exceptions import handle_git_exceptions
 from oss.src.core.shared.dtos import (
     Reference,
@@ -1382,6 +1383,7 @@ class EvaluatorsRouter:
 
     @intercept_exceptions()
     @handle_git_exceptions()
+    @handle_embed_exceptions()
     async def retrieve_evaluator_revision(
         self,
         request: Request,
@@ -1893,6 +1895,7 @@ class EvaluatorsRouter:
 
     @intercept_exceptions()
     @handle_git_exceptions()
+    @handle_embed_exceptions()
     async def resolve_evaluator_revision(
         self,
         request: Request,
