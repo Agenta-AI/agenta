@@ -181,6 +181,9 @@ from oss.src.core.tools.providers.composio import ComposioToolsAdapter
 from oss.src.core.tools.registry import ToolsGatewayRegistry
 from oss.src.core.tools.service import ToolsService
 from oss.src.apis.fastapi.tools.router import ToolsRouter
+from oss.src.apis.fastapi.account_choices.router import AccountChoicesRouter
+from oss.src.core.account_choices.lifecycle import AccountsLifecycle
+from oss.src.core.account_choices.service import get_account_choices_service
 from oss.src.dbs.postgres.triggers.dao import TriggersDAO
 from oss.src.core.triggers.providers.composio import ComposioTriggersAdapter
 from oss.src.core.triggers.registry import TriggersGatewayRegistry
@@ -1002,6 +1005,14 @@ connections_adapter_registry = ConnectionsGatewayRegistry(
 connections_service = ConnectionsService(
     connections_dao=connections_dao,
     adapter_registry=connections_adapter_registry,
+)
+
+# A person's own accounts in an organization end when they leave it, on both paths
+# that remove a member.
+get_memberships_service().set_member_removed_hook(
+    AccountsLifecycle(
+        vault_service=vault_service, connections_service=connections_service
+    ).end_for_member
 )
 
 # Shared catalog adapter + service (providers + integrations; tools AND triggers)
@@ -2086,6 +2097,17 @@ app.include_router(
     router=tools.router,
     prefix="/tools",
     tags=["Tools"],
+)
+
+account_choices = AccountChoicesRouter(
+    account_choices_service=get_account_choices_service(),
+    workflows_service=workflows_service,
+)
+
+app.include_router(
+    router=account_choices.router,
+    prefix="/account-choices",
+    tags=["Account Choices"],
 )
 
 app.include_router(

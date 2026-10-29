@@ -266,6 +266,17 @@ class InMemorySecretsDAO:
             if r.slug in set(slugs) and r.kind in SIGN_IN_SECRET_KINDS
         ]
 
+    async def list_by_ids(self, *, owner, secret_ids):
+        self.calls.append("list_by_ids")
+        return [r for r in self._of(owner) if r.id in set(secret_ids)]
+
+    async def delete_by_owner(self, *, owner):
+        self.calls.append("delete_by_owner")
+        doomed = [r.id for r in self._of(owner)]
+        for secret_id in doomed:
+            self.records.pop(secret_id, None)
+        return len(doomed)
+
     async def delete_sign_ins(self, *, organization_id, project_id, slugs):
         self.calls.append("delete_sign_ins")
         doomed = [

@@ -19,6 +19,8 @@ from typing import (
 from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.access.service import get_access_service
 from oss.src.core.access.types import MissingPrincipal
+from oss.src.core.account_choices.claims import sign_run_accounts
+from oss.src.core.account_choices.items import user_items_of_revision
 from oss.src.core.git.dtos import RevisionGrouping
 from urllib.parse import urlparse
 from uuid import UUID, uuid4
@@ -399,6 +401,23 @@ _AGENT_REFERENCE_ORDER = (
     ("workflow", "artifact"),
     ("application", "artifact"),
 )
+
+
+def _artifact_id_of_references(references: Optional[dict]) -> Optional[UUID]:
+    """The agent (artifact) a run's references name, for its account choices."""
+    for family in ("workflow", "application", "evaluator"):
+        reference = (references or {}).get(family)
+        reference_id = (
+            reference.get("id")
+            if isinstance(reference, dict)
+            else getattr(reference, "id", None)
+        )
+        if reference_id:
+            try:
+                return UUID(str(reference_id))
+            except ValueError:
+                return None
+    return None
 
 
 class WorkflowsService:
@@ -3656,6 +3675,15 @@ class WorkflowsService:
             gateway_run_id=gateway_run_id,
             grants=self._service_grants(service_url),
             envelope=envelope,
+            # The accounts of the revision's "user" items, for the run person: one read,
+            # and none for a revision without "user" items.
+            run_accounts=await sign_run_accounts(
+                envelope=envelope,
+                items=user_items_of_revision(revision_data),
+                artifact_id=_artifact_id_of_references(
+                    getattr(request, "references", None)
+                ),
+            ),
         )
 
         credentials = f"Secret {secret_token}"

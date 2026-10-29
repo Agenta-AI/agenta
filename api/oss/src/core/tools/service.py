@@ -8,6 +8,12 @@ from uuid import UUID
 from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 
+from agenta.sdk.agents.accounts import AccountSource, user_item_key
+
+from oss.src.core.access.context import get_request_access
+from oss.src.core.account_choices.claims import run_account
+from oss.src.core.account_choices.items import run_person_id
+from oss.src.core.gateway.connections.dtos import entity_for
 from oss.src.core.secrets.dtos import SecretOwner
 from oss.src.core.gateway.catalog.service import CatalogService
 from oss.src.core.gateway.connections.service import ConnectionsService
@@ -39,6 +45,7 @@ from oss.src.core.tools.dtos import (
     ToolProviderKind,
     ToolReference,
     ToolsResolution,
+    UnavailableToolConnection,
 )
 from oss.src.core.tools.discovery import (
     is_object_schema,
@@ -124,6 +131,57 @@ _CATALOG_CACHE_NAMESPACE = "tools:catalog:all"
 
 # Enough to correct a typo without turning the error into a menu.
 _MAX_TOOL_KEY_SUGGESTIONS = 5
+
+
+def _usable(connection: ToolConnection, *, label: str) -> ToolConnection:
+    """The connection, if a tool can run through it now; otherwise the refusal."""
+    if not connection.is_active:
+        raise ConnectionInactiveError(connection_id=label)
+    if not connection.is_valid:
+        raise ConnectionInvalidError(
+            connection_slug=label,
+            detail="Please refresh the connection.",
+        )
+    # No-auth toolkits have no provider-side connected account; the missing id is
+    # expected and execution runs without one.
+    if connection.has_auth and not connection.provider_connection_id:
+        raise ConnectionNotFoundError(
+            provider_key=connection.provider_key.value,
+            integration_key=connection.integration_key,
+            connection_id=label,
+        )
+    return connection
+
+
+def composio_user_of(connection: ToolConnection) -> Optional[str]:
+    """The Composio user a stored connection was made for: the person's entity for a
+    person's own connection, else the project it was initiated under."""
+    user_id = getattr(connection, "user_id", None)
+    organization_id = getattr(connection, "organization_id", None)
+    if user_id is not None and organization_id is not None:
+        return entity_for(
+            owner=SecretOwner.for_user(
+                organization_id=organization_id, user_id=user_id
+            ),
+            project_id=None,
+        )
+    if isinstance(connection.data, dict) and connection.data.get("project_id"):
+        return str(connection.data["project_id"])
+    return None
+
+
+def _unavailable(ref: ToolReference) -> UnavailableToolConnection:
+    """The connection a gateway tool reference names, for `unavailable_connections`."""
+    if isinstance(ref, GatewayConnectionTool):
+        return UnavailableToolConnection(
+            provider=ref.connection.provider,
+            integration=ref.connection.integration,
+            connection=ref.connection.slug,
+            account_source=ref.connection.account_source,
+        )
+    return UnavailableToolConnection(
+        provider=ref.provider, integration=ref.integration, connection=ref.connection
+    )
 
 
 class ToolsService:
@@ -660,31 +718,75 @@ class ToolsService:
                 connection_slug=connection_slug,
             )
 
-        if not connection.is_active:
-            raise ConnectionInactiveError(connection_id=connection_slug)
+        return _usable(connection, label=connection_slug)
 
-        if not connection.is_valid:
-            raise ConnectionInvalidError(
-                connection_slug=connection_slug,
-                detail="Please refresh the connection.",
+    async def resolve_run_person_connection(
+        self, *, provider_key: str, integration_key: str
+    ) -> ToolConnection:
+        """The run person's own connection for a "user" tool: the one the run's
+        `run_accounts` claim names for `app_connection:user/<integration>`, read by id
+        and checked to still belong to the run person in the run's organization. No
+        entry, or a row that fails the check, is "not found"; it never falls back to a
+        project connection."""
+        item_key = user_item_key(kind="app_connection", match_text=integration_key)
+        access = get_request_access()
+        account = run_account(access, item_key)
+        person_id = run_person_id(access.envelope if access else None)
+        connection = None
+        if (
+            account is not None
+            and person_id is not None
+            and account.gateway_connection_id
+        ):
+            connection = await self.get_connection(
+                project_id=None,
+                connection_id=account.gateway_connection_id,
+                owner=SecretOwner.for_user(
+                    organization_id=access.authority.organization_id,
+                    user_id=person_id,
+                ),
             )
-
-        # No-auth toolkits have no provider-side connected account; the missing id is
-        # expected and execution runs without one.
-        if connection.has_auth and not connection.provider_connection_id:
+        if (
+            connection is None
+            or connection.provider_key.value != provider_key
+            or connection.integration_key != integration_key
+        ):
             raise ConnectionNotFoundError(
                 provider_key=provider_key,
                 integration_key=integration_key,
-                connection_slug=connection_slug,
+                connection_id=item_key,
             )
+        return _usable(connection, label=item_key)
 
-        return connection
+    async def _gateway_connection(
+        self,
+        *,
+        project_id: UUID,
+        provider_key: str,
+        integration_key: str,
+        connection_slug: Optional[str],
+        account_source: Optional[AccountSource],
+    ) -> ToolConnection:
+        """The connection a gateway entry uses: the run person's own for a "user"
+        entry, else the project's connection at the slug."""
+        if account_source == "user":
+            return await self.resolve_run_person_connection(
+                provider_key=provider_key, integration_key=integration_key
+            )
+        _validate_slug_segments(provider_key, (integration_key, connection_slug or ""))
+        return await self.resolve_connection_by_slug(
+            project_id=project_id,
+            provider_key=provider_key,
+            integration_key=integration_key,
+            connection_slug=connection_slug or "",
+        )
 
     async def resolve_tools(
         self,
         *,
         project_id: UUID,
         tools: List[ToolReference],
+        omit_unavailable: bool = False,
     ) -> ToolsResolution:
         """Resolve a list of tool references into model-ready specs.
 
@@ -712,7 +814,17 @@ class ToolsService:
                 else self._resolve_composio_tool
             )
             async with semaphore:
-                return await resolve(project_id=project_id, ref=ref)
+                try:
+                    return await resolve(project_id=project_id, ref=ref)
+                except (
+                    ConnectionNotFoundError,
+                    ConnectionInactiveError,
+                    ConnectionInvalidError,
+                ):
+                    # Needs setup: the run starts without this connection's tools.
+                    if not omit_unavailable:
+                        raise
+                    return None
 
         # The references do not depend on each other, so they resolve together. The error the
         # caller sees is still the first failing reference in request order.
@@ -720,16 +832,31 @@ class ToolsService:
         gateway_connections: List[ResolvedGatewayConnection] = [
             item
             for ref, item in zip(refs, resolved)
-            if isinstance(ref, GatewayConnectionTool)
+            if isinstance(ref, GatewayConnectionTool) and item is not None
         ]
         custom: List[ResolvedTool] = [
-            item for ref, item in zip(refs, resolved) if isinstance(ref, ComposioTool)
+            item
+            for ref, item in zip(refs, resolved)
+            if isinstance(ref, ComposioTool) and item is not None
         ]
+        unavailable: Dict[tuple, UnavailableToolConnection] = {}
+        for ref, item in zip(refs, resolved):
+            if item is None:
+                entry = _unavailable(ref)
+                unavailable[
+                    (
+                        entry.provider,
+                        entry.integration,
+                        entry.connection,
+                        entry.account_source,
+                    )
+                ] = entry
 
         return ToolsResolution(
             builtins=builtins,
             custom=custom,
             gateway_connections=gateway_connections,
+            unavailable_connections=list(unavailable.values()),
         )
 
     async def _resolve_gateway_connection(
@@ -746,14 +873,14 @@ class ToolsService:
         provider_key = ref.connection.provider
         integration_key = ref.connection.integration
         connection_slug = ref.connection.slug
+        account_source = ref.connection.account_source
 
-        _validate_slug_segments(provider_key, (integration_key, connection_slug))
-
-        await self.resolve_connection_by_slug(
+        await self._gateway_connection(
             project_id=project_id,
             provider_key=provider_key,
             integration_key=integration_key,
             connection_slug=connection_slug,
+            account_source=account_source,
         )
 
         adapter = self.adapter_registry.get(provider_key)
@@ -771,6 +898,7 @@ class ToolsService:
             provider=provider_key,
             integration=integration_key,
             connection=connection_slug,
+            account_source=account_source,
             toolkit_version=toolkit_version,
             tools=[
                 ResolvedGatewayTool(key=action.key, read_only=action.read_only)
@@ -961,10 +1089,11 @@ class ToolsService:
         project_id: UUID,
         provider_key: str,
         integration_key: str,
-        connection_slug: str,
+        connection_slug: Optional[str],
         tool_key: str,
         toolkit_version: str,
         arguments: Dict[str, Any],
+        account_source: Optional[AccountSource] = None,
     ) -> ToolExecutionResponse:
         """Run one integration tool through the selected connection.
 
@@ -972,13 +1101,12 @@ class ToolsService:
         The connection must be usable and the tool key must belong to that integration's
         catalog, which is also where the canonical provider action ID comes from.
         """
-        _validate_slug_segments(provider_key, (integration_key, connection_slug))
-
-        connection = await self.resolve_connection_by_slug(
+        connection = await self._gateway_connection(
             project_id=project_id,
             provider_key=provider_key,
             integration_key=integration_key,
             connection_slug=connection_slug,
+            account_source=account_source,
         )
 
         catalog = await self.list_all_actions(
@@ -993,12 +1121,7 @@ class ToolsService:
                 catalog=catalog,
             )
 
-        # The Composio user is the project the connection was initiated under.
-        user_id = (
-            connection.data.get("project_id")
-            if isinstance(connection.data, dict)
-            else None
-        )
+        user_id = composio_user_of(connection)
 
         started = perf_counter()
         result = await self.execute_tool(

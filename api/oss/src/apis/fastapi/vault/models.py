@@ -5,6 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from oss.src.core.secrets.dtos import PublicSecretResponseDTO
 from oss.src.core.secrets.enums import SecretAvailability
 
 
@@ -117,3 +118,21 @@ class SubscriptionLoginFailureResponse(BaseModel):
     version: int
     generation: int
     login: Optional[Dict[str, Any]] = None
+
+
+class SecretsResolveRequest(BaseModel):
+    """The "user" secret item keys of a run (`secret:user/<variable>`)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    item_keys: List[str] = Field(default_factory=list, max_length=100)
+
+
+class ItemSecret(BaseModel):
+    item_key: str
+    secret: PublicSecretResponseDTO
+
+
+class SecretsResolveResponse(BaseModel):
+    count: int = 0
+    item_secrets: List[ItemSecret] = Field(default_factory=list)

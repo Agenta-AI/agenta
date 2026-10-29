@@ -13,6 +13,7 @@ from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.utils.exceptions import display_exception
 from agenta.sdk.utils.cache import TTLLRUCache
 from agenta.sdk.utils.constants import TRUTHY
+from agenta.sdk.agents.accounts import read_user_items
 
 import agenta as ag
 
@@ -124,6 +125,34 @@ def _structured_denial(response) -> Optional[Dict[str, Any]]:
     return None
 
 
+async def _run_accounts_params(request: Request) -> Dict[str, Any]:
+    """The agent and the "user" item keys of the configuration a turn runs, read from the
+    request body (`data.parameters`, and the agent from `references`). Empty when the
+    configuration has no "user" items, or the body is not a turn."""
+    if getattr(request, "method", None) != "POST":
+        return {}
+    try:
+        body = await request.json()
+    except Exception:  # pylint: disable=broad-except
+        return {}
+    if not isinstance(body, dict):
+        return {}
+    data = body.get("data")
+    parameters = data.get("parameters") if isinstance(data, dict) else None
+    items = read_user_items(parameters if isinstance(parameters, dict) else None)
+    references = body.get("references")
+    workflow_id = None
+    if isinstance(references, dict):
+        for family in ("workflow", "application", "evaluator"):
+            reference = references.get(family)
+            if isinstance(reference, dict) and reference.get("id"):
+                workflow_id = str(reference["id"])
+                break
+    if not items or not workflow_id:
+        return {}
+    return {"workflow_id": workflow_id, "item_keys": [item.item_key for item in items]}
+
+
 async def get_credentials(
     request: Request,
     host: str,
@@ -185,6 +214,9 @@ async def get_credentials(
         if scope_type and scope_id:
             params["scope_type"] = scope_type
             params["scope_id"] = scope_id
+        ## ACCOUNTS: the "user" items of the configuration this turn runs, so the
+        ## credential carries the run person's accounts for them (no keys, no read).
+        params.update(await _run_accounts_params(request))
         ## ACTION
         params["action"] = "run_service"
         ## RESOURCE
@@ -199,7 +231,12 @@ async def get_credentials(
             sort_keys=True,
         )
 
-        if _CACHE_ENABLED:
+        # A turn with "user" items is never answered from the cache: its credential
+        # carries the person's accounts as they are now, so an account set up a moment
+        # ago is in the next turn.
+        cacheable = _CACHE_ENABLED and "item_keys" not in params
+
+        if cacheable:
             credentials = _cache.get(_hash)
 
             if credentials:
@@ -295,7 +332,8 @@ async def get_credentials(
 
                 credentials = auth.get("credentials")
 
-                _cache.put(_hash, credentials)
+                if cacheable:
+                    _cache.put(_hash, credentials)
 
                 return credentials
 

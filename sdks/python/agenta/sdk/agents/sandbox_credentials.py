@@ -1,16 +1,24 @@
-"""Validation and project-scoped resolution for sandbox environment credentials."""
+"""Validation and resolution of sandbox environment credentials.
+
+An ``agent`` credential names a secret by slug, in the project's list or, with
+``namespace: "organization"``, the organization's; a missing one fails the run. A ``user``
+credential names nothing: the secret the run person chose for this agent fills it, read
+from the run's own claim in one call next to the slug reads, and a missing one leaves the
+variable out."""
 
 from __future__ import annotations
 
 import re
-from typing import Awaitable, Callable, Dict, List, Optional, Sequence
+import asyncio
+from typing import Awaitable, Callable, Dict, List, Optional, Sequence, Tuple
 
 from agenta.sdk.engines.running.errors import ERRORS_BASE_URL, ErrorStatus
 
 from .connections import EnvironmentCredentialBinding, ResolvedConnection
 from .dtos import ResolvedSandboxCredential, SandboxCredentialConfig
 from .mcp import ResolvedMCPServer
-from .platform.secrets import resolve_named_secrets
+from .accounts import user_item_key
+from .platform.secrets import resolve_named_secrets, resolve_user_secrets
 
 ENVIRONMENT_NAME_PATTERN = r"^[A-Za-z_][A-Za-z0-9_]*$"
 RESERVED_SANDBOX_ENVIRONMENT_NAMES = frozenset(
@@ -74,7 +82,7 @@ def validate_sandbox_credential_bindings(
     for credential in credentials:
         slug = credential.secret.slug
         name = credential.binding.name
-        if not slug:
+        if credential.secret.account_source != "user" and not slug:
             raise SandboxCredentialError(
                 "sandbox credential secret.slug must be non-empty"
             )
@@ -98,6 +106,24 @@ def validate_sandbox_credential_bindings(
 
 
 ResolveNamedSecrets = Callable[[Sequence[str]], Awaitable[Dict[str, str]]]
+ResolveUserSecrets = Callable[[Sequence[str]], Awaitable[Dict[str, str]]]
+
+
+async def _resolve_organization_secrets(slugs: Sequence[str]) -> Dict[str, str]:
+    return await resolve_named_secrets(slugs, scope="organization")
+
+
+def _address(credential: SandboxCredentialConfig) -> Tuple[Optional[str], str]:
+    """Where an ``agent`` credential's value lives: ``(namespace, slug)``."""
+    return credential.secret.namespace, credential.secret.slug or ""
+
+
+def _user_key(credential: SandboxCredentialConfig) -> str:
+    return user_item_key(kind="secret", match_text=credential.binding.name)
+
+
+async def _nothing(_: Sequence[str]) -> Dict[str, str]:
+    return {}
 
 
 async def resolve_sandbox_credentials(
@@ -106,6 +132,8 @@ async def resolve_sandbox_credentials(
     resolved_connection: Optional[ResolvedConnection] = None,
     mcp_servers: Sequence[ResolvedMCPServer] = (),
     resolver: Optional[ResolveNamedSecrets] = None,
+    organization_resolver: Optional[ResolveNamedSecrets] = None,
+    user_resolver: Optional[ResolveUserSecrets] = None,
 ) -> List[ResolvedSandboxCredential]:
     validate_sandbox_credential_bindings(
         credentials,
@@ -115,18 +143,57 @@ async def resolve_sandbox_credentials(
     if not credentials:
         return []
 
-    slugs = list(dict.fromkeys(item.secret.slug for item in credentials))
-    values = await (resolver or resolve_named_secrets)(slugs)
-    missing = [slug for slug in slugs if not values.get(slug)]
+    agent_items = [c for c in credentials if c.secret.account_source != "user"]
+    user_items = [c for c in credentials if c.secret.account_source == "user"]
+    project_slugs = list(
+        dict.fromkeys(c.secret.slug for c in agent_items if c.secret.namespace is None)
+    )
+    organization_slugs = list(
+        dict.fromkeys(
+            c.secret.slug for c in agent_items if c.secret.namespace == "organization"
+        )
+    )
+    user_keys = list(dict.fromkeys(_user_key(c) for c in user_items))
+
+    # The three reads do not depend on each other, so they share the wait. A list with
+    # nothing in it makes no call.
+    project_values, organization_values, user_values = await asyncio.gather(
+        (resolver or resolve_named_secrets)(project_slugs)
+        if project_slugs
+        else _nothing(()),
+        (organization_resolver or _resolve_organization_secrets)(organization_slugs)
+        if organization_slugs
+        else _nothing(()),
+        (user_resolver or resolve_user_secrets)(user_keys)
+        if user_keys
+        else _nothing(()),
+    )
+    values: Dict[Tuple[Optional[str], str], str] = {
+        **{(None, slug): value for slug, value in project_values.items()},
+        **{
+            ("organization", slug): value for slug, value in organization_values.items()
+        },
+    }
+
+    missing = [c for c in agent_items if not values.get(_address(c))]
     if missing:
         raise SandboxCredentialError(
             f"{len(missing)} configured sandbox credential secret(s) could not be resolved"
         )
 
-    return [
-        ResolvedSandboxCredential(
-            binding=EnvironmentCredentialBinding(name=item.binding.name),
-            value=values[item.secret.slug],
+    resolved: List[ResolvedSandboxCredential] = []
+    for item in credentials:
+        if item.secret.account_source == "user":
+            # A missing "user" secret leaves the variable out; the run goes on.
+            value = user_values.get(_user_key(item))
+            if not value:
+                continue
+        else:
+            value = values[_address(item)]
+        resolved.append(
+            ResolvedSandboxCredential(
+                binding=EnvironmentCredentialBinding(name=item.binding.name),
+                value=value,
+            )
         )
-        for item in credentials
-    ]
+    return resolved

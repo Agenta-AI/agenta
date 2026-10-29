@@ -191,24 +191,29 @@ def project_secret_response(
 
     An organization row is never revealed, whatever `reveal_write_only` says, and has no
     preview: no HTTP response carries an organization value or a part of one (M5). The one
-    exception is `organization_subscription_for_runtime`."""
+    exception is `organization_secret_for_runtime`."""
     return _projected(secret, reveal_write_only=reveal_write_only)
 
 
-def organization_subscription_for_runtime(
+# The organization values that leave the API, to the run that named them: a subscription
+# login, which the runner uses like a project login, and a custom secret, which the
+# sandbox gets as a variable. Every other organization value stays in the API.
+ORGANIZATION_RUNTIME_KINDS = frozenset(
+    {SecretKind.SUBSCRIPTION_PROVIDER, SecretKind.CUSTOM_SECRET}
+)
+
+
+def organization_secret_for_runtime(
     secret: SecretResponseDTO,
 ) -> PublicSecretResponseDTO:
-    """An organization subscription login in plaintext, for the platform runtime only.
-
-    An organization subscription login is the one organization value that leaves the API
-    (M5): the run that named it carries it to the runner, which uses it like a project
-    login. The caller holds the `secret-resolve` grant (the run's own credential). Every
-    other organization value stays in the API."""
+    """An organization subscription login or custom secret in plaintext, for the
+    platform runtime only. The caller holds the `secret-resolve` grant (the run's own
+    credential)."""
     if (
         not _is_organization_row(secret)
-        or secret.kind != SecretKind.SUBSCRIPTION_PROVIDER
+        or secret.kind not in ORGANIZATION_RUNTIME_KINDS
     ):
-        raise ValueError("Only an organization subscription login is released.")
+        raise ValueError("Only an organization login or custom secret is released.")
     return _projected(secret, reveal_write_only=True, release_organization_login=True)
 
 

@@ -13,7 +13,7 @@ fails, or a read that started before the mutation committed refills the old entr
 the invalidation.
 """
 
-from typing import List, Optional, Sequence
+from typing import Any, Awaitable, Callable, List, Optional, Sequence
 from uuid import UUID
 
 from oss.src.core.memberships.dtos import (
@@ -141,6 +141,10 @@ async def invalidate_access_caches(
         await _invalidate_user(user_id=str(user_id), project_ids=project_ids)
 
 
+# Called with `organization_id` and `user_id` after a member is removed.
+MemberRemovedHook = Callable[..., Awaitable[Any]]
+
+
 class MembershipsService:
     def __init__(
         self,
@@ -150,6 +154,13 @@ class MembershipsService:
     ):
         self._dao = memberships_dao
         self._policy = policy
+        self._member_removed_hook: Optional[MemberRemovedHook] = None
+
+    def set_member_removed_hook(self, hook: Optional["MemberRemovedHook"]) -> None:
+        """Called after a member leaves an organization, with the organization and the
+        person. The API process sets it once its vault and connections services exist,
+        so both paths that remove a member delete the person's own accounts there."""
+        self._member_removed_hook = hook
 
     @property
     def policy(self) -> MembershipPolicy:
@@ -423,6 +434,10 @@ class MembershipsService:
             await self._invalidate_organization(
                 organization_id=organization_id, user_ids=[result.user_id]
             )
+            if self._member_removed_hook is not None:
+                await self._member_removed_hook(
+                    organization_id=organization_id, user_id=result.user_id
+                )
 
         log.info(
             "[memberships] member removed",
