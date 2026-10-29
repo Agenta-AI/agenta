@@ -224,9 +224,15 @@ class ChannelsDAO(ChannelsDAOInterface):
         connection_id: UUID,
     ) -> Optional[ChannelConnection]:
         async with self.engine.session() as session:
-            stmt = select(ChannelConnectionDBE).where(
-                ChannelConnectionDBE.project_id == project_id,
-                ChannelConnectionDBE.id == connection_id,
+            # the connection row first, then its bindings: the lock order of every
+            # binding write that also touches its installation
+            stmt = (
+                select(ChannelConnectionDBE)
+                .where(
+                    ChannelConnectionDBE.project_id == project_id,
+                    ChannelConnectionDBE.id == connection_id,
+                )
+                .with_for_update()
             )
 
             result = await session.execute(stmt)
