@@ -152,6 +152,7 @@ async def _configure_agent(service, *, project_id, user_id, connection_id, locat
     agent = await service.create_agent(
         project_id=project_id,
         user_id=user_id,
+        guard_user_id=None,
         agent=ChannelAgentCreate(
             connection_id=connection_id,
             slug=f"agent-{connection_id}",
@@ -222,6 +223,7 @@ async def arms(differential_scope, monkeypatch):
     slack_created = await service.create_connection(
         project_id=project_id,
         user_id=user_id,
+        guard_user_id=None,
         connection=ChannelConnectionCreate(
             channel="slack",
             slug="differential-slack",
@@ -237,6 +239,7 @@ async def arms(differential_scope, monkeypatch):
     bridge_created = await service.create_connection(
         project_id=project_id,
         user_id=user_id,
+        guard_user_id=None,
         connection=ChannelConnectionCreate(
             channel="bridge",
             slug="differential-bridge",

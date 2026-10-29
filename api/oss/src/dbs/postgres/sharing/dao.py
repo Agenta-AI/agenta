@@ -8,7 +8,9 @@ Readers run on `engine.session()`, one statement each. Writers run in
 - session writes lock one `session_streams` row `FOR UPDATE`, then write the row and
   `session_grants`.
 
-No path takes these locks in another order. Under the lock a writer compares the stored
+A connection restore (`ChannelsDAO.unarchive_connection`) locks its `channel_connections`
+row first, then the artifacts in id order, then its `channel_agents` rows. No path takes
+these locks in another order. Under the lock a writer compares the stored
 policy with the caller's `expected` and raises `SharingConflict(current)` on a mismatch,
 which rolls the transaction back.
 """
@@ -93,10 +95,12 @@ _SESSION_STATE_COLUMNS = """
     s.session_id,
     s.visibility,
     s.owner_user_id,
-    EXISTS (
-        SELECT 1 FROM channel_threads c
+    (
+        SELECT c.agent_id FROM channel_threads c
         WHERE c.project_id = s.project_id AND c.session_id = s.session_id
-    ) AS is_channel,
+        ORDER BY c.created_at DESC
+        LIMIT 1
+    ) AS channel_binding_id,
     EXISTS (
         SELECT 1
         FROM jsonb_array_elements(
@@ -545,11 +549,13 @@ async def guard_agent_activation(
     *,
     project_id: UUID,
     artifact_id: UUID,
-    user_id: UUID,
+    user_id: Optional[UUID],
 ) -> None:
-    """`lock_agent_policy`, then refuse a private agent of someone else with
-    `SharedItemNotFound` (what an unknown agent answers): only its owner writes an
-    active channel binding of a private agent (rule A2: nobody else may see it)."""
+    """`lock_agent_policy`, then refuse a private agent with `SharedItemNotFound`
+    (what an unknown agent answers) unless `user_id` (the human whose request writes)
+    is its owner: only its owner writes an active channel binding of a private agent
+    (rule A2: nobody else may see it). None, for an API key or any other non-human
+    principal, never passes."""
 
     policy = await lock_agent_policy(
         session, project_id=project_id, artifact_id=artifact_id
@@ -557,7 +563,7 @@ async def guard_agent_activation(
     if (
         policy is not None
         and policy.visibility == Visibility.PRIVATE
-        and policy.owner_user_id != user_id
+        and (user_id is None or policy.owner_user_id != user_id)
     ):
         raise SharedItemNotFound()
 

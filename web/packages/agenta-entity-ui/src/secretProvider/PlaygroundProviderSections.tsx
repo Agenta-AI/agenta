@@ -105,15 +105,38 @@ const SubscriptionRow = ({pair, onSelect}: {pair: SubscriptionPair; onSelect: ()
     </button>
 )
 
+/**
+ * An organization connection on a surface that cannot use it: shown so the user knows it exists,
+ * and disabled, because a prompt, an app or an evaluator runs on the project's connections only.
+ */
+const AgentsOnlyRow = ({connection}: {connection: ProviderConnection}) => (
+    <div
+        aria-disabled
+        className="box-border flex w-full cursor-not-allowed items-center gap-3 px-6 py-2 opacity-60"
+    >
+        {providerLogo(connection.kind, "size-5 shrink-0")}
+        <span className="flex min-w-0 flex-1 items-center gap-2">
+            <span className="truncate text-xs text-colorText">{connection.name}</span>
+            <span className="shrink-0 rounded-control-sm bg-colorFillTertiary px-1.5 py-0.5 text-[11px] text-colorTextSecondary">
+                Organization
+            </span>
+        </span>
+        <span className="shrink-0 text-[11px] text-colorTextTertiary">Agents only</span>
+    </div>
+)
+
 export interface PlaygroundConnectedSectionProps {
     connections: ProviderConnection[]
     onSelect: (connection: ProviderConnection) => void
+    /** Organization connections this surface cannot use; listed disabled after the project's. */
+    organizationConnections?: ProviderConnection[]
 }
 
 /** What the project already has. Above the catalog: connected before connectable. */
 export const PlaygroundConnectedSection = ({
     connections,
     onSelect,
+    organizationConnections = [],
 }: PlaygroundConnectedSectionProps) => {
     const capabilities = useAtomValue(harnessCapabilitiesAtomFamily(HARNESS_CATALOG_KEY))
 
@@ -134,7 +157,7 @@ export const PlaygroundConnectedSection = ({
         [connections, capabilities],
     )
 
-    if (!connections.length) return null
+    if (!connections.length && !organizationConnections.length) return null
 
     return (
         <div className="shrink-0">
@@ -147,6 +170,17 @@ export const PlaygroundConnectedSection = ({
                     onSelect={onSelect}
                 />
             ))}
+            {organizationConnections.length ? (
+                <>
+                    {organizationConnections.map((connection) => (
+                        <AgentsOnlyRow key={connection.id} connection={connection} />
+                    ))}
+                    <p className="m-0 px-6 pb-2 pt-1 text-[11px] text-colorTextTertiary">
+                        Organization connections work in agents only. Here, use a connection of this
+                        project.
+                    </p>
+                </>
+            ) : null}
         </div>
     )
 }

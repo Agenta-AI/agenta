@@ -5,6 +5,12 @@ export interface RouteContext {
     isResolving: boolean
     isNotFound: boolean
     isError: boolean
+    /**
+     * The organization id to put in the `/w/<segment>` part instead of the URL's one: set when
+     * the segment is a legacy workspace id of the project the URL names (workspace removal step
+     * 2 answers the organization id where a workspace id was). The layout replaces the URL.
+     */
+    canonicalWorkspaceId?: string | null
 }
 
 export const NEUTRAL_ROUTE_CONTEXT: RouteContext = {
@@ -16,6 +22,14 @@ export const NEUTRAL_ROUTE_CONTEXT: RouteContext = {
 const RESOLVING: RouteContext = {isResolving: true, isNotFound: false, isError: false}
 const NOT_FOUND: RouteContext = {isResolving: false, isNotFound: true, isError: false}
 const ERRORED: RouteContext = {isResolving: false, isNotFound: false, isError: true}
+
+/** The same address with `organizationId` in the `/w/<segment>` part; null when unchanged. */
+export const canonicalWorkspacePath = (asPath: string, organizationId: string): string | null => {
+    const match = /^\/w\/([^/?#]+)(.*)$/.exec(asPath)
+    if (!match) return null
+    if (decodeURIComponent(match[1]) === organizationId) return null
+    return `/w/${encodeURIComponent(organizationId)}${match[2]}`
+}
 
 /** `/w/:workspace_id` and `/p/:project_id` gate every route under them, so the guard owns all three. */
 export const shouldRunRouteGuard = (routeLayer: RouteLayer): boolean =>
@@ -34,6 +48,11 @@ export interface RouteContextInput {
     workspaceHoldsProject: boolean
     /** The project the URL names is in the workspace the URL names. */
     projectInWorkspace: boolean
+    /**
+     * The organization of the project the URL names, when the account holds it. A legacy
+     * workspace id in the URL is then rewritten to it instead of answering not found.
+     */
+    projectOrganizationId?: string | null
 }
 
 /**
@@ -51,10 +70,16 @@ export const resolveRouteContext = ({
     failed,
     workspaceHoldsProject,
     projectInWorkspace,
+    projectOrganizationId,
 }: RouteContextInput): RouteContext => {
     if (!shouldRunRouteGuard(routeLayer) || !workspaceId) return NEUTRAL_ROUTE_CONTEXT
     if (isPending) return RESOLVING
     if (failed) return ERRORED
+    // A bookmark with a legacy workspace id for a project the account holds: rewrite it to the
+    // project's organization id, the id every API pod answers, instead of a 404.
+    if (projectId && !projectInWorkspace && projectOrganizationId) {
+        return {...RESOLVING, canonicalWorkspaceId: projectOrganizationId}
+    }
     if (!workspaceHoldsProject) return NOT_FOUND
     // A project that exists but sits in another workspace makes the pair in the URL wrong.
     if (projectId && !projectInWorkspace) return NOT_FOUND

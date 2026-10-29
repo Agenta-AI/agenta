@@ -312,7 +312,6 @@ class MCPGatewayRouter:
         token = await sign_secret_token(
             user_id=str(scope.user_id),
             project_id=str(scope.project_id),
-            workspace_id=str(scope.workspace_id),
             organization_id=str(scope.organization_id),
             gateway_run_id=run_id,
             gateway_tools=tools,

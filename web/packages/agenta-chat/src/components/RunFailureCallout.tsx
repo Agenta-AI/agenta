@@ -43,6 +43,8 @@ export const SUBSCRIPTION_LOGIN_CODES = new Set(["subscription_login_required"])
 export const RETRYABLE_CODES = new Set([
     "continuation_resumed",
     "credential_delivery_failed",
+    // The harness did not answer while the run opened its session; nothing ran.
+    "harness_init_timeout",
     "starter_credits_unavailable",
     "rate_limited",
     // The run never produced an outcome of its own and was closed for it — by the runner when

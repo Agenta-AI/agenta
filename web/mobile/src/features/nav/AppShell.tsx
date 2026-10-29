@@ -2,6 +2,8 @@ import type {ReactNode} from "react"
 
 import type {SidebarScope} from "@agenta/navigation"
 
+import {useCanonicalProjectRoute} from "../context/useCanonicalProjectRoute"
+
 import {useTrackLastNonSettingsPath} from "./lastNonSettingsPath"
 import {MobileCommandPalette} from "./MobileCommandPalette"
 import {NavRail} from "./NavRail"
@@ -25,6 +27,7 @@ export const AppShell = ({
     children: ReactNode
 }) => {
     useTrackLastNonSettingsPath()
+    useCanonicalProjectRoute()
 
     return (
         <div className="flex h-[calc(var(--ag-viewport-height,100dvh)-var(--ag-top-bars-h,0px))]">

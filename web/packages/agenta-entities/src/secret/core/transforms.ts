@@ -100,6 +100,10 @@ const storageFacts = (secret: SecretResponseDto) => ({
     hasKey: secret.value_status.configured,
     keyPreview: secret.value_status.preview ?? undefined,
     managementPolicy: secret.management?.policy,
+    // An organization row carries its owner; a project row stays as it always was.
+    ...(secret.owner?.kind === "organization" ? {ownerKind: "organization" as const} : {}),
+    ...(secret.availability ? {availability: secret.availability} : {}),
+    ...(secret.selected_project_ids ? {selectedProjectIds: secret.selected_project_ids} : {}),
 })
 
 const modelNames = (models: {slug: string; extras?: Record<string, unknown> | null}[]) =>
@@ -114,6 +118,16 @@ const storedProtocol = (data: CustomProviderDto): LlmEndpointProtocol | undefine
     data.protocol === LlmEndpointProtocol.Anthropic || data.protocol === LlmEndpointProtocol.Openai
         ? data.protocol
         : undefined
+
+/**
+ * The project's own rows of a vault read. An organization row is the project's to use, not to
+ * hold; the same array comes back when there is none, so a read without one stays referentially
+ * stable.
+ */
+export const projectRowsOnly = <T extends {ownerKind?: string}>(rows: T[]): T[] =>
+    rows.some((row) => row.ownerKind === "organization")
+        ? rows.filter((row) => row.ownerKind !== "organization")
+        : rows
 
 export const transformSecret = (secrets: SecretResponseDto[]): ProviderVaultRow[] => {
     return secrets.reduce((acc, secret) => {
