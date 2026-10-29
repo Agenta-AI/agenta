@@ -424,9 +424,10 @@ class MCPGatewayService:
         #
         endpoint: MCPEndpointEdit,
     ) -> Optional[MCPEndpoint]:
-        # The connection's OAuth lock, which a completing consent also takes, so the
-        # change, the cleared binding, the cancelled consents and the deleted grant land
-        # as one step that no callback can interleave with.
+        # The connection's OAuth lock, which a completing consent, a refresh and a
+        # sign-in also take, so none of them can interleave with the retired sign-ins,
+        # the cancelled consents and the edit. They are separate writes; the order is
+        # what keeps an old sign-in from meeting a new address (`_retire_for_edit`).
         async with self.mcp_endpoints_dao.oauth_lock(
             project_id=project_id, endpoint_id=endpoint.id
         ):
@@ -443,7 +444,7 @@ class MCPGatewayService:
                     project_id=project_id, name=endpoint.name, excluding=endpoint.id
                 )
             if current is not None and self.oauth_refresher is not None:
-                await self._retire_for_edit(
+                endpoint = await self._retire_for_edit(
                     organization_id=organization_id,
                     project_id=project_id,
                     current=current,
@@ -464,8 +465,9 @@ class MCPGatewayService:
         project_id: UUID,
         current: MCPEndpoint,
         endpoint: MCPEndpointEdit,
-    ) -> None:
-        """Retire what an edit leaves behind, BEFORE the edit is written.
+    ) -> MCPEndpointEdit:
+        """Retire what an edit leaves behind, BEFORE the edit is written, and return the
+        edit to write.
 
         A consent begun for another mode, address or client must not finish on the
         edited server; a grant whose client changed stays, because it renews only as the
@@ -477,6 +479,10 @@ class MCPGatewayService:
         lock, so a new address written first could receive an old credential in between,
         and a failure between the two writes would leave it so. If the edit then fails,
         the sign-ins are gone and people sign in again, which is the safe side.
+
+        An edit that still names the project's grant it retires stops naming it: the
+        grant is gone, and the write would refuse a credential the project no longer
+        holds. Any other credential it names is checked by the write as before.
         """
         moved = (
             current.auth_mode != endpoint.auth_mode
@@ -489,12 +495,20 @@ class MCPGatewayService:
                 project_id=project_id, endpoint_id=current.id
             )
         stale_slug = sign_in_slug(current)
-        if moved and stale_slug is not None:
-            await self.oauth_refresher.delete_sign_ins(
-                organization_id=organization_id,
-                project_id=project_id,
-                slugs=[stale_slug],
-            )
+        if not moved or stale_slug is None:
+            return endpoint
+        await self.oauth_refresher.delete_sign_ins(
+            organization_id=organization_id,
+            project_id=project_id,
+            slugs=[stale_slug],
+        )
+        if (
+            current.auth_mode == MCPAuthScheme.OAUTH
+            and endpoint.secret_id is not None
+            and endpoint.secret_id == current.secret_id
+        ):
+            return endpoint.model_copy(update={"secret_id": None})
+        return endpoint
 
     async def delete_endpoint(
         self,

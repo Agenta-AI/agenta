@@ -713,7 +713,7 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         project_id: UUID,
         user_id: UUID,
         endpoint_id: UUID,
-        server_url: str,
+        server_url: Optional[str],
         token: str,
     ) -> Optional[SecretResponseDTO]:
         """Store a person's own token for a token server, replacing the one they had.

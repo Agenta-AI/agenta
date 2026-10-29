@@ -169,3 +169,72 @@ async def test_the_old_sign_ins_go_before_the_new_address_is_written():
     )
 
     assert order == ["delete_sign_ins", "edit"]
+
+
+@pytest.mark.asyncio
+async def test_a_moved_oauth_server_stops_naming_the_grant_it_retired():
+    """The edit is a full PUT that may still carry the server's grant id. That grant is
+    deleted before the write, so the write must not be asked to keep it."""
+    service, refresher, project_id, endpoint = await _setup(MCPAuthScheme.OAUTH)
+    grant_id = uuid4()
+    dao = service.mcp_endpoints_dao
+    dao._by_id[endpoint.id] = endpoint.model_copy(update={"secret_id": grant_id})
+    written = []
+    original_edit = dao.edit_endpoint
+
+    async def edit_endpoint(**kwargs):
+        written.append(kwargs["endpoint"])
+        return await original_edit(**kwargs)
+
+    dao.edit_endpoint = edit_endpoint
+
+    await service.edit_endpoint(
+        organization_id=uuid4(),
+        project_id=project_id,
+        user_id=uuid4(),
+        endpoint=MCPEndpointEdit(
+            id=endpoint.id,
+            name="Acme",
+            auth_mode=MCPAuthScheme.OAUTH,
+            secret_id=grant_id,
+            data=MCPEndpointData(
+                route=MCPEndpointRoute(base_url="https://elsewhere.example/mcp")
+            ),
+        ),
+    )
+
+    assert refresher.deleted_sign_ins == [grant_slug(endpoint.id)]
+    assert written[0].secret_id is None
+
+
+@pytest.mark.asyncio
+async def test_a_moved_token_server_keeps_the_projects_own_key():
+    """The project's key is a secret the admin picked, not a sign-in: it stays named."""
+    service, refresher, project_id, endpoint = await _setup(MCPAuthScheme.API_KEY)
+    key_id = uuid4()
+    dao = service.mcp_endpoints_dao
+    written = []
+    original_edit = dao.edit_endpoint
+
+    async def edit_endpoint(**kwargs):
+        written.append(kwargs["endpoint"])
+        return await original_edit(**kwargs)
+
+    dao.edit_endpoint = edit_endpoint
+
+    await service.edit_endpoint(
+        organization_id=uuid4(),
+        project_id=project_id,
+        user_id=uuid4(),
+        endpoint=MCPEndpointEdit(
+            id=endpoint.id,
+            name="Acme",
+            auth_mode=MCPAuthScheme.API_KEY,
+            secret_id=key_id,
+            data=MCPEndpointData(
+                route=MCPEndpointRoute(base_url="https://elsewhere.example/mcp")
+            ),
+        ),
+    )
+
+    assert written[0].secret_id == key_id

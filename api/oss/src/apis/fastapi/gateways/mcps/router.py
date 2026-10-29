@@ -753,11 +753,12 @@ class MCPGatewayRouter:
                 project_id=scope.project_id,
                 user_id=user_id,
                 endpoint_id=endpoint_id,
-                server_url=endpoint.data.route.base_url or "",
+                server_url=endpoint.data.route.base_url,
                 token=body.token,
             )
             if stored is None:
-                # Deleted, or moved off tokens, since it was read above.
+                # Deleted, moved off tokens, or moved to another address since it was
+                # read above.
                 raise _refusal(
                     status.HTTP_409_CONFLICT,
                     "server_changed",
