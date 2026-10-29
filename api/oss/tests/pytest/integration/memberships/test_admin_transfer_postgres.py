@@ -46,7 +46,6 @@ async def test_transfer_seeds_the_new_owner_and_swaps_roles():
             org_ids=[seeded.organization_id],
             source_id=owner,
             target_id=member,
-            workspace_ids=seeded.workspace_ids,
             project_ids=seeded.project_ids,
         )
 
@@ -78,7 +77,6 @@ async def test_transfer_to_a_non_member_changes_nothing():
             org_ids=[seeded.organization_id],
             source_id=seeded.owner_id,
             target_id=stranger,
-            workspace_ids=seeded.workspace_ids,
             project_ids=seeded.project_ids,
         )
 
@@ -103,7 +101,6 @@ async def test_a_failed_seed_rolls_back_the_whole_transfer(monkeypatch):
                 org_ids=[seeded.organization_id],
                 source_id=owner,
                 target_id=member,
-                workspace_ids=seeded.workspace_ids,
                 project_ids=seeded.project_ids,
             )
 

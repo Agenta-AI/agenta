@@ -51,20 +51,20 @@ See [Chat message format](/reference/agents/chat-message-format) for what each r
 
 ## Request body
 
-| Field         | Type                                 | Required | Default        | Description                                                                                                                                |
-| ------------- | ------------------------------------ | -------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| `data`        | object                               | No       | `null`         | The turn's payload. See below.                                                                                                             |
-| `session_id`  | string                               | No       | server-minted  | 1 to 128 characters matching `^[A-Za-z0-9._:-]{1,128}$`. When absent, the server mints one and returns it. An invalid value returns `400`. |
-| `on_busy`     | `"reject"` \| `"queue"` \| `"steer"` | No       | `null`         | Policy when this session already has an active execution. Requires `session_id`.                                                           |
-| `references`  | object                               | No       | `null`         | Points the run at a stored configuration. See [Running a stored agent](#running-a-stored-agent).                                           |
-| `flags`       | object                               | No       | `null`         | `stream`, `trim`, `force`, `resolve`. Each is a boolean.                                                                                   |
-| `tags`        | object                               | No       | `null`         | Free-form key-value pairs recorded on the trace.                                                                                           |
-| `meta`        | object                               | No       | `null`         | Free-form key-value pairs recorded on the trace.                                                                                           |
-| `links`       | object                               | No       | `null`         | `{trace_id, span_id}` pairs linking this run to another trace.                                                                             |
-| `selector`    | object                               | No       | `null`         | `{key, path}`, used when resolving a reference through an environment.                                                                     |
-| `secrets`     | object                               | No       | `null`         | Per-request secret values.                                                                                                                 |
-| `credentials` | string                               | No       | `null`         | Credential passed to the run.                                                                                                              |
-| `version`     | string                               | No       | `"2025.07.14"` | Request contract version.                                                                                                                  |
+| Field         | Type                                 | Required | Default        | Description                                                                                                                                                                                                                                                                  |
+| ------------- | ------------------------------------ | -------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `data`        | object                               | No       | `null`         | The turn's payload. See below.                                                                                                                                                                                                                                               |
+| `session_id`  | string                               | No       | server-minted  | 1 to 128 characters matching `^[A-Za-z0-9._:-]{1,128}$`. When absent, the server mints one and returns it. An invalid value returns `400`.                                                                                                                                   |
+| `on_busy`     | `"reject"` \| `"queue"` \| `"steer"` | No       | `null`         | Policy when this session already has an active execution. Requires `session_id`.                                                                                                                                                                                             |
+| `references`  | object                               | No       | `null`         | Points the run at a stored configuration. See [Running a stored agent](#running-a-stored-agent).                                                                                                                                                                             |
+| `flags`       | object                               | No       | `null`         | `stream`, `trim`, `force`, `resolve`, `detached`. Each is a boolean. `detached` starts the stream with a `session-accepted` frame, after which the client can close the connection. See [Run in the background](/reference/agents/sessions-and-turns#run-in-the-background). |
+| `tags`        | object                               | No       | `null`         | Free-form key-value pairs recorded on the trace.                                                                                                                                                                                                                             |
+| `meta`        | object                               | No       | `null`         | Free-form key-value pairs recorded on the trace.                                                                                                                                                                                                                             |
+| `links`       | object                               | No       | `null`         | `{trace_id, span_id}` pairs linking this run to another trace.                                                                                                                                                                                                               |
+| `selector`    | object                               | No       | `null`         | `{key, path}`, used when resolving a reference through an environment.                                                                                                                                                                                                       |
+| `secrets`     | object                               | No       | `null`         | Per-request secret values.                                                                                                                                                                                                                                                   |
+| `credentials` | string                               | No       | `null`         | Credential passed to the run.                                                                                                                                                                                                                                                |
+| `version`     | string                               | No       | `"2025.07.14"` | Request contract version.                                                                                                                                                                                                                                                    |
 
 Use only letters, numbers, underscores, and hyphens when your client also calls the `/api/sessions` management endpoints. Their current session ID contract is narrower than the invoke contract.
 
@@ -110,7 +110,7 @@ curl -N -X POST \
           "skills": [],
           "harness": {"kind": "pi_core"},
           "runner": {"kind": "sidecar", "permissions": {"default": "allow_reads"}},
-          "sandbox": {"kind": "local"}
+          "sandbox": {"kind": "daytona"}
         }
       }
     }
@@ -208,6 +208,8 @@ Fields that are `null` are omitted from the response.
 ## Streaming response
 
 With `Accept: text/event-stream`, frames arrive as server-sent events for the length of the turn. With `application/x-ndjson` or `application/jsonl` the same objects arrive as newline-delimited JSON.
+
+If the client disconnects, the run continues. To start a run and not wait for it, see [Run in the background](/reference/agents/sessions-and-turns#run-in-the-background).
 
 Add `x-ag-messages-format: vercel` for the Vercel AI SDK UI Message Stream, which terminates with `data: [DONE]`. Without it, each frame is a raw Agenta event and there is no terminator. Frame vocabularies for both are in [Chat message format](/reference/agents/chat-message-format).
 

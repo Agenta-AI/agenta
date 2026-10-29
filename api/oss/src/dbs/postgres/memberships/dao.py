@@ -26,12 +26,10 @@ from oss.src.core.memberships.dtos import (
     ProjectScope,
 )
 from oss.src.core.memberships.interfaces import MembershipsDAOInterface
-from oss.src.core.memberships.workspaces import legacy_workspace_id
 from oss.src.core.memberships.types import (
     MemberNotFound,
     OrganizationNotFound,
     OrganizationOwnerProtected,
-    WorkspaceNotFound,
 )
 from oss.src.dbs.postgres.memberships.mappings import (
     map_membership_row_to_dto,
@@ -54,13 +52,14 @@ from oss.src.models.db_models import (  # noqa: F401  (the tables this DAO owns)
 
 _OLDEST = "ORDER BY created_at ASC NULLS LAST, id ASC LIMIT 1"
 
+# Workspace removal step 2: the workspace fields answer the organization (design D6).
 _SUMMARY_COLUMNS = """
     p.id AS project_id,
     p.organization_id,
-    COALESCE(p.workspace_id, p.organization_id) AS workspace_id,
+    p.organization_id AS workspace_id,
     p.is_default,
     p.project_name,
-    CASE WHEN p.workspace_id IS NULL THEN o.name ELSE w.name END AS workspace_name,
+    o.name AS workspace_name,
     o.name AS organization_name,
     o.owner_id AS organization_owner_id
 """
@@ -74,7 +73,6 @@ SELECT {_SUMMARY_COLUMNS},
        pm.id IS NOT NULL AS has_project_row,
        pm.role AS project_role
 FROM projects p
-LEFT JOIN workspaces w ON w.id = p.workspace_id
 JOIN organizations o ON o.id = p.organization_id
 LEFT JOIN LATERAL (
     SELECT id, role FROM organization_members
@@ -102,7 +100,6 @@ FROM (
     ORDER BY organization_id, created_at ASC NULLS LAST, id ASC
 ) om
 JOIN projects p ON p.organization_id = om.organization_id
-LEFT JOIN workspaces w ON w.id = p.workspace_id
 JOIN organizations o ON o.id = p.organization_id
 LEFT JOIN LATERAL (
     SELECT id, role FROM project_members
@@ -120,7 +117,7 @@ WHERE organization_id = :organization_id AND user_id = :user_id
 
 _LIST_PROJECTS_SQL = """
 SELECT p.id AS project_id, p.organization_id,
-       COALESCE(p.workspace_id, p.organization_id) AS workspace_id, p.is_default,
+       p.organization_id AS workspace_id, p.is_default,
        o.owner_id AS organization_owner_id
 FROM projects p
 JOIN organizations o ON o.id = p.organization_id
@@ -199,6 +196,16 @@ def _prefix_pattern(search: str) -> str:
 
 _LOCK_SQL = "SELECT pg_advisory_xact_lock(hashtextextended('memberships:' || :organization_id, 0))"
 
+# The memberships lock and the default-project lock of the organization, in one statement
+# (the same order everywhere: no writer takes the project-default lock first and then the
+# memberships lock).
+_LOCK_WITH_PROJECT_DEFAULT_SQL = """
+SELECT pg_advisory_xact_lock(hashtextextended('memberships:' || :organization_id, 0)),
+       pg_advisory_xact_lock(
+           hashtextextended('agenta:project_default:' || :organization_id, 0)
+       )
+"""
+
 # The same lock for writers outside this DAO (the admin ownership transfer).
 ORGANIZATION_LOCK_SQL = _LOCK_SQL
 
@@ -234,29 +241,6 @@ WHERE p.organization_id = :organization_id
 ON CONFLICT (project_id, user_id) DO NOTHING
 """
 
-_UPDATE_WORKSPACE_ROWS_SQL = """
-UPDATE workspace_members SET role = :role, updated_at = now()
-WHERE user_id = :user_id
-  AND workspace_id IN (SELECT id FROM workspaces WHERE organization_id = :organization_id)
-"""
-
-_INSERT_WORKSPACE_ROWS_SQL = """
-INSERT INTO workspace_members (id, user_id, workspace_id, role, created_at, updated_at)
-SELECT gen_random_uuid(), :user_id, t.workspace_id, :role, now(), now()
-FROM (
-    -- The workspace must belong to the organization too: a legacy project can point
-    -- at a workspace of another organization, and that tenant must never gain a row.
-    SELECT DISTINCT p.workspace_id FROM projects p
-    JOIN workspaces w ON w.id = p.workspace_id AND w.organization_id = p.organization_id
-    WHERE p.organization_id = :organization_id
-      AND (:all_projects OR p.id = ANY(CAST(:project_ids AS uuid[])))
-) t
-WHERE NOT EXISTS (
-    SELECT 1 FROM workspace_members wm
-    WHERE wm.workspace_id = t.workspace_id AND wm.user_id = :user_id
-)
-"""
-
 _FETCH_USER_BY_EMAIL_SQL = "SELECT id FROM users WHERE email = :email"
 
 _DELETE_PROJECT_ROWS_SQL = """
@@ -282,40 +266,24 @@ WHERE email = :email
   AND project_id IN (SELECT id FROM projects WHERE organization_id = :organization_id)
 """
 
-# The workspace a new project goes into: the given workspace of the organization, or, when
-# the organization id is given, its `default`-type workspace, else its oldest. No row for an
-# organization id means an organization without workspaces: the project gets none.
-_RESOLVE_PROJECT_WORKSPACE_SQL = """
-SELECT w.id FROM workspaces w
-WHERE w.organization_id = CAST(:organization_id AS uuid)
-  AND (w.id = CAST(:workspace_id AS uuid)
-       OR CAST(:workspace_id AS uuid) = CAST(:organization_id AS uuid))
-ORDER BY (w.id = CAST(:workspace_id AS uuid)) DESC, (w.type = 'default') DESC NULLS LAST,
-         w.created_at ASC NULLS LAST, w.id ASC
-LIMIT 1
-"""
-
-# The default of a project's scope: its workspace, or its whole organization when it has no
-# workspace (projects that workspace removal step 2 writes).
-_SCOPE_DEFAULT_FILTER = """
-is_default IS TRUE
-AND ((CAST(:workspace_id AS uuid) IS NOT NULL AND workspace_id = CAST(:workspace_id AS uuid))
-  OR (CAST(:workspace_id AS uuid) IS NULL AND organization_id = CAST(:organization_id AS uuid)))
-"""
-
-_WORKSPACE_HAS_DEFAULT_SQL = f"""
-SELECT 1 FROM projects WHERE {_SCOPE_DEFAULT_FILTER} LIMIT 1
-"""
-
-_UNSET_DEFAULTS_SQL = f"""
-UPDATE projects SET is_default = false, updated_at = now()
-WHERE {_SCOPE_DEFAULT_FILTER}
-"""
-
+# One statement after the locks: with `make_default`, every other default of the
+# organization is cleared; the new project is the default when asked, or when the
+# organization has none (the main query sees the snapshot before the clear).
 _INSERT_PROJECT_SQL = """
+WITH cleared AS (
+    UPDATE projects SET is_default = false, updated_at = now()
+    WHERE organization_id = :organization_id AND is_default IS TRUE
+      AND CAST(:make_default AS boolean)
+)
 INSERT INTO projects (id, project_name, is_default, organization_id, workspace_id,
                       created_at, updated_at)
-VALUES (:id, :name, :is_default, :organization_id, :workspace_id, now(), now())
+SELECT :id, :name,
+       CAST(:make_default AS boolean) OR NOT EXISTS (
+           SELECT 1 FROM projects
+           WHERE organization_id = :organization_id AND is_default IS TRUE
+       ),
+       :organization_id, NULL, now(), now()
+RETURNING is_default
 """
 
 # One statement, whatever the member count: one row per organization member, with the
@@ -330,19 +298,6 @@ FROM (
     ORDER BY user_id, created_at ASC NULLS LAST, id ASC
 ) m
 ON CONFLICT (project_id, user_id) DO NOTHING
-"""
-
-_WORKSPACE_ROWS_OF_TWO_SQL = """
-SELECT DISTINCT ON (wm.workspace_id, wm.user_id) wm.id, wm.workspace_id, wm.user_id, wm.role
-FROM workspace_members wm
-JOIN workspaces w ON w.id = wm.workspace_id
-WHERE w.organization_id = :organization_id
-  AND wm.user_id = ANY(CAST(:user_ids AS uuid[]))
-ORDER BY wm.workspace_id, wm.user_id, wm.created_at ASC NULLS LAST, wm.id ASC
-"""
-
-_UPDATE_WORKSPACE_ROW_SQL = """
-UPDATE workspace_members SET role = :role, updated_at = now() WHERE id = :id
 """
 
 # One statement: the FROM side reads the rows before the update, so the two roles
@@ -379,16 +334,6 @@ WHERE organization_id = :organization_id
   AND role IS DISTINCT FROM 'owner'
 """
 
-_PROMOTE_NEW_OWNER_WORKSPACE_ROWS_SQL = """
-UPDATE workspace_members wm
-SET role = 'owner', updated_at = now()
-FROM workspaces w
-WHERE w.id = wm.workspace_id
-  AND w.organization_id = :organization_id
-  AND wm.user_id = :user_id
-  AND wm.role IS DISTINCT FROM 'owner'
-"""
-
 _PROMOTE_NEW_OWNER_PROJECT_ROWS_SQL = """
 UPDATE project_members pm
 SET role = 'owner', updated_at = now()
@@ -399,24 +344,10 @@ WHERE p.id = pm.project_id
   AND pm.role IS DISTINCT FROM 'owner'
 """
 
-# The new owner's missing workspace rows, as the signup writes them (and as
-# oss000000044 repairs them): the auth middleware checks a request that names a
-# workspace against workspace_members.
-_SEED_NEW_OWNER_WORKSPACE_ROWS_SQL = """
-INSERT INTO workspace_members (id, user_id, workspace_id, role, created_at, updated_at)
-SELECT gen_random_uuid(), :user_id, w.id, 'owner', now(), now()
-FROM workspaces w
-WHERE w.organization_id = :organization_id
-  AND NOT EXISTS (SELECT 1 FROM workspace_members wm
-                  WHERE wm.workspace_id = w.id AND wm.user_id = :user_id)
-"""
-
 # Run after the role swaps of an ownership transfer, by the app transfer and by the
 # admin transfer tool, with :organization_id and :user_id (the new owner).
 PROMOTE_NEW_OWNER_SQL = (
     _PROMOTE_NEW_OWNER_ORGANIZATION_ROWS_SQL,
-    _PROMOTE_NEW_OWNER_WORKSPACE_ROWS_SQL,
-    _SEED_NEW_OWNER_WORKSPACE_ROWS_SQL,
     _PROMOTE_NEW_OWNER_PROJECT_ROWS_SQL,
 )
 
@@ -615,13 +546,6 @@ class MembershipsDAO(MembershipsDAOInterface):
                 )
                 inserted = result.rowcount or 0
 
-            # Workspace mirror, until M4 drops workspaces.
-            await connection.execute(
-                text(_UPDATE_WORKSPACE_ROWS_SQL), {**scope, "role": role}
-            )
-            if join_all_projects or join_project_ids:
-                await connection.execute(text(_INSERT_WORKSPACE_ROWS_SQL), targets)
-
         return MembershipWriteResult(
             user_id=user_id,
             previous_role=existing.role if existing is not None else None,
@@ -669,54 +593,31 @@ class MembershipsDAO(MembershipsDAOInterface):
         self,
         *,
         organization_id: UUID,
-        workspace_id: UUID,
         name: str,
         is_default: bool,
     ) -> CreatedProject:
+        """A project of the organization (no workspace). With `is_default`, it becomes
+        the organization's one default; it is also the default when there is none."""
+
         project_id = uuid_compat.uuid7()
 
         async with self.engine.transaction() as connection:
-            await self._lock(connection, organization_id)
-
-            resolved = (
-                await connection.execute(
-                    text(_RESOLVE_PROJECT_WORKSPACE_SQL),
-                    {"organization_id": organization_id, "workspace_id": workspace_id},
-                )
-            ).first()
-            if resolved is None and workspace_id != organization_id:
-                raise WorkspaceNotFound(
-                    organization_id=organization_id, workspace_id=workspace_id
-                )
-
-            # NULL for an organization without workspaces.
-            project_workspace_id = resolved.id if resolved is not None else None
-            scope = {
-                "organization_id": organization_id,
-                "workspace_id": project_workspace_id,
-            }
-
-            # As today: the new project becomes the default when asked, or when its
-            # scope (the workspace, else the organization) has none.
-            should_be_default = (
-                is_default
-                or (
-                    await connection.execute(text(_WORKSPACE_HAS_DEFAULT_SQL), scope)
-                ).first()
-                is None
-            )
-            if should_be_default:
-                await connection.execute(text(_UNSET_DEFAULTS_SQL), scope)
-
             await connection.execute(
-                text(_INSERT_PROJECT_SQL),
-                {
-                    **scope,
-                    "id": project_id,
-                    "name": name,
-                    "is_default": should_be_default,
-                },
+                text(_LOCK_WITH_PROJECT_DEFAULT_SQL),
+                {"organization_id": str(organization_id)},
             )
+
+            should_be_default = (
+                await connection.execute(
+                    text(_INSERT_PROJECT_SQL),
+                    {
+                        "organization_id": organization_id,
+                        "id": project_id,
+                        "name": name,
+                        "make_default": bool(is_default),
+                    },
+                )
+            ).scalar_one()
 
             seeded = await connection.execute(
                 text(_SEED_PROJECT_MEMBERS_SQL),
@@ -729,10 +630,7 @@ class MembershipsDAO(MembershipsDAOInterface):
             scope=ProjectScope(
                 project_id=project_id,
                 organization_id=organization_id,
-                workspace_id=legacy_workspace_id(
-                    workspace_id=project_workspace_id,
-                    organization_id=organization_id,
-                ),
+                workspace_id=organization_id,
                 organization_owner_id=owner_id,
                 is_default=should_be_default,
             ),
@@ -789,32 +687,6 @@ class MembershipsDAO(MembershipsDAOInterface):
                 {"id": new_row.id, "role": "owner"},
             )
 
-            # Swap the workspace roles in every workspace where both have a row.
-            workspace_rows = (
-                await connection.execute(
-                    text(_WORKSPACE_ROWS_OF_TWO_SQL),
-                    {
-                        "organization_id": organization_id,
-                        "user_ids": [current_owner_id, new_owner_id],
-                    },
-                )
-            ).all()
-            by_workspace: dict = {}
-            for row in workspace_rows:
-                by_workspace.setdefault(row.workspace_id, {})[row.user_id] = row
-            for rows in by_workspace.values():
-                current_ws, new_ws = rows.get(current_owner_id), rows.get(new_owner_id)
-                if current_ws is None or new_ws is None:
-                    continue
-                await connection.execute(
-                    text(_UPDATE_WORKSPACE_ROW_SQL),
-                    {"id": current_ws.id, "role": new_ws.role},
-                )
-                await connection.execute(
-                    text(_UPDATE_WORKSPACE_ROW_SQL),
-                    {"id": new_ws.id, "role": current_ws.role},
-                )
-
             # Swap the project roles where both have a row, exactly like the admin
             # transfer tool: the former owner keeps access with the new owner's
             # previous role (owner decision, 2026-10-23).
@@ -834,7 +706,7 @@ class MembershipsDAO(MembershipsDAOInterface):
             )
 
             # Whatever the swaps moved over, the new owner is `owner` on every
-            # organization, workspace and project row of the organization.
+            # organization and project row of the organization.
             for statement in PROMOTE_NEW_OWNER_SQL:
                 await connection.execute(
                     text(statement),

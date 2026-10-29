@@ -119,39 +119,38 @@ class TestFetchScopeFilters:
         assert "user_id is null" in sql
 
     @pytest.mark.asyncio
-    async def test_workspace_scope_binds_below_to_is_null(self):
-        """workspace-scoped read should not match project/user rows."""
+    async def test_project_scope_binds_below_to_is_null(self):
+        """project-scoped read should not match user rows."""
         session = _Session()
 
         dao = _dao_with_session(session)
         await dao.fetch(
-            scope=MeterScope(organization_id=ORG, workspace_id=WRK),
+            scope=MeterScope(organization_id=ORG, project_id=PRJ),
         )
 
         sql = _where_sql(session.executed_statements[0]).lower()
-        assert "workspace_id =" in sql or f"workspace_id = '{WRK}'" in sql
-        assert "project_id is null" in sql
+        assert "project_id =" in sql or f"project_id = '{PRJ}'" in sql
         assert "user_id is null" in sql
 
     @pytest.mark.asyncio
     async def test_user_scope_binds_every_dim(self):
-        """fully-bound user scope → all four dims bound to concrete values."""
+        """fully-bound user scope → every dim bound to a concrete value; only the
+        legacy workspace column stays `IS NULL` (a row with a workspace is never
+        the current one)."""
         session = _Session()
 
         dao = _dao_with_session(session)
         await dao.fetch(
             scope=MeterScope(
                 organization_id=ORG,
-                workspace_id=WRK,
                 project_id=PRJ,
                 user_id=USR,
             ),
         )
 
         sql = _where_sql(session.executed_statements[0]).lower()
-        assert "is null" not in sql.replace("project_id is null", "")  # sanity
-        # No `IS NULL` should remain when every dim is bound.
-        assert "is null" not in sql
+        assert "workspace_id is null" in sql
+        assert "is null" not in sql.replace("workspace_id is null", "")
 
     @pytest.mark.asyncio
     async def test_scope_none_applies_no_filter(self):
