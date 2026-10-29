@@ -12,6 +12,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  renameSync,
   rmSync,
   statSync,
   symlinkSync,
@@ -1219,6 +1220,35 @@ describe("Pi skill snapshots", () => {
       /not a directory owned by the runner user/,
     );
     assert.deepEqual(readdirSync(elsewhere), []);
+  });
+
+  it("refuses a symlinked root even when the copy behind it is intact", () => {
+    const root = isolatedSnapshotRoot();
+    const snapshot = localSnapshot(oneSkill());
+    materializeLocalPiSkillSnapshot(snapshot);
+    const elsewhere = tempDir("agenta-pi-snapshot-moved-");
+    rmSync(elsewhere, { recursive: true, force: true });
+    renameSync(root, elsewhere);
+    symlinkSync(elsewhere, root);
+    assert.throws(
+      () => materializeLocalPiSkillSnapshot(snapshot),
+      /not a directory owned by the runner user/,
+    );
+  });
+
+  it("starts the sweep clock of a replaced copy when it is moved aside", () => {
+    isolatedSnapshotRoot();
+    const snapshot = localSnapshot(oneSkill("original"));
+    materializeLocalPiSkillSnapshot(snapshot);
+    writeFileSync(join(snapshot.dir, "release-notes", "SKILL.md"), "edited");
+    const old = new Date(Date.now() - 3 * 60 * 60 * 1000);
+    utimesSync(snapshot.dir, old, old);
+    materializeLocalPiSkillSnapshot(snapshot);
+    const replaced = readdirSync(dirname(snapshot.dir)).filter((n) =>
+      n.includes(".replaced-"),
+    );
+    // Not swept by the same publish, although the copy itself was three hours old.
+    assert.equal(replaced.length, 1);
   });
 
   it("publishes one intact snapshot when several processes race on a new digest", async () => {

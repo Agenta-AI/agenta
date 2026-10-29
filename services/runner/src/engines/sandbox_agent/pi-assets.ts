@@ -291,13 +291,14 @@ export function materializeLocalPiSkillSnapshot(
   snapshot: PiSkillSnapshot,
   log: Log = () => {},
 ): void {
+  // Check the root first, also on a hit: a root another user owns could change a copy after it
+  // passed the content check.
+  const root = dirname(snapshot.dir);
+  ensureLocalPiSkillSnapshotRoot(root);
   if (isIntactLocalPiSkillSnapshot(snapshot)) {
     touchSnapshot(snapshot.dir);
     return;
   }
-
-  const root = dirname(snapshot.dir);
-  ensureLocalPiSkillSnapshotRoot(root);
   if (existsSync(snapshot.dir)) {
     // Another session may have published this digest since the check above.
     if (isIntactLocalPiSkillSnapshot(snapshot)) {
@@ -308,10 +309,10 @@ export function materializeLocalPiSkillSnapshot(
     // its files. The sweep removes it after the staging TTL. A concurrent repair may have moved
     // it already.
     try {
-      renameSync(
-        snapshot.dir,
-        join(root, `.${snapshot.digest}.replaced-${randomUUID()}`),
-      );
+      const replaced = join(root, `.${snapshot.digest}.replaced-${randomUUID()}`);
+      renameSync(snapshot.dir, replaced);
+      // The staging TTL counts from now, not from when the copy was made.
+      touchSnapshot(replaced);
       log(`pi skill snapshot replaced path=${snapshot.dir}`);
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
