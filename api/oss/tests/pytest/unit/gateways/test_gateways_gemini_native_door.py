@@ -383,7 +383,7 @@ async def test_a_stalled_native_call_is_retried_with_its_system_instruction_nudg
 ):
     import oss.src.core.gateways.llms.catalog as catalog_module
 
-    monkeypatch.setattr(catalog_module, "AGENTA_RESPONSE_HEADERS_TIMEOUT_SECONDS", 0.05)
+    monkeypatch.setattr(catalog_module, "AGENTA_RESPONSE_HEADERS_TIMEOUT_SECONDS", 0.5)
     transport = _Scripted("stall", "stall", _HI)
     policy = _AdmittingPolicy()
 

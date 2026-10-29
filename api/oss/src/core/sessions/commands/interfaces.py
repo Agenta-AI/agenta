@@ -137,6 +137,16 @@ class SessionCommandsDAOInterface(ABC):
         """The open (`pending` or `claimed`) command for this exact target, if one exists.
         This is what collapses two Stops in a row onto one command."""
 
+    async def fetch_turn_cancel(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        target_turn_id: str,
+    ) -> Optional[SessionCommand]:
+        """The latest cancel command that targeted this execution, in any state."""
+        raise NotImplementedError
+
     async def bind_steer_input(
         self,
         *,

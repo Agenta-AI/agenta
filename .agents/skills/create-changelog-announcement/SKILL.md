@@ -1,6 +1,6 @@
 ---
 name: create-changelog-announcement
-description: Use this skill to create and publish changelog announcements for new features, improvements, or bug fixes. This skill handles the complete workflow - creating detailed changelog documentation pages, adding sidebar announcement cards, and ensuring everything follows project standards. Use when the user mentions adding changelog entries, documenting new features, creating release notes, or announcing product updates.
+description: Use this skill to create and publish changelog announcements for new features, improvements, or bug fixes. This skill handles the complete workflow - creating detailed changelog documentation pages, regenerating the in-app What's New data, and ensuring everything follows project standards. Use when the user mentions adding changelog entries, documenting new features, creating release notes, or announcing product updates.
 model: sonnet
 user-invocable: true
 ---
@@ -9,7 +9,7 @@ user-invocable: true
 
 This skill guides you through creating complete changelog announcements that include:
 1. Changelog entry page in `/docs/blog/entries/` (the changelog index at `/changelog` is generated from these automatically, with pagination)
-2. Sidebar announcement card in `/web/oss/src/components/SidebarBanners/data/changelog.json`
+2. In-app What's New data, regenerated from the entries with `pnpm --filter @agenta/navigation generate:releases`
 3. Roadmap update in `/docs/src/data/roadmap.ts`
 4. GitHub discussion closure (if applicable)
 5. Social media announcements (LinkedIn, Twitter, Slack)
@@ -18,7 +18,7 @@ This skill guides you through creating complete changelog announcements that inc
 
 ### 1. **Complete Changelog Creation Workflow**
 
-For every changelog announcement, you create TWO coordinated artifacts:
+For every changelog announcement, you write one entry and regenerate the in-app data from it:
 
 **A. Changelog Entry** (`docs/blog/entries/[feature-slug].mdx`):
 - Comprehensive explanation of the feature or change
@@ -58,10 +58,12 @@ For every changelog announcement, you create TWO coordinated artifacts:
   videos and images are capped to a centered 680px in CSS, so use the existing
   `<iframe>`/`<Image>` markup as-is.
 
-**B. Sidebar Announcement** (`web/oss/src/components/SidebarBanners/data/changelog.json`):
-- One-sentence description
-- Link to detailed documentation
-- Unique ID with date
+**B. In-app What's New** (`web/packages/agenta-navigation/src/releases/changelog.json`):
+- Generated. Never edit it by hand.
+- Run `pnpm --filter @agenta/navigation generate:releases` from `web/` after you add or edit an entry.
+- The generator groups entries by their version tag into one release, keeps the newest 10
+  versions, and takes each entry's `<Summary>`, its first `<Stream src="...">` clip, and its
+  `improvements` and `fixes` lists. An entry without a `vX.Y.Z` tag is skipped.
 
 ### 2. **Information Gathering**
 
@@ -100,14 +102,31 @@ Apply these writing guidelines rigorously:
 - Examples: `chat-sessions-observability.mdx`, `pdf-support-in-playground.mdx`
 - Keep under 60 characters
 
-**Sidebar Announcement IDs**:
-- Format: `changelog-YYYY-MM-DD-feature-slug`
-- Example: `changelog-2026-01-09-chat-sessions`
-- Must be unique to prevent conflicts
-
 **Version Format**:
 - Use semantic versioning: `v0.73.0`
 - Include it as the entry's tag (`tags: [v0.73.0]`); the changelog index shows it as a version chip next to the date
+- All entries with the same tag form one release in the app's What's New dialog
+
+### 4a. **Improvements and Fixes**
+
+Smaller changes in a release go in the entry's frontmatter, not in their own entry. Both
+lists are optional. Each item has an `area` (the product area, for example `Chat`, `Files`,
+`Settings`) and a `text`:
+
+```yaml
+improvements:
+  - area: Chat
+    text: "Long replies render faster."
+fixes:
+  - area: Settings
+    text: "Saving a provider key no longer clears the model list."
+```
+
+- One line per item. Write what the user notices, not what the code changed.
+- Quote `text` when it contains a colon.
+- The docs entry page and the What's New dialog show these lists under the content as
+  "Improvements" and "Fixes".
+- Use only these keys and this shape. The generator fails on anything else.
 
 ### 5. **Media Handling**
 
@@ -157,7 +176,8 @@ Apply these writing guidelines rigorously:
 
 Before finalizing, verify:
 - [ ] Version number present and correct
-- [ ] Entry and sidebar announcement created
+- [ ] Entry created, with `improvements`/`fixes` frontmatter if the release has them
+- [ ] `pnpm --filter @agenta/navigation generate:releases` run and `changelog.json` updated
 - [ ] Curated summary wrapped in `<Summary>`, then `{/* truncate */}`, then the full write-up
 - [ ] Active voice used where possible
 - [ ] No em dashes present
@@ -176,9 +196,9 @@ Before finalizing, verify:
   files (sorted by `date`, paginated). There is no separate summary file to
   maintain.
 
-**Sidebar announcements:**
-- Path: `/web/oss/src/components/SidebarBanners/data/changelog.json`
-- JSON array, add new entry at the TOP
+**In-app What's New data:**
+- Path: `/web/packages/agenta-navigation/src/releases/changelog.json` (generated)
+- Generator: `/web/packages/agenta-navigation/scripts/build-releases.mjs`
 
 ## Step-by-Step Workflow
 
@@ -269,20 +289,15 @@ the entry page shows everything below `{/* truncate */}`. So:
 - Every entry needs content below the marker (the full write-up); that is what
   the entry page renders.
 
-### Step 5: Add Sidebar Announcement
-Add to `/web/oss/src/components/SidebarBanners/data/changelog.json`:
+### Step 5: Regenerate the In-App What's New Data
+From `web/`:
 
-```json
-[
-    {
-        "id": "changelog-2026-01-09-feature-name",
-        "title": "Feature Name (Keep Under 40 Chars)",
-        "description": "One-sentence benefit users get from this feature.",
-        "link": "https://agenta.ai/docs/changelog/feature-slug"
-    },
-    // ... existing entries
-]
+```bash
+pnpm --filter @agenta/navigation generate:releases
 ```
+
+Check that the printed version list contains your version and the feature count you expect.
+Commit the updated `changelog.json` with the entry.
 
 ### Step 6: Update Roadmap
 Update `/docs/src/data/roadmap.ts`:
@@ -359,7 +374,7 @@ cd docs && npm run build
 - [ ] Build completed successfully (`npm run build` in docs/)
 - [ ] Read all files to ensure consistency
 - [ ] Check that links work (relative paths correct)
-- [ ] Verify JSON syntax in sidebar announcement
+- [ ] Generator ran without errors and lists the new version
 - [ ] Ensure version numbers match across files
 - [ ] Confirm writing style follows guidelines
 - [ ] Roadmap updated correctly
@@ -433,16 +448,6 @@ Learn more in our documentation:
 We're continuing to enhance session tracking with upcoming features like session-level annotations, session comparisons, and automated session analysis.
 ```
 
-**Sidebar Announcement**:
-```json
-{
-    "id": "changelog-2026-01-09-chat-sessions",
-    "title": "Chat Sessions in Observability",
-    "description": "Track multi-turn conversations with session grouping and cost analytics.",
-    "link": "https://agenta.ai/docs/changelog/chat-sessions-observability"
-}
-```
-
 ### Example 2: Integration Announcement
 
 **For integrations, focus on:**
@@ -476,7 +481,7 @@ We're continuing to enhance session tracking with upcoming features like session
 When creating a changelog announcement, provide:
 
 1. **Entry content** for `docs/blog/entries/[slug].mdx` (curated summary in `<Summary>`, then `{/* truncate */}`, then the full write-up)
-2. **Sidebar announcement JSON** to add to `changelog.json`
+2. **Generator output** (the version list `generate:releases` printed)
 3. **Confirmation** that you checked for related documentation
 4. **Any questions** or clarifications needed
 
@@ -488,7 +493,7 @@ When creating a changelog announcement, provide:
 2. **Be concise**: Users skim changelogs. Front-load the benefit in every sentence.
 3. **Link generously**: Help users find more information easily
 4. **Test your work**: Read the entries out loud to catch awkward phrasing
-5. **Consistency matters**: Ensure terminology matches between the entry and the sidebar announcement
+5. **Consistency matters**: Use the same area names across releases (`Chat`, not `Chats` one week and `Chat` the next)
 
 ---
 

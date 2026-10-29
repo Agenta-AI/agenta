@@ -317,6 +317,18 @@ export function RunView({
         [host, inRoot],
     )
     useEffect(() => host.onPickCancel?.(() => setCommenting(false)), [host, setCommenting])
+    const commentingRef = useRef(commenting)
+    commentingRef.current = commenting
+    useEffect(
+        () => host.onPickToggle?.(() => setCommenting(!commentingRef.current)),
+        [host, setCommenting],
+    )
+    const [dismissSignal, setDismissSignal] = useState(0)
+    useEffect(() => host.onPickDismiss?.(() => setDismissSignal((n) => n + 1)), [host])
+    const holdPick = useCallback((held: boolean) => host.holdPick?.(held), [host])
+    useEffect(() => {
+        if (sessionId) host.allowPickKeys?.()
+    }, [host, sessionId])
 
     const goBack = useCallback(() => {
         setBackStack((stack) => {
@@ -484,6 +496,10 @@ export function RunView({
                         target={target}
                         pick={pick}
                         onPickConsumed={() => setPick(null)}
+                        onNoteChange={holdPick}
+                        dismissSignal={dismissSignal}
+                        onRevealPin={({id}) => host.revealPin?.(id)}
+                        commenting={commenting}
                         pinRects={pinRects}
                     />
                 </div>

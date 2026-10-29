@@ -15,8 +15,10 @@ import {driveCodeLanguage, resolveDriveFileKind, type DriveFileKind} from "@agen
 import {humanSize} from "@agenta/entities/drive"
 import {type Mount} from "@agenta/entities/session"
 import {
+    getQuotes,
     PreviewCommentLayer,
     usePreviewComments,
+    useQuoteReveal,
     type PreviewCommentTarget,
 } from "@agenta/ui/quote-selection"
 import {
@@ -33,6 +35,7 @@ import {
 } from "@agenta/ui/ui"
 import {DownloadSimple, FileDashed} from "@phosphor-icons/react"
 
+import {rangeToBox} from "./cellAddress"
 import {
     useDriveDownload,
     useDriveFileBlob,
@@ -516,6 +519,7 @@ const CommentableTable = ({
     const {enabled} = usePreviewCommentMode()
     const rootRef = useRef<HTMLDivElement>(null)
     const comments = usePreviewComments(sessionId, target)
+    const [noteOpen, setNoteOpen] = useState(false)
     const {selection, pick, onPickConsumed, onDraftClose, pinRects} = useSheetComments({
         rootRef,
         workbook,
@@ -529,7 +533,7 @@ const CommentableTable = ({
                 <SheetGrid
                     rows={sheet.rows}
                     origin={sheet.origin}
-                    comments={selection}
+                    comments={selection && {...selection, held: noteOpen}}
                     stickyFirstRow={stickyFirstRow}
                 />
             ) : (
@@ -542,6 +546,16 @@ const CommentableTable = ({
                 pick={pick}
                 onPickConsumed={onPickConsumed}
                 onDraftClose={onDraftClose}
+                onNoteChange={setNoteOpen}
+                onRevealPin={({source: {anchor}}) => {
+                    const box =
+                        anchor.type === "cells" ? rangeToBox(sheet.origin, anchor.range) : null
+                    if (!box) return
+                    rootRef.current
+                        ?.querySelector(`[data-row="${box.top}"][data-col="${box.left}"]`)
+                        ?.scrollIntoView({block: "center", inline: "nearest"})
+                }}
+                commenting={enabled}
                 pinRects={pinRects}
             />
         </div>
@@ -557,6 +571,19 @@ export const SpreadsheetView = ({
     target: PreviewCommentTarget
 }) => {
     const [active, setActive] = useState(0)
+    // A chip asked for a comment on another sheet: show that sheet first.
+    const sessionId = usePreviewCommentSession()
+    const reveal = useQuoteReveal(sessionId)
+    useEffect(() => {
+        if (!reveal || !sessionId) return
+        const quote = getQuotes(sessionId).find((held) => held.id === reveal.id)
+        if (quote?.source.kind !== "preview") return
+        if (quote.source.path !== target.path || quote.source.mountId !== target.mountId) return
+        const {anchor} = quote.source
+        if (anchor.type !== "cells") return
+        const at = workbook.sheets.findIndex((s) => s.name === (anchor.sheet ?? ""))
+        if (at !== -1) setActive(at)
+    }, [reveal, sessionId, target.path, workbook])
     const index = Math.min(active, workbook.sheets.length - 1)
     const sheet = workbook.sheets[index]
     return (
