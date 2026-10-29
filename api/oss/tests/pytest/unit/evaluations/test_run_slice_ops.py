@@ -585,7 +585,7 @@ async def test_add_steps_appends_new_columns():
 
 
 @pytest.mark.asyncio
-async def test_add_steps_skips_existing_key():
+async def test_add_steps_with_an_existing_key_keeps_the_steps():
     run_id = uuid4()
     run = EvaluationRun(
         id=run_id,
@@ -606,9 +606,11 @@ async def test_add_steps_skips_existing_key():
         principal=any_principal(),
     )
 
-    # all keys already present -> no edit, run returned unchanged
-    assert result is run
-    evaluations_service.edit_run.assert_not_awaited()
+    # all keys already present -> the steps stay, and the save still writes the editor
+    assert result is evaluations_service.edit_run.return_value
+    _, kwargs = evaluations_service.edit_run.await_args
+    assert [s.key for s in kwargs["run"].data.steps] == ["input"]
+    assert kwargs["principal"] is not None
 
 
 @pytest.mark.asyncio
@@ -640,7 +642,7 @@ async def test_remove_steps_drops_named_columns():
 
 
 @pytest.mark.asyncio
-async def test_remove_steps_unknown_key_is_noop():
+async def test_remove_steps_with_an_unknown_key_keeps_the_steps():
     run_id = uuid4()
     run = EvaluationRun(
         id=run_id,
@@ -661,8 +663,11 @@ async def test_remove_steps_unknown_key_is_noop():
         principal=any_principal(),
     )
 
-    assert result is run
-    evaluations_service.edit_run.assert_not_awaited()
+    # nothing to remove -> the steps stay, and the save still writes the editor
+    assert result is evaluations_service.edit_run.return_value
+    _, kwargs = evaluations_service.edit_run.await_args
+    assert [s.key for s in kwargs["run"].data.steps] == ["input"]
+    assert kwargs["principal"] is not None
 
 
 @pytest.mark.asyncio
