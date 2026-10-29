@@ -2,7 +2,7 @@
 
 from abc import ABC, abstractmethod
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 from uuid import UUID
 
 from oss.src.core.secrets.dtos import SecretOwner
@@ -77,6 +77,15 @@ class MCPOAuthRefresherInterface(ABC):
     async def has_active_attempts(self, *, project_id: UUID, endpoint_id: UUID) -> bool:
         """Whether a sign-in is still in flight on a connection. The caller holds the
         connection's OAuth lock."""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def delete_sign_ins(
+        self, *, organization_id: UUID, project_id: UUID, slugs: List[str]
+    ) -> int:
+        """Delete the grants and tokens at these slugs, the project's and every
+        person's, and return how many went. The caller holds the connection's OAuth
+        lock."""
         raise NotImplementedError
 
 

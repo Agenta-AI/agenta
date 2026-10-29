@@ -138,7 +138,7 @@ class MockMCPGatewayService:
         self.calls.append("fetch_endpoint")
         return self.fetch_return
 
-    async def edit_endpoint(self, *, project_id, user_id, endpoint):
+    async def edit_endpoint(self, *, organization_id, project_id, user_id, endpoint):
         self.calls.append("edit_endpoint")
         return self.edit_return
 
@@ -166,7 +166,9 @@ class MockMCPGatewayService:
         self.bound_secret_id = secret_id
         return self.edit_return
 
-    async def delete_endpoint(self, *, project_id, endpoint_id, pending_auth_mode=None):
+    async def delete_endpoint(
+        self, *, organization_id, project_id, endpoint_id, pending_auth_mode=None
+    ):
         self.calls.append("delete_endpoint")
         self.pending_auth_mode = pending_auth_mode
         if self.delete_raises is not None:

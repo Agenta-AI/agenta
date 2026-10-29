@@ -344,7 +344,7 @@ async def test_edit_endpoint_delegates_to_dao():
         ),
     )
     edited = await service.edit_endpoint(
-        project_id=uuid4(), user_id=uuid4(), endpoint=edit
+        organization_id=uuid4(), project_id=uuid4(), user_id=uuid4(), endpoint=edit
     )
 
     # One indexed read to see whether the name moved, then the write. The project-wide
@@ -363,7 +363,9 @@ async def test_delete_endpoint_delegates_to_dao():
     )
     dao.calls.clear()
 
-    deleted = await service.delete_endpoint(project_id=uuid4(), endpoint_id=created.id)
+    deleted = await service.delete_endpoint(
+        organization_id=uuid4(), project_id=uuid4(), endpoint_id=created.id
+    )
 
     assert dao.calls == ["fetch_endpoint", "delete_endpoint"]
     assert deleted is True
@@ -376,6 +378,7 @@ async def test_a_sheet_abandoning_its_pending_row_deletes_it():
     pending = await _oauth_endpoint(dao, connected=False)
 
     deleted = await service.delete_endpoint(
+        organization_id=uuid4(),
         project_id=uuid4(),
         endpoint_id=pending.id,
         pending_auth_mode=MCPAuthScheme.OAUTH,
@@ -408,6 +411,7 @@ async def test_a_sheet_abandoning_a_row_another_tab_took_over_keeps_it(auth_mode
 
     with pytest.raises(MCPConnectionChangedError):
         await service.delete_endpoint(
+            organization_id=uuid4(),
             project_id=uuid4(),
             endpoint_id=taken.id,
             pending_auth_mode=MCPAuthScheme.OAUTH,
@@ -2617,6 +2621,7 @@ async def test_edit_refuses_renaming_onto_another_connections_name():
 
     with pytest.raises(MCPConnectionNameTakenError):
         await service.edit_endpoint(
+            organization_id=uuid4(),
             project_id=project_id,
             user_id=user_id,
             endpoint=MCPEndpointEdit(
@@ -2651,6 +2656,7 @@ async def test_edit_allows_a_connection_to_keep_the_name_it_already_has():
     assert created is not None
 
     edited = await service.edit_endpoint(
+        organization_id=uuid4(),
         project_id=project_id,
         user_id=user_id,
         endpoint=MCPEndpointEdit(
@@ -2679,6 +2685,7 @@ async def test_renaming_a_connection_still_checks_the_name_is_free():
     dao.calls.clear()
 
     await service.edit_endpoint(
+        organization_id=uuid4(),
         project_id=project_id,
         user_id=uuid4(),
         endpoint=MCPEndpointEdit(
@@ -2710,6 +2717,7 @@ async def test_a_rename_onto_a_name_another_connection_answers_to_is_refused():
 
     with pytest.raises(MCPConnectionNameTakenError):
         await service.edit_endpoint(
+            organization_id=uuid4(),
             project_id=project_id,
             user_id=user_id,
             endpoint=MCPEndpointEdit(
@@ -2920,6 +2928,8 @@ class _ReleasingRefresher:
     def __init__(self) -> None:
         self.released: List[UUID] = []
         self.cancelled: List[UUID] = []
+        # The sign-in slugs an edit or a delete removed for every owner.
+        self.deleted_sign_ins: List[str] = []
 
     async def refresh_grant(
         self,
@@ -2939,6 +2949,10 @@ class _ReleasingRefresher:
     async def cancel_attempts(self, *, project_id, endpoint_id, attempt_id=None) -> int:
         self.cancelled.append(endpoint_id)
         return 1
+
+    async def delete_sign_ins(self, *, organization_id, project_id, slugs) -> int:
+        self.deleted_sign_ins.extend(slugs)
+        return len(slugs)
 
 
 class _SigningInRefresher(_ReleasingRefresher):
@@ -2974,6 +2988,7 @@ async def test_a_sheet_abandoning_a_row_another_tab_is_signing_in_on_keeps_it():
 
     with pytest.raises(MCPConnectionChangedError):
         await service.delete_endpoint(
+            organization_id=uuid4(),
             project_id=uuid4(),
             endpoint_id=pending.id,
             pending_auth_mode=MCPAuthScheme.OAUTH,
@@ -2998,6 +3013,7 @@ async def test_a_sheet_abandoning_its_row_after_cancelling_its_sign_in_deletes_i
     )
 
     deleted = await service.delete_endpoint(
+        organization_id=uuid4(),
         project_id=uuid4(),
         endpoint_id=pending.id,
         pending_auth_mode=MCPAuthScheme.OAUTH,
@@ -3015,6 +3031,7 @@ async def _edited_from_oauth(*, auth_mode, base_url, oauth_config=None):
     )
     endpoint = await _oauth_endpoint(dao)
     await service.edit_endpoint(
+        organization_id=uuid4(),
         project_id=uuid4(),
         user_id=uuid4(),
         endpoint=MCPEndpointEdit(
@@ -3075,7 +3092,9 @@ async def test_deleting_a_connection_takes_its_oauth_grant_with_it(auth_mode, re
     endpoint = await _oauth_endpoint(dao)
     dao._by_id[endpoint.id] = endpoint.model_copy(update={"auth_mode": auth_mode})
 
-    assert await service.delete_endpoint(project_id=uuid4(), endpoint_id=endpoint.id)
+    assert await service.delete_endpoint(
+        organization_id=uuid4(), project_id=uuid4(), endpoint_id=endpoint.id
+    )
 
     assert refresher.released == ([endpoint.id] if released else [])
 
@@ -3107,6 +3126,7 @@ async def test_a_switch_to_oauth_cancels_the_consents_and_retires_nothing():
     )
 
     await service.edit_endpoint(
+        organization_id=uuid4(),
         project_id=uuid4(),
         user_id=uuid4(),
         endpoint=MCPEndpointEdit(

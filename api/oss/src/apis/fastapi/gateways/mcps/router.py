@@ -429,6 +429,7 @@ class MCPGatewayRouter:
         _guard_custom_endpoint_url(url=body.endpoint.data.route.base_url)
 
         endpoint = await self.service.edit_endpoint(
+            organization_id=scope.organization_id,
             project_id=scope.project_id,
             user_id=scope.user_id,
             #
@@ -465,6 +466,7 @@ class MCPGatewayRouter:
         await self._check(scope, Permission.EDIT_MCP_ENDPOINTS)
 
         deleted = await self.service.delete_endpoint(
+            organization_id=scope.organization_id,
             project_id=scope.project_id,
             #
             endpoint_id=endpoint_id,

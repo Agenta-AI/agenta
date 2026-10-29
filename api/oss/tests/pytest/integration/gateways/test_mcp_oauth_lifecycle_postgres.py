@@ -143,6 +143,7 @@ async def _edit(gateway, project, endpoint, **changes):
         project_id=project["project_id"], endpoint_id=endpoint.id
     )
     return await gateway.edit_endpoint(
+        organization_id=uuid4(),
         project_id=project["project_id"],
         user_id=project["user_id"],
         endpoint=MCPEndpointEdit(

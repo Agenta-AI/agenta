@@ -55,7 +55,11 @@ from oss.src.core.gateways.mcps.interfaces import (
 )
 from oss.src.core.gateways.mcps.oauth.interfaces import MCPOAuthRefresherInterface
 from oss.src.core.gateways.mcps.oauth.sign_ins import is_sign_in_of
-from oss.src.core.gateways.mcps.oauth.storage import grant_refresh_due
+from oss.src.core.gateways.mcps.oauth.storage import (
+    grant_refresh_due,
+    grant_slug,
+    token_slug,
+)
 from oss.src.core.gateways.mcps.oauth.types import (
     MCPOAuthRefreshFailedError,
     MCPOAuthRefreshUnavailableError,
@@ -415,6 +419,7 @@ class MCPGatewayService:
     async def edit_endpoint(
         self,
         *,
+        organization_id: UUID,
         project_id: UUID,
         user_id: UUID,
         #
@@ -448,6 +453,15 @@ class MCPGatewayService:
             if edited is None or current is None or self.oauth_refresher is None:
                 return edited
             old_url = current.data.route.base_url
+            # Sign-ins the edited server can no longer use, the project's and every
+            # person's: a grant issued for the old address, or a token the server no
+            # longer reads.
+            stale_sign_ins: List[str] = []
+            if (
+                current.auth_mode == MCPAuthScheme.API_KEY
+                and edited.auth_mode != MCPAuthScheme.API_KEY
+            ):
+                stale_sign_ins.append(token_slug(endpoint.id))
             if (
                 old_url
                 and is_oauth_connection_at(current, old_url)
@@ -457,6 +471,7 @@ class MCPGatewayService:
                 await self.oauth_refresher.release_grant(
                     project_id=project_id, endpoint_id=endpoint.id, server_url=old_url
                 )
+                stale_sign_ins.append(grant_slug(endpoint.id))
             elif (
                 current.auth_mode != edited.auth_mode
                 or old_url != edited.data.route.base_url
@@ -468,17 +483,27 @@ class MCPGatewayService:
                 await self.oauth_refresher.cancel_attempts(
                     project_id=project_id, endpoint_id=endpoint.id
                 )
+            if stale_sign_ins:
+                await self.oauth_refresher.delete_sign_ins(
+                    organization_id=organization_id,
+                    project_id=project_id,
+                    slugs=stale_sign_ins,
+                )
             return edited
 
     async def delete_endpoint(
         self,
         *,
+        organization_id: UUID,
         project_id: UUID,
         #
         endpoint_id: UUID,
         pending_auth_mode: Optional[MCPAuthScheme] = None,
     ) -> bool:
-        """Delete a connection, and its OAuth grant and consents with it.
+        """Delete a connection, and its OAuth grant, consents and sign-ins with it.
+
+        Every person's own sign-in to the server goes too: a row no server names is a live
+        credential nothing can use.
 
         A grant left behind would sit in the vault with nothing naming it, still holding
         a live token. Under the connection's OAuth lock, so no consent binds a grant to
@@ -517,6 +542,12 @@ class MCPGatewayService:
                     project_id=project_id,
                     endpoint_id=endpoint_id,
                     server_url=server_url,
+                )
+            if current is not None and self.oauth_refresher is not None:
+                await self.oauth_refresher.delete_sign_ins(
+                    organization_id=organization_id,
+                    project_id=project_id,
+                    slugs=[grant_slug(endpoint_id), token_slug(endpoint_id)],
                 )
             return await self.mcp_endpoints_dao.delete_endpoint(
                 project_id=project_id,
