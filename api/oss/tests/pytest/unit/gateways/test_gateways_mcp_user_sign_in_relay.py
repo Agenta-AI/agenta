@@ -407,3 +407,32 @@ async def test_a_refused_person_grant_asks_that_person_to_sign_in_again():
         project_id=scope.project_id, endpoint_id=endpoint.id
     )
     assert stored.flags.is_valid is True
+
+
+@pytest.mark.asyncio
+async def test_a_user_call_costs_the_same_round_trips_as_an_agent_call():
+    """No added round trips on the run path: the run person's sign-in is one read by id,
+    where the agent path reads the project's row by id. Same endpoint reads, same secret
+    reads, no other call."""
+
+    async def counts(account_source):
+        dao = MockMCPEndpointsDAO()
+        endpoint = await _server(dao)
+        person = uuid4()
+        grant = _person_grant(endpoint=endpoint, person=person)
+        resolver = _RecordingResolver(secrets=[grant])
+        service = _relay_service(
+            mcp_endpoints_dao=dao,
+            resolver=resolver,
+            adapters={"http": MockUpstreamAdapter()},
+        )
+        dao.calls.clear()
+        with _run(
+            person=person,
+            accounts=[RunAccount(item_key=ITEM_KEY, secret_id=grant.secret.id)],
+        ):
+            await _relay(service, _scope(), account_source=account_source)
+        return list(dao.calls), len(resolver.refs)
+
+    assert await counts("user") == await counts("agent")
+    assert (await counts("user"))[1] == 1
