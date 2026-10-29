@@ -1,7 +1,8 @@
 """Validation and resolution of sandbox environment credentials.
 
 An ``agent`` credential names a secret by slug, in the project's list or, with
-``namespace: "organization"``, the organization's; a missing one fails the run. A ``user``
+``namespace: "organization"``, the organization's; a missing one is left out, since only
+a model item blocks a run (Needs setup). A ``user``
 credential names nothing: the secret the run person chose for this agent fills it, read
 from the run's own claim in one call next to the slug reads, and a missing one leaves the
 variable out."""
@@ -19,6 +20,10 @@ from .dtos import ResolvedSandboxCredential, SandboxCredentialConfig
 from .mcp import ResolvedMCPServer
 from .accounts import user_item_key
 from .platform.secrets import resolve_named_secrets, resolve_user_secrets
+
+from agenta.sdk.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
 
 ENVIRONMENT_NAME_PATTERN = r"^[A-Za-z_][A-Za-z0-9_]*$"
 RESERVED_SANDBOX_ENVIRONMENT_NAMES = frozenset(
@@ -163,8 +168,11 @@ async def resolve_sandbox_credentials(
 
     missing = [c for c in agent_items if not values.get(_address(c))]
     if missing:
-        raise SandboxCredentialError(
-            f"{len(missing)} configured sandbox credential secret(s) could not be resolved"
+        # Only a model item blocks a run (Needs setup). A missing secret is left out of
+        # the sandbox; the editor tags it. Counts only, never names.
+        log.info(
+            "agent: %d sandbox credential secret(s) missing, left out of the run",
+            len(missing),
         )
 
     resolved: List[ResolvedSandboxCredential] = []
@@ -175,7 +183,9 @@ async def resolve_sandbox_credentials(
             if not value:
                 continue
         else:
-            value = values[_address(item)]
+            value = values.get(_address(item))
+            if not value:
+                continue
         resolved.append(
             ResolvedSandboxCredential(
                 binding=EnvironmentCredentialBinding(name=item.binding.name),

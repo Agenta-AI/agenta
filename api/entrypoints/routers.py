@@ -269,6 +269,8 @@ from oss.src.dbs.postgres.sessions.inputs.dbes import SessionInputDBE  # noqa: F
 from oss.src.dbs.postgres.sessions.inputs.dao import SessionInputsDAO
 from oss.src.core.sessions.inputs.service import SessionInputsService
 from oss.src.core.sessions.starts.service import SessionStartsService
+from oss.src.core.agent_requirements.guard import ModelSetupGuard
+from oss.src.core.agent_requirements.service import AgentRequirementsService
 from oss.src.core.agent_templates.bindings import TemplateBindingResolver
 from oss.src.core.agent_templates.catalog import AgentTemplateCatalog
 from oss.src.core.agent_templates.compiler import TemplateCompiler
@@ -1580,6 +1582,23 @@ mcp_gateway_service = MCPGatewayService(
     oauth_refresher=mcp_oauth_connect_service,
     managed_tools=managed_mcp_adapter,
 )
+
+# The needs-setup check reads the vault, the LLM and MCP gateways and the app connections,
+# so it is built once they exist and handed to the routes and services that use it.
+agent_requirements_service = AgentRequirementsService(
+    vault_service=vault_service,
+    llm_gateway_service=llm_gateway_service,
+    mcp_gateway_service=mcp_gateway_service,
+    connections_service=connections_service,
+    account_choices_service=get_account_choices_service(),
+)
+workflows.requirements_service = agent_requirements_service
+needs_setup_guard = ModelSetupGuard(
+    workflows_service=workflows_service,
+    requirements_service=agent_requirements_service,
+)
+triggers_service.needs_setup_guard = needs_setup_guard
+channels_service.needs_setup_guard = needs_setup_guard
 
 gateway_credentials_router = GatewayCredentialsRouter()
 llm_gateway_router = LLMGatewayRouter(llm_gateway_service=llm_gateway_service)
