@@ -16,8 +16,11 @@ import secrets
 import pytest
 
 from oss.tests.pytest.acceptance.sharing.support import (
+    agent_references,
     create_header,
     grant,
+    heartbeat,
+    new_agent,
     new_session_id,
     poll,
     revoke,
@@ -136,9 +139,18 @@ def _analytics_restricted(caller) -> bool:
     return response.json()["access"]["restricted"]
 
 
-def _chat(alice, *, visibility):
+def _chat(alice, agent, *, visibility):
+    """A chat of Alice on a project agent (a chat that runs an agent can be shared)."""
+
     session_id = new_session_id()
     response = create_header(alice, session_id, visibility=visibility)
+    assert response.status_code == 200, response.text
+    response = heartbeat(
+        alice,
+        session_id=session_id,
+        is_running=False,
+        references=agent_references(agent),
+    )
     assert response.status_code == 200, response.text
     return session_id
 
@@ -157,8 +169,9 @@ def _traced_chat(alice, session_id):
 def test_trace_rule_share_unshare_delete(sharing_team):
     alice, bob = sharing_team["alice"], sharing_team["bob"]
 
-    private_id = _chat(alice, visibility="private")
-    visible_id = _chat(alice, visibility="project")
+    agent = new_agent(alice, visibility="project")
+    private_id = _chat(alice, agent, visibility="private")
+    visible_id = _chat(alice, agent, visibility="project")
     private_trace, private_spans = _traced_chat(alice, private_id)
     visible_trace, visible_spans = _traced_chat(alice, visible_id)
     free_trace = _trace_id()
