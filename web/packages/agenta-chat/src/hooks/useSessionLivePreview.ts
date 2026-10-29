@@ -43,6 +43,7 @@ export const useSessionLivePreview = ({
     sharedReaderAdvertised,
     runningElsewhere,
     sender,
+    visible = true,
     onReadyChange,
     onCommittedRevision,
     onExecutionSettled,
@@ -55,6 +56,11 @@ export const useSessionLivePreview = ({
     runningElsewhere: boolean
     /** Subscribe before this browser sends its next turn. */
     sender?: boolean
+    /**
+     * False while the conversation is off screen (a hidden pane kept mounted): the stream closes,
+     * and coming back re-reads the snapshot and the records before it reopens.
+     */
+    visible?: boolean
     /** Reports commits learned after initial hydration, once their transcript is adopted. */
     onCommittedRevision?: (revision: CommittedRevision) => void
     /** Non-reactive request-pipeline signal: true only while the shared event route is ready. */
@@ -86,10 +92,17 @@ export const useSessionLivePreview = ({
     onReadyChangeRef.current = onReadyChange
     const onExecutionSettledRef = useRef(onExecutionSettled)
     onExecutionSettledRef.current = onExecutionSettled
+    // The record sequence this reader first hydrated at, per session. Only commits after it are
+    // reported, so opening a session never replays its history. It lives outside the
+    // subscription on purpose: hiding the tab or re-subscribing closes the stream, and a commit
+    // the agent made in that gap must still be reported by the next hydration.
+    // A baseline for another session does not count.
+    const liveBaselineRef = useRef<{sessionId: string; sequence: number} | null>(null)
     const subscribed = shouldSubscribeToSessionLivePreview({
         sharedReaderAdvertised,
         runningElsewhere,
         sender,
+        visible,
     })
 
     useEffect(() => {
@@ -112,7 +125,10 @@ export const useSessionLivePreview = ({
         let reconnectDelayMs = RECONNECT_INITIAL_DELAY_MS
         let generation = 0
         let durable = createSessionDurableEventState()
-        let liveBaselineSequence: number | undefined
+        const liveBaselineSequence = () =>
+            liveBaselineRef.current?.sessionId === sessionId
+                ? liveBaselineRef.current.sequence
+                : undefined
 
         const close = () => {
             connection?.close()
@@ -175,7 +191,7 @@ export const useSessionLivePreview = ({
                     interactionRows: interactionRowStates,
                 },
                 coveredEntityIds,
-                committedRevisions: liveCommittedRevisions(records, liveBaselineSequence),
+                committedRevisions: liveCommittedRevisions(records, liveBaselineSequence()),
             }
         }
 
@@ -221,7 +237,11 @@ export const useSessionLivePreview = ({
                     }
                     for (const revision of bounded.committedRevisions)
                         onCommittedRevisionRef.current?.(revision)
-                    liveBaselineSequence ??= snapshot.read.latest_sequence
+                    if (liveBaselineSequence() === undefined)
+                        liveBaselineRef.current = {
+                            sessionId,
+                            sequence: snapshot.read.latest_sequence,
+                        }
                     if (!snapshotRunning) clearPreview(sessionId)
                     else
                         setPreview((current) => ({
@@ -250,6 +270,7 @@ export const useSessionLivePreview = ({
             )
             connection = connectSessionLiveEvents({
                 sessionId,
+                projectId,
                 after: durable.latestSequence,
                 onFrame: (frame) => {
                     if (disposed || currentGeneration !== generation) return
@@ -337,6 +358,7 @@ export const useSessionLivePreview = ({
             if (document.visibilityState === "visible") open()
             else {
                 generation += 1
+                // The baseline stays: the hydration on return reports a commit made while hidden.
                 close()
             }
         }

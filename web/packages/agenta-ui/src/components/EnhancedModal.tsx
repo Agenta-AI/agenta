@@ -143,6 +143,8 @@ interface ModalProps {
     loading?: boolean
     prefixCls?: string
     getContainer?: ModalGetContainer
+    /** Mask and centre inside `getContainer` (a positioned element), not the page. */
+    contained?: boolean
     modalRender?: (node: React.ReactNode) => React.ReactNode
     afterClose?: () => void
     afterOpenChange?: (open: boolean) => void
@@ -212,6 +214,7 @@ export function EnhancedModal(props: EnhancedModalProps) {
         focusable,
         zIndex,
         getContainer,
+        contained = false,
         styles: customStyles,
         classNames: customClassNames,
         className,
@@ -306,9 +309,11 @@ export function EnhancedModal(props: EnhancedModalProps) {
         )
 
     return (
-        <Dialog open={open} onOpenChange={handleOpenChange}>
+        // Contained runs non-modal: the host (a drawer) already traps focus.
+        <Dialog open={open} onOpenChange={handleOpenChange} modal={!(contained && container)}>
             <DialogContent
                 container={container}
+                contained={contained && !!container}
                 showCloseButton={closeIcon !== null && closable !== false}
                 closeIcon={closeIcon}
                 // Facade scroll layout: drop the content's own padding/gap so the body scrolls

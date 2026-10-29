@@ -75,7 +75,7 @@ export const AutomationActionsMenu = ({
             message.error(blocked)
             return
         }
-        // Sent on landing, like the detail screen's Test run.
+        // Sent on landing, like the detail screen's Run now.
         void startTask(automation.agentId, instruction)
     }, [automation.agentId, automation.raw.data?.inputs_fields, startTask])
 
@@ -104,7 +104,7 @@ export const AutomationActionsMenu = ({
                     <Button
                         type="button"
                         // A list row is a compact line and the kebab sits in a 24px column; on the
-                        // detail screen it stands beside Test run and has to be that button's
+                        // detail screen it stands beside Run now and has to be that button's
                         // height, or the pair reads as one control and a smaller afterthought.
                         size={surface === "list" ? "icon-xs" : "icon-sm"}
                         variant="ghost"
@@ -126,7 +126,7 @@ export const AutomationActionsMenu = ({
                         <>
                             <DropdownMenuItem onSelect={onTestRun}>
                                 <Play aria-hidden size={14} />
-                                Test run in playground
+                                Run now
                             </DropdownMenuItem>
                             <DropdownMenuItem
                                 onSelect={() =>
@@ -139,7 +139,7 @@ export const AutomationActionsMenu = ({
                                 {/* The history is a view of the automation rather than a route,
                                     so the screen is asked to open on it. The row promises runs;
                                     landing on the config would make the reader find them. */}
-                                View run history
+                                Run history
                             </DropdownMenuItem>
                             <DropdownMenuItem onSelect={() => void onToggle()}>
                                 {automation.isActive ? (
@@ -147,14 +147,14 @@ export const AutomationActionsMenu = ({
                                 ) : (
                                     <Play aria-hidden size={14} />
                                 )}
-                                {automation.isActive ? "Turn off" : "Turn on"}
+                                {automation.isActive ? "Deactivate" : "Activate"}
                             </DropdownMenuItem>
                             <DropdownMenuSeparator />
                         </>
                     ) : null}
                     <DropdownMenuItem variant="destructive" onSelect={onDelete}>
                         <Trash aria-hidden size={14} />
-                        Delete automation
+                        Delete
                     </DropdownMenuItem>
                 </DropdownMenuContent>
             </DropdownMenu>

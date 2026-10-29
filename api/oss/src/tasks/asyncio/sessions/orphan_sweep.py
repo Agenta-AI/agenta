@@ -48,6 +48,7 @@ from oss.src.dbs.postgres.sessions.streams.dbes import SessionStreamDBE
 from oss.src.core.sessions.records.dtos import (
     RECORD_SETTLED_BY_ATTRIBUTE,
     SETTLED_BY_WATCHDOG,
+    RunnerEnding,
     TERMINAL_RECORD_TYPE,
     SessionRecordEvent,
 )
@@ -62,8 +63,6 @@ from oss.src.dbs.redis.shared.engine import LockEngine
 from oss.src.dbs.redis.sessions.locks import (
     clear_running,
     force_cancel_alive,
-    force_clear_owner,
-    get_owner_value,
     mark_turn_superseded,
     release_watchdog_turn,
 )
@@ -309,26 +308,29 @@ async def _mark_endings_written(
     )
 
 
-async def _reconcile_completed_executions(
+async def _reconcile_ended_executions(
     *,
     commands_service: Optional[Any],
-    candidates: Sequence[Tuple[UUID, str, str]],
+    candidates: Dict[Tuple[UUID, str, str], RunnerEnding],
 ) -> Set[Tuple[UUID, str, str]]:
     """Return persisted endings whose execution could not be terminalized yet."""
     if commands_service is None:
         return set(candidates)
     failed: Set[Tuple[UUID, str, str]] = set()
-    for project_id, session_id, turn_id in candidates:
+    for (project_id, session_id, turn_id), ending in sorted(
+        candidates.items(), key=lambda item: item[0][1]
+    ):
         try:
-            reconciled = await commands_service.settle_execution_completed(
+            reconciled = await commands_service.settle_execution_ended(
                 project_id=project_id,
                 session_id=session_id,
                 execution_id=turn_id,
+                terminal_outcome=ending,
             )
         except Exception:
             reconciled = False
             log.warning(
-                "watchdog: failed to settle a completed continuation execution",
+                "watchdog: failed to settle an ended continuation execution",
                 project_id=str(project_id),
                 session_id=session_id,
                 turn_id=turn_id,
@@ -339,19 +341,19 @@ async def _reconcile_completed_executions(
     return failed
 
 
-async def _runner_completed_executions(
+async def _runner_ended_executions(
     *,
     records_service: RecordsService,
     candidates: Sequence[Tuple[UUID, str, str]],
-) -> Tuple[Set[Tuple[UUID, str, str]], Set[Tuple[UUID, str, str]]]:
+) -> Tuple[Dict[Tuple[UUID, str, str], RunnerEnding], Set[Tuple[UUID, str, str]]]:
     by_project: Dict[UUID, List[Tuple[str, str]]] = {}
     for project_id, session_id, turn_id in candidates:
         by_project.setdefault(project_id, []).append((session_id, turn_id))
-    completed: Set[Tuple[UUID, str, str]] = set()
+    ended: Dict[Tuple[UUID, str, str], RunnerEnding] = {}
     failed: Set[Tuple[UUID, str, str]] = set()
     for project_id, keys in by_project.items():
         try:
-            matches = await records_service.runner_completed_turns(
+            matches = await records_service.runner_ended_turns(
                 project_id=project_id,
                 keys=keys,
             )
@@ -365,10 +367,11 @@ async def _runner_completed_executions(
                 (project_id, session_id, turn_id) for session_id, turn_id in keys
             )
             continue
-        completed.update(
-            (project_id, session_id, turn_id) for session_id, turn_id in matches
+        ended.update(
+            ((project_id, session_id, turn_id), ending)
+            for (session_id, turn_id), ending in matches.items()
         )
-    return completed, failed
+    return ended, failed
 
 
 async def _settle_abandoned_commands(
@@ -536,21 +539,17 @@ async def run_orphan_sweep(
 
         # A runner can persist `done` and die before the post-append execution settlement.
         # Reconcile that durable proof before clearing its stale heartbeat; otherwise the next
-        # Send would see a recoverable continuation and replay already-completed work.
+        # Send would see a recoverable continuation and replay already-ended work.
         completion_failures: Set[Tuple[UUID, str, str]] = set()
-        if (
-            records_service is not None
-            and commands_service is not None
-            and (env.agenta.sessions.durable_approvals or env.agenta.sessions.queue)
-        ):
-            runner_completed, completion_failures = await _runner_completed_executions(
+        if records_service is not None and commands_service is not None:
+            runner_ended, completion_failures = await _runner_ended_executions(
                 records_service=records_service,
                 candidates=claimed,
             )
             completion_failures.update(
-                await _reconcile_completed_executions(
+                await _reconcile_ended_executions(
                     commands_service=commands_service,
-                    candidates=sorted(runner_completed, key=lambda t: t[1]),
+                    candidates=runner_ended,
                 )
             )
             if completion_failures:
@@ -571,28 +570,6 @@ async def run_orphan_sweep(
             return
 
         now = datetime.now(timezone.utc)
-
-        # Capture the affinity generation before the guarded database update. Redis cleanup
-        # compares this replica and the swept turn atomically after commit, so a new Send or
-        # Steer generation cannot be deleted.
-        observed_owners: Dict[Tuple[UUID, str, str], Optional[str]] = {}
-        owner_keys = {
-            (project_id, session_id, turn_id)
-            for project_id, session_id, turn_id in unsettled
-        }
-        owner_keys.update(
-            (project_id, session_id, turn_id)
-            for _row_id, project_id, session_id, turn_id, _updated_at in orphan_rows
-            if turn_id is not None
-        )
-        for project_id, session_id, turn_id in sorted(
-            owner_keys, key=lambda key: key[1]
-        ):
-            observed_owners[(project_id, session_id, turn_id)] = await get_owner_value(
-                lock_engine,
-                project_id=str(project_id),
-                session_id=session_id,
-            )
 
         # Win the stale stream generation before settling its execution or publishing records.
         # The update and execution settlement share this transaction; an exception rolls both
@@ -662,7 +639,6 @@ async def run_orphan_sweep(
             key = (project_id, session_id, turn_id)
             if (
                 key not in terminal_turns
-                and env.agenta.sessions.durable_stop
                 and commands_service is not None
                 and not await commands_service.settle_execution_lost(
                     project_id=project_id,
@@ -823,21 +799,16 @@ async def run_orphan_sweep(
         await session.commit()
 
         # Redis cleanup is one compare-and-delete operation per session. A new Send or Steer may
-        # install another generation after this commit; the script leaves its keys and affinity
-        # untouched and tombstones only the swept turn.
+        # install another generation after this commit; the script leaves its keys untouched
+        # and tombstones only the swept turn.
         for project_uuid, session_id, turn_id in newly_lost:
             if (project_uuid, session_id, turn_id) in failed_running_clears:
                 continue
-            (
-                released_alive,
-                _released_running,
-                _released_owner,
-            ) = await release_watchdog_turn(
+            released_alive, _released_running = await release_watchdog_turn(
                 lock_engine,
                 project_id=str(project_uuid),
                 session_id=session_id,
                 turn_id=turn_id,
-                owner_value=observed_owners.get((project_uuid, session_id, turn_id)),
             )
             log.warning(
                 "watchdog: wrote the ending a stopped turn's runner never reported",
@@ -874,18 +845,12 @@ async def run_orphan_sweep(
                         session_id=session_id,
                         turn_id=displaced_turn_id,
                     )
-                await force_clear_owner(
-                    lock_engine, project_id=project_id, session_id=session_id
-                )
                 continue
             await release_watchdog_turn(
                 lock_engine,
                 project_id=str(project_uuid),
                 session_id=session_id,
                 turn_id=row_turn_id,
-                owner_value=observed_owners.get(
-                    (project_uuid, session_id, row_turn_id)
-                ),
             )
 
         # Tell every open reader the session ended. Without this a browser sitting on the

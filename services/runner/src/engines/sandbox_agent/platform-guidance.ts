@@ -64,13 +64,8 @@ export function skillsReadPathAppendix(
  * run that HAS it. The SDK platform text gates its own configuration sections on the same name
  * (`platform_instructions.py`, `CONFIG_COMMIT_TOOL`), so the two layers cannot disagree.
  *
- * It is checked by name here rather than by a flag at the call site, deliberately. The natural
- * guess is the ordered-operations flag, since that is what gates the config-editing surface, but
- * the flag is the wrong axis: `commit_revision` is in `DEFAULT_BUILD_KIT_OPS` unconditionally and
- * the flag changes the commit's DELTA SHAPE rather than the tool's existence, so a flag-off agent
- * with the build kit really can do what the sentence says (its legacy description covers skills by
- * sending the whole list). Presence is the honest test, and it also catches the case a flag check
- * would miss: a flag-ON agent that simply has no config tools.
+ * It is checked by name, deliberately: presence is the honest test, and it catches an agent that
+ * simply has no config tools.
  */
 const CONFIG_COMMIT_TOOL = "commit_revision";
 
@@ -78,11 +73,10 @@ const CONFIG_COMMIT_TOOL = "commit_revision";
  * The path format the chat file-link resolver can open.
  *
  * THE OBSERVED FAILURES. A model names only `README.md` after working on a nested file, and the
- * client cannot know which file it means (#6004). A model cites an absolute sandbox path, and the
- * client renders it as inert text: the link gate (`chatFileRefs.tsx`) resolves a path RELATIVE to
- * the working directory, with `agent-files/` for the durable folder, and strips only leading and
- * trailing slashes, never a sandbox root. This sentence used to ask for the absolute path, which
- * is the shape that does not open. Verified against the client on 2026-09-07.
+ * client cannot know which file it means (#6004). A model links a file outside the session and
+ * agent drives (`/tmp`, a throwaway run dir), which no drive holds, so the link cannot open. The
+ * link gate (`chatFileRefs.tsx`) resolves a path RELATIVE to the working directory, with
+ * `agent-files/` for the durable folder (#7715).
  */
 export function fileCitationAppendix(): SystemPromptAppendix {
   return {
@@ -90,8 +84,9 @@ export function fileCitationAppendix(): SystemPromptAppendix {
     text:
       "When you mention a local file in your response, use a Markdown link whose target is the " +
       "file's path relative to your working directory, with no leading slash: " +
-      "`[report.md](agent-files/report.md)` or `[notes.md](drafts/notes.md)`. An absolute path " +
-      "does not open, and neither does a bare basename such as `README.md` for a nested file.",
+      "`[report.md](agent-files/report.md)` or `[notes.md](drafts/notes.md)`. Link only files " +
+      "in your working directory or `agent-files/`; nothing else, such as `/tmp`, can open. A " +
+      "bare basename such as `README.md` does not open for a nested file.",
   };
 }
 

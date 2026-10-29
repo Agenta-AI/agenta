@@ -2,7 +2,7 @@ import {act, useState, type ReactNode} from "react"
 
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {workflowBuildKitEnabledAtomFamily} from "@agenta/entities/workflow"
-import {openAgentConfigSectionAtom} from "@agenta/shared/state"
+import {openAgentConfigSectionAtom, projectIdAtom} from "@agenta/shared/state"
 import {createStore, Provider} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
@@ -343,6 +343,48 @@ describe("shared agent settings", () => {
         },
     )
 
+    describe("the in-process sandbox", () => {
+        const withInprocess = ["local", "daytona", "inprocess"]
+        async function sandboxChoices() {
+            await click(button("Advanced"))
+            await click(button("Execution"))
+            const trigger = document.querySelector('[role="dialog"] [role="combobox"]')!
+            await act(async () =>
+                trigger.dispatchEvent(
+                    new KeyboardEvent("keydown", {key: "ArrowDown", bubbles: true}),
+                ),
+            )
+            return [...document.querySelectorAll('[role="option"]')].map((o) => o.textContent)
+        }
+
+        it("is never offered: the runner picks it for Pi under Daytona", async () => {
+            fixture.environments = withInprocess
+            await mount(saved(), {environments: withInprocess})
+            expect(await sandboxChoices()).toEqual(["Local", "Daytona"])
+            expect(writes).not.toHaveBeenCalled()
+        })
+
+        it("shows a saved Inprocess agent as Daytona and leaves it as it is", async () => {
+            fixture.environments = withInprocess
+            const value = {...saved(), sandbox: {...saved().sandbox, kind: "inprocess"}}
+            await mount(value, {environments: withInprocess})
+            expect(writes).not.toHaveBeenCalled()
+            expect((live.sandbox as {kind: string}).kind).toBe("inprocess")
+            expect(await sandboxChoices()).toEqual(["Local", "Daytona"])
+            const selected = document.querySelector('[role="option"][aria-selected="true"]')
+            expect(selected?.textContent).toBe("Daytona")
+        })
+
+        it("keeps a saved Inprocess agent on a deployment without Daytona", async () => {
+            const withoutDaytona = ["local", "inprocess"]
+            fixture.environments = withoutDaytona
+            const value = {...saved(), sandbox: {...saved().sandbox, kind: "inprocess"}}
+            await mount(value, {environments: withoutDaytona})
+            expect(writes).not.toHaveBeenCalled()
+            expect((live.sandbox as {kind: string}).kind).toBe("inprocess")
+        })
+    })
+
     it("keeps build-kit availability but hides its sandbox policy and hint", async () => {
         fixture.environments = ["local"]
         fixture.overlay = {
@@ -353,10 +395,8 @@ describe("shared agent settings", () => {
         await mount()
         await click(button("Advanced"))
         await click(button("Build kit"))
-        expect(
-            document.querySelector('[aria-label="Enable the playground build kit"]'),
-        ).not.toBeNull()
-        expect(document.querySelector('[aria-label="Save changes"]')).not.toBeNull()
+        expect(document.querySelector('[aria-label="Default permission"]')).not.toBeNull()
+        expect(document.body.textContent).toContain("Write")
         expect(button("Execution")).toBeUndefined()
         expect(document.body.textContent).not.toMatch(/Sandbox permissions|Build kit overrides/)
         expect(fixture.overlay).toEqual(overlay)
@@ -407,7 +447,8 @@ describe("shared agent settings", () => {
         expect(
             (permissions.querySelector('[aria-label="Policy"]') as HTMLButtonElement).disabled,
         ).toBe(true)
-        await click(button("Policy", permissions))
+        // The policy select runs full width with no rail label, so there is no change marker to open.
+        expect(button("Policy", permissions)).toBeUndefined()
         expect(button("Restore")).toBeUndefined()
         expect(writes).not.toHaveBeenCalled()
     })
@@ -474,7 +515,7 @@ describe("shared agent settings", () => {
         expectRules()
     })
 
-    it("reverts only the visible policy, keeping hidden dirty rules", async () => {
+    it("leaves a dirty policy and hidden rules alone, with no inline Restore", async () => {
         fixture.committed = saved()
         const dirty = {
             ...saved(),
@@ -486,9 +527,10 @@ describe("shared agent settings", () => {
         }
         await mount(dirty)
         const permissions = host.querySelector('section[aria-label="Permissions"]')!
-        await click(button("Policy", permissions))
-        await click(button("Restore"))
-        expect((live.runner as typeof dirty.runner).permissions.default).toBe("ask")
+        // The Policy row no longer carries a change marker, so nothing reverts the policy inline.
+        expect(button("Policy", permissions)).toBeUndefined()
+        expect(button("Restore", permissions)).toBeUndefined()
+        expect((live.runner as typeof dirty.runner).permissions.default).toBe("allow")
         expectRules(dirty)
     })
 
@@ -542,11 +584,13 @@ describe("shared agent settings", () => {
     )
 
     it("does not roll back newer build-kit availability when saving only a model", async () => {
+        fixture.revision = "saved-revision"
         await mount()
+        store.set(projectIdAtom, "project")
         await act(async () => store.set(openAgentConfigSectionAtom, "model-harness"))
         await click(button("Pick model", document.querySelector('[role="dialog"]')!))
-        await act(async () => store.set(workflowBuildKitEnabledAtomFamily(""), false))
+        await act(async () => store.set(workflowBuildKitEnabledAtomFamily("saved-revision"), false))
         await click(button("Save"))
-        expect(store.get(workflowBuildKitEnabledAtomFamily(""))).toBe(false)
+        expect(store.get(workflowBuildKitEnabledAtomFamily("saved-revision"))).toBe(false)
     })
 })

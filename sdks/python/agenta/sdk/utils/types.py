@@ -8,9 +8,13 @@ from pydantic import ConfigDict, BaseModel, HttpUrl, RootModel
 from pydantic import Field, model_validator, AliasChoices
 
 
-from agenta.sdk.agents.dtos import HARNESS_IDENTITIES, SandboxPermission
+from agenta.sdk.agents.dtos import (
+    HARNESS_IDENTITIES,
+    UNLISTED_HARNESS_KINDS,
+    SandboxPermission,
+)
 from agenta.sdk.agents.mcp import MCPServerConfig
-from agenta.sdk.agents.tools import ToolConfig
+from agenta.sdk.agents.tools import DEFAULT_AGENTA_TOOLS, ToolConfig
 from agenta.sdk.agents.wire_models import run_contract_schemas
 from agenta.sdk.utils.assets import supported_llm_models, model_metadata
 from agenta.sdk.utils.helpers import _PLACEHOLDER_RE
@@ -1028,7 +1032,11 @@ class PromptTemplate(AgSchemaMixin):
             kwargs["chat_template_kwargs"] = llm_config.chat_template_kwargs
 
         if llm_config.response_format:
-            kwargs["response_format"] = llm_config.response_format.dict(by_alias=True)
+            # Drop unset optional fields. Some providers (OpenRouter) ignore a
+            # json_schema response_format that carries "description": null.
+            kwargs["response_format"] = llm_config.response_format.model_dump(
+                by_alias=True, exclude_none=True
+            )
 
         if llm_config.tools:
             kwargs["tools"] = llm_config.tools
@@ -1140,16 +1148,24 @@ def _harness_field_schema_extra() -> Dict[str, Any]:
     catalog (``GET /catalog/harnesses/{value}``), where its capabilities live — the same
     catalog/ref mechanism as ``x-ag-type-ref`` -> ``/catalog/types/``. The frontend resolves it
     to drive the harness-filtered provider/model picker, instead of reading an inlined inspect
-    ``meta`` field."""
+    ``meta`` field.
+
+    Unlisted harnesses (``UNLISTED_HARNESS_KINDS``) stay out of both lists, so no schema-driven
+    control offers them; a config that names one still runs."""
+    listed = [
+        identity
+        for identity in HARNESS_IDENTITIES
+        if identity.value not in UNLISTED_HARNESS_KINDS
+    ]
     return {
-        "enum": [identity.value for identity in HARNESS_IDENTITIES],
+        "enum": [identity.value for identity in listed],
         "oneOf": [
             {
                 "const": identity.value,
                 "title": identity.name,
                 _HARNESS_SLUG_KEY: identity.slug,
             }
-            for identity in HARNESS_IDENTITIES
+            for identity in listed
         ],
         "x-ag-harness-ref": "harness",
     }
@@ -1181,6 +1197,26 @@ class _ConnectionSchema(BaseModel):
         default=None,
         title="Slug",
         description="The named vault connection (agenta mode only); omit for the project default.",
+    )
+    namespace: Optional[Literal["standard", "custom", "builtin", "organization"]] = (
+        Field(
+            default=None,
+            title="Namespace",
+            description=(
+                "The gateway namespace the slug was picked from (agenta mode with a slug only); "
+                "omit to let the gateway infer it. An organization connection uses "
+                "'organization'."
+            ),
+        )
+    )
+    scope: Optional[Literal["project", "organization"]] = Field(
+        default=None,
+        title="Scope",
+        description=(
+            "Whose connection the slug names: the project's (the default) or the "
+            "organization's. An organization connection needs a slug and namespace "
+            "'organization'."
+        ),
     )
 
 
@@ -1443,7 +1479,7 @@ class _SandboxSchema(BaseModel):
 
     model_config = ConfigDict(extra="forbid", title="Sandbox")
 
-    kind: Literal["local", "daytona"] = Field(
+    kind: Literal["local", "daytona", "inprocess"] = Field(
         default=_DEFAULT_SANDBOX,
         title="Sandbox",
         description="Where the agent runs: local daemon or a Daytona sandbox.",
@@ -1486,8 +1522,9 @@ def build_agent_v0_default(
     template: Dict[str, Any] = {
         "instructions": {"agents_md": _DEFAULT_AGENTS_MD},
         "llm": {"provider": _DEFAULT_AGENT_PROVIDER, "model": _DEFAULT_AGENT_MODEL},
-        # Built-in tools are always active and are not configured here.
-        "tools": [],
+        # Built-in tools are always active and are not configured here. The one entry turns
+        # on the Agenta tools every new agent gets, in every run.
+        "tools": [{"type": "agenta_tools", "tools": dict(DEFAULT_AGENTA_TOOLS)}],
         "mcps": [],
     }
     if skill_slug is not None:

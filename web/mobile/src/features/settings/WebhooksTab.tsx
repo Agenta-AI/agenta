@@ -6,17 +6,16 @@ import {
     webhookToDeleteAtom,
 } from "@agenta/entities/webhook"
 import {WebhooksPage} from "@agenta/settings-ui"
-import {Button} from "@agenta/ui/ui"
-import {useAtom, useSetAtom} from "jotai"
-
 import {
-    Sheet,
-    SheetContent,
-    SheetDescription,
-    SheetFooter,
-    SheetHeader,
-    SheetTitle,
-} from "@/components/ui/sheet"
+    Button,
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogFooter,
+    DialogHeader,
+    DialogTitle,
+} from "@agenta/ui/ui"
+import {useAtom, useSetAtom} from "jotai"
 
 import {ConfirmModal} from "./ConfirmModal"
 import {WebhookFormSheet} from "./WebhookFormSheet"
@@ -34,6 +33,11 @@ export const WebhooksTab = () => {
     const [error, setError] = useState<string | null>(null)
     const [copied, setCopied] = useState(false)
     const [copyError, setCopyError] = useState<string | null>(null)
+    const closeReveal = () => {
+        setCreatedSecret(null)
+        setCopied(false)
+        setCopyError(null)
+    }
 
     return (
         <WebhooksPage
@@ -69,35 +73,32 @@ export const WebhooksTab = () => {
                 />
             )}
             renderSecretReveal={() => (
-                <Sheet
+                <Dialog
                     open={Boolean(createdSecret)}
                     onOpenChange={(next) => {
-                        if (!next) {
-                            setCreatedSecret(null)
-                            setCopied(false)
-                            setCopyError(null)
-                        }
+                        if (!next) closeReveal()
                     }}
                 >
-                    <SheetContent side="responsive">
-                        <SheetHeader>
-                            <SheetTitle>Save your webhook secret</SheetTitle>
-                            <SheetDescription>
+                    <DialogContent>
+                        <DialogHeader>
+                            <DialogTitle>Save your webhook secret</DialogTitle>
+                            <DialogDescription>
                                 Shown once. You need it to verify that incoming requests came from
                                 Agenta.
-                            </SheetDescription>
-                        </SheetHeader>
-                        <div className="px-4">
-                            <p className="m-0 break-all rounded-md border border-border bg-muted px-3 py-2 font-mono text-xs">
-                                {createdSecret}
-                            </p>
-                        </div>
+                            </DialogDescription>
+                        </DialogHeader>
+                        <p className="m-0 break-all rounded-md border border-solid border-border bg-muted px-3 py-2 font-mono text-xs">
+                            {createdSecret}
+                        </p>
                         {copyError ? (
-                            <p role="alert" className="text-destructive m-0 px-4 pt-2 text-xs">
+                            <p role="alert" className="text-destructive m-0 text-xs">
                                 {copyError}
                             </p>
                         ) : null}
-                        <SheetFooter>
+                        <DialogFooter>
+                            <Button variant="outline" onClick={closeReveal}>
+                                Done
+                            </Button>
                             <Button
                                 onClick={async () => {
                                     if (!createdSecret) return
@@ -117,19 +118,9 @@ export const WebhooksTab = () => {
                             >
                                 {copied ? "Copied" : "Copy secret"}
                             </Button>
-                            <Button
-                                variant="outline"
-                                onClick={() => {
-                                    setCreatedSecret(null)
-                                    setCopied(false)
-                                    setCopyError(null)
-                                }}
-                            >
-                                Done
-                            </Button>
-                        </SheetFooter>
-                    </SheetContent>
-                </Sheet>
+                        </DialogFooter>
+                    </DialogContent>
+                </Dialog>
             )}
         />
     )

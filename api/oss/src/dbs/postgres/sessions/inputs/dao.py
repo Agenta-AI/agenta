@@ -27,6 +27,57 @@ class SessionInputsDAO(SessionInputsDAOInterface):
     def __init__(self, engine: Optional[TransactionsEngine] = None):
         self.engine = engine or get_transactions_engine()
 
+    async def claim_dispatch(
+        self, *, project_id: UUID, session_id: str, input_id: UUID, execution_id: str
+    ) -> bool:
+        async with self.engine.session() as session:
+            result = await session.execute(
+                sa_update(SessionInputDBE)
+                .where(
+                    SessionInputDBE.project_id == project_id,
+                    SessionInputDBE.session_id == session_id,
+                    SessionInputDBE.id == input_id,
+                    SessionInputDBE.state == "promoted",
+                    SessionInputDBE.promoted_execution_id == execution_id,
+                    SessionInputDBE.dispatch_claimed.is_(False),
+                )
+                .values(dispatch_claimed=True)
+                .returning(SessionInputDBE.id)
+            )
+            claimed = result.scalar_one_or_none() is not None
+            await session.commit()
+            return claimed
+
+    async def release_dispatch(
+        self, *, project_id: UUID, session_id: str, input_id: UUID, execution_id: str
+    ) -> bool:
+        # Mirrors `claim_dispatch`, including the compare-and-set on the flag: the claim stays
+        # one-shot, so two retries racing after a release still dispatch exactly once.
+        #
+        # INVARIANT, and the SQL does not enforce it: there is exactly one caller, and it is the
+        # flow that won the claim. `dispatch_claimed.is_(True)` asks whether somebody holds the
+        # claim, never whether the caller is that somebody, because nothing here identifies an
+        # attempt. A second call site (a reaper, an admin un-claim, a cancel path) would release
+        # a claim it does not hold and break at-most-once. Fencing that needs an attempt id on
+        # the row, so until there is one, keep the single call site.
+        async with self.engine.session() as session:
+            result = await session.execute(
+                sa_update(SessionInputDBE)
+                .where(
+                    SessionInputDBE.project_id == project_id,
+                    SessionInputDBE.session_id == session_id,
+                    SessionInputDBE.id == input_id,
+                    SessionInputDBE.state == "promoted",
+                    SessionInputDBE.promoted_execution_id == execution_id,
+                    SessionInputDBE.dispatch_claimed.is_(True),
+                )
+                .values(dispatch_claimed=False)
+                .returning(SessionInputDBE.id)
+            )
+            released = result.scalar_one_or_none() is not None
+            await session.commit()
+            return released
+
     def transaction(self):
         return self.engine.session()
 
@@ -83,7 +134,7 @@ class SessionInputsDAO(SessionInputsDAOInterface):
             row = new_input_row(
                 user_id=user_id,
                 position=position,
-                values=pending_input.model_dump(mode="python"),
+                pending_input=pending_input,
             )
             session.add(row)
             await session.flush()
@@ -118,6 +169,21 @@ class SessionInputsDAO(SessionInputsDAOInterface):
             return await execute(transaction)
         async with self.engine.session() as session:
             return await execute(session)
+
+    async def fetch_by_execution_id(
+        self, *, project_id: UUID, session_id: str, execution_id: str
+    ) -> Optional[PendingInput]:
+        async with self.engine.session() as session:
+            row = (
+                await session.execute(
+                    select(SessionInputDBE).where(
+                        SessionInputDBE.project_id == project_id,
+                        SessionInputDBE.session_id == session_id,
+                        SessionInputDBE.promoted_execution_id == execution_id,
+                    )
+                )
+            ).scalar_one_or_none()
+            return to_pending_input(row) if row else None
 
     async def list_pending(
         self,

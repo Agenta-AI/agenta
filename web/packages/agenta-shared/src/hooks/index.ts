@@ -7,9 +7,9 @@ export {useDebouncedAtomSearch} from "./useDebouncedAtomSearch"
 export {default as useLazyEffect} from "./useLazyEffect"
 export {useSelectionState, type UseSelectionStateResult} from "./useSelectionState"
 export {useRunAllShortcut, type UseRunAllShortcutParams} from "./useRunAllShortcut"
-export {useReducerAtom} from "./useReducerAtom"
 export {useModifierKey} from "./useModifierKey"
-export {useAltKey} from "./useAltKey"
+export {useInView} from "./useInView"
+export {useSettledValue} from "./useSettledValue"
 export {
     desktopEscapeHref,
     useClassicModeCookieSync,

@@ -3,6 +3,10 @@
 export const EventType = {
     Unknown: "unknown",
     WebhooksSubscriptionsTested: "webhooks.subscriptions.tested",
+    GatewaysCalled: "gateways.called",
+    AgentsSharingChanged: "agents.sharing.changed",
+    SessionsSharingChanged: "sessions.sharing.changed",
+    OrganizationSecretsChanged: "organization_secrets.changed",
     TracesFetched: "traces.fetched",
     TracesQueried: "traces.queried",
     QueriesRevisionsRetrieved: "queries.revisions.retrieved",

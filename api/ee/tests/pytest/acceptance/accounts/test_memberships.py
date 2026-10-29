@@ -76,6 +76,20 @@ class TestSimpleMemberships:
         account_b = _create_account(admin_api, email=email_b)
         workspace_id = list(account_a["workspaces"].values())[0]["id"]
         user_b_id = account_b["user"]["id"]
+        # Workspace removal step 2: the workspace is the organization, and a workspace
+        # membership answers the user's organization membership, so B joins it first.
+        org_resp = admin_api(
+            "POST",
+            "/admin/simple/accounts/organizations/memberships/",
+            json={
+                "membership": {
+                    "organization_ref": {"id": workspace_id},
+                    "user_ref": {"id": user_b_id},
+                    "role": "viewer",
+                }
+            },
+        )
+        assert org_resp.status_code == 200, org_resp.text
 
         create_resp = admin_api(
             "POST",

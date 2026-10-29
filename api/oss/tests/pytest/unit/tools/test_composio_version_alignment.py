@@ -2,6 +2,14 @@
 
 The REST API scope stays on v3.1. Independently, each gateway run resolves the mutable
 ``latest`` toolkit alias to a concrete version and uses it for catalog and execution.
+
+The scope cases read ``COMPOSIO_DEFAULT_API_URL`` rather than the model field's default.
+The field's default IS the environment's value wherever ``COMPOSIO_API_URL`` is set, which
+is every real deployment and any shell with a stack env file loaded, and the demo stack's
+file sets it to v3. So the old pair asserted a property of the shell rather than of the code
+and failed in the shell the contributor guide prescribes (D95). What they name, and what the
+release depends on, is the scope the code ships and the override that can move it: both are
+pinned below, in both states.
 """
 
 from __future__ import annotations
@@ -15,7 +23,11 @@ from oss.src.core.tools.exceptions import AdapterError
 from oss.src.core.tools.providers.composio.catalog import (
     COMPOSIO_TOOLKIT_VERSION,
 )
-from oss.src.utils.env import ComposioConfig
+from oss.src.utils.env import (
+    COMPOSIO_DEFAULT_API_URL,
+    ComposioConfig,
+    composio_api_url,
+)
 
 
 V31 = "https://backend.composio.dev/api/v3.1"
@@ -24,8 +36,22 @@ V31 = "https://backend.composio.dev/api/v3.1"
 TOOL_NOT_FOUND = 2401
 
 
-def test_default_composio_api_scope_is_v31():
-    assert ComposioConfig.model_fields["api_url"].default == V31
+def test_the_shipped_composio_api_scope_is_v31():
+    assert COMPOSIO_DEFAULT_API_URL == V31
+
+
+def test_a_deployment_that_sets_nothing_gets_the_shipped_scope(monkeypatch):
+    monkeypatch.delenv("COMPOSIO_API_URL", raising=False)
+
+    assert composio_api_url() == V31
+
+
+def test_a_deployment_that_sets_the_scope_gets_its_own(monkeypatch):
+    """The override is the reason the field default cannot be read as the shipped one."""
+    monkeypatch.setenv("COMPOSIO_API_URL", "https://backend.composio.dev/api/v3")
+
+    assert composio_api_url() == "https://backend.composio.dev/api/v3"
+    assert ComposioConfig(api_url=composio_api_url()).api_url.endswith("/v3")
 
 
 # ---------------------------------------------------------------------------
@@ -61,7 +87,11 @@ class TestSearchSlugsResolveUnderPinnedScope:
     ]
 
     def test_pinned_scope_is_v31(self):
-        assert ComposioConfig.model_fields["api_url"].default == V31
+        """The premise of the three live cases below: v3.1 is the scope the code ships.
+
+        Not the field default, which a deployment's own COMPOSIO_API_URL replaces (D95).
+        """
+        assert COMPOSIO_DEFAULT_API_URL == V31
 
     def test_search_slugs_get_resolve(self):
         base = V31

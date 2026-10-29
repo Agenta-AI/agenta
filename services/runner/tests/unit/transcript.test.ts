@@ -136,7 +136,8 @@ describe("messageTranscript", () => {
       },
     ]);
 
-    assert.match(transcript, new RegExp(`${OTHER_TOOL} was approved`));
+    assert.match(transcript, new RegExp(`${OTHER_TOOL} may have already run`));
+    assert.doesNotMatch(transcript, /was approved/, "an interrupted call need not have reached approval");
     assert.match(transcript, /may have already run/);
     assert.match(transcript, /do NOT retry a side-effecting call/i);
     assert.doesNotMatch(transcript, /error:/);

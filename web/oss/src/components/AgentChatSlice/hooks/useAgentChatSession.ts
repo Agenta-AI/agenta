@@ -6,14 +6,13 @@ import {
     latestTurnId,
     prepareAfterContinuationPreflight,
     resolveStopExecution,
-    startupLabelFromDataPart,
-    submitApprovalForCapability,
+    startupPhaseFromDataPart,
+    submitServerOwnedApproval,
 } from "@agenta/chat/assets"
 import type {ClientToolOutputHandler} from "@agenta/chat/clientTools"
 import {useFileActivityDetector, useSessionChat} from "@agenta/chat/hooks"
 import {
     classifyAgentRunError,
-    ignoreStreamRejection,
     createUserStoppedState,
     isSessionTurnStopping,
     reduceUserStoppedState,
@@ -45,11 +44,9 @@ import {
     cancelSessionExecution,
     invalidateSessionListQueries,
     killSession,
-    recordInteractionAnswerAtom,
     respondInteractionAnswerAtom,
     respondInteractionAnswersAtom,
     resumeSessionContinuationAtom,
-    sessionDurableApprovalsCapabilityAtom,
     revalidateSessionMountsAtom,
     revalidateSessionRecordsAtom,
 } from "@agenta/entities/session"
@@ -57,7 +54,6 @@ import {markTraceAsFresh} from "@agenta/entities/trace"
 import {invalidateAgentCommittedRevisionCache, workflowMolecule} from "@agenta/entities/workflow"
 import {
     agentShouldResumeAfterApproval,
-    approvalResolution,
     buildAgentRequest,
     buildTurnCapture,
     isHitlPending,
@@ -79,7 +75,7 @@ import {doesAgentChatStopKillSession} from "../assets/constants"
 import {isStoppingPhase, reduceStopPhase} from "../assets/stopState"
 import {invalidateSessionInspector} from "../components/Inspector/invalidate"
 import {useChatScopeKey} from "../state/scope"
-import {openSessionIdsAtomFamily} from "../state/sessions"
+import {openSessionIdsAtomFamily, precreateThenInvoke} from "../state/sessions"
 import {captureTurnRequestAtom} from "../state/turnCaptures"
 
 import {type ScrollIntent} from "./useScrollIntent"
@@ -110,6 +106,7 @@ export const useAgentChatSession = ({
     intent: ScrollIntent
 }) => {
     const store = useStore()
+    const projectId = useAtomValue(projectIdAtom)
     const persistMessages = useSetAtom(persistSessionMessagesAtom)
     const stampMessagesCreatedAt = useSetAtom(stampMessagesCreatedAtAtom)
     const switchEntity = useSetAtom(playgroundController.actions.switchEntity)
@@ -150,11 +147,9 @@ export const useAgentChatSession = ({
     const revalidateSessionMounts = useSetAtom(revalidateSessionMountsAtom)
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
     const setSessionStatus = useSetAtom(setSessionStatusAtom)
-    const recordInteractionAnswer = useSetAtom(recordInteractionAnswerAtom)
     const respondInteractionAnswer = useSetAtom(respondInteractionAnswerAtom)
     const respondInteractionAnswers = useSetAtom(respondInteractionAnswersAtom)
     const resumeSessionContinuation = useSetAtom(resumeSessionContinuationAtom)
-    const supportsDurableApprovals = useSetAtom(sessionDurableApprovalsCapabilityAtom)
     const queryClient = useQueryClient()
     // Only a gate settled in this mount may trigger an automatic resume; hydrated answers stay inert.
     // `null` means "no live gate" — voided by a stop, or spent once a resume really went out;
@@ -210,10 +205,6 @@ export const useAgentChatSession = ({
     const setSharedSenderReady = useCallback((ready: boolean) => {
         sharedSenderReadyRef.current = ready
     }, [])
-    const retryContinuation = useCallback(
-        () => resumeSessionContinuation(sessionId),
-        [resumeSessionContinuation, sessionId],
-    )
 
     // Rebuilt every render and bound to the chat on every commit (below), so they always see the live
     // values — `entityId` included, which is why a run follows a revision switch or a self-commit
@@ -233,18 +224,28 @@ export const useAgentChatSession = ({
                     const deliverySource: TurnDeliverySource = sharedResponse ? "shared" : "legacy"
                     turnDeliverySourceBySession.set(sessionId, deliverySource)
                     setTurnDeliverySource(deliverySource)
-                    // Bounded: retries while the invocation URL is still loading and rejects if
-                    // the build hangs, so a failed send surfaces as an error bubble instead of an
-                    // eternal spinner (#6042).
-                    const req = await buildRequestWithinDeadline(() =>
-                        buildAgentRequest(entityIdRef.current, messages, {
-                            sessionId: id ?? sessionId,
-                            sharedResponse,
-                            secretSetup: true,
-                        }),
+                    // A new chat exists as a project-visible session before its first run.
+                    return precreateThenInvoke(
+                        {sessionId: id ?? sessionId, projectId, messages},
+                        async () => {
+                            // Bounded: retries while the invocation URL is still loading and
+                            // rejects if the build hangs, so a failed send surfaces as an error
+                            // bubble instead of an eternal spinner (#6042).
+                            const req = await buildRequestWithinDeadline(() =>
+                                buildAgentRequest(entityIdRef.current, messages, {
+                                    sessionId: id ?? sessionId,
+                                    sharedResponse,
+                                    secretSetup: true,
+                                }),
+                            )
+                            captureTurnRequest(buildTurnCapture(req, generateId(), Date.now()))
+                            return {
+                                api: req.invocationUrl,
+                                headers: req.headers,
+                                body: req.requestBody,
+                            }
+                        },
                     )
-                    captureTurnRequest(buildTurnCapture(req, generateId(), Date.now()))
-                    return {api: req.invocationUrl, headers: req.headers, body: req.requestBody}
                 },
             )
         },
@@ -261,8 +262,8 @@ export const useAgentChatSession = ({
                 acceptedRunBySession.set(sessionId, acceptedExecutionIdRef.current)
                 setAcceptedRunPending(true)
             }
-            const label = startupLabelFromDataPart(part)
-            if (label) setTurnStartupLabel(sessionId, label)
+            const phase = startupPhaseFromDataPart(part)
+            if (phase) setTurnStartupLabel(sessionId, phase)
         },
         // Approve AND deny both resume — a deny-only decision must re-send so the runner
         // gets the denial round-trip and the model continues (no `approval-responded` limbo).
@@ -341,7 +342,6 @@ export const useAgentChatSession = ({
         regenerate: regenerateChatMessage,
         setMessages,
         addToolApprovalResponse,
-        addToolOutput,
         error,
         clearError,
     } = useChat({
@@ -439,69 +439,34 @@ export const useAgentChatSession = ({
         liveGateInteractionRef.current = interaction
     }, [])
 
-    /** Choose the durable dispatcher only when the server advertises it. */
     const answerApproval = useCallback(
         async (approvalId: string, approved: boolean) => {
-            return submitApprovalForCapability({
-                durableApprovals: supportsDurableApprovals(sessionId),
-                submitDurable: () =>
+            return submitServerOwnedApproval({
+                submit: () =>
                     respondInteractionAnswer({
                         sessionId,
                         toolCallId: approvalId,
                         approved,
                     }),
-                retireDurable: () => {
+                retire: () => {
                     // A lost HTTP response may still follow a committed continuation.
                     liveGateInteractionRef.current = null
                 },
-                recordLegacy: () =>
-                    recordInteractionAnswer({
-                        sessionId,
-                        toolCallId: approvalId,
-                        resolution: approvalResolution(approvalId, approved),
-                    }),
-                releaseLegacy: () => addToolApprovalResponse({id: approvalId, approved}),
             })
         },
-        [
-            addToolApprovalResponse,
-            recordInteractionAnswer,
-            respondInteractionAnswer,
-            sessionId,
-            supportsDurableApprovals,
-        ],
+        [respondInteractionAnswer, sessionId],
     )
 
     const answerApprovals = useCallback(
         async (toolCallIds: string[], approved: boolean) => {
-            return submitApprovalForCapability({
-                durableApprovals: supportsDurableApprovals(sessionId),
-                submitDurable: () => respondInteractionAnswers({sessionId, toolCallIds, approved}),
-                retireDurable: () => {
+            return submitServerOwnedApproval({
+                submit: () => respondInteractionAnswers({sessionId, toolCallIds, approved}),
+                retire: () => {
                     liveGateInteractionRef.current = null
-                },
-                recordLegacy: () =>
-                    Promise.all(
-                        toolCallIds.map((approvalId) =>
-                            recordInteractionAnswer({
-                                sessionId,
-                                toolCallId: approvalId,
-                                resolution: approvalResolution(approvalId, approved),
-                            }),
-                        ),
-                    ).then(() => undefined),
-                releaseLegacy: () => {
-                    for (const id of toolCallIds) addToolApprovalResponse({id, approved})
                 },
             })
         },
-        [
-            addToolApprovalResponse,
-            recordInteractionAnswer,
-            respondInteractionAnswers,
-            sessionId,
-            supportsDurableApprovals,
-        ],
+        [respondInteractionAnswers, sessionId],
     )
 
     // A resume really went out (the SDK's), so the gate it carried is spent. Retired HERE, where a
@@ -513,7 +478,7 @@ export const useAgentChatSession = ({
         if (isResumeSend({from, to: status})) liveGateInteractionRef.current = null
     }, [status])
 
-    // Durable gates resume on the server; legacy gates still release the local SDK.
+    // Gates resume on the server.
     const handleClientToolOutput = useCallback(
         async ({
             toolName,
@@ -529,52 +494,16 @@ export const useAgentChatSession = ({
                     ? {outcome: "error", error: errorText}
                     : {outcome: "completed", output: output ?? {}}),
             }
-            const outcome = await submitApprovalForCapability({
-                durableApprovals: supportsDurableApprovals(sessionId),
-                submitDurable: () => respondInteractionAnswer({sessionId, toolCallId, resolution}),
-                retireDurable: () => {
+            const outcome = await submitServerOwnedApproval({
+                submit: () => respondInteractionAnswer({sessionId, toolCallId, resolution}),
+                retire: () => {
                     liveGateInteractionRef.current = null
-                },
-                recordLegacy: () => recordInteractionAnswer({sessionId, toolCallId, resolution}),
-                releaseLegacy: () => {
-                    if (errorText !== undefined) {
-                        addToolOutput({
-                            state: "output-error",
-                            tool: toolName as never,
-                            toolCallId,
-                            errorText,
-                        }).catch(ignoreStreamRejection)
-                    } else {
-                        addToolOutput({
-                            tool: toolName as never,
-                            toolCallId,
-                            output: (output ?? {}) as never,
-                        }).catch(ignoreStreamRejection)
-                    }
                 },
             })
             return outcome
         },
-        [
-            addToolOutput,
-            recordInteractionAnswer,
-            respondInteractionAnswer,
-            sessionId,
-            supportsDurableApprovals,
-        ],
+        [respondInteractionAnswer, sessionId],
     )
-
-    // Orphan detection for the queue's pre-resume hold: the tail is a RESTORED message (this
-    // mount never streamed it) shaped like "auto-resume imminent", and no gate was settled live
-    // in this mount. The SDK only evaluates `sendAutomaticallyWhen` on live events (approval
-    // response, tool output, stream finish) — never on mount — so this resume can't fire and
-    // must not hold the queue. Short-circuits cheap on the streaming hot path: any live send
-    // makes the tail non-restored.
-    const resumeOrphaned =
-        !liveGateInteractionRef.current &&
-        !!lastMessage &&
-        restoredIdsRef.current.has(lastMessage.id) &&
-        agentShouldResumeAfterApproval({messages})
 
     // Cache only the newest turn id observed by this page for guarded Stop.
     useEffect(() => {
@@ -686,6 +615,8 @@ export const useAgentChatSession = ({
             const key = data?.revisionId ?? JSON.stringify(data ?? {}) ?? "committed"
             if (committedRevisionsSeenRef.current.has(key)) return
             committedRevisionsSeenRef.current.add(key)
+            // Nobody is watching a hidden tab: its version pill offers the commit on return.
+            if (document.visibilityState !== "visible") return
             invalidateAgentCommittedRevisionCache()
             if (data?.revisionId && data.revisionId !== entityId) {
                 const prevParameters = store.get(workflowMolecule.selectors.configuration(entityId))
@@ -709,7 +640,6 @@ export const useAgentChatSession = ({
         }
     }, [messages, onCommittedRevision])
 
-    const projectId = useAtomValue(projectIdAtom)
     const expectedStopExecutionIdRef = useRef<string | undefined>(undefined)
     const retryStopRef = useRef(false)
     const abortAfterAcceptedRef = useRef(false)
@@ -946,8 +876,6 @@ export const useAgentChatSession = ({
         markLiveGate,
         answerApproval,
         answerApprovals,
-        retryContinuation,
-        resumeOrphaned,
         isSeen,
     }
 }

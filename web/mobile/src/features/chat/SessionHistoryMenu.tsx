@@ -3,7 +3,7 @@ import {useState} from "react"
 import type {SessionRowVm} from "@agenta/sessions/row"
 import {SessionCardList} from "@agenta/sessions-ui"
 import {Button, Popover, PopoverContent, PopoverTrigger, SimpleTooltip} from "@agenta/ui/ui"
-import {History} from "lucide-react"
+import {ChatsCircleIcon} from "@phosphor-icons/react"
 import {useRouter} from "next/router"
 
 import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
@@ -49,12 +49,13 @@ export const SessionHistoryMenu = ({
                         aria-label="Session history"
                         className="h-7 w-7 shrink-0 p-0"
                     >
-                        <History size={14} />
+                        {/* The rail's own Sessions glyph, so the button reads as that list. */}
+                        <ChatsCircleIcon size={14} />
                     </Button>
                 </PopoverTrigger>
             </SimpleTooltip>
             <PopoverContent align="end" className="flex w-[320px] flex-col gap-1 p-2">
-                <span className="px-2 pt-1 text-xs font-medium">Session history</span>
+                <span className="px-3 pt-1 text-xs font-medium">Session history</span>
                 {/* Capped and scrolled: the strip already shows the recent ones, so this is the
                     tail, and an agent with a hundred sessions must not grow the popover. */}
                 {/* The surface is restated here, not left to PopoverContent, because the sticky
@@ -66,7 +67,10 @@ export const SessionHistoryMenu = ({
                         policy={{origin: "exclude-trigger", expansions: []}}
                         limit={30}
                         withPinned
-                        alwaysShowPin
+                        // The rail's one-line rows, so the popover reads as the sidebar does —
+                        // the time kept, the subtitle dropped, the pin on hover beside the name.
+                        density="compact"
+                        activeRowId={activeSessionId}
                         emptyText="No sessions with this agent yet."
                         onOpenRow={openRow}
                         menuFor={menu.menuFor}

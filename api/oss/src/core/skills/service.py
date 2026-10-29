@@ -10,8 +10,13 @@ from pydantic import ValidationError
 from agenta.sdk.agents.skills.models import SkillTemplate
 from agenta.sdk.engines.running.utils import AGENTA_BUILTIN_SKILL_URI
 
+from oss.src.core.sharing.dtos import AgentReadScope
 from oss.src.core.shared.dtos import Reference
 from oss.src.core.shared.exceptions import EntityCreationConflict
+from oss.src.core.shared.idempotency import (
+    idempotent_workflow_slug,
+    resource_identity,
+)
 from oss.src.core.skills.exceptions import (
     SkillContentInvalidError,
     SkillNotFoundError,
@@ -32,6 +37,7 @@ from oss.src.core.workflows.service import (
     WorkflowsService,
 )
 from oss.src.core.skills.dtos import (
+    InstalledSkillRef,
     SkillCommitted,
     SkillCreated,
     SkillOriginInfo,
@@ -111,6 +117,7 @@ class SkillsService:
         referenced workflow id and slug (one count per agent per skill)."""
         agent_heads = await self.workflows_service.query_workflow_head_revisions(
             project_id=project_id,
+            read_scope=AgentReadScope(owner_user_id=None),
             #
             workflow_revision_query=WorkflowRevisionQuery(
                 flags=WorkflowRevisionQueryFlags(is_agent=True),
@@ -161,6 +168,7 @@ class SkillsService:
 
         head_revisions = await self.workflows_service.query_workflow_head_revisions(
             project_id=project_id,
+            read_scope=AgentReadScope(owner_user_id=None),
             #
             workflow_revision_query=WorkflowRevisionQuery(
                 flags=WorkflowRevisionQueryFlags(is_skill=True),
@@ -182,6 +190,7 @@ class SkillsService:
         if artifact_ids:
             artifacts = await self.workflows_service.query_workflows(
                 project_id=project_id,
+                read_scope=AgentReadScope(owner_user_id=None),
                 workflow_refs=[
                     Reference(id=artifact_id) for artifact_id in artifact_ids
                 ],
@@ -243,6 +252,7 @@ class SkillsService:
                     message=revision.message,
                     created_at=revision.created_at,
                     updated_at=revision.updated_at or revision.created_at,
+                    created_by_id=workflow.created_by_id if workflow else None,
                     is_static=False,
                     archived=bool(workflow and workflow.deleted_at),
                     skill_name=payload.get("name"),
@@ -292,6 +302,7 @@ class SkillsService:
 
         agent_heads = await self.workflows_service.query_workflow_head_revisions(
             project_id=project_id,
+            read_scope=AgentReadScope(owner_user_id=None),
             #
             workflow_revision_query=WorkflowRevisionQuery(
                 flags=WorkflowRevisionQueryFlags(is_agent=True),
@@ -404,8 +415,6 @@ class SkillsService:
                     project_id=project_id,
                     user_id=user_id,
                     simple_workflow_create=SimpleWorkflowCreate(
-                        # Display names may collide (like agents); the slug is
-                        # plumbing and carries a random suffix.
                         slug=f"{payload['name']}-{uuid4().hex[:4]}",
                         name=payload["name"],
                         description=payload.get("description"),
@@ -421,6 +430,75 @@ class SkillsService:
             break
         if not created or not created.id:
             raise SkillNotFoundError("The skill workflow could not be created.")
+        return SkillCreated(
+            workflow_id=str(created.id),
+            slug=created.slug,
+            revision_id=str(created.revision_id) if created.revision_id else None,
+        )
+
+    @staticmethod
+    def plan_idempotent_skill_ref(
+        *,
+        project_id: UUID,
+        namespace: str,
+        request_key: str,
+        skill_name: str,
+    ) -> InstalledSkillRef:
+        workflow_id = resource_identity(
+            project_id,
+            namespace,
+            request_key,
+            f"skill:{skill_name}",
+        )
+        return InstalledSkillRef(
+            name=skill_name,
+            workflow_id=workflow_id,
+            workflow_slug=idempotent_workflow_slug(
+                slug=skill_name,
+                workflow_id=workflow_id,
+            ),
+        )
+
+    async def create_skill_idempotent(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        namespace: str,
+        request_key: str,
+        request_fingerprint: str,
+        skill: Dict[str, Any],
+    ) -> SkillCreated:
+        payload = self._validated_skill(skill)
+        planned = self.plan_idempotent_skill_ref(
+            project_id=project_id,
+            namespace=namespace,
+            request_key=request_key,
+            skill_name=payload["name"],
+        )
+        outcome = await self.simple_workflows_service.create_idempotent(
+            project_id=project_id,
+            user_id=user_id,
+            namespace=namespace,
+            request_key=request_key,
+            request_fingerprint=request_fingerprint,
+            component=f"skill:{payload['name']}",
+            simple_workflow_create=SimpleWorkflowCreate(
+                slug=payload["name"],
+                name=payload["name"],
+                description=payload.get("description"),
+                flags=SimpleWorkflowFlags(is_skill=True, is_snippet=True),
+                data=SimpleWorkflowData(
+                    uri=AGENTA_BUILTIN_SKILL_URI,
+                    parameters={"skill": payload},
+                ),
+            ),
+        )
+        created = outcome.workflow
+        if created.id != planned.workflow_id or created.slug != planned.workflow_slug:
+            raise SkillNotFoundError(
+                "The idempotent skill workflow does not match its planned identity."
+            )
         return SkillCreated(
             workflow_id=str(created.id),
             slug=created.slug,
@@ -525,6 +603,7 @@ class SkillsService:
         v0 (the empty bootstrap revision) is server-filtered — history starts at v1."""
         revisions = await self.workflows_service.query_workflow_revisions(
             project_id=project_id,
+            read_scope=AgentReadScope(owner_user_id=None),
             workflow_refs=[Reference(id=workflow_id)],
         )
         rows: List[SkillRevisionRow] = []

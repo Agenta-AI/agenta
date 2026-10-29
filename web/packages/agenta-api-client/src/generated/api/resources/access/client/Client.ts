@@ -152,7 +152,7 @@ export class AccessClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -228,7 +228,7 @@ export class AccessClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -299,7 +299,7 @@ export class AccessClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -383,7 +383,7 @@ export class AccessClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:
@@ -404,6 +404,14 @@ export class AccessClient {
     }
 
     /**
+     * Evaluate a permission against the AUTHENTICATED scope.
+     *
+     * `scope_id` asserts that the request was authenticated for that scope; it never
+     * selects it. A caller asking about a specific project must also send the
+     * `project_id` query param the auth middleware reads — a session with no explicit
+     * `project_id` is scoped to the default project, and any other `scope_id` is denied
+     * regardless of the caller's role there.
+     *
      * @param {AgentaApi.CheckPermissionsRequest} request
      * @param {AccessClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -429,6 +437,7 @@ export class AccessClient {
             scope_id: scopeId,
             resource_type: resourceType,
             resource_id: resourceId,
+            without_grants: withoutGrants,
         } = request;
         const _queryParams: Record<string, unknown> = {
             action,
@@ -436,6 +445,7 @@ export class AccessClient {
             scope_id: scopeId,
             resource_type: resourceType,
             resource_id: resourceId,
+            without_grants: withoutGrants,
         };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
@@ -468,7 +478,7 @@ export class AccessClient {
             switch (_response.error.statusCode) {
                 case 422:
                     throw new AgentaApi.UnprocessableEntityError(
-                        _response.error.body as AgentaApi.HttpValidationError,
+                        _response.error.body as unknown,
                         _response.rawResponse,
                     );
                 default:

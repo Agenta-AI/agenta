@@ -48,18 +48,22 @@ function AlertDialogContent({
     showCloseButton = false,
     ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Content> & {
-    /** Portal target; defaults to document.body. */
+    /** Portal target; defaults to document.body. A given container (positioned) is the dialog's
+     * whole world: mask and dialog cover it, not the window. */
     container?: HTMLElement | null
     /** No close X by default (an alert forces a choice); opting in makes dismiss = cancel. */
     showCloseButton?: boolean
 }) {
     return (
         <AlertDialogPortal container={container}>
-            <AlertDialogOverlay />
+            <AlertDialogOverlay className={container ? "absolute" : undefined} />
             {/* Flex-centred, not transform-centred: the zoom keyframes would overwrite a translate. */}
             <div
                 data-slot="alert-dialog-positioner"
-                className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none"
+                className={cn(
+                    "inset-0 z-50 flex items-center justify-center p-4 pointer-events-none",
+                    container ? "absolute" : "fixed",
+                )}
             >
                 <AlertDialogPrimitive.Content
                     data-slot="alert-dialog-content"

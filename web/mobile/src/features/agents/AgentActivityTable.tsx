@@ -8,11 +8,11 @@ import {
     useSessionsList,
 } from "@agenta/sessions/state"
 import {SessionListLoadMore} from "@agenta/sessions-ui"
+import {LoadError} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn, type ListTableGroup} from "@agenta/ui/list-table"
 
 import type {SessionRowVerbs} from "../sessions/SessionListTable"
 import {deriveSessionGroups} from "../sessions/sessionListView"
-import {SessionsError} from "../sessions/states/SessionsError"
 import {SessionsNoMatch} from "../sessions/states/SessionsNoMatch"
 
 import {AgentActivityRowCells} from "./AgentActivityRowCells"
@@ -104,7 +104,8 @@ export const AgentActivityTable = ({
     })
     const agentHasRows = rowsFromPages(probe.data?.pages).length > 0
 
-    if (list.isError) return <SessionsError onRetry={list.refetch} />
+    if (list.isError)
+        return <LoadError framed title="Could not load sessions" onRetry={list.refetch} />
 
     return (
         <div aria-busy={list.isPlaceholder || undefined}>

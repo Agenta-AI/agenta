@@ -24,6 +24,7 @@ from oss.src.core.evaluations.types import (
     SimpleQueueData,
 )
 from oss.src.core.evaluations.service import SimpleQueuesService
+from oss.tests.pytest.utils.principals import any_principal
 from oss.src.core.evaluations.runtime.sources import SourceResolution
 from oss.src.core.evaluations.tasks import run as run_module
 
@@ -64,6 +65,7 @@ async def test_simple_queue_create_dispatches_each_query_source_with_step_key():
 
     run = EvaluationRun(
         id=run_id,
+        principal=any_principal(),
         flags=EvaluationRunFlags(is_queue=True, has_queries=True, has_evaluators=True),
         status=EvaluationStatus.RUNNING,
         data=run_data,
@@ -107,6 +109,7 @@ async def test_simple_queue_create_dispatches_each_query_source_with_step_key():
     created_queue = await service.create(
         project_id=project_id,
         user_id=user_id,
+        principal=any_principal(),
         queue=SimpleQueueCreate(
             name="query-backed-queue",
             data=SimpleQueueData(
@@ -149,6 +152,7 @@ async def test_run_query_source_marks_human_steps_pending(monkeypatch):
 
     run = EvaluationRun(
         id=run_id,
+        principal=any_principal(),
         flags=EvaluationRunFlags(is_live=True, has_queries=True, has_human=True),
         status=EvaluationStatus.RUNNING,
         data=EvaluationRunData(
@@ -297,6 +301,7 @@ async def test_run_query_source_skips_empty_query_results(monkeypatch):
     evaluator_revision_id = uuid4()
     run = EvaluationRun(
         id=run_id,
+        principal=any_principal(),
         flags=EvaluationRunFlags(has_queries=True, has_evaluators=True),
         status=EvaluationStatus.RUNNING,
         data=EvaluationRunData(
@@ -362,6 +367,7 @@ async def test_run_query_source_finalizes_batch_run_on_pre_slice_error(
     project_id, user_id, run_id = uuid4(), uuid4(), uuid4()
     run = EvaluationRun(
         id=run_id,
+        principal=any_principal(),
         flags=EvaluationRunFlags(has_queries=True, has_evaluators=True, is_active=True),
         status=EvaluationStatus.RUNNING,
         data=EvaluationRunData(
@@ -417,6 +423,7 @@ async def test_run_query_source_live_run_not_finalized_on_error(monkeypatch):
     project_id, user_id, run_id = uuid4(), uuid4(), uuid4()
     run = EvaluationRun(
         id=run_id,
+        principal=any_principal(),
         flags=EvaluationRunFlags(
             has_queries=True, has_evaluators=True, is_live=True, is_active=True
         ),

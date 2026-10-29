@@ -15,10 +15,11 @@ import type {
     TestProviderProfileInfo,
 } from "./types"
 
-// Settings now presents one table of provider connections. Keep the page and action
-// copy here so future wording changes stay local to this fixture.
+// Settings presents providers as a catalog: a Connected group, then the groups to connect
+// from. Keep the page and group copy here so future wording changes stay local to this fixture.
 const PROVIDERS_PAGE_HEADING = "AI providers"
-const PROVIDER_ADD_BUTTON_LABEL = "Add provider"
+const CATALOG_GROUP_HEADING = "Model providers"
+const CONNECTED_GROUP_HEADING = "Connected"
 
 const MOCK_PROVIDER_NAME = "mock"
 const MOCK_PROVIDER_KIND = "custom"
@@ -147,25 +148,10 @@ async function waitForModelsPageReady(page: Page): Promise<void> {
                 const headingVisible = await pollLocatorState(() =>
                     page.getByRole("heading", {name: PROVIDERS_PAGE_HEADING}).isVisible(),
                 )
+                // The catalog draws skeleton groups without headings until connections load.
                 const sectionVisible = await pollLocatorState(() => providersSection.isVisible())
-                const hasVisibleSpinner = await pollLocatorState(() =>
-                    providersSection.locator(".ant-spin-spinning").isVisible(),
-                )
-                // The empty state renders a second Add provider button.
-                const createButtonEnabled = await pollLocatorState(() =>
-                    providersSection
-                        .getByRole("button", {name: PROVIDER_ADD_BUTTON_LABEL})
-                        .first()
-                        .isEnabled(),
-                )
 
-                return (
-                    hasScopedSettingsPath &&
-                    headingVisible &&
-                    sectionVisible &&
-                    !hasVisibleSpinner &&
-                    createButtonEnabled
-                )
+                return hasScopedSettingsPath && headingVisible && sectionVisible
             },
             {
                 timeout: 15000,
@@ -197,22 +183,23 @@ async function navigateToModels(page: Page, uiHelpers: UIHelpers): Promise<void>
     await waitForModelsPageReady(page)
 }
 
-function getProvidersSection(page: Page): Locator {
-    // The unified connections table has no section heading of its own. Its primary
-    // action is the stable accessible anchor, including while the table is empty.
+function getCatalogGroup(page: Page, heading: string): Locator {
     return page
-        .getByRole("button", {name: PROVIDER_ADD_BUTTON_LABEL})
-        .first()
-        .locator("xpath=ancestor::section[1]")
+        .locator("section")
+        .filter({has: page.getByRole("heading", {name: heading, exact: true})})
         .first()
 }
 
+function getProvidersSection(page: Page): Locator {
+    // Always drawn once the page loads, connected providers or not.
+    return getCatalogGroup(page, CATALOG_GROUP_HEADING)
+}
+
 async function getCustomProviderRow(page: Page, providerName: string): Promise<Locator | null> {
-    // Start from the exact Name cell; its table row is the clickable control.
-    const section = getProvidersSection(page)
-    const row = section
-        .getByRole("cell", {name: providerName, exact: true})
-        .locator("xpath=ancestor::tr[1]")
+    // A connected provider is a clickable row in the Connected group, named by its connection.
+    const row = getCatalogGroup(page, CONNECTED_GROUP_HEADING)
+        .getByRole("button")
+        .filter({has: page.getByText(providerName, {exact: true})})
         .first()
 
     return (await row.count()) > 0 ? row : null

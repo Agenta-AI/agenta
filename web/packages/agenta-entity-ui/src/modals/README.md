@@ -100,7 +100,7 @@ function App() {
 Use `useEntityActionDispatch` for a unified API:
 
 ```tsx
-import {useEntityActionDispatch, commitAction, saveAction, deleteAction} from "@agenta/entity-ui"
+import {useEntityActionDispatch, deleteAction} from "@agenta/entity-ui"
 
 function EntityActions({entity}: {entity: Entity}) {
     const dispatch = useEntityActionDispatch()
@@ -109,14 +109,14 @@ function EntityActions({entity}: {entity: Entity}) {
         <div>
             <Button
                 onClick={() =>
-                    dispatch(commitAction({type: "testset", id: entity.id, name: entity.name}))
+                    dispatch({type: "commit", entity: {type: "testset", id: entity.id, name: entity.name}})
                 }
             >
                 Commit
             </Button>
             <Button
                 onClick={() =>
-                    dispatch(saveAction({type: "testset", id: entity.id, name: entity.name}))
+                    dispatch({type: "save", entity: {type: "testset", id: entity.id, name: entity.name}})
                 }
             >
                 Save
@@ -163,13 +163,13 @@ The unified action dispatch system provides a single entry point for all entity 
 
 ### Action Types
 
-| Action         | Purpose                                | Creator                                       |
-| -------------- | -------------------------------------- | --------------------------------------------- |
-| `commit`       | Open commit modal                      | `commitAction(entity, initialMessage?)`       |
-| `save`         | Open save modal                        | `saveAction(entity, saveAsNew?)`              |
-| `create`       | Open save modal for new entity         | `createAction(entityType, initialName?)`      |
-| `delete`       | Open delete modal                      | `deleteAction(entities, onSuccess?)`          |
-| `saveOrCommit` | Route to save or commit based on state | `saveOrCommitAction(entity, state, options?)` |
+| Action         | Purpose                                | Shape                                          |
+| -------------- | -------------------------------------- | ---------------------------------------------- |
+| `commit`       | Open commit modal                      | `{type: "commit", entity, initialMessage?}`    |
+| `save`         | Open save modal                        | `{type: "save", entity, saveAsNew?}`           |
+| `create`       | Open save modal for new entity         | `{type: "create", entityType, initialName?}`   |
+| `delete`       | Open delete modal                      | `deleteAction(entities, onSuccess?)`           |
+| `saveOrCommit` | Route to save or commit based on state | `{type: "saveOrCommit", entity, state, options?}` |
 
 ### Dispatch Hooks
 
@@ -204,15 +204,8 @@ These hooks remain available for backwards compatibility:
 ### Entity-Specific Convenience Hooks
 
 ```typescript
-// Testset hooks
-const {commitTestset} = useTestsetCommit()
 const {saveTestset, createTestset} = useTestsetSave()
-const {deleteTestset} = useTestsetDelete()
-
-// Variant hooks
-const {commitVariant} = useVariantCommit()
 const {saveVariant, createVariant} = useVariantSave()
-const {deleteVariant} = useVariantDelete()
 ```
 
 ## Adapter Interface
@@ -289,7 +282,7 @@ For creating entity action hooks with a consistent pattern:
 Creates standardized hooks for triggering modal actions:
 
 ```typescript
-import {createEntityActionHook, createTypedEntityActionHook} from "@agenta/entity-ui"
+import {createEntityActionHook} from "@agenta/entity-ui/modals"
 
 // Base hook (works with any entity type)
 const useEntityMyAction = createEntityActionHook({
@@ -297,9 +290,6 @@ const useEntityMyAction = createEntityActionHook({
     loadingAtom: myModal.atoms.loading,
     openStateAtom: myModal.atoms.open,
 })
-
-// Typed hook (for specific entity type)
-const useTestsetMyAction = createTypedEntityActionHook(useEntityMyAction, "testset")
 ```
 
 ## Files Overview

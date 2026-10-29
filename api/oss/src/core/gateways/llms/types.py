@@ -1,0 +1,200 @@
+"""LLM gateway domain exceptions."""
+
+from typing import Optional
+
+from oss.src.core.gateways.dtos import GatewayEndpointNamespace
+from oss.src.core.gateways.llms.dtos import LLMDeploymentKind
+from oss.src.core.gateways.types import GatewaysError
+from oss.src.core.secrets.enums import SecretOwnerKind
+
+
+class LLMEndpointNotFoundError(GatewaysError):
+    def __init__(self, *, namespace: GatewayEndpointNamespace, name: str):
+        self.namespace = namespace
+        self.name = name
+        super().__init__(f"LLM endpoint not found: {namespace.value}/{name}")
+
+
+class LLMModelNotAllowedError(GatewaysError):
+    """The model is outside the endpoint's allowlist."""
+
+    def __init__(self, *, model: str, namespace: GatewayEndpointNamespace, name: str):
+        self.model = model
+        self.namespace = namespace
+        self.name = name
+        super().__init__(f"Model {model} not allowed on {namespace.value}/{name}")
+
+
+class LLMRoutingFieldNotAllowedError(GatewaysError):
+    """The body carries a model-routing field the gateway cannot evaluate (OR44).
+
+    The allowlist can only bind the fields it understands. `model` and every entry of
+    OpenRouter's `models` fallback array are checked against it; a routing extension whose
+    effect the gateway cannot evaluate — OpenRouter's `provider` preferences, its legacy
+    `route`, a saved `preset`, a proxy-style `fallbacks` list — is refused rather than
+    forwarded unexamined. Refusing rather than ignoring is what stops the next such field a
+    provider ships from silently reopening the allowlist.
+    """
+
+    def __init__(
+        self,
+        *,
+        field: str,
+        namespace: GatewayEndpointNamespace,
+        name: str,
+        reason: Optional[str] = None,
+    ):
+        self.field = field
+        self.namespace = namespace
+        self.name = name
+        self.reason = reason
+        super().__init__(
+            f"Request field {field!r} selects models and is not enforceable on "
+            f"{namespace.value}/{name}" + (f": {reason}" if reason else "")
+        )
+
+
+class LLMCapabilityNotAllowedError(GatewaysError):
+    """The body asks a platform-funded endpoint for a capability the wallet cannot price.
+
+    A `builtin` call is charged from the tokens it reports. A provider-side tool such as
+    Google Search grounding is billed by the provider on top of the tokens and reported
+    nowhere the gateway reads, so it would run on the platform's account uncharged.
+    """
+
+    def __init__(self, *, field: str, namespace: GatewayEndpointNamespace, name: str):
+        self.field = field
+        self.namespace = namespace
+        self.name = name
+        super().__init__(
+            f"Request field {field!r} asks for a capability {namespace.value}/{name} "
+            "does not offer: only function tools are available on it"
+        )
+
+
+class LLMModelIdentifierInvalidError(GatewaysError):
+    """The model identifier is not admissible where a route interpolates it (OR60).
+
+    Azure and Vertex place the caller's model inside the request URL's path. A value such as
+    `x/../..` walks out of the deployment's own prefix and reaches arbitrary endpoints under
+    the organisation's cloud credentials, so the identifier is admitted only if every one of
+    its `/`-separated segments matches the character class real model ids use.
+    """
+
+    def __init__(self, *, model: str, provider_key: Optional[str] = None):
+        self.model = model
+        self.provider_key = provider_key
+        super().__init__(
+            f"Model identifier {model!r} is not a valid model id for a routed deployment"
+        )
+
+
+class LLMAdapterNotFoundError(GatewaysError):
+    """No upstream adapter is registered under this key."""
+
+    def __init__(self, *, key: str):
+        self.key = key
+        super().__init__(f"No LLM upstream adapter registered under {key!r}")
+
+
+class LLMUpstreamError(GatewaysError):
+    """The upstream failed after policy allowed the request."""
+
+    def __init__(
+        self,
+        *,
+        provider_key: Optional[str],
+        status_code: Optional[int] = None,
+        detail: Optional[str] = None,
+    ):
+        self.provider_key = provider_key
+        self.status_code = status_code
+        self.detail = detail
+        super().__init__(f"Upstream {provider_key} failed ({status_code})")
+
+
+class LLMUpstreamTimeoutError(LLMUpstreamError):
+    """The upstream did not answer within the gateway's timeout.
+
+    Raised once the route's whole deadline is spent, or once every retry of a stalled
+    streaming attempt (`response_headers_timeout_seconds`) is spent. The deadline itself is never
+    retried: the model that did not answer in time is the one a retry would wait on again.
+    """
+
+    def __init__(self, *, provider_key: Optional[str]):
+        super().__init__(provider_key=provider_key, detail="upstream timed out")
+
+
+class LLMConnectionProviderRequiredError(GatewaysError):
+    """A resolve request named neither a provider nor a connection, so nothing routes.
+
+    The ``ValueError`` underneath in ``resolve_agent_connection`` stays as the invariant no
+    construction path can dodge; this is the typed refusal in front of it at the seam every
+    request passes through, so an underspecified request reads as a client error with a code
+    instead of a generic 500.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(
+            "A gateway connection needs a provider or a connection name; "
+            "the request carried only a model."
+        )
+
+
+class LLMEndpointProviderMissingError(GatewaysError):
+    """A stored endpoint reached resolve with no provider to route to.
+
+    A data-integrity violation rather than a bad request: the endpoint exists and the caller
+    named it correctly, but nothing on it or in the request says which provider serves it, so
+    no gateway route can be built. Typed so the operator learns which endpoint to repair
+    instead of reading "an unexpected error occurred".
+    """
+
+    def __init__(self, *, namespace: GatewayEndpointNamespace, name: str):
+        self.namespace = namespace
+        self.name = name
+        super().__init__(
+            f"LLM endpoint {namespace.value}/{name} has no provider, "
+            "so no gateway route can be built for it."
+        )
+
+
+# The deployment kinds the LLM gateway serves, written out rather than derived, so adding
+# or removing one is a deliberate edit (a test pins this set against the passthrough auth
+# table, `providers/passthrough/auth.py::_AUTH`). Bedrock is relayed to an endpoint whose
+# model ids differ from the ones people save, so agents on it take the vault path; SageMaker
+# has no fixed request protocol. An organization credential of an unserved deployment could
+# reach a run only in plaintext, so organizations cannot share one (M5).
+LLM_GATEWAY_SERVED_DEPLOYMENT_KINDS = frozenset(
+    {
+        LLMDeploymentKind.DIRECT,
+        LLMDeploymentKind.CUSTOM,
+        LLMDeploymentKind.AZURE,
+        LLMDeploymentKind.VERTEX,
+        LLMDeploymentKind.MOCK,
+    }
+)
+
+
+class LLMNamedConnectionNotFoundError(GatewaysError):
+    """The connection an agent named by scope and slug does not exist where it runs, or is
+    not available to the project (M5). Typed with the scope and slug, so a caller can ask
+    the user to configure the connection rather than show a generic failure."""
+
+    def __init__(self, *, scope: SecretOwnerKind, slug: str):
+        self.scope = scope
+        self.slug = slug
+        super().__init__(
+            f"The {scope.value} connection '{slug}' is not available to this project."
+        )
+
+
+class LLMOrganizationConnectionSlugRequiredError(GatewaysError):
+    """An organization connection is used only when the agent names it: scope
+    `organization` needs a slug, and the namespace (when sent) must be `organization`."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "An organization connection needs scope 'organization' and the connection's "
+            "slug."
+        )

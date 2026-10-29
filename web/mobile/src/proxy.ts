@@ -1,17 +1,9 @@
-import {
-    GATE_COOKIE_MAX_AGE,
-    decideMobileGate,
-    resolveGateEnabled,
-} from "@agenta/shared/utils/mobileGate"
+import {GATE_COOKIE_MAX_AGE, decideMobileGate} from "@agenta/shared/utils/mobileGate"
 import {NextRequest, NextResponse} from "next/server"
 
 /**
- * Mobile device gate, reverse direction (agenta-mobile WP5): desktop devices
- * navigating /m are redirected to the desktop equivalent. DEFAULT ON — a
- * deployment opts out with AGENTA_MOBILE_GATE=false (read at
- * request time; runtime-flippable on the standalone Node server).
- *
- * No reverse classic-mode gate on purpose: leaving /m is an explicit act (Settings › Preferences).
+ * Reverse direction of the gate: a user who turned Classic mode on is returned from /m to the
+ * desktop equivalent. The device plays no part here, so a desktop browser may open /m.
  * NextRequest adapter only; the decision lives in @agenta/shared/utils/mobileGate.
  */
 export function proxy(request: NextRequest) {
@@ -26,8 +18,6 @@ export function proxy(request: NextRequest) {
         method: request.method,
         header: (name) => request.headers.get(name),
         cookie: (name) => request.cookies.get(name)?.value,
-        gateEnabled: resolveGateEnabled(process.env.AGENTA_MOBILE_GATE),
-        reverseGateEnabled: resolveGateEnabled(process.env.AGENTA_MOBILE_REVERSE_GATE),
     })
 
     if (decision.kind === "redirect") {

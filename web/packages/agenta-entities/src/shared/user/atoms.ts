@@ -72,8 +72,7 @@ const emptyMembersAtom = atom<WorkspaceMember[]>([])
  * @example
  * ```typescript
  * import { setUserAtoms } from '@agenta/entities/shared'
- * import { workspaceMembersAtom } from '@/oss/state/workspace'
- * import { userAtom } from '@/oss/state/profile'
+ * import { workspaceMembersAtom, userAtom } from '@/state/...' // app-layer atoms
  *
  * setUserAtoms({
  *   membersAtom: workspaceMembersAtom,

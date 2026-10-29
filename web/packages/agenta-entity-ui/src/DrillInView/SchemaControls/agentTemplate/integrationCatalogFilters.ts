@@ -16,6 +16,31 @@ export interface CategorySelection {
 
 const norm = (value: string): string => value.trim().toLowerCase()
 
+/** Words the provider sends in lowercase that are acronyms or brands. */
+const CATEGORY_WORDS: Record<string, string> = {
+    ai: "AI",
+    api: "API",
+    crm: "CRM",
+    erp: "ERP",
+    hr: "HR",
+    iot: "IoT",
+    seo: "SEO",
+    sms: "SMS",
+    ui: "UI",
+}
+
+/** A provider category ("ai web scraping") in sentence case with its acronyms ("AI web scraping"). */
+export function categoryLabel(name: string): string {
+    const words = name
+        .trim()
+        .split(/\s+/)
+        .map((word) => CATEGORY_WORDS[word.toLowerCase()] ?? word.toLowerCase())
+    if (words.length && words[0] === words[0].toLowerCase()) {
+        words[0] = words[0].charAt(0).toUpperCase() + words[0].slice(1)
+    }
+    return words.join(" ")
+}
+
 /**
  * Whether an integration belongs to the selected category. Integrations carry category NAMES
  * (the provider's own labels); the rail's `id` is the provider's slug for the same thing, so both

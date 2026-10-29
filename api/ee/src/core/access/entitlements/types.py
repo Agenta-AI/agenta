@@ -1,6 +1,10 @@
 from typing import Optional
 from enum import Enum
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
+
+from oss.src.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
 
 
 class DefaultPlan(str, Enum):
@@ -84,7 +88,6 @@ class Period(str, Enum):
 
 class Scope(str, Enum):
     ORGANIZATION = "organization"
-    WORKSPACE = "workspace"
     PROJECT = "project"
     USER = "user"
 
@@ -102,6 +105,19 @@ class Quota(BaseModel):
     period: Optional[Period] = None
 
     model_config = ConfigDict(extra="forbid")
+
+    @field_validator("scope", mode="before")
+    @classmethod
+    def _workspace_scope_is_the_organization(cls, value):
+        # Workspace removal step 2: a workspace is the organization. An operator plan
+        # override that still names the workspace scope keeps loading.
+        if getattr(value, "value", value) == "workspace":
+            log.warning(
+                "[entitlements] quota scope 'workspace' is read as 'organization' "
+                "(workspaces were removed)"
+            )
+            return Scope.ORGANIZATION
+        return value
 
 
 class Probe(BaseModel):
@@ -188,10 +204,15 @@ ENDPOINTS = {
 }
 
 
+# The plan cards `/billing/plans` serves when `AGENTA_BILLING_CATALOG` is unset. The credit,
+# top-up, concurrency, project and seat numbers in the features restate the wallet constants
+# (`wallets.plans`, `wallets.grants`, `wallets.purchases`) and `AGENT_TURN_CAPS`,
+# `PROJECT_LIMITS` and `DEFAULT_ENTITLEMENTS` below; `test_billing_catalog.py` fails when
+# they drift apart.
 DEFAULT_CATALOG = [
     {
         "title": "Hobby",
-        "description": "For individuals exploring Agenta.",
+        "description": "For individuals trying Agenta and building their first agents.",
         "type": "standard",
         "plan": DefaultPlan.CLOUD_V0_HOBBY.value,
         "retention": Retention.WEEKLY.value,
@@ -203,17 +224,23 @@ DEFAULT_CATALOG = [
             },
         },
         "features": [
-            "2 team members",
-            "Unlimited projects",
-            "Unlimited agents and workflows",
-            "5,000 agent runs / month",
-            "1-week trace data retention",
-            "Community support through GitHub Issues",
+            "500 bonus credits when you sign up",
+            "75 free credits a day, on up to 10 days a month",
+            "2 concurrent tasks",
+            "1 project and 2 team members",
+            "Agents get their own computer and browser",
+            "AI Drive: a shared drive for your agents' knowledge and files",
+            "1,000+ integrations and MCP servers",
+            "Publish agents to Slack, WhatsApp, and Telegram",
+            "Approvals and tool permissions",
+            "Public REST API, API keys, and Python SDK",
+            "Use your own API key or ChatGPT subscription",
+            "Community support on GitHub",
         ],
     },
     {
-        "title": "Pro",
-        "description": "For teams running agents in production.",
+        "title": "Starter",
+        "description": "For teams running agents in their daily work.",
         "type": "standard",
         "plan": DefaultPlan.CLOUD_V0_PRO.value,
         "retention": Retention.MONTHLY.value,
@@ -239,18 +266,20 @@ DEFAULT_CATALOG = [
             },
         },
         "features": [
-            "Unlimited team members",
-            "Unlimited projects, agents, and workflows",
+            "Everything in Hobby",
+            "2,900 credits a month",
+            "Buy more credits any time: 1,000 for $10",
+            "20 concurrent tasks",
+            "Unlimited projects",
+            "Unlimited team members, with no per-seat price",
             "Unlimited schedules and event triggers",
-            "10,000 agent runs / month included, then $5 per additional 10,000",
-            "Unlimited evaluations",
-            "1-month trace data retention",
-            "Community support through GitHub Issues",
+            "Shared credentials for the whole team",
+            "Live chat support",
         ],
     },
     {
         "title": "Business",
-        "description": "For teams that need governance, compliance, and priority support.",
+        "description": "For teams that need more capacity, governance, and priority support.",
         "type": "standard",
         "plan": DefaultPlan.CLOUD_V0_BUSINESS.value,
         "retention": Retention.QUARTERLY.value,
@@ -276,35 +305,27 @@ DEFAULT_CATALOG = [
             },
         },
         "features": [
-            "Everything in Pro",
-            "10,000 agent runs / month included, then $5 per additional 10,000",
-            "Team roles and role-based access control",
-            "SSO",
+            "Everything in Starter",
+            "32,000 credits a month",
+            "50 concurrent tasks",
+            "SSO and role-based access control",
             "SOC 2 Type II report",
-            "3-month trace data retention",
-            "Priority support",
-            "Private Slack Connect channel",
+            "Priority support in a private Slack channel",
         ],
     },
     {
         "title": "Enterprise",
-        "description": "For organizations that need advanced controls and dedicated support.",
+        "description": "For organizations that need custom limits, security reviews, and dedicated support.",
         "type": "standard",
         "features": [
             "Everything in Business",
-            "Custom usage and trace data retention",
-            "Custom roles",
+            "Custom credits and limits",
+            "Custom data retention",
             "Audit logs",
             "Custom domains",
-            "HIPAA BAA [soon]",
-            "Security reviews",
             "Custom security and legal terms",
-            "Self-hosting options",
-            "Bring Your Own Cloud (BYOC)",
             "Deployment and onboarding support",
-            "Dedicated support",
-            "Private Slack Connect channel",
-            "Custom service-level agreement",
+            "Dedicated support and a custom service-level agreement",
         ],
     },
     {
@@ -673,6 +694,43 @@ DEFAULT_ENTITLEMENTS = {
         },
     },
 }
+
+
+class AgentTurnCaps(BaseModel):
+    """How far one organization's agents may run on the platform's sandboxes at once."""
+
+    concurrent_turns: int
+    max_turn_seconds: int
+
+    model_config = ConfigDict(frozen=True)
+
+
+# DECIDED 2026-10-02 (release plan step 1.5). They bound how far a balance can go below zero
+# while the wallet is on: a turn is never stopped for its balance, so only these stop it.
+# A plan not listed here (internal, self-hosted, custom) has no caps: the runner keeps its own
+# deadline. The Business turn equals the runner's default deadline.
+HOBBY_AGENT_TURN_CAPS = AgentTurnCaps(concurrent_turns=2, max_turn_seconds=30 * 60)
+PRO_AGENT_TURN_CAPS = AgentTurnCaps(concurrent_turns=20, max_turn_seconds=4 * 60 * 60)
+BUSINESS_AGENT_TURN_CAPS = AgentTurnCaps(
+    concurrent_turns=50, max_turn_seconds=11 * 60 * 60
+)
+
+AGENT_TURN_CAPS: dict[str, AgentTurnCaps] = {
+    DefaultPlan.CLOUD_V0_HOBBY.value: HOBBY_AGENT_TURN_CAPS,
+    DefaultPlan.CLOUD_V0_PRO.value: PRO_AGENT_TURN_CAPS,
+    DefaultPlan.CLOUD_V0_BUSINESS.value: BUSINESS_AGENT_TURN_CAPS,
+}
+
+
+# DECIDED 2026-10-06: the most projects an organization on the plan can create. A plan not
+# listed here has no limit. Checked against the current count at creation, so an
+# organization already above it keeps its projects and cannot create more.
+PROJECT_LIMITS: dict[str, int] = {
+    DefaultPlan.CLOUD_V0_HOBBY.value: 1,
+}
+PROJECT_LIMIT_MESSAGE = (
+    "The Hobby plan includes 1 project. Upgrade to Starter for unlimited projects."
+)
 
 
 # Internal Counter/Gauge slug -> Stripe-side meter slot name. Membership in

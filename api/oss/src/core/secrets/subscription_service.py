@@ -1,11 +1,17 @@
 """Device login and login upkeep for a hosted subscription connection.
 
 Three callers meet here. The browser starts, polls, and cancels a device login. The runner
-pushes a refreshed login back after a turn, and reports a login that stopped working. All
-three edit the same subscription secret, so every decision that reads the stored login is
-made against the locked row (`VaultService.update_secret_atomically`).
+pod that runs a device login's provider poll reports how it ended. A run pushes a refreshed
+login back after a turn, and reports a login that stopped working. All of them edit the
+same subscription secret, so every decision that reads the stored login is made against
+the locked row (`VaultService.update_secret_atomically`).
+
+The attempt record on the row is the only state a poll reads. The runner pods behind the
+Service URL are interchangeable, so a poll must not depend on reaching the one pod that
+holds the provider poll in memory.
 """
 
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, Optional
 from uuid import UUID
 
@@ -18,7 +24,13 @@ from oss.src.core.secrets.dtos import (
     UpdateSecretDTO,
     UpdateSecretPayloadDTO,
 )
-from oss.src.core.secrets.enums import SecretKind, SubscriptionLoginState
+from oss.src.core.secrets.claude_token import ClaudeTokenClient
+from oss.src.core.secrets.enums import (
+    SUBSCRIPTION_PROVIDER_DISPLAY_NAMES,
+    SecretKind,
+    SubscriptionLoginState,
+    SubscriptionProviderKind,
+)
 from oss.src.core.secrets.services import VaultService
 from oss.src.core.secrets.subscription_login import (
     RunnerLoginAttempt,
@@ -30,26 +42,40 @@ from oss.src.core.secrets.subscription_rules import (
     classify_push,
     failure_is_stale,
     login_is_usable,
+    parse_attempt_deadline,
     push_reason,
 )
 from oss.src.core.secrets.types import (
     SubscriptionLoginAttemptNotFound,
+    SubscriptionProviderMismatch,
     SubscriptionSecretNotFound,
+    SubscriptionTokenRejected,
 )
 from oss.src.utils.logging import get_module_logger
 
 
 log = get_module_logger(__name__)
 
-# States the runner reports that end an attempt.
-_TERMINAL_FAILURE_STATES = {"failed", "expired", "cancelled"}
+_PENDING = "pending"
+_SUCCEEDED = "succeeded"
 
 # A reason string comes from the runner and is shown to the user, so it is bounded.
 _MAX_LOGIN_ERROR_LENGTH = 200
 
-_ATTEMPT_NOT_FOUND_ERROR = "attempt not found; try again"
-
 _INVALID_LOGIN_REASON = "invalid_login"
+
+# Every token `claude setup-token` prints starts with this.
+_CLAUDE_TOKEN_PREFIX = "sk-ant-oat"
+
+# The reason the runner gives when the provider's device-code window runs out.
+_TIMED_OUT_REASON = "timed_out"
+
+# How long past the provider's deadline a pending record waits before a poll calls it
+# expired. The runner reports the provider's last answer at about the deadline, and its
+# retries take at most 27 s (`OUTCOME_REPORT_RETRY_DELAYS_MS` and
+# `OUTCOME_REPORT_TIMEOUT_MS` in `services/runner/src/subscription-login-attempts.ts`), so a
+# success at the deadline still finds its record. Keep this grace above that sum.
+_DEADLINE_GRACE = timedelta(seconds=30)
 
 # Push decisions worth a warning rather than an info line.
 _WARNED_PUSH_DECISIONS = {PushDecision.INVALID, PushDecision.OTHER_ACCOUNT}
@@ -193,14 +219,39 @@ def _clip(reason: Optional[str]) -> Optional[str]:
 
 
 def _stored_attempt(attempt: RunnerLoginAttempt) -> Dict[str, Any]:
-    """The device-code metadata the row keeps, so any API replica can serve a reload."""
+    """The record the row keeps, so any API replica can serve a poll or a reload."""
     return {
         "id": attempt.attempt_id,
         "expires_at": attempt.expires_at,
         "user_code": attempt.user_code,
         "verification_uri": attempt.verification_uri,
         "poll_after_ms": attempt.poll_after_ms,
+        "state": _PENDING,
+        "error": None,
+        "runner_address": attempt.runner_address,
+        "runner_replica_id": attempt.runner_replica_id,
     }
+
+
+def _attempt_is_waiting(stored: Optional[SubscriptionLoginAttemptDTO]) -> bool:
+    """True while the row holds an attempt a browser can still complete."""
+    return (
+        stored is not None
+        and stored.state == _PENDING
+        and attempt_is_live(stored.expires_at)
+    )
+
+
+def _past_deadline(expires_at: Optional[str]) -> bool:
+    """True once a pending record's deadline, plus the report grace, has passed.
+
+    Unlike `attempt_is_live`, a missing or unreadable deadline is NOT past: the poll then
+    keeps answering pending, and the browser's own backstop ends the wait.
+    """
+    deadline = parse_attempt_deadline(expires_at)
+    return deadline is not None and deadline + _DEADLINE_GRACE <= datetime.now(
+        timezone.utc
+    )
 
 
 def _pending_view(stored: SubscriptionLoginAttemptDTO) -> SubscriptionLoginAttemptView:
@@ -220,26 +271,60 @@ class SubscriptionLoginService:
         *,
         vault_service: VaultService,
         runner_client: SubscriptionLoginRunnerClient,
+        claude_token_client: ClaudeTokenClient,
     ) -> None:
         self.vault_service = vault_service
         self.runner_client = runner_client
+        self.claude_token_client = claude_token_client
 
-    async def _load(self, *, project_id: UUID, secret_id: UUID) -> SecretResponseDTO:
-        secret = await self.vault_service.get_secret_by_id(
-            secret_id=secret_id,
-            project_id=project_id,
-        )
+    async def _load(
+        self,
+        *,
+        project_id: Optional[UUID] = None,
+        organization_id: Optional[UUID] = None,
+        secret_id: UUID,
+        provider: SubscriptionProviderKind,
+    ) -> SecretResponseDTO:
+        """The subscription row, refused unless it belongs to `provider`.
+
+        A project row by default. An organization row (M5) in two cases: with
+        `organization_id` alone, the organization's own row (its owners and admins sign it
+        in); with both ids, the organization row only while it is available to that
+        project (a run of the project pushes a refreshed login back)."""
+        if organization_id is not None and project_id is not None:
+            secret = await self.vault_service.get_available_organization_secret_by_id(
+                organization_id=organization_id,
+                project_id=project_id,
+                secret_id=secret_id,
+            )
+        elif organization_id is not None:
+            secret = await self.vault_service.get_secret_by_id(
+                secret_id=secret_id,
+                organization_id=organization_id,
+            )
+        else:
+            secret = await self.vault_service.get_secret_by_id(
+                secret_id=secret_id,
+                project_id=project_id,
+            )
         if secret is None or secret.kind != SecretKind.SUBSCRIPTION_PROVIDER:
             raise SubscriptionSecretNotFound()
+        stored_provider = _subscription_data(secret).provider
+        if stored_provider != provider:
+            raise SubscriptionProviderMismatch(
+                provider=SUBSCRIPTION_PROVIDER_DISPLAY_NAMES[stored_provider]
+            )
         return secret
 
     async def _apply(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID] = None,
+        organization_id: Optional[UUID] = None,
         secret_id: UUID,
         user_id: Optional[UUID],
         build_changes,
+        stores_login: bool = False,
     ):
         """Run `build_changes(stored_data)` under the row lock and persist what it returns.
 
@@ -258,11 +343,15 @@ class SubscriptionLoginService:
             changes = build_changes(_subscription_data(stored))
             return None if changes is None else _update_with(stored, changes)
 
+        # An organization row is written as the organization's, whichever project's run
+        # pushed it; `_load` already checked that the row is available to that project.
         secret = await self.vault_service.update_secret_atomically(
             secret_id=secret_id,
-            project_id=project_id,
+            project_id=None if organization_id is not None else project_id,
+            organization_id=organization_id,
             user_id=user_id,
             resolve_update=resolve,
+            stores_login=stores_login,
         )
 
         if secret is None:
@@ -275,7 +364,8 @@ class SubscriptionLoginService:
     async def start_attempt(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID] = None,
+        organization_id: Optional[UUID] = None,
         secret_id: UUID,
         user_id: Optional[UUID] = None,
     ) -> SubscriptionLoginAttemptView:
@@ -286,15 +376,27 @@ class SubscriptionLoginService:
         is cancelled and both callers get the winner, so no browser is left showing a code
         that can never complete.
         """
-        secret = await self._load(project_id=project_id, secret_id=secret_id)
+        secret = await self._load(
+            project_id=project_id,
+            organization_id=organization_id,
+            secret_id=secret_id,
+            provider=SubscriptionProviderKind.CHATGPT,
+        )
         data = _subscription_data(secret)
 
         stored = data.login_attempt
-        if stored is not None and attempt_is_live(stored.expires_at):
+        if _attempt_is_waiting(stored):
             _log_attempt(secret_id, stored.id, "pending", "reused")
             return _pending_view(stored)
 
-        attempt = await self.runner_client.start_attempt(provider=data.provider.value)
+        attempt = await self.runner_client.start_attempt(
+            provider=data.provider.value,
+            project_id=str(project_id) if project_id is not None else None,
+            organization_id=(
+                str(organization_id) if organization_id is not None else None
+            ),
+            secret_id=str(secret_id),
+        )
 
         retained: Dict[str, SubscriptionLoginAttemptDTO] = {}
 
@@ -303,7 +405,7 @@ class SubscriptionLoginService:
             if (
                 live is not None
                 and live.id != attempt.attempt_id
-                and attempt_is_live(live.expires_at)
+                and _attempt_is_waiting(live)
             ):
                 retained["attempt"] = live
                 return None
@@ -316,6 +418,7 @@ class SubscriptionLoginService:
 
         await self._apply(
             project_id=project_id,
+            organization_id=organization_id,
             secret_id=secret_id,
             user_id=user_id,
             build_changes=build_changes,
@@ -323,7 +426,11 @@ class SubscriptionLoginService:
 
         winner = retained.get("attempt")
         if winner is not None:
-            await self.runner_client.delete_attempt(attempt_id=attempt.attempt_id)
+            await self.runner_client.delete_attempt(
+                attempt_id=attempt.attempt_id,
+                base_url=attempt.runner_address,
+                runner_replica_id=attempt.runner_replica_id,
+            )
             _log_attempt(secret_id, winner.id, "pending", "reused")
             _log_attempt(secret_id, attempt.attempt_id, "cancelled", "superseded")
             return _pending_view(winner)
@@ -341,161 +448,239 @@ class SubscriptionLoginService:
     async def read_attempt(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID] = None,
+        organization_id: Optional[UUID] = None,
         secret_id: UUID,
         attempt_id: str,
         user_id: Optional[UUID] = None,
     ) -> SubscriptionLoginAttemptView:
-        """Ask the runner where the attempt stands, and store a login it hands back.
+        """Answer where the attempt stands, from the record on the row alone.
 
         The attempt id must be the one this connection waits on. That binding is the only
         thing stopping one project from redeeming another project's device login.
 
-        A poll that finds the attempt still pending writes nothing: the device code and
-        its deadline were stored when the attempt started and never change.
+        A poll that finds the attempt still pending writes nothing. A poll that finds it
+        finished clears it, so the outcome is answered once and a new sign-in can start.
         """
-        secret = await self._load(project_id=project_id, secret_id=secret_id)
-        data = _subscription_data(secret)
+        secret = await self._load(
+            project_id=project_id,
+            organization_id=organization_id,
+            secret_id=secret_id,
+            provider=SubscriptionProviderKind.CHATGPT,
+        )
+        stored = _subscription_data(secret).login_attempt
 
-        if data.login_attempt is None or data.login_attempt.id != attempt_id:
+        if stored is None or stored.id != attempt_id:
             raise SubscriptionLoginAttemptNotFound()
 
-        try:
-            attempt = await self.runner_client.read_attempt(attempt_id=attempt_id)
-        except SubscriptionLoginAttemptNotFound:
-            # Attempts live in one runner process. Behind several replicas a poll can
-            # reach a replica that never held this attempt, and it answers 404 like a real
-            # expiry. Both cases end the attempt and the user starts a new one.
-            await self._clear_attempt(
+        if stored.state == _PENDING:
+            if not _past_deadline(stored.expires_at):
+                return _pending_view(stored)
+            # The provider's window has closed and no outcome came: the runner pod that ran
+            # the provider poll stopped before it could report.
+            cleared = await self._clear_attempt(
                 project_id=project_id,
+                organization_id=organization_id,
                 secret_id=secret_id,
                 user_id=user_id,
                 attempt_id=attempt_id,
+                only_if_pending=True,
             )
-            _log_attempt(secret_id, attempt_id, "failed", "not_found")
-            return SubscriptionLoginAttemptView(
-                attempt_id=attempt_id,
-                state="failed",
-                error=_ATTEMPT_NOT_FOUND_ERROR,
-            )
-
-        if attempt.state == "succeeded":
-            return await self._settle_attempt(
-                project_id=project_id,
-                secret_id=secret_id,
-                user_id=user_id,
-                attempt_id=attempt_id,
-                attempt=attempt,
-            )
-
-        if attempt.state in _TERMINAL_FAILURE_STATES:
-            await self._clear_attempt(
-                project_id=project_id,
-                secret_id=secret_id,
-                user_id=user_id,
-                attempt_id=attempt_id,
-            )
-            _log_attempt(secret_id, attempt_id, attempt.state, "ended")
-            return SubscriptionLoginAttemptView(
-                attempt_id=attempt.attempt_id or attempt_id,
-                state=attempt.state,
-                error=attempt.error,
-            )
-
-        return _pending_view(data.login_attempt)
-
-    async def _settle_attempt(
-        self,
-        *,
-        project_id: UUID,
-        secret_id: UUID,
-        user_id: Optional[UUID],
-        attempt_id: str,
-        attempt: RunnerLoginAttempt,
-    ) -> SubscriptionLoginAttemptView:
-        """Finish a succeeded attempt: store the login, or refuse an unusable one."""
-        if attempt.login and not login_is_usable(attempt.login):
-            # The device flow finished but handed back something no run can authenticate
-            # with. Ending the attempt beats storing it and leaving every later run to
-            # fail on a credential the user cannot see is broken.
-            await self.runner_client.delete_attempt(attempt_id=attempt_id)
-            await self._clear_attempt(
-                project_id=project_id,
-                secret_id=secret_id,
-                user_id=user_id,
-                attempt_id=attempt_id,
-            )
-            _log_attempt(secret_id, attempt_id, "failed", "unusable_login", warn=True)
-            return SubscriptionLoginAttemptView(
-                attempt_id=attempt.attempt_id or attempt_id,
-                state="failed",
-                error=_INVALID_LOGIN_REASON,
-            )
-
-        if attempt.login:
-            installed = await self._store_new_login(
-                project_id=project_id,
-                secret_id=secret_id,
-                user_id=user_id,
-                attempt_id=attempt_id,
-                login=attempt.login,
-            )
-            if not installed:
-                # The row moved to another attempt while this poll was in flight: the user
-                # cancelled and started again. Nothing was written, so this poll answers the
-                # way a poll of an attempt the row never held answers, and the browser
-                # reconciles against the connection instead of showing a sign-in that did
-                # not happen.
-                _log_attempt(secret_id, attempt_id, "failed", "superseded")
-                raise SubscriptionLoginAttemptNotFound()
-
-            await self.runner_client.delete_attempt(attempt_id=attempt_id)
+            if cleared is None:
+                # The record moved since it was read: a report landed, or the user
+                # cancelled. Answer from what the row holds now.
+                return await self.read_attempt(
+                    project_id=project_id,
+                    organization_id=organization_id,
+                    secret_id=secret_id,
+                    attempt_id=attempt_id,
+                    user_id=user_id,
+                )
+            state, error, outcome = "expired", _TIMED_OUT_REASON, "unreported"
         else:
             await self._clear_attempt(
                 project_id=project_id,
+                organization_id=organization_id,
                 secret_id=secret_id,
                 user_id=user_id,
                 attempt_id=attempt_id,
             )
-
-        outcome = "stored" if attempt.login else "already_stored"
-        _log_attempt(secret_id, attempt_id, "succeeded", outcome)
+            state, error, outcome = stored.state, stored.error, "ended"
+        _log_attempt(secret_id, attempt_id, state, outcome)
         return SubscriptionLoginAttemptView(
-            attempt_id=attempt.attempt_id or attempt_id,
-            state="succeeded",
+            attempt_id=attempt_id,
+            state=state,
+            error=None if state == _SUCCEEDED else error,
         )
 
     async def cancel_attempt(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID] = None,
+        organization_id: Optional[UUID] = None,
         secret_id: UUID,
         attempt_id: str,
         user_id: Optional[UUID] = None,
     ) -> SubscriptionLoginAttemptView:
-        secret = await self._load(project_id=project_id, secret_id=secret_id)
+        secret = await self._load(
+            project_id=project_id,
+            organization_id=organization_id,
+            secret_id=secret_id,
+            provider=SubscriptionProviderKind.CHATGPT,
+        )
         data = _subscription_data(secret)
 
         if data.login_attempt is None or data.login_attempt.id != attempt_id:
             raise SubscriptionLoginAttemptNotFound()
 
-        await self.runner_client.delete_attempt(attempt_id=attempt_id)
-        await self._clear_attempt(
+        # The record goes first. A DELETE to a dead pod waits out its timeout, and a sign-in
+        # started again in that time must not be handed the dead attempt's code back.
+        cleared = await self._clear_attempt(
             project_id=project_id,
+            organization_id=organization_id,
             secret_id=secret_id,
             user_id=user_id,
             attempt_id=attempt_id,
         )
 
+        if cleared is not None and cleared.state != _PENDING:
+            # The runner reported the outcome before the cancel arrived, and its provider
+            # poll has already ended. A success is stored: the user approved this sign-in.
+            _log_attempt(secret_id, attempt_id, cleared.state, "ended")
+            return SubscriptionLoginAttemptView(
+                attempt_id=attempt_id,
+                state=cleared.state,
+                error=None if cleared.state == _SUCCEEDED else cleared.error,
+            )
+
+        # Best effort: a DELETE that misses the pod running the provider poll leaves that
+        # poll to its own deadline, and its later report finds no record to apply to.
+        await self.runner_client.delete_attempt(
+            attempt_id=attempt_id,
+            base_url=data.login_attempt.runner_address,
+            runner_replica_id=data.login_attempt.runner_replica_id,
+        )
+
         _log_attempt(secret_id, attempt_id, "cancelled", "ended")
         return SubscriptionLoginAttemptView(attempt_id=attempt_id, state="cancelled")
+
+    # -- browser-facing pasted token -------------------------------------------------
+
+    async def set_subscription_token(
+        self,
+        *,
+        project_id: Optional[UUID] = None,
+        organization_id: Optional[UUID] = None,
+        secret_id: UUID,
+        token: str,
+        user_id: Optional[UUID] = None,
+    ) -> SecretResponseDTO:
+        """Store a Claude setup-token, once Anthropic has accepted it.
+
+        The check runs before the row lock, so a slow Anthropic never holds the row. A
+        refused or unchecked token raises and changes nothing, so a failed replacement
+        leaves the old token in use.
+        """
+        await self._load(
+            project_id=project_id,
+            organization_id=organization_id,
+            secret_id=secret_id,
+            provider=SubscriptionProviderKind.CLAUDE,
+        )
+
+        token = token.strip()
+        # Whitespace inside is a broken paste: no header can carry it, so no retry would help.
+        if not token.startswith(_CLAUDE_TOKEN_PREFIX) or any(
+            char.isspace() for char in token
+        ):
+            raise SubscriptionTokenRejected(message="This is not a Claude setup-token.")
+
+        await self.claude_token_client.check(token)
+
+        def build_changes(stored: SubscriptionProviderDTO) -> Dict[str, Any]:
+            # An update can change the provider while the check above is pending.
+            if stored.provider != SubscriptionProviderKind.CLAUDE:
+                raise SubscriptionProviderMismatch(
+                    provider=SUBSCRIPTION_PROVIDER_DISPLAY_NAMES[stored.provider]
+                )
+            return {
+                "login": {"type": "oauth_token", "access": token},
+                "login_version": stored.login_version + 1,
+                "login_generation": stored.login_generation + 1,
+                "login_state": SubscriptionLoginState.READY.value,
+                "login_error": None,
+            }
+
+        secret = await self._apply(
+            project_id=project_id,
+            organization_id=organization_id,
+            secret_id=secret_id,
+            user_id=user_id,
+            build_changes=build_changes,
+            stores_login=True,
+        )
+        log.info("subscription.token", connection=str(secret_id), outcome="stored")
+        return secret
+
+    # -- runner-facing device login outcome ------------------------------------------
+
+    async def report_attempt_outcome(
+        self,
+        *,
+        project_id: Optional[UUID] = None,
+        organization_id: Optional[UUID] = None,
+        secret_id: UUID,
+        attempt_id: str,
+        state: str,
+        login: Optional[Dict[str, Any]] = None,
+        error: Optional[str] = None,
+    ) -> None:
+        """Record how a device login ended, as the runner pod that ran it reports.
+
+        Applied only while the row still waits on this attempt. A report for an attempt
+        the user cancelled or replaced raises `SubscriptionLoginAttemptNotFound` and
+        changes nothing. A repeated report for the same attempt changes nothing either.
+        """
+        if state == _SUCCEEDED and login is not None and login_is_usable(login):
+            bound = await self._finish_attempt(
+                project_id=project_id,
+                organization_id=organization_id,
+                secret_id=secret_id,
+                attempt_id=attempt_id,
+                state=_SUCCEEDED,
+                login=login,
+            )
+            outcome, warn = "stored", False
+        else:
+            outcome, warn = "ended", False
+            if state == _SUCCEEDED:
+                # The device flow finished but handed back something no run can
+                # authenticate with. Failing the attempt beats storing it and leaving every
+                # later run to fail on a credential the user cannot see is broken.
+                state, error = "failed", _INVALID_LOGIN_REASON
+                outcome, warn = "unusable_login", True
+            bound = await self._finish_attempt(
+                project_id=project_id,
+                organization_id=organization_id,
+                secret_id=secret_id,
+                attempt_id=attempt_id,
+                state=state,
+                error=_clip(error),
+            )
+
+        if not bound:
+            _log_attempt(secret_id, attempt_id, state, "superseded")
+            raise SubscriptionLoginAttemptNotFound()
+
+        _log_attempt(secret_id, attempt_id, state, outcome, warn=warn)
 
     # -- runner-facing login upkeep --------------------------------------------------
 
     async def push_login(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID] = None,
+        organization_id: Optional[UUID] = None,
         secret_id: UUID,
         login: Dict[str, Any],
         version: int,
@@ -506,7 +691,12 @@ class SubscriptionLoginService:
         A pushed login never bumps the generation: a refresh keeps warm sessions, only a
         new device login makes them start cold.
         """
-        secret = await self._load(project_id=project_id, secret_id=secret_id)
+        secret = await self._load(
+            project_id=project_id,
+            organization_id=organization_id,
+            secret_id=secret_id,
+            provider=SubscriptionProviderKind.CHATGPT,
+        )
         data = _subscription_data(secret)
 
         # Most turns push a login the row already holds, so answer those without a write.
@@ -544,6 +734,7 @@ class SubscriptionLoginService:
 
         await self._apply(
             project_id=project_id,
+            organization_id=organization_id,
             secret_id=secret_id,
             user_id=None,
             build_changes=build_changes,
@@ -554,7 +745,8 @@ class SubscriptionLoginService:
     async def report_login_failure(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID] = None,
+        organization_id: Optional[UUID] = None,
         secret_id: UUID,
         version: int,
         generation: int,
@@ -565,7 +757,12 @@ class SubscriptionLoginService:
         A stale answer carries the current login so the runner can rematerialize and retry
         the turn in one hop, which is the whole point of reporting the failure first.
         """
-        secret = await self._load(project_id=project_id, secret_id=secret_id)
+        secret = await self._load(
+            project_id=project_id,
+            organization_id=organization_id,
+            secret_id=secret_id,
+            provider=SubscriptionProviderKind.CHATGPT,
+        )
         data = _subscription_data(secret)
 
         if failure_is_stale(stored=data, version=version, generation=generation):
@@ -598,6 +795,7 @@ class SubscriptionLoginService:
 
         await self._apply(
             project_id=project_id,
+            organization_id=organization_id,
             secret_id=secret_id,
             user_id=None,
             build_changes=build_changes,
@@ -607,56 +805,76 @@ class SubscriptionLoginService:
 
     # -- writes -----------------------------------------------------------------------
 
-    async def _store_new_login(
+    async def _finish_attempt(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID] = None,
+        organization_id: Optional[UUID] = None,
         secret_id: UUID,
-        user_id: Optional[UUID],
         attempt_id: str,
-        login: Dict[str, Any],
+        state: str,
+        error: Optional[str] = None,
+        login: Optional[Dict[str, Any]] = None,
     ) -> bool:
-        """Store the login, and answer whether the row still belongs to this attempt.
+        """Mark a pending attempt finished with `state` and `error`, store `login` when the
+        attempt succeeded with one, and answer whether the row still belongs to this attempt.
 
         False means the binding moved, so nothing was written and the caller must not report
-        a sign-in. True covers the replayed poll too: the row already holds this login, which
-        is the write having happened rather than a refusal.
+        the outcome. True covers the replayed report too: the row already holds it, which is
+        the write having happened rather than a refusal.
+
+        The attempt record stays, marked finished, until the browser's next poll reads it.
+        Its error never reaches `login_error`, for the reason `_clear_attempt` gives.
         """
         bound = True
 
         def build_changes(stored: SubscriptionProviderDTO) -> Optional[Dict[str, Any]]:
             nonlocal bound
 
-            # A poll can still be in flight when the user cancels and starts another
-            # login, and the runner keeps returning the login on every poll until the API
-            # deletes the attempt. Both land here on a row waiting for a different
-            # attempt, or none, and neither may install a login.
+            # A report can arrive after the user cancelled and started another login. It
+            # lands on a row waiting for a different attempt, or none, and must not
+            # install a login.
             if not _attempt_matches(stored, attempt_id):
                 bound = False
                 return None
 
-            # A replayed poll of the attempt the row still holds. The refresh token is the
-            # identity of a login: seeing the stored one again means the write already
-            # happened, and a second bump would push every warm session cold for nothing.
-            if stored.login is not None and stored.login.refresh == login.get(
-                "refresh"
-            ):
+            if stored.login_attempt.state != _PENDING:
                 return None
 
+            changes: Dict[str, Any] = {
+                "login_attempt": {
+                    **stored.login_attempt.model_dump(mode="json"),
+                    "state": state,
+                    "error": error,
+                }
+            }
+
+            # The refresh token is the identity of a login: seeing the stored one again
+            # means the write already happened, and a second bump would push every warm
+            # session cold for nothing.
+            if login is None or (
+                stored.login is not None
+                and stored.login.refresh == login.get("refresh")
+            ):
+                return changes
+
             return {
+                **changes,
                 "login": login,
                 "login_version": stored.login_version + 1,
                 "login_generation": stored.login_generation + 1,
                 "login_state": SubscriptionLoginState.READY.value,
                 "login_error": None,
-                "login_attempt": None,
             }
 
         await self._apply(
             project_id=project_id,
+            organization_id=organization_id,
             secret_id=secret_id,
-            user_id=user_id,
+            user_id=None,
             build_changes=build_changes,
+            # A report of a finished sign-in that installs the login, not one that ends it.
+            stores_login=login is not None,
         )
 
         return bound
@@ -664,15 +882,20 @@ class SubscriptionLoginService:
     async def _clear_attempt(
         self,
         *,
-        project_id: UUID,
+        project_id: Optional[UUID] = None,
+        organization_id: Optional[UUID] = None,
         secret_id: UUID,
         user_id: Optional[UUID],
         attempt_id: str,
-    ) -> None:
-        """Clear the attempt, but only while the row still waits on this one.
+        only_if_pending: bool = False,
+    ) -> Optional[SubscriptionLoginAttemptDTO]:
+        """Clear the attempt, but only while the row still waits on this one, and answer
+        the record it cleared, or None when it cleared nothing.
 
         A late answer about an abandoned attempt must not clear the replacement the user
-        already started.
+        already started. `only_if_pending` also leaves a record whose outcome moved under
+        the lock: a poll that judged the attempt dead must not clear a success the runner
+        reported since.
 
         The attempt's own error stays on the attempt view and never reaches `login_error`.
         That field says why the STORED login stopped working, which is what the card turns
@@ -680,19 +903,27 @@ class SubscriptionLoginService:
         whose sign-in is dead that it merely needs renewing. Only the failure report writes
         it, and only a new login clears it.
         """
+        cleared: Dict[str, SubscriptionLoginAttemptDTO] = {}
 
         def build_changes(stored: SubscriptionProviderDTO) -> Optional[Dict[str, Any]]:
             if not _attempt_matches(stored, attempt_id):
                 return None
 
+            if only_if_pending and stored.login_attempt.state != _PENDING:
+                return None
+
+            cleared["attempt"] = stored.login_attempt
             return {"login_attempt": None}
 
         await self._apply(
             project_id=project_id,
+            organization_id=organization_id,
             secret_id=secret_id,
             user_id=user_id,
             build_changes=build_changes,
         )
+
+        return cleared.get("attempt")
 
 
 def _push_result(

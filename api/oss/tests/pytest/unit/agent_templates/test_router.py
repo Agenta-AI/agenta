@@ -1,0 +1,860 @@
+from copy import deepcopy
+from pathlib import Path
+from unittest.mock import AsyncMock
+from uuid import uuid4
+
+import pytest
+from fastapi import FastAPI, Request
+from httpx import ASGITransport, AsyncClient
+
+from oss.tests.pytest.utils.principals import make_envelope
+from oss.src.apis.fastapi.agent_templates import router as router_module
+from oss.src.apis.fastapi.agent_templates.router import AgentTemplatesRouter
+from oss.src.core.agent_templates.catalog import AgentTemplateCatalog
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.agent_templates.dtos import (
+    TemplateLoadResult,
+    TemplateRepositoryEntry,
+    TemplateRepositoryScan,
+    TemplateValidationIssue,
+    TemplateValidationResult,
+)
+from oss.src.core.agent_templates.exceptions import (
+    TemplateCreateConflict,
+    TemplatePackageInvalid,
+    TemplateSourceNotFound,
+    TemplateSourceUnavailable,
+)
+from oss.src.core.sessions.inputs.types import SessionInputIdempotencyConflict
+from oss.src.core.sessions.starts.types import SessionStartNotDurable
+
+
+CATALOG = AgentTemplateCatalog(
+    catalog_path=Path(__file__).resolve().parents[4]
+    / "src"
+    / "resources"
+    / "agent_templates"
+    / "catalog.json"
+)
+PROJECT_ID = uuid4()
+USER_ID = uuid4()
+
+
+def _body():
+    return {
+        "source": {"kind": "internal", "key": "outbound-prospecting"},
+        "base_revision": {
+            "uri": "agenta:workflow:agent:v0",
+            "parameters": {
+                "agent": {
+                    "llm": {"model": "openai/gpt-5"},
+                    "harness": {"kind": "pi_core"},
+                    "runner": {"kind": "sidecar"},
+                    "sandbox": {"kind": "local"},
+                }
+            },
+        },
+        "initial_message": "Configure the agent.",
+        "connection_choices": [],
+    }
+
+
+def _result(*, replayed=False):
+    return TemplateLoadResult(
+        workflow_id=uuid4(),
+        workflow_slug="outbound-prospecting-12345678",
+        variant_id=uuid4(),
+        revision_id=uuid4(),
+        session_id=str(uuid4()),
+        execution_id=str(uuid4()),
+        input_id=uuid4(),
+        replayed=replayed,
+    )
+
+
+def _app(loader, catalog=CATALOG):
+    app = FastAPI()
+
+    @app.middleware("http")
+    async def add_state(request: Request, call_next):
+        request.state.project_id = str(PROJECT_ID)
+        request.state.user_id = str(USER_ID)
+        request.state.run_envelope = make_envelope()
+        return await call_next(request)
+
+    app.include_router(
+        AgentTemplatesRouter(loader=loader, catalog=catalog).router,
+        prefix="/api/agent-templates",
+    )
+    return app
+
+
+async def _post(app, *, body=None, key="request-1"):
+    headers = {"Idempotency-Key": key} if key is not None else {}
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        return await client.post(
+            f"/api/agent-templates/load?project_id={PROJECT_ID}",
+            headers=headers,
+            json=body or _body(),
+        )
+
+
+@pytest.mark.asyncio
+async def test_forbidden_request_does_not_call_loader(monkeypatch):
+    loader = AsyncMock()
+    access = AsyncMock(return_value=False)
+    monkeypatch.setattr(router_module, "check_action_access", access)
+
+    response = await _post(_app(loader))
+
+    assert response.status_code == 403
+    loader.load.assert_not_awaited()
+    access.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_both_edit_and_run_permissions_are_required(monkeypatch):
+    loader = AsyncMock()
+    access = AsyncMock(side_effect=[True, False])
+    monkeypatch.setattr(router_module, "check_action_access", access)
+
+    response = await _post(_app(loader))
+
+    assert response.status_code == 403
+    assert [call.kwargs["permission"] for call in access.await_args_list] == [
+        Permission.EDIT_WORKFLOWS,
+        Permission.RUN_SESSIONS,
+    ]
+    loader.load.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_missing_idempotency_header_returns_stable_400(monkeypatch):
+    loader = AsyncMock()
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+
+    response = await _post(_app(loader), key=None)
+
+    assert response.status_code == 400
+    assert response.json()["code"] == "idempotency_key_required"
+    loader.load.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_first_load_returns_201_and_normalized_command(monkeypatch):
+    loader = AsyncMock()
+    result = _result()
+    loader.load.return_value = result
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+
+    response = await _post(_app(loader), key="  request-1  ")
+
+    assert response.status_code == 201
+    assert response.json() == result.model_dump(mode="json")
+    command = loader.load.await_args.kwargs["command"]
+    assert command.request_key == "request-1"
+    assert command.initial_message == "Configure the agent."
+
+
+@pytest.mark.asyncio
+async def test_replay_returns_200_with_same_ids(monkeypatch):
+    loader = AsyncMock()
+    result = _result(replayed=True)
+    loader.load.return_value = result
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+
+    response = await _post(_app(loader))
+
+    assert response.status_code == 200
+    assert response.json() == result.model_dump(mode="json")
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("error", "expected_status", "expected_code"),
+    [
+        (TemplateSourceNotFound("missing"), 404, "template_source_not_found"),
+        (TemplateCreateConflict(), 409, "template_load_conflict"),
+        (SessionInputIdempotencyConflict(), 409, "idempotency_key_reused"),
+        (
+            TemplatePackageInvalid("bad_manifest", "Malformed package."),
+            422,
+            "template_package_invalid",
+        ),
+        (
+            SessionStartNotDurable(),
+            503,
+            "template_handoff_not_durable",
+        ),
+    ],
+)
+async def test_domain_failures_have_stable_transport_errors(
+    monkeypatch, error, expected_status, expected_code
+):
+    loader = AsyncMock()
+    loader.load.side_effect = error
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+
+    response = await _post(_app(loader))
+
+    assert response.status_code == expected_status
+    assert response.json()["code"] == expected_code
+    assert {"code", "message", "retryable", "details"} <= set(response.json())
+    if response.json()["retryable"]:
+        assert response.json()["next_step"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("connection_id", "connection-1"),
+        ("secret_id", "secret-1"),
+        ("connection", {"slug": "resolved"}),
+        ("workflow_id", "00000000-0000-4000-8000-000000000001"),
+        ("session_id", "session-1"),
+        ("execution_id", "execution-1"),
+        ("version", "1.0.0"),
+        ("digest", "sha256:" + "1" * 64),
+        ("path", "/tmp/package"),
+        ("_ag", {"trusted": True}),
+    ],
+)
+async def test_server_owned_transport_fields_are_rejected_before_loader(
+    monkeypatch, key, value
+):
+    loader = AsyncMock()
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+    body = deepcopy(_body())
+    body[key] = value
+
+    response = await _post(_app(loader), body=body)
+
+    assert response.status_code == 422
+    loader.load.assert_not_awaited()
+
+
+def test_openapi_contains_one_load_operation():
+    loader = AsyncMock()
+    schema = _app(loader).openapi()
+
+    operation = schema["paths"]["/api/agent-templates/load"]["post"]
+    assert operation["operationId"] == "load_agent_template"
+    assert {item["name"]: item["in"] for item in operation["parameters"]} == {
+        "project_id": "query"
+    }
+    assert (
+        sum(
+            1
+            for path in schema["paths"].values()
+            for method in path.values()
+            if isinstance(method, dict)
+            and method.get("operationId") == "load_agent_template"
+        )
+        == 1
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "connection", [{"mode": "self_managed"}, {"mode": "agenta", "slug": "my-model"}]
+)
+async def test_model_connection_selection_reaches_loader(monkeypatch, connection):
+    loader = AsyncMock()
+    loader.load.return_value = _result()
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+    body = _body()
+    agent = body["base_revision"]["parameters"]["agent"]
+    agent["llm"]["connection"] = connection
+    body["base_revision"]["schemas"] = {
+        "parameters": {
+            "type": "object",
+            "properties": {"agent": {"default": deepcopy(agent)}},
+        }
+    }
+    response = await _post(_app(loader), body=body)
+    assert response.status_code == 201, response.text
+    command = loader.load.await_args.kwargs["command"]
+    assert command.base_revision.parameters["agent"]["llm"]["connection"] == connection
+
+
+@pytest.mark.asyncio
+async def test_native_parameter_names_are_not_template_transport_fields(monkeypatch):
+    loader = AsyncMock()
+    loader.load.return_value = _result()
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+    body = _body()
+    agent = body["base_revision"]["parameters"]["agent"]
+    agent["skills"] = [
+        {"name": "sample", "files": [{"path": "SKILL.md", "content": "Instructions"}]}
+    ]
+    agent["tools"] = [{"type": "reference", "version": "1"}]
+    agent["mcps"] = [{"connection": {"slug": "existing"}}]
+    agent["sandbox"] = {"credentials": {"mode": "configured"}}
+    response = await _post(_app(loader), body=body)
+    assert response.status_code == 201
+    assert (
+        loader.load.await_args.kwargs["command"].base_revision.parameters["agent"]
+        == agent
+    )
+
+
+@pytest.mark.asyncio
+async def test_internal_path_error_is_not_exposed(monkeypatch):
+    from oss.src.core.mounts.types import MountPathInvalid
+
+    loader = AsyncMock()
+    loader.load.side_effect = MountPathInvalid("Traceback: /private/token-value")
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+    response = await _post(_app(loader))
+    assert response.status_code == 422
+    assert "private" not in response.text
+    assert "token-value" not in response.text
+    assert (
+        response.json()["message"] == "The template contains an invalid workspace path."
+    )
+
+
+async def _request(app, method, path, **kwargs):
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        return await client.request(
+            method, f"/api/agent-templates{path}?project_id={PROJECT_ID}", **kwargs
+        )
+
+
+@pytest.mark.asyncio
+async def test_query_returns_every_listed_template_in_catalog_order(monkeypatch):
+    access = AsyncMock(return_value=True)
+    monkeypatch.setattr(router_module, "check_action_access", access)
+
+    response = await _request(_app(AsyncMock()), "POST", "/query", json={})
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["count"] == len(body["templates"]) == 30
+    assert [item["key"] for item in body["templates"]] == [
+        entry.key for entry in CATALOG.entries()
+    ]
+    first = body["templates"][0]
+    assert first["author"]["id"] == "agenta"
+    assert first["source"] == {"kind": "internal", "key": "pr-reviewer"}
+    assert first["tools_summary"] == "3 GitHub tools"
+    assert access.await_args.kwargs["permission"] == Permission.VIEW_WORKFLOWS
+
+
+@pytest.mark.asyncio
+async def test_query_accepts_an_empty_body_and_filters(monkeypatch):
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+    app = _app(AsyncMock())
+
+    empty = await _request(app, "POST", "/query")
+    filtered = await _request(
+        app, "POST", "/query", json={"category": "Support", "search": "zendesk"}
+    )
+
+    assert empty.status_code == 200
+    assert empty.json()["count"] == 30
+    assert [item["key"] for item in filtered.json()["templates"]] == [
+        "support-reply-drafter"
+    ]
+
+
+@pytest.mark.asyncio
+async def test_query_rejects_unknown_filters(monkeypatch):
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+
+    response = await _request(_app(AsyncMock()), "POST", "/query", json={"page": 2})
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_catalog_reads_require_view_permission(monkeypatch):
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=False)
+    )
+    app = _app(AsyncMock())
+
+    assert (await _request(app, "POST", "/query", json={})).status_code == 403
+    assert (await _request(app, "GET", "/pr-reviewer")).status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_fetch_returns_detail_and_selected_version(monkeypatch):
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+    app = _app(AsyncMock())
+
+    latest = await _request(app, "GET", "/pr-reviewer")
+    pinned = await _request(app, "GET", "/pr-reviewer", params={"version": "1.0.0"})
+
+    assert latest.status_code == 200, latest.text
+    assert latest.json()["template"]["version"] == "1.0.0"
+    assert latest.json()["template"]["connections"][0]["alternatives"] == ["gitlab"]
+    assert pinned.json() == latest.json()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("path", "params"),
+    [
+        ("/missing-template", None),
+        ("/pr-reviewer", {"version": "9.9.9"}),
+        ("/outbound-prospecting", None),
+    ],
+)
+async def test_fetch_unknown_key_or_version_is_404(monkeypatch, path, params):
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+
+    response = await _request(_app(AsyncMock()), "GET", path, params=params)
+
+    assert response.status_code == 404
+    assert response.json()["code"] == "template_source_not_found"
+
+
+def test_openapi_registers_query_before_detail():
+    paths = list(_app(AsyncMock()).openapi()["paths"])
+
+    assert paths.index("/api/agent-templates/query") < paths.index(
+        "/api/agent-templates/{key}"
+    )
+
+
+def _validation_app(validator, loader=None):
+    app = FastAPI()
+
+    @app.middleware("http")
+    async def add_state(request: Request, call_next):
+        request.state.project_id = str(PROJECT_ID)
+        request.state.user_id = str(USER_ID)
+        request.state.run_envelope = make_envelope()
+        return await call_next(request)
+
+    app.include_router(
+        AgentTemplatesRouter(
+            loader=loader or AsyncMock(), catalog=CATALOG, validator=validator
+        ).router,
+        prefix="/api/agent-templates",
+    )
+    return app
+
+
+async def _validate(app, body, *, project_id=PROJECT_ID):
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as client:
+        return await client.post(
+            f"/api/agent-templates/validate?project_id={project_id}",
+            json=body,
+        )
+
+
+_SESSION_FILE = {
+    "kind": "session_file",
+    "session_id": "chat-session",
+    "path": "templates/seo.zip",
+}
+
+
+@pytest.mark.asyncio
+async def test_validate_returns_result_and_never_calls_the_loader(monkeypatch):
+    validator = AsyncMock()
+    validator.validate.return_value = TemplateValidationResult(
+        valid=False,
+        supported_schema_versions=["ai.agenta/1"],
+        issues=[
+            TemplateValidationIssue(
+                code="file_not_found",
+                path="ai.agenta/agents.json",
+                field="agents.seo.setup",
+                message="The declared file SETUP.md does not exist.",
+                next_step="Create it.",
+            )
+        ],
+    )
+    loader = AsyncMock()
+    access = AsyncMock(return_value=True)
+    monkeypatch.setattr(router_module, "check_action_access", access)
+
+    response = await _validate(
+        _validation_app(validator, loader), {"source": _SESSION_FILE}
+    )
+
+    assert response.status_code == 200
+    assert response.json()["issues"][0]["field"] == "agents.seo.setup"
+    loader.load.assert_not_awaited()
+    source = validator.validate.await_args.kwargs["source"]
+    assert source.kind == "session_file" and source.path == "templates/seo.zip"
+    assert [call.kwargs["permission"] for call in access.await_args_list] == [
+        Permission.VIEW_WORKFLOWS,
+        Permission.VIEW_SESSIONS,
+        Permission.VIEW_MOUNTS,
+    ]
+
+
+@pytest.mark.asyncio
+async def test_validate_denies_without_session_file_access(monkeypatch):
+    validator = AsyncMock()
+    monkeypatch.setattr(
+        router_module,
+        "check_action_access",
+        AsyncMock(side_effect=[True, True, False]),
+    )
+
+    response = await _validate(_validation_app(validator), {"source": _SESSION_FILE})
+
+    assert response.status_code == 403
+    validator.validate.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_validate_refuses_another_project(monkeypatch):
+    validator = AsyncMock()
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+
+    response = await _validate(
+        _validation_app(validator), {"source": _SESSION_FILE}, project_id=uuid4()
+    )
+
+    assert response.status_code == 403
+    validator.validate.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "source",
+    [
+        {"kind": "session_file", "session_id": "s", "path": "a.zip", "extra": 1},
+        {"kind": "server_path", "path": "/etc/passwd"},
+        {"kind": "upload", "staging_session_id": "s", "attachment_id": "nope"},
+        {"kind": "directory", "path": "templates/seo"},
+    ],
+)
+async def test_validate_rejects_unknown_or_host_path_sources(monkeypatch, source):
+    validator = AsyncMock()
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+
+    response = await _validate(_validation_app(validator), {"source": source})
+
+    assert response.status_code == 422
+    validator.validate.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_validate_missing_source_is_a_normal_404(monkeypatch):
+    validator = AsyncMock()
+    validator.validate.side_effect = TemplateSourceNotFound("session_file:a.zip")
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+
+    response = await _validate(_validation_app(validator), {"source": _SESSION_FILE})
+
+    assert response.status_code == 404
+    assert response.json()["code"] == "template_source_not_found"
+
+
+@pytest.mark.asyncio
+async def test_archive_load_checks_session_access_and_keeps_source(monkeypatch):
+    loader = AsyncMock()
+    loader.load.return_value = _result()
+    access = AsyncMock(return_value=True)
+    monkeypatch.setattr(router_module, "check_action_access", access)
+    body = _body()
+    body["source"] = {
+        **_SESSION_FILE,
+        "pin": {"version": "1.0.0", "digest": "sha256:" + "a" * 64},
+    }
+
+    response = await _post(_app(loader), body=body)
+
+    assert response.status_code == 201
+    assert [call.kwargs["permission"] for call in access.await_args_list] == [
+        Permission.EDIT_WORKFLOWS,
+        Permission.RUN_SESSIONS,
+        Permission.VIEW_SESSIONS,
+        Permission.VIEW_MOUNTS,
+    ]
+    command = loader.load.await_args.kwargs["command"]
+    assert command.source.pin.version == "1.0.0"
+
+
+@pytest.mark.asyncio
+async def test_internal_source_without_kind_still_loads(monkeypatch):
+    loader = AsyncMock()
+    loader.load.return_value = _result()
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+    body = _body()
+    body["source"] = {"key": "outbound-prospecting"}
+
+    response = await _post(_app(loader), body=body)
+
+    assert response.status_code == 201
+    assert loader.load.await_args.kwargs["command"].source.kind == "internal"
+
+
+@pytest.mark.asyncio
+async def test_validate_without_query_project_uses_the_credential_project(monkeypatch):
+    # The validate_template platform op posts to the bare path.
+    validator = AsyncMock()
+    validator.validate.return_value = TemplateValidationResult(
+        valid=True,
+        version="1.0.0",
+        digest="sha256:" + "a" * 64,
+        supported_schema_versions=["ai.agenta/1"],
+    )
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+    async with AsyncClient(
+        transport=ASGITransport(app=_validation_app(validator)), base_url="http://test"
+    ) as client:
+        response = await client.post(
+            "/api/agent-templates/validate", json={"source": _SESSION_FILE}
+        )
+
+    assert response.status_code == 200
+    assert validator.validate.await_args.kwargs["project_id"] == PROJECT_ID
+
+
+def _scan_app(monkeypatch, scanner, access=None):
+    access = access or AsyncMock(return_value=True)
+    monkeypatch.setattr(router_module, "check_action_access", access)
+    app = FastAPI()
+
+    @app.middleware("http")
+    async def add_state(request: Request, call_next):
+        request.state.project_id = str(PROJECT_ID)
+        request.state.user_id = str(USER_ID)
+        request.state.run_envelope = make_envelope()
+        return await call_next(request)
+
+    app.include_router(
+        AgentTemplatesRouter(
+            loader=AsyncMock(), catalog=CATALOG, scanner=scanner
+        ).router,
+        prefix="/api/agent-templates",
+    )
+    return app
+
+
+@pytest.mark.asyncio
+async def test_scan_normalizes_the_url_and_returns_the_resolved_commit(monkeypatch):
+    scanner = AsyncMock()
+    scanner.scan.return_value = TemplateRepositoryScan(
+        repo_url="https://github.com/acme/templates",
+        commit="a" * 40,
+        templates=[TemplateRepositoryEntry(path="packages/triage", name="triage")],
+    )
+
+    response = await _request(
+        _scan_app(monkeypatch, scanner),
+        "POST",
+        "/sources/scan",
+        json={"repo_url": "github.com/Acme/templates"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["commit"] == "a" * 40
+    assert response.json()["templates"][0]["path"] == "packages/triage"
+    scanner.scan.assert_awaited_once_with(repo_url="https://github.com/acme/templates")
+
+
+@pytest.mark.asyncio
+async def test_scan_rejects_a_non_github_url(monkeypatch):
+    scanner = AsyncMock()
+    body = {"repo_url": "https://gitlab.com/acme/templates"}
+
+    response = await _request(
+        _scan_app(monkeypatch, scanner), "POST", "/sources/scan", json=body
+    )
+
+    assert response.status_code == 422
+    scanner.scan.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_scan_requires_view_and_maps_unavailable_to_404(monkeypatch):
+    access = AsyncMock(return_value=False)
+    scanner = AsyncMock()
+    scanner.scan.side_effect = TemplateSourceUnavailable(
+        "template_source_github_unavailable", "Not found."
+    )
+    app = _scan_app(monkeypatch, scanner, access)
+    body = {"repo_url": "https://github.com/acme/templates"}
+
+    assert (await _request(app, "POST", "/sources/scan", json=body)).status_code == 403
+    access.return_value = True
+    response = await _request(app, "POST", "/sources/scan", json=body)
+
+    assert response.status_code == 404
+    assert response.json()["details"]["reason"] == "template_source_github_unavailable"
+    # The scan names no commit or package directory, so its next step must not either.
+    assert "commit" not in response.json()["next_step"]
+
+
+@pytest.mark.asyncio
+async def test_template_start_denied_is_403_access_denied(monkeypatch):
+    from oss.src.core.access.dtos import Decision, DecisionReason
+    from oss.src.core.access.types import AccessDenied
+
+    loader = AsyncMock()
+    loader.load.side_effect = AccessDenied(
+        decision=Decision(allowed=False, reason=DecisionReason.MISSING_CAPABILITY)
+    )
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+
+    response = await _post(_app(loader))
+
+    assert response.status_code == 403
+    detail = response.json()["detail"]
+    assert detail["code"] == "access_denied"
+    assert detail["details"]["reason"] == "missing_capability"
+    assert detail["next_step"] == "Ask a project admin for access."
+
+
+@pytest.mark.asyncio
+async def test_a_hidden_replay_answers_like_an_unknown_id(monkeypatch):
+    """A refused replay of a load whose session or agent is hidden from the caller
+    answers the one canonical not-found body, never 403 or the stored ids."""
+    from oss.src.core.access.dtos import Decision, DecisionReason
+    from oss.src.core.sharing.types import AdmissionDenied
+
+    loader = AsyncMock()
+    loader.load.side_effect = AdmissionDenied(
+        decision=Decision(allowed=False, reason=DecisionReason.RESOURCE_DENIED),
+        readable=False,
+        boundary="template_start",
+    )
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+
+    response = await _post(_app(loader))
+
+    assert response.status_code == 404
+    assert response.json() == {
+        "detail": {"code": "not_found", "message": "Not found.", "retryable": False}
+    }
+
+
+@pytest.mark.asyncio
+async def test_load_passes_the_ownership_policy_and_requested_visibility(monkeypatch):
+    loader = AsyncMock()
+    loader.load.return_value = _result()
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+
+    response = await _post(_app(loader), body={**_body(), "visibility": "project"})
+
+    assert response.status_code == 201
+    kwargs = loader.load.await_args.kwargs
+    envelope_user = kwargs["envelope"].authority.principal.id
+    assert kwargs["access"].visibility.value == "project"
+    assert kwargs["access"].owner_user_id == envelope_user
+    assert kwargs["first_agent_owner_user_id"] == envelope_user
+    assert "visibility" not in kwargs["command"].model_dump()
+
+
+@pytest.mark.asyncio
+async def test_agent_creation_failed_is_the_envelope_not_a_generic_500(monkeypatch):
+    from oss.src.core.sharing.types import AgentCreationFailed
+
+    loader = AsyncMock()
+    loader.load.side_effect = AgentCreationFailed()
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+
+    response = await _post(_app(loader))
+
+    assert response.status_code == 500
+    assert response.json() == {
+        "detail": {
+            "code": "agent_creation_failed",
+            "message": "The agent was not created.",
+            "retryable": True,
+            "next_step": "Send the same request again.",
+        }
+    }
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "visibility, expected",
+    [("project", "project"), (None, "private")],
+)
+async def test_load_gives_the_first_session_the_requested_visibility(
+    monkeypatch, visibility, expected
+):
+    """The load's requested visibility is the first session's too: a web human's
+    template load with `visibility: project` starts a project-visible session they
+    own; without it the session is private to them."""
+    from oss.src.core.sharing.dtos import AccessPolicy, Visibility
+    from oss.tests.pytest.utils.sharing import register_sharing_service_for_tests
+
+    register_sharing_service_for_tests(monkeypatch)
+    monkeypatch.setattr(
+        router_module, "check_action_access", AsyncMock(return_value=True)
+    )
+    loader = AsyncMock()
+    loader.load.return_value = _result()
+    app = FastAPI()
+
+    @app.middleware("http")
+    async def add_state(request: Request, call_next):
+        request.state.project_id = str(PROJECT_ID)
+        request.state.user_id = str(USER_ID)
+        request.state.run_envelope = make_envelope(principal_id=USER_ID)
+        return await call_next(request)
+
+    app.include_router(
+        AgentTemplatesRouter(loader=loader, catalog=CATALOG).router,
+        prefix="/api/agent-templates",
+    )
+    body = _body()
+    if visibility is not None:
+        body["visibility"] = visibility
+
+    response = await _post(app, body=body)
+
+    assert response.status_code == 201, response.text
+    assert loader.load.await_args.kwargs["session_access"] == AccessPolicy(
+        visibility=Visibility(expected), owner_user_id=USER_ID
+    )

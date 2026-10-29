@@ -23,16 +23,22 @@ export const shouldRefreshLegacyObserverLiveness = ({
     now: number
 }): boolean => !sharedReaderAdvertised && now - lastRefreshAt >= LEGACY_LIVENESS_REFRESH_MS
 
-/** A sender subscribes eagerly; a secondary reader waits for a remote run. */
+/**
+ * A sender subscribes eagerly; a secondary reader waits for a remote run. Neither subscribes while
+ * its conversation is off screen: over HTTP/1.1 every open stream holds one of the browser's six
+ * connections per origin, and a mounted-but-hidden pane has nothing to show.
+ */
 export const shouldSubscribeToSessionLivePreview = ({
     sharedReaderAdvertised,
     runningElsewhere,
     sender = false,
+    visible = true,
 }: {
     sharedReaderAdvertised: boolean
     runningElsewhere: boolean
     sender?: boolean
-}): boolean => sharedReaderAdvertised && (sender || runningElsewhere)
+    visible?: boolean
+}): boolean => visible && sharedReaderAdvertised && (sender || runningElsewhere)
 
 /** Run activity follows execution state, not whether its reader is connected. */
 export const deriveRemoteTurnPresentation = ({
@@ -92,18 +98,19 @@ const applyFrame = (
     frame: SessionLiveFrame,
 ): PreviewPart | undefined => {
     switch (frame.type) {
+        // The AI SDK's `state`, mirrored: a text still being written must not read as the answer.
         case "text-start":
-            return current ?? {type: "text", text: ""}
+            return {...(current ?? {type: "text", text: ""}), state: "streaming"}
         case "text-delta":
             return {
                 type: "text",
+                state: "streaming",
                 text:
                     stringValue(current?.type === "text" ? current.text : "") +
                     stringValue(frame.payload.delta),
             }
         case "text-end":
-            return current
-        // Without the AI SDK's `state`, a watched session's thinking reads as already settled.
+            return current ? {...current, state: "done"} : current
         case "reasoning-start":
             return {...(current ?? {type: "reasoning", text: ""}), state: "streaming"}
         case "reasoning-delta":

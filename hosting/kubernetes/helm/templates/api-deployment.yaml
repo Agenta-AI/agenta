@@ -1,6 +1,22 @@
 {{- $values := include "agenta.values" . | fromYaml -}}
 {{- $api := default dict $values.api -}}
-{{- $newrelic := default dict $values.newrelic -}}
+{{- /* Gunicorn's worker lifecycle. An LLM gateway stream can run for many minutes, and a
+       worker that is recycled (max-requests) or stopped (SIGTERM) only finishes the
+       requests it has open for gracefulTimeout seconds, so gracefulTimeout must cover the
+       longest stream. maxRequests recycles a worker as a guard against slow memory leaks;
+       a high value keeps recycles rare. timeout is gunicorn's hung-worker check, not a
+       request limit. See the README section "Long streams and worker shutdown". */}}
+{{- $gunicorn := default dict $api.gunicorn -}}
+{{- $gracefulTimeout := int (hasKey $gunicorn "gracefulTimeout" | ternary $gunicorn.gracefulTimeout 900) -}}
+{{- /* keepAlive is how long a worker holds an idle connection open. A load balancer in
+       front of the api holds its side open for its own idle timeout, and reuses the
+       connection for the next request. If the worker closes first, a request that the
+       balancer sends in that same instant fails with 502 before any code runs. So keepAlive
+       must exceed the balancer's idle timeout. The default, 620, is above the defaults of
+       the common balancers: 60 s (AWS ALB, ingress-nginx), 90 s (Traefik), 600 s (Google
+       Cloud external Application Load Balancer). See the README section "Idle connections
+       and the load balancer". */}}
+{{- $keepAlive := int (hasKey $gunicorn "keepAlive" | ternary $gunicorn.keepAlive 620) -}}
 {{- if eq (include "agenta.api.enabled" .) "true" }}
 apiVersion: apps/v1
 kind: Deployment
@@ -11,18 +27,60 @@ metadata:
     app.kubernetes.io/component: api
 spec:
   replicas: {{ include "agenta.api.replicas" . }}
+  {{- /* Graceful rollouts. A managed load balancer (GKE) keeps sending requests to a pod
+         for a few seconds after Kubernetes removes it from the endpoints, so a pod that
+         exits at once answers them with 502. The api is the workload that serves those
+         requests. Kubernetes defaults to RollingUpdate with maxUnavailable: 25% and
+         maxSurge: 25%. For one replica, these round down to 0 unavailable pods and up
+         to 1 surge pod, so the explicit 0/1 limits preserve those availability limits.
+         The api previously had no preStop hook and used the default 30-second grace
+         period. Now it uses the same rollout and shutdown defaults as services, web
+         and webMobile. See the README section "Graceful rollouts". */}}
+  {{- with $api.strategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- else }}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  {{- end }}
   selector:
     matchLabels:
       {{- include "agenta.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: api
   template:
     metadata:
+      {{- /* `api.safeToEvict: false` tells the cluster autoscaler not to evict an api pod to
+             empty a node. On GKE Autopilot the scheduler spreads api pods over distinct
+             nodes, lands a new one on a near-empty spare node, and the autoscaler then
+             removes that node and evicts the pod again, every few minutes. The annotation
+             stops that loop. It does not block an operator drain or a rolling update, and
+             Autopilot may still evict the pod for a node upgrade. The default leaves the
+             pod evictable, which is right where no autoscaler runs. `api.podAnnotations`
+             adds or overrides keys. */}}
+      {{- $annotations := deepCopy (default dict $api.podAnnotations) -}}
+      {{- if and (hasKey $api "safeToEvict") (not $api.safeToEvict) }}
+      {{- $annotations = merge $annotations (dict "cluster-autoscaler.kubernetes.io/safe-to-evict" "false") }}
+      {{- end }}
+      {{- with $annotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       labels:
         {{- include "agenta.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: api
     spec:
       {{- include "agenta.imagePullSecrets" . | nindent 6 }}
       serviceAccountName: {{ include "agenta.serviceAccountName" . }}
+      {{- /* The default covers the preStop delay (10 s), the gunicorn drain and a margin, so
+             the kubelet does not send KILL while a stream is still finishing. */}}
+      {{- if hasKey $api "terminationGracePeriodSeconds" }}
+      terminationGracePeriodSeconds: {{ $api.terminationGracePeriodSeconds }}
+      {{- else }}
+      terminationGracePeriodSeconds: {{ add $gracefulTimeout 30 }}
+      {{- end }}
       {{- with $api.podSecurityContext }}
       securityContext:
         {{- toYaml . | nindent 8 }}
@@ -41,26 +99,24 @@ spec:
             {{- toYaml . | nindent 12 }}
           {{- end }}
           command:
-            {{- if $newrelic.licenseKey }}
-            - newrelic-admin
-            - run-program
-            {{- end }}
             - gunicorn
             - entrypoints.routers:app
             - --bind
             - 0.0.0.0:{{ include "agenta.api.port" . }}
             - --worker-class
-            - uvicorn.workers.UvicornWorker
+            - entrypoints.uvicorn_worker.DrainingUvicornWorker
             - --workers
             - {{ include "agenta.api.workers" . | quote }}
             - --max-requests
-            - "10000"
+            - {{ int (hasKey $gunicorn "maxRequests" | ternary $gunicorn.maxRequests 100000) | quote }}
             - --max-requests-jitter
-            - "1000"
+            - {{ int (hasKey $gunicorn "maxRequestsJitter" | ternary $gunicorn.maxRequestsJitter 10000) | quote }}
             - --timeout
-            - "60"
+            - {{ int (hasKey $gunicorn "timeout" | ternary $gunicorn.timeout 60) | quote }}
             - --graceful-timeout
-            - "60"
+            - {{ $gracefulTimeout | quote }}
+            - --keep-alive
+            - {{ $keepAlive | quote }}
             - --log-level
             - info
             - --access-logfile
@@ -97,8 +153,8 @@ spec:
               port: http
             initialDelaySeconds: 5
             periodSeconds: 5
-            timeoutSeconds: 5
-            failureThreshold: 30
+            timeoutSeconds: 10
+            failureThreshold: 90
           livenessProbe:
             httpGet:
               path: /health
@@ -113,10 +169,33 @@ spec:
             periodSeconds: 10
             timeoutSeconds: 5
             failureThreshold: 3
+          {{- /* A preStop delay, so the load balancer stops choosing this pod before the
+                 process goes away. Setting api.lifecycle replaces it. */}}
+          lifecycle:
+            {{- if $api.lifecycle }}
+            {{- toYaml $api.lifecycle | nindent 12 }}
+            {{- else }}
+            preStop:
+              exec:
+                command: ["sleep", "10"]
+            {{- end }}
           {{- with $api.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          {{- $redisCaMount := include "agenta.redisDurableCaVolumeMount" . }}
+          {{- if $redisCaMount }}
+          volumeMounts:
+            {{- $redisCaMount | nindent 12 }}
+          {{- end }}
+      {{- $redisCaVolume := include "agenta.redisDurableCaVolume" . }}
+      {{- if $redisCaVolume }}
+      volumes:
+        {{- $redisCaVolume | nindent 8 }}
+      {{- end }}
+      {{- with $api.priorityClassName }}
+      priorityClassName: {{ . | quote }}
+      {{- end }}
       {{- with $api.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -128,5 +207,10 @@ spec:
       {{- with $api.affinity }}
       affinity:
         {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- $spread := include "agenta.topologySpreadConstraints" (dict "root" $ "component" "api" "key" "api" "replicas" (include "agenta.api.replicas" .)) }}
+      {{- if $spread }}
+      topologySpreadConstraints:
+        {{- $spread | nindent 8 }}
       {{- end }}
 {{- end }}

@@ -4,15 +4,19 @@ import type {
   CredentialDeliveryCapabilities,
   CredentialDeliveryPort,
 } from "../../providers/credential-delivery-port.ts";
+import { rawSandboxId, wasSandboxCreatedHere } from "./created-sandboxes.ts";
 import { DaytonaReconnectTerminalError } from "./daytona-provider.ts";
 import { planSlotKeys, type DaytonaSecretPlan } from "./daytona-secret-plan.ts";
 import {
   allocateDaytonaSecrets,
+  DAYTONA_SECRETS_PERMISSION_MESSAGE,
   DaytonaSecretLease,
   deleteDaytonaSecrets,
+  gatewayCredentialPlaceholders,
   isDaytonaNotFound,
   type DaytonaSecretAllocation,
   type DaytonaSecretApi,
+  type GatewayCredentialPlaceholders,
 } from "./daytona-secrets.ts";
 
 export interface DaytonaProviderLike {
@@ -31,6 +35,18 @@ interface RegistryEntry {
   generation: number;
   operation: Promise<void>;
   cleanupTimer?: ReturnType<typeof setTimeout>;
+  /**
+   * Run the cleanup `cleanupTimer` would run, now, and cancel the timer. Set and cleared together
+   * with `cleanupTimer`. The shutdown flush calls it: the timer lives only in this process, so a
+   * runner that exits before it fires would leave the Secrets behind. See
+   * `flushPendingDaytonaSecretCleanups`.
+   */
+  runPendingCleanup?: () => Promise<void>;
+  /**
+   * The timer's cleanup while it runs (a timer that already fired, or a flush). The shutdown
+   * flush waits for it, so a runner does not exit halfway through deleting the Secrets.
+   */
+  cleanupInFlight?: Promise<void>;
 }
 
 export interface ProcessLocalDaytonaSecretProvider extends DaytonaProviderLike {
@@ -46,7 +62,7 @@ export interface ProcessLocalDaytonaSecretProvider extends DaytonaProviderLike {
    * the key is consumed by that cleanup.
    *
    * Takes either id shape: the raw provider id, or the sandbox-agent handle's
-   * `"<provider>/<rawId>"`, which is the one the acquire path holds. See `namesSandbox`.
+   * `"<provider>/<rawId>"`, which is the one the acquire path holds. See `rawSandboxId`.
    */
   retainSecretsOnDestroy(sandboxId: string): void;
   /** The lease a retained destroy handed back. Returned once; undefined if nothing was kept. */
@@ -95,17 +111,50 @@ const processLocalRegistry = new Map<string, RegistryEntry>();
 const PROVIDER_NAME = "daytona";
 
 /**
- * Whether `requested` names the sandbox a cleanup is about.
+ * Whether this process holds a Secret allocation for the sandbox, in either id shape. Only the
+ * process that created a sandbox through the wrapper has one.
  *
- * TWO ID SHAPES, ONE SANDBOX. This registry is keyed by the RAW id the provider returned from
+ * TWO ID SHAPES, ONE SANDBOX. The registry is keyed by the RAW id the provider returned from
  * create, but the sandbox-agent handle exposes `"<provider>/<rawId>"` and that prefixed form is
- * what the runner stores, reconnects with, and therefore has in hand. Accepting both is what lets
- * `retainSecretsOnDestroy` be called with the id the caller actually holds, instead of making it
- * reach into the vendored client for a private raw-id field.
+ * what the runner stores, reconnects with, and therefore has in hand. Reducing a caller's id with
+ * `rawSandboxId` is what lets this check and `retainSecretsOnDestroy` take the id the caller
+ * actually holds, instead of making it reach into the vendored client for a private raw-id field.
  */
-function namesSandbox(requested: string, sandboxId: string): boolean {
-  return (
-    requested === sandboxId || requested === `${PROVIDER_NAME}/${sandboxId}`
+export function holdsProcessLocalSecretAllocation(sandboxId: string): boolean {
+  return processLocalRegistry.has(rawSandboxId(sandboxId));
+}
+
+/**
+ * Run now every cleanup still waiting on its timer: delete the sandbox, then its Secrets.
+ *
+ * A stopped sandbox with no keep-alive pool entry (an idle-expiry stop, or a turn that ran with
+ * keep-alive off) is held only by the timer `pause` armed. The timer lives in this process, so a
+ * runner that exits before it fires orphans the Secrets: Daytona's autodelete removes the
+ * sandbox, but not the Secrets it mounted. The shutdown teardown calls this so the process hands
+ * nothing to that gap. Each cleanup keeps the hard order (sandbox first, Secrets after) and its
+ * own retry on failure. Never rejects: one failed cleanup must not skip the others.
+ */
+export async function flushPendingDaytonaSecretCleanups(
+  registry: Map<string, RegistryEntry> = processLocalRegistry,
+  log: (message: string) => void = () => {},
+): Promise<void> {
+  const pending = [...registry.entries()].flatMap(([sandboxId, entry]) => {
+    const pendingRun = entry.runPendingCleanup;
+    if (pendingRun) return [{ sandboxId, run: pendingRun }];
+    // A cleanup the timer already started: wait for it instead of skipping the entry.
+    const inFlight = entry.cleanupInFlight;
+    return inFlight ? [{ sandboxId, run: () => inFlight }] : [];
+  });
+  await Promise.all(
+    pending.map(({ sandboxId, run }) =>
+      run().catch((error: unknown) => {
+        log(
+          `process-local Daytona cleanup at shutdown failed sandbox=${sandboxId}: ${String(
+            error instanceof Error ? error.message : error,
+          ).slice(0, 200)}`,
+        );
+      }),
+    ),
   );
 }
 
@@ -113,13 +162,25 @@ function plansMatch(entry: RegistryEntry, createFingerprint: string): boolean {
   return entry.createFingerprint === createFingerprint;
 }
 
-/** Whether an allocation's slots are exactly the ones a plan asks for. Identities only. */
+/**
+ * Whether an allocation's slots are exactly the ones a plan asks for. Identities only.
+ *
+ * An allocation that left the gateway credential plain (`gatewayLeftPlain`) never asks for the
+ * gateway slot, so a reconnect with the same plan still matches.
+ */
 function slotSetsMatch(
   allocation: DaytonaSecretAllocation,
   plan: DaytonaSecretPlan,
 ): boolean {
   const allocated = [...allocation.bySlot.keys()].sort();
-  const wanted = planSlotKeys(plan);
+  const wanted = allocation.gatewayLeftPlain
+    ? planSlotKeys({
+        ...plan,
+        candidates: plan.candidates.filter(
+          (candidate) => candidate.consumer.kind !== "gateway",
+        ),
+      })
+    : planSlotKeys(plan);
   return (
     allocated.length === wanted.length &&
     allocated.every((key, index) => key === wanted[index])
@@ -211,7 +272,10 @@ function withMcpPlaceholders(
  * is an explicit follow-up (PR B of the Daytona-Secrets design; see PR #5278).
  */
 export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
-  buildProvider: (attachments: Record<string, string>) => T,
+  buildProvider: (
+    attachments: Record<string, string>,
+    gatewayPlaceholders?: GatewayCredentialPlaceholders,
+  ) => T,
   plan: DaytonaSecretPlan,
   api: DaytonaSecretApi,
   dependencies: ProcessLocalSecretDependencies,
@@ -255,7 +319,55 @@ export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
       cancel(entry.cleanupTimer);
       entry.cleanupTimer = undefined;
     }
+    entry.runPendingCleanup = undefined;
     entry.generation += 1;
+  };
+
+  /**
+   * Arm the timer that cleans up this sandbox later, and the `runPendingCleanup` that runs the
+   * same cleanup now. Bumps the generation, so the cleanup is a no-op once any later lifecycle
+   * operation drops it. `onError` decides what a failed cleanup reports; its retry is already
+   * armed by `cleanupAfterSandbox`.
+   */
+  const armCleanupTimer = (
+    sandboxId: string,
+    entry: RegistryEntry,
+    activeProvider: T,
+    onError: (error: unknown) => void,
+  ): void => {
+    entry.generation += 1;
+    const scheduledGeneration = entry.generation;
+    const run = (): Promise<void> =>
+      serialize(entry, async () => {
+        if (
+          registry.get(sandboxId) !== entry ||
+          entry.generation !== scheduledGeneration
+        ) {
+          return;
+        }
+        entry.cleanupTimer = undefined;
+        entry.runPendingCleanup = undefined;
+        const cleanup = cleanupAfterSandbox(sandboxId, entry, activeProvider);
+        entry.cleanupInFlight = cleanup;
+        try {
+          await cleanup;
+        } finally {
+          if (entry.cleanupInFlight === cleanup)
+            entry.cleanupInFlight = undefined;
+        }
+      });
+    entry.cleanupTimer = schedule(() => {
+      void run().catch(onError);
+    }, dependencies.cleanupDelayMilliseconds);
+    entry.cleanupTimer.unref?.();
+    entry.runPendingCleanup = async () => {
+      if (entry.cleanupTimer) {
+        cancel(entry.cleanupTimer);
+        entry.cleanupTimer = undefined;
+      }
+      entry.runPendingCleanup = undefined;
+      await run();
+    };
   };
 
   /**
@@ -280,23 +392,9 @@ export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
         `retrying in ${dependencies.cleanupDelayMilliseconds}ms`,
     );
     if (entry.cleanupTimer) return;
-    entry.generation += 1;
-    const scheduledGeneration = entry.generation;
-    entry.cleanupTimer = schedule(() => {
-      void serialize(entry, async () => {
-        if (
-          registry.get(sandboxId) !== entry ||
-          entry.generation !== scheduledGeneration
-        ) {
-          return;
-        }
-        entry.cleanupTimer = undefined;
-        await cleanupAfterSandbox(sandboxId, entry, activeProvider);
-      }).catch(() => {
-        // The retry arms its own next attempt, so there is nothing to add here.
-      });
-    }, dependencies.cleanupDelayMilliseconds);
-    entry.cleanupTimer.unref?.();
+    armCleanupTimer(sandboxId, entry, activeProvider, () => {
+      // The retry arms its own next attempt, so there is nothing to add here.
+    });
   };
 
   const cleanupAfterSandbox = async (
@@ -320,7 +418,7 @@ export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
     entry.lease.detach();
     if (
       retainSecretsForSandbox !== undefined &&
-      namesSandbox(retainSecretsForSandbox, sandboxId)
+      rawSandboxId(retainSecretsForSandbox) === sandboxId
     ) {
       retainSecretsForSandbox = undefined;
       retainedLease = entry.lease;
@@ -345,6 +443,46 @@ export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
     if (currentAllocation === entry.lease.allocation) {
       currentAllocation = undefined;
       currentSandboxId = undefined;
+    }
+  };
+
+  /**
+   * Allocate this plan's Secrets, or none when only the gateway credential needed one and the
+   * Daytona API key may not manage Secrets.
+   *
+   * A run whose only hideable value is the gateway credential made no Secret call before the
+   * gateway credential was hidden, so an API key without the Secrets permission still ran it.
+   * Failing that run now would break every built-in model run on such a deployment. It runs with
+   * the gateway credential as a plain environment value instead, which is what it did before, and
+   * says so in the log. A run that also hides a provider or MCP key fails as it always has.
+   */
+  const allocate = async (): Promise<DaytonaSecretAllocation> => {
+    try {
+      return await allocateDaytonaSecrets(plan, api, undefined, log);
+    } catch (error) {
+      const gatewayOnly =
+        plan.candidates.length > 0 &&
+        plan.candidates.every(
+          (candidate) => candidate.consumer.kind === "gateway",
+        );
+      // Only Daytona's own 403 on the Secret create, not any message that mentions a permission.
+      const forbidden =
+        error instanceof Error &&
+        error.message === DAYTONA_SECRETS_PERMISSION_MESSAGE &&
+        (error.cause as { statusCode?: unknown } | undefined)?.statusCode ===
+          403;
+      if (!gatewayOnly || !forbidden) throw error;
+      log(
+        "[daytona-secrets] the Daytona API key may not manage Secrets; the gateway credential " +
+          "stays a plain sandbox environment value for this run",
+      );
+      return {
+        attachments: {},
+        mcpHeaderPlaceholders: {},
+        created: [],
+        bySlot: new Map(),
+        gatewayLeftPlain: true,
+      };
     }
   };
 
@@ -374,14 +512,13 @@ export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
       }
       const lease = usable
         ? inheritedLease
-        : new DaytonaSecretLease(
-            await allocateDaytonaSecrets(plan, api, undefined, log),
-            api,
-            log,
-          );
+        : new DaytonaSecretLease(await allocate(), api, log);
       const allocation = lease.allocation;
       try {
-        provider = buildProvider(allocation.attachments);
+        provider = buildProvider(
+          allocation.attachments,
+          gatewayCredentialPlaceholders(plan, allocation),
+        );
       } catch (cause) {
         // buildProvider is synchronous and failed before any remote create call, so absence is
         // proven and compensation may safely remove the Secrets. The lease is left DETACHED
@@ -430,9 +567,10 @@ export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
       const entry = registry.get(sandboxId);
       const activeProvider = providerFor({});
       if (!entry) {
-        // The runner restarted or lost ownership. It cannot prove which Secrets back the parked
-        // sandbox, so delete the sandbox and force the caller onto a fresh create.
-        await destroySandboxIdempotently(activeProvider, sandboxId);
+        // The runner restarted or another process created this sandbox. It cannot prove which
+        // Secrets back it, so force the caller onto a fresh create. It does NOT delete it: another
+        // pod may still be serving a turn from it, and only Kill deletes a sandbox this process
+        // did not create. Daytona's autostop and autodelete reclaim it otherwise.
         throw new DaytonaReconnectTerminalError(
           sandboxId,
           "missing-process-local-secret-allocation",
@@ -507,32 +645,25 @@ export function daytonaWithProcessLocalSecrets<T extends DaytonaProviderLike>(
         // pause waited would delete the sandbox it is about to park.
         dropPendingCleanup(entry);
         await activeProvider.pause?.(sandboxId);
-        const scheduledGeneration = entry.generation;
-        entry.cleanupTimer = schedule(() => {
-          void serialize(entry, async () => {
-            if (
-              registry.get(sandboxId) !== entry ||
-              entry.generation !== scheduledGeneration
-            ) {
-              return;
-            }
-            entry.cleanupTimer = undefined;
-            await cleanupAfterSandbox(sandboxId, entry, activeProvider);
-          }).catch((error) => {
-            log(
-              `process-local Daytona Secret cleanup failed sandbox=${sandboxId}: ${String(
-                error instanceof Error ? error.message : error,
-              ).slice(0, 200)}`,
-            );
-          });
-        }, dependencies.cleanupDelayMilliseconds);
-        entry.cleanupTimer.unref?.();
+        armCleanupTimer(sandboxId, entry, activeProvider, (error) => {
+          log(
+            `process-local Daytona Secret cleanup failed sandbox=${sandboxId}: ${String(
+              error instanceof Error ? error.message : error,
+            ).slice(0, 200)}`,
+          );
+        });
       });
     },
     async destroy(sandboxId: string): Promise<void> {
       const activeProvider = providerFor({});
       const entry = registry.get(sandboxId);
       if (!entry) {
+        // No entry means no proof this process owns the sandbox. Delete it only when this process
+        // created it; any other one may be serving another pod's turn.
+        if (!wasSandboxCreatedHere(sandboxId)) {
+          log(`not deleting sandbox=${sandboxId}: not created by this runner`);
+          return;
+        }
         await destroySandboxIdempotently(activeProvider, sandboxId);
         return;
       }

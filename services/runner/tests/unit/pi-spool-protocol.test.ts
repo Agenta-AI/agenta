@@ -37,6 +37,22 @@ describe("Pi trace spool protocol", () => {
     );
   });
 
+  it("carries the custom connection flag only when it is true", () => {
+    const base = { version: 1, channelId: CHANNEL };
+    assert.equal(
+      parsePiTurnTraceControl({ ...base, customConnection: true })
+        .customConnection,
+      true,
+    );
+    for (const value of [false, "true", 1, undefined]) {
+      assert.equal(
+        "customConnection" in
+          parsePiTurnTraceControl({ ...base, customConnection: value }),
+        false,
+      );
+    }
+  });
+
   it("rejects unknown versions and malformed channel ids", () => {
     assert.throws(
       () => parsePiTurnTraceControl({ version: 2, channelId: CHANNEL }),

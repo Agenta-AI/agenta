@@ -11,18 +11,27 @@ import {Suspense, lazy, useEffect, useRef, type ReactNode, type RefObject} from 
 
 import {isOverlayOpen} from "@agenta/shared/utils"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
+import {
+    registerQuoteSubmit,
+    removeQuote,
+    updateQuote,
+    useStagedQuotes,
+} from "@agenta/ui/quote-selection"
 import type {RichChatInputHandle, SlashCommandSection} from "@agenta/ui/rich-chat-input"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {Paperclip} from "@phosphor-icons/react"
 
 import {acceptAttrFor} from "../assets/attachmentRules"
+import {withStagedQuotes, type QuotedSend} from "../assets/quotedSubmit"
 import type {useComposerAttachments} from "../hooks/useComposerAttachments"
 import {useFilePalette} from "../hooks/useFilePalette"
 import {useHardwareKeyboard} from "../hooks/useHardwareKeyboard"
 
 import ComposerAttachments from "./ComposerAttachments"
+import ComposerQuotes from "./ComposerQuotes"
 import ComposerRejections from "./ComposerRejections"
 import RecordingWaveform from "./RecordingWaveform"
+import {useStagedFilesViewer} from "./useStagedFilesViewer"
 
 // Lexical is the heaviest dependency of the chat chunk — keep it out of the synchronous
 // mount. React.lazy (not next/dynamic) so the imperative handle ref forwards.
@@ -31,7 +40,8 @@ const RichChatInput = lazy(() =>
 )
 
 export interface ChatComposerProps {
-    onSubmit: (text: string) => void | Promise<void>
+    /** Resolve `false` when the message did not go out, so staged quotes can be handed back. */
+    onSubmit: (text: string) => void | boolean | Promise<void | boolean>
     /** The attachment engine — staging, guardrails, uploads (see useComposerAttachments). */
     attachments: ReturnType<typeof useComposerAttachments>
     inputRef?: RefObject<RichChatInputHandle | null>
@@ -55,6 +65,8 @@ export interface ChatComposerProps {
     placeholder?: string
     /** The run is parked on the user (HITL) — new sends will queue. */
     waitingOnUser?: boolean
+    /** The session already has turns: the key hints move from chips into the placeholder. */
+    hasTurns?: boolean
     initialMarkdown?: string
     onChange?: (markdown: string) => void
     /** The send is in flight and has not landed — the button spins and refuses a second press. */
@@ -72,12 +84,17 @@ export interface ChatComposerProps {
     attachmentsBlocked?: () => boolean
     /** The composer itself is unusable (gates the paperclip alongside `uploadsEnabled`). */
     composerDisabled?: boolean
-    /** Open a viewable attachment in the host's viewer; omit to disable tile clicks. */
+    /** Open a viewable attachment in the host's own viewer; omitted, the app's media viewer. */
     onViewAttachment?: (uid: string) => void
     /** Left of the paperclip: host extras (voice mic, context budget). */
     extraPrefix?: ReactNode
     /** The input's trailing slot (onboarding actions). */
     trailing?: ReactNode
+    /**
+     * Docked INSIDE the input frame, above the editor and the attachments tray — for host
+     * content that belongs to the message being composed (the create surface's connect step).
+     */
+    headerExtra?: ReactNode
     /** The `/` palette's sections. Omit where the surface has no commands. */
     slashCommands?: SlashCommandSection[]
     /**
@@ -103,6 +120,7 @@ export const ChatComposer = ({
     hideShortcutHints,
     placeholder,
     waitingOnUser,
+    hasTurns = false,
     initialMarkdown,
     onChange,
     sending,
@@ -116,6 +134,7 @@ export const ChatComposer = ({
     onViewAttachment,
     extraPrefix,
     trailing,
+    headerExtra,
     slashCommands,
     fileMentions,
     fallback,
@@ -133,6 +152,7 @@ export const ChatComposer = ({
         dismissRejection,
         uploads,
     } = attachments
+    const viewStaged = useStagedFilesViewer(files)
 
     const fileInputRef = useRef<HTMLInputElement>(null)
     // Keyboard affordances are only worth their width where there is a keyboard. On a phone the
@@ -141,6 +161,30 @@ export const ChatComposer = ({
     // iPhone was being shown the `⌘` variant specifically.
     const hasKeyboard = useHardwareKeyboard()
     const filePalette = useFilePalette({enabled: fileMentions})
+
+    // Staged quotes ride out as a blockquote lead-in, so no host send path needs to know them.
+    const quoteSessionId = attachments.sessionId
+    const quotes = useStagedQuotes(quoteSessionId)
+    const ownInputRef = useRef<RichChatInputHandle | null>(null)
+    const editorRef = inputRef ?? ownInputRef
+    const withQuotes = (send: QuotedSend) =>
+        withStagedQuotes(quoteSessionId, send, () => editorRef.current)
+
+    // The note box's Enter: send the whole message now, as the Send button would.
+    const submitNowRef = useRef<() => boolean>(() => false)
+    submitNowRef.current = () => {
+        const editor = editorRef.current
+        if (!editor || disabled || composerDisabled) return false
+        if (files.length > 0 && !attachmentsSettled) return false
+        const text = editor.getMarkdown()
+        if (withQuotes(onSubmit)(text) === false) return false
+        editor.clear()
+        return true
+    }
+    useEffect(
+        () => registerQuoteSubmit(quoteSessionId, () => submitNowRef.current()),
+        [quoteSessionId],
+    )
 
     useEffect(() => {
         if (!streaming || !onStop || !stopShortcutEnabled) return
@@ -179,7 +223,7 @@ export const ChatComposer = ({
                 </HeightCollapse>
             </div>
             <RichChatInput
-                ref={inputRef}
+                ref={editorRef}
                 autoFocus={autoFocus}
                 dictating={dictating}
                 dictationWave={
@@ -188,23 +232,35 @@ export const ChatComposer = ({
                             analyserRef={dictationAnalyserRef}
                             className="h-5 flex-1 text-colorPrimary"
                         />
-                    ) : null
+                    ) : (
+                        <span role="status" className="text-xs text-colorTextSecondary">
+                            Listening…
+                        </span>
+                    )
                 }
                 className={className}
                 maxHeightClassName={maxHeightClassName}
-                onSubmit={onSubmit}
+                onSubmit={withQuotes(onSubmit)}
                 disabled={disabled}
                 hideSendButton={hideSendButton}
-                hideShortcutHints={hideShortcutHints ?? !hasKeyboard}
+                hideShortcutHints={hideShortcutHints ?? (!hasKeyboard || hasTurns)}
+                // A touch keyboard has no modifier to make a newline with, so its Enter IS the
+                // newline and the send button sends. Enter sends only where Shift/⌘ can be held.
+                submitOnEnter={hasKeyboard}
                 placeholder={
                     placeholder ??
-                    (waitingOnUser
-                        ? // The parked interaction is docked directly above, so point at it rather
-                          // than describing the wait in the abstract.
-                          "Answer above, or type to queue a message"
-                        : hasKeyboard
-                          ? "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
-                          : "Ask the agent…")
+                    (quotes.length > 0
+                        ? "What should change about the quoted part?"
+                        : waitingOnUser
+                          ? // The parked interaction is docked directly above, so point at it rather
+                            // than describing the wait in the abstract.
+                            "Answer above, or type to queue a message"
+                          : !hasTurns
+                            ? "What should we work on?"
+                            : // An ongoing session carries the key hints here instead of as chips.
+                              hasKeyboard
+                              ? "Ask the agent… (Enter to send, ⌘/Ctrl+Enter for newline)"
+                              : "Ask the agent…")
                 }
                 initialMarkdown={initialMarkdown}
                 slashCommands={slashCommands}
@@ -213,14 +269,18 @@ export const ChatComposer = ({
                 onPasteFile={(pasted) => {
                     if (!attachmentsBlocked?.()) addFiles(Array.from(pasted))
                 }}
-                sendForceEnabled={files.length > 0}
+                // A quote carries a reply on its own, so Send and Enter both send it with no text.
+                sendForceEnabled={files.length > 0 || quotes.length > 0}
                 sendDisabled={files.length > 0 && !attachmentsSettled}
                 sendDisabledReason={uploadBlockReason}
                 sending={sending}
                 streaming={streaming}
                 stopping={stopping}
                 onStop={onStop}
-                busyActions={busyActions}
+                busyActions={busyActions?.map((action) => ({
+                    ...action,
+                    onSubmit: withQuotes(action.onSubmit),
+                }))}
                 prefix={
                     // Tight: these are one cluster of composer tools, not separate controls.
                     <div className="flex items-center gap-0.5">
@@ -242,24 +302,47 @@ export const ChatComposer = ({
                                     size="icon"
                                     disabled={!uploadsEnabled || composerDisabled}
                                     onClick={() => fileInputRef.current?.click()}
+                                    // The closing picker's focus has no relatedTarget; no tooltip.
+                                    onFocus={(e) => {
+                                        if (!e.relatedTarget) e.preventDefault()
+                                    }}
                                     aria-label="Attach files"
                                 >
                                     <Paperclip size={16} />
                                 </Button>
                             </SimpleTooltip>
                         )}
+                        {/* Design puts the quote count on the action row, not over the chips. */}
+                        {quotes.length > 0 ? (
+                            <span className="ml-1 text-[11px] text-colorTextTertiary">
+                                {quotes.length} {quotes.length === 1 ? "quote" : "quotes"} attached
+                            </span>
+                        ) : null}
                     </div>
                 }
                 header={
-                    <HeightCollapse open={files.length > 0}>
-                        <ComposerAttachments
-                            files={files}
-                            onRemove={removeFile}
-                            onView={uploadsEnabled ? onViewAttachment : undefined}
-                            onRetry={uploads.retry}
-                            canRetry={uploads.canRetry}
-                        />
-                    </HeightCollapse>
+                    <>
+                        {headerExtra}
+                        <HeightCollapse open={quotes.length > 0}>
+                            <ComposerQuotes
+                                quotes={quotes}
+                                onRemove={(id) => removeQuote(quoteSessionId, id)}
+                                onEdit={(id, note) => updateQuote(quoteSessionId, id, {note})}
+                                touch={!hasKeyboard}
+                            />
+                        </HeightCollapse>
+                        <HeightCollapse open={files.length > 0}>
+                            <ComposerAttachments
+                                files={files}
+                                onRemove={removeFile}
+                                onView={
+                                    uploadsEnabled ? (onViewAttachment ?? viewStaged) : undefined
+                                }
+                                onRetry={uploads.retry}
+                                canRetry={uploads.canRetry}
+                            />
+                        </HeightCollapse>
+                    </>
                 }
                 trailing={trailing}
             />

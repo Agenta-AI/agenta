@@ -1,14 +1,14 @@
 import {useEffect, useRef, useState} from "react"
 
 import {shouldRefreshLegacyObserverLiveness} from "@agenta/chat/model"
-import {invalidateSessionDurableApprovalsCapability} from "@agenta/entities/session"
+import {actionableInteractionsQueryKey} from "@agenta/sessions/state"
 import {useQueryClient} from "@tanstack/react-query"
 
 import {tryRefreshSession} from "@/lib/auth"
 
-import {actionableInteractionsQueryKey} from "../sessions/useActionableInteractions"
 import {livenessQueryKey} from "../sessions/useLivenessPoll"
 
+import {recheckSessionHeader} from "./useSessionHeader"
 import {sessionWatchUrl, watchRetryDelayMs} from "./watchRelay"
 
 /** Minimum spacing between two reconnect revalidations, so a reconnect loop can't fan out
@@ -135,7 +135,6 @@ export const useSessionWatch = ({
             // headers reach us before the server's Redis subscription is live, so a
             // change landing in that window would miss both this refetch and the stream.
             es.addEventListener("ready", () => {
-                invalidateSessionDurableApprovalsCapability({projectId, sessionId})
                 notifyOnConnect()
                 invalidateBadges()
             })
@@ -161,6 +160,10 @@ export const useSessionWatch = ({
                 setConnected(false)
                 // CONNECTING = built-in auto-reconnect; only a fatal CLOSED needs us.
                 if (es.readyState === EventSource.CLOSED) {
+                    // The stream refuses a reader who lost the chat: re-read the session row (it
+                    // carries the reader's sharing state) now, inside the same 60 s budget as its
+                    // poll (a reconnect loop must not turn into one read per attempt).
+                    void recheckSessionHeader({queryClient, sessionId, projectId})
                     close()
                     scheduleRetry()
                 }

@@ -8,12 +8,16 @@ prompt path and the evaluators answer: the slug picks the record, and a slugless
 to the family's first record.
 """
 
+import asyncio
 from types import SimpleNamespace
 
 import pytest
 
 from agenta.sdk.engines.running import handlers
-from agenta.sdk.engines.running.errors import UnknownConnectionV0Error
+from agenta.sdk.engines.running.errors import (
+    UnknownConnectionV0Error,
+    InvalidConfigurationParameterV0Error,
+)
 
 pytestmark = pytest.mark.asyncio
 
@@ -184,3 +188,80 @@ async def test_the_model_reaches_litellm_in_the_form_the_resolver_chose(litellm,
     await _run([{"model": "claude-sonnet-5", "connection": "anthropic"}])
 
     assert litellm.calls[0]["model"] == "anthropic/claude-sonnet-5"
+
+
+async def test_no_attribute_is_ever_set_on_the_litellm_module(litellm, vault):
+    """CU2: the key travels in kwargs only, never as `setattr(litellm, ...)`."""
+
+    vault(TWO_OPENAI_CONNECTIONS)
+    before = set(vars(litellm))
+
+    await _run([{"model": "gpt-4o-mini", "connection": "openai-2"}])
+
+    assert set(vars(litellm)) == before
+    assert not any(name.endswith("_key") for name in vars(litellm))
+
+
+async def test_concurrent_calls_with_different_connections_do_not_cross_contaminate(
+    litellm, vault
+):
+    """Two tenants racing through the same process must never see each other's key.
+
+    A module-global attribute would let a slow second caller overwrite the key the first
+    caller is mid-flight on. Per-call kwargs make that structurally impossible.
+    """
+
+    vault(TWO_OPENAI_CONNECTIONS)
+
+    order = []
+
+    async def acompletion(**kwargs):
+        # The entry resolved second (openai-2) finishes first, exposing shared-state interference.
+        # would leak "sk-second" into the first entry's in-flight call.
+        if kwargs["api_key"] == "sk-second":
+            await asyncio.sleep(0)
+        else:
+            await asyncio.sleep(0.01)
+        order.append(kwargs["api_key"])
+        message = SimpleNamespace(
+            model_dump=lambda exclude_none=True: {"role": "assistant"}
+        )
+        return SimpleNamespace(choices=[SimpleNamespace(message=message)], usage=None)
+
+    litellm.acompletion = acompletion
+
+    first, second = await asyncio.gather(
+        _run([{"model": "gpt-4o-mini", "connection": "openai"}]),
+        _run([{"model": "gpt-4o-mini", "connection": "openai-2"}]),
+    )
+
+    assert order == ["sk-second", "sk-first"]
+    assert first[1] == {}
+    assert second[1] == {}
+
+
+@pytest.mark.parametrize("family", ["openai", "anthropic", "gemini"])
+@pytest.mark.parametrize("connection", [None, "custom-connection"])
+async def test_custom_connection_without_key_stops_before_model_call(
+    litellm, vault, monkeypatch, family, connection
+):
+    monkeypatch.setenv(f"{family.upper()}_API_KEY", "fixture-environment-key")
+    model = f"custom-connection/{family}/fixture-model"
+    vault(
+        [
+            _provider_key(kind=family, key="fixture-environment-key"),
+            {
+                "kind": "custom_provider",
+                "slug": "custom-connection",
+                "data": {
+                    "kind": family,
+                    "provider_slug": "custom-connection",
+                    "provider": {"extras": {"api_base": "https://provider.example/v1"}},
+                    "model_keys": [model],
+                },
+            },
+        ]
+    )
+    with pytest.raises(InvalidConfigurationParameterV0Error):
+        await _run([{"model": model, "connection": connection}])
+    assert litellm.calls == []

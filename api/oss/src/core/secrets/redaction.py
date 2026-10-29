@@ -22,19 +22,53 @@ from oss.src.core.secrets.dtos import (
     SecretResponseDTO,
     SecretValueStatus,
 )
+from oss.src.core.secrets.enums import SecretKind, SecretOwnerKind
 
 
-# The primary value field per secret kind, as (container attribute, field name). Lives
-# here rather than in the SDK classifier because it spans kinds the SDK never resolves —
-# SSO providers, webhook signing secrets — and no SDK code reads it. The extras
-# vocabulary beside it IS shared, and stays imported.
-PRIMARY_CREDENTIAL_FIELDS: Dict[str, Tuple[str, str]] = {
-    "provider_key": ("provider", "key"),
-    "custom_provider": ("provider", "key"),
-    "webhook_provider": ("provider", "key"),
-    "sso_provider": ("provider", "client_secret"),
-    "custom_secret": ("secret", "content"),
+# EVERY credential-bearing field per secret kind, as (container attribute, field names).
+# A list rather than one field per kind: a grant carries an access token AND a refresh
+# token, and the refresh token is the longer-lived of the two, so naming only the field
+# someone remembered returned the more valuable credential. Lives here rather than in the
+# SDK classifier because it spans kinds the SDK never resolves — SSO providers, webhook
+# signing secrets — and no SDK code reads it. The extras vocabulary beside it IS shared,
+# and stays imported.
+#
+# The FIRST field of each kind is its primary value: the one `value_status` previews and
+# the one the update path carries over. Order matters for that reason alone.
+CREDENTIAL_FIELDS: Dict[str, Tuple[str, Tuple[str, ...]]] = {
+    "provider_key": ("provider", ("key",)),
+    "custom_provider": ("provider", ("key",)),
+    "webhook_provider": ("provider", ("key",)),
+    "sso_provider": ("provider", ("client_secret",)),
+    "custom_secret": ("secret", ("content",)),
+    "channel_secret": (
+        "channel",
+        ("bot_token", "signing_secret", "webhook_secret", "access_token", "app_secret"),
+    ),
+    "oauth_provider": ("provider", ("client_secret",)),
+    "oauth_grant": ("grant", ("access_token", "refresh_token")),
 }
+
+
+# The primary field per kind, derived so the two views cannot disagree. Read by the
+# presence report (`apis/fastapi/providers/router.py`) and by the update carry-over
+# (`core/secrets/services.py`), which both mean "the one value this kind is named for".
+PRIMARY_CREDENTIAL_FIELDS: Dict[str, Tuple[str, str]] = {
+    kind: (container, fields[0])
+    for kind, (container, fields) in CREDENTIAL_FIELDS.items()
+}
+
+
+# Channels updates preserve omitted transport verification credentials.
+SECONDARY_CREDENTIAL_FIELDS: Dict[str, Tuple[str, Tuple[str, ...]]] = {
+    "channel_secret": ("channel", CREDENTIAL_FIELDS["channel_secret"][1][1:]),
+}
+
+
+# Free-form maps a settings container may carry. Both spellings are real: custom providers
+# declare `extras`, SSO and OAuth providers declare `extra`. Reading only one of them is
+# how a duplicated client secret survived redaction inside `extra["client_info"]`.
+CREDENTIAL_MAP_FIELDS: Tuple[str, ...] = ("extras", "extra")
 
 
 # Credential fields that sit on the data object itself instead of inside a nested
@@ -90,6 +124,34 @@ def primary_credential_value(secret: SecretResponseDTO) -> Optional[Any]:
     return getattr(container, field, None) if container is not None else None
 
 
+def _credential_maps(container: Any) -> Tuple[Tuple[str, Dict[str, Any]], ...]:
+    """The free-form maps present on this container, as (attribute, map) pairs."""
+    found = []
+    for attribute in CREDENTIAL_MAP_FIELDS:
+        value = getattr(container, attribute, None)
+        if isinstance(value, dict):
+            found.append((attribute, value))
+    return tuple(found)
+
+
+def _without_credential_keys(value: Any, keys: frozenset) -> Any:
+    """The same structure with every entry under a credential-named key removed.
+
+    Walks nested maps and lists: a credential that reaches a browser is no safer for
+    sitting one level down, and rows written before the dynamic-client-registration copy
+    was dropped still hold a client secret nested under ``extra["client_info"]``.
+    """
+    if isinstance(value, dict):
+        return {
+            key: _without_credential_keys(nested, keys)
+            for key, nested in value.items()
+            if key not in keys
+        }
+    if isinstance(value, list):
+        return [_without_credential_keys(item, keys) for item in value]
+    return value
+
+
 def _value_status(secret: SecretResponseDTO) -> SecretValueStatus:
     """Describe whether credential material exists without exposing it."""
     value = primary_credential_value(secret)
@@ -97,9 +159,9 @@ def _value_status(secret: SecretResponseDTO) -> SecretValueStatus:
         str(secret.kind.value), (None, None)
     )
     container = getattr(secret.data, container_name, None) if container_name else None
-    extras = getattr(container, "extras", None) or {}
     has_credential_extras = any(
         extras.get(extras_key) not in (None, "")
+        for _, extras in _credential_maps(container)
         for extras_key in CREDENTIAL_EXTRAS_KEYS
     )
 
@@ -113,18 +175,62 @@ def _value_status(secret: SecretResponseDTO) -> SecretValueStatus:
     )
 
 
+def _is_organization_row(secret: SecretResponseDTO) -> bool:
+    return (
+        secret.owner is not None and secret.owner.kind == SecretOwnerKind.ORGANIZATION
+    )
+
+
 def project_secret_response(
     secret: SecretResponseDTO,
     *,
     reveal_write_only: bool,
 ) -> PublicSecretResponseDTO:
-    """Build the public response, optionally retaining a write-only value for runtime."""
+    """Build the public response, optionally retaining a write-only value for runtime.
+
+    An organization row is never revealed, whatever `reveal_write_only` says, and has no
+    preview: no HTTP response carries an organization value or a part of one (M5). The one
+    exception is `organization_subscription_for_runtime`."""
+    return _projected(secret, reveal_write_only=reveal_write_only)
+
+
+def organization_subscription_for_runtime(
+    secret: SecretResponseDTO,
+) -> PublicSecretResponseDTO:
+    """An organization subscription login in plaintext, for the platform runtime only.
+
+    An organization subscription login is the one organization value that leaves the API
+    (M5): the run that named it carries it to the runner, which uses it like a project
+    login. The caller holds the `secret-resolve` grant (the run's own credential). Every
+    other organization value stays in the API."""
+    if (
+        not _is_organization_row(secret)
+        or secret.kind != SecretKind.SUBSCRIPTION_PROVIDER
+    ):
+        raise ValueError("Only an organization subscription login is released.")
+    return _projected(secret, reveal_write_only=True, release_organization_login=True)
+
+
+def _projected(
+    secret: SecretResponseDTO,
+    *,
+    reveal_write_only: bool,
+    release_organization_login: bool = False,
+) -> PublicSecretResponseDTO:
+    organization_row = _is_organization_row(secret)
+    if organization_row and not release_organization_login:
+        reveal_write_only = False
+
     public_data = secret.model_dump(mode="python", exclude={"management"})
     if secret.management is not None:
         public_data["management"] = {"policy": secret.management.policy}
 
+    value_status = _value_status(secret)
+    if organization_row:
+        value_status = SecretValueStatus(configured=value_status.configured)
+
     projected = PublicSecretResponseDTO.model_validate(
-        {**public_data, "value_status": _value_status(secret)}
+        {**public_data, "value_status": value_status}
     )
 
     if not reveal_write_only:
@@ -135,8 +241,8 @@ def project_secret_response(
     if not secret.write_only or reveal_write_only:
         return projected
 
-    container_name, field = PRIMARY_CREDENTIAL_FIELDS.get(
-        str(projected.kind.value), (None, None)
+    container_name, fields = CREDENTIAL_FIELDS.get(
+        str(projected.kind.value), (None, ())
     )
     if container_name is None:
         return projected
@@ -145,13 +251,15 @@ def project_secret_response(
     if container is None:
         return projected
 
-    if hasattr(container, field):
-        setattr(container, field, None)
+    for field in fields:
+        if hasattr(container, field):
+            setattr(container, field, None)
 
-    extras = getattr(container, "extras", None)
-    if extras:
-        for extras_key in CREDENTIAL_EXTRAS_KEYS:
-            extras.pop(extras_key, None)
+    # The kind's own credential names join the shared extras vocabulary, so a value copied
+    # out of a named field into a free-form map is stripped under either spelling.
+    credential_keys = frozenset(CREDENTIAL_EXTRAS_KEYS) | frozenset(fields)
+    for attribute, extras in _credential_maps(container):
+        setattr(container, attribute, _without_credential_keys(extras, credential_keys))
 
     return projected
 
@@ -159,3 +267,21 @@ def project_secret_response(
 def redact_secret_response(secret: SecretResponseDTO) -> PublicSecretResponseDTO:
     """Return the public response with write-only credential material stripped."""
     return project_secret_response(secret, reveal_write_only=False)
+
+
+def organization_secret_response(secret: SecretResponseDTO) -> PublicSecretResponseDTO:
+    """An organization row for its management routes: no value, no preview, with its
+    availability and selected projects."""
+    return project_secret_response(secret, reveal_write_only=False)
+
+
+def organization_connection_response(
+    secret: SecretResponseDTO,
+) -> PublicSecretResponseDTO:
+    """An organization row as a member of a project it is available to sees it: no value,
+    no preview, and nothing about other projects (`availability` and
+    `selected_project_ids` dropped)."""
+    return project_secret_response(
+        secret.model_copy(update={"availability": None, "selected_project_ids": None}),
+        reveal_write_only=False,
+    )

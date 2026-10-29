@@ -43,6 +43,14 @@ const CAPABILITIES: HarnessCapabilitiesMap = {
             anthropic: ["anthropic/claude-opus-4-7"],
             gemini: ["gemini/gemini-2.5-pro"],
         },
+        // The shipped catalog publishes user MCP servers for Pi too: the Agenta Pi extension is
+        // Pi's MCP client and consumes registered gateway routes.
+        mcp: {
+            user_servers: {
+                connection_types: ["http"],
+                credentials: ["none", "header_secret_refs"],
+            },
+        },
     },
     claude: {
         providers: ["anthropic"],
@@ -93,7 +101,13 @@ describe("connectionUtils: connectionFromConfig", () => {
                 provider: "openai",
                 connection: {mode: "agenta", slug: "openai-prod"},
             }),
-        ).toEqual({provider: "openai", mode: "agenta", slug: "openai-prod"})
+        ).toEqual({
+            provider: "openai",
+            mode: "agenta",
+            slug: "openai-prod",
+            namespace: null,
+            scope: null,
+        })
     })
 
     it("defaults the mode to agenta when the connection block is absent or unknown", () => {
@@ -111,15 +125,80 @@ describe("connectionUtils: connectionFromConfig", () => {
             provider: null,
             mode: "agenta",
             slug: null,
+            namespace: null,
+            scope: null,
         })
     })
 })
 
 describe("connectionUtils: composeModelValue (always a ModelRef)", () => {
+    it("round-trips an organization subscription login with its scope", () => {
+        const stored = {
+            provider: "openai-codex",
+            model: "gpt-5.5",
+            connection: {
+                mode: "self_managed",
+                slug: "chatgpt",
+                scope: "organization",
+                namespace: "organization",
+            },
+        }
+        const fields = connectionFromConfig(stored)
+        expect(
+            composeModelValue({
+                modelId: "gpt-5.5",
+                provider: fields.provider,
+                mode: fields.mode,
+                slug: fields.slug,
+                namespace: fields.namespace,
+                scope: fields.scope,
+                existing: stored,
+            }),
+        ).toEqual(stored)
+    })
+
+    it("writes a built-in pick's namespace beside its slug, and only there", () => {
+        const compose = (mode: "agenta" | "self_managed", slug: string | null) =>
+            composeModelValue({
+                modelId: "gpt-5.5",
+                provider: "openai",
+                mode,
+                slug,
+                namespace: "builtin",
+            })
+        expect(compose("agenta", "agenta").connection).toEqual({
+            mode: "agenta",
+            slug: "agenta",
+            namespace: "builtin",
+        })
+        expect(compose("agenta", null).connection).toBeUndefined()
+        expect(compose("self_managed", "chatgpt").connection).toEqual({
+            mode: "self_managed",
+            slug: "chatgpt",
+        })
+    })
+
     it("returns a structured object even for the default connection (no bare string)", () => {
         expect(
             composeModelValue({modelId: "gpt-5.5", provider: "openai", mode: "agenta", slug: null}),
         ).toEqual({model: "gpt-5.5", provider: "openai"})
+    })
+
+    it("writes an organization pick with its scope and the organization namespace", () => {
+        expect(
+            composeModelValue({
+                modelId: "gpt-5.5",
+                provider: "openai",
+                mode: "agenta",
+                slug: "openai-company",
+                scope: "organization",
+            }).connection,
+        ).toEqual({
+            mode: "agenta",
+            slug: "openai-company",
+            scope: "organization",
+            namespace: "organization",
+        })
     })
 
     it("includes the agenta connection with its slug", () => {
@@ -197,7 +276,9 @@ describe("connectionUtils: composeModelValue (always a ModelRef)", () => {
 describe("connectionUtils: capability gating (inspect-fed)", () => {
     it("shows external MCP authoring only when the harness publishes it", () => {
         expect(harnessSupportsUserMcp(CAPABILITIES, "claude")).toBe(true)
-        expect(harnessSupportsUserMcp(CAPABILITIES, "pi_core")).toBe(false)
+        expect(harnessSupportsUserMcp(CAPABILITIES, "pi_core")).toBe(true)
+        // A harness that publishes no `mcp` block at all still hides the section.
+        expect(harnessSupportsUserMcp(CAPABILITIES, "pi_openai_compat")).toBe(false)
         expect(harnessSupportsUserMcp(null, "claude")).toBe(false)
     })
 

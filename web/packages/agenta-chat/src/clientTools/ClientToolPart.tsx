@@ -18,25 +18,33 @@ import {canonicalToolName, resolveClientToolWidget, resolveToolDisplay} from "..
 import {clientToolMeta} from "./meta"
 import UnhandledClientTool from "./UnhandledClientTool"
 
-/** Settle a parked client tool; await durable submission when the host owns it. */
+/**
+ * Settle a parked client tool; await durable submission when the host owns it. Resolves `false`
+ * when the write did not land and the gate is still open — the host reports the failure itself,
+ * so the promise does not reject, but a caller that must know (the card's spinner, a message
+ * steering in behind the settle) reads it here.
+ */
 export type ClientToolOutputHandler = (args: {
     toolName: string
     toolCallId: string
     output?: Record<string, unknown>
     errorText?: string
-}) => void | Promise<void>
+}) => void | boolean | Promise<void | boolean>
 
 const ClientToolPart = ({
     part,
     onOutput,
     renderMap,
     degradedEarlierInTurn,
+    bare,
 }: {
     part: ToolUIPart
     onOutput: ClientToolOutputHandler
     renderMap?: Map<string, RenderHintLike>
     /** Retry cap: an earlier part in this turn already auto-settled as an elicitation degradation. */
     degradedEarlierInTurn?: boolean
+    /** See `ClientToolWidgetProps.bare`. */
+    bare?: boolean
 }) => {
     const meta = clientToolMeta(part, renderMap)
     // The handler is a STABLE module-level component picked from the registry (not created during
@@ -71,7 +79,7 @@ const ClientToolPart = ({
 
     return (
         <div data-client-tool-call-id={meta.toolCallId}>
-            {createElement(handler, {meta, settle, degradedEarlierInTurn, askerLabel})}
+            {createElement(handler, {meta, settle, degradedEarlierInTurn, askerLabel, bare})}
         </div>
     )
 }

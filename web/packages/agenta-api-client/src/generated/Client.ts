@@ -4,11 +4,15 @@ import { AccessClient } from "./api/resources/access/client/Client.js";
 import { AnnotationsClient } from "./api/resources/annotations/client/Client.js";
 import { ApplicationsClient } from "./api/resources/applications/client/Client.js";
 import { BillingClient } from "./api/resources/billing/client/Client.js";
+import { ChannelsClient } from "./api/resources/channels/client/Client.js";
 import { EnvironmentsClient } from "./api/resources/environments/client/Client.js";
 import { EvaluationsClient } from "./api/resources/evaluations/client/Client.js";
 import { EvaluatorsClient } from "./api/resources/evaluators/client/Client.js";
 import { EventsClient } from "./api/resources/events/client/Client.js";
 import { FoldersClient } from "./api/resources/folders/client/Client.js";
+import { GatewayClient } from "./api/resources/gateway/client/Client.js";
+import { GatewayLlmClient } from "./api/resources/gatewayLlm/client/Client.js";
+import { GatewayMcpClient } from "./api/resources/gatewayMcp/client/Client.js";
 import { InvocationsClient } from "./api/resources/invocations/client/Client.js";
 import { KeysClient } from "./api/resources/keys/client/Client.js";
 import { LegacyClient } from "./api/resources/legacy/client/Client.js";
@@ -18,6 +22,7 @@ import { ProjectsClient } from "./api/resources/projects/client/Client.js";
 import { QueriesClient } from "./api/resources/queries/client/Client.js";
 import { SecretsClient } from "./api/resources/secrets/client/Client.js";
 import { SessionsClient } from "./api/resources/sessions/client/Client.js";
+import { SharingClient } from "./api/resources/sharing/client/Client.js";
 import { SkillsClient } from "./api/resources/skills/client/Client.js";
 import { StatusClient } from "./api/resources/status/client/Client.js";
 import { TestcasesClient } from "./api/resources/testcases/client/Client.js";
@@ -63,8 +68,13 @@ export class AgentaApiClient {
     protected _environments: EnvironmentsClient | undefined;
     protected _tools: ToolsClient | undefined;
     protected _triggers: TriggersClient | undefined;
+    protected _channels: ChannelsClient | undefined;
+    protected _gateway: GatewayClient | undefined;
+    protected _gatewayLlm: GatewayLlmClient | undefined;
+    protected _gatewayMcp: GatewayMcpClient | undefined;
     protected _evaluations: EvaluationsClient | undefined;
     protected _mounts: MountsClient | undefined;
+    protected _sharing: SharingClient | undefined;
     protected _status: StatusClient | undefined;
     protected _projects: ProjectsClient | undefined;
     protected _users: UsersClient | undefined;
@@ -163,12 +173,32 @@ export class AgentaApiClient {
         return (this._triggers ??= new TriggersClient(this._options));
     }
 
+    public get channels(): ChannelsClient {
+        return (this._channels ??= new ChannelsClient(this._options));
+    }
+
+    public get gateway(): GatewayClient {
+        return (this._gateway ??= new GatewayClient(this._options));
+    }
+
+    public get gatewayLlm(): GatewayLlmClient {
+        return (this._gatewayLlm ??= new GatewayLlmClient(this._options));
+    }
+
+    public get gatewayMcp(): GatewayMcpClient {
+        return (this._gatewayMcp ??= new GatewayMcpClient(this._options));
+    }
+
     public get evaluations(): EvaluationsClient {
         return (this._evaluations ??= new EvaluationsClient(this._options));
     }
 
     public get mounts(): MountsClient {
         return (this._mounts ??= new MountsClient(this._options));
+    }
+
+    public get sharing(): SharingClient {
+        return (this._sharing ??= new SharingClient(this._options));
     }
 
     public get status(): StatusClient {

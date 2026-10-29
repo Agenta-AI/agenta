@@ -60,8 +60,11 @@ const SessionSearchPalette = ({projectURL}: {projectURL: string}) => {
                 <DialogTitle className="sr-only">Search sessions</DialogTitle>
                 <div className="flex h-11 items-center gap-[10px] border-0 border-b border-solid border-colorBorderSecondary px-3.5">
                     <MagnifyingGlass size={16} className="shrink-0 text-colorTextTertiary" />
+                    {/* Ghost: the palette row is the field's frame, so the input draws no border
+                        and no focus ring of its own. */}
                     <Input
                         autoFocus
+                        variant="ghost"
                         value={query}
                         onChange={(event) => setQuery(event.target.value)}
                         placeholder="Search sessions"

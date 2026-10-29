@@ -1,16 +1,15 @@
-import {useCallback} from "react"
-
-import {AgentActionsMenu, AgentChip, useRenameAgent} from "@agenta/entity-ui/agent"
-import {InlineRenameInput, useDeferredMenuSelect, useInlineRename} from "@agenta/sessions-ui"
+import {AgentActionsMenu, AgentChip} from "@agenta/entity-ui/agent"
+import {InlineRenameInput} from "@agenta/sessions-ui"
 
 import {lastActiveLabel, NO_DESCRIPTION, type AgentListRow} from "./agentListView"
+import {AgentPrivateMarker} from "./AgentPrivateMarker"
+import {AGENT_RENAME_INPUT_CLASS, useAgentInlineRename} from "./useAgentInlineRename"
 
 /**
  * One agent's cells, in column order.
  *
  * A component rather than a closure inside the table's `renderRow`, because a row holds state:
- * rename happens IN PLACE, the way a session row renames, so the row owns the editor and the
- * menu entry that starts it.
+ * rename happens IN PLACE, so the row owns the editor and the menu entry that starts it.
  */
 export const AgentRowCells = ({
     row,
@@ -18,23 +17,12 @@ export const AgentRowCells = ({
     onOpen,
 }: {
     row: AgentListRow
-    /** A phone has no Created by column; the cell is dropped, not hidden. */
+    /** A phone has no Owner column; the cell is dropped, not hidden. */
     narrow: boolean
     /** The row's own click already does this; the menu offers it in words. */
     onOpen: (row: AgentListRow) => void
 }) => {
-    const renameAgent = useRenameAgent()
-    const onCommit = useCallback((name: string) => renameAgent(row.id, name), [renameAgent, row.id])
-    const rename = useInlineRename({
-        current: row.name,
-        onCommit,
-        errorText: "Couldn't rename this agent",
-    })
-    // The editor must not mount inside the menu's focus trap — Radix would restore focus to the
-    // trigger as the menu closes, and a blur commits — so the verb runs from the close instead.
-    const {handleSelect, handleCloseAutoFocus} = useDeferredMenuSelect((key) => {
-        if (key === "rename") return () => rename.start()
-    })
+    const {rename, startFromMenu, handleCloseAutoFocus} = useAgentInlineRename(row)
 
     return (
         <>
@@ -54,7 +42,7 @@ export const AgentRowCells = ({
                             <InlineRenameInput
                                 rename={rename}
                                 ariaLabel="Agent name"
-                                className="h-7 w-full min-w-0 rounded-md border border-solid border-input bg-background px-2 text-[14px] leading-none text-foreground shadow-xs outline-none transition-[color,box-shadow] [font-family:inherit] selection:bg-primary selection:text-primary-foreground focus:border-ring focus:ring-[3px] focus:ring-ring/50 dark:bg-input/30"
+                                className={AGENT_RENAME_INPUT_CLASS}
                             />
                         </span>
                     ) : (
@@ -69,6 +57,7 @@ export const AgentRowCells = ({
                             >
                                 {row.name}
                             </span>
+                            {row.isPrivate ? <AgentPrivateMarker /> : null}
                             {/* The same badge a card carries: without it the Status facet
                                 narrows the list to rows that say nothing about why. */}
                             {row.waiting > 0 ? (
@@ -115,7 +104,7 @@ export const AgentRowCells = ({
                     agent={{id: row.id, name: row.name}}
                     align="end"
                     onOpen={() => onOpen(row)}
-                    onRename={() => handleSelect("rename")}
+                    onRename={startFromMenu}
                     onCloseAutoFocus={handleCloseAutoFocus}
                 />
             </span>

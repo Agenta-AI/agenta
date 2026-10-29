@@ -49,7 +49,7 @@ from oss.src.dbs.postgres.sessions.inputs.dao import SessionInputsDAO
 import oss.src.dbs.postgres.shared.engine as engine_module
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 import oss.src.models.db_models  # noqa: F401
-from oss.src.utils.env import env
+from oss.tests.pytest.utils.principals import make_envelope
 
 
 pytestmark = pytest.mark.integration
@@ -290,7 +290,6 @@ async def _pending_command(scope, *, data=None):
 async def test_completion_promotes_one_fifo_input_in_the_settlement_transaction(
     input_scope, monkeypatch
 ):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
     inputs = SessionInputsDAO(engine=input_scope["engine"])
     first = await inputs.create_input(
         user_id=input_scope["user_id"],
@@ -302,12 +301,12 @@ async def test_completion_promotes_one_fifo_input_in_the_settlement_transaction(
     )
     service = _settlement_service(input_scope, inputs)
 
-    assert await service.settle_execution_completed(
+    assert await service.settle_execution_ended(
         project_id=input_scope["project_id"],
         session_id=input_scope["session_id"],
         execution_id="source-turn",
     )
-    assert await service.settle_execution_completed(
+    assert await service.settle_execution_ended(
         project_id=input_scope["project_id"],
         session_id=input_scope["session_id"],
         execution_id="source-turn",
@@ -351,7 +350,6 @@ async def test_completion_promotes_one_fifo_input_in_the_settlement_transaction(
 async def test_admission_rechecks_settlement_under_the_execution_lock(
     input_scope, monkeypatch
 ):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
     inputs = SessionInputsDAO(engine=input_scope["engine"])
     executions = SessionExecutionsDAO(engine=input_scope["engine"])
     streams = _SettlementRaceStreams()
@@ -377,11 +375,12 @@ async def test_admission_rechecks_settlement_under_the_execution_lock(
             content={"message": "arrived during settlement"},
             policy="queue",
             idempotency_key="settlement-race",
+            envelope=make_envelope(),
         )
     )
     await streams.observed_busy.wait()
 
-    assert await settlement_service.settle_execution_completed(
+    assert await settlement_service.settle_execution_ended(
         project_id=input_scope["project_id"],
         session_id=input_scope["session_id"],
         execution_id="source-turn",
@@ -401,7 +400,6 @@ async def test_admission_rechecks_settlement_under_the_execution_lock(
 async def test_admission_queues_behind_running_input_promoted_by_settlement(
     input_scope, monkeypatch
 ):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
     inputs = SessionInputsDAO(engine=input_scope["engine"])
     older = await inputs.create_input(
         user_id=input_scope["user_id"],
@@ -431,11 +429,12 @@ async def test_admission_queues_behind_running_input_promoted_by_settlement(
             content={"message": "arrived during settlement"},
             policy="queue",
             idempotency_key="settlement-race",
+            envelope=make_envelope(),
         )
     )
     await streams.observed_busy.wait()
 
-    assert await settlement_service.settle_execution_completed(
+    assert await settlement_service.settle_execution_ended(
         project_id=input_scope["project_id"],
         session_id=input_scope["session_id"],
         execution_id="source-turn",
@@ -480,8 +479,6 @@ async def test_admission_queues_behind_running_input_promoted_by_settlement(
 async def test_manual_stop_commits_without_promoting_pending_input(
     input_scope, monkeypatch
 ):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    monkeypatch.setattr(env.agenta.sessions, "steer", True)
     inputs = SessionInputsDAO(engine=input_scope["engine"])
     pending = await inputs.create_input(
         user_id=input_scope["user_id"],
@@ -513,7 +510,6 @@ async def test_manual_stop_commits_without_promoting_pending_input(
 async def test_concurrent_idempotent_admission_returns_one_postgres_row(
     input_scope, monkeypatch
 ):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
     service = SessionInputsService(
         inputs_dao=SessionInputsDAO(engine=input_scope["engine"]),
         streams_service=_BusyStreams(),
@@ -525,6 +521,7 @@ async def test_concurrent_idempotent_admission_returns_one_postgres_row(
         "content": {"message": "same"},
         "policy": "queue",
         "idempotency_key": "same-key",
+        "envelope": make_envelope(),
     }
 
     first, retry = await asyncio.wait_for(
@@ -544,7 +541,6 @@ async def test_concurrent_idempotent_admission_returns_one_postgres_row(
 
 
 async def test_conflicting_key_returns_the_409_envelope(input_scope, monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
     monkeypatch.setattr(
         router_module, "check_action_access", AsyncMock(return_value=True)
     )
@@ -586,7 +582,6 @@ async def test_conflicting_key_returns_the_409_envelope(input_scope, monkeypatch
 
 
 async def test_promoted_input_cannot_be_removed(input_scope, monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
     inputs = SessionInputsDAO(engine=input_scope["engine"])
     item = await inputs.create_input(
         user_id=input_scope["user_id"],
@@ -611,8 +606,6 @@ async def test_promoted_input_cannot_be_removed(input_scope, monkeypatch):
 async def test_steer_is_committed_before_failed_stop_and_stays_first(
     input_scope, monkeypatch
 ):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    monkeypatch.setattr(env.agenta.sessions, "steer", True)
     dao = SessionInputsDAO(engine=input_scope["engine"])
     await dao.create_input(
         user_id=input_scope["user_id"],
@@ -659,8 +652,6 @@ async def test_steer_is_committed_before_failed_stop_and_stays_first(
 
 
 async def test_steer_stop_promotes_only_the_bound_input(input_scope, monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    monkeypatch.setattr(env.agenta.sessions, "steer", True)
     inputs = SessionInputsDAO(engine=input_scope["engine"])
     older = await inputs.create_input(
         user_id=input_scope["user_id"],
@@ -737,8 +728,6 @@ async def test_steer_stop_promotes_only_the_bound_input(input_scope, monkeypatch
 
 
 async def test_steer_bind_wins_before_stop_settlement(input_scope, monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    monkeypatch.setattr(env.agenta.sessions, "steer", True)
     monkeypatch.setattr(
         commands_service_module,
         "get_running_owner",
@@ -802,8 +791,6 @@ async def test_steer_bind_wins_before_stop_settlement(input_scope, monkeypatch):
 
 
 async def test_stop_settlement_wins_before_steer_bind(input_scope, monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    monkeypatch.setattr(env.agenta.sessions, "steer", True)
     monkeypatch.setattr(
         commands_service_module,
         "get_running_owner",
@@ -875,8 +862,6 @@ async def test_stop_settlement_wins_before_steer_bind(input_scope, monkeypatch):
 async def test_admission_follows_approval_continuation_before_stream_header_catches_up(
     input_scope, monkeypatch, policy, state
 ):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    monkeypatch.setattr(env.agenta.sessions, "steer", True)
     inputs = SessionInputsDAO(engine=input_scope["engine"])
     executions = SessionExecutionsDAO(engine=input_scope["engine"])
     scope = {
@@ -924,6 +909,7 @@ async def test_admission_follows_approval_continuation_before_stream_header_catc
         content={"message": "after approved work"},
         policy=policy,
         idempotency_key="approval-start-gap",
+        envelope=make_envelope(),
     )
     if state == "terminal":
         assert admission.action == "execute"
@@ -938,8 +924,6 @@ async def test_admission_follows_approval_continuation_before_stream_header_catc
 async def test_send_now_preserves_selected_row_and_remaining_order(
     input_scope, monkeypatch, idle
 ):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    monkeypatch.setattr(env.agenta.sessions, "steer", True)
     inputs = SessionInputsDAO(engine=input_scope["engine"])
     executions = SessionExecutionsDAO(engine=input_scope["engine"])
     service = _cancel_service(input_scope, inputs, executions=executions)
@@ -1020,8 +1004,6 @@ async def test_send_now_preserves_selected_row_and_remaining_order(
 
 
 async def test_send_now_does_not_resurrect_removed_input(input_scope, monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    monkeypatch.setattr(env.agenta.sessions, "steer", True)
     inputs = SessionInputsDAO(engine=input_scope["engine"])
     row = await inputs.create_input(
         user_id=input_scope["user_id"],
@@ -1061,8 +1043,6 @@ async def test_send_now_does_not_resurrect_removed_input(input_scope, monkeypatc
 async def test_send_now_stop_promotes_selected_once_and_holds_other_rows(
     input_scope, monkeypatch
 ):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    monkeypatch.setattr(env.agenta.sessions, "steer", True)
     inputs = SessionInputsDAO(engine=input_scope["engine"])
     executions = SessionExecutionsDAO(engine=input_scope["engine"])
     service = _cancel_service(input_scope, inputs, executions=executions)
@@ -1124,8 +1104,6 @@ async def test_send_now_stop_promotes_selected_once_and_holds_other_rows(
 
 
 async def test_competing_send_now_keeps_losing_row_unchanged(input_scope, monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    monkeypatch.setattr(env.agenta.sessions, "steer", True)
     inputs = SessionInputsDAO(engine=input_scope["engine"])
     service = _cancel_service(
         input_scope,
@@ -1173,8 +1151,6 @@ async def test_competing_send_now_keeps_losing_row_unchanged(input_scope, monkey
 async def test_send_now_route_rejects_cross_session_and_removed_rows(
     input_scope, monkeypatch
 ):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    monkeypatch.setattr(env.agenta.sessions, "steer", True)
     monkeypatch.setattr(
         router_module, "check_action_access", AsyncMock(return_value=True)
     )
@@ -1215,8 +1191,6 @@ async def test_send_now_route_rejects_cross_session_and_removed_rows(
 async def test_send_now_parked_input_continuation_advances_when_runner_not_held(
     input_scope, monkeypatch
 ):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    monkeypatch.setattr(env.agenta.sessions, "steer", True)
     monkeypatch.setattr(
         commands_service_module, "get_running_owner", AsyncMock(return_value=None)
     )
@@ -1256,7 +1230,9 @@ async def test_send_now_parked_input_continuation_advances_when_runner_not_held(
     service._interactions.cancel_session_pending.return_value = 1
 
     class ParkedDelivery(_UnreachableDelivery):
-        async def deliver(self, *, command):
+        async def deliver(
+            self, *, command, runner_address=None, runner_replica_id=None
+        ):
             return DeliveryReceipt(
                 status="not_held"
                 if command.kind == SessionCommandKind.cancel
@@ -1302,8 +1278,6 @@ async def test_send_now_parked_input_continuation_advances_when_runner_not_held(
 
 
 async def test_send_now_reservation_blocks_concurrent_removal(input_scope, monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    monkeypatch.setattr(env.agenta.sessions, "steer", True)
     inputs = SessionInputsDAO(engine=input_scope["engine"])
     executions = SessionExecutionsDAO(engine=input_scope["engine"])
     service = _cancel_service(input_scope, inputs, executions=executions)
@@ -1422,6 +1396,7 @@ async def test_edit_pending_preserves_payload_identity_and_retry_attachments(
         content=values.content,
         policy=values.policy,
         idempotency_key=values.idempotency_key,
+        envelope=make_envelope(),
     )
     assert original_retry.input.id == row.id
     assert original_retry.input.content == edited.content
@@ -1710,3 +1685,108 @@ def test_edit_pending_ui_parts_preserves_durable_attachment_identity():
             "providerMetadata": {"agenta": {"attachmentId": new_attachment_id}},
         },
     ]
+
+
+async def _promoted_input(scope, inputs, *, key: str, execution_id: str):
+    """One promoted, un-claimed row, created the way the template load creates it."""
+    service = SessionInputsService(inputs_dao=inputs, streams_service=SimpleNamespace())
+    content = {"session_id": scope["session_id"], "data": {"messages": [key]}}
+    return await service.claim_for_execution(
+        project_id=scope["project_id"],
+        user_id=scope["user_id"],
+        session_id=scope["session_id"],
+        execution_id=execution_id,
+        content=content,
+        idempotency_key=key,
+        envelope=make_envelope(),
+    )
+
+
+async def _is_claimed(scope, input_id) -> bool:
+    async with scope["engine"].session() as session:
+        return await session.scalar(
+            text("SELECT dispatch_claimed FROM session_inputs WHERE id = :id"),
+            {"id": input_id},
+        )
+
+
+async def test_dispatch_claim_is_one_shot_and_its_release_gives_back_exactly_one(
+    input_scope,
+):
+    scope = input_scope
+    inputs = SessionInputsDAO(engine=scope["engine"])
+    execution_id = "execution-claim-1"
+    item = await _promoted_input(
+        scope, inputs, key="claim-1", execution_id=execution_id
+    )
+    claim = {
+        "project_id": scope["project_id"],
+        "session_id": scope["session_id"],
+        "input_id": item.id,
+        "execution_id": execution_id,
+    }
+
+    assert await inputs.claim_dispatch(**claim) is True
+    assert await _is_claimed(scope, item.id) is True
+    # The second claim is the at-most-once guarantee: one row, one dispatch.
+    assert await inputs.claim_dispatch(**claim) is False
+
+    assert await inputs.release_dispatch(**claim) is True
+    assert await _is_claimed(scope, item.id) is False
+    # And the release is compare-and-set too, so a second releaser cannot hand out a
+    # second dispatch on a claim that is already back.
+    assert await inputs.release_dispatch(**claim) is False
+
+    assert await inputs.claim_dispatch(**claim) is True
+    assert await inputs.claim_dispatch(**claim) is False
+
+
+async def test_release_dispatch_refuses_a_row_promoted_for_another_execution(
+    input_scope,
+):
+    scope = input_scope
+    inputs = SessionInputsDAO(engine=scope["engine"])
+    execution_id = "execution-claim-2"
+    item = await _promoted_input(
+        scope, inputs, key="claim-2", execution_id=execution_id
+    )
+    claim = {
+        "project_id": scope["project_id"],
+        "session_id": scope["session_id"],
+        "input_id": item.id,
+        "execution_id": execution_id,
+    }
+    assert await inputs.claim_dispatch(**claim) is True
+
+    for wrong in (
+        {**claim, "execution_id": "a-different-execution"},
+        {**claim, "project_id": uuid.uuid4()},
+        {**claim, "session_id": "a-different-session"},
+        {**claim, "input_id": uuid.uuid4()},
+    ):
+        assert await inputs.release_dispatch(**wrong) is False
+        assert await _is_claimed(scope, item.id) is True
+
+    assert await inputs.release_dispatch(**claim) is True
+
+
+async def test_concurrent_claims_after_a_release_let_exactly_one_through(input_scope):
+    scope = input_scope
+    inputs = SessionInputsDAO(engine=scope["engine"])
+    execution_id = "execution-claim-3"
+    item = await _promoted_input(
+        scope, inputs, key="claim-3", execution_id=execution_id
+    )
+    claim = {
+        "project_id": scope["project_id"],
+        "session_id": scope["session_id"],
+        "input_id": item.id,
+        "execution_id": execution_id,
+    }
+    assert await inputs.claim_dispatch(**claim) is True
+    assert await inputs.release_dispatch(**claim) is True
+
+    won = await asyncio.gather(*(inputs.claim_dispatch(**claim) for _ in range(8)))
+
+    assert won.count(True) == 1
+    assert await _is_claimed(scope, item.id) is True

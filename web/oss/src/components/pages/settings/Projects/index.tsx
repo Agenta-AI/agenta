@@ -16,7 +16,6 @@ const ProjectsSettings = () => {
     const {projects, isLoading} = useProjectData()
     const {workspaceId} = useURL()
     const [createForm] = Form.useForm<ProjectFormValues>()
-    const [renameForm] = Form.useForm<ProjectFormValues>()
 
     return (
         <ProjectsPage
@@ -51,30 +50,6 @@ const ProjectsSettings = () => {
                             extra="The default project is used whenever a workspace is selected from the navigation."
                         >
                             <Switch />
-                        </Form.Item>
-                    </Form>
-                </EnhancedModal>
-            )}
-            renderRenameDialog={({open, onClose, onSubmit, pending, project}) => (
-                <EnhancedModal
-                    title="Rename project"
-                    open={open}
-                    okText="Save"
-                    afterOpenChange={(visible) => {
-                        if (visible) renameForm.setFieldsValue({name: project?.project_name})
-                    }}
-                    afterClose={() => renameForm.resetFields()}
-                    onCancel={onClose}
-                    onOk={() => renameForm.submit()}
-                    confirmLoading={pending}
-                >
-                    <Form form={renameForm} layout="vertical" onFinish={onSubmit}>
-                        <Form.Item
-                            label="Project name"
-                            name="name"
-                            rules={[{required: true, message: "Please enter a project name"}]}
-                        >
-                            <Input placeholder="Project name" />
                         </Form.Item>
                     </Form>
                 </EnhancedModal>

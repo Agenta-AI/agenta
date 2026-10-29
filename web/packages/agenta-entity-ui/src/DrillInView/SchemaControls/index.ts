@@ -93,6 +93,7 @@ export {
     withRunnerPermission,
     readModelId,
     readModelConnectionSlug,
+    readModelConnection,
     readHarnessKind,
     readRunnerPermission,
     readAgentItems,
@@ -125,6 +126,7 @@ export type {ModelOptionGroup, VaultModelSource} from "./connectionUtils"
 export {
     buildConnectionPickerRows,
     connectionModelIds,
+    displayedModelRow,
     effectiveHarnesses,
     firstPickerSelectionForConnection,
     modelRowKey,
@@ -147,6 +149,7 @@ export {
     describeMcp,
     describeSkill,
     describeTool,
+    skillCommandName,
     staticEmbedSlug,
     toolName,
 } from "./agentTemplate/itemDescriptors"

@@ -1,0 +1,1 @@
+{"title":"Body","body":{"content":{"application/json":{"schema":{"properties":{"connection_id":{"type":"string","format":"uuid","title":"Connection Id"}},"type":"object","required":["connection_id"],"title":"ChannelSpaceDiscoverRequest","description":"No core DTO either: `discover_spaces` persists nothing, so its only\ninput is the connection to ask."}}},"required":true}}

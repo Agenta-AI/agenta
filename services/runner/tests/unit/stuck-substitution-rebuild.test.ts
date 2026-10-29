@@ -914,6 +914,42 @@ describe("acquireEnvironment rebuilds a stuck sandbox on the same Secret", () =>
     );
   });
 
+  it("rebuilds a stuck sandbox for a Claude setup-token too", async () => {
+    const { deps, events, preflightCalls } = acquireFixture(["stuck", "ok"]);
+    const tokenRequest: AgentRunRequest = {
+      ...daytonaRequest,
+      modelConnection: {
+        ...daytonaRequest.modelConnection!,
+        credentials: [
+          {
+            binding: { kind: "environment", name: "CLAUDE_CODE_OAUTH_TOKEN" },
+            value: "the claude setup-token under test",
+            usage: "opaque_http",
+          },
+        ],
+      },
+    };
+
+    const result = await acquireEnvironment(tokenRequest, deps);
+
+    assert.equal(result.ok, true, `acquire failed: ${(result as any).error}`);
+    assert.equal(
+      preflightCalls.length,
+      2,
+      "the token is probed, and the retry too",
+    );
+    assert.deepEqual(secretEvents(events), ["secret:create:secret-1"]);
+    assert.deepEqual(
+      events.filter((event) => event.startsWith("sandbox:")),
+      [
+        "sandbox:create:sandbox-1",
+        "sandbox:destroy:sandbox-1",
+        "sandbox:create:sandbox-2",
+      ],
+    );
+    if (result.ok) await result.env.destroy({ reason: "failed-turn" });
+  });
+
   it("reports a doubly stuck acquire as a credential-delivery failure", async () => {
     // The user used to read the preflight's internal sentence, coded `agent_run_failed`, which
     // the web cannot offer a retry for. Every attempt being convicted means the model key never

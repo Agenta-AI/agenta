@@ -108,7 +108,7 @@ All config is read from the environment at first use, so set it before the first
 
 | Env var | Meaning |
 |---|---|
-| `AGENTA_HOST` | Agenta base URL, for example `http://144.76.237.122:8280`. A trailing slash is stripped. |
+| `AGENTA_HOST` | Agenta base URL, for example `http://<dev-host>:8280`. A trailing slash is stripped. |
 | `AGENTA_API_KEY` | Agenta project API key. The project is resolved from the key, so no `project_id` is needed. |
 | `PI_OTEL_CAPTURE_CONTENT` | Set to `0` to drop prompts, completions, and tool I/O from spans. Default is on. |
 | `OTEL_SERVICE_NAME` | Resource `service.name`, default `pi-agent`. |

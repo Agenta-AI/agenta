@@ -21,6 +21,7 @@ import {
 import { join } from "node:path";
 
 import type { AgentEvent, AgentRunRequest } from "../../src/protocol.ts";
+import { SUPERSEDED_TURN_NOTE } from "../../src/engines/sandbox_agent/superseded-turn.ts";
 import {
   createSandboxAgentOtel,
   TOOL_NOT_EXECUTED_PAUSED,
@@ -62,6 +63,7 @@ import {
   resetExecutionsForTest,
 } from "../../src/sessions/execution-registry.ts";
 import { applyCommand } from "../../src/sessions/control-channel.ts";
+import { DEFAULT_TOOL_CALL_TIMEOUT_MS } from "../../src/engines/sandbox_agent/run-limits.ts";
 
 // Orchestration cases include Daytona runs: enable it (with a provisioning credential) on top of
 // the hermetic scrub, then drop the memoized config so the run plan reads the enabled set.
@@ -248,7 +250,7 @@ describe("runSandboxAgent orchestration", () => {
         const first = await runTurn(acquired.env, request);
         assert.equal(first.ok, true);
         assert.deepEqual(calls.promptBlocks, [
-          { type: "text", text: request.turnContext },
+          { type: "text", text: `${request.turnContext}\n\n` },
           { type: "text", text: "hello" },
         ]);
 
@@ -269,7 +271,7 @@ describe("runSandboxAgent orchestration", () => {
         assert.equal(acquired.env.session, session);
         assert.equal(calls.sandboxDestroyed, 0);
         assert.deepEqual(calls.promptBlocks, [
-          { type: "text", text: next.turnContext },
+          { type: "text", text: `${next.turnContext}\n\n` },
           { type: "text", text: "continue" },
         ]);
         assert.deepEqual(calls.runStart.messages.at(-1), {
@@ -280,6 +282,85 @@ describe("runSandboxAgent orchestration", () => {
           JSON.stringify(next.messages).includes("first turn"),
           false,
         );
+      } finally {
+        await acquired.env.destroy();
+      }
+    });
+  }
+
+  it("claude: frames a message that follows an unanswered one as replacing it", async () => {
+    const { calls, deps } = fakeHarness();
+    const request: AgentRunRequest = {
+      harness: "claude",
+      turnContext: "This is not the first turn.",
+      messages: [
+        { role: "user", content: "run sleep 20" },
+        { role: "user", content: "Reply with exactly: STEERED" },
+      ],
+    };
+    const acquired = await acquireEnvironment(request, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    try {
+      const result = await runTurn(acquired.env, request, undefined, undefined, {
+        continuation: true,
+      });
+      assert.equal(result.ok, true);
+      assert.deepEqual(calls.promptBlocks, [
+        { type: "text", text: `${request.turnContext}\n\n` },
+        { type: "text", text: SUPERSEDED_TURN_NOTE },
+        { type: "text", text: "Reply with exactly: STEERED" },
+      ]);
+      assert.equal(JSON.stringify(calls.runStart.messages).includes("no reply"), false);
+    } finally {
+      await acquired.env.destroy();
+    }
+  });
+
+  it("claude: leaves a slash command that follows an unanswered message unframed", async () => {
+    const { calls, deps } = fakeHarness();
+    const request: AgentRunRequest = {
+      harness: "claude",
+      messages: [
+        { role: "user", content: "run sleep 20" },
+        { role: "user", content: "/context" },
+      ],
+    };
+    const acquired = await acquireEnvironment(request, deps);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    try {
+      const result = await runTurn(acquired.env, request, undefined, undefined, {
+        continuation: true,
+      });
+      assert.equal(result.ok, true);
+      assert.deepEqual(calls.promptBlocks, [{ type: "text", text: "/context" }]);
+    } finally {
+      await acquired.env.destroy();
+    }
+  });
+
+  for (const harness of ["pi_core", "codex"] as const) {
+    it(`${harness}: leaves a message that follows an unanswered one unframed`, async () => {
+      const { calls, deps } = fakeHarness();
+      const request: AgentRunRequest = {
+        harness,
+        messages: [
+          { role: "user", content: "run sleep 20" },
+          { role: "user", content: "Reply with exactly: STEERED" },
+        ],
+      };
+      const acquired = await acquireEnvironment(request, deps);
+      assert.equal(acquired.ok, true);
+      if (!acquired.ok) return;
+      try {
+        const result = await runTurn(acquired.env, request, undefined, undefined, {
+          continuation: true,
+        });
+        assert.equal(result.ok, true);
+        assert.deepEqual(calls.promptBlocks, [
+          { type: "text", text: "Reply with exactly: STEERED" },
+        ]);
       } finally {
         await acquired.env.destroy();
       }
@@ -314,7 +395,7 @@ describe("runSandboxAgent orchestration", () => {
       assert.equal(result.ok, true);
       assert.deepEqual(calls.promptBlocks[0], {
         type: "text",
-        text: request.turnContext,
+        text: `${request.turnContext}\n\n`,
       });
       const prompt = calls.promptBlocks?.[1]?.text ?? "";
       assert.match(prompt, /^Conversation so far:/);
@@ -427,7 +508,7 @@ describe("runSandboxAgent orchestration", () => {
 
       const result = await runSandboxAgent(request, undefined, undefined, deps);
 
-      assert.equal(result.ok, true, JSON.stringify(result));
+      assert.equal(result.ok, true);
       assert.equal(platformCredentialForRequest(request), "Secret initial");
       assert.equal(calls.otelOptions.authorization(), "Secret refreshed");
       assert.deepEqual(refreshRequests, [
@@ -461,6 +542,35 @@ describe("runSandboxAgent orchestration", () => {
       }),
       "",
     );
+  });
+
+  it("recognizes the Docker host alias of the configured local API", () => {
+    const previous = process.env.AGENTA_API_URL;
+    process.env.AGENTA_API_URL = "http://localhost:18080/api";
+    try {
+      const request: AgentRunRequest = {
+        harness: "claude",
+        messages: [{ role: "user", content: "hello" }],
+        telemetry: {
+          exporters: {
+            otlp: {
+              endpoint: "http://host.docker.internal:18080/api/otlp/v1/traces",
+              headers: { authorization: "Secret caller" },
+            },
+          },
+        },
+      };
+
+      assert.equal(platformCredentialForRequest(request), "Secret caller");
+      assert.equal(
+        resolveRunOtlpTarget(request, () => "Secret refreshed")
+          .authorizationSource,
+        "platform",
+      );
+    } finally {
+      if (previous === undefined) delete process.env.AGENTA_API_URL;
+      else process.env.AGENTA_API_URL = previous;
+    }
   });
 
   it("keeps platform rotation away from third-party collector credentials", () => {
@@ -829,7 +939,13 @@ describe("runSandboxAgent orchestration", () => {
   });
 
   it("backs the local Pi transcript directory with the active durable cwd mount", async () => {
+    // The durable cwd is derived from the sign prefix and then really created. Under the local
+    // root that is `/var/lib/agenta/...`, which a test process cannot mkdir, so the cwd is stubbed
+    // the way the sibling tests above stub it. What this test is about is unchanged: the Pi
+    // transcript directory must sit under whatever the ACTIVE durable cwd is.
+    const durableCwd = mkdtempSync(join(tmpdir(), "agenta-pi-transcript-"));
     const { calls, deps } = fakeHarness();
+    deps.createLocalCwd = (() => durableCwd) as never;
     deps.signSessionMountCredentials = async () => ({
       region: "us-east-1",
       bucket: "bucket",
@@ -863,10 +979,11 @@ describe("runSandboxAgent orchestration", () => {
       assert.equal(
         (calls.providerArgs[1] as Record<string, string>)
           .PI_CODING_AGENT_SESSION_DIR,
-        "/tmp/agenta/mounts/project/session/agents/sessions/pi",
+        `${durableCwd}/agents/sessions/pi`,
       );
     } finally {
       await acquired.env.destroy();
+      rmSync(durableCwd, { recursive: true, force: true });
     }
   });
 
@@ -1405,7 +1522,7 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(workspaceCalls, 2, "workspace prep is retried once");
     assert.equal(
       calls.createSessionOptions.cwd,
-      "/tmp/agenta/mounts/proj-1/mount-1",
+      "/var/lib/agenta/mounts/proj-1/mount-1",
     );
     assert.equal(cleanupCalls, 1);
   });
@@ -1418,7 +1535,7 @@ describe("runSandboxAgent orchestration", () => {
             update: {
               kind: "tool_result",
               content:
-                "realpath '/tmp/agenta/mounts/proj-1/mount-1/.restore_test': Transport endpoint is not connected",
+                "realpath '/var/lib/agenta/mounts/proj-1/mount-1/.restore_test': Transport endpoint is not connected",
             },
           },
         },
@@ -1427,7 +1544,7 @@ describe("runSandboxAgent orchestration", () => {
             update: {
               kind: "tool_result",
               content:
-                "realpath '/tmp/agenta/mounts/proj-1/mount-1/README.md': ENOTCONN",
+                "realpath '/var/lib/agenta/mounts/proj-1/mount-1/README.md': ENOTCONN",
             },
           },
         },
@@ -1500,7 +1617,11 @@ describe("runSandboxAgent orchestration", () => {
     // The durable cwd is object storage: it has no symlinks, so every remount can hand the link
     // back as a 0-byte file. The link must therefore belong to the mount lifecycle, not only to
     // first acquire — otherwise the rest of the session authenticates from an empty token file.
-    const cwd = "/tmp/agenta/mounts/proj-1/mount-1";
+    // Unlike its siblings, this case asserts on real files, so the cwd stands in for the durable
+    // mount instead of being it: the local durable root is `/var/lib/agenta`, which a test process
+    // cannot create. `createLocalCwd` is where the runner turns the derived durable path into the
+    // directory it works in, so overriding it keeps the whole mount lifecycle under test.
+    const cwd = mkdtempSync(join(tmpdir(), "codex-durable-cwd-"));
     const codexMount = mkdtempSync(join(tmpdir(), "codex-operator-home-"));
     const savedCodexHome = process.env.CODEX_HOME;
     writeFileSync(join(codexMount, "auth.json"), '{"tokens":{"id_token":"t"}}');
@@ -1520,6 +1641,7 @@ describe("runSandboxAgent orchestration", () => {
           },
         ],
       });
+      deps.createLocalCwd = () => cwd;
       let signCalls = 0;
       let mountCalls = 0;
       deps.signSessionMountCredentials = (async () => {
@@ -2202,6 +2324,33 @@ describe("runSandboxAgent orchestration", () => {
     assert.deepEqual(calls.providerArgs[5], sandboxPermission);
   });
 
+  it("hands buildSandboxProvider the session's project and conversation labels", async () => {
+    const { calls, deps } = fakeHarness();
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        sandbox: "daytona",
+        sessionId: " session-1 ",
+        runContext: { project: { id: "project-1" } },
+        messages: [{ role: "user", content: "hello" }],
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    // sandboxId, env, binaryPath, piExtEnv, modelEnvironment, sandboxPermission, plan, options
+    assert.deepEqual(
+      (calls.providerArgs[7] as { sessionLabels?: unknown }).sessionLabels,
+      {
+        "agenta.project": "project-1",
+        "agenta.conversation": "session-1",
+      },
+    );
+  });
+
   it("passes cancellation signals into SandboxAgent.start", async () => {
     const { calls, deps } = fakeHarness();
     const controller = new AbortController();
@@ -2414,6 +2563,11 @@ describe("runSandboxAgent orchestration", () => {
     // inputSchema (deferral would strip it -> empty tool input). The SDK only treats the exact
     // string "false"/"0"/"no"/"off" as off, so it must be the string "false".
     assert.equal(env.ENABLE_TOOL_SEARCH, "false");
+    assert.equal(env.MCP_PROTOCOL_NEGOTIATION, "auto");
+    // Claude Code runs its own Bash tool: its timeout is bounded by the per-tool-call limit, so a
+    // slow command is stopped and reported to the model instead of the watchdog ending the turn.
+    assert.equal(env.BASH_MAX_TIMEOUT_MS, String(DEFAULT_TOOL_CALL_TIMEOUT_MS));
+    assert.equal(env.BASH_DEFAULT_TIMEOUT_MS, "120000");
   });
 
   it("does not set ENABLE_TOOL_SEARCH for a non-claude (pi) run", async () => {
@@ -2433,6 +2587,10 @@ describe("runSandboxAgent orchestration", () => {
     const env = calls.providerArgs[1] as Record<string, string>;
     // The Tool-Search toggle is Claude-specific: a Pi run must not carry it.
     assert.equal(env.ENABLE_TOOL_SEARCH, undefined);
+    assert.equal(env.MCP_PROTOCOL_NEGOTIATION, undefined);
+    assert.equal(env.BASH_MAX_TIMEOUT_MS, undefined);
+    // Pi's own shell tool is capped by the Agenta extension instead.
+    assert.equal(env.AGENTA_AGENT_COMMAND_TIMEOUT_SECONDS, String(DEFAULT_TOOL_CALL_TIMEOUT_MS / 1000));
   });
 
   it("never puts the OTLP bearer in the local Pi daemon's env", async () => {
@@ -2506,6 +2664,76 @@ describe("runSandboxAgent orchestration", () => {
       model: "anthropic.claude-x",
       options: { strict: true },
     });
+  });
+
+  it("gives Claude the bare model id on a gateway run, in the env and in setModel", async () => {
+    // Regression: on a gateway run ANTHROPIC_MODEL / ANTHROPIC_CUSTOM_MODEL_OPTION carried
+    // `anthropic/claude-opus-5-5`, Claude Code accepted it in setModel because the custom option
+    // listed it, and sent it verbatim to the endpoint, which answered "model may not exist".
+    const { calls, deps } = fakeHarness();
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        messages: [{ role: "user", content: "hello" }],
+        model: "anthropic/claude-opus-5-5",
+        modelConnection: {
+          provider: "anthropic",
+          deployment: "direct",
+          credentialMode: "none",
+          credentials: [],
+          endpoint: {
+            baseUrl: "https://gateway.example.com/gateways/llms/standard/anthropic",
+          },
+          gatewayCredentials: {
+            header: "X-AG-Credentials",
+            value: "ApiKey mock-gateway-credentials",
+          },
+        },
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    const env = calls.providerArgs[1] as Record<string, string>;
+    assert.equal(env.ANTHROPIC_MODEL, "claude-opus-5-5");
+    assert.equal(env.ANTHROPIC_CUSTOM_MODEL_OPTION, "claude-opus-5-5");
+    assert.equal(calls.applyModelArgs.at(-1)?.model, "claude-opus-5-5");
+  });
+
+  it("keeps a custom Claude deployment's model id as the user named it", async () => {
+    const { calls, deps } = fakeHarness();
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        messages: [{ role: "user", content: "hello" }],
+        model: "anthropic/claude-opus-5-5",
+        modelConnection: {
+          provider: "anthropic",
+          deployment: "custom",
+          credentialMode: "env",
+          endpoint: { baseUrl: "https://llm-proxy.example.com" },
+          credentials: [
+            {
+              binding: { kind: "environment", name: "ANTHROPIC_API_KEY" },
+              value: "sk-ant-test",
+              usage: "local_use",
+            },
+          ],
+        },
+      } as AgentRunRequest,
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true, JSON.stringify(result));
+    const env = calls.providerArgs[1] as Record<string, string>;
+    assert.equal(env.ANTHROPIC_MODEL, "anthropic/claude-opus-5-5");
+    assert.equal(calls.applyModelArgs.at(-1)?.model, "anthropic/claude-opus-5-5");
   });
 
   it("sets Claude Vertex env and selected model pass-through", async () => {
@@ -3547,9 +3775,74 @@ describe("runTurn run-limits deadline (split path)", () => {
     // The run RETURNED (did not hang) as a failure, and the teardown finally reclaimed the sandbox.
     assert.equal(result.ok, false);
     if (result.ok) return;
-    assert.match(result.error ?? "", /first response|deadline|idle|run limit/i);
+    assert.match(result.error ?? "", /did not start responding|made no progress|ran longer than/);
     assert.equal(calls.sandboxDestroyed, 1);
     assert.equal(calls.sandboxDisposed, 1);
+  });
+
+  it("a turn stopped at the plan's turn limit ends with the plan's message and its own class", async () => {
+    const { calls, deps, events } = fakeHarness({ hangPrompt: true });
+    const message =
+      "The Hobby plan limits a request to 30 minutes.";
+
+    const result = await runSandboxAgent(
+      { harness: "claude", messages: [{ role: "user", content: "hello" }] },
+      undefined,
+      undefined,
+      {
+        ...deps,
+        resolveRunLimits: () => ({
+          totalMs: 20,
+          idleMs: 1_000,
+          ttfbMs: 1_000,
+          toolCallMs: 1_000,
+          turnLimitMessage: message,
+        }),
+      },
+    );
+
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    assert.equal(result.error, message);
+    const error = events.find((event) => event.type === "error") as any;
+    assert.equal(error?.code, "turn_time_limit_reached");
+    assert.equal(error?.message, message);
+    assert.equal(calls.sandboxDestroyed, 1);
+  });
+
+  it("ends a turn whose tool call never returns a result, saying a tool call ran too long (EU 2026-10-06)", async () => {
+    // The last-resort guard: the command was told to stop at the limit, yet no result came even
+    // after the grace. The person reads which limit ended the turn, not "The agent run failed".
+    const { calls, deps, events } = fakeHarness({
+      hangPrompt: true,
+      promptEvents: [
+        {
+          payload: {
+            update: { sessionUpdate: "tool_call", toolCallId: "call-hung", title: "bash", rawInput: { command: "find /" } },
+          },
+        },
+      ],
+    });
+
+    const result = await runSandboxAgent(
+      { harness: "claude", messages: [{ role: "user", content: "scan the disk" }] },
+      undefined,
+      undefined,
+      {
+        ...deps,
+        resolveRunLimits: () => ({ totalMs: 60_000, idleMs: 60_000, ttfbMs: 60_000, toolCallMs: 20, toolCallGraceMs: 10 }),
+      },
+    );
+
+    assert.equal(result.ok, false);
+    if (result.ok) return;
+    const message =
+      "A tool call ran longer than 1 second and did not stop, so the turn was ended. Ask for smaller steps, or send the message again.";
+    assert.equal(result.error, message);
+    const error = events.find((event) => event.type === "error") as any;
+    assert.equal(error?.code, "tool_call_time_limit");
+    assert.equal(error?.message, message);
+    assert.equal(calls.sandboxDestroyed, 1);
   });
 
   it("does NOT trip a turn that paused for human input, even past every deadline window", async () => {

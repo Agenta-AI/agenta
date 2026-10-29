@@ -9,6 +9,8 @@
  */
 import {z} from "zod"
 
+import {sessionSharingStateSchema, visibilitySchema} from "../../sharing/core/schema"
+
 /**
  * One durable, append-only record event row. Validates the wire shape (backend renamed the
  * envelope: `record_id`/`record_index`/`record_source`/`record_type`/`attributes`) and maps
@@ -105,24 +107,16 @@ export type SessionInteraction = z.infer<typeof sessionInteractionSchema>
 export type SessionInteractionStatusCode = "pending" | "responded" | "resolved" | "cancelled"
 export type SessionInteractionKind = "user_approval" | "user_input" | "client_tool"
 
-/**
- * The workflow-family keys the frontend acts on, same vocabulary the evaluation-run references
- * use. Producers and tests may lean on it; the wire is deliberately NOT validated against it.
- * The backend stores reference keys permissively, and narrowing an unrecognized key to undefined
- * would make the element read as unkeyed — handing the row back to the legacy first-id fallback
- * and the dead route it produces.
- */
-export type SessionReferenceKey = "workflow" | "workflow_variant" | "workflow_revision"
-
 /** A `{id, slug, version}` workflow/agent reference — mirrors `QuerySessionsParams.references`
  * on the request side. Every field is optional: a turn's reference may carry only a subset. */
 export const sessionReferenceSchema = z.object({
     id: z.string().nullish(),
     slug: z.string().nullish(),
     version: z.string().nullish(),
-    // Which family member this id is. Absent on rows written before the runner stamped it; open
-    // string, see `SessionReferenceKey`. `.catch(undefined)` keeps a non-string from failing the
-    // whole page's parse.
+    // Which family member this id is ("workflow" | "workflow_variant" | "workflow_revision").
+    // Absent on rows written before the runner stamped it; kept an open string because the backend
+    // stores keys permissively. `.catch(undefined)` keeps a non-string from failing the whole
+    // page's parse.
     key: z.string().nullish().catch(undefined),
 })
 
@@ -197,6 +191,13 @@ export const sessionStreamSchema = z.object({
     origin: sessionOriginSchema.nullish().catch(undefined),
     trigger: sessionTriggerSchema.nullish().catch(undefined),
     delivery: sessionDeliverySchema.nullish().catch(undefined),
+    // Sharing (M3): who may see the session. `owner_user_id` is null for an ownerless session
+    // (channel, API key, trigger). An unknown visibility degrades to undefined, as above.
+    visibility: visibilitySchema.nullish().catch(undefined),
+    owner_user_id: z.string().nullish(),
+    // The reader's sharing state, on the one-session stream read only (the chat screen reads
+    // it there, with no sharing request of its own). A bad value degrades to undefined.
+    sharing: sessionSharingStateSchema.nullish().catch(undefined),
     // `/sessions/query` only (WP0-R3): the session's latest turn's workflow/agent references —
     // absent for a session with no turns yet, and for a plain stream fetch (not query'd).
     references: z.array(sessionReferenceSchema).nullish(),
@@ -263,6 +264,8 @@ export const pendingSessionInputSchema = z.object({
     policy: z.enum(["queue", "steer"]),
     created_at: z.string().nullish(),
     promoted_execution_id: z.string().nullish(),
+    /** The admitting client's `Idempotency-Key`: the echo id of the send it came from. */
+    idempotency_key: z.string().nullish(),
 })
 
 export const pendingInputResponseSchema = z.object({
@@ -284,8 +287,6 @@ export const pendingInputAdmissionResponseSchema = z.object({
  * The queue half is `execution_state` and `pending.inputs`. `execution_state` is the session's
  * CURRENT lifecycle, derived server-side from the stream row, which is a different question from
  * `execution`: that names the last turn, this says whether anything is running right now.
- * `capabilities` mirrors the streams endpoint from the same server helper, so the two can never
- * disagree.
  */
 export const sessionSnapshotSchema = z.object({
     session: sessionStreamSchema.nullish().default(null),
@@ -301,13 +302,6 @@ export const sessionSnapshotSchema = z.object({
         interactions: z.array(sessionInteractionSchema).default([]),
     }),
     read: sessionRecordsReadStateSchema.nullish().default(null),
-    capabilities: z
-        .object({
-            durable_approvals: z.boolean().optional().default(false),
-            queue: z.boolean().optional().default(false),
-            steer: z.boolean().optional().default(false),
-        })
-        .default({durable_approvals: false, queue: false, steer: false}),
 })
 
 export const sessionStreamsResponseSchema = z.object({
@@ -326,41 +320,19 @@ export const sessionsQueryResponseSchema = z.object({
 
 export const sessionStreamResponseSchema = z.object({
     stream: sessionStreamSchema.nullish(),
-    capabilities: z
-        .object({
-            durable_approvals: z.boolean().optional().default(false),
-            queue: z.boolean().optional().default(false),
-            steer: z.boolean().optional().default(false),
-        })
-        .optional()
-        .default({durable_approvals: false, queue: false, steer: false}),
 })
 
-/** Control-call result for the prompt × force command matrix. */
-export const sessionStreamCommandResponseSchema = z.object({
-    mode: z.string(),
-    session_id: z.string(),
-    turn_id: z.string().nullish(),
-    watcher_id: z.string().nullish(),
-    detached: z.boolean().nullish(),
-    cancelled_turn_ids: z.array(z.string()).nullish(),
-})
-
-export const sessionCancelExecutionResponseSchema = z.union([
-    z.object({
-        command: z.object({id: z.string(), state: z.string()}),
-        execution: z.object({
-            id: z.string().nullish(),
-            state: z.enum(["stopping", "idle"]),
-        }),
+export const sessionCancelExecutionResponseSchema = z.object({
+    command: z.object({id: z.string(), state: z.string()}),
+    execution: z.object({
+        id: z.string().nullish(),
+        state: z.enum(["stopping", "idle"]),
     }),
-    sessionStreamCommandResponseSchema,
-])
+})
 
 export type SessionStream = z.infer<typeof sessionStreamSchema>
 export type SessionLiveFrame = z.infer<typeof sessionLiveFrameSchema>
 export type SessionDurableEvent = z.infer<typeof sessionDurableEventSchema>
-export type SessionDurableEventType = z.infer<typeof sessionDurableEventTypeSchema>
 export type SessionRecordsReadState = z.infer<typeof sessionRecordsReadStateSchema>
 export type SessionSnapshot = z.infer<typeof sessionSnapshotSchema>
 export type SessionReference = z.infer<typeof sessionReferenceSchema>
@@ -372,7 +344,6 @@ export type SessionDelivery = z.infer<typeof sessionDeliverySchema>
 export type SessionMessagePreview = z.infer<typeof sessionMessagePreviewSchema>
 export type SessionWindowing = z.infer<typeof sessionWindowingSchema>
 export type SessionsQueryResponse = z.infer<typeof sessionsQueryResponseSchema>
-export type SessionStreamCommandResponse = z.infer<typeof sessionStreamCommandResponseSchema>
 export type PendingSessionInput = z.infer<typeof pendingSessionInputSchema>
 
 /** One entry in a mount's durable file listing. `path` is relative to the mount root; folders
@@ -384,6 +355,8 @@ export const mountFileSchema = z.object({
     is_folder: z.boolean().nullish(),
     /** Object-store LastModified as epoch ms — the recency source for "newest first" ordering. */
     mtime: z.number().nullish(),
+    /** The object's store ETag; changes on every overwrite. */
+    etag: z.string().nullish(),
     /** Direct-child count — set only on a folder entry the recency view rolled a freshly-written
      * directory up into (so the row can read "N items" instead of a size). */
     item_count: z.number().nullish(),
@@ -420,7 +393,5 @@ export const sessionMountsResponseSchema = z.object({
 export type MountFile = z.infer<typeof mountFileSchema>
 export type Mount = z.infer<typeof mountSchema>
 
-/** Stream lifecycle codes from `SessionStream.status.code`. */
-export type StreamStatusCode = "running" | "detached" | "idle" | "ended"
 /** Stream command modes (prompt × force matrix). */
 export type CommandMode = "send" | "steer" | "cancel" | "attach"

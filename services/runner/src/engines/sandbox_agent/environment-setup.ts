@@ -1,6 +1,7 @@
 import { rmSync } from "node:fs";
 
 import { apiBase } from "../../apiBase.ts";
+import { sandboxProviderTraits } from "../../config/runner-config.ts";
 import { appliedStateForRequest } from "./applied-state.ts";
 
 import { resolveRunSessionId, type AgentRunRequest } from "../../protocol.ts";
@@ -17,7 +18,7 @@ import {
   configureDaytonaCodexEnv,
 } from "./codex-assets.ts";
 import { buildDaemonEnv, resolveDaemonBinary } from "./daemon.ts";
-import { conciseError } from "./errors.ts";
+import { classifyRunError, conciseError } from "./errors.ts";
 import { signSessionMountCredentials, type MountCredentials } from "./mount.ts";
 import { PI_MODEL_PROVIDER_OVERRIDE_ENV } from "../../extensions/model-provider-override.ts";
 import {
@@ -35,7 +36,12 @@ import {
 } from "./pi-model-config.ts";
 import { loadPiBuiltinRegistry } from "./pi-builtin-registry.ts";
 import { PUBLIC_SPECS_FILE_ENV } from "../../tools/tool-mcp-env.ts";
-import { buildRunPlan } from "./run-plan.ts";
+import {
+  buildRunPlan,
+  DAYTONA_DURABLE_MOUNT_ROOT,
+  LOCAL_DURABLE_MOUNT_ROOT,
+  resolveSandboxProviderId,
+} from "./run-plan.ts";
 import {
   materializeSubscriptionLoginForRun,
   SUBSCRIPTION_MATERIALIZE_FAILED_MESSAGE,
@@ -48,16 +54,10 @@ import type {
 } from "./runtime-contracts.ts";
 import {
   applyClaudeConnectionEnv,
-  defaultResolveLocalRunnerOwner,
   modelResolutionStrict,
   runCredential,
 } from "./runtime-policy.ts";
-import { assertLocalRunnerOwnership } from "./session-continuity.ts";
-import {
-  projectScopeFor,
-  resolvesToLocalProvider,
-} from "./session-identity.ts";
-import { loadRunnerConfig } from "../../config/runner-config.ts";
+import { projectScopeFor } from "./session-identity.ts";
 import { buildRuntimeEnvironment } from "../../environment/runtime-lifecycle.ts";
 import { createTimingLog } from "../../environment/timing.ts";
 
@@ -80,32 +80,6 @@ export async function prepareEnvironmentSetup(
     sandboxId: () => environment?.sandbox?.sandboxId,
     sessionId: () => environment?.sessionId ?? request.sessionId?.trim(),
   });
-
-  // Local multi-runner fails loudly. Session-owned + local-sandbox only (a non-session run
-  // has no cross-replica identity to protect, and a remote sandbox has no runner-local pooled
-  // state to protect it FROM). The resolver claims the `owner` affinity key and reads the actual
-  // owner back; a KNOWN different owner throws (never a silent wrong-host cold start).
-  const continuitySessionForOwnership = request.sessionId?.trim();
-  if (
-    continuitySessionForOwnership &&
-    resolvesToLocalProvider(request.sandbox)
-  ) {
-    const { replicaId, ownerReplicaId } = await (
-      deps.resolveLocalRunnerOwner ?? defaultResolveLocalRunnerOwner
-    )(continuitySessionForOwnership, runCredential(request));
-    try {
-      assertLocalRunnerOwnership(
-        continuitySessionForOwnership,
-        replicaId,
-        ownerReplicaId,
-      );
-    } catch (err) {
-      return {
-        ok: false as const,
-        error: conciseError(err, request.harness ?? ""),
-      };
-    }
-  }
 
   // Sign BEFORE buildRunPlan so the prefix is available for the durable cwd derivation.
   // Inputs (sessionId, apiBase, credential) are independent of the plan. Best-effort: null on
@@ -153,25 +127,42 @@ export async function prepareEnvironmentSetup(
     );
   }
   // Derive the durable cwd from the sign prefix (one source of truth, both providers).
-  // local: /tmp/agenta/<prefix>  —  daytona: /home/sandbox/agenta/<prefix>
-  // <prefix> is already "mounts/<project_id>/<mount_id>", so no extra slug is needed.
+  // <prefix> is already the mount's stored prefix ("mounts/<scope_id>/<mount_id>"), so no extra
+  // slug is needed.
   let durableCwd: string | undefined;
   if (mountCreds?.prefix) {
-    const isDaytonaReq =
-      (request.sandbox ?? loadRunnerConfig().providers.default) === "daytona";
-    durableCwd = isDaytonaReq
-      ? `/home/sandbox/agenta/${mountCreds.prefix}`
-      : `/tmp/agenta/${mountCreds.prefix}`;
+    // Same resolver `buildRunPlan` uses, not a second reading of the config: this choice is made
+    // BEFORE the plan exists, and when the two disagreed a Daytona run selected here by
+    // `deps.sandboxProvider` alone got the local root, which no Daytona sandbox has.
+    const providerId = resolveSandboxProviderId(request, deps.sandboxProvider);
+    // A provider whose commands run in a remote sandbox takes the sandbox root even when it
+    // mounts on the runner (`inprocess`): the sandbox user can only write under /home/sandbox,
+    // and one absolute path must mean the same folder in both places.
+    const isDaytonaReq = sandboxProviderTraits(providerId).commandsInRemoteSandbox;
+    const root = isDaytonaReq
+      ? DAYTONA_DURABLE_MOUNT_ROOT
+      : LOCAL_DURABLE_MOUNT_ROOT;
+    durableCwd = `${root}/${mountCreds.prefix}`;
   }
 
-  const planResult = buildRunPlan(request, {
-    sandboxProvider: deps.sandboxProvider,
-    createLocalCwd: deps.createLocalCwd,
-    createDaytonaCwd: deps.createDaytonaCwd,
-    durableCwd,
-    resolveSkillDirs: deps.resolveSkillDirs,
-    log: logger,
-  });
+  let planResult: ReturnType<typeof buildRunPlan>;
+  try {
+    planResult = buildRunPlan(request, {
+      sandboxProvider: deps.sandboxProvider,
+      createLocalCwd: deps.createLocalCwd,
+      createDaytonaCwd: deps.createDaytonaCwd,
+      durableCwd,
+      resolveSkillDirs: deps.resolveSkillDirs,
+      log: logger,
+    });
+  } catch (err) {
+    // A host failure while planning (the session folder could not be created) goes through the
+    // public error contract like any acquire failure: host paths and operator commands stay in the log.
+    logger(`run plan failed: ${conciseError(err, request.harness ?? "agent")}`);
+    const hidden = sandboxProviderTraits(resolveSandboxProviderId(request, deps.sandboxProvider)).harnessInRunner;
+    const classified = classifyRunError(err, request.harness ?? "agent", request.modelConnection?.provider, { unknownText: hidden ? "hidden" : "sanitized" });
+    return { ok: false as const, error: classified.message };
+  }
   if (!planResult.ok) return { ok: false as const, error: planResult.error };
   const plan = planResult.plan;
   const piSkillSnapshot = resolvePiSkillSnapshot(plan);
@@ -269,7 +260,10 @@ export async function prepareEnvironmentSetup(
   }
 
   // undefined is fine: the local provider runs its own resolution and errors clearly.
-  const binaryPath = (deps.resolveDaemonBinary ?? resolveDaemonBinary)();
+  // A harness that runs in this process has no daemon to start.
+  const binaryPath = sandboxProviderTraits(resolveSandboxProviderId(request, deps.sandboxProvider)).harnessInRunner
+    ? undefined
+    : (deps.resolveDaemonBinary ?? resolveDaemonBinary)();
   const localPiAssets = prepareLocalPiAssets({
     plan,
     env,
@@ -287,7 +281,11 @@ export async function prepareEnvironmentSetup(
   // classified as a dead sign-in — telling the user to re-authenticate a connection that is fine.
   let localSubscriptionError: Error | undefined;
   const subscriptionForRun = plan.credentials.subscription;
-  if (subscriptionForRun && plan.credentials.subscriptionHome && !plan.isDaytona) {
+  if (
+    subscriptionForRun &&
+    plan.credentials.subscriptionHome &&
+    !plan.isDaytona
+  ) {
     try {
       await materializeSubscriptionLoginForRun({
         home: plan.credentials.subscriptionHome,
@@ -427,6 +425,7 @@ export async function prepareEnvironmentSetup(
     clientToolRelayRef,
     executableToolGateRef,
     mcpAbort,
+    mcpHandshakeFailures: [],
     runAgentDir,
     piPromptDir: localPiAssets.promptDir,
     codexSqliteHome,

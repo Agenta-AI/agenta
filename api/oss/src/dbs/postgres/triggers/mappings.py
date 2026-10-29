@@ -17,6 +17,7 @@ from oss.src.core.triggers.dtos import (
     TriggerSubscriptionFlags,
 )
 
+from oss.src.dbs.postgres.access.mappings import map_principal_columns
 from oss.src.dbs.postgres.triggers.dbes import (
     TriggerDeliveryDBE,
     TriggerScheduleDBE,
@@ -81,6 +82,11 @@ def map_subscription_dbe_to_dto(
         data=TriggerSubscriptionData.model_validate(subscription_dbe.data),
         #
         flags=TriggerSubscriptionFlags(**(subscription_dbe.flags or {})),
+        #
+        principal=map_principal_columns(
+            kind=subscription_dbe.principal_kind, id=subscription_dbe.principal_id
+        ),
+        artifact_id=subscription_dbe.artifact_id,
     )
 
 
@@ -156,6 +162,11 @@ def map_schedule_dbe_to_dto(
         data=TriggerScheduleData.model_validate(schedule_dbe.data),
         #
         flags=TriggerScheduleFlags(**(schedule_dbe.flags or {})),
+        #
+        principal=map_principal_columns(
+            kind=schedule_dbe.principal_kind, id=schedule_dbe.principal_id
+        ),
+        artifact_id=schedule_dbe.artifact_id,
     )
 
 

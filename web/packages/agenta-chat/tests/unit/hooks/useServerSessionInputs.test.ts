@@ -2,10 +2,10 @@
 import {createElement, createRef, Fragment, useMemo, useRef, useState, type RefObject} from "react"
 
 import {projectIdAtom} from "@agenta/shared/state"
-import {createStore, Provider} from "jotai"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {act, cleanup, fireEvent, render, renderHook, screen, waitFor} from "@testing-library/react"
 import type {UIMessage} from "ai"
+import {createStore, getDefaultStore, Provider} from "jotai"
 import {afterEach, beforeAll, beforeEach, describe, expect, it, vi} from "vitest"
 
 import {DEFAULT_ATTACHMENT_LIMITS} from "../../../src/assets/attachmentRules"
@@ -14,26 +14,19 @@ import {ChatComposer} from "../../../src/components/ChatComposer"
 import QueuedMessagesDock from "../../../src/components/QueuedMessagesDock"
 import {useAgentChatQueue} from "../../../src/hooks/useAgentChatQueue"
 import type {useComposerAttachments} from "../../../src/hooks/useComposerAttachments"
-import {
-    useServerSessionInputs,
-    type ServerSessionInputs,
-} from "../../../src/hooks/useServerSessionInputs"
+import {useServerSessionInputs} from "../../../src/hooks/useServerSessionInputs"
+import {describeRefusedSend} from "../../../src/model/error"
+import {sessionStatusAtomFamily, setSessionStatusAtom} from "../../../src/state/sessionMessages"
 
-const {
-    buildAgentRequest,
-    fetchCapabilities,
-    fetchSnapshot,
-    removeInput,
-    sendInputNow,
-    updateInput,
-} = vi.hoisted(() => ({
-    buildAgentRequest: vi.fn(),
-    fetchCapabilities: vi.fn(),
-    fetchSnapshot: vi.fn(),
-    removeInput: vi.fn(),
-    sendInputNow: vi.fn(),
-    updateInput: vi.fn(),
-}))
+const {buildAgentRequest, fetchSnapshot, removeInput, sendInputNow, updateInput} = vi.hoisted(
+    () => ({
+        buildAgentRequest: vi.fn(),
+        fetchSnapshot: vi.fn(),
+        removeInput: vi.fn(),
+        sendInputNow: vi.fn(),
+        updateInput: vi.fn(),
+    }),
+)
 
 // Partial mock: the composer pulls in the drive summary (and whatever the session module
 // grows next), so spread the real module and override only the atoms this test drives.
@@ -41,9 +34,6 @@ vi.mock("@agenta/entities/session", async (importOriginal) => {
     const {atom} = await import("jotai")
     return {
         ...(await importOriginal<typeof import("@agenta/entities/session")>()),
-        fetchSessionCapabilitiesAtom: atom(null, (_get, _set, sessionId: string) =>
-            fetchCapabilities(sessionId),
-        ),
         fetchSessionSnapshotAtom: atom(null, (_get, _set, sessionId: string) =>
             fetchSnapshot(sessionId),
         ),
@@ -91,13 +81,23 @@ beforeAll(async () => {
 
 beforeEach(() => {
     buildAgentRequest.mockReset()
-    fetchCapabilities.mockReset()
-    fetchCapabilities.mockResolvedValue({durableApprovals: true, queue: true, steer: true})
     fetchSnapshot.mockReset()
     removeInput.mockReset()
     sendInputNow.mockReset()
     updateInput.mockReset()
     fetchMock.mockReset()
+})
+
+/**
+ * The fresh run's response is held open on purpose and released at the end of each case. A
+ * failing assertion returns before that call, so the release is also registered here: a leaked
+ * open stream fails the cases that follow instead of the one that caused it.
+ */
+let releaseFreshResponse: (() => void) | null = null
+
+afterEach(() => {
+    releaseFreshResponse?.()
+    releaseFreshResponse = null
 })
 
 afterEach(cleanup)
@@ -140,11 +140,8 @@ const RunningElsewhereAdmissionHarness = ({
         locallyBusy: false,
     })
     const queue = useAgentChatQueue({
-        status: "ready",
         messages: [],
         stopped: false,
-        markRunOwned: vi.fn(),
-        sendQueued: vi.fn(),
         server,
     })
     const sending = useRef(false)
@@ -177,9 +174,13 @@ const RunningElsewhereAdmissionHarness = ({
         try {
             if (policy === "steer") await queue.steer({text})
             else await queue.submit({text})
-        } catch {
+        } catch (error) {
             inputRef.current?.setMarkdown(text)
-            setRejections([{name: "Message", reason: "wasn't sent — try again."}])
+            // The same reader both apps put on this line (AgentConversation, mobile Composer):
+            // the refusal's own sentence when it stated one, the standing wording when it did
+            // not. Hardcoding the standing wording here would hide whether the send path read
+            // the refusal body at all.
+            setRejections([{name: "Message", reason: describeRefusedSend(error)}])
         } finally {
             sending.current = false
         }
@@ -192,7 +193,6 @@ const RunningElsewhereAdmissionHarness = ({
     const stoppable = isComposerRunStoppable({
         localStreaming: false,
         serverBusy: server.busy,
-        serverControlEnabled: queue.queueEnabled,
         waitingOnUser: false,
     })
 
@@ -216,25 +216,26 @@ const RunningElsewhereAdmissionHarness = ({
             attachments,
             streaming: stoppable,
             onStop: vi.fn(),
-            busyActions:
-                server.busy && queue.queueEnabled
-                    ? [
-                          {label: "Queue", onSubmit: (text) => void submit(text)},
-                          ...(queue.steerEnabled
-                              ? [
-                                    {
-                                        label: "Steer",
-                                        onSubmit: (text: string) => void submit(text, "steer"),
-                                    },
-                                ]
-                              : []),
-                      ]
-                    : undefined,
+            busyActions: server.busy
+                ? [
+                      {label: "Queue", onSubmit: (text) => void submit(text)},
+                      {label: "Steer", onSubmit: (text) => void submit(text, "steer")},
+                  ]
+                : undefined,
         }),
     )
 }
 
-const setupRunningElsewhereAdmission = async ({refuse = false}: {refuse?: boolean} = {}) => {
+/** How the stack answers the admission request: accepted, or refused with this status and body. */
+interface AdmissionRefusal {
+    status: number
+    body: string
+}
+
+const setupRunningElsewhereAdmission = async ({
+    refuse = false,
+    refusal,
+}: {refuse?: boolean; refusal?: AdmissionRefusal} = {}) => {
     const pending: PendingInput[] = []
     let requestCount = 0
     let closeFreshResponse = () => {}
@@ -262,11 +263,26 @@ const setupRunningElsewhereAdmission = async ({refuse = false}: {refuse?: boolea
         if (requestCount === 1) {
             const body = new ReadableStream({
                 start(controller) {
-                    closeFreshResponse = () => controller.close()
+                    // Name the turn as the runner does; the next send waits for it.
+                    const named = {
+                        type: "message-metadata",
+                        messageMetadata: {turnId: "turn-fresh"},
+                    }
+                    controller.enqueue(
+                        new TextEncoder().encode(`data: ${JSON.stringify(named)}\n\n`),
+                    )
+                    let closed = false
+                    closeFreshResponse = () => {
+                        if (closed) return
+                        closed = true
+                        controller.close()
+                    }
+                    releaseFreshResponse = closeFreshResponse
                 },
             })
             return new Response(body, {status: 200})
         }
+        if (refusal) return new Response(refusal.body, {status: refusal.status})
         if (refuse) return new Response(null, {status: 409})
 
         const request = JSON.parse(String(init?.body)) as {
@@ -298,12 +314,11 @@ const setupRunningElsewhereAdmission = async ({refuse = false}: {refuse?: boolea
 }
 
 describe("useServerSessionInputs", () => {
-    it("reloads capabilities when project scope becomes available", async () => {
+    it("reloads the snapshot when project scope becomes available", async () => {
         const store = createStore()
-        fetchCapabilities.mockImplementation(async () =>
-            store.get(projectIdAtom) ? {queue: true, steer: true, durableApprovals: true} : null,
+        fetchSnapshot.mockImplementation(async () =>
+            store.get(projectIdAtom) ? runningSnapshot([]) : null,
         )
-        fetchSnapshot.mockResolvedValue(runningSnapshot([]))
         const {result} = renderHook(
             () =>
                 useServerSessionInputs({
@@ -314,42 +329,58 @@ describe("useServerSessionInputs", () => {
                 }),
             {wrapper: ({children}) => createElement(Provider, {store}, children)},
         )
-        await waitFor(() => expect(fetchCapabilities).toHaveBeenCalledOnce())
-        expect(fetchSnapshot).not.toHaveBeenCalled()
+        await waitFor(() => expect(fetchSnapshot).toHaveBeenCalledOnce())
+        expect(result.current.executionState).toBe("idle")
         act(() => store.set(projectIdAtom, "project-ready"))
-        await waitFor(() => expect(result.current.capabilities.queue).toBe(true))
-        expect(fetchCapabilities).toHaveBeenCalledTimes(2)
+        await waitFor(() => expect(result.current.executionState).toBe("running"))
+        expect(fetchSnapshot).toHaveBeenCalledTimes(2)
     })
 
-    it("does not request a queue snapshot when the capability is absent", async () => {
-        fetchCapabilities.mockResolvedValue({
-            durableApprovals: false,
-            queue: false,
-            steer: false,
-        })
-
-        const {result} = renderHook(() =>
-            useServerSessionInputs({
-                entityId: "revision-1",
-                sessionId: "session-1",
-                messages: [] as UIMessage[],
-                locallyBusy: false,
-            }),
+    it("polls the queue only for the conversation on screen", async () => {
+        fetchSnapshot.mockResolvedValue(runningSnapshot([]))
+        const {result, rerender} = renderHook(
+            ({active}: {active: boolean}) =>
+                useServerSessionInputs({
+                    entityId: "revision-1",
+                    sessionId: "session-1",
+                    messages: [] as UIMessage[],
+                    locallyBusy: false,
+                    active,
+                }),
+            {initialProps: {active: false}},
         )
+        await waitFor(() => expect(result.current.executionState).toBe("running"))
+        const afterLoad = fetchSnapshot.mock.calls.length
+        await act(async () => new Promise((resolve) => setTimeout(resolve, 2_300)))
+        expect(fetchSnapshot).toHaveBeenCalledTimes(afterLoad)
 
-        await waitFor(() => expect(fetchCapabilities).toHaveBeenCalledOnce())
-        expect(fetchSnapshot).not.toHaveBeenCalled()
-        expect(result.current.capabilities).toEqual({queue: false, steer: false})
-        expect(result.current.busy).toBe(false)
-    })
+        rerender({active: true})
+        await waitFor(() => expect(fetchSnapshot.mock.calls.length).toBeGreaterThan(afterLoad), {
+            timeout: 3_000,
+        })
+    }, 10_000)
 
-    it("enables Queue from a snapshot without reconnect data", async () => {
+    it("lists queued inputs from a snapshot without reconnect data", async () => {
         fetchSnapshot.mockResolvedValue({
             session: null,
             execution: null,
             execution_state: {id: null, state: "idle"},
             read: null,
-            pending: {inputs: [], interactions: []},
+            pending: {
+                inputs: [
+                    {
+                        id: "row-1",
+                        session_id: "session-1",
+                        content: {data: {inputs: {messages: [{role: "user", content: "next"}]}}},
+                        position: 1,
+                        state: "pending",
+                        policy: "queue",
+                        created_at: null,
+                        promoted_execution_id: null,
+                    },
+                ],
+                interactions: [],
+            },
             capabilities: {durable_approvals: true, queue: true, steer: true},
         })
 
@@ -362,9 +393,9 @@ describe("useServerSessionInputs", () => {
             }),
         )
 
-        await waitFor(() => expect(result.current.capabilities.queue).toBe(true))
+        await waitFor(() => expect(result.current.queued.map((item) => item.id)).toEqual(["row-1"]))
         expect(fetchSnapshot).toHaveBeenCalledOnce()
-        expect(result.current.capabilities.steer).toBe(true)
+        expect(result.current.queued[0].text).toBe("next")
         expect(result.current.executionState).toBe("idle")
     })
 
@@ -418,19 +449,26 @@ describe("useServerSessionInputs", () => {
                     }),
                 {initialProps: {ready: false}},
             )
-            await waitFor(() => expect(result.current.capabilities.queue).toBe(true))
+            await waitFor(() => expect(result.current.executionState).toBe("running"))
             const submit = result.current.submit
             await act(() => submit({id: "before-ready", text: "first", source: "local"}, policy))
-            expect(buildAgentRequest.mock.calls.at(-1)?.[2]).toEqual({sessionId: "session-1"})
+            expect(buildAgentRequest.mock.calls.at(-1)?.[2]).toEqual({
+                sessionId: "session-1",
+                secretSetup: true,
+            })
             rerender({ready: true})
             await act(() => submit({id: "ready", text: "next", source: "local"}, policy))
             expect(buildAgentRequest.mock.calls.at(-1)?.[2]).toEqual({
                 sessionId: "session-1",
                 sharedResponse: true,
+                secretSetup: true,
             })
             rerender({ready: false})
             await act(() => submit({id: "disconnected", text: "last", source: "local"}, policy))
-            expect(buildAgentRequest.mock.calls.at(-1)?.[2]).toEqual({sessionId: "session-1"})
+            expect(buildAgentRequest.mock.calls.at(-1)?.[2]).toEqual({
+                sessionId: "session-1",
+                secretSetup: true,
+            })
             expect(
                 fetchMock.mock.calls.map(([, init]) => JSON.parse(String(init?.body)).on_busy),
             ).toEqual([policy, policy, policy])
@@ -466,7 +504,7 @@ describe("useServerSessionInputs", () => {
             }),
         )
 
-        await waitFor(() => expect(result.current.capabilities.queue).toBe(true))
+        await waitFor(() => expect(result.current.executionState).toBe("running"))
         expect(result.current.executionState).toBe("running")
 
         await act(async () => {
@@ -480,8 +518,11 @@ describe("useServerSessionInputs", () => {
         expect(buildAgentRequest).toHaveBeenCalledWith(
             "revision-1",
             [expect.objectContaining({id: "input-1", role: "user"})],
-            {sessionId: "session-1"},
+            {sessionId: "session-1", secretSetup: true},
         )
+        expect(buildAgentRequest.mock.calls[0][1].at(-1).parts).toEqual([
+            {type: "text", text: "run this next"},
+        ])
         expect(fetchMock).toHaveBeenCalledWith(
             "https://agent.test/invoke",
             expect.objectContaining({
@@ -494,6 +535,53 @@ describe("useServerSessionInputs", () => {
                 }),
             }),
         )
+    })
+
+    // An empty text part reaches the model as an empty text content block, which Anthropic-family
+    // models refuse (v0.119.1 risk map, entry 5).
+    it("sends an attachment-only input with no text part", async () => {
+        fetchSnapshot.mockResolvedValue({
+            session: {
+                id: "11111111-1111-4111-8111-111111111111",
+                project_id: "22222222-2222-4222-8222-222222222222",
+                session_id: "session-1",
+            },
+            execution: null,
+            execution_state: {id: "turn-1", state: "running"},
+            read: {latest_sequence: 0, history_complete: true},
+            pending: {inputs: [], interactions: []},
+            capabilities: {durable_approvals: true, queue: true, steer: true},
+        })
+        buildAgentRequest.mockResolvedValue({
+            invocationUrl: "https://agent.test/invoke",
+            headers: {Accept: "text/event-stream"},
+            requestBody: {session_id: "session-1", data: {inputs: {messages: []}}},
+        })
+        fetchMock.mockResolvedValue(new Response(null, {status: 202}))
+
+        const attachment = {
+            type: "file" as const,
+            url: "https://files.test/report.pdf",
+            mediaType: "application/pdf",
+        }
+        const {result} = renderHook(() =>
+            useServerSessionInputs({
+                entityId: "revision-1",
+                sessionId: "session-1",
+                messages: [] as UIMessage[],
+                locallyBusy: true,
+            }),
+        )
+        await waitFor(() => expect(result.current.executionState).toBe("running"))
+
+        await act(async () => {
+            await result.current.submit(
+                {id: "input-2", text: "", fileParts: [attachment], source: "local"},
+                "queue",
+            )
+        })
+
+        expect(buildAgentRequest.mock.calls[0][1].at(-1).parts).toEqual([attachment])
     })
 
     it("releases admission after a fresh run's headers while its response keeps streaming", async () => {
@@ -531,7 +619,7 @@ describe("useServerSessionInputs", () => {
                 onExecuted,
             }),
         )
-        await waitFor(() => expect(result.current.capabilities.steer).toBe(true))
+        await waitFor(() => expect(result.current.executionState).toBe("running"))
 
         await act(async () => {
             await result.current.submit({id: "input-1", text: "start"}, "queue")
@@ -582,7 +670,7 @@ describe("useServerSessionInputs", () => {
         })
         const run = acceptedRun()
         const watcher = {onAccepted: vi.fn(), onSettled: vi.fn(), onFailed: vi.fn()}
-        const {result} = renderHook(() =>
+        const {result, unmount} = renderHook(() =>
             useServerSessionInputs({
                 entityId: "revision-1",
                 sessionId: "session-1",
@@ -591,13 +679,115 @@ describe("useServerSessionInputs", () => {
                 onExecuted,
             }),
         )
-        await waitFor(() => expect(result.current.capabilities.steer).toBe(true))
+        await waitFor(() => expect(result.current.executionState).toBe("running"))
         await act(async () => {
             await result.current.submit({id: "input-1", text: "start"}, "queue", watcher)
         })
         await waitFor(() => expect(watcher.onAccepted).toHaveBeenCalledWith("turn-9"))
-        return {run, watcher}
+        return {run, watcher, unmount}
     }
+
+    const tabStatus = () => getDefaultStore().get(sessionStatusAtomFamily("session-1"))
+
+    const submitWithBody = async (body: ConstructorParameters<typeof Response>[0]) => {
+        fetchSnapshot.mockResolvedValue(acceptedRunSnapshot)
+        buildAgentRequest.mockResolvedValue({
+            invocationUrl: "https://agent.test/invoke",
+            headers: {Accept: "text/event-stream"},
+            requestBody: {session_id: "session-1", data: {inputs: {messages: []}}},
+        })
+        fetchMock.mockResolvedValue(new Response(body, {status: 200}))
+        const {result, unmount} = renderHook(() =>
+            useServerSessionInputs({
+                entityId: "revision-1",
+                sessionId: "session-1",
+                messages: [] as UIMessage[],
+                locallyBusy: false,
+                onExecuted: () => Promise.resolve(true),
+            }),
+        )
+        await waitFor(() => expect(result.current.executionState).toBe("running"))
+        await act(async () => {
+            await result.current.submit({id: "input-1", text: "start"}, "queue")
+        })
+        unmount()
+    }
+
+    it("holds a refused admission as error with no mount, until the next run starts", async () => {
+        await submitWithBody(`data: ${JSON.stringify({type: "error", errorText: "no credits"})}\n`)
+        await waitFor(() => expect(tabStatus()).toBe("error"))
+        await submitWithBody(acceptedFrame)
+        await waitFor(() => expect(tabStatus()).toBe("idle"))
+    })
+
+    it("does not hold a dropped connection as an error", async () => {
+        const body = new ReadableStream<Uint8Array>({
+            start(controller) {
+                controller.enqueue(new TextEncoder().encode(acceptedFrame))
+                controller.error(new Error("dropped"))
+            },
+        })
+        await submitWithBody(body)
+        await waitFor(() => expect(tabStatus()).toBe("idle"))
+    })
+
+    it("holds the session as awaiting when its stream closes on an open ask, past the unmount", async () => {
+        const ask = `data: ${JSON.stringify({
+            type: "tool-input-available",
+            toolCallId: "call-1",
+            toolName: "request_input",
+        })}\n`
+        fetchSnapshot.mockResolvedValue(acceptedRunSnapshot)
+        buildAgentRequest.mockResolvedValue({
+            invocationUrl: "https://agent.test/invoke",
+            headers: {Accept: "text/event-stream"},
+            requestBody: {session_id: "session-1", data: {inputs: {messages: []}}},
+        })
+        fetchMock.mockResolvedValue(new Response(acceptedFrame + ask, {status: 200}))
+        const {result, unmount} = renderHook(() =>
+            useServerSessionInputs({
+                entityId: "revision-1",
+                sessionId: "session-1",
+                messages: [] as UIMessage[],
+                locallyBusy: false,
+                onExecuted: () => Promise.resolve(true),
+            }),
+        )
+        await waitFor(() => expect(result.current.executionState).toBe("running"))
+        await act(async () => {
+            await result.current.submit({id: "input-1", text: "ask me"}, "queue")
+        })
+        unmount()
+        await waitFor(() => expect(tabStatus()).toBe("awaiting"))
+        getDefaultStore().set(setSessionStatusAtom, {id: "session-1", status: "idle"})
+        expect(tabStatus()).toBe("idle")
+    })
+
+    it("reports the session running while its run stream is open, past the unmount", async () => {
+        const {run, unmount} = await submitAccepted(() => Promise.resolve(true))
+        expect(tabStatus()).toBe("running")
+        unmount()
+        expect(tabStatus()).toBe("running")
+        run.end("close")
+        await waitFor(() => expect(tabStatus()).toBe("idle"))
+    })
+
+    it("retires the run when its stream drops", async () => {
+        const {run} = await submitAccepted(() => Promise.resolve(true))
+        expect(tabStatus()).toBe("running")
+        run.end("drop")
+        await waitFor(() => expect(tabStatus()).toBe("idle"))
+    })
+
+    it("lets the mounted conversation's status win over its open run stream", async () => {
+        const {run} = await submitAccepted(() => Promise.resolve(true))
+        getDefaultStore().set(setSessionStatusAtom, {id: "session-1", status: "awaiting"})
+        expect(tabStatus()).toBe("awaiting")
+        getDefaultStore().set(setSessionStatusAtom, {id: "session-1", status: "idle"})
+        expect(tabStatus()).toBe("running")
+        run.end("close")
+        await waitFor(() => expect(tabStatus()).toBe("idle"))
+    })
 
     it("settles only after the records re-read it started has landed", async () => {
         // The saved row that retires the echo arrives in that read. Reporting settlement
@@ -667,7 +857,7 @@ describe("useServerSessionInputs", () => {
                 locallyBusy: true,
             }),
         )
-        await waitFor(() => expect(result.current.capabilities.steer).toBe(true))
+        await waitFor(() => expect(result.current.executionState).toBe("running"))
 
         await act(async () => {
             await expect(
@@ -728,12 +918,50 @@ describe("useServerSessionInputs", () => {
         expect(screen.queryByText("1 queued message")).toBeNull()
         closeFreshResponse()
     })
+
+    /**
+     * QA-D6's only visible line, driven end to end.
+     *
+     * The model-level cases pin `readSendRefusal` and the chip's wording, but they call the
+     * reader directly. This drives the send path itself against a refusing stack, so the
+     * assertion fails if that path ever goes back to cancelling the 422 body and throwing the
+     * status number — the defect QA-D6 named, which the reader alone cannot catch.
+     */
+    it("puts the refusal's own sentence on the composer, not just a status", async () => {
+        const {closeFreshResponse, inputRef} = await setupRunningElsewhereAdmission({
+            refusal: {
+                status: 422,
+                body: JSON.stringify({
+                    session_id: "c0432835345f4ef6b1350ba5a807c5e5",
+                    status: {
+                        code: 422,
+                        message: "No model provider is configured.",
+                        type: "https://agenta.ai/docs/errors#v1:sdk:unknown-workflow-invoke-error",
+                        stacktrace: ["Traceback (most recent call last):\n"],
+                    },
+                }),
+            },
+        })
+        await act(async () => {
+            await inputRef.current?.setMarkdown("keep this draft")
+        })
+        fireEvent.click(await screen.findByRole("button", {name: "Queue"}))
+
+        await screen.findByTitle("Message wasn't sent — No model provider is configured.")
+        // The traceback beside the sentence is for an operator's log, never for this chip.
+        expect(screen.queryByText(/Traceback/)).toBeNull()
+        expect(inputRef.current?.getMarkdown()).toBe("keep this draft")
+        closeFreshResponse()
+    })
 })
 
 describe("selected queued input Send Now", () => {
     it("uses the selected row identity without invoking or removing its content", async () => {
         fetchSnapshot.mockResolvedValue(runningSnapshot())
-        sendInputNow.mockResolvedValue(true)
+        sendInputNow.mockResolvedValue({
+            outcome: "applied",
+            admission: {action: "pending", input: null, execution_id: "turn-1"},
+        })
         const {result} = renderHook(() =>
             useServerSessionInputs({
                 entityId: "revision-1",
@@ -742,17 +970,47 @@ describe("selected queued input Send Now", () => {
                 locallyBusy: true,
             }),
         )
-        await waitFor(() => expect(result.current.capabilities.steer).toBe(true))
-        await act(() => result.current.sendNow("selected-row"))
+        await waitFor(() => expect(result.current.executionState).toBe("running"))
+        let sent!: Awaited<ReturnType<typeof result.current.sendNow>>
+        await act(async () => {
+            sent = await result.current.sendNow("selected-row")
+        })
         expect(sendInputNow).toHaveBeenCalledWith({sessionId: "session-1", inputId: "selected-row"})
+        // Over a running turn the id is the turn being stopped, never the one this row starts.
+        expect(sent).toMatchObject({outcome: "applied", executionId: null})
         expect(removeInput).not.toHaveBeenCalled()
         expect(fetchMock).not.toHaveBeenCalled()
-        expect(fetchSnapshot.mock.calls.length).toBeGreaterThan(1)
+        await waitFor(() => expect(fetchSnapshot.mock.calls.length).toBeGreaterThan(1))
     })
 
-    it("surfaces an admission failure without removing the pending input", async () => {
+    it("names the new turn when the server promotes the row on the spot", async () => {
         fetchSnapshot.mockResolvedValue(runningSnapshot())
-        sendInputNow.mockResolvedValue(false)
+        sendInputNow.mockResolvedValue({
+            outcome: "applied",
+            admission: {
+                action: "pending",
+                input: {state: "promoted", promoted_execution_id: "turn-2"},
+                execution_id: "turn-2",
+            },
+        })
+        const {result} = renderHook(() =>
+            useServerSessionInputs({
+                entityId: "revision-1",
+                sessionId: "session-1",
+                messages: [],
+                locallyBusy: false,
+            }),
+        )
+        await waitFor(() => expect(result.current.executionState).toBe("running"))
+        await expect(result.current.sendNow("selected-row")).resolves.toMatchObject({
+            outcome: "applied",
+            executionId: "turn-2",
+        })
+    })
+
+    it("reports a refused send without removing the pending input", async () => {
+        fetchSnapshot.mockResolvedValue(runningSnapshot())
+        sendInputNow.mockResolvedValue({outcome: "failed", admission: null})
         const {result} = renderHook(() =>
             useServerSessionInputs({
                 entityId: "revision-1",
@@ -761,13 +1019,27 @@ describe("selected queued input Send Now", () => {
                 locallyBusy: true,
             }),
         )
-        await waitFor(() => expect(result.current.capabilities.steer).toBe(true))
-        await expect(result.current.sendNow("selected-row")).rejects.toThrow("could not be sent")
+        await waitFor(() => expect(result.current.executionState).toBe("running"))
+        await expect(result.current.sendNow("selected-row")).resolves.toMatchObject({
+            outcome: "failed",
+        })
         expect(removeInput).not.toHaveBeenCalled()
     })
+})
 
-    it("does not call the action when the server capability is disabled", async () => {
-        fetchCapabilities.mockResolvedValue({durableApprovals: false, queue: false, steer: false})
+describe("queue writes read past themselves", () => {
+    it("re-reads after a write instead of reusing a read that began before it", async () => {
+        const row = (id: string): PendingInput => ({
+            id,
+            session_id: "session-1",
+            content: {data: {inputs: {messages: [{role: "user", content: id}]}}},
+            position: 1,
+            state: "pending",
+            policy: "queue",
+            created_at: null,
+            promoted_execution_id: null,
+        })
+        fetchSnapshot.mockResolvedValueOnce(runningSnapshot([row("row-1")]))
         const {result} = renderHook(() =>
             useServerSessionInputs({
                 entityId: "revision-1",
@@ -776,15 +1048,37 @@ describe("selected queued input Send Now", () => {
                 locallyBusy: true,
             }),
         )
-        await expect(result.current.sendNow("selected-row")).rejects.toThrow("not available")
-        expect(sendInputNow).not.toHaveBeenCalled()
+        await waitFor(() => expect(result.current.queued.map((item) => item.id)).toEqual(["row-1"]))
+
+        // A poll is in flight, and it began before the removal: it still lists the row.
+        let resolveStale!: (snapshot: ReturnType<typeof runningSnapshot>) => void
+        fetchSnapshot.mockImplementationOnce(
+            () => new Promise((resolve) => (resolveStale = resolve)),
+        )
+        const stale = result.current.refresh()
+        removeInput.mockResolvedValue("applied")
+        fetchSnapshot.mockResolvedValueOnce(runningSnapshot([]))
+        let removed!: Awaited<ReturnType<typeof result.current.remove>>
+        await act(async () => {
+            removed = await result.current.remove("row-1")
+        })
+        expect(removed.outcome).toBe("applied")
+        await waitFor(() => expect(result.current.queued).toEqual([]))
+        expect(result.current.viewSeq).toBeGreaterThan(removed.settledSeq)
+
+        // The older read lands last and must not bring the row back.
+        await act(async () => {
+            resolveStale(runningSnapshot([row("row-1")]))
+            await stale
+        })
+        expect(result.current.queued).toEqual([])
     })
 })
 
 describe("durable queued input editing", () => {
     it("patches only the chosen row text and new attachments, then reloads the shared snapshot", async () => {
         fetchSnapshot.mockResolvedValue(runningSnapshot())
-        updateInput.mockResolvedValue(true)
+        updateInput.mockResolvedValue("applied")
         const {result} = renderHook(() =>
             useServerSessionInputs({
                 entityId: "revision-1",
@@ -793,7 +1087,7 @@ describe("durable queued input editing", () => {
                 locallyBusy: true,
             }),
         )
-        await waitFor(() => expect(result.current.capabilities.queue).toBe(true))
+        await waitFor(() => expect(result.current.executionState).toBe("running"))
         await act(() =>
             result.current.edit("row-2", {
                 text: "corrected",
@@ -821,7 +1115,7 @@ describe("durable queued input editing", () => {
                 },
             ],
         })
-        expect(fetchSnapshot.mock.calls.length).toBeGreaterThan(1)
+        await waitFor(() => expect(fetchSnapshot.mock.calls.length).toBeGreaterThan(1))
         expect(removeInput).not.toHaveBeenCalled()
         expect(buildAgentRequest).not.toHaveBeenCalled()
         expect(fetchMock).not.toHaveBeenCalled()

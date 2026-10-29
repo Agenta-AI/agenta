@@ -3,7 +3,13 @@ import {useMemo} from "react"
 import {useTriggerDeliveries, type TriggerDelivery} from "@agenta/entities/gatewayTrigger"
 
 import {deliveryOutcome, type Automation} from "./automationModel"
-import {countRecentRuns, deliveriesOwner, runCountCaption, runError, sortRuns} from "./runModel"
+import {
+    countRecentRuns,
+    deliveriesOwner,
+    runCountCaption,
+    runFailureReason,
+    sortRuns,
+} from "./runModel"
 
 /**
  * One automation's runs — the deliveries it produced, newest first, plus the two facts the
@@ -27,7 +33,7 @@ export const useAutomationRuns = (automation: Automation | null) => {
     const failureReason = useMemo(() => {
         const newest = runs[0]
         if (!newest || deliveryOutcome(newest) !== "bad") return null
-        return runError(newest) ?? newest.status?.message ?? "The run failed."
+        return runFailureReason(newest)
     }, [runs])
 
     // A count is a claim. Before the automation resolves the query has no owner and never runs,

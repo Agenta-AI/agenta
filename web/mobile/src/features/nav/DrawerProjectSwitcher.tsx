@@ -6,6 +6,7 @@ import {
     type SwitcherEntry,
     type SwitcherThemeControl,
 } from "@agenta/navigation-ui"
+import {message} from "@agenta/ui/app-message"
 import {KeyboardShortcutsSheet} from "@agenta/ui/shortcuts"
 import {THEME_OPTIONS, themeIcon, useThemeMode} from "@agenta/ui/theme"
 import {useMutation, useQuery} from "@tanstack/react-query"
@@ -15,9 +16,11 @@ import {fetchProjects, projectHomeUrl, writeLastContext} from "@/lib/context"
 
 import {useLogout} from "../auth/useLogout"
 import {groupByOrganization} from "../context/workspaceGroups"
+import {LiveChatNavButton} from "../support/LiveChatNavButton"
+import {useLiveChatEnabled} from "../support/useLiveChatEnabled"
 
 import {CreateProjectSheet} from "./CreateProjectSheet"
-import {useMobileHelpItem, useMobileVersion} from "./useMobileNavItems"
+import {useMobileHelpItem} from "./useMobileNavItems"
 
 /**
  * The drawer's header switcher: the desktop rail's component, bound to mobile's project data.
@@ -41,7 +44,7 @@ export const DrawerProjectSwitcher = ({
     const helpItem = useMobileHelpItem({
         onOpenShortcuts: useCallback(() => setShortcutsOpen(true), []),
     })
-    const version = useMobileVersion()
+    const liveChatEnabled = useLiveChatEnabled(projectId)
     const query = useQuery({
         queryKey: ["mobile", "projects"],
         queryFn: () => fetchProjects(),
@@ -52,13 +55,11 @@ export const DrawerProjectSwitcher = ({
         [query.data],
     )
 
-    // Matched on the project, not the workspace: one org can hold several workspaces.
+    // Matched on the project: the route segment can be a legacy workspace id or the
+    // organization id for the same project (workspace removal step 2).
     const currentGroup =
         groups.find((group) =>
-            group.projects.some(
-                (project) =>
-                    project.project_id === projectId && project.workspace_id === workspaceId,
-            ),
+            group.projects.some((project) => project.project_id === projectId),
         ) ?? groups.find((group) => group.projects.some((p) => p.workspace_id === workspaceId))
     const currentProject = currentGroup?.projects.find(
         (project) => project.project_id === projectId,
@@ -111,7 +112,13 @@ export const DrawerProjectSwitcher = ({
             setCreateOpen(false)
             // Refetch first: the destination reads this same query for its title.
             await query.refetch()
-            goTo(created.workspace_id ?? workspaceId, created.project_id)
+            goTo(created.organization_id ?? created.workspace_id ?? workspaceId, created.project_id)
+        },
+        // The API's refusal is written for people (e.g. the plan's project limit).
+        onError: (error) => {
+            const detail = (error as {response?: {data?: {detail?: unknown}}})?.response?.data
+                ?.detail
+            message.error(typeof detail === "string" ? detail : "Unable to create project")
         },
     })
 
@@ -156,14 +163,10 @@ export const DrawerProjectSwitcher = ({
                 onCreateProject={() => setCreateOpen(true)}
                 onLogout={() => void logout()}
                 trailing={
-                    <div className="flex shrink-0 items-center gap-1">
-                        {!collapsed && version ? (
-                            <span className="text-muted-foreground text-[10px] leading-none">
-                                v{version}
-                            </span>
-                        ) : null}
+                    <>
+                        {liveChatEnabled ? <LiveChatNavButton /> : null}
                         <SidebarIconMenu item={helpItem} />
-                    </div>
+                    </>
                 }
             />
             <KeyboardShortcutsSheet open={shortcutsOpen} onOpenChange={setShortcutsOpen} />

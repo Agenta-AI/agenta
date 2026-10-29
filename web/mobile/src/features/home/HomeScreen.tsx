@@ -1,26 +1,39 @@
-import {useMemo} from "react"
+import {useEffect, useMemo, useRef} from "react"
 
+import {useProfile} from "@agenta/entities/profile"
 import {
-    AGENT_TEMPLATES,
+    agentTemplatesAtom,
+    agentTemplatesStatusAtom,
     agentWorkflowsListQueryStateAtom,
     invalidateWorkflowsListCache,
+    refetchAgentTemplatesAtom,
     type Workflow,
 } from "@agenta/entities/workflow"
 import {HomeFocus, type HomeListAgent} from "@agenta/home-ui"
-import {useAtomValue} from "jotai"
+import {getUnseenReleases, isWhatsNewOptedOut} from "@agenta/navigation"
+import {LoadError} from "@agenta/ui/components/presentational"
+import {useAtomValue, useSetAtom} from "jotai"
+import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
 import {ScreenScaffold} from "@/components/ScreenScaffold"
 
+import {NewAgentAction} from "../agents/NewAgentAction"
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {useCurrentProject} from "../context/useCurrentProject"
+import {whatsNewAtom} from "../education/whatsNewAtom"
 import {AppShell} from "../nav/AppShell"
 import {NavDrawer} from "../nav/NavDrawer"
+import {
+    clearOnboardingPending,
+    isOnboardingPending,
+    resolvePendingOnboarding,
+} from "../onboarding/onboardingPending"
 
 import {resolveHomeSurface} from "./homeSurface"
 import {HOME_PAGE_FRAME} from "./pageFrame"
 import {HomeSkeleton} from "./states/HomeSkeleton"
-import {HomeListError, HomeListSkeleton, HomeSectionEmpty} from "./states/HomeStates"
+import {HomeListSkeleton, HomeSectionEmpty} from "./states/HomeStates"
 import {useHomeHandoff} from "./useHomeHandoff"
 
 /**
@@ -41,12 +54,43 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
     const base = `/w/${workspaceId}/p/${projectId}`
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
     const agents = useMemo<Workflow[]>(() => agentsQuery.data ?? [], [agentsQuery.data])
-    const handoff = useHomeHandoff(base)
-    const surface = resolveHomeSurface({
+    const handoff = useHomeHandoff(base, projectId)
+    const templates = useAtomValue(agentTemplatesAtom)
+    const templatesStatus = useAtomValue(agentTemplatesStatusAtom)
+    const refetchTemplates = useSetAtom(refetchAgentTemplatesAtom)
+    // Existing users only (they have an agent), once per new release, unless they opted out.
+    const openWhatsNew = useSetAtom(whatsNewAtom)
+    const agentsSettled = !agentsQuery.isPending && !agentsQuery.isError
+    const hasAgents = agents.length > 0
+    const whatsNewCheckedRef = useRef(false)
+    useEffect(() => {
+        if (!agentsSettled || whatsNewCheckedRef.current) return
+        whatsNewCheckedRef.current = true
+        // Called for new users too: the first call seeds what already shipped as seen.
+        const unseen = getUnseenReleases()
+        if (hasAgents && unseen.length > 0 && !isWhatsNewOptedOut()) openWhatsNew({})
+    }, [agentsSettled, hasAgents, openWhatsNew])
+    const router = useRouter()
+    const profile = useProfile()
+    const userId = profile.user?.id ?? null
+    const pendingOnboarding = resolvePendingOnboarding({
+        pending: profile.isPending ? null : userId !== null && isOnboardingPending(userId),
         agentCount: agents.length,
-        isPending: agentsQuery.isPending,
-        isError: agentsQuery.isError,
+        agentsPending: agentsQuery.isPending,
+        agentsError: agentsQuery.isError,
     })
+    useEffect(() => {
+        if (pendingOnboarding === "start") void router.replace(`${base}/onboarding`)
+        if (pendingOnboarding === "dismiss" && userId) clearOnboardingPending(userId)
+    }, [pendingOnboarding, base, userId, router])
+    const surface =
+        pendingOnboarding === "wait" || pendingOnboarding === "start"
+            ? "loading"
+            : resolveHomeSurface({
+                  agentCount: agents.length,
+                  isPending: agentsQuery.isPending,
+                  isError: agentsQuery.isError,
+              })
 
     // Newest first. The list arrives in whatever order the query returns, which put agents made
     // months ago above one created a minute earlier — and the head of this list is also what the
@@ -72,19 +116,38 @@ export const HomeScreen = ({workspaceId, projectId}: {workspaceId: string; proje
         <HomeFocus
             className={frame}
             agents={listAgents}
-            templates={AGENT_TEMPLATES}
+            preferredAgentId={handoff.preferredAgentId}
+            templates={templates}
+            templatesLoading={templatesStatus === "pending"}
+            templatesErrorSlot={
+                templatesStatus === "error" ? (
+                    <LoadError title="Could not load templates" onRetry={refetchTemplates} />
+                ) : undefined
+            }
             attachments={handoff.attachments}
             onStartTask={handoff.onStartTask}
             onCreateFromPrompt={handoff.onCreateFromPrompt}
             sending={handoff.sending}
             templatesHref={`${base}/templates`}
+            newAction={
+                <NewAgentAction
+                    newAgent={handoff.newAgent}
+                    base={base}
+                    align="end"
+                    variant="outline"
+                    size="sm"
+                />
+            }
             loading={agentsQuery.isPending}
             loadingSlot={<HomeListSkeleton />}
             emptySlot={<HomeSectionEmpty text="Agents you create will show up here." />}
             errorSlot={
                 agentsQuery.isError ? (
                     // The list atom exposes no refetch; invalidating its cache is what re-runs it.
-                    <HomeListError onRetry={() => void invalidateWorkflowsListCache()} />
+                    <LoadError
+                        title="Could not load your agents"
+                        onRetry={() => void invalidateWorkflowsListCache()}
+                    />
                 ) : undefined
             }
         />

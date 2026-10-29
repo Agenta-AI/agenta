@@ -1,8 +1,10 @@
 export type {
     AgentConnectionMode,
+    AgentConnectionNamespace,
     AgentModelCandidate,
     AgentModelSelection,
     BuildAgentModelCandidatesArgs,
+    BuiltinModelEndpoint,
 } from "./agentModelCandidates"
 export {
     agentFamilyFromModelId,
@@ -15,8 +17,12 @@ export {
     firstAgentModelForConnection,
     isAgentDeploymentProviderKind,
     resolveAgentModelSelection,
+    connectionNamespaceFrom,
+    savedConnectionNamespace,
+    connectionScopeFrom,
+    explicitAgentConnection,
     selectableAgentHarnesses,
-    soleAgentHarnessProviderFamily,
+    HIDDEN_AGENT_HARNESSES,
     subscriptionConnectionCandidates,
 } from "./agentModelCandidates"
 
@@ -32,7 +38,9 @@ export type {
     Header,
     LegacyLifecycleDto,
     NamedSecretRow,
+    ProviderVaultRow,
     SecretDto,
+    SecretOwnerScope,
     SecretResponseDto,
     StandardProviderDto,
     StandardProviderSettingsDto,
@@ -43,6 +51,8 @@ export type {
 export {
     CustomProviderKind,
     CustomSecretFormat,
+    LlmEndpointProtocol,
+    McpStandardProviderKind,
     PROVIDER_KINDS,
     PROVIDER_LABELS,
     STANDARD_PROVIDER_KINDS,
@@ -58,6 +68,7 @@ export {
     transformCustomProviderPayloadData,
     transformCustomSecretPayloadData,
     transformStandardProviderPayloadData,
+    toUpdateSecretPayload,
     getEnvNameMap,
 } from "./transforms"
 
@@ -81,6 +92,7 @@ export {
     catalogEntryForKind,
     credentialFieldsForKind,
     deploymentForProviderKind,
+    endpointProtocolFieldForKind,
     providerTitleForKind,
     secretKindForProviderKind,
     toProviderCredentials,
@@ -98,6 +110,10 @@ export type {
 export {
     bareModelId,
     buildConnectionPayload,
+    customRouteFamily,
+    declaredEndpointProtocol,
+    initialEndpointProtocol,
+    soleAgentHarnessProviderFamily,
     buildModelOptions,
     modelDisplayOrder,
     connectionPolicyForSave,
@@ -108,7 +124,10 @@ export {
     doneState,
     harnessSupportsProviderKind,
     hasRequiredCredential,
+    hostedSubscriptionFamilies,
     isSubscriptionConnection,
+    isOrganizationConnection,
+    httpStatusOf,
     probeFailureMessage,
     probeRequestFor,
     storedCredentialFields,
@@ -124,6 +143,7 @@ export type {SubscriptionHarnessStatus, SubscriptionPair} from "./subscriptionPa
 
 export type {
     SubscriptionAvailability,
+    SubscriptionConnectMethod,
     SubscriptionLoginState,
     SubscriptionRowFacts,
 } from "./subscriptionConnections"
@@ -134,23 +154,35 @@ export {
     SUBSCRIPTION_SIGN_IN_HINT,
     subscriptionAttemptErrorSentence,
     subscriptionAvailability,
+    subscriptionConnectMethod,
+    subscriptionConnectionFor,
     subscriptionHarnesses,
     subscriptionIsReady,
     subscriptionProviderFamily,
     subscriptionProviderName,
     subscriptionRunProvider,
     subscriptionStatusLine,
+    subscriptionTokenErrorText,
 } from "./subscriptionConnections"
 export {
+    MOUNTED_SUBSCRIPTION_SOURCE,
+    mountedSubscriptionDisplayName,
     mountedSubscriptionName,
     subscriptionPairModels,
     subscriptionPairsFrom,
     subscriptionPlanName,
 } from "./subscriptionPairs"
 
-export type {ProviderFieldAttributes, ProviderFieldConfig} from "./providerFields"
+export type {
+    ProviderChoiceFieldConfig,
+    ProviderChoiceOption,
+    ProviderFieldAttributes,
+    ProviderFieldConfig,
+} from "./providerFields"
 export {
     CUSTOM_PROVIDER_KIND_FAMILIES,
+    DEFAULT_ENDPOINT_PROTOCOL,
+    ENDPOINT_PROTOCOL_FIELD,
     PROVIDER_AUTH_REQUIREMENTS,
     fieldNoteForKind,
     PROVIDER_FIELDS,

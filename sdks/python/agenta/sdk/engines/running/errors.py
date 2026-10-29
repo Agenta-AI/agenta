@@ -160,6 +160,11 @@ class InvalidSecretsV0Error(ErrorStatus):
         )
 
 
+# The connection the starter-credits bridge seeded. The same literal is
+# `STARTER_CREDITS_SLUG` in `agenta.sdk.agents.platform.connections`.
+RETIRED_STARTER_CREDITS_SLUG = "starter-credits"
+
+
 class UnknownConnectionV0Error(ErrorStatus):
     """A configuration names a connection slug the vault has no record for.
 
@@ -178,10 +183,20 @@ class UnknownConnectionV0Error(ErrorStatus):
         known_hint = (
             f" Known connections: {', '.join(self.known)}." if self.known else ""
         )
+        message = f"No provider connection named '{slug}'.{known_hint}"
+        if slug == RETIRED_STARTER_CREDITS_SLUG:
+            # The transfer job deleted the seeded "Agenta" connection and moved its credits
+            # into the wallet. Agents resolve to the built-in model through the gateway; this
+            # path calls the provider directly, so it needs a connection of the user's own.
+            message = (
+                "The Agenta starter-credits connection was retired, and its credits moved "
+                "to your wallet. Choose a model from one of your own provider "
+                f"connections in this configuration.{known_hint}"
+            )
         super().__init__(
             code=self.code,
             type=self.type,
-            message=f"No provider connection named '{slug}'.{known_hint}",
+            message=message,
         )
 
 
@@ -494,6 +509,18 @@ class LLMV0Error(ErrorStatus):
         )
 
 
+class ArchivedReferenceV0Error(ErrorStatus):
+    code: int = 410
+    type: str = f"{ERRORS_BASE_URL}#v0:references:archived"
+
+    def __init__(self, refs: Any):
+        super().__init__(
+            code=self.code,
+            type=self.type,
+            message=f"Archived reference:\nWorkflow, application, or evaluator is archived.\nRefs '{refs}'.",
+        )
+
+
 class ForceNotSupportedV0Error(ErrorStatus):
     """`flags.force=true` before take-over semantics exist (specs.md); maps to HTTP 406."""
 
@@ -502,3 +529,20 @@ class ForceNotSupportedV0Error(ErrorStatus):
 
     def __init__(self, message: str = "flags.force is not supported yet"):
         super().__init__(code=self.code, type=self.type, message=message)
+
+
+class InvalidSessionIdV0Error(ErrorStatus):
+    """An agent `session_id` the platform's session store refuses; maps to HTTP 400."""
+
+    code: int = 400
+    type: str = f"{ERRORS_BASE_URL}#v0:sessions:invalid-session-id"
+
+    def __init__(self, got: Any):
+        super().__init__(
+            code=self.code,
+            type=self.type,
+            message=(
+                "Invalid session_id:\nExpected 1 to 128 characters from "
+                f"A-Z, a-z, 0-9, '_' and '-'.\nGot '{got}'."
+            ),
+        )

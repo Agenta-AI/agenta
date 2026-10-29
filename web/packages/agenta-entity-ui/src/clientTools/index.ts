@@ -6,10 +6,20 @@
  * They sit here rather than beside the dispatcher because the elicitation form is SchemaForm, whose
  * state engine is antd `Form`, and @agenta/chat is contractually antd-free so /m can ship it.
  */
-export {clientToolWidgets} from "./registry"
+export {clientToolWidgets, ConnectRequestWidget} from "./registry"
 export {default as ElicitationWidget} from "./ElicitationWidget"
 export {default as ConnectToolWidget} from "./ConnectToolWidget"
+export {default as GatewayConnectToolWidget} from "./GatewayConnectToolWidget"
+export {
+    useGatewayConnectFlow,
+    parseGatewayTarget,
+    gatewayTargetLabel,
+    resolveCustomMcpEndpoint,
+    type GatewayTarget,
+    type GatewayPlane,
+} from "./useGatewayConnectFlow"
 export {useConnectFlow} from "./useConnectFlow"
+export {isDeferredByRunner} from "./deferred"
 export {IntegrationTile, type IntegrationTileProps} from "./IntegrationTile"
 export {
     useIntegrationIdentity,

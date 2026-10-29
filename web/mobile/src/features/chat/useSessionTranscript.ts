@@ -46,7 +46,7 @@ const rememberSnapshot = (
 /**
  * Read-only transcript for one session: server record replay via `loadSessionMessages`
  * (IndexedDB-restored, revalidation re-delivered through `onRefreshed`). `null` history
- * collapses into "empty" — raw text covers both no-messages and history-unavailable.
+ * collapses into "empty"; a read that failed is "failed", so the screen can offer a retry.
  *
  * `pollMs` > 0 tightens the cadence (a running turn / pending approval): each tick marks the
  * records stale and re-reads through the shared cache. Foreground-only — a hidden tab skips
@@ -59,7 +59,7 @@ export const useSessionTranscript = (sessionId: string, pollMs = 0) => {
     const [messages, setMessages] = useState<UIMessage[]>(
         () => SNAPSHOTS.get(sessionId)?.messages ?? [],
     )
-    const [state, setState] = useState<"loading" | "ready" | "empty">(() =>
+    const [state, setState] = useState<"loading" | "ready" | "empty" | "failed">(() =>
         SNAPSHOTS.has(sessionId) ? "ready" : "loading",
     )
     // Session-switch guard: a late resolve for a previous session must never land.
@@ -112,6 +112,9 @@ export const useSessionTranscript = (sessionId: string, pollMs = 0) => {
     // adopter through a ref rather than closing over it.
     const adoptRef = useRef(adopt)
     adoptRef.current = adopt
+    // Bumped by `retry` to run the first load again.
+    const [attempt, setAttempt] = useState(0)
+    const retry = useCallback(() => setAttempt((n) => n + 1), [])
 
     useEffect(() => {
         let cancelled = false
@@ -119,6 +122,7 @@ export const useSessionTranscript = (sessionId: string, pollMs = 0) => {
         // deliveries order-independent, and this flag keeps a stale empty result from blanking
         // a transcript the revalidation already adopted.
         let adopted = false
+        let failed = false
         // Seeded from the last adopted transcript when we have one: the load below still runs and
         // adopts anything newer, but the switch itself no longer empties the screen first.
         const seeded = SNAPSHOTS.get(sessionId)
@@ -127,11 +131,17 @@ export const useSessionTranscript = (sessionId: string, pollMs = 0) => {
         messagesRef.current = seeded?.messages ?? []
         recordCountRef.current = seeded?.recordCount
         sequenceCursorRef.current = seeded?.sequenceCursor
-        void loadSessionMessages(sessionId, (fresh) => {
-            // Disk-restore revalidation re-delivery — fresh is non-empty by contract.
-            if (cancelled) return
-            if (adoptRef.current(fresh)) adopted = true
-        })
+        void loadSessionMessages(
+            sessionId,
+            (fresh) => {
+                // Disk-restore revalidation re-delivery — fresh is non-empty by contract.
+                if (cancelled) return
+                if (adoptRef.current(fresh)) adopted = true
+            },
+            () => {
+                failed = true
+            },
+        )
             .then((transcript) => {
                 if (cancelled) return
                 if (adoptRef.current(transcript)) {
@@ -140,15 +150,15 @@ export const useSessionTranscript = (sessionId: string, pollMs = 0) => {
                 }
                 // Nothing adopted from either delivery → no durable history for this session. A
                 // seeded transcript is not that: an unchanged record log declines to adopt.
-                if (!adopted && !seeded) setState("empty")
+                if (!adopted && !seeded) setState(failed ? "failed" : "empty")
             })
             .catch(() => {
-                if (!cancelled && !adopted && !seeded) setState("empty")
+                if (!cancelled && !adopted && !seeded) setState("failed")
             })
         return () => {
             cancelled = true
         }
-    }, [sessionId])
+    }, [sessionId, attempt])
 
     const refresh = useCallback(() => {
         if (document.visibilityState !== "visible") return
@@ -223,5 +233,5 @@ export const useSessionTranscript = (sessionId: string, pollMs = 0) => {
         }
     }, [interactionGateOpen, refreshInteractions])
 
-    return {messages, state, refresh, interactionChanged}
+    return {messages, state, refresh, retry, interactionChanged}
 }

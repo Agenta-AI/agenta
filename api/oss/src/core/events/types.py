@@ -15,6 +15,16 @@ class EventType(str, Enum):
 
     WEBHOOKS_SUBSCRIPTIONS_TESTED = "webhooks.subscriptions.tested"
 
+    # One event per allowed or denied gateway relay.
+    GATEWAYS_CALLED = "gateways.called"
+
+    # One event per agent or session sharing change (M3).
+    AGENTS_SHARING_CHANGED = "agents.sharing.changed"
+    SESSIONS_SHARING_CHANGED = "sessions.sharing.changed"
+
+    # One event per organization credential write (ids and kinds only, never a value).
+    ORGANIZATION_SECRETS_CHANGED = "organization_secrets.changed"
+
     # Tracing reads
     TRACES_FETCHED = "traces.fetched"
     TRACES_QUERIED = "traces.queried"

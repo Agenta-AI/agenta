@@ -11,9 +11,8 @@ const meta = {
         docs: {
             description: {
                 component:
-                    "Add one or many agents as subagents. Each row adds itself and removes " +
-                    "itself with the same button, Add all acts on what the search is " +
-                    "showing, and the footer only closes.",
+                    "Add agents as subagents, in the home list's row and search. Clicking a " +
+                    "row adds it, clicking again removes it, and the footer only closes.",
             },
         },
     },
@@ -152,7 +151,7 @@ export const Loading: Story = {
     render: (args) => Frame(<AddSubagentDrawer {...args} />),
 }
 
-/** The clamp both ways, plus the row's worst case: long name, long model, four apps. */
+/** The row's worst case: long name, long description, four apps. */
 export const LongContent: Story = {
     args: {
         open: true,
@@ -191,7 +190,7 @@ export const LongContent: Story = {
     render: (args) => Frame(<AddSubagentDrawer {...args} />),
 }
 
-/** Every agent is already added, so every row offers Remove and the header drops Add all. */
+/** Every agent is already added, so every row is tinted and checked. */
 export const AllAlreadyAdded: Story = {
     args: {
         open: true,

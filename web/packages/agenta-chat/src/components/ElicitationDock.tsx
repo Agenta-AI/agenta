@@ -7,9 +7,10 @@
  *  - **The card never moves the composer.** Every state renders into the same `CARD_MIN_H` box, and
  *    every slot holds its space whether or not it has content: the nav renders disabled on the first
  *    and last question, the counter is tabular, and the error line is permanently mounted and merely
- *    empty. A `return null` on any branch, or a slot that only appears when filled, reintroduces the
- *    shift. The stepper cluster is decided by the FORM, not by the state, so a one-question form
- *    drops it outright without ever moving mid-answer.
+ *    empty. A `return null` on any live branch, or a slot that only appears when filled, reintroduces
+ *    the shift. An unrenderable payload never reaches the card (see `useElicitationDock`). The
+ *    stepper cluster is decided by the FORM, not by the state, so a one-question form drops it
+ *    outright without ever moving mid-answer.
  *  - **It docks like its siblings.** It sits between `ApprovalDock` and `ConnectionDock`, in that
  *    order, because that is also the keyboard precedence (approval > elicitation > connect).
  *
@@ -25,12 +26,11 @@ import {
     buildElicitationSteps,
     formatStepValue,
     parseElicitationPayload,
-    parseSecretRefusal,
     serializeElicitationContent,
     type ElicitationRequestPayload,
 } from "@agenta/shared/utils"
 import {Button, LoadingButton} from "@agenta/ui/ui"
-import {CaretLeft, CaretRight, CircleNotch, Prohibit, Question, X} from "@phosphor-icons/react"
+import {CaretLeft, CaretRight, CircleNotch, Question, X} from "@phosphor-icons/react"
 
 import type {ClientToolOutputHandler} from "../clientTools/ClientToolPart"
 import type {ElicitationDockState} from "../hooks/useElicitationDock"
@@ -40,8 +40,10 @@ import type {ClientToolMeta} from "../skin"
 import {
     ElicitationControl,
     MAX_DIGIT_ROWS,
+    isEditingOutside,
     isMultiSelect,
     optionRowsFor,
+    selectedRowFor,
     type OptionRow,
 } from "./elicitation/ElicitationControl"
 
@@ -65,13 +67,6 @@ export interface ElicitationDockProps {
     active?: boolean
     className?: string
 }
-
-/** A settled or unrenderable card still holds the box while the host animates the collapse. */
-const Shell = ({children, className}: {children: React.ReactNode; className?: string}) => (
-    <div className={`${CARD_SURFACE} ${className ?? ""}`} style={{minHeight: CARD_MIN_H}}>
-        {children}
-    </div>
-)
 
 export const ElicitationDock = ({
     elicits,
@@ -141,7 +136,13 @@ const ElicitationCard = ({
             try {
                 void Promise.resolve(
                     onOutput({toolName: meta.toolName, toolCallId: meta.toolCallId, output}),
-                ).catch(failed)
+                )
+                    .then((landed) => {
+                        // A host that reports the failure itself still resolves; without this the
+                        // spinner outlives a write that never landed.
+                        if (landed === false) failed(new Error("Could not submit your answer."))
+                    })
+                    .catch(failed)
             } catch (error) {
                 failed(error)
             }
@@ -149,15 +150,8 @@ const ElicitationCard = ({
         [onOutput, meta.toolName, meta.toolCallId],
     )
 
-    if (!parsed.ok) {
-        return (
-            <RefusalPanel
-                reason={parsed.reason}
-                submitting={submitting}
-                onSkip={() => settle(toOutput(buildCancelResult("Dismissed the request.")))}
-            />
-        )
-    }
+    // Unreachable: the dock never fronts an unrenderable payload. Guards the type only.
+    if (!parsed.ok) return null
 
     return (
         <LiveCard
@@ -176,49 +170,6 @@ const ElicitationCard = ({
 
 const toOutput = (result: {action: string; content?: unknown; humanFriendlyMessage?: string}) =>
     result as unknown as Record<string, unknown>
-
-/**
- * A payload the dialect refuses. The dock has already settled it (see `useElicitationDock`), so this
- * panel is transient — the durable explanation is the transcript row. It holds the box meanwhile.
- */
-const RefusalPanel = ({
-    reason,
-    submitting,
-    onSkip,
-}: {
-    reason: string
-    submitting: boolean
-    onSkip: () => void
-}) => {
-    const secret = parseSecretRefusal(reason)
-    return (
-        <Shell>
-            <Eyebrow />
-            <div className="flex flex-1 flex-col gap-1.5">
-                <div className="flex items-start gap-2">
-                    <Prohibit size={14} className="mt-0.5 shrink-0 text-colorWarning" />
-                    <div className="flex min-w-0 flex-col gap-0.5">
-                        <span className="text-[13px] font-medium">
-                            {secret
-                                ? `This request asked for ${secret.property} — forms never carry secrets.`
-                                : "This request couldn't be shown as a form."}
-                        </span>
-                        <span className="text-xs text-colorTextSecondary">
-                            {secret
-                                ? "Connect the credential instead; the agent resumes as soon as it lands."
-                                : reason}
-                        </span>
-                    </div>
-                </div>
-            </div>
-            <div className="flex flex-row-reverse items-center gap-2">
-                <LoadingButton variant="ghost" loading={submitting} onClick={onSkip}>
-                    Skip
-                </LoadingButton>
-            </div>
-        </Shell>
-    )
-}
 
 /** Same icon size and gap as ApprovalCard's eyebrow: the two docks stack, so a difference reads
  * as a mistake rather than a distinction. */
@@ -255,7 +206,9 @@ const LiveCard = ({
     const cardRef = useRef<HTMLDivElement>(null)
     const form = useMemo(() => buildElicitationSteps(payload), [payload])
     // Which button fired, so the spinner lands on it (the card only reports "submitting").
-    const [firedAction, setFiredAction] = useState<"primary" | "secondary" | "dismiss" | null>(null)
+    const [firedAction, setFiredAction] = useState<
+        "primary" | "secondary" | "dismiss" | "pick" | null
+    >(null)
 
     const complete = useCallback(
         (content: Record<string, unknown>) => {
@@ -317,6 +270,17 @@ const LiveCard = ({
     }, [submitting, isReview, stepper, decline])
 
     const multi = isMultiSelect(step)
+    // One question, one row: the click is the answer, and the row it landed on spins in place of
+    // a Send button. The keyboard never gets that shortcut: the card can appear under someone
+    // typing in the composer, so a digit, an arrow or Space only selects, and Enter sends. The Send
+    // button comes back once something is selected that way, and for the trailing "Other" row,
+    // which is typed into rather than picked.
+    const oneShot = stepper.submitsOnPick
+    const selected = selectedRowFor(step, step ? values[step.name] : undefined)
+    const otherIndex = rows.length && rows[rows.length - 1].value === null ? rows.length - 1 : -1
+    const otherEngaged =
+        oneShot && otherIndex >= 0 && (cursor === otherIndex || selected === otherIndex)
+    const showSend = !oneShot || otherEngaged || (selected >= 0 && firedAction !== "pick")
 
     /** Focus the trailing "Other" text field. It is a row you type into, never one you pick. */
     const focusOther = useCallback(
@@ -337,17 +301,39 @@ const LiveCard = ({
             // Digits and Enter used to die here on the Other row, because it carries no value.
             if (row.value === null) return focusOther(index)
             if (multi) return stepper.toggle(step.name, row.value)
+            // A one-shot pick settles the card, so it takes the same guard as every other settle
+            // path: a second click while the first is in flight must not send a competing answer.
+            if (oneShot) {
+                if (submitting) return
+                setFiredAction("pick")
+            }
             const value = step.kind === "boolean" ? row.value === "true" : row.value
             stepper.pick(step.name, value, `Picked ${row.label}`, index, immediate)
         },
-        [step, stepper, multi, focusOther],
+        [step, stepper, multi, focusOther, oneShot, submitting],
+    )
+
+    /** Select a row on a one-shot form without sending it. The keyboard's half of `pickRow`. */
+    const selectRow = useCallback(
+        (index: number) => {
+            const row = rows[index]
+            if (!step || !row) return
+            if (row.value === null) return focusOther(index)
+            stepper.setValue(step.name, step.kind === "boolean" ? row.value === "true" : row.value)
+            stepper.setCursor(index)
+        },
+        [rows, step, stepper, focusOther],
     )
 
     // Row-driven steps and the review list put focus on the card itself, so digits and arrows work
-    // immediately. Free-text steps focus their input instead (see ElicitationControl).
+    // immediately. Free-text steps focus their input instead (see ElicitationControl). Neither
+    // takes focus from the composer: the user typing there keeps typing there.
     useEffect(() => {
         if ((!rows.length && !isReview) || !active) return
-        const frame = requestAnimationFrame(() => cardRef.current?.focus({preventScroll: true}))
+        const frame = requestAnimationFrame(() => {
+            if (isEditingOutside(cardRef.current)) return
+            cardRef.current?.focus({preventScroll: true})
+        })
         return () => cancelAnimationFrame(frame)
     }, [rows.length, isReview, stepper.index, active])
 
@@ -417,14 +403,21 @@ const LiveCard = ({
             if (index < Math.min(rows.length, MAX_DIGIT_ROWS)) {
                 event.preventDefault()
                 // Keyboard picks advance at once: the user meant it, and the hold that protects a
-                // misclick just fights fast entry.
-                pickRow(rows[index], index, true)
+                // misclick just fights fast entry. On a one-shot form advancing IS sending, so the
+                // digit only selects.
+                if (oneShot) selectRow(index)
+                else pickRow(rows[index], index, true)
             }
             return
         }
         if (event.key === "ArrowDown" || event.key === "ArrowUp") {
             event.preventDefault()
-            stepper.moveCursor(event.key === "ArrowDown" ? 1 : -1, rows.length)
+            const delta = event.key === "ArrowDown" ? 1 : -1
+            // A one-shot form is a radio group, where the arrows move the selection itself. The
+            // Other row takes only the cursor: landing on it must not trap the arrows in its field.
+            const next = (cursor + delta + rows.length) % rows.length
+            if (oneShot && rows[next].value !== null) selectRow(next)
+            else stepper.moveCursor(delta, rows.length)
             return
         }
         if (event.key === "Home" || event.key === "End") {
@@ -439,10 +432,23 @@ const LiveCard = ({
             if (row) pickRow(row, cursor)
             return
         }
+        if (event.key === " " && oneShot) {
+            event.preventDefault()
+            selectRow(cursor)
+            return
+        }
         if (event.key === "Enter") {
             event.preventDefault()
             const row = rows[cursor]
-            if (row) pickRow(row, cursor, true)
+            if (!row) return
+            // Enter sends what is selected. With nothing selected yet it selects the lit row
+            // first, so a stray Enter cannot send an answer either.
+            if (oneShot) {
+                if (row.value !== null && selected === cursor) primary()
+                else selectRow(cursor)
+                return
+            }
+            pickRow(row, cursor, true)
         }
     }
 
@@ -453,6 +459,7 @@ const LiveCard = ({
     return (
         <div
             ref={cardRef}
+            data-elicitation-card
             tabIndex={-1}
             role="group"
             aria-label={
@@ -512,6 +519,14 @@ const LiveCard = ({
                 </div>
             </Eyebrow>
 
+            {/* Fixed for the card's life, so it never moves the composer mid-answer. */}
+            <p
+                data-elicitation-message
+                className="m-0 max-h-[34px] overflow-y-auto text-xs leading-snug text-colorTextSecondary"
+            >
+                {form.message}
+            </p>
+
             {stepper.isMultiStep ? (
                 <div className="flex gap-1" aria-hidden>
                     {steps.map((candidate, index) => (
@@ -550,6 +565,8 @@ const LiveCard = ({
                             value={values[step.name]}
                             cursor={cursor}
                             touch={touch}
+                            disabled={submitting}
+                            pending={submitting && firedAction === "pick"}
                             onChange={(value) => stepper.setValue(step.name, value)}
                             onPick={pickRow}
                             onCursor={stepper.setCursor}
@@ -560,14 +577,19 @@ const LiveCard = ({
             </div>
 
             <div className="flex flex-row-reverse items-center gap-2">
-                <LoadingButton
-                    className={touchCls}
-                    disabled={submitting}
-                    loading={submitting && firedAction === "primary"}
-                    onClick={primary}
-                >
-                    {stepper.primaryLabel}
-                </LoadingButton>
+                {/* Dropped, not disabled, on a one-shot form until the keyboard selects: a click
+                    on a row is the Send button. Skip still holds the row's height, so the
+                    composer does not move either way. */}
+                {showSend ? (
+                    <LoadingButton
+                        className={touchCls}
+                        disabled={submitting}
+                        loading={submitting && firedAction === "primary"}
+                        onClick={primary}
+                    >
+                        {stepper.primaryLabel}
+                    </LoadingButton>
+                ) : null}
                 <LoadingButton
                     variant="ghost"
                     className={touchCls}

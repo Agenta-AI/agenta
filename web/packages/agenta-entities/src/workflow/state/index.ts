@@ -42,6 +42,7 @@ export {
 
 export {
     agentModelCandidatesAtomFamily,
+    builtinModelEndpointsQueryAtom,
     loadAgentModelCandidates,
     resolveAgentModelCandidateSources,
     type AgentModelCandidatesState,
@@ -98,6 +99,10 @@ export {
     workflowIsDirtyAtomFamily,
     workflowIsEphemeralAtomFamily,
     workflowAgentTemplateOverlayAtomFamily,
+    workflowBuildKitUiStateAtomFamily,
+    agentaToolsAccessAtom,
+    workflowBuildKitScopeAtomFamily,
+    migrateBuildKitStateAtom,
     workflowBuildKitEnabledAtomFamily,
     workflowBuildKitDisabledOpsAtomFamily,
     type BuildKitUiState,
@@ -109,6 +114,7 @@ export {
     clearWorkflowDraftCallbacks,
     type WorkflowDraftCallbacks,
     discardWorkflowDraftAtom,
+    workflowDraftConsumedAtomFamily,
     // Cache invalidation
     invalidateWorkflowsListCache,
     invalidateWorkflowCache,
@@ -141,10 +147,16 @@ export {
 
 // Persisted agent-type map (cold-reload fallback for playgroundEarlyAgentStateAtom)
 // ============================================================================
-// AGENT ICON (per-agent glyph + colour, persisted client-side)
+// AGENT ICON (per-agent glyph + colour, stored on the artifact's tags)
 // ============================================================================
 
-export {agentIconAtomFamily, type AgentIconRecord} from "./agentIcon"
+export {
+    agentIconAtomFamily,
+    readAgentIconTag,
+    withAgentIconTag,
+    type AgentIconRecord,
+    type AgentIconSetting,
+} from "./agentIcon"
 
 export {readPersistedAgentType} from "./persistedAgentType"
 
@@ -226,6 +238,23 @@ export {
     clearWorkflowArchiveCallbacks,
 } from "./commit"
 
+export {
+    loadAgentTemplateFromEphemeralAtom,
+    abandonAgentTemplateLoad,
+    templateConnectionChoices,
+    type LoadAgentTemplateFromEphemeralParams,
+} from "./loadTemplate"
+export {
+    agentTemplatesQueryAtom,
+    agentTemplatesAtom,
+    agentTemplatesStatusAtom,
+    refetchAgentTemplatesAtom,
+    agentTemplateLookupAtomFamily,
+    type AgentTemplatesStatus,
+    type AgentTemplateLookup,
+} from "./agentTemplateCatalog"
+export {buildCreatePayloadFromEphemeral, type EphemeralCreatePayload} from "./createPayload"
+
 // ============================================================================
 // EVALUATOR UTILITIES (for evaluator-type workflows)
 // ============================================================================
@@ -235,9 +264,6 @@ export {
     evaluatorsListQueryAtom,
     evaluatorsListDataAtom,
     nonArchivedEvaluatorsAtom,
-    llmEvaluatorsAtom,
-    fullPagePlaygroundEvaluatorsAtom,
-    nonHumanEvaluatorsAtom,
     nonDeterministicEvaluatorsAtom,
     // Lazy enrichment gate (defers the per-evaluator latest-revision fan-out)
     evaluatorEnrichmentActivatedAtom,

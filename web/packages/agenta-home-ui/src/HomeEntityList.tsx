@@ -2,7 +2,7 @@ import {useCallback, useEffect, useRef, useState, type ReactNode} from "react"
 
 import {templateProviderSlugs, type AgentStarterTemplate} from "@agenta/entities/workflow"
 import {AgentChip} from "@agenta/entity-ui/agent"
-import {ArrowRightIcon, CheckIcon, ListBulletsIcon, PlusIcon} from "@phosphor-icons/react"
+import {ArrowRightIcon, CheckIcon, ListBulletsIcon} from "@phosphor-icons/react"
 import Link from "next/link"
 
 import {TemplateProviderMarks} from "./TemplateProviderMarks"
@@ -31,13 +31,20 @@ export interface HomeEntityListProps {
     onPickTemplate: (template: AgentStarterTemplate) => void
     /** The full gallery, from the row that closes the templates tab. */
     templatesHref: string
-    /** Flip the composer into create mode. */
-    onNew: () => void
+    /** The host's create menu, at the end of the tab row. */
+    newAction?: ReactNode
     /** The agents tab's states — the host's, so they carry its own designed versions. */
     loading?: boolean
     loadingSlot?: ReactNode
     emptySlot?: ReactNode
     errorSlot?: ReactNode
+    /**
+     * The templates tab's states. The catalogue is fetched, so an empty list before it answers is
+     * "not yet" (the loading slot), and a failed read is the host's error slot with its retry —
+     * never an empty tab or "Browse all 0 templates".
+     */
+    templatesLoading?: boolean
+    templatesErrorSlot?: ReactNode
 }
 
 /** The mobile theme's focus recipe. No `ring-offset`: this theme provides none. */
@@ -109,11 +116,13 @@ export const HomeEntityList = ({
     selectedTemplateKey,
     onPickTemplate,
     templatesHref,
-    onNew,
+    newAction,
     loading,
     loadingSlot,
     emptySlot,
     errorSlot,
+    templatesLoading,
+    templatesErrorSlot,
 }: HomeEntityListProps) => {
     const scrollerRef = useRef<HTMLDivElement>(null)
     const [mask, setMask] = useState<string>("none")
@@ -158,6 +167,7 @@ export const HomeEntityList = ({
     // hiding the tab hid the retry along with it.
     const hasAgentsTab = agents.length > 0 || agentsBody !== null
     const showAgents = hasAgentsTab && tab === "agents"
+    const templatesBody = templatesErrorSlot ?? (templatesLoading ? loadingSlot : null)
 
     return (
         // `-mt-1` closes 4px of the column's 26px gap: the tabs read as the composer's own
@@ -190,16 +200,7 @@ export const HomeEntityList = ({
                     Templates
                 </button>
                 <span className="flex-1" />
-                <span className="pb-[7px]">
-                    <button
-                        type="button"
-                        onClick={onNew}
-                        className={`box-border flex h-7 cursor-pointer appearance-none items-center gap-1.5 rounded-control-sm border border-solid border-border bg-transparent px-2.5 font-[inherit] text-[13px] leading-none text-foreground outline-none transition-colors hover:bg-accent ${FOCUS_RING}`}
-                    >
-                        <PlusIcon aria-hidden size={12} />
-                        New agent
-                    </button>
-                </span>
+                {newAction ? <span className="pb-[7px]">{newAction}</span> : null}
             </div>
 
             <div
@@ -225,6 +226,8 @@ export const HomeEntityList = ({
                             onClick={() => onSelectAgent(agent.id)}
                         />
                     )))
+                ) : templatesBody ? (
+                    templatesBody
                 ) : (
                     <>
                         {templates.slice(0, TEMPLATE_SHORTLIST).map((template) => (

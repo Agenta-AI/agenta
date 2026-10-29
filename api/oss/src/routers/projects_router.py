@@ -1,15 +1,29 @@
-from typing import Optional, List
+from typing import List, Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel
 
 from fastapi import Request, HTTPException
+from sqlalchemy.exc import NoResultFound
 from fastapi.responses import JSONResponse
 
+from oss.src.core.access.context import get_request_access
+from oss.src.core.access.organizations import OrganizationAction, decide_organization
+from oss.src.core.access.service import (
+    invalidate_scope_after_delete,
+    read_scope_principals_before_delete,
+)
 from oss.src.utils.common import is_ee, is_oss, APIRouter
 from oss.src.services import db_manager
+from oss.src.core.memberships.dtos import ProjectListing
+from oss.src.core.memberships.service import get_memberships_service
+from oss.src.core.access.permissions.service import check_action_access
+from oss.src.core.access.permissions.types import Permission
 
 from oss.src.utils.logging import get_module_logger
+
+if is_ee():
+    from ee.src.core.access.entitlements.service import project_limit_refusal
 
 log = get_module_logger(__name__)
 
@@ -23,7 +37,6 @@ class ProjectsResponse(BaseModel):
     project_name: str
     is_default_project: bool = False
     user_role: Optional[str] = None
-    is_demo: Optional[bool] = None
 
 
 class CreateProjectRequest(BaseModel):
@@ -39,66 +52,71 @@ class UpdateProjectRequest(BaseModel):
 router = APIRouter()
 
 
-async def _assert_org_owner(request: Request):
-    organization_id = getattr(request.state, "organization_id", None)
-    user_id = getattr(request.state, "user_id", None)
+_CONTEXT_REQUIRED = "Workspace and organization context are required"
+_PERMISSION_DENIED = (
+    "You do not have permission to perform this action. "
+    "Please contact your Organization Owner"
+)
 
-    if not organization_id or not user_id:
-        raise HTTPException(
-            status_code=400, detail="Missing organization context for request"
-        )
 
-    organization = await db_manager.fetch_organization_by_id(
-        organization_id=str(organization_id)
+async def _require(request: Request, project_id, permission: Permission) -> None:
+    allowed = await check_action_access(
+        user_uid=str(request.state.user_id),
+        project_id=str(project_id),
+        permission=permission,
     )
-    if not organization:
-        raise HTTPException(status_code=404, detail="Organization not found")
-
-    if str(organization.owner_id) != str(user_id):
-        raise HTTPException(
-            status_code=403,
-            detail="Only the organization owner can perform this action",
-        )
-
-    return organization
+    if not allowed:
+        raise HTTPException(status_code=403, detail=_PERMISSION_DENIED)
 
 
-async def _project_to_response(
-    project,
-    *,
-    user_role: Optional[str],
-    is_demo: Optional[bool],
-    workspace=None,
-    organization=None,
-) -> ProjectsResponse:
-    workspace_obj = workspace
-    if workspace_obj is None and project.workspace_id:
-        workspace_obj = await db_manager.fetch_workspace_by_id(
-            workspace_id=str(project.workspace_id)
-        )
-
-    organization_obj = organization
-    if organization_obj is None and project.organization_id:
-        organization_obj = await db_manager.fetch_organization_by_id(
-            organization_id=str(project.organization_id)
-        )
-
-    if workspace_obj is None or organization_obj is None:
-        raise HTTPException(
-            status_code=404, detail="Workspace or Organization not found"
-        )
-
+def _project_to_response(listing: ProjectListing) -> ProjectsResponse:
+    summary = listing.summary
     return ProjectsResponse(
-        organization_id=UUID(str(organization_obj.id)),
-        organization_name=str(organization_obj.name),
-        workspace_id=UUID(str(workspace_obj.id)),
-        workspace_name=str(workspace_obj.name),
-        project_id=UUID(str(project.id)),
-        project_name=str(project.project_name),
-        is_default_project=bool(project.is_default),
-        user_role=user_role,
-        is_demo=is_demo,
+        organization_id=summary.organization_id,
+        organization_name=summary.organization_name,
+        workspace_id=summary.workspace_id,
+        workspace_name=summary.workspace_name,
+        project_id=summary.project_id,
+        project_name=summary.project_name,
+        is_default_project=summary.is_default,
+        user_role=listing.membership.role,
     )
+
+
+async def _fetch_listing(request: Request, project_id) -> Optional[ProjectListing]:
+    return await get_memberships_service().fetch_for_user(
+        user_id=UUID(str(request.state.user_id)),
+        project_id=UUID(str(project_id)),
+    )
+
+
+async def _organization_projects(request: Request) -> List[ProjectsResponse]:
+    """Every project of the request's organization, also the ones the caller is not a
+    member of, for an owner or admin choosing who may use an organization connection."""
+    raw = getattr(request.state, "organization_id", None)
+    organization_id = UUID(str(raw)) if raw else None
+    decision = (
+        await decide_organization(
+            access=get_request_access(),
+            organization_id=organization_id,
+            action=OrganizationAction.MANAGE_ORGANIZATION_SECRETS,
+        )
+        if organization_id
+        else None
+    )
+    if decision is None or not decision.allowed:
+        raise HTTPException(status_code=403, detail=_PERMISSION_DENIED)
+    projects = await db_manager.fetch_projects_by_organization(organization_id)
+    return [
+        ProjectsResponse(
+            organization_id=project.organization_id,
+            workspace_id=project.organization_id,
+            project_id=project.id,
+            project_name=project.project_name,
+            is_default_project=bool(project.is_default),
+        )
+        for project in projects
+    ]
 
 
 @router.get(
@@ -108,7 +126,10 @@ async def _project_to_response(
 )
 async def get_projects(
     request: Request,
+    scope: Literal["member", "organization"] = "member",
 ):
+    if scope == "organization":
+        return await _organization_projects(request)
     try:
         if not (is_oss() or is_ee()):
             return JSONResponse(
@@ -116,26 +137,19 @@ async def get_projects(
                 content={"message": "No projects found."},
             )
 
-        _project_memberships = await db_manager.fetch_project_memberships_by_user_id(
-            user_id=request.state.user_id
+        listings = await get_memberships_service().list_for_user(
+            user_id=UUID(str(request.state.user_id))
         )
 
-        if not _project_memberships:
+        if not listings:
             return JSONResponse(
                 status_code=404,
                 content={"message": "No projects found."},
             )
 
-        projects: List[ProjectsResponse] = []
-        for project_membership in _project_memberships:
-            project_response = await _project_to_response(
-                project_membership.project,
-                user_role=project_membership.role,
-                is_demo=project_membership.is_demo,
-                workspace=project_membership.project.workspace,
-                organization=project_membership.project.organization,
-            )
-            projects.append(project_response)
+        projects: List[ProjectsResponse] = [
+            _project_to_response(listing) for listing in listings
+        ]
 
         return projects
 
@@ -166,27 +180,14 @@ async def get_project(
                     status_code=400, detail="Active project context is missing"
                 )
 
-        memberships = await db_manager.fetch_project_memberships_by_user_id(
-            user_id=request.state.user_id
-        )
-        membership = next(
-            (
-                project_membership
-                for project_membership in memberships
-                if str(project_membership.project_id) == str(lookup_project_id)
-            ),
-            None,
-        )
-        if not membership:
+        try:
+            listing = await _fetch_listing(request, lookup_project_id)
+        except ValueError:
+            listing = None
+        if listing is None:
             raise HTTPException(status_code=404, detail="Project not found")
 
-        return await _project_to_response(
-            membership.project,
-            user_role=membership.role,
-            is_demo=membership.is_demo,
-            workspace=membership.project.workspace,
-            organization=membership.project.organization,
-        )
+        return _project_to_response(listing)
 
     except HTTPException:
         raise
@@ -205,26 +206,36 @@ async def create_project(
     request: Request,
     payload: CreateProjectRequest,
 ) -> ProjectsResponse:
-    # await _assert_org_owner(request)
-
-    workspace_id = getattr(request.state, "workspace_id", None)
     organization_id = getattr(request.state, "organization_id", None)
 
-    if not workspace_id or not organization_id:
-        raise HTTPException(
-            status_code=400, detail="Workspace and organization context are required"
+    if not organization_id:
+        raise HTTPException(status_code=400, detail=_CONTEXT_REQUIRED)
+
+    # Creating a project is an organization-level act: it authorizes on the
+    # organization's default project, like the workspace endpoints.
+    try:
+        default_project_id = await db_manager.get_default_project_id_from_workspace(
+            workspace_id=str(organization_id)
         )
+    except NoResultFound as exc:
+        raise HTTPException(status_code=400, detail=_CONTEXT_REQUIRED) from exc
+    await _require(request, default_project_id, Permission.CREATE_WORKSPACE)
 
     project_name = payload.name.strip()
 
     if not project_name:
         raise HTTPException(status_code=400, detail="Project name cannot be empty")
 
-    project = await db_manager.create_workspace_project(
-        project_name=project_name,
-        workspace_id=str(workspace_id),
-        organization_id=str(organization_id),
-        set_default=payload.make_default,
+    if is_ee():
+        refusal = await project_limit_refusal(UUID(str(organization_id)))
+        if refusal:
+            raise HTTPException(status_code=403, detail=refusal)
+
+    scope = await get_memberships_service().create_project(
+        organization_id=UUID(str(organization_id)),
+        name=project_name,
+        is_default=payload.make_default,
+        actor_user_id=UUID(str(request.state.user_id)),
     )
 
     # Import here to avoid circular import at module load time
@@ -232,27 +243,19 @@ async def create_project(
     from oss.src.core.environments.defaults import create_default_environments
 
     await create_default_evaluators(
-        project_id=project.id,
+        project_id=scope.project_id,
         user_id=UUID(request.state.user_id),
     )
     await create_default_environments(
-        project_id=project.id,
+        project_id=scope.project_id,
         user_id=UUID(request.state.user_id),
     )
 
-    memberships = await db_manager.fetch_project_memberships_by_user_id(
-        user_id=request.state.user_id
-    )
-    membership = next(
-        (m for m in memberships if str(m.project_id) == str(project.id)),
-        None,
-    )
+    listing = await _fetch_listing(request, scope.project_id)
+    if listing is None:
+        raise HTTPException(status_code=404, detail="Project not found")
 
-    return await _project_to_response(
-        project,
-        user_role=membership.role if membership else None,
-        is_demo=membership.is_demo if membership else None,
-    )
+    return _project_to_response(listing)
 
 
 @router.delete(
@@ -263,22 +266,30 @@ async def delete_project(
     project_id: UUID,
     request: Request,
 ):
-    # await _assert_org_owner(request)
+    organization_id = getattr(request.state, "organization_id", None)
 
-    workspace_id = getattr(request.state, "workspace_id", None)
-
-    if not workspace_id:
+    if not organization_id:
         raise HTTPException(status_code=400, detail="Workspace context is required")
 
     project = await db_manager.fetch_project_by_id(project_id=str(project_id))
 
-    if not project or str(project.workspace_id) != str(workspace_id):
+    # The context is the project's organization.
+    if not project or str(organization_id) != str(project.organization_id):
         raise HTTPException(status_code=404, detail="Project not found")
 
+    if await _fetch_listing(request, project_id) is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    await _require(request, project_id, Permission.DELETE_WORKSPACE)
+
+    # The project's keys and bindings go with it; their cached principals and the
+    # members' cached access to it are cleared after the delete.
+    scope_snapshot = await read_scope_principals_before_delete(project_ids=[project_id])
     try:
         await db_manager.delete_project(str(project_id))
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    await invalidate_scope_after_delete(snapshot=scope_snapshot)
 
     return JSONResponse(status_code=200, content={"detail": "Project deleted"})
 
@@ -293,30 +304,29 @@ async def update_project(
     payload: UpdateProjectRequest,
     request: Request,
 ) -> ProjectsResponse:
-    # await _assert_org_owner(request)
-
-    memberships = await db_manager.fetch_project_memberships_by_user_id(
-        user_id=request.state.user_id
-    )
-    membership = next(
-        (m for m in memberships if str(m.project_id) == str(project_id)),
-        None,
-    )
-    if not membership:
+    listing = await _fetch_listing(request, project_id)
+    if listing is None:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    project = membership.project
+    await _require(request, project_id, Permission.EDIT_WORKSPACE)
+    if payload.make_default:
+        # Making a project the default changes which project carries organization
+        # writes, so it also needs the permission on the organization's current default
+        # (its first project by the same order when it has no default).
+        current = await db_manager.get_project_by_workspace(
+            str(listing.summary.organization_id)
+        )
+        if str(current.id) != str(project_id):
+            await _require(request, current.id, Permission.EDIT_WORKSPACE)
 
     if payload.name is None and payload.make_default is None:
         raise HTTPException(
             status_code=400, detail="Provide a new name and/or set default flag"
         )
 
-    updated_project = project
-
     if payload.name is not None:
         try:
-            updated_project = await db_manager.update_project_name(
+            await db_manager.update_project_name(
                 str(project_id), project_name=payload.name
             )
         except ValueError as exc:
@@ -328,20 +338,10 @@ async def update_project(
                 status_code=400,
                 detail="make_default can only be set to true",
             )
-        updated_project = await db_manager.set_default_project(str(project_id))
+        await db_manager.set_default_project(str(project_id))
 
-    workspace = await db_manager.fetch_workspace_by_id(
-        workspace_id=str(updated_project.workspace_id)
-    )
+    listing = await _fetch_listing(request, project_id)
+    if listing is None:
+        raise HTTPException(status_code=404, detail="Project not found")
 
-    organization = await db_manager.fetch_organization_by_id(
-        organization_id=str(updated_project.organization_id)
-    )
-
-    return await _project_to_response(
-        updated_project,
-        user_role=membership.role,
-        is_demo=membership.is_demo,
-        workspace=workspace,
-        organization=organization,
-    )
+    return _project_to_response(listing)

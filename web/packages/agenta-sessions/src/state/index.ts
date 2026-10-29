@@ -16,7 +16,12 @@ export {
     type SessionScope,
     type SessionStatusFilter,
 } from "./filters"
-export {pinnedSessionIdsAtom, isSessionPinnedAtom, toggleSessionPinAtom} from "./pins"
+export {
+    pinnedSessionIdsAtom,
+    isSessionPinnedAtom,
+    toggleSessionPinAtom,
+    unpinSessionAtom,
+} from "./pins"
 export {
     sessionTabScope,
     MAX_OPEN_SESSION_TABS,
@@ -59,6 +64,8 @@ export {
 export {
     useSessionList,
     useActionableInteractions,
+    actionableInteractionsQueryKey,
+    actionableInteractionsQueryOptions,
     pendingBySessionId,
     sessionListIdWindow,
     rowsFromPages,
@@ -78,6 +85,12 @@ export {
     type SessionCardGroup,
     type UseSessionCardListArgs,
 } from "./useSessionCardList"
+export {
+    useSessionTabRows,
+    sessionTabListArgs,
+    sessionTabRowsPending,
+    type SessionTabRows,
+} from "./useSessionTabRows"
 export {
     pendingSessionOpensAtom,
     addPendingSessionOpenAtom,

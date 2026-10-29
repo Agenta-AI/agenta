@@ -36,17 +36,24 @@ A connected application is one `gateway_connection` entry for the whole integrat
 }
 ```
 
-When called, the turn pauses with a `client_tool` interaction. Post the result to `POST /api/sessions/interactions/{interaction_id}/respond`:
+When called, the turn pauses with a `client_tool` interaction. Post the result to `POST /api/sessions/interactions/{interaction_id}/respond` with an `Idempotency-Key` header. A request without the header returns `422`.
 
-```json
-{
-  "answer": {
-    "tool_call_id": "call_019d952f",
-    "outcome": "completed",
-    "output": { "account_id": "acct_4821", "name": "Example Company" }
-  }
-}
+```bash
+curl -X POST \
+  "https://eu.cloud.agenta.ai/api/sessions/interactions/019d952f-0000-0000-0000-000000000002/respond" \
+  -H "Authorization: ApiKey $AGENTA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -H "Idempotency-Key: call_019d952f" \
+  -d '{
+    "answer": {
+      "tool_call_id": "call_019d952f",
+      "outcome": "completed",
+      "output": { "account_id": "acct_4821", "name": "Example Company" }
+    }
+  }'
 ```
+
+The endpoint answers `202 Accepted`. The run continues once every pending interaction of the paused execution has an answer. A retry with the same key and the same answer is safe: it does not answer twice, and it returns `202` with the current state. The full request and response shape is in [Invoke an agent](/reference/agents/invoke-an-agent#continuing-a-conversation).
 
 Use `outcome: "error"` and an error output when the client action fails.
 

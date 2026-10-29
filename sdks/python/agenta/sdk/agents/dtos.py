@@ -10,14 +10,27 @@ translates them to and from its engine's own shapes at its edge.
 
 from __future__ import annotations
 
+import json
 from enum import Enum
-from typing import Any, Callable, ClassVar, Dict, List, Literal, Optional, Tuple, Union
+from typing import (
+    Any,
+    Callable,
+    ClassVar,
+    Dict,
+    FrozenSet,
+    List,
+    Literal,
+    Optional,
+    Tuple,
+    Union,
+)
 
 from pydantic import (
     AliasChoices,
     BaseModel,
     ConfigDict,
     Field,
+    ValidationError,
     field_validator,
     model_validator,
 )
@@ -33,6 +46,7 @@ from .mcp import (
     parse_mcp_server_configs,
 )
 from .pi_builtins import PI_BUILTIN_TOOL_NAMES
+from .sandbox_providers import run_default_sandbox_provider
 from .skills import SkillTemplate, parse_skill_templates, skills_to_wire
 from .permission_rules import wire_author_permission_rules
 from .tools import (
@@ -76,11 +90,14 @@ class HarnessKind(str, Enum):
     """The coding agent program a run drives. A backend declares which it supports.
 
     ``pi_core`` is Pi; ``claude`` drives Claude Code; ``codex`` drives Codex.
+    ``mock`` drives no real coding agent at all: it is a deterministic, LLM-free, network-free
+    stand-in for testing, selecting a named behavior the runner resolves in-process.
     """
 
     PI = "pi_core"
     CLAUDE = "claude"
     CODEX = "codex"
+    MOCK = "mock"
 
     @classmethod
     def coerce(cls, value: "HarnessKind | str") -> "HarnessKind":
@@ -176,7 +193,16 @@ HARNESS_IDENTITIES: List[HarnessIdentity] = [
         slug=f"agenta:harness:{HarnessKind.CODEX.value}:v0",
         name="Codex",
     ),
+    HarnessIdentity(
+        value=HarnessKind.MOCK.value,
+        slug=f"agenta:harness:{HarnessKind.MOCK.value}:v0",
+        name="Mock",
+    ),
 ]
+
+# Harnesses that run when a config names them but that no list shown to users offers. ``mock`` is
+# the LLM-free test stand-in; tests select it by setting ``harness.kind`` explicitly.
+UNLISTED_HARNESS_KINDS: FrozenSet[str] = frozenset({HarnessKind.MOCK.value})
 
 
 PERMISSION_MODES = frozenset({"allow", "ask", "deny", "allow_reads"})
@@ -207,6 +233,58 @@ class AgentTemplateShapeError(ErrorStatus):
 
     def __init__(self, message: str) -> None:
         super().__init__(code=self.code, type=self.type, message=message)
+
+
+AGENT_INSTRUCTIONS_SHAPE_HINT = (
+    'instructions must be an object with an agents_md string, e.g. {"agents_md": "..."}. '
+    "Write the full AGENTS.md text in instructions.agents_md."
+)
+
+
+class InvalidAgentInstructionsError(ErrorStatus, ValueError):
+    """``parameters.agent.instructions`` is present but is not ``{"agents_md": "<text>"}``.
+
+    The runtime reads the prompt ONLY from ``instructions.agents_md``. Any other shape (a bare
+    string, a list, an object without a string ``agents_md``) was read as "no instructions",
+    so the agent ran with an empty prompt and nothing reported it.
+    """
+
+    code: int = 400
+    type: str = f"{ERRORS_BASE_URL}#v0:agent:invalid-instructions"
+
+    def __init__(self, value: Any) -> None:
+        super().__init__(
+            code=self.code,
+            type=self.type,
+            message=(
+                f"{AGENT_INSTRUCTIONS_SHAPE_HINT} Got {_describe_instructions(value)}."
+            ),
+        )
+        self.value = value
+
+
+def _describe_instructions(value: Any) -> str:
+    if isinstance(value, dict):
+        if "agents_md" not in value:
+            return "an object without agents_md"
+        return f"agents_md of type {type(value['agents_md']).__name__}"
+    return f"a {type(value).__name__}"
+
+
+def validate_agent_instructions(instructions: Any) -> None:
+    """Refuse an ``instructions`` value the runtime cannot read a prompt from.
+
+    ``None`` (absent or explicit null) passes: an agent with no instructions is a valid
+    configuration and many stored agents have none. Anything else must be an object whose
+    ``agents_md`` is a string (empty allowed); other keys on the object are left alone.
+    """
+    if instructions is None:
+        return
+    if isinstance(instructions, dict) and isinstance(
+        instructions.get("agents_md"), str
+    ):
+        return
+    raise InvalidAgentInstructionsError(instructions)
 
 
 # ---------------------------------------------------------------------------
@@ -404,13 +482,18 @@ class Message(BaseModel):
 
     role: str
     content: MessageContent = ""
+    display_content: Optional[str] = None
 
     def to_wire(self) -> Dict[str, Any]:
         if isinstance(self.content, str):
             content: Any = self.content
         else:
             content = [block.to_wire() for block in self.content]
-        return {"role": self.role, "content": content}
+        result = {"role": self.role, "content": content}
+        # Absence keeps legacy display; explicit null hides the message.
+        if "display_content" in self.model_fields_set:
+            result["display_content"] = self.display_content
+        return result
 
     @classmethod
     def from_raw(cls, raw: Any) -> Optional["Message"]:
@@ -422,7 +505,12 @@ class Message(BaseModel):
         content = raw.get("content", "")
         if isinstance(content, list):
             content = [ContentBlock.from_raw(block) for block in content]
-        return cls(role=str(raw["role"]), content=content)
+        display = (
+            {"display_content": raw["display_content"]}
+            if "display_content" in raw
+            else {}
+        )
+        return cls(role=str(raw["role"]), content=content, **display)
 
 
 def to_messages(raw: Optional[List[Any]]) -> List[Message]:
@@ -630,13 +718,20 @@ class RunContext(BaseModel):
 class SessionContext(BaseModel):
     """API-supplied facts rendered by the SDK for the current turn.
 
-    These are prompt inputs, not tool bindings or environment configuration.
+    The name and turn facts are prompt inputs, not tool bindings or environment configuration.
     The runner receives only the rendered text as ``turnContext``.
+
+    ``runner_address`` is not a prompt input. It is the runner pod that ran the session's last
+    turn, a routing hint the transport prefers over the Service URL. ``runner_replica_id`` is
+    that pod's replica id: the transport uses the address only when the pod there answers with
+    it. Neither is rendered and neither rides the ``/run`` body.
     """
 
     agent_name: Optional[str] = None
     session_name: Optional[str] = None
     first_turn: Optional[bool] = None
+    runner_address: Optional[str] = None
+    runner_replica_id: Optional[str] = None
 
 
 # ---------------------------------------------------------------------------
@@ -658,6 +753,8 @@ class AgentResult(BaseModel):
     session_id: Optional[str] = None
     model: Optional[str] = None
     trace_id: Optional[str] = None
+    # The sandbox provider the run executed on, after the runner's harness routing.
+    sandbox: Optional[str] = None
 
 
 class SandboxSecretReference(BaseModel):
@@ -734,7 +831,9 @@ class AgentTemplate(BaseModel):
     # The execution selectors: the coding agent to drive, where it runs, and the runner-enforced
     # default permission mode (sourced from ``runner.permissions.default``).
     harness: str = "pi_core"
-    sandbox: str = "local"
+    # A template that names no sandbox runs on the deployment's default provider, not always
+    # on ``local`` (which a hardened deployment does not enable).
+    sandbox: str = Field(default_factory=run_default_sandbox_provider)
     permission_default: PermissionMode = "allow_reads"
 
     @model_validator(mode="before")
@@ -807,20 +906,31 @@ class AgentTemplate(BaseModel):
         instructions, model, tools = _parse_agent_fields(params, base)
         harness, sandbox, permission_default = _parse_run_selection(params, base)
         harness_permissions, harness_extras = _parse_harness_slice(params, base)
-        return cls(
-            instructions=instructions,
-            model=model,
-            tools=_as_list(tools),
-            mcp_servers=_parse_mcp_servers_raw(params, base),
-            skills=_parse_skills_raw(params, base),
-            harness_permissions=harness_permissions,
-            harness_extras=harness_extras,
-            sandbox_permission=_parse_sandbox_permission(params, base),
-            sandbox_credentials=_parse_sandbox_credentials(params, base),
-            harness=harness,
-            sandbox=sandbox,
-            permission_default=permission_default,
-        )
+        try:
+            return cls(
+                instructions=instructions,
+                model=model,
+                tools=_as_list(tools),
+                mcp_servers=_parse_mcp_servers_raw(params, base),
+                skills=_parse_skills_raw(params, base),
+                harness_permissions=harness_permissions,
+                harness_extras=harness_extras,
+                sandbox_permission=_parse_sandbox_permission(params, base),
+                sandbox_credentials=_parse_sandbox_credentials(params, base),
+                harness=harness,
+                sandbox=sandbox,
+                permission_default=permission_default,
+            )
+        except ValidationError as error:
+            # A field value the template does not accept (a `connection.mode` it does not
+            # know, say) is the caller's configuration, not a server fault: answer 400. Name
+            # each field and the rule only; the raw input values may hold credentials.
+            raise AgentTemplateShapeError(
+                "; ".join(
+                    f"{'.'.join(str(part) for part in issue['loc'])}: {issue['msg']}"
+                    for issue in error.errors()
+                )
+            ) from error
 
 
 # ---------------------------------------------------------------------------
@@ -985,6 +1095,8 @@ class HarnessAgentTemplate(BaseModel):
         wire: Dict[str, Any] = {"mode": connection.mode}
         if connection.slug is not None:
             wire["slug"] = connection.slug
+        if connection.is_organization:
+            wire["scope"] = connection.scope
         return {"connection": wire}
 
     def wire_model_connection(self) -> Dict[str, Any]:
@@ -1201,8 +1313,18 @@ class CodexAgentTemplate(HarnessAgentTemplate):
         # connection intent so an explicit ``self_managed`` (subscription) is still excluded;
         # everything else defaults to managed, matching the runner's ``isManagedCodexRun``.
         credential_mode: Optional[str] = None
+        gateway_base_url: Optional[str] = None
+        gateway_header: Optional[str] = None
+        gateway_model: Optional[str] = None
         if self.resolved_connection is not None:
             credential_mode = self.resolved_connection.credential_mode
+            if self.resolved_connection.gateway_credentials is not None:
+                gateway_header = self.resolved_connection.gateway_credentials.header
+                if self.resolved_connection.endpoint is not None:
+                    gateway_base_url = self.resolved_connection.endpoint.base_url
+                    # The SAME id `wire_model_connection` puts on the wire, so the model the
+                    # config declares and the model the runner would ask for are one string.
+                    gateway_model = self.resolved_connection.model
         elif (
             self.model_ref is not None
             and self.model_ref.connection is not None
@@ -1217,10 +1339,37 @@ class CodexAgentTemplate(HarnessAgentTemplate):
             self.tool_specs,
             self.permission_default,
             credential_mode=credential_mode,
+            gateway_base_url=gateway_base_url,
+            gateway_header=gateway_header,
+            model=gateway_model,
         )
         if not files:
             return {}
         return {"harnessFiles": files}
+
+
+class MockAgentTemplate(HarnessAgentTemplate):
+    """The mock harness's config. No real coding agent, no tools, no network. ``behavior``
+    names the deterministic behavior the runner resolves in-process; ``behavior_kwargs`` is a
+    free-form bag passed through verbatim. Neither is validated or privileged here: resolving
+    the name is the runner's job, matching the ``mock_v0`` service-level selector pattern."""
+
+    harness: ClassVar[HarnessKind] = HarnessKind.MOCK
+
+    behavior: Optional[str] = None
+    behavior_kwargs: Dict[str, Any] = Field(default_factory=dict)
+
+    def wire_tools(self) -> Dict[str, Any]:
+        return {}
+
+    def wire_harness_files(self) -> Dict[str, Any]:
+        """Render the behavior selection into a ``.agenta/mock.json`` file the runner drops in
+        the cwd; the mock reads its own config from its cwd, the same generic mechanism as the
+        Claude and Codex settings files."""
+        content = json.dumps(
+            {"behavior": self.behavior, "kwargs": self.behavior_kwargs}
+        )
+        return {"harnessFiles": [{"path": ".agenta/mock.json", "content": content}]}
 
 
 # ---------------------------------------------------------------------------
@@ -1415,6 +1564,16 @@ def _validate_agent_template_shape(params: Dict[str, Any]) -> None:
     element = _template(params)
     if not isinstance(element, dict):
         return
+
+    if element is not params:
+        # A selector beside the wrapped template is never read, so an `ask` posture there
+        # would run under the default and let a write through without an approval.
+        for section in _SELECTOR_ALLOWED_KEYS:
+            if section in params:
+                raise AgentTemplateShapeError(
+                    f"{section!r} sits beside the agent template and is ignored; "
+                    f"put it under agent.{section}"
+                )
 
     for legacy_key, moved_to in _LEGACY_FLAT_TEMPLATE_KEYS.items():
         if legacy_key in element:

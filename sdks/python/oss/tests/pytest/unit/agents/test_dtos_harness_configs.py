@@ -14,6 +14,7 @@ from agenta.sdk.agents import (
     ClaudeAgentTemplate,
     ClientToolSpec,
     HarnessAgentTemplate,
+    MockAgentTemplate,
     PiAgentTemplate,
     ToolCallback,
 )
@@ -123,3 +124,33 @@ def test_pi_and_claude_emit_same_permission_block_for_same_config():
 def test_permission_policy_key_absent_from_wire_tools():
     assert "permissionPolicy" not in PiAgentTemplate().wire_tools()
     assert "permissionPolicy" not in ClaudeAgentTemplate().wire_tools()
+
+
+def test_mock_wire_tools_is_empty():
+    # No tools of its own: unlike Pi/Claude, not even an empty permission block.
+    assert MockAgentTemplate().wire_tools() == {}
+
+
+def test_mock_wire_harness_files_always_emits_one_generic_entry():
+    import json
+
+    wire = MockAgentTemplate(
+        behavior="pass", behavior_kwargs={"x": 1}
+    ).wire_harness_files()
+
+    assert list(wire) == ["harnessFiles"]
+    assert len(wire["harnessFiles"]) == 1
+    entry = wire["harnessFiles"][0]
+    assert entry["path"] == ".agenta/mock.json"
+    assert json.loads(entry["content"]) == {"behavior": "pass", "kwargs": {"x": 1}}
+
+
+def test_mock_wire_harness_files_carries_an_unset_behavior_through_unchanged():
+    # No behavior is privileged or defaulted here; an unresolved name still rides the file for
+    # the runner to reject or resolve.
+    import json
+
+    wire = MockAgentTemplate().wire_harness_files()
+
+    entry = wire["harnessFiles"][0]
+    assert json.loads(entry["content"]) == {"behavior": None, "kwargs": {}}

@@ -18,5 +18,5 @@ import type * as AgentaApi from "../index.js";
  */
 export interface GatewayConnectionToolConfig {
     connection: AgentaApi.GatewayConnectionRef;
-    policy: AgentaApi.GatewayConnectionPolicy;
+    policy?: AgentaApi.GatewayConnectionPolicy | undefined;
 }

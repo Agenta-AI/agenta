@@ -27,6 +27,7 @@
 import { apiBase } from "../apiBase.ts";
 import { envTimerMs } from "../env.ts";
 import { REPLICA_ID } from "./alive.ts";
+import { runnerToken } from "./auth.ts";
 import {
   recallCommand,
   rememberCommand,
@@ -67,6 +68,8 @@ export interface ControlOutcome {
 
 /** The control operation exposed by one approval-parked session. */
 export interface ParkedSessionControl {
+  /** The turn that parked on the approval, which is the only turn a Stop here may end. */
+  turnId: string | undefined;
   /** Release every gate and return the same environment to the pool as idle. */
   stop(): Promise<void> | void;
 }
@@ -219,6 +222,14 @@ function decideOutcome(
 ): ControlOutcome {
   if (!live) {
     if (parked) {
+      if (command.target.turnId && command.target.turnId !== parked.turnId) {
+        // A delayed Stop for an older turn. The approval parked here belongs to a newer turn
+        // the user never asked to stop.
+        return {
+          result: "obsolete",
+          execution: { id: command.target.turnId, state: "not_running" },
+        };
+      }
       return {
         result: "applied",
         execution: { id: command.target.turnId, state: "stopped" },
@@ -286,12 +297,13 @@ export async function reportOutcome(
   command: ControlCommand,
   outcome: ControlOutcome,
 ): Promise<void> {
-  const token = process.env.AGENTA_RUNNER_TOKEN;
+  const base = apiBase();
+  const token = runnerToken(base);
   if (!token) {
-    log(`cannot report command=${command.id}: AGENTA_RUNNER_TOKEN is not set`);
+    log(`cannot report command=${command.id}: no runner token for this API base`);
     return;
   }
-  const url = `${apiBase()}/sessions/control/commands/${encodeURIComponent(command.id)}/outcome`;
+  const url = `${base}/sessions/control/commands/${encodeURIComponent(command.id)}/outcome`;
   const res = await fetch(url, {
     method: "POST",
     redirect: "error",
@@ -337,11 +349,12 @@ export async function reportContinuationAdmission(input: {
   sessionId: string;
   executionId: string;
 }): Promise<boolean> {
-  const token = process.env.AGENTA_RUNNER_TOKEN;
+  const base = apiBase();
+  const token = runnerToken(base);
   if (!token) {
-    throw new Error("AGENTA_RUNNER_TOKEN is not set");
+    throw new Error("no runner token for this API base");
   }
-  const url = `${apiBase()}/sessions/control/commands/${encodeURIComponent(input.commandId)}/outcome`;
+  const url = `${base}/sessions/control/commands/${encodeURIComponent(input.commandId)}/outcome`;
   const res = await fetch(url, {
     method: "POST",
     signal: AbortSignal.timeout(

@@ -22,11 +22,25 @@
  * A streamed client tool with no entry is NOT an error — `ClientToolPart` renders the neutral
  * "not handled by this client" surface, which settles a non-error output so the run never hangs.
  */
-import type {ClientToolWidget} from "@agenta/shared/clientTools"
+import type {ClientToolWidget, ClientToolWidgetProps} from "@agenta/shared/clientTools"
 
 import ConnectToolWidget from "./ConnectToolWidget"
 import ElicitationWidget from "./ElicitationWidget"
+import GatewayConnectToolWidget from "./GatewayConnectToolWidget"
 import {SecretRequestWidget} from "./SecretRequestWidget"
+import {parseGatewayTarget} from "./useGatewayConnectFlow"
+
+/**
+ * `request_connection` carries either an integration key or a gateway target. Only the tool's
+ * description rules out both (providers refuse a root-level oneOf), so a call carrying both gets
+ * the gateway surface. The two need different surfaces, so the split happens here on the shape of
+ * the input rather than at the dispatch axes, which only see a kind and a name.
+ */
+export const ConnectRequestWidget = (props: ClientToolWidgetProps) => {
+    const target = parseGatewayTarget(props.meta.input)
+    if (target) return <GatewayConnectToolWidget target={target} {...props} />
+    return <ConnectToolWidget {...props} />
+}
 
 /** The built-in client-tool widgets, as a plain value.
  *
@@ -42,7 +56,7 @@ export const clientToolWidgets: {
     // Keyed by `render.kind` (checked first — the finer dispatch axis).
     byRenderKind: {
         secret: SecretRequestWidget,
-        connect: ConnectToolWidget,
+        connect: ConnectRequestWidget,
         elicitation: ElicitationWidget,
     },
     // Keyed by `toolName` (checked when no render hint matched). Both entries are
@@ -51,7 +65,7 @@ export const clientToolWidgets: {
     // sibling part.
     byToolName: {
         request_secret: SecretRequestWidget,
-        request_connection: ConnectToolWidget,
+        request_connection: ConnectRequestWidget,
         request_input: ElicitationWidget,
     },
 }

@@ -1,5 +1,7 @@
 import type {FileUIPart, UIMessage} from "ai"
 
+import {REFUSED_SEND_REASON} from "../model/error"
+
 import {getMessageTurnId} from "./agentTurn"
 
 /**
@@ -21,12 +23,37 @@ export interface PendingSendEcho {
     executionId?: string | null
     /** Durable input id from a 202 body; the dock owns the row once it reports this id. */
     parkedInputId?: string | null
+    /**
+     * How this send was admitted. A steer is on its way INTO the running turn, so while its echo
+     * is live the dock must not ALSO show it as a held row — see `echoedDockInputIds`. A queued
+     * send is the opposite: the dock row is what retires its echo.
+     */
+    policy?: "queue" | "steer"
+    /** Sent while a run was busy, so it is shown as a dock row, not a transcript bubble. */
+    docked?: boolean
     /** The send is known to have failed. The row STAYS, so the text is never silently lost. */
     failed?: boolean
     /** Fallback user-row count, used only while this send has no identity of its own yet. */
     coveredAtUserCount: number
     /** User-row count when this echo was made; falling below it means a rewind stranded it. */
     createdAtUserCount: number
+}
+
+/**
+ * Durable input ids a live steer echo already represents, so the dock can leave them out rather
+ * than showing the same message twice — once as a sent bubble, once as a held row.
+ *
+ * Only LIVE echoes: an echo that failed (the turn ended without consuming its input) stops
+ * covering its row, so a steer the server parked but never promoted becomes visible in the dock,
+ * where it can still be removed or sent.
+ */
+export const echoedDockInputIds = (pending: readonly PendingSendEcho[]): ReadonlySet<string> => {
+    const ids = new Set<string>()
+    for (const item of pending) {
+        if (item.policy !== "steer" || item.failed || !item.parkedInputId) continue
+        ids.add(item.parkedInputId)
+    }
+    return ids
 }
 
 export const countUserMessages = (messages: readonly UIMessage[]): number =>
@@ -100,8 +127,15 @@ export const retirePendingSendEchoes = (
         // A parked input that is promoted before any snapshot observes it disappears from the
         // dock query for good, and it never gets a turn id of its own, so dock membership cannot
         // be its only successor. The count is the fallback that keeps it from waiting forever.
+        //
+        // A STEER is never shown as a dock row while this echo is live (`echoedDockInputIds`), so
+        // for it dock membership is not a successor at all — reading one would retire the echo the
+        // moment the snapshot lists the input, leaving the message on screen nowhere.
         if (item.parkedInputId)
-            return !dockedIds.has(item.parkedInputId) && userCount < item.coveredAtUserCount
+            return (
+                (item.policy === "steer" || !dockedIds.has(item.parkedInputId)) &&
+                userCount < item.coveredAtUserCount
+            )
         // A failed send outlives everything else here. The composer has already cleared, so
         // dropping the row would delete the user's text with nothing to show for it.
         if (item.failed) return true
@@ -112,6 +146,22 @@ export const retirePendingSendEchoes = (
 }
 
 /** Disposable user rows; the id prefix keeps rewind from finding an echo in the AI SDK array. */
+/**
+ * Is a send still on its way to the runner, or streaming as an echo this client owns?
+ *
+ * Every echo that is not refused and not parked in the queue is a turn THIS client started and is
+ * still waiting on: from the moment it leaves the composer until its durable row retires it. That
+ * is the local "submitted" signal the AI SDK's `status` carries on the direct path, which the
+ * server-owned send path never sets — without it the working indicator waited for the next
+ * liveness poll to notice the run (#6778).
+ */
+export const pendingSendsInFlight = (pending: readonly PendingSendEcho[]): boolean =>
+    pending.some((echo) => !echo.failed && !echo.parkedInputId)
+
+/** A docked echo stays in the dock until the server starts it or refuses it. */
+export const showsInDock = (item: PendingSendEcho): boolean =>
+    !!item.docked && !item.failed && !item.executionId
+
 export const pendingSendEchoMessages = (pending: readonly PendingSendEcho[]): UIMessage[] =>
     pending.map(
         (item) =>
@@ -136,9 +186,10 @@ export const isPendingSendFailed = (message: UIMessage): boolean =>
 
 /**
  * Shown on a failed echo. Word for word what the composer says when a send is refused before it
- * resolves, because to the user those are one event and two phrasings read as carelessness.
+ * resolves, because to the user those are one event and two phrasings read as carelessness. It is
+ * built from the composer's own reason half so the two cannot drift apart.
  */
-export const PENDING_SEND_FAILED_NOTE = "Message wasn't sent — try again."
+export const PENDING_SEND_FAILED_NOTE = `Message ${REFUSED_SEND_REASON}`
 
 const previewExecutionId = (message: UIMessage): string | null => {
     const metadata = message.metadata as {executionId?: unknown} | undefined
@@ -157,9 +208,9 @@ const echoExecutionId = (message: UIMessage): string | null => {
  * echoes, then the answers to those echoes.
  *
  * Splitting the previews needs every echo to name its own execution. While one is still
- * unacknowledged, a preview cannot be attributed, and guessing puts an answer above its own
- * question. So the split applies only when all of them are acknowledged; otherwise the echoes go
- * last, which is wrong for at most the previous answer and never for the new one.
+ * unacknowledged, a preview cannot be attributed; it can only be the previous answer when the
+ * saved transcript still ends on that question, and otherwise it is the new one, so the echoes
+ * go before it.
  */
 export const mergePendingSendEchoRows = (
     durable: UIMessage[],
@@ -170,7 +221,13 @@ export const mergePendingSendEchoRows = (
     if (echoes.length === 0) return [...durable, ...preview]
     if (preview.length === 0) return [...durable, ...echoes]
     const ids = echoes.map(echoExecutionId)
-    if (ids.some((id) => id === null)) return [...durable, ...preview, ...echoes]
+    if (ids.some((id) => id === null)) {
+        // Unattributable previews can only be the previous answer if that turn is still open.
+        const previousOpen = durable[durable.length - 1]?.role === "user"
+        return previousOpen
+            ? [...durable, ...preview, ...echoes]
+            : [...durable, ...echoes, ...preview]
+    }
     const owned = new Set(ids as string[])
     const earlier: UIMessage[] = []
     const answers: UIMessage[] = []

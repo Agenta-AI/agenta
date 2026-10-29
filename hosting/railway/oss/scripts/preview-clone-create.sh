@@ -135,8 +135,9 @@ ALL_SERVICES=("${INFRA_SERVICES[@]}" alembic "${LATE_SERVICES[@]}")
 # environment (template/README.md step 4, "Apply on merge"), so during that
 # window a clone of the OLD template has no such service. A preview must
 # deploy anyway instead of dying on a missing serviceId; every other service
-# staying absent is still fatal.
-OPTIONAL_SERVICES=(web-mobile)
+# staying absent is still fatal. Empty today: web-mobile is in the template and
+# is required like every other app service.
+OPTIONAL_SERVICES=()
 # Filled in by patch_commit_images / deploy_all for the run summary.
 MISSING_SERVICES=""
 

@@ -13,6 +13,7 @@ import {
     SkillDetailDrawer,
     SkillImportDrawer,
     SkillsGalleryPage,
+    useSkillCreateEntry,
     type SkillListItem,
 } from "@agenta/skills-ui"
 import {PageLayout} from "@agenta/ui"
@@ -49,15 +50,10 @@ export default function SkillsPage() {
     const [importOpen, setImportOpen] = useState(false)
     const openImport = useCallback(() => setImportOpen(true), [])
     const closeImport = useCallback(() => setImportOpen(false), [])
-    // Write and Upload share the create drawer; the MODE decides its opening state —
-    // Upload starts as the full-drawer dropzone and morphs into the editor (1c → 1d).
-    const [createMode, setCreateMode] = useState<"write" | "upload" | null>(null)
-    const openWrite = useCallback(() => setCreateMode("write"), [])
-    const openUpload = useCallback(() => setCreateMode("upload"), [])
-    const closeCreate = useCallback(() => setCreateMode(null), [])
+    const {createOpen, upload, onWrite, onUpload, closeCreate} = useSkillCreateEntry()
     const createActions = useMemo(
-        () => ({onWrite: openWrite, onUpload: openUpload, onImport: openImport}),
-        [openWrite, openUpload, openImport],
+        () => ({onWrite, onUpload, onImport: openImport}),
+        [onWrite, onUpload, openImport],
     )
 
     const gallery = (
@@ -100,10 +96,10 @@ export default function SkillsPage() {
                 projectId={projectId ?? ""}
             />
             <SkillCreateDrawer
-                open={createMode !== null}
+                open={createOpen}
                 onClose={closeCreate}
                 projectId={projectId ?? ""}
-                mode={createMode ?? "write"}
+                upload={upload}
             />
         </>
     )

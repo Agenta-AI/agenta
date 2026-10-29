@@ -7,7 +7,7 @@ import {
     unarchiveSessionRemote,
 } from "@agenta/entities/session"
 import {shareUrl} from "@agenta/sessions/link"
-import {pinnedSessionIdsAtom, toggleSessionPinAtom} from "@agenta/sessions/state"
+import {pinnedSessionIdsAtom, toggleSessionPinAtom, unpinSessionAtom} from "@agenta/sessions/state"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message, modal} from "@agenta/ui/app-message"
 import {copyToClipboard} from "@agenta/ui/utils"
@@ -19,6 +19,7 @@ import {
     PushPinIcon,
     PushPinSlashIcon,
     TrashIcon,
+    UsersIcon,
 } from "@phosphor-icons/react"
 import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -33,6 +34,27 @@ export interface SessionActionTarget {
     appId: string | null
     name?: string | null
     archived?: boolean
+    /**
+     * Sharing (M3): the session's owner, from its row. `null` = ownerless (channel, API key,
+     * trigger): today's verbs, no Share. Absent = the host does not know, so today's verbs too.
+     */
+    ownerUserId?: string | null
+}
+
+/** Who the current user is to a session, for the verbs it offers. */
+export type SessionMenuAccess = "owner" | "member" | "ownerless"
+
+/**
+ * The owner gets every verb plus Share; someone else on an owned session gets Open, Pin and
+ * Copy share link only (rename, share, archive and delete are the owner's); an ownerless session,
+ * or one whose owner the host does not know, keeps today's verbs without Share.
+ */
+export const sessionMenuAccess = (
+    target: Pick<SessionActionTarget, "ownerUserId">,
+    currentUserId: string | null | undefined,
+): SessionMenuAccess => {
+    if (!target.ownerUserId) return "ownerless"
+    return currentUserId && target.ownerUserId === currentUserId ? "owner" : "member"
 }
 
 /**
@@ -68,6 +90,16 @@ export interface UseSessionActionsOptions {
      * Keeping that answer pure means it never reads `window` outside the click.
      */
     sharePathFor?: (target: SessionActionTarget) => string
+    /**
+     * Runs after a session is archived or deleted, before the lists revalidate. A surface whose
+     * sessions are routes leaves the one it is on here — the server side is done, and the next
+     * list read will no longer carry the row.
+     */
+    onRemoved?: (target: SessionActionTarget) => void | Promise<unknown>
+    /** The signed-in user, to tell the owner of a session from everyone else. */
+    currentUserId?: string | null
+    /** Opens the Share dialog. Supplying it adds "Share" to the owner's menu. */
+    onShare?: (target: SessionActionTarget) => void
 }
 
 /**
@@ -77,11 +109,18 @@ export interface UseSessionActionsOptions {
  * mobile lists — and they must not drift into offering different verbs, or the same verb with
  * different effects.
  */
-export const useSessionActions = ({localCache, sharePathFor}: UseSessionActionsOptions = {}) => {
+export const useSessionActions = ({
+    localCache,
+    sharePathFor,
+    onRemoved,
+    currentUserId,
+    onShare,
+}: UseSessionActionsOptions = {}) => {
     const queryClient = useQueryClient()
     const projectId = useAtomValue(projectIdAtom) ?? ""
     const pinnedIds = useAtomValue(pinnedSessionIdsAtom)
     const togglePin = useSetAtom(toggleSessionPinAtom)
+    const unpin = useSetAtom(unpinSessionAtom)
 
     const revalidate = useCallback(() => {
         void queryClient.invalidateQueries({queryKey: ["sessions-page"]})
@@ -151,9 +190,15 @@ export const useSessionActions = ({localCache, sharePathFor}: UseSessionActionsO
                     return
                 }
             }
+            // Archiving drops the pin: a pinned row leads every list, which is the opposite of
+            // what archiving asks for, and the menu will not pin it back until it is unarchived.
+            if (!target.archived) {
+                unpin(target.sessionId)
+                await onRemoved?.(target)
+            }
             revalidate()
         },
-        [isCached, localCache, projectId, revalidate],
+        [isCached, localCache, onRemoved, projectId, revalidate, unpin],
     )
 
     const remove = useCallback(
@@ -182,11 +227,13 @@ export const useSessionActions = ({localCache, sharePathFor}: UseSessionActionsO
                             return
                         }
                     }
+                    unpin(target.sessionId)
+                    await onRemoved?.(target)
                     revalidate()
                 },
             })
         },
-        [isCached, localCache, projectId, revalidate],
+        [isCached, localCache, onRemoved, projectId, revalidate, unpin],
     )
 
     const copyShareLink = useCallback(
@@ -209,8 +256,9 @@ export const useSessionActions = ({localCache, sharePathFor}: UseSessionActionsO
         (
             target: SessionActionTarget,
             options?: {onOpen?: () => void; openLabel?: string},
-        ): SessionMenuEntry[] => [
-            ...(options?.onOpen
+        ): SessionMenuEntry[] => {
+            const access = sessionMenuAccess(target, currentUserId)
+            const open: SessionMenuEntry[] = options?.onOpen
                 ? [
                       {
                           key: "open",
@@ -219,46 +267,59 @@ export const useSessionActions = ({localCache, sharePathFor}: UseSessionActionsO
                           disabled: !target.appId,
                       },
                   ]
-                : []),
-            // An archived session is out of the way on purpose: renaming or pinning it would put
-            // it back in your face without unarchiving it. Unarchive first, then rename.
-            ...(target.archived
-                ? []
-                : [
+                : []
+            const pin: SessionMenuEntry = {
+                key: "pin",
+                label: pinnedSet.has(target.sessionId) ? "Unpin" : "Pin",
+                icon: pinnedSet.has(target.sessionId) ? (
+                    <PushPinSlashIcon size={14} />
+                ) : (
+                    <PushPinIcon size={14} />
+                ),
+            }
+            const copyLink: SessionMenuEntry[] = sharePathFor
+                ? [
                       {
-                          key: "rename",
-                          label: "Rename",
-                          icon: <PencilSimpleIcon size={14} />,
+                          key: "copy-link",
+                          label: "Copy share link",
+                          icon: <LinkSimpleIcon size={14} />,
+                          disabled: !sharePathFor(target),
                       },
-                      {
-                          key: "pin",
-                          label: pinnedSet.has(target.sessionId) ? "Unpin" : "Pin",
-                          icon: pinnedSet.has(target.sessionId) ? (
-                              <PushPinSlashIcon size={14} />
-                          ) : (
-                              <PushPinIcon size={14} />
-                          ),
-                      },
-                      ...(sharePathFor
-                          ? [
-                                {
-                                    key: "copy-link",
-                                    label: "Copy share link",
-                                    icon: <LinkSimpleIcon size={14} />,
-                                    disabled: !sharePathFor(target),
-                                },
-                            ]
-                          : []),
-                      {type: "divider" as const},
-                  ]),
-            {
-                key: "archive",
-                label: target.archived ? "Unarchive" : "Archive",
-                icon: <ArchiveIcon size={14} />,
-            },
-            {key: "delete", label: "Delete", icon: <TrashIcon size={14} />, danger: true},
-        ],
-        [pinnedSet, sharePathFor],
+                  ]
+                : []
+            // Removed, not disabled: these verbs are the owner's (S4).
+            if (access === "member")
+                return [...open, ...(target.archived ? [] : [pin]), ...copyLink]
+            const share: SessionMenuEntry[] =
+                access === "owner" && onShare && !target.archived
+                    ? [{key: "share", label: "Share", icon: <UsersIcon size={14} />}]
+                    : []
+            return [
+                ...open,
+                // An archived session is out of the way on purpose: renaming or pinning it would put
+                // it back in your face without unarchiving it. Unarchive first, then rename.
+                ...(target.archived
+                    ? []
+                    : [
+                          {
+                              key: "rename",
+                              label: "Rename",
+                              icon: <PencilSimpleIcon size={14} />,
+                          },
+                          pin,
+                          ...share,
+                          ...copyLink,
+                          {type: "divider" as const},
+                      ]),
+                {
+                    key: "archive",
+                    label: target.archived ? "Unarchive" : "Archive",
+                    icon: <ArchiveIcon size={14} />,
+                },
+                {key: "delete", label: "Delete", icon: <TrashIcon size={14} />, danger: true},
+            ]
+        },
+        [currentUserId, onShare, pinnedSet, sharePathFor],
     )
 
     /**
@@ -277,10 +338,11 @@ export const useSessionActions = ({localCache, sharePathFor}: UseSessionActionsO
                 if (key === "rename") options?.onRename?.()
                 if (key === "pin") togglePin(target.sessionId)
                 if (key === "copy-link") void copyShareLink(target)
+                if (key === "share") onShare?.(target)
                 if (key === "archive") void setArchived(target)
                 if (key === "delete") remove(target)
             },
-        [copyShareLink, remove, setArchived, togglePin],
+        [copyShareLink, onShare, remove, setArchived, togglePin],
     )
 
     return {

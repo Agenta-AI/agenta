@@ -5,6 +5,7 @@ import {
     buildConnectionPickerRows,
     buildPickerGroupsWithSections,
     pickerSelectionFrom,
+    selectedModelRowKey,
     describeMcp,
     describeSkill,
     describeTool,
@@ -20,9 +21,10 @@ import {
     readAgentItems,
     readHarnessKind,
     readModelId,
+    readModelConnection,
     readModelConnectionSlug,
     readRunnerPermission,
-    staticEmbedSlug,
+    skillCommandName,
     toolName,
     withHarnessKind,
     withModel,
@@ -46,7 +48,7 @@ export type SlashPicker = "model" | "permissions" | null
  *
  * `/model` drills into a picker whose apply writes the DRAFT agent config through
  * `updateConfiguration` — the same write-through `useAlwaysAllowTool` uses, so the change takes
- * effect on the next send with no commit. Tools and skills insert their slug as plain text: the
+ * effect on the next send with no commit. Tools and skills insert their name as plain text: the
  * request carries text and file parts only, so an inserted name is a hint the agent usually
  * follows, never a dispatch. Nothing in the UI may claim otherwise.
  */
@@ -122,7 +124,10 @@ export function useChatSlashCommands({
      * Built from one recipe with `useModelHarness` so the two pickers cannot list different models
      * for the same agent.
      */
-    const modelGroups = useMemo(() => {
+    const currentConnection = readModelConnection(config)
+    const currentConnectionMode = currentConnection?.mode ?? "agenta"
+    const currentConnectionNamespace = currentConnection?.namespace ?? null
+    const {modelGroups, currentModelKey} = useMemo(() => {
         const rows =
             candidateState.status === "ready"
                 ? buildConnectionPickerRows({
@@ -131,8 +136,25 @@ export function useChatSlashCommands({
                       capabilities,
                   })
                 : []
-        return buildPickerGroupsWithSections(rows)
-    }, [candidateState, capabilities])
+        // The exact row the config points at: the same model can sit on a built-in and a
+        // customer-funded connection, and only one of them is what this agent pays with.
+        const currentModelKey = selectedModelRowKey(rows, {
+            modelId: currentModel,
+            slug: currentConnectionSlug,
+            namespace: currentConnectionNamespace,
+            mode: currentConnectionMode,
+            harness: currentHarness,
+        })
+        return {modelGroups: buildPickerGroupsWithSections(rows), currentModelKey}
+    }, [
+        candidateState,
+        capabilities,
+        currentModel,
+        currentHarness,
+        currentConnectionSlug,
+        currentConnectionNamespace,
+        currentConnectionMode,
+    ])
     // With neither source the drawer falls back to a schema-driven picker, which this palette does
     // not host — so offer no `/model` at all rather than a command that opens an empty panel.
     const modelAvailable = modelGroups.length > 0
@@ -193,6 +215,7 @@ export function useChatSlashCommands({
                     provider,
                     mode: selection.mode,
                     slug: selection.slug,
+                    namespace: selection.namespace,
                 }),
                 selection.harness && selection.harness !== currentHarness
                     ? `Model set to ${label} · ${harnessMetaFor(selection.harness).label}`
@@ -323,22 +346,10 @@ export function useChatSlashCommands({
                 : null,
         ])
 
-        /**
-         * A skill's typeable slug. An `@ag.embed` entry keeps it under
-         * `@ag.embed.@ag.references.workflow` (or `workflow_revision` when pinned), NOT at the top
-         * level — `staticEmbedSlug` is the reader the config panel already uses for exactly that.
-         * Inline skills carry a plain top-level slug, so they fall through to `entryToken`.
-         */
-        const skillToken = (skill: unknown): string | undefined => {
-            const embedded = skill && typeof skill === "object"
-            return (
-                (embedded ? staticEmbedSlug(skill as Record<string, unknown>) : undefined) ??
-                entryToken(skill)
-            )
-        }
-
         const skillItems = compact(
-            skills.map((skill, i) => row(describeSkill(skill), skillToken(skill), i, "skill")),
+            skills.map((skill, i) =>
+                row(describeSkill(skill), skillCommandName(skill), i, "skill"),
+            ),
         )
         /**
          * Platform ops (`commit_revision`, `list_connections`, schedules) and browser-fulfilled
@@ -384,6 +395,7 @@ export function useChatSlashCommands({
         closePicker: useCallback(() => setPicker(null), []),
         modelGroups,
         currentModel,
+        currentModelKey,
         currentConnectionSlug,
         currentHarness,
         currentPermission,

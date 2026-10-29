@@ -1,5 +1,5 @@
 import {Button, SkeletonBlock} from "@agenta/ui/ui"
-import {MagnifyingGlassIcon, WarningCircleIcon} from "@phosphor-icons/react"
+import {MagnifyingGlassIcon} from "@phosphor-icons/react"
 
 /** Mirrors a row's geometry so real rows replace it without shifting the list. */
 export const SessionListSkeleton = ({rows = 8}: {rows?: number}) => (
@@ -40,16 +40,6 @@ export const SessionListEmpty = ({
                 Start a conversation with an agent and it will show up here.
             </p>
         )}
-    </div>
-)
-
-export const SessionListError = ({onRetry}: {onRetry: () => void}) => (
-    <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
-        <WarningCircleIcon size={24} className="text-colorError" />
-        <p className="m-0 text-xs text-colorTextSecondary">Couldn&apos;t load your sessions.</p>
-        <Button variant="outline" onClick={onRetry}>
-            Try again
-        </Button>
     </div>
 )
 

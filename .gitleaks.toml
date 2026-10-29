@@ -24,6 +24,14 @@ paths = [
   '''^.*/\.next/.*''',
   # -------------------------------------------------------------- ALL ENV FILES
   '''^.*\.env.*$''',
+  # ------------------------------------------------- MERGE-CONFLICT TOOL ARTIFACTS
+  # A conflict-resolution tool committed its scratch state in 98ef076243: full copies
+  # of both merge sides, the base, and its own working dir. Deleted from the tree by
+  # later commits; the blobs remain in history, so a --git scan still walks them.
+  '''^\.conflict-side-\d+/.*''',
+  '''^\.conflict-base-\d+/.*''',
+  '''^\.conflict-files$''',
+  '''^\.auto-resolution/.*''',
   # -------------------------------------------------- LOCAL-DEV STORE FALLBACK KEY
   # webidentity.py ships a hardcoded RSA key used ONLY as the local-dev fallback for
   # signing the object-store's web-identity token (production setups must set
@@ -49,11 +57,22 @@ regexes = [
   # commit it was seen in, so it goes stale every time a lane below is rebased.
   '''sk-live-1234567890abc''',
   '''sk-mine-9876543210xyz''',
+  # Organization credentials (M5) fixtures: synthetic keys named to be obviously fake
+  # (sentinels and digit runs), and a keyword argument the generic rule misreads. Exact
+  # values only, so a real key never matches.
+  '''^sk-m5acc-inherit-0123456789abcdef$''',
+  '''^sk-m5sentinel-owner-dto$''',
+  '''^sk-m5sentinel-0123456789abcdef$''',
+  '''^sk-mis-123456789$''',
+  '''^sk-(proj-)?0123456789(-x)?$''',
+  '''^owner_kind=self\.secret_owner_kind$''',
+  '''^organization_id=None$''',
   # ------------------------------------------------------------ PUBLIC KEYS
   '''phc_hmVSxIjTW1REBHXgj2aw4HW9X6CXb6FzerBgP9XenC7''',  # POSTHOG
   '''phc_3urGRy5TL1HhaHnRYL0JSHxJxigRVackhphHtozUmdp''',  # POSTHOG
   '''phc_CwyyDlHGNnRFptVWhTe0HOeKnq1jeOZNk9hduYiOClp''',  # POSTHOG
   '''phc_qH8GezjMAeToR9ygdsnTH0C9c2njhO7CFqf66pTUX7H''',  # POSTHOG
+  '''phc_cFT4a4081mXuKxYIrhIt6cmDwSjAO8zQlw9CFE05oSI''',  # POSTHOG
   '''18ab633e81d706cbda7c78d25d0fe763''',                 # ALGOLIA
   # ------------------------------------------------- LOCAL-DEV STORE SIGNING KEY
   # Dummy SeaweedFS STS signing key shown (commented) as a format hint in the dev

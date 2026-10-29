@@ -7,7 +7,7 @@ import {
     formatNumber,
     formatPercent,
 } from "@agenta/shared/utils"
-import {ChartLineIcon} from "@phosphor-icons/react"
+import {ChartLineIcon, WarningCircleIcon} from "@phosphor-icons/react"
 import {Spin} from "antd"
 import {useAtom} from "jotai"
 
@@ -32,10 +32,17 @@ const gridLayout4Class =
 // columns. `stack` is for containers, not screens: the rail is ~340px whatever the display does.
 const stackLayoutClass = "flex flex-col gap-5"
 
-const EmptyChart = ({className}: {className: string}) => (
+/** A failed query is not an empty window: the reason shows once above the grid, not "No data". */
+const EmptyChart = ({className, failed}: {className: string; failed: boolean}) => (
     <div className={className}>
-        <ChartLineIcon size={18} />
-        <span>No data</span>
+        {failed ? (
+            <WarningCircleIcon size={18} />
+        ) : (
+            <>
+                <ChartLineIcon size={18} />
+                <span>No data</span>
+            </>
+        )}
     </div>
 )
 
@@ -48,7 +55,7 @@ const AnalyticsDashboard = ({
     layout = "grid-2",
     showTimeRangeSelector = true,
 }: AnalyticsDashboardProps) => {
-    const {data, loading, isFetching} = useObservabilityDashboard()
+    const {data, loading, isFetching, errorMessage} = useObservabilityDashboard()
     const [timeRange, setTimeRange] = useAtom(observabilityDashboardTimeRangeAtom)
 
     const chartData = useMemo(() => (data?.data?.length ? data.data : []), [data])
@@ -89,6 +96,11 @@ const AnalyticsDashboard = ({
                 </div>
             ) : null}
             <Spin spinning={loading || isFetching}>
+                {errorMessage && !(loading || isFetching) ? (
+                    <div role="alert" className="mb-4 text-[13px] text-colorError">
+                        {errorMessage}
+                    </div>
+                ) : null}
                 <div className={gridClassName}>
                     <WidgetCard
                         title="Requests"
@@ -125,7 +137,10 @@ const AnalyticsDashboard = ({
                                 }
                             />
                         ) : (
-                            <EmptyChart className={emptyStateClass} />
+                            <EmptyChart
+                                className={emptyStateClass}
+                                failed={Boolean(errorMessage)}
+                            />
                         )}
                     </WidgetCard>
 
@@ -149,7 +164,10 @@ const AnalyticsDashboard = ({
                                 valueFormatter={(value) => `${formatCompactNumber(value)}ms`}
                             />
                         ) : (
-                            <EmptyChart className={emptyStateClass} />
+                            <EmptyChart
+                                className={emptyStateClass}
+                                failed={Boolean(errorMessage)}
+                            />
                         )}
                     </WidgetCard>
 
@@ -164,11 +182,26 @@ const AnalyticsDashboard = ({
                             </div>
                         }
                         rightSubHeading={
-                            <div className={statTextClass}>
-                                <span className="label">Avg:</span>
-                                <span className="value">
-                                    {data?.total_cost ? formatCurrency(data.avg_cost) : "-"}
-                                </span>
+                            <div className="flex items-center gap-4">
+                                <div className={statTextClass}>
+                                    <span className="label">Avg:</span>
+                                    <span className="value">
+                                        {data?.total_cost ? formatCurrency(data.avg_cost) : "-"}
+                                    </span>
+                                </div>
+                                {/* Traces with no cost on their root add 0 to the total. Show
+                                    how many, so a low total is not read as a cheap period. */}
+                                {(data?.without_cost_count ?? 0) > 0 && (
+                                    <div
+                                        className={statTextClass}
+                                        title="These traces have no cost on their root span. Either they made no priced model call, or their cost could not be added up."
+                                    >
+                                        <span className="label">Without cost:</span>
+                                        <span className="value">
+                                            {formatNumber(data?.without_cost_count ?? 0)}
+                                        </span>
+                                    </div>
+                                )}
                             </div>
                         }
                     >
@@ -179,7 +212,10 @@ const AnalyticsDashboard = ({
                                 valueFormatter={(value) => formatCurrency(value)}
                             />
                         ) : (
-                            <EmptyChart className={emptyStateClass} />
+                            <EmptyChart
+                                className={emptyStateClass}
+                                failed={Boolean(errorMessage)}
+                            />
                         )}
                     </WidgetCard>
 
@@ -205,7 +241,10 @@ const AnalyticsDashboard = ({
                         {hasData ? (
                             <CustomAreaChart {...defaultGraphProps} categories={["total_tokens"]} />
                         ) : (
-                            <EmptyChart className={emptyStateClass} />
+                            <EmptyChart
+                                className={emptyStateClass}
+                                failed={Boolean(errorMessage)}
+                            />
                         )}
                     </WidgetCard>
                 </div>

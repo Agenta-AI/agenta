@@ -1,4 +1,4 @@
-import React from 'react';
+import React, {type ReactNode} from 'react';
 import clsx from 'clsx';
 import {useThemeConfig} from '@docusaurus/theme-common';
 import {
@@ -21,7 +21,7 @@ function NavbarBackdrop(props: React.ComponentProps<'div'>) {
   );
 }
 
-export default function NavbarLayout({children}: Props): JSX.Element {
+export default function NavbarLayout({children}: Props): ReactNode {
   const {
     navbar: {hideOnScroll, style},
   } = useThemeConfig();
@@ -38,7 +38,6 @@ export default function NavbarLayout({children}: Props): JSX.Element {
       className={clsx(
         'navbar',
         'navbar--fixed-top',
-        'two-row-navbar',
         hideOnScroll && [
           styles.navbarHideable,
           !isNavbarVisible && styles.navbarHidden,

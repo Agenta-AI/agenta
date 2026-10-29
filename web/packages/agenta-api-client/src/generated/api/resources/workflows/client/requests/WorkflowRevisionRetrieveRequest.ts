@@ -23,4 +23,6 @@ export interface WorkflowRevisionRetrieveRequest {
     key?: string | null;
     /** When true, resolve `@ag.references` tokens embedded in the revision configuration before returning it. */
     resolve?: boolean | null;
+    /** When false, an archived workflow, variant, or revision resolves to nothing. */
+    include_archived?: boolean | null;
 }

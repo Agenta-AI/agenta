@@ -66,6 +66,7 @@ export function VirtualTileGrid<T>({
     getKey,
     renderTile,
     estimateRowHeight = 180,
+    thumbAspect = THUMB_ASPECT,
     gap = 8,
     overscanRows = 4,
     className = "",
@@ -89,6 +90,8 @@ export function VirtualTileGrid<T>({
     renderTile: (item: T, index: number) => ReactNode
     /** Rough row height (incl. gap) for the initial scrollbar; corrected once a real tile is measured. */
     estimateRowHeight?: number
+    /** Height the tile's top block adds per px of width (4:3 by default; 0 for a fixed glyph). */
+    thumbAspect?: number
     gap?: number
     /** Rows mounted beyond the viewport on each side. For tile grids whose cells fetch a thumbnail,
      * this is the prefetch window — the mounted overscan tiles fetch ahead of scroll (see FileThumb).
@@ -224,7 +227,9 @@ export function VirtualTileGrid<T>({
     // Uniform tile height = width × 3/4 (thumb) + K (the fixed text block: name + meta + paddings).
     // K is measured from a real tile at rest (not mid-spring, when heights are transient) and only
     // corrects the initial estimate — windowing stays exact without per-row measureElement.
-    const [textBlockK, setTextBlockK] = useState(() => Math.max(estimateRowHeight - 150, 24))
+    const [textBlockK, setTextBlockK] = useState(() =>
+        thumbAspect === 0 ? estimateRowHeight - gap : Math.max(estimateRowHeight - 150, 24),
+    )
     useEffect(() => {
         if (reflowing || frozenWidth !== null || tileW <= 0) return
         const el = parentRef.current?.querySelector<HTMLElement>("[data-grid-cell]")
@@ -232,11 +237,11 @@ export function VirtualTileGrid<T>({
         const h = el.offsetHeight
         const w = el.offsetWidth
         if (h > 0 && w > 0) {
-            const next = h - w * THUMB_ASPECT
+            const next = h - w * thumbAspect
             setTextBlockK((prev) => (Math.abs(prev - next) > 1 ? next : prev))
         }
-    }, [tileW, reflowing, items.length])
-    const tileH = tileW > 0 ? tileW * THUMB_ASPECT + textBlockK : estimateRowHeight
+    }, [tileW, reflowing, items.length, thumbAspect])
+    const tileH = tileW > 0 ? tileW * thumbAspect + textBlockK : estimateRowHeight
     const rowStep = tileH + gap
 
     const rowCount = Math.ceil(items.length / cols)

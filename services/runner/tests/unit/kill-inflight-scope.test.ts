@@ -184,3 +184,46 @@ describe("destroyInFlightSandboxesForSession (scoped /kill of an in-flight sandb
     assert.equal(calls.sandboxDestroyed, 1, "unscoped teardown still reaps it");
   });
 });
+
+describe("the runner-host tool relay folder (flag-safety round)", () => {
+  it("goes with the environment", async () => {
+    const { mkdirSync, existsSync } = await import("node:fs");
+    const { deps } = fakeHarness();
+    const request: AgentRunRequest = {
+      harness: "pi_core",
+      sessionId: "sess-relay",
+      messages: [{ role: "user", content: "hello" }],
+      runContext: { project: { id: "proj-a" } },
+      customTools: [{ name: "lookup", description: "d", inputSchema: { type: "object" }, kind: "gateway" }] as any,
+    };
+    const acquired = await acquireEnvironment(request, deps, undefined, null);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const relayDir = acquired.env.plan.workspace.relayDir;
+    assert.equal(acquired.env.plan.tools.useToolRelay, true);
+    mkdirSync(relayDir, { recursive: true, mode: 0o700 });
+    await acquired.env.destroy();
+    assert.equal(existsSync(relayDir), false);
+  });
+
+  it("takes the run's tool-specs file beside it too, and keeps that file owner-only (QAR9-1)", async () => {
+    const { existsSync, statSync } = await import("node:fs");
+    const { deps } = fakeHarness();
+    const request: AgentRunRequest = {
+      harness: "pi_core",
+      sessionId: "sess-relay-specs",
+      messages: [{ role: "user", content: "hello" }],
+      runContext: { project: { id: "proj-a" } },
+      customTools: [{ name: "lookup", description: "d", inputSchema: { type: "object" }, kind: "gateway" }] as any,
+    };
+    const acquired = await acquireEnvironment(request, deps, undefined, null);
+    assert.equal(acquired.ok, true);
+    if (!acquired.ok) return;
+    const specsFile = `${acquired.env.plan.workspace.relayDir}.tool-specs.json`;
+    assert.equal(existsSync(specsFile), true);
+    assert.equal(statSync(specsFile).mode & 0o777, 0o600);
+    await acquired.env.destroy();
+    assert.equal(existsSync(specsFile), false);
+  });
+});
+

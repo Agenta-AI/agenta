@@ -15,14 +15,13 @@ import {
     DialogFooter,
     DialogHeader,
     DialogTitle,
+    Input,
     Select,
     SelectContent,
     SelectItem,
     SelectTrigger,
     SelectValue,
 } from "@agenta/ui/ui"
-
-import {Input} from "@/components/ui/input"
 
 import {Field} from "./Field"
 
@@ -108,7 +107,8 @@ export const SecretFormSheet = ({
                 ...(secret ?? {}),
                 id: secret?.id,
                 name: name.trim(),
-                slug: slug.trim(),
+                // The slug is immutable, so it is sent on create only.
+                slug: isEditing ? undefined : slug.trim(),
                 format,
                 content: isJson ? (parsed?.content ?? {}) : value,
             } as NamedSecretRow)

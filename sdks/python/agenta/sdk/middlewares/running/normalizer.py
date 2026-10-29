@@ -9,6 +9,8 @@ from uuid import UUID
 from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.models.workflows import (
     failure_code_of,
+    retry_after_of,
+    returned_stacktrace,
     WorkflowServiceStatus,
     WorkflowRequestData,
     WorkflowServiceResponseData,
@@ -19,12 +21,18 @@ from agenta.sdk.models.workflows import (
 )
 from agenta.sdk.models.shared import resolve_session_id
 from agenta.sdk.engines.running.errors import ErrorStatus
+from agenta.sdk.redaction.redactor import strip_echoed_key_fragments
 from agenta.sdk.contexts.running import RunningContext
 from agenta.sdk.contexts.tracing import TracingContext
 from agenta.sdk.utils.logging import get_module_logger
 
 
 log = get_module_logger(__name__)
+
+
+# Whether a refusal returns its Python traceback to whoever made the request is decided by
+# `returned_stacktrace`, beside `failure_code_of`, because the invoke routing layer answers
+# the same question about the same request (D68).
 
 
 class NormalizerMiddleware:
@@ -220,35 +228,41 @@ class NormalizerMiddleware:
         failure_code = failure_code_of(exc)
 
         if isinstance(exc, ErrorStatus):
+            raised_stacktrace = exc.stacktrace
             error_status = WorkflowServiceStatus(
                 type=exc.type,
                 code=exc.code,
-                message=exc.message,
-                stacktrace=exc.stacktrace,
+                message=strip_echoed_key_fragments(exc.message),
+                stacktrace=returned_stacktrace(exc.stacktrace),
                 failure_code=failure_code,
+                retry_after=retry_after_of(exc),
             )
         else:
             type = "https://agenta.ai/docs/errors#v1:sdk:unknown-workflow-invoke-error"
 
             code = getattr(exc, "status_code") if hasattr(exc, "status_code") else 500
 
-            if code in [401, 403, 429]:  # Downstream API errors
+            # Downstream API errors, except a refused run credential: that is the
+            # caller's own access decision and stays one clear 403 `access_denied`.
+            if code in [401, 403, 429] and failure_code != "access_denied":
                 code = 424
 
-            message = str(exc) or "Internal Server Error"
+            message = strip_echoed_key_fragments(str(exc)) or "Internal Server Error"
 
             stacktrace = format_exception(
                 exc,  # type: ignore
                 value=exc,
                 tb=exc.__traceback__,
             )
+            raised_stacktrace = stacktrace
 
             error_status = WorkflowServiceStatus(
                 type=type,
                 code=code,
                 message=message,
-                stacktrace=stacktrace,
+                stacktrace=returned_stacktrace(stacktrace),
                 failure_code=failure_code,
+                retry_after=retry_after_of(exc),
             )
 
         trace_id, span_id, session_id = self._correlation_ids()
@@ -260,11 +274,15 @@ class NormalizerMiddleware:
             session_id=session_id,
         )
 
+        # The traceback goes here rather than onto the response. This line already
+        # existed and already carries the rest of the failure, so an operator reads one
+        # record, and withholding the traceback from the caller costs them nothing.
         log.warning(
             "Workflow handler invocation failed",
             status_code=error_status.code if error_status else None,
             status_type=error_status.type if error_status else None,
             message=error_status.message if error_status else None,
+            stacktrace=raised_stacktrace,
             trace_id=trace_id,
             span_id=span_id,
         )

@@ -3,7 +3,9 @@ import {
     formattedSpanCostAtomFamily,
     formattedSpanLatencyAtomFamily,
     formattedSpanTokensAtomFamily,
+    getTokenBreakdown,
 } from "@agenta/observability"
+import {TokenBreakdownList} from "@agenta/ui/components/presentational"
 import {SimpleTooltip} from "@agenta/ui/ui"
 import {Coins, PlusCircle, Timer} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
@@ -39,6 +41,7 @@ export const TraceRow = ({span, metrics = {}, className}: TraceRowProps) => {
     const formattedTokens = useAtomValue(formattedSpanTokensAtomFamily(span))
     const formattedCost = useAtomValue(formattedSpanCostAtomFamily(span))
     const formattedLatency = useAtomValue(formattedSpanLatencyAtomFamily(span))
+    const tokenBreakdown = getTokenBreakdown(span)
 
     const isError = status_code === "STATUS_CODE_ERROR"
 
@@ -77,7 +80,16 @@ export const TraceRow = ({span, metrics = {}, className}: TraceRowProps) => {
                 )}
 
                 {tokens && !!formattedTokens && (
-                    <SimpleTooltip title={`Tokens: ${formattedTokens}`} side="bottom">
+                    <SimpleTooltip
+                        title={
+                            tokenBreakdown ? (
+                                <TokenBreakdownList breakdown={tokenBreakdown} />
+                            ) : (
+                                `Tokens: ${formattedTokens}`
+                            )
+                        }
+                        side="bottom"
+                    >
                         <div className={METRIC_CLASS}>
                             <PlusCircle />
                             {formattedTokens}

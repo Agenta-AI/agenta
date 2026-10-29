@@ -1,0 +1,531 @@
+/**
+ * OR32: an MCP server that fails its handshake used to vanish from the run — the turn reported
+ * success, the transcript said nothing, and the runner log said nothing either.
+ *
+ * Two halves are proven here. The probe itself classifies each way a handshake can fail and
+ * names the server and the status in the log. Then the whole engine is driven once per harness,
+ * because the three deliver MCP configuration three different ways (Pi through an env var its
+ * extension reads, Claude and Codex through the ACP `session/new` parameter) and a fix that only
+ * reached the ACP pair would leave Pi exactly as silent as before.
+ *
+ * Codex's second channel — its own synthetic `mcp__<server>__startup` failure frame, which the
+ * runner used to discard — is pinned in `session-keepalive-engine.test.ts` beside the tool-call
+ * suppression it belongs to.
+ *
+ * Run: pnpm exec vitest run tests/unit/mcp-handshake-notice.test.ts
+ */
+import { afterEach, describe, it } from "vitest";
+import assert from "node:assert/strict";
+
+import {
+  mcpHandshakeFailureMessage,
+  probeMcpServerHandshake,
+  probeMcpServerHandshakes,
+} from "../../src/engines/sandbox_agent/mcp-handshake.ts";
+import { runSandboxAgent } from "../../src/engines/sandbox_agent.ts";
+import type { AgentEvent } from "../../src/protocol.ts";
+import { fakeHarness } from "../utils/sandbox-agent-harness.ts";
+
+// A public IP literal, because `validateUserMcpUrl` resolves and range-blocks the host before the
+// run ever reaches the probe. The path is a registered gateway route, which is what Pi requires.
+const SERVER_URL = "https://93.184.216.34/gateways/mcps/custom/gw-mock-mcp/";
+const GATEWAY_CREDENTIAL = "ag-mcp-credential";
+
+const server = {
+  name: "gw-mock-mcp",
+  connection: {
+    type: "http" as const,
+    url: SERVER_URL,
+    credentials: [
+      {
+        binding: { kind: "header" as const, name: "X-AG-Credentials" },
+        value: GATEWAY_CREDENTIAL,
+        usage: "opaque_http" as const,
+      },
+    ],
+  },
+  policy: { tools: { mode: "all" as const } },
+};
+
+function answer(
+  body: string,
+  init: { ok?: boolean; status?: number; sessionId?: string } = {},
+) {
+  return {
+    ok: init.ok ?? true,
+    status: init.status ?? 200,
+    headers: {
+      get: (name: string) =>
+        name === "mcp-session-id" ? (init.sessionId ?? null) : null,
+    },
+    text: async () => body,
+  };
+}
+
+const okHandshake = JSON.stringify({
+  jsonrpc: "2.0",
+  id: 1,
+  result: { protocolVersion: "2026-07-28", capabilities: {} },
+});
+
+describe("MCP handshake probe", () => {
+  it("names the status when the server refuses the handshake", async () => {
+    const failure = await probeMcpServerHandshake(server, {
+      fetchImpl: async () =>
+        answer("not implemented", { ok: false, status: 501 }),
+    });
+    assert.deepEqual(failure, {
+      serverName: "gw-mock-mcp",
+      reasonCode: "handshake_http_error",
+      status: 501,
+      message: "MCP server gw-mock-mcp failed to connect: 501",
+    });
+  });
+
+  it("treats a JSON-RPC error under a 200 as a refusal, not a connection", async () => {
+    const failure = await probeMcpServerHandshake(server, {
+      fetchImpl: async () =>
+        answer(
+          JSON.stringify({
+            jsonrpc: "2.0",
+            id: 1,
+            error: { code: -32601, message: "no" },
+          }),
+        ),
+    });
+    assert.equal(failure?.reasonCode, "handshake_rejected");
+    assert.equal(failure?.status, 200);
+  });
+
+  it("reports an unreachable server without a status", async () => {
+    const failure = await probeMcpServerHandshake(server, {
+      fetchImpl: async () => {
+        throw new Error("ECONNREFUSED");
+      },
+    });
+    assert.equal(failure?.reasonCode, "handshake_unreachable");
+    assert.equal(failure?.status, undefined);
+    assert.equal(
+      failure?.message,
+      "MCP server gw-mock-mcp failed to connect: handshake_unreachable",
+    );
+  });
+
+  it("reports a body that is not a JSON-RPC answer", async () => {
+    const failure = await probeMcpServerHandshake(server, {
+      fetchImpl: async () => answer("<html>gateway timeout</html>"),
+    });
+    assert.equal(failure?.reasonCode, "handshake_invalid_response");
+  });
+
+  it("reads a Streamable HTTP answer delivered as a single SSE event", async () => {
+    const failure = await probeMcpServerHandshake(server, {
+      fetchImpl: async () => answer(`event: message\ndata: ${okHandshake}\n\n`),
+    });
+    assert.equal(failure, undefined);
+  });
+
+  it("carries the gateway credential into the handshake and releases the session it opened", async () => {
+    const calls: Array<{ method: string; headers: Record<string, string> }> =
+      [];
+    const failure = await probeMcpServerHandshake(server, {
+      fetchImpl: async (_url, init) => {
+        calls.push({ method: init.method, headers: init.headers });
+        return answer(okHandshake, { sessionId: "mcp-session-7" });
+      },
+    });
+    assert.equal(failure, undefined);
+    assert.deepEqual(
+      calls.map((call) => call.method),
+      ["POST", "DELETE"],
+    );
+    for (const call of calls) {
+      assert.equal(call.headers["X-AG-Credentials"], GATEWAY_CREDENTIAL);
+    }
+    assert.equal(calls[1].headers["mcp-session-id"], "mcp-session-7");
+  });
+
+  it("logs each failure at warn with the server name and the status", async () => {
+    const logs: string[] = [];
+    const failures = await probeMcpServerHandshakes([server], {
+      fetchImpl: async () => answer("nope", { ok: false, status: 502 }),
+      log: (message) => logs.push(message),
+    });
+    assert.equal(failures.length, 1);
+    assert.deepEqual(logs, [
+      "[mcp] warn: server 'gw-mock-mcp' failed its handshake: status=502 reason=handshake_http_error",
+    ]);
+  });
+
+  it("says nothing and costs nothing when the run configures no MCP server", async () => {
+    const logs: string[] = [];
+    const failures = await probeMcpServerHandshakes(undefined, {
+      fetchImpl: async () => {
+        throw new Error("the probe must not run");
+      },
+      log: (message) => logs.push(message),
+    });
+    assert.deepEqual(failures, []);
+    assert.deepEqual(logs, []);
+  });
+
+  it("builds the same sentence the notice carries", () => {
+    assert.equal(
+      mcpHandshakeFailureMessage("gw-mock-mcp", "handshake_http_error", 501),
+      "MCP server gw-mock-mcp failed to connect: 501",
+    );
+  });
+});
+
+describe("a failed MCP server is reported on every harness", () => {
+  const originalFetch = globalThis.fetch;
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  for (const harness of ["pi_core", "claude", "codex"] as const) {
+    it(`${harness} completes the turn and names the server that did not connect`, async () => {
+      globalThis.fetch = (async () =>
+        answer("not implemented", {
+          ok: false,
+          status: 501,
+        })) as unknown as typeof fetch;
+      const { deps, events, logs } = fakeHarness();
+
+      const result = await runSandboxAgent(
+        {
+          harness,
+          messages: [{ role: "user", content: "hello" }],
+          mcpServers: [server],
+        },
+        undefined,
+        undefined,
+        deps,
+      );
+
+      // Non-fatal by construction: the turn still succeeds, it just ran without the server.
+      assert.equal(result.ok, true);
+      const notices = events.filter(
+        (event: AgentEvent) => event.type === "mcp_server_failed",
+      );
+      assert.deepEqual(notices, [
+        {
+          type: "mcp_server_failed",
+          serverName: "gw-mock-mcp",
+          reasonCode: "handshake_http_error",
+          status: 501,
+          message: "MCP server gw-mock-mcp failed to connect: 501",
+        },
+      ]);
+      assert.ok(
+        logs.some((line) =>
+          line.includes(
+            "[mcp] warn: server 'gw-mock-mcp' failed its handshake: status=501",
+          ),
+        ),
+        `no warn line for ${harness}: ${logs.join("\n")}`,
+      );
+    });
+  }
+
+  it("stays quiet when the server connects", async () => {
+    globalThis.fetch = (async () =>
+      answer(okHandshake)) as unknown as typeof fetch;
+    const { deps, events } = fakeHarness();
+
+    const result = await runSandboxAgent(
+      {
+        harness: "claude",
+        messages: [{ role: "user", content: "hello" }],
+        mcpServers: [server],
+      },
+      undefined,
+      undefined,
+      deps,
+    );
+
+    assert.equal(result.ok, true);
+    assert.deepEqual(
+      events.filter((event: AgentEvent) => event.type === "mcp_server_failed"),
+      [],
+    );
+  });
+});
+
+describe("a disconnected MCP connection's handshake refusal", () => {
+  it("carries the connect action, not just the status (OR85)", async () => {
+    // The refusal lands on the HANDSHAKE, not on a later `tools/call`: with no authorization
+    // there is nothing to make the first request with. So this probe is the only place the
+    // gateway's `requirement.connect` can reach a caller, and dropping the body reduced the
+    // whole journey to "failed to connect: 409".
+    const body = JSON.stringify({
+      jsonrpc: "2.0",
+      id: null,
+      error: {
+        code: -32000,
+        message:
+          "Authorization required for custom/acme ⟦agenta_code:auth_required⟧",
+        data: {
+          cause: "auth_required",
+          requirement: {
+            target: "custom/acme",
+            state: "needs_auth",
+            connect: { endpoint: "/gateways/mcps/endpoints/acme-id/connect", body: {} },
+          },
+        },
+      },
+    });
+
+    const failure = await probeMcpServerHandshake(
+      {
+        name: "acme",
+        connection: { type: "http", url: "https://api.example.test/gateways/mcps/custom/acme" },
+      },
+      {
+        fetchImpl: (async () =>
+          new Response(body, {
+            status: 409,
+            headers: { "content-type": "application/json" },
+          })) as unknown as typeof fetch,
+      },
+    );
+
+    assert.equal(failure?.reasonCode, "handshake_http_error");
+    assert.equal(failure?.status, 409);
+    assert.equal(failure?.detail?.code, "auth_required");
+    assert.equal(
+      (failure?.detail?.details as any)?.requirement?.connect?.endpoint,
+      "/gateways/mcps/endpoints/acme-id/connect",
+    );
+  });
+
+  it("attaches nothing when the failing body is not one of ours", async () => {
+    const failure = await probeMcpServerHandshake(
+      {
+        name: "acme",
+        connection: { type: "http", url: "https://api.example.test/mcp" },
+      },
+      {
+        fetchImpl: (async () =>
+          new Response("<html>502 Bad Gateway</html>", { status: 502 })) as unknown as typeof fetch,
+      },
+    );
+
+    assert.equal(failure?.reasonCode, "handshake_http_error");
+    assert.equal(failure?.detail, undefined);
+  });
+});
+
+describe("the probe never follows a redirect (CR9)", () => {
+  function recordingFetch(response: Response) {
+    const calls: { url: string; init: any }[] = [];
+    const impl = (async (url: string, init: any) => {
+      calls.push({ url, init });
+      return response;
+    }) as unknown as typeof fetch;
+    return { impl, calls };
+  }
+
+  it("asks for manual redirect handling on the handshake", async () => {
+    // The URL is user-declared and checked once, before the request. A 302 re-points the SAME
+    // request — credentials attached — at a host nothing checked, which is the whole point of
+    // checking it. `manual` turns the 3xx into an ordinary non-ok response instead.
+    const { impl, calls } = recordingFetch(
+      new Response("", { status: 302, headers: { location: "http://169.254.169.254/latest/meta-data/" } }),
+    );
+
+    const failure = await probeMcpServerHandshake(
+      {
+        name: "acme",
+        connection: {
+          type: "http",
+          url: "https://api.example.test/gateways/mcps/custom/acme",
+          credentials: [
+            {
+              binding: { kind: "header", name: "X-AG-Credentials" },
+              value: "short-lived-gateway-token",
+              usage: "opaque_http",
+            },
+          ],
+        },
+      },
+      { fetchImpl: impl },
+    );
+
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].init.redirect, "manual");
+    // The redirect is reported as a failed handshake rather than chased.
+    assert.equal(failure?.reasonCode, "handshake_http_error");
+    assert.equal(failure?.status, 302);
+    // And the credential went to the declared host only.
+    assert.equal(calls[0].url, "https://api.example.test/gateways/mcps/custom/acme");
+  });
+
+  it("asks for manual redirect handling on the session-release DELETE too", async () => {
+    // The release carries the same credentials as the handshake, so it needs the same posture.
+    const calls: { url: string; init: any }[] = [];
+    const impl = (async (url: string, init: any) => {
+      calls.push({ url, init });
+      if (init.method === "DELETE") return new Response("", { status: 302 });
+      return new Response(
+        JSON.stringify({ jsonrpc: "2.0", id: 1, result: { protocolVersion: "2026-07-28" } }),
+        { status: 200, headers: { "content-type": "application/json", "mcp-session-id": "s-1" } },
+      );
+    }) as unknown as typeof fetch;
+
+    const failure = await probeMcpServerHandshake(
+      {
+        name: "acme",
+        connection: { type: "http", url: "https://api.example.test/mcp" },
+      },
+      { fetchImpl: impl },
+    );
+
+    assert.equal(failure, undefined, "a healthy handshake reports no failure");
+    const release = calls.find((call) => call.init.method === "DELETE");
+    assert.ok(release, "the probe releases the session it opened");
+    assert.equal(release!.init.redirect, "manual");
+  });
+});
+
+describe("the probe must not assert a protocol version it has not negotiated", () => {
+  it("sends no mcp-protocol-version header on the initialize it opens with", async () => {
+    // A spec-strict server (Linear, among others) answers a 400 when `initialize` carries the
+    // header, because the version is what `initialize` negotiates. The probe would then report
+    // every such server as unreachable and its tools would never register. Mock servers do not
+    // check, which is why only a live upstream surfaced it.
+    let sent: Record<string, string> | undefined;
+    const failure = await probeMcpServerHandshake(server, {
+      fetchImpl: async (_url, init) => {
+        sent = init?.headers as Record<string, string>;
+        return answer(okHandshake, { sessionId: "session-1" });
+      },
+    });
+
+    assert.equal(failure, undefined, "a healthy server connects");
+    assert.ok(sent, "the probe made its request");
+    const names = Object.keys(sent).map((name) => name.toLowerCase());
+    assert.ok(
+      !names.includes("mcp-protocol-version"),
+      `initialize must carry no protocol version, got: ${names.join(", ")}`,
+    );
+    // The rest of the handshake is unchanged: content negotiation and the credential still ride.
+    assert.equal(sent["content-type"], "application/json");
+    assert.equal(sent["X-AG-Credentials"], GATEWAY_CREDENTIAL);
+  });
+});
+
+// D70. M19 stopped a configured header from replacing a protocol header in the Pi client, and the
+// probe that runs immediately before that client was left unscreened. The probe is the worse place
+// for it: it reports the server as FAILED, so the tools never register at all and the operator is
+// told the server is unreachable rather than misconfigured.
+
+describe("a configured header cannot replace a protocol header on the probe (D70)", () => {
+  /** The same server, with headers an author is free to set in a connection's configuration. */
+  function serverWithHeaders(headers: Record<string, string>) {
+    return {
+      ...server,
+      connection: { ...server.connection, headers },
+    };
+  }
+
+  it("keeps content negotiation whatever the configuration says", async () => {
+    let sent: Record<string, string> | undefined;
+    const failure = await probeMcpServerHandshake(
+      serverWithHeaders({
+        // Capitalised differently on purpose: header names are case-insensitive on the wire but
+        // an object's keys are not, so an exact-match screen would let both through and `fetch`
+        // would fold them into one comma-joined value.
+        Accept: "text/plain",
+        "Content-Type": "application/x-www-form-urlencoded",
+      }),
+      {
+        fetchImpl: async (_url, init) => {
+          sent = init?.headers as Record<string, string>;
+          return answer(okHandshake, { sessionId: "session-1" });
+        },
+      },
+    );
+
+    assert.equal(failure, undefined, "a healthy server still connects");
+    assert.ok(sent);
+    const names = Object.keys(sent).map((name) => name.toLowerCase());
+    assert.equal(
+      names.filter((name) => name === "accept").length,
+      1,
+      `exactly one accept must survive, got: ${names.join(", ")}`,
+    );
+    assert.equal(
+      names.filter((name) => name === "content-type").length,
+      1,
+      `exactly one content-type must survive, got: ${names.join(", ")}`,
+    );
+    assert.equal(sent.accept, "application/json, text/event-stream");
+    assert.equal(sent["content-type"], "application/json");
+  });
+
+  it("refuses to let a configuration assert a version initialize has not negotiated", async () => {
+    // The probe deliberately sends no version. A configured one would reach a spec-strict server
+    // as the very thing that server refuses, and this probe would report it unreachable.
+    let sent: Record<string, string> | undefined;
+    await probeMcpServerHandshake(
+      serverWithHeaders({ "MCP-Protocol-Version": "2026-07-28" }),
+      {
+        fetchImpl: async (_url, init) => {
+          sent = init?.headers as Record<string, string>;
+          return answer(okHandshake, { sessionId: "session-1" });
+        },
+      },
+    );
+
+    assert.ok(sent);
+    const names = Object.keys(sent).map((name) => name.toLowerCase());
+    assert.ok(
+      !names.includes("mcp-protocol-version"),
+      `no configured version may ride initialize, got: ${names.join(", ")}`,
+    );
+  });
+
+  it("refuses to let a configuration point the probe at someone else's session", async () => {
+    // The probe does carry a session id — the one the server ISSUED it on the handshake answer,
+    // on the request that follows. What must never ride is a configured value, which would point
+    // the request at a session this client was never given.
+    const sent: Record<string, string>[] = [];
+    await probeMcpServerHandshake(
+      serverWithHeaders({ "Mcp-Session-Id": "a-session-we-were-never-issued" }),
+      {
+        fetchImpl: async (_url, init) => {
+          sent.push(init?.headers as Record<string, string>);
+          return answer(okHandshake, { sessionId: "session-1" });
+        },
+      },
+    );
+
+    assert.ok(sent.length > 0, "the probe made its request");
+    for (const headers of sent) {
+      for (const [name, value] of Object.entries(headers)) {
+        if (name.toLowerCase() !== "mcp-session-id") continue;
+        assert.equal(
+          value,
+          "session-1",
+          "only the session the server issued may ride, never a configured one",
+        );
+      }
+    }
+  });
+
+  it("still carries a configured header that is none of the protocol's business", async () => {
+    let sent: Record<string, string> | undefined;
+    await probeMcpServerHandshake(serverWithHeaders({ "X-Tenant": "acme" }), {
+      fetchImpl: async (_url, init) => {
+        sent = init?.headers as Record<string, string>;
+        return answer(okHandshake, { sessionId: "session-1" });
+      },
+    });
+
+    assert.ok(sent);
+    assert.equal(sent["X-Tenant"], "acme");
+    assert.equal(sent["X-AG-Credentials"], GATEWAY_CREDENTIAL);
+  });
+});

@@ -1,0 +1,16 @@
+{
+  "_comment": "Single source of truth for the pi-ai provider-cost patch (harness cost issue H1). Pi ships pi-ai twice: the @earendil-works/pi-ai package (top-level fields, loaded by the in-process engine) and a minified copy bundled into the pi CLI (`cli`, relative to @earendil-works/pi-coding-agent; every `pi` subprocess, local or Daytona, runs it). Consumed by pi-provider-cost-patch.ts (the runner image via scripts/patch-pi-provider-cost.ts, and a Daytona runtime install) AND by services/runner/images/sandbox/daytona/build_snapshot.py (the Daytona snapshot). Every surface MUST patch identically, or a Pi run reports Pi's price-table estimate instead of the billed charge. Keep the anchors and the injected function here and nowhere else.",
+  "piVersion": "0.99.1",
+  "bundlePath": "dist/api/openai-completions.js",
+  "marker": "__agentaProviderCost",
+  "functionStart": "function parseChunkUsage(rawUsage, model) {",
+  "anchor": "    calculateCost(model, usage);\n    return usage;\n}",
+  "replacement": "    calculateCost(model, usage);\n    __agentaProviderCost(usage, rawUsage);\n    return usage;\n}",
+  "injected": "function __agentaProviderCost(usage, rawUsage) {\n    // Agenta build patch (services/runner/src/tools/pi-provider-cost-patch.ts): keep the charge\n    // the provider billed (OpenRouter usage.cost) instead of Pi's price-table estimate.\n    const billed = rawUsage ? rawUsage.cost : undefined;\n    if (typeof billed !== \"number\" || !Number.isFinite(billed) || billed < 0)\n        return;\n    const estimated = usage.cost.total;\n    if (estimated > 0) {\n        const scale = billed / estimated;\n        usage.cost.input *= scale;\n        usage.cost.output *= scale;\n        usage.cost.cacheRead *= scale;\n        usage.cost.cacheWrite *= scale;\n    }\n    usage.cost.total = billed;\n    usage.cost.source = \"provider\";\n}\n",
+  "cli": {
+    "bundlePath": "dist/bundle/chunks/openai-completions-XW2Q5HVC.js",
+    "functionStart": "function parseChunkUsage(rawUsage,model){",
+    "anchor": "return calculateCost(model,usage),usage}",
+    "replacement": "return calculateCost(model,usage),__agentaProviderCost(usage,rawUsage),usage}"
+  }
+}

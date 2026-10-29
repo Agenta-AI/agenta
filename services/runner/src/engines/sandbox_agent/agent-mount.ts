@@ -3,7 +3,7 @@
  * See `docs/design/agent-workflows/projects/agent-mounts/plan.md`, decision D3.
  */
 
-import { writeFile } from "node:fs/promises";
+import { cp, lstat, readdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import {
@@ -166,6 +166,75 @@ export async function seedAgentReadmeRemote(
 export type LinkAgentFilesDeps = EnsureDurableSymlinkDeps;
 
 /**
+ * A name in `directory` that nothing occupies yet: `notes.md`, then `notes.md.recovered`, then
+ * `notes.md.recovered-2`, and so on.
+ *
+ * Recovered files keep their own names wherever they can, because the agent and the person
+ * reading the drive know them by those names. A collision means the agent wrote the same file to
+ * both places, and neither copy is safe to discard on its behalf.
+ */
+async function freeNameIn(directory: string, name: string): Promise<string> {
+  let candidate = join(directory, name);
+  for (let attempt = 0; attempt < 1000; attempt += 1) {
+    try {
+      await lstat(candidate);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") return candidate;
+      throw err;
+    }
+    candidate = join(
+      directory,
+      attempt === 0 ? `${name}.recovered` : `${name}.recovered-${attempt + 1}`,
+    );
+  }
+  throw new Error(`no free name for '${name}' in ${directory}`);
+}
+
+/**
+ * Move one entry onto the agent mount.
+ *
+ * Copy exclusively before removing the source. A rename could overwrite a destination created
+ * after name selection, while an exclusive copy reports EEXIST and lets the caller choose again.
+ * An interrupted copy leaves the source intact.
+ */
+async function moveEntry(from: string, to: string): Promise<void> {
+  await cp(from, to, { recursive: true, force: false, errorOnExist: true });
+  await rm(from, { recursive: true, force: true });
+}
+
+/**
+ * Empty a real `agent-files` directory onto the agent mount it should have been pointing at.
+ *
+ * How the directory gets there: something deletes the symlink mid-turn, and the harness's next
+ * write to `agent-files/<anything>` recreates the parent as an ordinary directory. Everything
+ * written after that sits on the SESSION drive under a name the agent believes is its durable
+ * one. The files are not lost, they are in the wrong drive, so this moves them rather than
+ * clearing the path.
+ */
+async function recoverAgentFilesDirectory(
+  linkPath: string,
+  mountPath: string,
+  log: (msg: string) => void,
+): Promise<void> {
+  const entries = await readdir(linkPath);
+  for (const entry of entries) {
+    let moved = false;
+    for (let attempt = 0; attempt < 1000; attempt += 1) {
+      const destination = await freeNameIn(mountPath, entry);
+      try {
+        await moveEntry(join(linkPath, entry), destination);
+        log(`${AGENT_FILES_LINK_NAME} recovered ${entry} -> ${destination}`);
+        moved = true;
+        break;
+      } catch (err) {
+        if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
+      }
+    }
+    if (!moved) throw new Error(`no free name for '${entry}' in ${mountPath}`);
+  }
+}
+
+/**
  * Point `<cwd>/agent-files` at the agent's durable mount. Re-run on every mount: the link lives on
  * the durable cwd, where geesefs degrades symlinks to empty files across remounts, so the shared
  * helper re-materializes it instead of trusting that the path exists.
@@ -174,13 +243,20 @@ export async function linkAgentFiles(
   cwd: string,
   mountPath: string,
   deps: LinkAgentFilesDeps = {},
-): Promise<void> {
-  await ensureDurableSymlink(
+): Promise<boolean> {
+  const log = deps.log ?? defaultLog;
+  const outcome = await ensureDurableSymlink(
     join(cwd, AGENT_FILES_LINK_NAME),
     mountPath,
     AGENT_FILES_LINK_NAME,
-    { ...deps, log: deps.log ?? defaultLog },
+    {
+      recoverDirectory: (linkPath, target) =>
+        recoverAgentFilesDirectory(linkPath, target, log),
+      ...deps,
+      log,
+    },
   );
+  return outcome !== "failed";
 }
 
 export async function linkAgentFilesRemote(

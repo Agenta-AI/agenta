@@ -5,10 +5,6 @@
  * family. API calls go through the Fern-generated `@agentaai/api-client`
  * (resolved via `@agenta/sdk`) so request/response shapes stay in sync with
  * the backend OpenAPI definition.
- *
- * Lifted from `web/oss/src/features/gateway-tools/` (the hand-rolled
- * services + hooks layer is going away; the OSS feature folder shrinks to
- * just orchestration glue).
  */
 
 // ---------------------------------------------------------------------------
@@ -80,15 +76,7 @@ export {
 // STATE — drawer + selection atoms
 // ---------------------------------------------------------------------------
 
-export {
-    actionSearchAtom,
-    catalogSearchAtom,
-    connectionDrawerAtom,
-    selectedCatalogActionAtom,
-    selectedCatalogIntegrationAtom,
-    toolCatalogDrawerOpenAtom,
-    toolExecutionDrawerAtom,
-} from "./state"
+export {connectionDrawerAtom, toolCatalogDrawerOpenAtom, toolExecutionDrawerAtom} from "./state"
 export type {ConnectionDrawerState, ExecutionDrawerState} from "./state"
 
 // ---------------------------------------------------------------------------
@@ -125,12 +113,6 @@ export {
     useToolsConnections,
 } from "./hooks"
 export type {CreateConnectionInput} from "./hooks"
-
-// ---------------------------------------------------------------------------
-// PROMPT — cross-entity bridge (workflow-aware tool removal)
-// ---------------------------------------------------------------------------
-
-export {removePromptToolByNameAtomFamily} from "./prompt"
 
 // ---------------------------------------------------------------------------
 // SLUG HELPERS — re-exported from @agenta/shared for ergonomic single-import

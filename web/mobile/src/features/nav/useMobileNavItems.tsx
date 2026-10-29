@@ -11,15 +11,26 @@ import {
     sidebarSessionGroupKey,
     sidebarSessionGroupsAtomFamily,
     loadMoreSidebarSessionsAtomFamily,
+    RELEASES,
     SIDEBAR_UNBOUNDED,
     sidebarSessionsListAtomFamily,
+    setSidebarSessionFilterDefaults,
     withEntityGroups,
     type SessionSidebarRef,
     type SidebarConfig,
     type SidebarEntityRef,
 } from "@agenta/navigation"
-import {buildReleaseNavItems, SessionFilterMenu} from "@agenta/navigation-ui"
-import {SessionRowActions, useSessionActions, useSessionRowChrome} from "@agenta/sessions-ui"
+import {buildReleaseNavItems, SessionFilterMenu, SessionSearchButton} from "@agenta/navigation-ui"
+import {sessionRoutePath} from "@agenta/sessions/link"
+import {
+    SessionRowActions,
+    useSessionActions,
+    useSessionRowChrome,
+    type SessionActionTarget,
+} from "@agenta/sessions-ui"
+import {userAtom} from "@agenta/shared/state"
+import {getShortcut, shortcutAria, shortcutFaces} from "@agenta/shared/utils"
+import {useIsMacPlatform} from "@agenta/ui/shortcuts"
 import {Spinner} from "@agenta/ui/ui"
 import {
     ChartLineUpIcon,
@@ -27,30 +38,46 @@ import {
     CircleIcon,
     GearIcon,
     GithubLogoIcon,
+    GraduationCapIcon,
     HouseIcon,
     KeyboardIcon,
     LightningIcon,
-    PuzzlePieceIcon,
     QuestionIcon,
     RobotIcon,
     ScrollIcon,
     SlackLogoIcon,
+    SquaresFourIcon,
 } from "@phosphor-icons/react"
 import {atom, useAtomValue, useSetAtom} from "jotai"
 import {unwrap} from "jotai/utils"
+import {useRouter} from "next/router"
+
+import {agentEntryHref} from "@/features/agents/agentEntry"
+import {shareDialogRequestAtom} from "@/features/chat/shareDialogState"
+import {useLeaveSession} from "@/features/chat/useLeaveSession"
+import {startBlankSession} from "@/features/chat/useStartBlankSession"
+import {whatsNewAtom} from "@/features/education/whatsNewAtom"
+
+import {AgentsNavAction} from "./AgentsNavAction"
+import {AgentsQuickPanel} from "./AgentsQuickPanel"
+import {useSyncLocalSessionRefs} from "./localSessionRefs"
 
 /** The drawer's scope id — its open-groups persistence bucket. */
 export const MOBILE_NAV_SCOPE_ID = "mobile-main"
+// By agent, not the shared flat default: the rail's "+" lives on agent headings, and a heading
+// that is a date or a status names no agent to start a session with. Reset comes back here.
+setSidebarSessionFilterDefaults(MOBILE_NAV_SCOPE_ID, {groupBy: "agent"})
+/** The registry entry for ⌘K / Ctrl+K, which `MobileCommandPalette` binds. */
+const PALETTE_SHORTCUT_ID = "palette.open"
 
-/**
- * Mobile's registration over the SHARED machinery: same gated sessions source, same
- * pinned-first ordering, mobile's own child routes. Desktop's registry entry differs only
- * in its paths and its pending-open handoff — the model is the reuse, the content is ours.
- */
 /** Flip to show the Observability rail entry again — the screen and its route are untouched. */
 const SHOW_OBSERVABILITY = false
 
-const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
+/**
+ * Mobile's registration over the SHARED machinery: same gated sessions source, same
+ * pinned-first ordering, mobile's own child routes.
+ */
+export const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
     MOBILE_NAV_SCOPE_ID,
     SESSIONS_SIDEBAR_KEY,
     {
@@ -96,6 +123,20 @@ const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
         // Grouped by owning agent, pins in their own heading on top (#6125).
         getGroupKey: sidebarSessionGroupKey,
         groupsAtom: sidebarSessionGroupsAtomFamily(MOBILE_NAV_SCOPE_ID),
+        // An agent heading's "+" opens a blank session with that agent — the same start every
+        // other "+" in the app makes. The session id is minted on the click, so the anchor's
+        // own href is the agent entry link: what a long-press / open-in-new-tab lands on.
+        groupAdd: (group, projectURL) =>
+            group.agentId
+                ? {
+                      link: agentEntryHref(projectURL, group.agentId),
+                      label: `New session with ${group.label}`,
+                      onClick: (event) => {
+                          event.preventDefault()
+                          startBlankSession(projectURL, group.agentId!)
+                      },
+                  }
+                : undefined,
         toggleGroupAtom: sidebarSessionToggledGroupsAtomFamily(MOBILE_NAV_SCOPE_ID),
         // No visible cap: the rail renders every row it fetched, so nothing is dropped between
         // the request and the render. The server window is the only bound.
@@ -109,6 +150,8 @@ const mobileSessionsEntity = defineSidebarEntity<SessionSidebarRef>(
  * forking a component.
  */
 export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
+    // Sessions this client created ride the shared local seam until the server lists them.
+    useSyncLocalSessionRefs(MOBILE_NAV_SCOPE_ID)
     const rawSource = useAtomValue(mobileSessionsEntity.activeSourceAtom)
     const loadMoreSessions = useSetAtom(loadMoreSidebarSessionsAtomFamily(MOBILE_NAV_SCOPE_ID))
     const groups = useAtomValue(sidebarSessionGroupsAtomFamily(MOBILE_NAV_SCOPE_ID))
@@ -117,7 +160,46 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
     // and hands `NavMenu` a new items array that defeats its own memo.
     const source = useMemo(() => withEntityGroups(rawSource, groups), [rawSource, groups])
     // Resolved ONCE for the rail, not once per row: the verbs do not differ by session.
-    const chrome = useSessionRowChrome(useSessionActions())
+    // Archiving or deleting the session on screen has to move you off it, from here too.
+    // Sharing: the owner's rail menu has Share; someone else's chat keeps only Open-like verbs.
+    const me = useAtomValue(userAtom)
+    const openShare = useSetAtom(shareDialogRequestAtom)
+    const onShare = useCallback(
+        (target: SessionActionTarget) => {
+            const [, , workspaceId = "", , projectId = ""] = projectURL.split("/")
+            openShare({
+                sessionId: target.sessionId,
+                sessionName: target.name ?? "",
+                workspaceId,
+                projectId,
+            })
+        },
+        [openShare, projectURL],
+    )
+    // "Copy share link" in the rail too (approved session row menu, QA D7): the session's own
+    // page, with the app's `/m` prefix.
+    const router = useRouter()
+    const sharePathFor = useCallback(
+        ({sessionId}: SessionActionTarget) =>
+            `${router.basePath}${sessionRoutePath(projectURL, sessionId)}`,
+        [projectURL, router.basePath],
+    )
+    const chrome = useSessionRowChrome(
+        useSessionActions({
+            onRemoved: useLeaveSession(projectURL),
+            currentUserId: me?.id ?? null,
+            onShare,
+            sharePathFor,
+        }),
+    )
+    // Platform read in an effect: the server has none, and a guess mismatches on hydration.
+    const mac = useIsMacPlatform()
+    const paletteShortcut = useMemo(() => {
+        const shortcut = getShortcut(PALETTE_SHORTCUT_ID)
+        return shortcut
+            ? {faces: shortcutFaces(shortcut, mac), aria: shortcutAria(PALETTE_SHORTCUT_ID)}
+            : undefined
+    }, [mac])
     const wrapSessionRow = useCallback(
         (ref: SidebarEntityRef, node: ReactNode) =>
             createElement(SessionRowActions, {
@@ -141,6 +223,16 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                 title: "Agents",
                 icon: createElement(RobotIcon, {size: 16}),
                 link: `${projectURL}/agents`,
+                // Start or open an agent without leaving the page: a "+" on the row, the same
+                // panel as a hover flyout on the collapsed rail.
+                rowAction: createElement(AgentsNavAction, {base: projectURL}),
+                hoverFlyout: (close: () => void, hold: (held: boolean) => void) =>
+                    createElement(AgentsQuickPanel, {
+                        base: projectURL,
+                        onDone: close,
+                        onBusyChange: hold,
+                        autoFocusSearch: false,
+                    }),
             },
             // After Agents: an automation is something an agent has, and Skills is what it uses.
             {
@@ -152,7 +244,7 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
             {
                 key: SKILLS_SIDEBAR_KEY,
                 title: "Skills",
-                icon: createElement(PuzzlePieceIcon, {size: 16}),
+                icon: createElement(GraduationCapIcon, {size: 16}),
                 link: `${projectURL}/skills`,
             },
             {
@@ -168,9 +260,17 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                 // without bound, so Observability (and whatever lands after it) stays on screen.
                 scrollChildren: true,
                 onReachEnd: loadMoreSessions,
-                groupAction: createElement(SessionFilterMenu, {
-                    scopeId: MOBILE_NAV_SCOPE_ID,
-                }),
+                // Search reaches past what the rail lists; the filter narrows it. Same pair,
+                // same order, as the desktop rail.
+                groupAction: createElement(
+                    "span",
+                    {className: "flex items-center gap-0.5"},
+                    createElement(SessionSearchButton, {
+                        label: "Search",
+                        shortcut: paletteShortcut,
+                    }),
+                    createElement(SessionFilterMenu, {scopeId: MOBILE_NAV_SCOPE_ID}),
+                ),
                 submenu: resolveChildren(
                     mobileSessionsEntity,
                     source,
@@ -192,41 +292,51 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                   ]
                 : []),
         ],
-        [loadMoreSessions, source, projectURL, wrapSessionRow],
+        [loadMoreSessions, source, projectURL, wrapSessionRow, paletteShortcut],
     )
 }
 
-/**
- * The pinned bottom entries — the desktop rail's, minus what has no mobile destination.
- * Settings is a placeholder screen until its surfaces land; Help & Docs is the SHARED entry, so
- * both apps point at the same destinations. Invite Teammate is desktop-only: inviting is
- * workspace administration, not something this app is for.
- */
-// Lazy-load package.json so its version stays out of the initial bundle — same as the desktop.
+// Lazy-load package.json so its version stays out of the initial bundle.
 // `unwrap` yields undefined until the import settles, which is all the suffix below needs.
 const versionAtom = unwrap(atom(async () => (await import("../../../package.json")).version))
 
 export const useMobileVersion = () => useAtomValue(versionAtom)
 
+/** The pinned bottom entries: Templates and Settings, both dropped inside the settings scope. */
 export const useMobileBottomNavItems = (
     projectURL: string,
     {includeSettingsLink = true}: {includeSettingsLink?: boolean} = {},
-): SidebarConfig[] =>
-    useMemo(
+): SidebarConfig[] => {
+    const version = useMobileVersion()
+    return useMemo(
         () =>
-            // The settings scope drops it: the rail IS settings there, as on the desktop.
+            // The settings scope drops them: the rail IS settings there.
             includeSettingsLink
                 ? [
+                      {
+                          key: "mobile-templates",
+                          title: "Templates",
+                          icon: createElement(SquaresFourIcon, {size: 16}),
+                          link: `${projectURL}/templates`,
+                      },
                       {
                           key: "mobile-settings",
                           title: "Settings",
                           icon: createElement(GearIcon, {size: 16}),
                           link: `${projectURL}/settings`,
+                          suffix: version
+                              ? createElement(
+                                    "span",
+                                    {className: "text-[10px] leading-none text-colorTextTertiary"},
+                                    `v${version}`,
+                                )
+                              : undefined,
                       },
                   ]
                 : [],
-        [includeSettingsLink, projectURL],
+        [includeSettingsLink, projectURL, version],
     )
+}
 
 /**
  * Help & Docs as an item the rail renders as an icon button beside the project switcher, the
@@ -237,6 +347,7 @@ export const useMobileHelpItem = ({
     onOpenShortcuts,
 }: {onOpenShortcuts?: () => void} = {}): SidebarConfig => {
     const version = useMobileVersion()
+    const openWhatsNew = useSetAtom(whatsNewAtom)
 
     return useMemo(
         () =>
@@ -257,9 +368,18 @@ export const useMobileHelpItem = ({
                         // The rule between the destinations and the release list.
                         divider: true,
                     },
-                    ...buildReleaseNavItems(version),
+                    // Release rows reopen the what's-new dialog; "View all releases" links out.
+                    ...buildReleaseNavItems(version).map((item) =>
+                        RELEASES.some((release) => release.id === item.key)
+                            ? {
+                                  ...item,
+                                  link: undefined,
+                                  onClick: () => openWhatsNew({releaseId: item.key}),
+                              }
+                            : item,
+                    ),
                 ],
             }),
-        [onOpenShortcuts, version],
+        [onOpenShortcuts, openWhatsNew, version],
     )
 }

@@ -13,24 +13,22 @@ export {
     fetchInteraction,
     respondInteraction,
     transitionInteraction,
+    interactionConflictCode,
     isInteractionConflict,
+    isSettledInteractionConflict,
     querySessionStreams,
+    readAliveStreams,
     querySessionsPage,
     querySessionsFlatPage,
     querySessions,
     setSessionHeader,
     fetchSessionStream,
-    fetchSessionCapabilities,
-    fetchSessionDurableApprovalsCapability,
     removePendingSessionInput,
     sendPendingSessionInputNow,
     updatePendingSessionInput,
-    invalidateSessionDurableApprovalsCapability,
-    commandSessionStream,
+    type PendingInputAdmission,
+    type PendingInputWriteOutcome,
     cancelSessionExecution,
-    cancelSessionStream,
-    type CancelSessionOutcome,
-    type CancelSessionStreamParams,
     resumeSessionContinuation,
     killSession,
     deleteSession as deleteSessionRemote,
@@ -48,12 +46,10 @@ export {
     type QuerySessionsPageParams,
     type QuerySessionsParams,
     type SessionScopedParams,
-    type SessionFeatureCapabilities,
     type QueryInteractionsParams,
     type InteractionScopedParams,
     type RespondInteractionParams,
     type TransitionInteractionParams,
-    type CommandSessionStreamParams,
     type CancelSessionExecutionParams,
     type CancelSessionExecutionResult,
     type ResumeSessionContinuationParams,
@@ -85,12 +81,10 @@ export {
     type SessionStream,
     type SessionLiveFrame,
     type SessionDurableEvent,
-    type SessionDurableEventType,
     type SessionRecordsReadState,
     type SessionSnapshot,
     type SessionsQueryResponse,
     type SessionReference,
-    type SessionReferenceKey,
     type SessionOrigin,
     type SessionTriggerKind,
     type SessionExpansion,
@@ -98,9 +92,7 @@ export {
     type SessionDelivery,
     type SessionMessagePreview,
     type SessionWindowing,
-    type SessionStreamCommandResponse,
     type PendingSessionInput,
-    type StreamStatusCode,
     type CommandMode,
     mountFileSchema,
     mountSchema,
@@ -108,7 +100,6 @@ export {
     type Mount,
 } from "./core/schema"
 export {
-    fetchSessionCapabilitiesAtom,
     fetchSessionSnapshotAtom,
     removePendingSessionInputAtom,
     sendPendingSessionInputNowAtom,
@@ -119,6 +110,7 @@ export {
     deriveSessionLifecycle,
     refineLifecycleWithSandbox,
     livenessPollInterval,
+    livenessRefetchInterval,
     type LivenessPollInterval,
     type SessionLifecycle,
     type SessionStreamNest,
@@ -133,10 +125,15 @@ export {
     type SessionListCursor,
     type SessionListFilters,
 } from "./state/listOptions"
-export {invalidateSessionListQueries, invalidateSessionLivenessQueries} from "./state/invalidate"
+export {
+    invalidateProjectSessionListQueries,
+    invalidateSessionListQueries,
+    invalidateSessionLivenessQueries,
+} from "./state/invalidate"
 export {shouldAdoptServerTranscript, type TranscriptAdoptionInput} from "./core/transcriptAdoption"
 export {deriveMountRows, mountBreadcrumbs, type MountRow} from "./core/mountBrowser"
 export {pickCwdMount} from "./core/mountSelection"
+export {listedEntryAt, parentFolderOf} from "./core/pathUtils"
 export {
     sessionRecordsQueryFamily,
     sessionRecordFileRecencyAtomFamily,
@@ -163,11 +160,12 @@ export {
     type SessionInteractionRowStates,
 } from "./state/interactionStatus"
 export {
-    recordInteractionAnswerAtom,
+    APPROVAL_NOT_PENDING,
+    ApprovalNotPendingError,
+    isApprovalNotPendingError,
     respondInteractionAnswerAtom,
     respondInteractionAnswersAtom,
     resumeSessionContinuationAtom,
-    sessionDurableApprovalsCapabilityAtom,
 } from "./state/interactionAnswer"
 export {
     sessionMountsQueryFamily,
@@ -176,11 +174,14 @@ export {
     mountRootQueryFamily,
     mountDirQueryFamily,
     mountFileContentQueryFamily,
+    mountFolderListingQueryFamily,
+    mountFileExistsAtomFamily,
     revalidateSessionMountsAtom,
     sessionMountsQueryKey,
     mountFilesQueryKey,
     latestMountFilesQueryKey,
     mountFileContentQueryKey,
+    mountFolderListingQueryKey,
 } from "./state/mounts"
 export {
     detectFileActivity,
@@ -206,3 +207,12 @@ export {
     isSessionFresh,
     markSessionFresh,
 } from "./core/freshSessions"
+export {
+    dropUnacceptedLocalSessionAtom,
+    forgetLocalSessionsAtom,
+    localSessionNameFromText,
+    localSessionsAtom,
+    markLocalSessionAcceptedAtom,
+    registerLocalSessionAtom,
+    type LocalSession,
+} from "./core/localSessions"

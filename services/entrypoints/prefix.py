@@ -69,3 +69,21 @@ class ServicesPrefixStripMiddleware:
             else:
                 scope["raw_path"] = (head + tail).encode("utf-8")
         return scope
+
+
+def strip_prefix_outermost(app, prefix: str | None = None) -> None:
+    """Run the prefix strip outside every other layer of `app`, tracing included.
+
+    `add_middleware` puts a middleware inside the request span that the FastAPI
+    instrumentation wraps around the whole stack. That span is named from the path it sees,
+    so with the prefix still on, it matches no route and is named by the method alone.
+    Wrapping the built stack instead strips the prefix first. Call this after the app is
+    instrumented: the instrumentation also wraps the stack, and it expects to find
+    Starlette's own outermost layer.
+    """
+    build = app.build_middleware_stack
+
+    def build_middleware_stack():
+        return ServicesPrefixStripMiddleware(build(), prefix=prefix)
+
+    app.build_middleware_stack = build_middleware_stack

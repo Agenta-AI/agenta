@@ -11,6 +11,15 @@ export default defineConfig({
                 __dirname,
                 "../agenta-ui/src/Editor/utils/diffUtils.ts",
             ),
+            // Colour maths + a stub catalog, so the agent icon atoms run without the picker.
+            "@agenta/ui/agent-icon": path.resolve(
+                __dirname,
+                "tests/__mocks__/agenta-ui-agent-icon.ts",
+            ),
+            "@agenta/ui/app-message": path.resolve(
+                __dirname,
+                "tests/__mocks__/agenta-ui-app-message.ts",
+            ),
             // Stub @agenta/ui so Vitest doesn't transform the entire antd tree.
             // Entity tests only exercise Jotai atoms — no React rendering needed.
             "@agenta/ui": path.resolve(__dirname, "tests/__mocks__/agenta-ui.ts"),

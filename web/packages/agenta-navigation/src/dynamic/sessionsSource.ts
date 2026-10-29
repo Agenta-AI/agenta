@@ -1,6 +1,5 @@
 import {
     livenessPollInterval,
-    queryInteractions,
     querySessions,
     querySessionsFlatPage,
     type SessionStream,
@@ -11,11 +10,11 @@ import {
     workflowMolecule,
 } from "@agenta/entities/workflow"
 import {isAutomationSession, sessionOpenTarget} from "@agenta/sessions/row"
-import {pinnedSessionIdsAtom} from "@agenta/sessions/state"
+import {actionableInteractionsQueryOptions, pinnedSessionIdsAtom} from "@agenta/sessions/state"
 import {idleReadyAtom, projectIdAtom} from "@agenta/shared/state"
 import {atom, type Getter} from "jotai"
 import {atomFamily} from "jotai-family"
-import {atomWithQuery} from "jotai-tanstack-query"
+import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
 import {MAIN_SIDEBAR_SCOPE_ID, SESSIONS_SIDEBAR_KEY} from "../constants"
 import {
@@ -64,6 +63,8 @@ export interface SessionSidebarRef extends SidebarEntityRef {
     waiting?: boolean
     /** Deliberately hidden. The row fades and its menu drops the verbs that make no sense. */
     archived: boolean
+    /** Sharing (M3): the owner (null = ownerless). */
+    ownerUserId?: string | null
     /** Last activity, for the date buckets. */
     activityAt?: string | null
     /** Which heading this row sits under, resolved against the active `groupBy`. */
@@ -275,14 +276,15 @@ const sidebarWaitingIdsQueryAtomFamily = atomFamily((scopeId: string) =>
         const status = get(sidebarSessionFiltersAtomFamily(scopeId)).status
         // "Idle" needs the set too — to SUBTRACT it. A gated session is waiting, not idle.
         const needed = status === "waiting" || status === "idle"
+        // Read here: the jotai getter is not valid inside a `queryFn` TanStack runs later.
+        const queryClient = get(queryClientAtom)
         return {
             queryKey: ["sidebar-sessions-waiting", projectId],
-            queryFn: async ({signal}) => {
-                const rows = await queryInteractions({
-                    projectId: projectId ?? "",
-                    actionableOnly: true,
-                    abortSignal: signal,
-                })
+            queryFn: async () => {
+                // The shared gates flight, without this query's signal: aborting it would abort theirs.
+                const rows = await queryClient.fetchQuery(
+                    actionableInteractionsQueryOptions(projectId ?? ""),
+                )
                 // The interactions query applies no ORDER BY, so row order is not stable between
                 // executions. Both session queries put this array in their cache key, and a pure
                 // reorder would re-key them on every poll and re-fetch the whole tail. The server
@@ -611,6 +613,7 @@ const toSidebarRef = (row: SessionStream, pinned: Set<string>): SessionSidebarRe
         pinned: pinned.has(row.session_id),
         alive: Boolean(row.flags?.is_alive),
         archived: Boolean(row.archived_at),
+        ownerUserId: row.owner_user_id ?? null,
         running: Boolean(row.flags?.is_running),
         isAutomation: isAutomationSession(row),
         activityAt: row.updated_at ?? row.created_at ?? null,
@@ -723,6 +726,24 @@ const uniqueBySession = (refs: readonly SessionSidebarRef[]): SessionSidebarRef[
     }
     return unique
 }
+
+/**
+ * The ids the SERVER lists for this scope, pins and pages included. A host reconciles its local
+ * rows against it: a session the server carries no longer needs the local seam, and a local row
+ * that outlived its server twin would resurface the session whenever it aged out of the window.
+ */
+export const sidebarServerSessionIdsAtomFamily = atomFamily((scopeId: string) =>
+    atom<ReadonlySet<string>>((get) => {
+        const ids = new Set<string>()
+        for (const row of get(sidebarPinnedSessionsQueryAtomFamily(scopeId)).data ?? [])
+            ids.add(row.session_id)
+        for (const row of get(sidebarSessionsQueryAtomFamily(scopeId)).data ?? [])
+            ids.add(row.session_id)
+        for (const row of get(sidebarSessionsOlderQueryAtomFamily(scopeId)).data?.rows ?? [])
+            ids.add(row.session_id)
+        return ids
+    }),
+)
 
 /**
  * Pinned sessions first, then the rest by activity.
@@ -926,6 +947,15 @@ export const sidebarSessionGroup = (
     return {key: `agent:${ref.agentId}`, label: ref.agentName?.trim() || "Agent", rank: 0}
 }
 
+/** The agent a heading stands for, or nothing: Pinned and "No agent yet" are not agents. */
+export const sidebarSessionGroupAgentId = (
+    key: string,
+    groupBy: SidebarSessionGroupBy,
+): string | undefined =>
+    groupBy === "agent" && key.startsWith("agent:") && key !== UNASSIGNED_GROUP_KEY
+        ? key.slice("agent:".length)
+        : undefined
+
 /** Ascending by rank, ties broken by label. */
 const compareGroups = (a: {label: string; rank: number}, b: {label: string; rank: number}) =>
     a.rank - b.rank || a.label.localeCompare(b.label)
@@ -995,7 +1025,11 @@ export const sidebarSessionGroupsAtomFamily = atomFamily((scopeId: string) =>
         // headings reshuffle every time you worked in a session. Only the rows under a heading move.
         const sorted: SidebarEntityGroup[] = [...labels]
             .sort(([, a], [, b]) => compareGroups(a, b))
-            .map(([key, {label}]) => ({key, label}))
+            .map(([key, {label}]) => ({
+                key,
+                label,
+                agentId: sidebarSessionGroupAgentId(key, groupBy),
+            }))
         // Only the status headings are hand-arrangeable. Pinned is not a status and never moves;
         // agent headings arrange through the shared agent rank instead, so they are already sorted.
         const headingZone = SESSION_REORDER_ZONES[groupBy]?.groupZone

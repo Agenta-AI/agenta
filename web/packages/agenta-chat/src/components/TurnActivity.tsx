@@ -33,7 +33,7 @@ export const WaitingForInput = () => (
  * The empty-turn slot during a COLD start (#6047): what the agent is doing, in words, instead of
  * the wordless three dots that made a 15s boot read as a stalled session.
  *
- * Presentational only — `label` comes from `useStartupPhase`. The dots sit at the END of the line
+ * Presentational only — the host supplies `label`. The dots sit at the END of the line
  * so they trail the words like an ellipsis; the shimmer is `motion-safe` and degrades to plain text.
  */
 export const StartupActivity = ({label}: {label: string}) => (

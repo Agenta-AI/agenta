@@ -14,6 +14,7 @@ from agenta.sdk.agents.connections.credentials import secret_value_configured
 
 import oss.src.core.secrets.services as secrets_services_module
 from oss.src.core.secrets.dtos import (
+    CachedEffectiveSecrets,
     CreateSecretDTO,
     SecretResponseDTO,
     SecretValueRequiredError,
@@ -29,6 +30,10 @@ from oss.src.dbs.postgres.secrets.mappings import (
     map_secrets_dto_to_dbe,
     map_secrets_dto_to_dbe_update,
 )
+from oss.tests.pytest.utils.organization_secrets import (
+    load_effective_from_list,
+    owner_scope,
+)
 
 
 PROJECT_ID = uuid4()
@@ -37,10 +42,19 @@ PROJECT_ID = uuid4()
 class _FakeSecretsDAO:
     """In-memory DAO: stores what the service hands it, like the real mapping would."""
 
+    load_effective = load_effective_from_list
+
     def __init__(self):
         self.records: dict = {}
 
-    async def create(self, project_id, organization_id, create_secret_dto):
+    async def create(
+        self,
+        *,
+        owner,
+        create_secret_dto,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         record = SecretResponseDTO(
             id=uuid4(),
             slug=create_secret_dto.slug,
@@ -52,21 +66,36 @@ class _FakeSecretsDAO:
         self.records[record.id] = record
         return record
 
-    async def list(self, project_id, organization_id):
+    async def list(
+        self,
+        *,
+        owner,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         return list(self.records.values())
 
-    async def get_by_id(self, secret_id, project_id, organization_id):
+    async def get_by_id(
+        self,
+        *,
+        owner,
+        secret_id,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         return self.records.get(secret_id)
 
     async def update(
         self,
+        *,
+        owner,
         secret_id,
         update_secret_dto,
-        project_id,
-        organization_id,
         user_id=None,
         resolve_update=None,
+        **_kwargs,
     ):
+        project_id, organization_id = owner_scope(owner)
         stored = self.records.get(secret_id)
         if stored is None:
             return None
@@ -89,8 +118,14 @@ class _FakeSecretsDAO:
         return updated
 
     async def delete(
-        self, secret_id, project_id, organization_id, authorize_delete=None
+        self,
+        *,
+        owner,
+        secret_id,
+        authorize_delete=None,
+        **_kwargs,
     ):
+        project_id, organization_id = owner_scope(owner)
         stored = self.records.get(secret_id)
         if stored is not None and authorize_delete is not None:
             authorize_delete(stored)
@@ -154,18 +189,19 @@ async def test_project_list_cache_stores_the_canonical_plaintext_dto(
         return await original_list(*args, **kwargs)
 
     async def fake_get_cache(**kwargs):
-        assert kwargs["namespace"] == "list_secrets"
+        # One entry per project (M5): the full project id in the key, the project's rows
+        # inside, and the real cached model.
+        assert kwargs["namespace"] == "effective_secrets"
         assert kwargs["project_id"] == str(PROJECT_ID)
-        assert kwargs["key"] == {}
-        assert kwargs["model"] is SecretResponseDTO
-        assert kwargs["is_list"] is True
+        assert kwargs["key"] == {"p": str(PROJECT_ID)}
+        assert kwargs["model"] is CachedEffectiveSecrets
         return cached
 
     async def fake_set_cache(**kwargs):
         nonlocal cached
-        assert kwargs["namespace"] == "list_secrets"
+        assert kwargs["namespace"] == "effective_secrets"
         assert kwargs["project_id"] == str(PROJECT_ID)
-        assert kwargs["key"] == {}
+        assert kwargs["key"] == {"p": str(PROJECT_ID)}
         cached = kwargs["value"]
         return True
 
@@ -182,7 +218,7 @@ async def test_project_list_cache_stores_the_canonical_plaintext_dto(
 
     assert dao_calls == 1
     assert first == second
-    assert cached[0].data.provider.key == "sk-test-openai-key-bc"
+    assert cached.secrets[0].data.provider.key == "sk-test-openai-key-bc"
 
 
 @pytest.mark.asyncio
@@ -228,13 +264,15 @@ class _RotatingDAO(_FakeSecretsDAO):
 
     async def update(
         self,
+        *,
+        owner,
         secret_id,
         update_secret_dto,
-        project_id,
-        organization_id,
         user_id=None,
         resolve_update=None,
+        **_kwargs,
     ):
+        project_id, organization_id = owner_scope(owner)
         stored = self.records.get(secret_id)
         if stored is not None:
             rotated = stored.model_dump()
@@ -242,10 +280,9 @@ class _RotatingDAO(_FakeSecretsDAO):
             self.records[secret_id] = SecretResponseDTO(**rotated)
 
         return await super().update(
+            owner=owner,
             secret_id=secret_id,
             update_secret_dto=update_secret_dto,
-            project_id=project_id,
-            organization_id=organization_id,
             user_id=user_id,
             resolve_update=resolve_update,
         )
@@ -1104,8 +1141,94 @@ def test_primary_credential_fields_cover_every_secret_kind():
         "webhook_provider",
         "sso_provider",
         "custom_secret",
+        "channel_secret",
+        "oauth_provider",
+        "oauth_grant",
     }
     # A subscription keeps its credential on the data object, not in a nested container,
     # and it has no readable form at all: both fields are stripped whatever write_only says.
     assert set(DATA_CREDENTIAL_FIELDS) == {"subscription_provider"}
     assert DATA_CREDENTIAL_FIELDS["subscription_provider"] == ("login", "login_attempt")
+
+
+# --- channel secret redaction + rotation (Codex review P1 fixes) ------------------------
+
+
+def _channel_secret_response(write_only=True):
+    return SecretResponseDTO(
+        id=uuid4(),
+        slug="tg-bot",
+        kind="channel_secret",
+        data={
+            "kind": "telegram",
+            "channel": {
+                "bot_token": "123:abc",
+                "signing_secret": "sign-xyz",
+                "webhook_secret": "whk-xyz",
+            },
+        },
+        header={"name": "Telegram"},
+        write_only=write_only,
+    )
+
+
+def test_channel_secret_redacts_every_credential_field():
+    # bot_token is the primary; signing_secret and webhook_secret are secondary
+    # secrets on the same container that authenticate inbound platform requests.
+    # All three must be stripped from a public response.
+    public = redact_secret_response(_channel_secret_response())
+    channel = public.data.channel
+    assert channel.bot_token is None
+    assert channel.signing_secret is None
+    assert channel.webhook_secret is None
+
+
+def test_channel_secret_rotation_keeps_omitted_secondary_secrets():
+    from oss.src.core.secrets.dtos import ChannelSecretDTO
+    from oss.src.core.secrets.services import _carry_over_saved_value
+
+    stored = ChannelSecretDTO.model_validate(
+        {
+            "kind": "telegram",
+            "channel": {
+                "bot_token": "old-token",
+                "signing_secret": "old-sign",
+                "webhook_secret": "whk-keep",
+            },
+        }
+    )
+    # A token-only rotation: the secondary secrets are omitted.
+    update = ChannelSecretDTO.model_validate(
+        {"kind": "telegram", "channel": {"bot_token": "new-token"}}
+    )
+    _carry_over_saved_value(
+        kind="channel_secret", stored_data=stored, update_data=update
+    )
+    assert update.channel.bot_token == "new-token"
+    assert update.channel.webhook_secret == "whk-keep"
+    assert update.channel.signing_secret == "old-sign"
+
+
+def test_channel_secret_rotation_rejects_a_blank_secondary_secret():
+    # An explicit "" for a secondary field (webhook_secret) must be rejected,
+    # the same rule as the primary. A blank webhook_secret would break inbound
+    # verification, so it must never persist.
+    from oss.src.core.secrets.dtos import ChannelSecretDTO
+    from oss.src.core.secrets.services import _carry_over_saved_value
+
+    stored = ChannelSecretDTO.model_validate(
+        {
+            "kind": "telegram",
+            "channel": {"bot_token": "old-token", "webhook_secret": "whk-keep"},
+        }
+    )
+    update = ChannelSecretDTO.model_validate(
+        {
+            "kind": "telegram",
+            "channel": {"bot_token": "new-token", "webhook_secret": ""},
+        }
+    )
+    with pytest.raises(SecretValueRequiredError):
+        _carry_over_saved_value(
+            kind="channel_secret", stored_data=stored, update_data=update
+        )

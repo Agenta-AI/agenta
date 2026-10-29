@@ -14,7 +14,6 @@ export function ConfigItemList({
     removeItem,
     closeEditor,
     disabled,
-    emptyAdd,
     statusFor,
     extraFor,
 }: {
@@ -24,11 +23,12 @@ export function ConfigItemList({
     removeItem: (kind: ItemKind, index: number) => void
     closeEditor: () => void
     disabled?: boolean
-    /** The add trigger shown in the empty state (a popover for tools, a text link otherwise). */
-    emptyAdd: ReactNode
     /** Per-row draft/validation status (unsaved edits, missing fields). */
     statusFor?: (item: unknown, index: number) => ItemRowStatus | undefined
-    /** Per-row action slot ahead of the remove button (e.g. publish-to-registry). */
+    /**
+     * Per-row slot ahead of the tags. The MCP rail renders an expired connection's
+     * "Login expired" through it; `ItemRow` has always had the slot.
+     */
     extraFor?: (item: unknown, index: number) => ReactNode
 }) {
     const def = ITEM_KINDS[kind]
@@ -54,9 +54,6 @@ export function ConfigItemList({
         )
     }
     if (disabled) return null
-    return (
-        <span className="text-xs text-[var(--ag-zinc-5)]">
-            {def.emptyLabel} — {emptyAdd}
-        </span>
-    )
+    // One quiet line; the section header's "+" is the way to add one.
+    return <span className="text-xs text-colorTextTertiary">{def.emptyLabel}</span>
 }

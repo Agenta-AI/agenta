@@ -143,7 +143,11 @@ const OverviewContent = () => {
                     is not promoted through environments. Both branches wait for the agents list
                     so neither flashes in and vanishes. */}
                 {isAgent && appId ? (
-                    <AgentOverview appId={appId} agentName={currentWorkflow?.name ?? undefined} />
+                    <AgentOverview
+                        appId={appId}
+                        agentName={currentWorkflow?.name ?? undefined}
+                        agentDescription={currentWorkflow?.description}
+                    />
                 ) : skeletonIsAgentShaped ? (
                     // Waiting is not nothing: this branch rendered null, so the page sat blank
                     // under its own title for the whole classification.

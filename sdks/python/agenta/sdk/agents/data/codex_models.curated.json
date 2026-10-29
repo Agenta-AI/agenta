@@ -3,7 +3,7 @@
   "_curation": {
     "harness": "codex",
     "note": "Hand-curated. `id` is the bare model id the Codex CLI accepts (model_selection = provider/id, under the openai family). Pricing and context_window are sourced from the OpenAI model pages and the litellm registry used for run-cost calculation. Ratings are relative 1-5, higher is better; `cost` is cost-efficiency (5 = cheapest). Maintained via the sync-model-catalog skill.",
-    "sources": "Live Codex app-server session model list (spike/findings.md); developers.openai.com/api/docs/models; litellm model registry (models.litellm.ai), checked 2026-09-07"
+    "sources": "Live Codex app-server session model list (spike/findings.md); the model list bundled in Codex CLI 0.156.1 and served by the ChatGPT backend to it, checked 2026-09-27; developers.openai.com/api/docs/models; OpenAI's GPT-6 Sol and Luna launch (2026-09-22); litellm model registry (models.litellm.ai), checked 2026-09-07"
   },
   "models": [
     {
@@ -20,9 +20,45 @@
       },
       "context_window": 272000,
       "modalities": ["text", "image"],
-      "label": "Astra",
+      "label": "GPT-6 Astra",
       "description": "OpenAI's most capable model for difficult coding, reasoning, research, and computer-use work.",
       "ratings": {"cost": 1, "intelligence": 5, "speed": 2}
+    },
+    {
+      "id": "gpt-6-sol",
+      "provider": "openai",
+      "source": "curated",
+      "name": "GPT-6 Sol",
+      "pricing": {
+        "input_per_mtok": 2.0,
+        "output_per_mtok": 10.0,
+        "cache_read_per_mtok": 0.2,
+        "cache_write_per_mtok": 2.5,
+        "currency": "USD"
+      },
+      "context_window": 272000,
+      "modalities": ["text", "image"],
+      "label": "GPT-6 Sol",
+      "description": "OpenAI's workhorse model for coding and everyday agent work.",
+      "ratings": {"cost": 3, "intelligence": 4, "speed": 3}
+    },
+    {
+      "id": "gpt-6-luna",
+      "provider": "openai",
+      "source": "curated",
+      "name": "GPT-6 Luna",
+      "pricing": {
+        "input_per_mtok": 0.1,
+        "output_per_mtok": 0.5,
+        "cache_read_per_mtok": 0.01,
+        "cache_write_per_mtok": 0.125,
+        "currency": "USD"
+      },
+      "context_window": 272000,
+      "modalities": ["text", "image"],
+      "label": "GPT-6 Luna",
+      "description": "OpenAI's fast, affordable model for easier, high-volume tasks.",
+      "ratings": {"cost": 5, "intelligence": 3, "speed": 5}
     },
     {
       "id": "gpt-5.6-sol",
@@ -37,8 +73,8 @@
       },
       "context_window": 1050000,
       "modalities": ["text", "image"],
-      "label": "Sol (default)",
-      "description": "The default Codex model: the strongest reasoning tier for agentic coding.",
+      "label": "GPT-5.6 Sol",
+      "description": "The previous generation's strongest reasoning tier for agentic coding.",
       "ratings": {"cost": 2, "intelligence": 5, "speed": 3}
     },
     {
@@ -54,8 +90,8 @@
       },
       "context_window": 1050000,
       "modalities": ["text", "image"],
-      "label": "Terra",
-      "description": "A balanced Codex tier: strong capability at lower latency than Sol.",
+      "label": "GPT-5.6 Terra",
+      "description": "The previous generation's balanced tier: strong capability at lower latency than Sol.",
       "ratings": {"cost": 3, "intelligence": 4, "speed": 4}
     },
     {
@@ -71,8 +107,8 @@
       },
       "context_window": 1050000,
       "modalities": ["text", "image"],
-      "label": "Luna (cheapest)",
-      "description": "The fastest, cheapest Codex tier. Use for high-volume or latency-sensitive work.",
+      "label": "GPT-5.6 Luna",
+      "description": "The previous generation's fastest, cheapest tier for high-volume or latency-sensitive work.",
       "ratings": {"cost": 5, "intelligence": 3, "speed": 5}
     },
     {
@@ -91,23 +127,6 @@
       "label": "GPT-5.5",
       "description": "The prior Codex generation, still capable for everyday coding tasks.",
       "ratings": {"cost": 3, "intelligence": 4, "speed": 3}
-    },
-    {
-      "id": "gpt-5.2",
-      "provider": "openai",
-      "source": "curated",
-      "name": "GPT-5.2",
-      "pricing": {
-        "input_per_mtok": 1.75,
-        "output_per_mtok": 14.0,
-        "cache_read_per_mtok": 0.175,
-        "currency": "USD"
-      },
-      "context_window": 272000,
-      "modalities": ["text", "image"],
-      "label": "GPT-5.2",
-      "description": "An older Codex generation kept for compatibility with existing configurations.",
-      "ratings": {"cost": 4, "intelligence": 3, "speed": 4}
     }
   ]
 }

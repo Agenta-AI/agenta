@@ -1,0 +1,12 @@
+.allTags {
+  display: inline-block;
+  margin-top: 10px;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--contentsecondary);
+}
+
+.allTags:hover {
+  color: var(--contentprimary);
+  text-decoration: none;
+}

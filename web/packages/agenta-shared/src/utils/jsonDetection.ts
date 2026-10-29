@@ -55,38 +55,6 @@ export function isJsonString(str: string): boolean {
 }
 
 /**
- * Checks if a string is a valid JSON object (not array).
- * This actually parses the JSON to validate.
- *
- * @param str - The string to check
- * @returns true if the string is valid JSON and parses to an object
- *
- * @example
- * isJsonObject('{"a": 1}') // true
- * isJsonObject('[1, 2]') // false (is array)
- * isJsonObject('invalid') // false
- */
-export function isJsonObject(str: string): boolean {
-    return tryParseAsObject(str) !== null
-}
-
-/**
- * Checks if a string is a valid JSON array.
- * This actually parses the JSON to validate.
- *
- * @param str - The string to check
- * @returns true if the string is valid JSON and parses to an array
- *
- * @example
- * isJsonArray('[1, 2, 3]') // true
- * isJsonArray('{"a": 1}') // false (is object)
- * isJsonArray('invalid') // false
- */
-export function isJsonArray(str: string): boolean {
-    return tryParseAsArray(str) !== null
-}
-
-/**
  * Attempts to parse a string as JSON.
  *
  * @param str - The string to parse
@@ -153,22 +121,6 @@ export function tryParseAsArray(value: string): unknown[] | null {
         // Not valid JSON
     }
     return null
-}
-
-/**
- * Checks if a value can be expanded as JSON (is a string that looks like JSON).
- * Useful for determining if a cell/field should show an "expand" button.
- *
- * @param value - Any value to check
- * @returns true if the value is a string that looks like JSON
- *
- * @example
- * canExpandAsJson('{"a": 1}') // true
- * canExpandAsJson({a: 1}) // false (already an object)
- * canExpandAsJson('hello') // false
- */
-export function canExpandAsJson(value: unknown): boolean {
-    return typeof value === "string" && isJsonString(value)
 }
 
 /**

@@ -8,7 +8,10 @@ from oss.src.utils.context import get_auth_scope
 
 from fastapi.responses import JSONResponse
 from ee.src.core.subscriptions.service import SubscriptionsService
+from oss.src.services import db_manager
 from ee.src.core.access.entitlements.types import (
+    PROJECT_LIMIT_MESSAGE,
+    PROJECT_LIMITS,
     Tracker,
     Flag,
     Counter,
@@ -179,23 +182,15 @@ def scope_from(
             organization_id=auth_scope.organization_id,
         )
 
-    if scope == Scope.WORKSPACE:
-        return MeterScope(
-            organization_id=auth_scope.organization_id,
-            workspace_id=auth_scope.workspace_id,
-        )
-
     if scope == Scope.PROJECT:
         return MeterScope(
             organization_id=auth_scope.organization_id,
-            workspace_id=auth_scope.workspace_id,
             project_id=auth_scope.project_id,
         )
 
     if scope == Scope.USER:
         return MeterScope(
             organization_id=auth_scope.organization_id,
-            workspace_id=auth_scope.workspace_id,
             project_id=auth_scope.project_id,
             user_id=auth_scope.user_id,
         )
@@ -267,6 +262,66 @@ def period_from(
         return MeterPeriod(year=now.year, month=now.month, day=now.day)
 
     return MeterPeriod()
+
+
+async def _subscription_data(organization_id) -> dict:
+    """The organization's plan and billing anchor, through the shared Redis cache."""
+    cache_key = {
+        "organization_id": str(organization_id),
+    }
+
+    subscription_data = await get_cache(
+        namespace="entitlements:subscription",
+        key=cache_key,
+    )
+
+    if subscription_data is None:
+        subscription = await _subscriptions_service().read(
+            organization_id=str(organization_id),
+        )
+
+        if not subscription or subscription.plan is None:
+            raise EntitlementsException(
+                f"No subscription found for organization [{organization_id}]"
+            )
+
+        subscription_data = {
+            "plan": subscription.plan,
+            "anchor": subscription.anchor,
+        }
+
+        await set_cache(
+            namespace="entitlements:subscription",
+            key=cache_key,
+            value=subscription_data,
+        )
+
+    return subscription_data
+
+
+async def plan_for(organization_id) -> Optional[str]:
+    """The organization's plan slug, or None when it has no subscription."""
+    try:
+        return (await _subscription_data(organization_id)).get("plan")
+    except EntitlementsException:
+        return None
+
+
+async def project_limit_refusal(organization_id: UUID) -> Optional[str]:
+    """The refusal to show when the organization's plan allows no more projects, else
+    None. Counts existing projects, so an organization above the limit keeps them. Fails
+    open like `check_entitlements`: a failed plan read never blocks a creation."""
+    try:
+        plan = await plan_for(organization_id)
+    except Exception:  # pylint: disable=broad-exception-caught
+        log.warning("[entitlements] plan read failed; failing open", exc_info=True)
+        return None
+    limit = PROJECT_LIMITS.get(plan) if plan else None
+    if limit is None:
+        return None
+    if await db_manager.count_organization_projects(str(organization_id)) < limit:
+        return None
+    return PROJECT_LIMIT_MESSAGE
 
 
 async def check_entitlements(
@@ -359,35 +414,7 @@ async def _check_entitlements(
     # 2. Load subscription data (cached)
     # -------------------------------------------------------------- #
 
-    cache_key = {
-        "organization_id": str(organization_id),
-    }
-
-    subscription_data = await get_cache(
-        namespace="entitlements:subscription",
-        key=cache_key,
-    )
-
-    if subscription_data is None:
-        subscription = await _subscriptions_service().read(
-            organization_id=str(organization_id),
-        )
-
-        if not subscription or subscription.plan is None:
-            raise EntitlementsException(
-                f"No subscription found for organization [{organization_id}]"
-            )
-
-        subscription_data = {
-            "plan": subscription.plan,
-            "anchor": subscription.anchor,
-        }
-
-        await set_cache(
-            namespace="entitlements:subscription",
-            key=cache_key,
-            value=subscription_data,
-        )
+    subscription_data = await _subscription_data(organization_id)
 
     plan = subscription_data.get("plan")
     anchor = subscription_data.get("anchor")
@@ -512,7 +539,6 @@ async def _check_entitlements(
 
     meter = MeterDTO(
         organization_id=_scope.organization_id,
-        workspace_id=_scope.workspace_id,
         project_id=_scope.project_id,
         user_id=_scope.user_id,
         #

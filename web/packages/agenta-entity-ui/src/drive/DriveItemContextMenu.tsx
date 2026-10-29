@@ -9,17 +9,38 @@
  * affordance files already had. The copy feedback rides the kit's imperative message service,
  * which renders through the app's own outlet and themes with it.
  */
-import {type ReactElement, useCallback} from "react"
+import {type ReactElement, useCallback, useContext} from "react"
 
 import {downloadMountArchive} from "@agenta/entities/drive"
 import {type SessionDriveData} from "@agenta/entities/drive"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
-import {ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuTrigger} from "@agenta/ui/ui"
-import {ArrowSquareOut, Copy, DownloadSimple, FolderOpen} from "@phosphor-icons/react"
+import {
+    ContextMenu,
+    ContextMenuContent,
+    ContextMenuItem,
+    ContextMenuSeparator,
+    ContextMenuTrigger,
+} from "@agenta/ui/ui"
+import {
+    ArrowSquareOut,
+    Copy,
+    DownloadSimple,
+    FolderOpen,
+    LinkSimple,
+    PencilSimple,
+    Trash,
+} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
+import {DriveLinkContext} from "./driveLink"
 import {useDriveFileDownload} from "./useDriveFileDownload"
+
+/** An item's write verbs; rename is file-only (no backend move endpoint). */
+export interface DriveItemWriteActions {
+    onRename: (path: string) => void
+    onDelete: (path: string, isFolder: boolean) => void
+}
 
 /** A `copy(text, successMessage?)` bound to the themed message toast (the kit service so it renders
  * correctly in dark mode). The generic primitive behind {@link useCopyDrivePath}; the drawer header
@@ -88,6 +109,7 @@ export const DriveItemContextMenu = ({
     onOpen,
     onCopyPath,
     onDownload,
+    writes,
     className = "min-w-0",
     children,
 }: {
@@ -99,11 +121,14 @@ export const DriveItemContextMenu = ({
     onCopyPath: (path: string) => void
     /** Download this item (a file's bytes, or a folder as a zip). Omit → no Download entry. */
     onDownload?: (path: string, isFolder: boolean) => void
+    /** Rename / delete — omit on a read-only mount. */
+    writes?: DriveItemWriteActions
     /** Wrapper class — defaults to `min-w-0` so grid-cell truncation still wins; pass `w-full`
      * variants where the cell needs to stretch. */
     className?: string
     children: ReactElement | ReactElement[]
 }) => {
+    const copyLink = useContext(DriveLinkContext)
     // The tiles/rows are themselves click targets — keep a menu click from also selecting them.
     const stop = (event: {stopPropagation: () => void}) => event.stopPropagation()
 
@@ -112,7 +137,7 @@ export const DriveItemContextMenu = ({
             <ContextMenuTrigger asChild>
                 <div className={className}>{children}</div>
             </ContextMenuTrigger>
-            <ContextMenuContent onClick={stop}>
+            <ContextMenuContent onClick={stop} onCloseAutoFocus={(e) => e.preventDefault()}>
                 <ContextMenuItem onSelect={onOpen}>
                     {isFolder ? <FolderOpen size={14} /> : <ArrowSquareOut size={14} />}
                     {isFolder ? "Open folder" : "Open file"}
@@ -121,11 +146,40 @@ export const DriveItemContextMenu = ({
                     <Copy size={14} />
                     Copy path
                 </ContextMenuItem>
+                {copyLink ? (
+                    <ContextMenuItem onSelect={() => copyLink({path, isFolder})}>
+                        <LinkSimple size={14} />
+                        Copy link
+                    </ContextMenuItem>
+                ) : null}
                 {onDownload ? (
                     <ContextMenuItem onSelect={() => onDownload(path, isFolder)}>
                         <DownloadSimple size={14} />
                         {isFolder ? "Download as zip" : "Download"}
                     </ContextMenuItem>
+                ) : null}
+                {writes ? (
+                    <>
+                        <ContextMenuSeparator />
+                        {/* Folder rename needs a backend move endpoint: shown disabled. */}
+                        <ContextMenuItem disabled={isFolder} onSelect={() => writes.onRename(path)}>
+                            <PencilSimple size={14} />
+                            Rename
+                            {isFolder ? (
+                                <span className="ml-auto pl-3 text-[11px] text-colorTextQuaternary">
+                                    files only
+                                </span>
+                            ) : null}
+                        </ContextMenuItem>
+                        <ContextMenuSeparator />
+                        <ContextMenuItem
+                            onSelect={() => writes.onDelete(path, isFolder)}
+                            className="text-colorError focus:text-colorError"
+                        >
+                            <Trash size={14} />
+                            Delete
+                        </ContextMenuItem>
+                    </>
                 ) : null}
             </ContextMenuContent>
         </ContextMenu>

@@ -312,6 +312,126 @@ What the agent became, which sources it reads, where it drafts, what is schedule
 verified, and any connection still needed.
 """
 
+_JOB_HUNT_RESEARCH_BODY = """\
+# Job hunt research playbook
+
+## Match
+The ask is "find job openings that match my profile and research the companies" or similar.
+Card key job-hunt-research. Also matches free-text asks for a job-search assistant, a vetted
+job shortlist, or application research help (this is a personal research agent, not a
+recruiting or sourcing agent for hiring).
+
+## Required context (ask via one request_input form)
+- The person's profile: target role, location (city + country or remote), experience level,
+  key skills, industries to prefer and avoid, and salary or level preference. Ask them to
+  paste their CV text too. Save everything to ``job-hunt/profile.md`` so no run asks twice.
+
+## Researchable context (do not ask; figure it out and state the assumption)
+- Search sources: the tavily-job-search skill names the boards and query patterns; assume
+  public web sources through the Tavily tools and state that. Do not ask which job boards.
+- Report location: dated reports under ``job-hunt/reports/<YYYY-MM-DD>.md``; state it.
+- Telegram destination: only needed if the user wants scheduled delivery. Use Telegram updates to find their direct chat, confirm the intended destination, and record its chat ID in the profile; never guess or message an unconfirmed chat.
+
+## Explore first (read before proposing)
+1. discover_tools for the Tavily search and extract tools the tavily-job-search skill uses.
+2. test_run with those tools in the delta, one real query from the saved profile, and check
+   the draft shortlist cites live postings with working application links.
+
+## Defaults / priors table (setup to proposed behavior)
+| Setup | Trigger | Tools | Behavior default |
+|---|---|---|---|
+| Profile saved | on demand | Tavily search + extract | verify postings, research top 3-5, save dated report |
+| Daily digest asked | schedule (7:00) | Tavily + Telegram | same run; save the report, then send a concise summary and report link only to the user's confirmed Telegram chat |
+
+## Connections
+Tavily is required for search and extraction. Telegram is optional and used only for scheduled delivery to the user's confirmed direct chat. Request_connection only for a connection the user wants and the setup actually uses; never send employer or recruiter outreach.
+
+## Instructions template (what to commit)
+On each run: read ``job-hunt/profile.md`` (onboard first if missing or still template
+placeholders). Search per the tavily-job-search skill, then clean results: confirm real
+location, drop stale or closed postings, deduplicate by employer and title, prefer the
+employer careers page as the canonical link. Keep the 3-5 strongest matches, research each
+company (product, size, stage, recent news, hiring manager only when publicly findable), and
+write an evidence-backed fit note and outreach angle per role. Save the dated report before
+replying. For an on-demand run, reply with title, company, link, one-line fit verdict per role,
+and the single best next action. For a scheduled run, send the concise summary and report
+link to the user's confirmed Telegram chat after saving the report: read the confirmed chat ID
+from the profile, use ``search_tools`` and ``run_tool`` for the Telegram send action, and do
+not use channel-destination listing to find a private chat. If no confirmed ID exists, use
+Telegram updates to identify the direct chat; do not send until the user confirms it. If no
+update or multiple candidates are ambiguous, ask them to message the bot or confirm the
+intended chat, then record the ID. Never send outreach to employers or recruiters, fabricate
+contacts, or pad the list; fewer credible matches beat filler.
+
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the saved report; for scheduled delivery, also
+verify the summary reached the confirmed chat before calling it complete. Keep the optional
+daily schedule off until they enable it, confirm their timezone, and confirm the Telegram
+destination if they want delivery.
+
+## Closing report
+What the agent became, where the profile and reports live, which sources it searches, whether
+Telegram delivery is configured, what you verified, and that the daily schedule stays off
+until they enable it.
+"""
+
+_SEO_CONTENT_AGENT_BODY = """\
+# SEO content agent playbook
+
+## Match
+The ask is "help me improve SEO for my website" or similar. Card key seo-content-agent. Also
+matches free-text asks for an SEO consultant, a content plan from search research, or briefs
+and drafts that target search demand (for repurposing an existing doc into social posts, see
+content-repurposer).
+
+## Required context (ask via one request_input form)
+- The website URL and the main goal (traffic, signups, a product area to grow).
+- How familiar the person is with SEO, so the reports match their level.
+
+## Researchable context (do not ask; figure it out and state the assumption)
+- Audience, competitors, and target queries: research them from the website and public
+  search results, then state what you found and what you assumed.
+- Voice: start from a plain, direct, low-hype voice and say it is a suggestion to review.
+- Publishing destination, format, and schedule: leave unset until the person has approved a
+  first brief. Do not ask for them on the first run.
+
+## Explore first (read before proposing)
+1. discover_tools for a web search tool (Composio Search) and a page reader (Context.dev).
+2. test_run with those tools on the real website, and check the draft report separates
+   observed evidence from assumptions.
+
+## Defaults / priors table (setup to proposed behavior)
+| Setup | Trigger | Tools | Behavior default |
+|---|---|---|---|
+| Website only | on demand | search + page reader | small investigation, report, recommend a direction |
+| Search Console connected | on demand | add Search Console | add performance and indexing evidence |
+| Brief approved | on demand | same | draft, review, then wait for publish-readiness approval |
+
+## Connections
+Composio Search is required for research. Context.dev, Google Search Console, Peec,
+Browserbase, and fal.ai are optional; request_connection only for the one a task needs.
+Verify access to the specific property or project before using its data.
+
+## Instructions template (what to commit)
+Explain a bounded plan, research before asking, and deliver a short Markdown report with a
+chat summary before any writing. Keep notes and decisions in files so no run asks twice.
+Move from research to a small content plan, then to briefs. Brief approval and
+publish-readiness approval stay separate. Never draft before a brief is approved, never
+publish without the owner's final action, and never claim access or results you did not check.
+
+## Offer a test
+Tell the person the setup is committed and offer a test run. Run `test_run` only if they
+ask. When you do, send one blunt task message, read `verdict`, `tools`, and `approvals`
+rather than the HTTP status, and read back the real side effect (the saved report) before
+you call it verified.
+
+## Closing report
+What the agent became, which sources it reads, where reports and briefs live, what you
+verified, which optional connections are still missing, and that no schedule is active.
+"""
+
 ENTRIES: List[TemplateEntry] = [
     TemplateEntry(
         key="docs-qa",
@@ -347,5 +467,19 @@ ENTRIES: List[TemplateEntry] = [
         category="Knowledge",
         match="Draft a weekly newsletter from our recent shipping activity",
         body=_NEWSLETTER_DRAFTER_BODY,
+    ),
+    TemplateEntry(
+        key="job-hunt-research",
+        name="Job hunt research",
+        category="Knowledge",
+        match="Find job openings that match my profile and research the companies",
+        body=_JOB_HUNT_RESEARCH_BODY,
+    ),
+    TemplateEntry(
+        key="seo-content-agent",
+        name="SEO content agent",
+        category="Marketing",
+        match="Help me improve SEO for my website",
+        body=_SEO_CONTENT_AGENT_BODY,
     ),
 ]

@@ -40,9 +40,13 @@ import type { AddressInfo } from "node:net";
 import type { AgentRunRequest, AgentRunResult } from "../../src/protocol.ts";
 import { createAgentServer, type RunAgent } from "../../src/server.ts";
 import {
+  SESSION_ADMISSION_REJECTED_CODE,
+  SESSION_ADMISSION_REJECTED_MESSAGE,
   SESSION_TURN_IN_USE_CODE,
   SESSION_TURN_IN_USE_MESSAGE,
+  SESSION_ADMISSION_UNCONFIRMED_MESSAGE,
 } from "../../src/sessions/admission.ts";
+import { isRequestError } from "../../src/sessions/alive.ts";
 
 const TEST_TOKEN = "test-runner-token";
 const AUTH = { authorization: `Bearer ${TEST_TOKEN}` };
@@ -54,9 +58,13 @@ interface Beat {
   is_running?: boolean;
 }
 
-/** The fake platform API. `admit` decides what its heartbeat answers for each beat. */
+/**
+ * The fake platform API. `admit` decides what its heartbeat answers for each beat. `beatStatus`,
+ * when set, makes every running beat answer that HTTP status with no body instead.
+ */
 async function startFakeApi(
   admit: (beat: Beat) => boolean | Promise<boolean>,
+  beatStatus?: number,
 ): Promise<{
   url: string;
   beats: Beat[];
@@ -83,6 +91,11 @@ async function startFakeApi(
       if (path.endsWith("/sessions/streams/heartbeat")) {
         const beat = body as Beat;
         beats.push(beat);
+        if (beatStatus !== undefined && beat.is_running !== false) {
+          res.writeHead(beatStatus, { "content-type": "application/json" });
+          res.end(JSON.stringify({ detail: "refused" }));
+          return;
+        }
         res.writeHead(200, { "content-type": "application/json" });
         res.end(
           JSON.stringify({
@@ -144,7 +157,16 @@ interface StreamRecord {
     turnId?: string;
     name?: string;
   };
-  result?: { ok: boolean; error?: string };
+  result?: {
+    ok: boolean;
+    error?: string;
+    errorDetail?: {
+      code: string;
+      message: string;
+      retryable: boolean;
+      details?: Record<string, unknown>;
+    };
+  };
 }
 
 async function postRun(
@@ -476,7 +498,8 @@ describe("runner admission: an admitted turn proceeds", () => {
       assert.equal(runCalls.length, 0, "an unconfirmed turn must never reach run()");
       const terminal = records.find((r) => r.kind === "result");
       assert.equal(terminal!.result!.ok, false);
-      assert.equal(terminal!.result!.error, SESSION_TURN_IN_USE_MESSAGE);
+      // Nothing is known about ownership, so the user is not told another turn holds the session.
+      assert.equal(terminal!.result!.error, SESSION_ADMISSION_UNCONFIRMED_MESSAGE);
     } finally {
       await runner.close();
     }
@@ -635,5 +658,96 @@ describe("runner admission: the admitted turn id reaches the client", () => {
       await runner.close();
       await api.close();
     }
+  });
+});
+
+describe("runner admission: the refusal says why the turn did not start", () => {
+  it("marks a refusal by another turn as session_turn_in_use in errorDetail", async () => {
+    const api = await startFakeApi(() => false);
+    process.env[INTERNAL_ENV] = api.url;
+    const runner = await startRunner(async () => ({ ok: true, output: "", events: [] }));
+    try {
+      const { records } = await postRun(runner.url, sessionRequest());
+
+      const terminal = records.find((r) => r.kind === "result");
+      assert.deepEqual(terminal!.result!.errorDetail, {
+        code: "session_turn_in_use",
+        message: SESSION_TURN_IN_USE_MESSAGE,
+        retryable: true,
+      });
+    } finally {
+      await runner.close();
+      await api.close();
+    }
+  });
+
+  it("marks an unanswered admission as session_admission_unconfirmed in errorDetail", async () => {
+    process.env[INTERNAL_ENV] = "http://127.0.0.1:1";
+    const runner = await startRunner(async () => ({ ok: true, output: "", events: [] }));
+    try {
+      const { records } = await postRun(runner.url, sessionRequest());
+
+      const error = records.find((r) => r.kind === "event" && r.event?.type === "error");
+      // The event code stays the one every client keys its "not sent, send again" state on.
+      assert.equal(error!.event!.code, SESSION_TURN_IN_USE_CODE);
+      const terminal = records.find((r) => r.kind === "result");
+      assert.deepEqual(terminal!.result!.errorDetail, {
+        code: "session_admission_unconfirmed",
+        message: SESSION_ADMISSION_UNCONFIRMED_MESSAGE,
+        retryable: true,
+      });
+    } finally {
+      await runner.close();
+    }
+  });
+
+  for (const status of [400, 401, 403, 404, 422]) {
+    it(`does not call a ${status} admission beat "busy"`, async () => {
+      // Prod 2026-10-18: a session id the API rejects got 422 on the admission beat, and the
+      // runner told the user the platform was busy. The platform had read the beat and said no.
+      const api = await startFakeApi(() => true, status);
+      process.env[INTERNAL_ENV] = api.url;
+      const runCalls: AgentRunRequest[] = [];
+      const runner = await startRunner(async (request): Promise<AgentRunResult> => {
+        runCalls.push(request);
+        return { ok: true, output: "answered", events: [] };
+      });
+      try {
+        const { records } = await postRun(runner.url, sessionRequest());
+
+        assert.equal(runCalls.length, 0, "a rejected turn must never reach run()");
+        assert.equal(
+          api.beats.filter((b) => b.is_running !== false).length,
+          1,
+          "a request error is not asked again",
+        );
+        const error = records.find((r) => r.kind === "event" && r.event?.type === "error");
+        assert.equal(error!.event!.code, SESSION_ADMISSION_REJECTED_CODE);
+        assert.equal(error!.event!.message, SESSION_ADMISSION_REJECTED_MESSAGE);
+        assert.ok(!SESSION_ADMISSION_REJECTED_MESSAGE.includes("\n"));
+        const terminal = records.find((r) => r.kind === "result");
+        assert.equal(terminal!.result!.ok, false);
+        assert.equal(terminal!.result!.error, SESSION_ADMISSION_REJECTED_MESSAGE);
+        assert.deepEqual(terminal!.result!.errorDetail, {
+          code: SESSION_ADMISSION_REJECTED_CODE,
+          message: SESSION_ADMISSION_REJECTED_MESSAGE,
+          retryable: false,
+          details: { status },
+        });
+        assert.equal(
+          records.some((r) => r.kind === "event" && r.event?.type === "turn"),
+          false,
+          "a rejected turn owns no execution to name",
+        );
+      } finally {
+        await runner.close();
+        await api.close();
+      }
+    });
+  }
+
+  it("treats only a 4xx other than 408 and 429 as a request error", () => {
+    for (const status of [400, 401, 403, 404, 409, 422]) assert.equal(isRequestError(status), true, String(status));
+    for (const status of [200, 408, 429, 500, 502, 503, 504]) assert.equal(isRequestError(status), false, String(status));
   });
 });

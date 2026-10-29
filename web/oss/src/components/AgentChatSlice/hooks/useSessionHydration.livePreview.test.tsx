@@ -163,7 +163,9 @@ describe("desktop durable reconnect", () => {
         expect(recordWatermarkRef.current).toBe(2)
         expect(sequenceWatermarkRef.current).toBe(10)
         expect(setMessages).toHaveBeenCalledOnce()
-        expect(mocks.openedUrls[0]).toContain("/sessions/session-1/events?after=10")
+        expect(mocks.openedUrls[0]).toContain(
+            "/sessions/session-1/events?after=10&project_id=project-1",
+        )
 
         messagesRef.current = setMessages.mock.calls[0][0]
         const laterMessages = [

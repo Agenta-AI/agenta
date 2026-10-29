@@ -9,7 +9,7 @@ import {
     TooltipProvider,
     TooltipTrigger,
 } from "@agenta/ui/ui"
-import {Flask} from "@phosphor-icons/react"
+import {Play} from "@phosphor-icons/react"
 
 import {EventSourcePicker} from "../../../gatewayTrigger/drawers/shared/EventSourcePicker"
 import type {TriggerReferences} from "../../../gatewayTrigger/drawers/shared/RunVersionField"
@@ -80,8 +80,8 @@ export function SubscriptionChildRow({
                     setRunOpen(true)
                 }}
             >
-                <Flask size={16} />
-                Test run
+                <Play size={16} />
+                Run now
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             {menu}

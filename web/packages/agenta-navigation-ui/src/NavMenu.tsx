@@ -16,10 +16,12 @@ import {
     TooltipTrigger,
     cn,
 } from "@agenta/ui/ui"
-import {CaretRight} from "@phosphor-icons/react"
+import {CaretRight, Plus} from "@phosphor-icons/react"
 import clsx from "clsx"
 import Link from "next/link"
 
+import {FadeScrollBox} from "./FadeScrollBox"
+import {HoverFlyout} from "./HoverFlyout"
 import {SidebarReorderLayer} from "./reorder"
 
 /**
@@ -68,6 +70,9 @@ const GROUP_CHILDREN =
 // A group with no collapse control is a SECTION of the rail, not a submenu you opened: its rows
 // are rail rows. No indent and no guide line, so their glyphs sit in the nav icons' own column.
 const SECTION_CHILDREN = "flex flex-col"
+// Revealed with the row; always shown where there is no hover (touch), and while its popup is open.
+const ROW_ACTION =
+    "relative z-[1] mr-1 flex shrink-0 items-center opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100 has-[[data-state=open]]:opacity-100 [@media(hover:none)]:opacity-100"
 // Stretches the anchor over the whole row so middle-click / ctrl+click work anywhere on it.
 const LINK_CLASS =
     "!text-inherit no-underline before:absolute before:inset-0 before:content-[''] min-w-0 flex-1 truncate"
@@ -123,6 +128,10 @@ const Tip = ({title, children}: {title: ReactNode; children: ReactNode}) => (
 
 const isExternal = (link?: string) => Boolean(link?.startsWith("http"))
 
+/** A click the browser routes elsewhere (new tab / window) instead of following in place. */
+const isModifiedClick = (event: MouseEvent) =>
+    event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
+
 /**
  * What clicking a nav link does. Every `<Link>` here runs this — inline rows, the collapsed
  * rail's stretched anchor, and the flyout — so an inert or controlled item behaves the same
@@ -166,9 +175,10 @@ const RowLabel = memo(function RowLabel({
     // entity's tooltip where it has one, the full title otherwise. `Tip` is the collapsed rail's,
     // and both list groups hide their children there.
     const hover = item.tooltip ?? (typeof item.title === "string" ? item.title : undefined)
+    // `flex-1` pins the fade to the label's right edge, so long rows fade at one line.
     const content = (
         <span className="flex w-full items-center">
-            <span className="min-w-0 truncate" title={hover}>
+            <span className="ag-text-fade min-w-0 flex-1" title={hover}>
                 {item.title} <TagChip tag={item.tag} />
             </span>
             {item.suffix ? <span className="ml-auto shrink-0 pl-2">{item.suffix}</span> : null}
@@ -201,13 +211,21 @@ const RowLabel = memo(function RowLabel({
 
 /** A group heading inside a submenu — a label over the rows below it, never a row itself.
  * With `onClick` it folds the rows under it away, and grows a caret to say so. */
+// Sticky only inside the scrolling list; the opaque fill hides rows that pass under it.
+const STICKY_HEADING =
+    "[[data-nav-scroll]_&]:sticky [[data-nav-scroll]_&]:top-0 [[data-nav-scroll]_&]:z-10 [[data-nav-scroll]_&]:bg-[var(--ag-sidebar-bg)]"
+
 const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
     const toggle = item.onClick
     if (!toggle)
         return (
             <p
                 {...dragAttrs(item.dragItem)}
-                className="m-0 mx-auto w-[calc(100%-16px)] shrink-0 px-3 pb-0.5 pt-2 text-[12px] uppercase tracking-wide text-colorTextTertiary select-none"
+                data-sticky-heading="true"
+                className={clsx(
+                    "m-0 w-full shrink-0 pb-0.5 pl-5 pr-5 pt-2 text-[12px] uppercase tracking-wide text-colorTextTertiary select-none",
+                    STICKY_HEADING,
+                )}
             >
                 {item.title}
             </p>
@@ -220,8 +238,17 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
             {...dragAttrs(item.dragItem)}
             // Not uppercase, unlike the static heading above: a collapsible heading labels an
             // ENTITY (an agent), and shouting a proper noun misspells it.
-            className="mx-auto flex w-[calc(100%-16px)] shrink-0 cursor-pointer select-none items-center gap-1 rounded-md pb-0.5 pl-3 pr-0 pt-2 text-[12px] text-colorTextTertiary hover:text-colorText"
-            onClick={toggle}
+            data-sticky-heading="true"
+            className={clsx(
+                "flex w-full shrink-0 cursor-pointer select-none items-center gap-1 pb-0.5 pl-5 pr-2 pt-2 text-[12px] text-colorTextTertiary hover:text-colorText",
+                STICKY_HEADING,
+            )}
+            onClick={(event) => {
+                // The "+" is an anchor and its click must reach the shell frame (the drawer
+                // closes itself on any anchor click), so it bubbles — and must not fold the group.
+                if ((event.target as HTMLElement).closest("a")) return
+                toggle(event)
+            }}
             onKeyDown={(event) => {
                 if (onMoveKey(event)) return
                 if (event.key !== "Enter" && event.key !== " ") return
@@ -229,12 +256,11 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
                 toggle(event as unknown as MouseEvent)
             }}
         >
-            <span className="min-w-0 flex-1 truncate">{item.title}</span>
-            {/* No fill on hover: the whole row already answers with a colour change, and a pill
-                behind the caret made a heading look like a button it is not. */}
+            <span className="min-w-0 truncate">{item.title}</span>
+            {/* The caret sits right after the title, so the fold reads as one control. */}
             <span
                 aria-label={`${item.isCollapsed ? "Expand" : "Collapse"} ${item.title}`}
-                className="mr-1 flex size-[22px] shrink-0 items-center justify-center"
+                className="flex shrink-0 items-center justify-center"
             >
                 <CaretRight
                     size={11}
@@ -244,6 +270,25 @@ const GroupLabelRow = memo(function GroupLabelRow({item}: {item: NavItem}) {
                     )}
                 />
             </span>
+            {/* A real link, so a long-press / middle-click can open it in another tab. */}
+            {item.groupAdd ? (
+                <Link
+                    href={item.groupAdd.link}
+                    aria-label={item.groupAdd.label}
+                    title={item.groupAdd.label}
+                    className="ml-auto mr-1 flex size-[22px] shrink-0 items-center justify-center rounded-md !text-colorTextTertiary no-underline hover:bg-colorFillTertiary hover:!text-colorText"
+                    onClick={(event) => {
+                        // A modified click opens the bare page in another tab; the click work
+                        // belongs to THIS tab only.
+                        if (isModifiedClick(event)) return
+                        item.groupAdd?.onClick?.(event)
+                    }}
+                    // Enter on the link is its own activation; the heading must not also toggle.
+                    onKeyDown={(event) => event.stopPropagation()}
+                >
+                    <Plus size={12} />
+                </Link>
+            ) : null}
         </div>
     )
 })
@@ -283,6 +328,7 @@ const LeafRow = memo(function LeafRow({
                 ROW_BASE,
                 item.disabled || item.isPlaceholder ? ROW_DISABLED : ROW_INTERACTIVE,
                 selected && ROW_SELECTED,
+                item.rowAction && "group/row pr-0",
                 item.rowClassName,
                 isControl &&
                     "outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-focus-ring",
@@ -291,6 +337,7 @@ const LeafRow = memo(function LeafRow({
             role={isControl ? "menuitem" : undefined}
             tabIndex={isControl ? 0 : undefined}
             aria-current={isControl && selected ? "page" : undefined}
+            data-selected={selected || undefined}
             onKeyDown={(event) => {
                 if (onMoveKey(event)) return
                 if (!isControl) return
@@ -301,6 +348,8 @@ const LeafRow = memo(function LeafRow({
         >
             {item.icon ? <span className="flex shrink-0 items-center">{item.icon}</span> : null}
             <RowLabel item={item} onItemSelect={onItemSelect} />
+            {/* Above the stretched link anchor, like a group's action. */}
+            {item.rowAction ? <span className={ROW_ACTION}>{item.rowAction}</span> : null}
         </div>
     )
 })
@@ -328,7 +377,6 @@ const ScrollGroupChildren = ({
     className: string
     onReachEnd?: () => void
 }) => {
-    const boxRef = useRef<HTMLDivElement>(null)
     // Throttled, NOT keyed on scrollHeight: a page whose rows all land in collapsed groups adds no
     // height, and a height-keyed guard would then never let another page be asked for. Time cannot
     // latch. The source's own in-flight check stops the duplicate a flick would otherwise queue.
@@ -343,13 +391,12 @@ const ScrollGroupChildren = ({
     }
 
     return (
-        // Its own scroll box, outside HeightCollapse: the animation drives height, and a scroll
-        // area needs its height to come from the flex line instead. `min-h-0` is what lets it
-        // shrink below its content; the rows around it hold their size on their own.
-        <div
-            ref={boxRef}
+        // Outside HeightCollapse: a scroll area takes its height from the flex line.
+        <FadeScrollBox
             data-nav-scroll="true"
-            className={clsx(className, "min-h-0 overflow-y-auto", DRAG_GHOST)}
+            className={className}
+            boxClassName={DRAG_GHOST}
+            revealSelector='[data-selected="true"]'
             onScroll={
                 onReachEnd
                     ? (event) => {
@@ -362,7 +409,7 @@ const ScrollGroupChildren = ({
             }
         >
             {children}
-        </div>
+        </FadeScrollBox>
     )
 }
 
@@ -474,23 +521,31 @@ const NavMenuImpl = ({
         if (collapsed || (!inline && hasChildren)) {
             // Icon rail (or vertical bottom section): leaves get a tooltip, groups a flyout.
             if (!hasChildren) {
-                return (
+                const icon = (
+                    <div
+                        className={clsx(
+                            // size-7, not size-8: on a 48px rail a 32px hit box leaves 8px a
+                            // side and the icons read as tiles rather than as a nav.
+                            "relative mx-auto flex size-7 items-center justify-center rounded-md",
+                            item.disabled ? ROW_DISABLED : ROW_INTERACTIVE,
+                            selected && ROW_SELECTED,
+                        )}
+                        onClick={rowClickHandler(item, onItemSelect)}
+                    >
+                        {item.icon}
+                        {item.link && !item.disabled ? (
+                            <RowLabelCollapsed item={item} onItemSelect={onItemSelect} />
+                        ) : null}
+                    </div>
+                )
+                // The flyout replaces the tooltip: both would open on the same hover.
+                return item.hoverFlyout ? (
+                    <HoverFlyout key={item.key} content={item.hoverFlyout}>
+                        {icon}
+                    </HoverFlyout>
+                ) : (
                     <Tip key={item.key} title={item.tooltip || item.title}>
-                        <div
-                            className={clsx(
-                                // size-7, not size-8: on a 48px rail a 32px hit box leaves 8px a
-                                // side and the icons read as tiles rather than as a nav.
-                                "relative mx-auto flex size-7 items-center justify-center rounded-md",
-                                item.disabled ? ROW_DISABLED : ROW_INTERACTIVE,
-                                selected && ROW_SELECTED,
-                            )}
-                            onClick={rowClickHandler(item, onItemSelect)}
-                        >
-                            {item.icon}
-                            {item.link && !item.disabled ? (
-                                <RowLabelCollapsed item={item} onItemSelect={onItemSelect} />
-                            ) : null}
-                        </div>
+                        {icon}
                     </Tip>
                 )
             }

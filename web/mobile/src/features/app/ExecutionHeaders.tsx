@@ -12,16 +12,13 @@ const getAuthHeaders = async (): Promise<Record<string, string>> => {
 }
 
 /**
- * Registers the auth-header provider the playground's run requests use. web/oss does the same in
- * DeferredAppBoot; /m never did, and the consequence was not a 401 — it was a run against the
- * WRONG PROJECT.
+ * Registers the auth-header provider the playground's run requests use.
  *
- * `buildAgentRequest` appends `project_id` to the invoke URL only alongside an Authorization
- * header, so with no provider registered /m sent `/invoke?application_id=…` and nothing else. The
- * backend takes a request's project from that query param and, with none, falls back to the
- * caller's DEFAULT project — so the run resolved its model connection against the default
- * project's vault and reported the agent's own connection missing
- * ("connection '<slug>' not found for provider 'anthropic'").
+ * `buildAgentRequest` used to append `project_id` to the invoke URL only alongside an
+ * Authorization header, so a run with no header ran against the caller's DEFAULT project and
+ * reported the agent's own connection missing. It now always sends `project_id`; the header
+ * stays for the requests that read the Bearer token itself. A cookie session with no readable
+ * access token sends none, and still runs in the right project.
  */
 export const ExecutionHeaders = () => {
     const setHeaders = useSetAtom(executionItemController.actions.setExecutionHeaders)

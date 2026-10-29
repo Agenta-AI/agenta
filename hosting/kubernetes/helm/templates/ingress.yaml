@@ -3,12 +3,11 @@
 {{- $apiEnabled := eq (include "agenta.api.enabled" .) "true" -}}
 {{- $servicesEnabled := eq (include "agenta.services.enabled" .) "true" -}}
 {{- $webEnabled := eq (include "agenta.web.enabled" .) "true" -}}
-{{- $webMobileEnabled := eq (include "agenta.webMobile.enabled" .) "true" -}}
 {{- $extraPaths := default (list) $ingress.extraPaths -}}
 {{- $extraHosts := default (list) $ingress.extraHosts -}}
 {{- /* The main host rule needs at least one path. Skip it, but still render the Ingress,
        when the operator disabled every chart component and routes only extra hosts. */ -}}
-{{- $mainHostHasPaths := or $apiEnabled $servicesEnabled $webEnabled $webMobileEnabled (gt (len $extraPaths) 0) -}}
+{{- $mainHostHasPaths := or $apiEnabled $servicesEnabled $webEnabled true (gt (len $extraPaths) 0) -}}
 {{- if and (eq (include "agenta.ingress.enabled" .) "true") (or $mainHostHasPaths (gt (len $extraHosts) 0)) }}
 apiVersion: networking.k8s.io/v1
 kind: Ingress
@@ -53,7 +52,6 @@ spec:
                 port:
                   name: http
           {{- end }}
-          {{- if eq (include "agenta.webMobile.enabled" .) "true" }}
           - path: {{ include "agenta.ingress.paths.webMobile.path" . }}
             pathType: {{ include "agenta.ingress.paths.webMobile.pathType" . }}
             backend:
@@ -61,7 +59,6 @@ spec:
                 name: {{ include "agenta.fullname" . }}-web-mobile
                 port:
                   name: http
-          {{- end }}
           {{- if eq (include "agenta.web.enabled" .) "true" }}
           - path: {{ include "agenta.ingress.paths.web.path" . }}
             pathType: {{ include "agenta.ingress.paths.web.pathType" . }}

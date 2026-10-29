@@ -80,7 +80,7 @@ def test_runner_config_reads_enabled_pair(monkeypatch):
     monkeypatch.setenv("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS", "local,daytona")
     monkeypatch.setenv("AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER", "daytona")
     config = env.RunnerConfig()
-    assert config.enabled_sandbox_providers == ["local", "daytona"]
+    assert config.enabled_sandbox_providers == ["local", "daytona", "inprocess"]
     assert config.default_sandbox_provider == "daytona"
 
 
@@ -123,9 +123,6 @@ def test_session_features_default_on_and_honor_overrides(
     try:
         with monkeypatch.context() as context:
             for name in (
-                "AGENTA_SESSIONS_DURABLE_APPROVALS",
-                "AGENTA_SESSIONS_QUEUE",
-                "AGENTA_SESSIONS_STEER",
                 "AGENTA_SESSIONS_SHARED_READER",
                 "AGENTA_SESSIONS_SEQUENCE_WRITES",
             ):
@@ -134,11 +131,7 @@ def test_session_features_default_on_and_honor_overrides(
                 else:
                     context.setenv(name, configured)
             importlib.reload(env)
-            sessions_config = env.SessionsConfig()
             redis_config = env.SessionsRedisConfig()
-            assert sessions_config.durable_approvals is expected
-            assert sessions_config.queue is expected
-            assert sessions_config.steer is expected
             assert redis_config.shared_reader is expected
             assert redis_config.sequence_writes is expected
     finally:
@@ -161,3 +154,32 @@ def test_session_redis_features_honor_independent_overrides(
             assert config.sequence_writes is (sequence_writes == "true")
     finally:
         importlib.reload(env)
+
+
+# --- `inprocess` follows `daytona` (the runner's withImpliedProviders) ------------ #
+
+
+def test_inprocess_follows_daytona_in_the_effective_list(monkeypatch):
+    monkeypatch.setenv("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS", "daytona")
+    monkeypatch.setenv("AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER", "daytona")
+    config = env.RunnerConfig()
+    assert config.enabled_sandbox_providers == ["daytona", "inprocess"]
+    assert config.default_sandbox_provider == "daytona"
+
+
+def test_inprocess_is_not_added_without_daytona(monkeypatch):
+    monkeypatch.setenv("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS", "local")
+    monkeypatch.delenv("AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER", raising=False)
+    assert env.RunnerConfig().enabled_sandbox_providers == ["local"]
+
+
+def test_implied_providers_keep_an_explicit_list_as_written():
+    assert env._with_implied_sandbox_providers(["daytona", "inprocess"]) == [
+        "daytona",
+        "inprocess",
+    ]
+    assert env._with_implied_sandbox_providers(["local", "daytona"]) == [
+        "local",
+        "daytona",
+        "inprocess",
+    ]

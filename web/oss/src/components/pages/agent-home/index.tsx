@@ -1,7 +1,7 @@
-import {useCallback, useRef, useState} from "react"
+import {useCallback, useRef} from "react"
 
 import {appTemplatesQueryAtom} from "@agenta/entities/workflow"
-import type {AgentStarterTemplate} from "@agenta/entities/workflow"
+import {captureFirstAgentIntent} from "@agenta/shared/analytics"
 import {PageLayout} from "@agenta/ui"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {Tag, Typography} from "antd"
@@ -14,16 +14,13 @@ import {usePostHogAg} from "@/oss/lib/helpers/analytics/hooks/usePostHogAg"
 import {urlAtom} from "@/oss/state/url"
 
 import {HERO, TEMPLATE_STRIP_MODE, TUTORIAL_VIDEO} from "./assets/constants"
-import {captureFirstAgentIntent} from "./assets/onboardingAnalytics"
 import AgentComposer from "./components/AgentComposer"
 import OnRamps from "./components/OnRamps"
-import TemplateSetupDrawer, {type TemplateSetupResult} from "./components/TemplateSetupDrawer"
 import TemplatesSection from "./components/TemplatesSection"
 import TutorialVideoEmbed from "./components/TutorialVideoEmbed"
 import YourAgentsTable from "./components/YourAgentsTable"
 import {useAgentHomeActions} from "./hooks/useAgentHomeActions"
 import {useAgentHomeVariants} from "./hooks/useAgentHomeVariants"
-import {useCreateAgent} from "./hooks/useCreateAgent"
 import {useIdeHandoffModal} from "./hooks/useIdeHandoffModal"
 import {useTemplateSelect} from "./hooks/useTemplateSelect"
 import StripHome from "./StripHome"
@@ -42,7 +39,6 @@ const ClassicAgentHome: React.FC = () => {
     const {firstRunOverride} = useAgentHomeVariants()
     const router = useRouter()
     const {baseAppURL, projectURL} = useAtomValue(urlAtom)
-    const createAgent = useCreateAgent()
     const posthog = usePostHogAg()
 
     // "Bring an existing app" → the observability page (send traces from existing code). "Explore a
@@ -67,20 +63,8 @@ const ClassicAgentHome: React.FC = () => {
     // First-run only: a tutorial video sits beside the composer (hidden when unconfigured).
     const showVideo = firstRun && !!TUTORIAL_VIDEO
 
-    // Template card click: builder mode → straight to a seeded playground; else open the setup
-    // drawer (review + connect before Create). Gated by NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER.
-    const [setupTemplate, setSetupTemplate] = useState<AgentStarterTemplate | null>(null)
-    const handleSelectTemplate = useTemplateSelect(setSetupTemplate)
-
-    // Create the agent from the template and land in its playground (no drawer). The template's
-    // seed message pre-fills the playground composer; connect-a-model is handled there. The setup
-    // drawer stays open (showing its Create spinner) until navigation succeeds or an error surfaces.
-    const handleTemplateCreate = useCallback(
-        async ({template, name}: TemplateSetupResult) => {
-            await createAgent({name, seedMessage: template.seedMessage})
-        },
-        [createAgent],
-    )
+    // Template card click: straight to a seeded playground.
+    const handleSelectTemplate = useTemplateSelect()
 
     return (
         <PageLayout className="grow min-h-0">
@@ -147,12 +131,6 @@ const ClassicAgentHome: React.FC = () => {
                 )}
             </div>
 
-            <TemplateSetupDrawer
-                template={setupTemplate}
-                open={!!setupTemplate}
-                onClose={() => setSetupTemplate(null)}
-                onCreate={handleTemplateCreate}
-            />
             {ideModal.node}
         </PageLayout>
     )

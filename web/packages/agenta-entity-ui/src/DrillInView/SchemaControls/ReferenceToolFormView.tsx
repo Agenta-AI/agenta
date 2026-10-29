@@ -66,7 +66,7 @@ function Instructions({file}: {file: NonNullable<SubagentDetail["instructions"]>
                 type="button"
                 onClick={() => setOpen((v) => !v)}
                 aria-expanded={open}
-                className="flex w-fit cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-[13px] text-[var(--ag-colorLink)]"
+                className="flex w-fit cursor-pointer items-center gap-1 border-0 bg-transparent p-0 text-[13px] text-colorInfo"
             >
                 {open ? "Hide instructions" : "Show full instructions"}
                 {open ? <CaretUp size={12} /> : <CaretDown size={12} />}

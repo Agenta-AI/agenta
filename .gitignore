@@ -68,6 +68,7 @@ sdks/python/ee/tests/results/
 services/oss/tests/results/
 services/ee/tests/results/
 services/runner/tests/results/
+clients/python/tests/results/
 .*
 !**/.gitkeep
 !.github/
@@ -137,6 +138,33 @@ services/runner/tests/results/
 !.claude/skills/mobile-shadcn-conventions
 !.claude/skills/mobile-motion-patterns
 !.claude/skills/gitbutler-stacks
+!.claude/settings.json
+
+# Entire (entire.com) shared config and agent hooks; each hook is a no-op
+# without the entire CLI. .entire/.gitignore keeps local state out.
+!.entire/
+!.entire/**
+.entire/current_session
+!.agents/hooks.json
+!.codex/
+.codex/*
+!.codex/hooks.json
+!.cursor/
+.cursor/*
+!.cursor/hooks.json
+!.factory/
+.factory/*
+!.factory/settings.json
+!.opencode/
+.opencode/*
+!.opencode/plugins/
+.opencode/plugins/*
+!.opencode/plugins/entire.ts
+!.pi/
+.pi/*
+!.pi/extensions/
+.pi/extensions/*
+!.pi/extensions/entire/
 
 # Temporary SDK copies created by run.sh --local
 api/sdks
@@ -180,3 +208,7 @@ junit.xml
 docs/design/sessions-ux-stack/qa112/venv/
 docs/design/sessions-ux-stack/qa112/shots/
 docs/design/sessions-ux-stack/qa112/.tabpin.*
+
+# Marketing package configuration after joining the web workspace.
+!web/website/.gitignore
+!web/website/.prettierrc.json

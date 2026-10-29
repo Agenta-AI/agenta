@@ -16,6 +16,294 @@ Agenta follows semantic versioning with new releases every week. Stay updated by
 The multi-organization release flips OSS from invite-only to open signup. If your instance is reachable beyond a trusted network, set `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS` (and optionally `AGENTA_ACCESS_ALLOWED_DOMAINS`) before upgrading. See [Migrate to Multi-Organization OSS](/self-host/upgrades/multi-org-migration).
 :::
 
+## Upgrading to 0.127.0: workspaces are removed
+
+This release stops creating workspaces. The API answers the organization id wherever it answered a workspace id. It adds two data migrations: one for projects, one for usage meters (Enterprise).
+
+### Take a database dump first
+
+The two data migrations change data in one direction and have no down migration. Take a dump of your core database before you start the upgrade. To undo the data changes, restore that dump.
+
+### Downgrade to 0.126.0
+
+To go back to 0.126.0, first set `ALEMBIC_AUTO_MIGRATIONS=false` (in Helm, `alembic.autoMigrations: false`). The 0.126.0 migration job does not know the new revisions and fails, which stops the API from starting. Then deploy the 0.126.0 images. The data stays as 0.127.0 left it, and 0.126.0 reads it, with one exception in Enterprise: 0.126.0 pods count a user's traces retrieved in a separate bucket, so that daily count can be split between the two buckets. Turn `ALEMBIC_AUTO_MIGRATIONS` back on when you upgrade again.
+
+### Upgrade from 0.126.0
+
+Run 0.126.0 on every pod before you start 0.127.0. The rolling upgrade was tested from 0.126.0. Pods of 0.125.0 can also read the new data. A rolling upgrade from 0.124.x or older is not supported: those pods cannot read projects and organizations without a workspace.
+
+### The API answers the organization id
+
+Where a response carries a workspace id (`workspace_id` in projects, `workspaces` in organizations, `default_workspace` in organization details, the items of `GET /workspaces/`), it now carries the organization id, and a workspace name is the organization name. Member lists in organization details carry each member's organization role. Links in invitation and notification emails carry the organization id. Routes still accept a workspace id of the same organization in place of the organization id.
+
+### Workspace create and rename return 410
+
+`POST /organizations/{organization_id}/workspaces/` and `PUT /organizations/{organization_id}/workspaces/{workspace_id}` return `410` with `Workspaces were removed. Projects belong to the organization.` and change nothing.
+
+### Each organization keeps one default project
+
+The upgrade keeps one default project per organization: the default project of the organization's `default` workspace, else of its oldest workspace. Other projects of the organization lose their default flag. Project access does not change. An API key or run credential of the kept default project can act on organization settings, as the default project's keys could before; a key of a project that lost the flag can no longer do so. A project whose workspace belonged to another organization stays in its own organization and loses that workspace.
+
+### Enterprise: per-user quotas during the upgrade
+
+The usage meters of the per-user traces-retrieved quota are re-keyed without the workspace. The counts carry over. While 0.126.0 pods still run next to the new ones, those pods count a user's traces retrieved that day in a separate bucket, so the user's daily count can be split between the two until the 0.126.0 pods are gone; a later release merges the buckets. Billed meters do not change. The migration waits for a running usage report to finish (up to 15 minutes) and blocks new reports while it runs.
+
+An operator plan override with `"scope": "workspace"` now means the organization scope; the API logs one warning when it loads such an override. The upgrade adds the counts such an override wrote to the organization count.
+
+## Upgrading to 0.125.0
+
+This release changes where new mounts store their files and prepares the removal of workspaces. It adds two database migrations.
+
+### Upgrade from 0.124.0
+
+Finish the upgrade to 0.124.0 on every pod before you start 0.125.0. Pods older than 0.124.0 compute mount paths from the project and cannot read mounts that 0.125.0 creates, and their mount creations fail until they are replaced. A Helm rolling upgrade straight from 0.123.x or older can therefore fail some mount creations and miss some files until all old pods are gone. Docker Compose is not affected.
+
+### New mounts store their files under the organization
+
+New mounts store their files under `mounts/<organization_id>/<mount_id>`. Mounts created before 0.125.0 keep `mounts/<project_id>/<mount_id>`. Nothing is copied or moved.
+
+### Deleting a workspace row in the database keeps its projects
+
+Deleting a workspace row directly in the database no longer deletes its projects. The admin API still deletes a workspace's projects with the workspace. During the rolling upgrade, a workspace that a 0.124.0 pod deletes through the admin API keeps its projects.
+
+### The API accepts the organization id where it accepts a workspace id
+
+Routes and query parameters that take a workspace id also accept the organization id, and a workspace id of the same organization. Creating and renaming a workspace still need a workspace id. Responses for existing data do not change, with two exceptions. A member who has no workspace membership row now sees one item with the organization id in the workspace list. A browser request without `project_id` (with or without `workspace_id`) now needs membership in the default project it opens; a workspace membership row alone no longer gives access.
+
+## Upgrading to 0.124.0
+
+This release changes who can open a project, makes every run act as a named user, API key or installation, and adds five database migrations. Read the subsections for your edition.
+
+### Open source: organization members see every project
+
+Every organization member is now a member of every project in the organization, with their organization role. Before, a member saw only the projects where they had a project membership. A role change now sets the organization role. Roles change only through the API for now; the app has no control for it yet.
+
+### Project create, rename and delete need a permission
+
+Creating and renaming a project needs the owner or admin role. Deleting a project needs the owner role. A user without the permission gets `403` with `You do not have permission to perform this action. Please contact your Organization Owner`. In an Enterprise organization whose plan has no role-based access control, every member can still create, rename and delete projects, as before.
+
+### `AGENTA_DEMOS` is removed
+
+`AGENTA_DEMOS` and `AGENTA_EXTRAS_DEMOS` no longer exist, and new signups are not added to demo projects. The upgrade deletes the existing demo project memberships. A user who joined an organization only through its demo projects also loses that organization and workspace membership. A user with any other project membership in the organization keeps it. Delete them from your env file. In Helm values, delete `agenta.extras` (the chart schema no longer accepts it).
+
+### Enterprise: run the preflight before the upgrade
+
+The upgrade adds a unique index on project memberships. It stops when the database holds two membership rows for the same user and project. Before you upgrade, run the preflight from a checkout of the new release, with `POSTGRES_URI_CORE` set to your core database:
+
+```bash
+cd api
+AGENTA_LICENSE=ee uv run --no-sync python -m entrypoints.memberships_check --apply
+```
+
+It deletes the newer row of each duplicate pair, keeps the oldest, and prints each deleted row with its role. Demo rows (`is_demo`) are not part of this step; the upgrade deletes them. It also adds the project rows that members of an organization without the RBAC entitlement need. It adds these rows only before the upgrade: after the upgrade has run, `--apply` skips this step and says so. To see what it would change first, run it with `--report` instead of `--apply`; that writes a `report.json` and changes nothing.
+
+If the upgrade stops with `project_members has <n> duplicate (project_id, user_id) groups`, run the `--apply` command above, then run the upgrade again.
+
+### Open source: if the upgrade stops on duplicate memberships
+
+The same unique index is added on open source. If the upgrade stops with `project_members has <n> duplicate (project_id, user_id) groups`, run the preflight from a checkout of the new release, with `POSTGRES_URI_CORE` set to your core database, then run the upgrade again:
+
+```bash
+cd api
+AGENTA_LICENSE=oss uv run --no-sync python -m entrypoints.memberships_check --apply
+```
+
+It keeps the oldest row of each duplicate pair and prints each deleted row with its role. Use `--report` first to see what it would change.
+
+### API keys act only in their own project
+
+An API key now acts only in the project it belongs to. A request with the key to another project, such as `PATCH /projects/{id}` or `DELETE /projects/{id}`, returns `403`. Before, the key used its creator's role in the other project. Browser sessions do not change.
+
+Workspace and organization management with an API key (invite, resend invite, role change, member removal, workspace update) needs a key of the workspace's default project. A key of another project in that workspace returns `403`.
+
+### Automations and evaluations run as the user or key that started them
+
+A schedule or subscription runs as the user or API key that created it. When that user leaves the project, loses the role, or is deleted, or the key is deleted, the next run is refused and the automation is paused with the reason. To run it again, create it again under an active user or API key. The upgrade pauses schedules and subscriptions that have no creator.
+
+Archiving an agent pauses its schedules and subscriptions. Unarchiving does not resume them.
+
+An evaluation runs as the person or key that started it, and a rerun runs as the person who started the rerun.
+
+### Deploy the API, workers and services together
+
+Upgrade the API, the workers and the services to the same release at the same time. The services check the new run credentials. With old services, a refused run fails with a `500` instead of `403 access_denied`.
+
+### Work in progress during the upgrade
+
+Messages queued and approvals waiting when the upgrade runs are cancelled once. Send the message or answer the approval again. A run that was in progress fails once. While the `oss000000046` migration runs, agent sends can wait up to about 30 seconds.
+
+## Upgrading to 0.121.0
+
+This release removes a set of environment variables and a Helm key, makes the mobile app (`/m`) part of every deployment, and changes three API behaviors. Read each subsection that matches your deployment. The standard upgrade process below still applies.
+
+### Removed environment variables
+
+The variables below no longer exist. Agenta ignores them, and the behavior in the right column is always on. If your env file, Helm values or Railway variables set one of them, delete it. The change affects you only if you had set one to `false`; at its default each one already behaved as described.
+
+| Variable                                      | Behavior that is now always on                                                                                                                                                    |
+| --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AGENTA_MOBILE_GATE`                          | A phone that opens a desktop route is redirected to `/m`. A user with **Developer Mode** off (in **Settings > Preferences**) is also sent to `/m` for the pages that exist there. |
+| `AGENTA_MOBILE_REVERSE_GATE`                  | A desktop browser may open `/m`. It is not sent back to `/w`.                                                                                                                     |
+| `AGENTA_MOBILE_ENABLED`                       | The `web-mobile` service runs on every deployment. See [The mobile app always ships](#the-mobile-app-always-ships).                                                               |
+| `AGENTA_SESSIONS_QUEUE`                       | Agent messages go through the durable session queue. A message sent while a turn runs is queued instead of refused.                                                               |
+| `AGENTA_SESSIONS_STEER`                       | A message sent while a turn runs can be delivered into that turn.                                                                                                                 |
+| `AGENTA_SESSIONS_DURABLE_APPROVALS`           | Approval requests are stored in the database. Answering one through the API needs an `Idempotency-Key` header (see [API behavior changes](#api-behavior-changes)).                |
+| `AGENTA_SESSIONS_DURABLE_STOP`                | **Stop** is stored as a durable command and delivered to the runner.                                                                                                              |
+| `AGENTA_RECORDS_DURABLE`                      | The runner retries a failed session record write.                                                                                                                                 |
+| `AGENTA_RECORDS_SMART_TRUNCATION`             | A session record that is too large is truncated with its structure kept, instead of losing its body.                                                                              |
+| `AGENTA_SESSIONS_RECONSTRUCT`                 | The runner rebuilds the conversation history of a turn from the stored session records.                                                                                           |
+| `NEXT_PUBLIC_SESSIONS_LAST_MESSAGE_ONLY`      | The web app sends only the newest message of each turn. The runner rebuilds the rest (see the previous row).                                                                      |
+| `NEXT_PUBLIC_AGENT_CHAT_SLICE`                | The streaming agent chat page is used.                                                                                                                                            |
+| `NEXT_PUBLIC_AGENT_TEMPLATE_BUILDER`          | Choosing an agent template opens the playground with the template loaded.                                                                                                         |
+| `NEXT_PUBLIC_AGENT_PLAYGROUND_ONBOARDING`     | Agent onboarding runs inside the playground.                                                                                                                                      |
+| `NEXT_PUBLIC_AGENT_FILE_UPLOADS`              | File attachments in the agent chat and uploads in the file drive are shown. They need the [durable object store](/self-host/configuration#store-durable-object-store).            |
+| `NEXT_PUBLIC_AGENT_CONNECT_STEP`              | Creating an agent from the start page first asks the user to connect the accounts the agent needs.                                                                                |
+| `AGENTA_WORKFLOWS_ORDERED_OPERATIONS_ENABLED` | Workflow commits accept ordered operations. A commit that leaves the configuration unchanged creates no new revision.                                                             |
+
+The runner rebuilds history from the records that the `records` loop of `worker-streams` stores. If you run `worker-streams` with an explicit `AGENTA_WORKER_STREAMS` list, make sure one instance includes `records`, or agents lose the earlier turns of a conversation.
+
+### The mobile app always ships
+
+The mobile web app is served at `/m` and has no off switch. The web app redirects phones to it, so `/m` must be reachable on every deployment.
+
+#### Docker Compose
+
+The `web-mobile` service starts with the stack. `run.sh --no-mobile` is removed, and `run.sh` stops with `Unknown parameter` if a script still passes it. Do not scale `web-mobile` to zero: phones would be redirected to a route with nothing behind it.
+
+If you run your own reverse proxy instead of the bundled Traefik or nginx, route `/m` and every path under `/m/` to the `web-mobile` service on port `3000`, before the catch-all route to `web`.
+
+#### Helm
+
+The `webMobile.enabled` key is removed, and the `web-mobile` Deployment always renders. `webMobile.enabled: false` in a values file now fails schema validation, so `helm upgrade` stops. `webMobile.enabled: true` is accepted and does nothing. Delete the key from your values file before you upgrade.
+
+#### Railway
+
+`bootstrap.sh` now always creates the `web-mobile` service, and `AGENTA_RAILWAY_WITH_MOBILE` is ignored. An environment bootstrapped without mobile has no `web-mobile` service, and `configure.sh` stops with `Service 'web-mobile' is missing`. Both `deploy-from-images.sh` and `upgrade.sh` run `configure.sh`, so both stop.
+
+Re-run the bootstrap script first, against the same project and environment as the deployment. It is idempotent and only adds what is missing. The project and environment default to the `staging` environment of `agenta-oss-railway`, and the new service gets `AGENTA_WEB_MOBILE_IMAGE` (default `latest`), so set all three:
+
+```bash
+export RAILWAY_PROJECT_NAME="agenta-oss"
+export RAILWAY_ENVIRONMENT_NAME="production"
+export AGENTA_WEB_MOBILE_IMAGE="ghcr.io/agenta-ai/agenta-web-mobile:v0.121.0"
+
+./hosting/railway/oss/scripts/bootstrap.sh
+```
+
+Then deploy with `deploy-from-images.sh`, with every image at the same tag. It redeploys `web-mobile` only when `AGENTA_WEB_MOBILE_IMAGE` is set. `upgrade.sh` builds from source and does not deploy `web-mobile` at all.
+
+```bash
+export AGENTA_API_IMAGE="ghcr.io/agenta-ai/agenta-api:v0.121.0"
+export AGENTA_WEB_IMAGE="ghcr.io/agenta-ai/agenta-web:v0.121.0"
+export AGENTA_SERVICES_IMAGE="ghcr.io/agenta-ai/agenta-services:v0.121.0"
+export AGENTA_RUNNER_IMAGE="ghcr.io/agenta-ai/agenta-runner:v0.121.0"
+
+./hosting/railway/oss/scripts/deploy-from-images.sh
+```
+
+### Channels
+
+Channels connect an agent to Slack or Telegram. They need no feature flag on the server. Six environment variables are optional and turn on the hosted integrations, where users connect without creating their own Slack app or Telegram bot:
+
+| Variable                                                                                      | Hosted integration                                                                                                                            |
+| --------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, `SLACK_SIGNING_SECRET`                              | The hosted Slack app install. It stays off until all three are set.                                                                           |
+| `TELEGRAM_HOSTED_BOT_TOKEN`, `TELEGRAM_HOSTED_BOT_USERNAME`, `TELEGRAM_HOSTED_WEBHOOK_SECRET` | The shared Telegram bot. It stays off until all three are set. See [Set up the hosted Telegram bot](/self-host/channels/telegram-hosted-bot). |
+
+Without them, users can still connect their own Slack app or Telegram bot. The variables and where to set them are listed in [Channels](/self-host/configuration#channels).
+
+Channel replies are sent by the `sessions` loop of `worker-streams`. Run that loop in exactly one `worker-streams` replica. With two or more, a progress update can overwrite a final reply, and a Telegram reply can arrive twice. The Helm chart and the Compose files run one replica by default. On Helm, a rolling update briefly runs the old and the new pod together. To avoid that overlap, set `workerStreams.strategy.type: Recreate`; `worker-streams` then stops for a few seconds during each upgrade.
+
+If you run the workers with explicit selectors, add the two new loops: `sessions` to one `AGENTA_WORKER_STREAMS` list and `channels-inbox` to one `AGENTA_WORKER_QUEUES` list. An empty selector already runs every loop.
+
+On Enterprise Edition, the default roles include the new permissions `view_channels`, `edit_channels` and `run_channels`. If you replace the role catalog with [`AGENTA_ACCESS_ROLES`](/self-host/dynamic-access-controls), add them to your roles, or members without them get `403` on Channels.
+
+### API behavior changes
+
+- **An app-only reference to an archived app returns `410`.** An invoke that names an archived application by its id alone, with no variant or revision reference and no inline configuration, now fails with status `410` and a `status.type` ending in `#v0:references:archived`. Before, it ran. Unarchive the application, or point the caller at a live one. Invokes that name a variant or revision, or carry an inline configuration, still run on an archived application, as before; see [#7110](https://github.com/Agenta-AI/agenta/issues/7110).
+- **Answering an interaction needs an `Idempotency-Key` header.** `POST /api/sessions/interactions/{interaction_id}/respond` returns `422` without the header and `202` with a continuation body on success. See [Invoke an agent](/reference/agents/invoke-an-agent#continuing-a-conversation).
+- **Posting to the Agenta channel needs the `run_channels` permission.** On Enterprise Edition, an API key whose owner has the viewer or annotator role can no longer post to the Agenta channel of an agent.
+
+## Upgrading to 0.119.0
+
+This section applies if your projects use MCP servers, or if you plan to add one. Skip it otherwise, and follow the standard upgrade process below.
+
+### What changed
+
+Before 0.119.0, an agent's sandbox called an MCP server directly. Since 0.119.0, every MCP call an agent makes goes to the api container, which relays it to the server. The server's credential stays on your deployment instead of travelling into the sandbox. `AGENTA_MCP_GATEWAY_ENABLED` controls the relay and defaults to `true`.
+
+Because the api container now makes the call, the relay's own outbound guard decides which MCP servers an agent can reach. That guard is a separate setting from the one that governs webhooks.
+
+### Add the new settings to your env file
+
+An upgrade reuses your existing `.env` file, which has none of the new lines, so your deployment runs on the code defaults. Those defaults refuse an MCP server that is on a private network or answers over plain HTTP. The env templates shipped with 0.119.0 set them permissively instead, so a fresh install and an upgraded install behave differently until you add the lines yourself.
+
+If an MCP server in one of your projects is on `http://` or on a private address, add this to your env file:
+
+```bash
+# Let the relay call MCP servers on plain HTTP and on private addresses.
+# Code default: false. The 0.119.x env templates ship true.
+AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED=true
+```
+
+A second setting applies only if your own Agenta deployment is reached over plain HTTP at an address that is not loopback, such as an IP address or a LAN name. It governs the hop into Agenta, not the hop out to an MCP server, and without it a gateway-routed run fails with `gateway_insecure_endpoint`:
+
+```bash
+# Let gateway credentials travel when your own deployment is reached over plain HTTP
+# at a non-loopback address. Code default: false. The 0.119.x env templates ship true.
+AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED=true
+```
+
+On a deployment where people you do not trust can create MCP connections, leave `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED` at `false` and name the servers you want reachable with `AGENTA_MCP_GATEWAY_HOST_ALLOWLIST` instead. Both postures are set out in [Use an MCP server on a private network or over plain HTTP](/self-host/app-tools-and-triggers#use-an-mcp-server-on-a-private-network-or-over-plain-http).
+
+Containers read the env file at start, so recreate them after editing it:
+
+```bash
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml \
+  --env-file hosting/docker-compose/oss/.env.oss.gh \
+  --profile with-web --profile with-traefik up -d
+```
+
+For Helm, set `gatewayEgress.insecureAllowed` and `gatewayEgress.insecureHttpAllowed` in your values file. The chart ships both commented out, so an upgrade that touches no values file keeps the code defaults and both guards stay on. The chart renders each key you do set into the containers that read it. See [Agenta gateways](/self-host/configuration#agenta-gateways).
+
+Two more things change for Helm in this release. The chart now implements all five gateway keys, so a key you added under `api.extraEnv`, `services.extraEnv` or `agentRunner.extraEnv` to work around their absence now duplicates the one the chart renders. Remove the `extraEnv` copy. And the schema now rejects an unknown key under `mcpGateway`, `llmGateway`, `gatewayEgress` or `gatewayCredentials`, where 0.119.0 accepted and ignored it, so `helm upgrade` fails on a typo it used to swallow. For the same reason a real key that used to do nothing now takes effect: if you set `mcpGateway.enabled: false` against 0.119.0 and saw no change, it now turns the MCP gateway off.
+
+### Saving an MCP server URL on 0.119.0
+
+This applies only while you are on 0.119.0. In that version, the check that runs when someone saves a custom MCP server URL reads `AGENTA_INSECURE_EGRESS_ALLOWED`, the setting that governs webhooks, rather than the gateway setting above. The two production templates, `env.oss.gh.example` and `env.ee.gh.example`, set it to `false`, so on such a deployment a plain-HTTP or literal-private-IP URL is refused with a `400`:
+
+```text
+endpoint.data.route.base_url is invalid: URL must use https.
+endpoint.data.route.base_url is invalid: URL resolves to a blocked IP range.
+```
+
+From 0.119.1, that check follows `AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED`, the same setting the relay uses at call time. Upgrade to 0.119.1 rather than setting `AGENTA_INSECURE_EGRESS_ALLOWED=true`: that variable has no effect on MCP saves from 0.119.1, and setting it widens what webhooks, workflow hooks, custom model provider endpoints and OIDC issuer probes may reach. If you set it to `true` on 0.119.0 for this reason alone, set it back after upgrading.
+
+A server that is already saved keeps working. This check runs only when a URL is saved.
+
+### Before rolling back below 0.119.0
+
+Migration `oss000000030` adds two labels, `OAUTH_PROVIDER` and `OAUTH_GRANT`, to the Postgres enum behind the `kind` column of the `secrets` table. A version before 0.119.0 does not know those labels, and listing a project's secrets reads every row, so one row of either kind makes the whole list fail with a server error. That takes down the playground's provider key list for the project, not just the MCP screens.
+
+PostgreSQL cannot remove a value from an enum once it is added, and running the migration's own downgrade does not remove it either. A schema rollback alone does not fix this.
+
+If any project completed an MCP OAuth connection while you were on 0.119.0 or later, delete those rows before rolling back:
+
+```sql
+DELETE FROM secrets WHERE kind IN ('OAUTH_PROVIDER','OAUTH_GRANT');
+```
+
+Through Docker Compose:
+
+```bash
+docker compose -f hosting/docker-compose/oss/docker-compose.gh.yml \
+  --env-file hosting/docker-compose/oss/.env.oss.gh exec -T postgres \
+  psql -U username -d agenta_oss_core \
+  -c "DELETE FROM secrets WHERE kind IN ('OAUTH_PROVIDER','OAUTH_GRANT');"
+```
+
+Those rows are the stored OAuth registrations and tokens for MCP connections. Deleting them ends those connections. Reconnect each affected MCP server after you upgrade again.
+
 ## Standard Upgrade Process
 
 For most upgrades, follow these steps to update your Agenta instance:

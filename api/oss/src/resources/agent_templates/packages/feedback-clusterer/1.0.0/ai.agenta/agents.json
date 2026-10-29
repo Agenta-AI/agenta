@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "entry": "feedback-clusterer",
+  "agents": {
+    "feedback-clusterer": {
+      "name": "Feedback clusterer",
+      "description": "Each day, clusters new customer feedback into themes and logs the summary to Notion.",
+      "instructions": "./ai.agenta/agents/feedback-clusterer/AGENTS.md",
+      "setup": "./ai.agenta/agents/feedback-clusterer/SETUP.md",
+      "connections": [
+        {
+          "key": "read-the-feedback",
+          "required": true,
+          "purpose": "Read the feedback",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "slack"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "intercom"
+            }
+          ],
+          "setup_notes": "Read channels, post theme summaries"
+        },
+        {
+          "key": "log-the-clusters",
+          "required": true,
+          "purpose": "Log the clusters",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "notion"
+            }
+          ],
+          "setup_notes": "Log clusters to a page or database"
+        }
+      ]
+    }
+  }
+}

@@ -36,6 +36,8 @@ export interface SessionTabProps extends Omit<ComponentProps<"div">, "children" 
     active: boolean
     /** Text, or the host's own label element (inline rename on the desktop). */
     label: ReactNode
+    /** Off while the label is an editor: the fade would dim the input's own right edge. */
+    maskLabel?: boolean
     /** The run-state dot, from whichever liveness source the host has. */
     statusDot?: ReactNode
     /** Pinned: a leading pin glyph, and why this chip leads the strip. */
@@ -51,6 +53,7 @@ export interface SessionTabProps extends Omit<ComponentProps<"div">, "children" 
 export const SessionTab = ({
     active,
     label,
+    maskLabel = true,
     statusDot,
     pinned = false,
     renderActions,
@@ -94,7 +97,9 @@ export const SessionTab = ({
             onBlur={onBlurChip}
             className={clsx(
                 // Label-sized between a floor (clickable zone left of the hover actions) and a ceiling.
-                "group relative flex h-7 w-fit min-w-[120px] max-w-[180px] shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 text-xs transition-colors",
+                // `select-none`: a second click on the chip you are already on must not start
+                // painting its label — a tab is a control, not text (#6379).
+                "group relative flex h-7 w-fit min-w-20 max-w-[180px] shrink-0 cursor-pointer select-none items-center gap-1.5 rounded px-2 text-xs transition-colors",
                 // No card, no border — plain labels on the canvas, separated by the host's
                 // hairline divider. Selected reads by FILL alone: `colorFill` is the antd
                 // "pressed/active" step, ink-tinted in light and translucent white in dark,
@@ -116,8 +121,9 @@ export const SessionTab = ({
                 />
             )}
             <span
-                className="block min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left"
-                style={actions ? LABEL_MASK_HOVER : LABEL_MASK_REST}
+                // A rename input inside the label keeps its own selection.
+                className="block min-w-0 flex-1 overflow-hidden whitespace-nowrap text-left [&_input]:select-text"
+                style={!maskLabel ? undefined : actions ? LABEL_MASK_HOVER : LABEL_MASK_REST}
             >
                 {label}
             </span>

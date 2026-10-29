@@ -1,11 +1,11 @@
-import {agentTemplateByKey} from "@agenta/entities/workflow"
+import {agentTemplateLookupAtomFamily} from "@agenta/entities/workflow"
 import {TemplateDetail as TemplateDetailView} from "@agenta/home-ui"
 import {PageLayout} from "@agenta/ui"
+import {useAtomValue} from "jotai"
+import {useRouter} from "next/router"
 
 import Markdown from "@/oss/components/AgentChatSlice/assets/markdown"
 import useURL from "@/oss/hooks/useURL"
-
-import {useCreateAgentFromTemplate} from "../../hooks/useCreateAgentFromTemplate"
 
 /**
  * One template, in full — the SHARED detail view under this app's page chrome.
@@ -16,16 +16,20 @@ import {useCreateAgentFromTemplate} from "../../hooks/useCreateAgentFromTemplate
  */
 const TemplateDetail = ({templateKey}: {templateKey: string}) => {
     const {baseAppURL} = useURL()
-    const {createFromTemplate, pendingKey} = useCreateAgentFromTemplate("template_detail")
-    const template = agentTemplateByKey(templateKey)
-
+    const router = useRouter()
+    // Undefined until found. The shared view reads the catalog status to tell loading and a failed
+    // read (retry) from an unknown key ("Template not found").
+    const template = useAtomValue(agentTemplateLookupAtomFamily(templateKey)).template
     return (
         <PageLayout className="grow min-h-0 !p-0">
             <TemplateDetailView
                 template={template}
                 allTemplatesHref={`${baseAppURL}/agent-templates`}
-                busy={pendingKey === template?.key}
-                onUseTemplate={(pickedTemplate) => void createFromTemplate(pickedTemplate)}
+                // The connect step lives where the composer does — bottom of the create surface,
+                // in its place. This page has no composer, so the pick goes there.
+                onUseTemplate={(pickedTemplate) =>
+                    void router.push(`${baseAppURL}?new=1&template=${pickedTemplate.key}`)
+                }
                 renderMarkdown={(markdown) => (
                     <Markdown content={markdown} className="!text-[13px]" />
                 )}

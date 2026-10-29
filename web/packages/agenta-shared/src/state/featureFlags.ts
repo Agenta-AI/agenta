@@ -1,5 +1,5 @@
 /**
- * Per-user experimental settings — the "Experiments" switches in Settings › Preferences.
+ * Per-user experimental settings — the "Feature Flags" and "Debugging" switches in Settings › Preferences.
  *
  * They live here, not in an app, because a flag is read where the feature is (a package) and
  * written where the settings page is (every app). Both surfaces on a browser share one atom
@@ -18,7 +18,7 @@ import {stringStorage} from "./stringStorage"
  *
  * Storage-backed rather than derived from the profile query, so a preference survives a reload
  * without waiting on a request. Apps push into it once they know who is signed in (OSS from
- * onboarding, mobile from its profile query).
+ * its profile listener, mobile from its profile query). Both use the stable profile `uid`.
  *
  * It does NOT resolve on the first paint. Deliberately no `getOnInit`: this atom scopes values
  * that render (the Classic mode switch, the sidebar's nav areas), and reading storage during
@@ -35,23 +35,26 @@ export const activeUserIdAtom = atomWithStorage<string | null>(
     stringStorage,
 )
 
-const scopedKey = (userId: string, key: string) => `agenta:settings:${userId}:${key}`
+/** The storage key of a per-user setting; non-atom stores (the app grant store) use it too. */
+export const userSettingsKey = (userId: string, key: string) => `agenta:settings:${userId}:${key}`
 
 /**
  * A boolean preference scoped to whoever is signed in.
  *
- * Reads `false` and writes nothing while the user is unknown: a preference written under no
+ * Reads the default and writes nothing while the user is unknown: a preference written under no
  * user would be inherited by the next person to sign in on this browser.
+ *
+ * Call it ONCE at module level — every call builds its own atom family.
  */
-const userScopedFlagAtom = (key: string) => {
+export const userScopedFlagAtom = (key: string, defaultValue = false) => {
     const family = atomFamily((userId: string) =>
-        atomWithStorage<boolean>(scopedKey(userId, key), false),
+        atomWithStorage<boolean>(userSettingsKey(userId, key), defaultValue),
     )
 
     return atom(
         (get) => {
             const userId = get(activeUserIdAtom)
-            if (!userId) return false
+            if (!userId) return defaultValue
             return get(family(userId))
         },
         (get, set, next: boolean) => {
@@ -64,3 +67,9 @@ const userScopedFlagAtom = (key: string) => {
 
 /** Experimental switch for the Playground's session/turn inspector controls. */
 export const playgroundInspectorEnabledAtom = userScopedFlagAtom("playground-inspector")
+
+/** Temporary channel probe page, kept separate from the permanent Channels settings tab. */
+export const agentaChannelSurfaceEnabledAtom = userScopedFlagAtom("agenta-channel-surface")
+
+/** Debug switch for the log and diagnostic sections of the Channels settings tab. */
+export const channelDebugEnabledAtom = userScopedFlagAtom("channel-debug")

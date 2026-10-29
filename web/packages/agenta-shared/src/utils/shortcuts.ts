@@ -46,7 +46,9 @@ export type ShortcutGroupId =
     | "connection"
     | "elicitation"
     | "voice"
+    | "quote"
     | "rename"
+    | "files"
     | "help"
 
 export const SHORTCUT_GROUP_TITLES: Record<ShortcutGroupId, string> = {
@@ -61,7 +63,9 @@ export const SHORTCUT_GROUP_TITLES: Record<ShortcutGroupId, string> = {
     connection: "Connection dock",
     elicitation: "Forms the agent asks",
     voice: "Voice",
+    quote: "Replying to a quote",
     rename: "Renaming a session",
+    files: "Files pane",
     help: "Help",
 }
 
@@ -119,6 +123,15 @@ export const PLAYGROUND_SHORTCUTS: readonly Shortcut[] = [
         modifiers: ["alt"],
         key: "K",
     },
+    // The mobile app's search-everything palette — MobileCommandPalette.tsx
+    {
+        id: "palette.open",
+        group: "sessions",
+        label: "Search sessions, agents and pages",
+        modifiers: ["mod"],
+        key: "K",
+        when: "in the mobile app",
+    },
 
     // Side panels — ShowConfigPanelButton.tsx, OpenFilesPaneButton.tsx
     {
@@ -136,6 +149,77 @@ export const PLAYGROUND_SHORTCUTS: readonly Shortcut[] = [
         key: "O",
     },
 
+    // Files pane — DriveExplorer.tsx, VirtualTileGrid.tsx, FolderList.tsx
+    {id: "drive.move", group: "files", label: "Move between files", key: "↑", alt: {key: "↓"}},
+    {id: "drive.open", group: "files", label: "Open the focused file or folder", key: "↵"},
+    {
+        id: "drive.up",
+        group: "files",
+        label: "Up to the parent folder",
+        key: "⌫",
+        alt: {modifiers: ["mod"], key: "↑"},
+    },
+    {
+        id: "drive.close",
+        group: "files",
+        label: "Back to the open file's folder",
+        key: "Esc",
+        when: "while a file is open",
+    },
+    {
+        id: "drive.back",
+        group: "files",
+        label: "Back in history",
+        modifiers: ["alt"],
+        key: "←",
+        alt: {modifiers: ["mod"], key: "["},
+    },
+    {
+        id: "drive.forward",
+        group: "files",
+        label: "Forward in history",
+        modifiers: ["alt"],
+        key: "→",
+        alt: {modifiers: ["mod"], key: "]"},
+    },
+    {
+        id: "drive.save",
+        group: "files",
+        label: "Save the open file",
+        modifiers: ["mod"],
+        key: "S",
+        when: "while editing a file",
+    },
+    // Quote-to-reply — QuoteSelection/useQuoteSelection.ts
+    {
+        id: "quote.reply",
+        group: "quote",
+        label: "Reply to the selected part",
+        modifiers: ["alt"],
+        key: "Q",
+        when: "text is selected in a settled reply or a file",
+    },
+    {
+        id: "quote.stage",
+        group: "quote",
+        label: "Add the quote to your message",
+        key: "↵",
+        when: "in the quote note",
+    },
+    {
+        id: "quote.send",
+        group: "quote",
+        label: "Send the quote reply now",
+        modifiers: ["mod"],
+        key: "↵",
+        when: "in the quote note",
+    },
+    {
+        id: "quote.dismiss",
+        group: "quote",
+        label: "Dismiss the quote pill or note",
+        key: "Esc",
+    },
     // The running turn — AgentConversation.tsx
     {
         id: "run.stop",

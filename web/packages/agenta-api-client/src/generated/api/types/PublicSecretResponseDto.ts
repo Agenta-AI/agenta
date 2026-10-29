@@ -13,6 +13,9 @@ export interface PublicSecretResponseDto {
     header: AgentaApi.Header;
     lifecycle?: (AgentaApi.LegacyLifecycleDto | null) | undefined;
     write_only?: boolean | undefined;
+    owner?: (AgentaApi.SecretOwner | null) | undefined;
+    availability?: (AgentaApi.SecretAvailability | null) | undefined;
+    selected_project_ids?: (string[] | null) | undefined;
     management?: (AgentaApi.PublicSecretManagementDto | null) | undefined;
     value_status: AgentaApi.SecretValueStatus;
 }
@@ -20,8 +23,13 @@ export interface PublicSecretResponseDto {
 export namespace PublicSecretResponseDto {
     export type Data =
         | AgentaApi.StandardProviderDto
+        | AgentaApi.McpStandardProviderDto
         | AgentaApi.CustomProviderDto
         | AgentaApi.SsoProviderDto
         | AgentaApi.WebhookProviderDto
-        | AgentaApi.CustomSecretDto;
+        | AgentaApi.CustomSecretDto
+        | AgentaApi.ChannelSecretDto
+        | AgentaApi.OAuthProviderDto
+        | AgentaApi.OAuthGrantDto
+        | AgentaApi.SubscriptionProviderDto;
 }

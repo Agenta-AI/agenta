@@ -2,11 +2,11 @@ export * from "./SecretForm"
 export {CreateSecretDrawer, type CreateSecretDrawerProps} from "./CreateSecretDrawer"
 
 export {
-    AgentSecretAttachmentDrawer,
+    AgentSecretAttachmentModal,
     preserveAgentSecretEnvOverride,
     suggestedAgentSecretEnv,
-    type AgentSecretAttachmentDrawerProps,
+    type AgentSecretAttachmentModalProps,
     type AgentSecretAttachmentResult,
     type AgentSecretAttachmentTarget,
     type AgentSecretRequestSeed,
-} from "./AgentSecretAttachmentDrawer"
+} from "./AgentSecretAttachmentModal"

@@ -1,6 +1,8 @@
-import {type RefObject} from "react"
+import {type ReactNode, type RefObject} from "react"
 
 import {RichChatInput, type RichChatInputHandle} from "@agenta/ui/rich-chat-input"
+import {ArrowCounterClockwise} from "@phosphor-icons/react"
+import {Button} from "antd"
 
 import {STRIP_COPY} from "../assets/constants"
 
@@ -21,6 +23,15 @@ interface StripComposerProps {
     onTextChange?: (text: string) => void
     /** Create is in flight — spins the primary button and swaps its label to "Creating agent". */
     loading?: boolean
+    /**
+     * Docked INSIDE the input frame, above the editor — the connect step's card, which belongs
+     * to the message being composed rather than floating beside it (mobile parity).
+     */
+    header?: ReactNode
+    /** The connect step's gate: disables Create (never the editor). */
+    createDisabled?: boolean
+    /** Present only while a template's prompt is edited: one click restores the original. */
+    onResetPrompt?: () => void
 }
 
 /**
@@ -36,6 +47,9 @@ const StripComposer = ({
     composerClassName,
     onTextChange,
     loading,
+    header,
+    createDisabled,
+    onResetPrompt,
 }: StripComposerProps) => {
     return (
         <RichChatInput
@@ -48,7 +62,26 @@ const StripComposer = ({
             minHeightClassName="min-h-24"
             textSizeClassName="text-sm"
             className={composerClassName}
-            trailing={<AgentIntentActions onCreate={() => onCreate()} loading={loading} />}
+            header={header}
+            trailing={
+                <div className="flex items-center gap-2">
+                    {onResetPrompt ? (
+                        <Button
+                            type="text"
+                            icon={<ArrowCounterClockwise size={13} />}
+                            onClick={onResetPrompt}
+                            disabled={loading}
+                        >
+                            {STRIP_COPY.resetPrompt}
+                        </Button>
+                    ) : null}
+                    <AgentIntentActions
+                        onCreate={() => onCreate()}
+                        loading={loading}
+                        disabled={createDisabled}
+                    />
+                </div>
+            }
         />
     )
 }

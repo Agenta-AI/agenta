@@ -11,10 +11,11 @@ import {
     DropdownMenuTrigger,
     SimpleTooltip,
 } from "@agenta/ui/ui"
-import {CaretDown, Microphone, StopCircle, Waveform} from "@phosphor-icons/react"
+import {CaretDown, Microphone, Stop, Waveform} from "@phosphor-icons/react"
 import {useAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
+import {useHardwareKeyboard} from "../hooks/useHardwareKeyboard"
 import {usePushToTalk} from "../hooks/usePushToTalk"
 import {useVoiceInput} from "../hooks/useVoiceInput"
 
@@ -98,6 +99,7 @@ const VoiceInputButton = ({
     // hear. With no explicit choice, lead with whichever the model can actually use.
     const mode: VoiceMode = chosenMode ?? (audioPerceivable === false ? "transcribe" : "audio")
     const transcribe = useVoiceInput()
+    const hasKeyboard = useHardwareKeyboard()
     if (stopRef) stopRef.current = transcribe.stop
 
     useEffect(() => {
@@ -211,7 +213,9 @@ const VoiceInputButton = ({
           : dictating
             ? "Stop dictation"
             : effective === "transcribe"
-              ? `Hold ${holdLabel} to dictate`
+              ? hasKeyboard
+                  ? `Hold ${holdLabel} to dictate`
+                  : "Dictate into the message"
               : null
 
     const highlighted = dictating || audioPending
@@ -219,20 +223,17 @@ const VoiceInputButton = ({
     return (
         <div ref={rootRef} className="flex items-center">
             <SimpleTooltip title={title}>
+                {/* While dictating it stops: a danger Stop square, never mistaken for Send. */}
                 <Button
-                    variant="ghost"
+                    variant={dictating ? "destructive" : "ghost"}
                     size="icon"
                     onClick={toggle}
                     // A second press while the prompt is open would only queue another request.
-                    disabled={disabled || audioPending || audioBlocked}
+                    disabled={disabled || (!dictating && (audioPending || audioBlocked))}
                     aria-label={dictating ? "Stop voice input" : (title ?? MODE_HINT[effective])}
                 >
-                    {/* While dictating the button's job is to stop, so it shows that instead of
-                        the mode it was started from. It does not pulse: the waveform beside it is
-                        already saying a voice is coming in, and two things throbbing at once made
-                        the stop control read as a status light rather than a button. */}
                     {dictating ? (
-                        <StopCircle size={16} weight="fill" />
+                        <Stop size={14} weight="fill" />
                     ) : (
                         modeIcon(effective, highlighted)
                     )}

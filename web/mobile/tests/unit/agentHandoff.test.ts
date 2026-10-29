@@ -12,9 +12,10 @@ describe("agentHandoffPath", () => {
         )
     })
 
-    it("opens the agent's overview for a blank create", () => {
-        expect(agentHandoffPath({base, appId: "app-1", sessionId: null})).toBe(
-            "/w/ws-1/p/proj-1/agents/app-1",
+    // A blank create lands in the playground too — a fresh session, not the overview.
+    it("opens a fresh session for a blank create, never the overview", () => {
+        expect(agentHandoffPath({base, appId: "app-1", sessionId: "session-2"})).not.toContain(
+            "/agents/",
         )
     })
 })

@@ -44,6 +44,10 @@ const REMOTE_RUN_POLL_MS = 15_000
  * resets to the fast cadence, so a long turn that is simply quiet (a slow tool call emits no
  * records until it returns) is still followed. */
 const REMOTE_RUN_POLL_MAX_MS = 60_000
+/** A failed first read of the history retries on this backoff, behind the transcript skeleton. */
+const HYDRATION_RETRY_MS = 5_000
+const HYDRATION_RETRY_MAX_MS = 30_000
+
 const INTERACTION_GATE_POLL_MS = 1_000
 const INTERACTION_GATE_POLL_MAX_MS = 60_000
 
@@ -319,6 +323,8 @@ export const useSessionHydration = ({
         // StrictMode's mount→unmount→mount cycle re-runs the fetch (the first run is cancelled)
         // instead of latching a ref that leaves the transcript blank.
         let cancelled = false
+        let retryTimer: ReturnType<typeof setTimeout> | undefined
+        let retryDelay = HYDRATION_RETRY_MS
         const generation = mount.capture()
         // Post-restore revalidation: the first result may be the disk-restored log (paints
         // instantly); adopt the background refetch when it lands. The refetch can land BEFORE the
@@ -326,31 +332,38 @@ export const useSessionHydration = ({
         // up on the next React commit — so record here, not via what's on screen, that real
         // history was already adopted.
         let adopted = false
-        readLog((fresh) => {
-            if (cancelled) return
-            // The restore said "no records" but the server has some — clear the notice.
-            if (adoptServerTranscript(fresh, {generation})) {
-                adopted = true
-                setHydratedEmpty(false)
-            }
-        })
-            .then((transcript) => {
+        const hydrate = () =>
+            readLog((fresh) => {
                 if (cancelled) return
+                // The restore said "no records" but the server has some — clear the notice.
+                if (adoptServerTranscript(fresh, {generation})) {
+                    adopted = true
+                    setHydratedEmpty(false)
+                }
+            }).then((transcript) => {
+                if (cancelled) return
+                if (transcript === null && !adopted) {
+                    // The read failed (the records query has already retried): that says nothing
+                    // about the history, so the skeleton stays up and the read runs again later.
+                    // Reading it as "no records" put "History no longer available" over a session
+                    // that had never failed to save anything (QA5W-1 D).
+                    retryTimer = setTimeout(hydrate, retryDelay)
+                    retryDelay = Math.min(retryDelay * 2, HYDRATION_RETRY_MAX_MS)
+                    return
+                }
                 if (!transcript || transcript.messages.length === 0) {
                     // Known session, but the server has no records for it → history was pruned or
                     // never persisted. Flag it so the transcript shows the "unavailable" notice.
                     // Only when nothing has been adopted yet — a refetch that already landed is
                     // real history, and this stale first result must not blank it out.
                     if (!adopted) setHydratedEmpty(true)
-                    return
-                }
-                adoptServerTranscript(transcript, {generation})
+                } else adoptServerTranscript(transcript, {generation})
+                setIsHydrating(false)
             })
-            .finally(() => {
-                if (!cancelled) setIsHydrating(false)
-            })
+        void hydrate()
         return () => {
             cancelled = true
+            if (retryTimer) clearTimeout(retryTimer)
         }
         // Seed once per mounted session tab; `sessionId` is stable for this instance. The adopter
         // and the generation are read through the closure on purpose: adding them here would
@@ -707,6 +720,19 @@ export const useSessionHydration = ({
             if (timer) clearTimeout(timer)
         }
     }, [activeSessionId, sessionId, interactionGateOpen, refreshFromInteractions])
+    // Over HTTP/1.1 every open stream holds one of the browser's six connections per origin
+    // (QA5W-1), so a tab keeps few. What one tab can hold at once:
+    // - per conversation on screen: one session stream, the live event stream
+    //   (`useSessionLivePreview`) or, when the shared reader is not advertised, this records
+    //   watch; plus this records watch as a second stream while an approval card waits;
+    // - the project watch, only in the tab the others elected to hold it (`tabLeader.ts`);
+    // - one invocation request per turn this tab sent that is still running.
+    // A conversation kept mounted off screen, and every conversation of a hidden browser tab,
+    // holds none. With the shared reader advertised, the live stream already carries this
+    // session's turns, stops and approval requests; this relay adds only what it lacks: the
+    // answer to an approval card on screen, which moves an interaction row without a record.
+    const onScreen = activeSessionId === sessionId
+    const recordsWatchEnabled = onScreen && (!liveness.sharedReader || interactionGateOpen)
     useSessionRecordsWatch({
         sessionId,
         projectId,
@@ -716,7 +742,7 @@ export const useSessionHydration = ({
             revalidateSessionRecords(sessionId)
             refreshFromInteractionEvent(event)
         },
-        enabled: activeSessionId === sessionId,
+        enabled: recordsWatchEnabled,
         onReady: refreshOnReady,
         onRecordsChanged: () => {
             void refreshFromRecords()

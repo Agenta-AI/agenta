@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "entry": "support-triage",
+  "agents": {
+    "support-triage": {
+      "name": "Support triage",
+      "description": "Watches your #support channel. Triages every new thread by urgency, routes it to the right owner, and checks with you before closing anything.",
+      "instructions": "./ai.agenta/agents/support-triage/AGENTS.md",
+      "setup": "./ai.agenta/agents/support-triage/SETUP.md",
+      "connections": [
+        {
+          "key": "read-and-post-in-the-support-channel",
+          "required": true,
+          "purpose": "Read and post in the support channel",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "slack"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "discord"
+            }
+          ],
+          "setup_notes": "Read channels, post & assign threads"
+        }
+      ]
+    }
+  }
+}

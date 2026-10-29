@@ -52,6 +52,7 @@ import {
   specInputSchema,
 } from "../tools/spec-schema.ts";
 import { PUBLIC_SPECS_FILE_ENV } from "../tools/tool-mcp-env.ts";
+import { PI_COMMAND_TIMEOUT_ENV } from "../engines/sandbox_agent/run-limits.ts";
 import {
   buildPiGateEnvelope,
   PI_GATE_DIALOG_TITLE,
@@ -61,6 +62,10 @@ import {
   decodePiModelProviderOverride,
   PI_MODEL_PROVIDER_OVERRIDE_ENV,
 } from "./model-provider-override.ts";
+import {
+  PI_GATEWAY_MCP_SERVERS_ENV,
+  registerPiGatewayMcpTools,
+} from "./pi-mcp.ts";
 
 /** Read and delete one runner-authored turn control. Invalid bytes never poison a warm turn. */
 export function readPiTurnTraceControl(
@@ -140,6 +145,7 @@ async function piDialogAllows(
   toolName: string,
   toolCallId: string,
   input: unknown,
+  mcpIdentity?: { mcpServer: string; mcpTool: string },
 ): Promise<{ allowed: boolean; reason?: string }> {
   const ui = ctx?.ui;
   const confirm = ui?.confirm;
@@ -152,7 +158,13 @@ async function piDialogAllows(
       ),
     };
   }
-  const message = buildPiGateEnvelope({ gate, toolName, toolCallId, input });
+  const message = buildPiGateEnvelope({
+    gate,
+    toolName,
+    toolCallId,
+    input,
+    ...(mcpIdentity ?? {}),
+  });
   try {
     const confirmed = await confirm.call(ui, PI_GATE_DIALOG_TITLE, message);
     // A confirm resolves to a BOOLEAN, so every refusal arrives here identical: a policy deny, a
@@ -239,6 +251,23 @@ function registerBuiltinActivation(pi: ExtensionAPI): void {
   });
 }
 
+/**
+ * Give every shell command a timeout of at most `maxSeconds`. Pi then stops a command that runs
+ * too long and returns "Command timed out" to the model, which carries on. Without it a command
+ * with no timeout ran until the runner's per-tool-call watchdog ended the whole turn.
+ */
+function registerCommandTimeout(pi: ExtensionAPI, maxSeconds: number): void {
+  pi.on("tool_call", async (event) => {
+    if (!isToolCallEventType("bash", event)) return undefined;
+    const requested = event.input.timeout;
+    // Mutating the input is Pi's way to change a call's arguments (see `ToolCallEventResult`).
+    if (!(typeof requested === "number" && requested > 0 && requested <= maxSeconds)) {
+      event.input.timeout = maxSeconds;
+    }
+    return undefined;
+  });
+}
+
 function registerBuiltinGating(pi: ExtensionAPI): void {
   pi.on(
     "tool_call",
@@ -271,7 +300,7 @@ function promptGuidelines(spec: ResolvedToolSpec): string[] {
   }
   if (spec.name === "request_connection") {
     guidelines.push(
-      "When calling request_connection, set integration to the lowercase provider key such as slack or github; use mode oauth unless the user explicitly asks for an API key.",
+      "When calling request_connection for an external integration, set integration to the lowercase provider key such as slack or github; use mode oauth unless the user explicitly asks for an API key. When a model or MCP call was refused because the target is not registered, call it instead with target: {plane: 'llm'|'mcp', name: <provider or server>} and omit integration/mode.",
     );
   }
   if (spec.name === "commit_revision") {
@@ -294,11 +323,11 @@ function promptGuidelines(spec: ResolvedToolSpec): string[] {
  * Returns `undefined` on any defect (unreadable file, bad JSON, non-array) after logging it: the
  * caller then registers nothing, which is the same outcome as before, but the reason is on stderr.
  */
-function loadPublicToolSpecs():
-  | { specs: ResolvedToolSpec[]; route: string }
-  | undefined {
-  const path = process.env[PUBLIC_SPECS_FILE_ENV];
-  const raw = process.env[LEGACY_PUBLIC_SPECS_ENV];
+function loadPublicToolSpecs(
+  env: AgentaExtensionEnv,
+): { specs: ResolvedToolSpec[]; route: string } | undefined {
+  const path = env[PUBLIC_SPECS_FILE_ENV];
+  const raw = env[LEGACY_PUBLIC_SPECS_ENV];
   let json: string;
   let route: string;
   if (path) {
@@ -331,10 +360,10 @@ function loadPublicToolSpecs():
 }
 
 /** Register public tool metadata as Pi tools whose execution relays to the runner. */
-function registerTools(pi: ExtensionAPI): void {
-  const relayDir = process.env.AGENTA_AGENT_TOOLS_RELAY_DIR;
+function registerTools(pi: ExtensionAPI, env: AgentaExtensionEnv): void {
+  const relayDir = env.AGENTA_AGENT_TOOLS_RELAY_DIR;
   if (!relayDir) return;
-  const loaded = loadPublicToolSpecs();
+  const loaded = loadPublicToolSpecs(env);
   if (!loaded) return;
   const specs = loaded.specs;
 
@@ -411,49 +440,112 @@ function registerTools(pi: ExtensionAPI): void {
   );
 }
 
+/**
+ * The values the extension reads. In its own Pi process this is `process.env`; in the runner
+ * process (the `inprocess` provider) it is the session's own map, because `process.env` is
+ * shared by every session there.
+ */
+export type AgentaExtensionEnv = Readonly<Record<string, string | undefined>>;
+
+/** Build the Pi ExtensionFactory for one session's configuration. */
+export function createAgentaExtension(
+  env: AgentaExtensionEnv,
+): (pi: ExtensionAPI) => void {
+  return (pi) => registerAgentaExtension(pi, env);
+}
+
 /** The Pi ExtensionFactory: tools + (env-driven) tracing + usage writeback. */
-const factory = (pi: ExtensionAPI): void => {
-  const modelProviderOverrideRaw = process.env[PI_MODEL_PROVIDER_OVERRIDE_ENV];
+const factory = (pi: ExtensionAPI): void =>
+  registerAgentaExtension(pi, process.env);
+
+function registerAgentaExtension(
+  pi: ExtensionAPI,
+  env: AgentaExtensionEnv,
+): void {
+  const modelProviderOverrideRaw = env[PI_MODEL_PROVIDER_OVERRIDE_ENV];
   const modelProviderOverride =
     modelProviderOverrideRaw === undefined
       ? undefined
       : decodePiModelProviderOverride(modelProviderOverrideRaw);
   // Fully inert unless Agenta wired this run (so it is safe to install globally in a
   // shared Pi agent dir — a normal `pi` session with no Agenta env does nothing).
-  const traceControlPath = process.env[PI_TRACE_CONTROL_ENV];
+  const traceControlPath = env[PI_TRACE_CONTROL_ENV];
   const hasTracing = !!traceControlPath;
-  const relayDir = process.env.AGENTA_AGENT_TOOLS_RELAY_DIR;
+  const relayDir = env.AGENTA_AGENT_TOOLS_RELAY_DIR;
   const hasTools = !!(
-    (process.env[PUBLIC_SPECS_FILE_ENV] ||
-      process.env[LEGACY_PUBLIC_SPECS_ENV]) &&
+    (env[PUBLIC_SPECS_FILE_ENV] || env[LEGACY_PUBLIC_SPECS_ENV]) &&
     relayDir
   );
   const hasBuiltinActivation = isTruthyFlag(
-    process.env.AGENTA_AGENT_BUILTIN_ACTIVATION,
+    env.AGENTA_AGENT_BUILTIN_ACTIVATION,
   );
-  const hasBuiltinGating = isTruthyFlag(
-    process.env.AGENTA_AGENT_BUILTIN_GATING,
-  );
-  const usageOut = process.env.AGENTA_AGENT_USAGE_CAPTURE_PATH;
+  const hasBuiltinGating = isTruthyFlag(env.AGENTA_AGENT_BUILTIN_GATING);
+  const gatewayMcpServers = env[PI_GATEWAY_MCP_SERVERS_ENV];
+  const usageOut = env.AGENTA_AGENT_USAGE_CAPTURE_PATH;
+  const commandTimeout = Number(env[PI_COMMAND_TIMEOUT_ENV]);
+  const hasCommandTimeout = Number.isFinite(commandTimeout) && commandTimeout > 0;
   if (
     !modelProviderOverride &&
+    !hasCommandTimeout &&
     !hasTracing &&
     !hasTools &&
     !hasBuiltinActivation &&
     !hasBuiltinGating &&
+    !gatewayMcpServers &&
     !usageOut
   )
     return;
 
-  // Extension factories complete before Pi selects the configured model. Registering only a
-  // baseUrl here overrides the built-in provider without replacing its model catalog or auth.
+  // Extension factories complete before Pi selects the configured model. Registering the baseUrl
+  // here (plus, on a gateway route, the credential header and a placeholder key) overrides the
+  // built-in provider without replacing its model catalog.
   if (modelProviderOverride) {
     pi.registerProvider(modelProviderOverride.provider, {
       baseUrl: modelProviderOverride.baseUrl,
+      ...(modelProviderOverride.headers
+        ? { headers: modelProviderOverride.headers }
+        : {}),
+      ...(modelProviderOverride.apiKey
+        ? { apiKey: modelProviderOverride.apiKey }
+        : {}),
     });
   }
 
-  if (hasTools) registerTools(pi);
+  if (hasTools) registerTools(pi, env);
+  if (gatewayMcpServers) {
+    pi.on("before_agent_start", async () => {
+      try {
+        await registerPiGatewayMcpTools(
+          pi,
+          gatewayMcpServers,
+          log,
+          async ({ ctx, toolName, toolCallId, input, mcpServer, mcpTool }) => {
+            const { allowed, reason } = await piDialogAllows(
+              ctx as ExtensionContext | undefined,
+              "pi-mcp-tool",
+              toolName,
+              toolCallId,
+              input,
+              { mcpServer, mcpTool },
+            );
+            return { allowed, reason: reason ?? refusedAtGateText(toolName) };
+          },
+        );
+      } catch (error) {
+        // OR59. A registration failure used to leave `before_agent_start` as a bare rejection:
+        // the turn either died with a generic error or ran on with no tools and no line saying
+        // why. Registration already logged the offending tool; this is the one sentence that
+        // says the registration as a whole failed. The turn survives, as it does for a server
+        // that fails its handshake (OR32) — the tools that did register still work.
+        log(
+          `[mcp] error: gateway MCP tool registration failed: ` +
+            `${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    });
+  }
+  // Before the gate, so an approval prompt shows the timeout the command will actually run with.
+  if (hasCommandTimeout) registerCommandTimeout(pi, commandTimeout);
   if (hasBuiltinActivation) registerBuiltinActivation(pi);
   if (hasBuiltinGating) registerBuiltinGating(pi);
   // Pi records the native span tree and publishes raw OTLP bytes into its telemetry spool.
@@ -488,6 +580,7 @@ const factory = (pi: ExtensionAPI): void => {
       turnId: control.turnId,
       skills: control.skills,
       skillsDropped: control.skillsDropped,
+      customConnection: control.customConnection,
       redactor,
       serializedBatchTransport: createPiFileSpanExporter({
         directory: dirname(traceControlPath),
@@ -498,7 +591,7 @@ const factory = (pi: ExtensionAPI): void => {
   });
   otel.register(pi); // lifecycle handlers (spans + usage accumulation)
 
-  pi.on("agent_end", async () => {
+  pi.on("agent_settled", async () => {
     // Publish usage before the native trace batch. The runner treats pickup of that batch as the
     // barrier that makes this sidecar safe to read, for local and remote sandboxes alike.
     if (usageOut) {
@@ -510,6 +603,6 @@ const factory = (pi: ExtensionAPI): void => {
     }
     if (otel.config.enabled) await otel.flush();
   });
-};
+}
 
 export default factory;

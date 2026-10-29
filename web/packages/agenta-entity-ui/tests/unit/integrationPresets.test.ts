@@ -27,8 +27,13 @@ describe("writing a preset", () => {
         expect(write("always_ask")).toEqual({default: "ask", tools: {}})
     })
 
-    it('F2: "Ask for write and delete" saves inherit with an empty tools map', () => {
-        expect(write("ask_writes")).toEqual({default: "inherit", tools: {}})
+    it('F2: "Ask for write and delete" saves allow_reads with an empty tools map', () => {
+        // Not `inherit`: that defers to the agent-wide mode, and under `allow` it ran every write.
+        expect(write("ask_writes")).toEqual({default: "allow_reads", tools: {}})
+    })
+
+    it('"Follow agent policy" saves inherit with an empty tools map', () => {
+        expect(write("follow_agent")).toEqual({default: "inherit", tools: {}})
     })
 
     it('F3: "Allow all" saves allow with an empty tools map', () => {
@@ -48,7 +53,13 @@ describe("writing a preset", () => {
 
 describe("reading a preset back", () => {
     it("F5: each preset round trips", () => {
-        const presets: IntegrationPreset[] = ["always_ask", "ask_writes", "allow_all", "deny_all"]
+        const presets: IntegrationPreset[] = [
+            "always_ask",
+            "ask_writes",
+            "allow_all",
+            "deny_all",
+            "follow_agent",
+        ]
         for (const preset of presets) {
             expect(readIntegrationPreset(write(preset))).toEqual({preset, overrideCount: 0})
         }
@@ -92,8 +103,13 @@ describe("reading a preset back", () => {
         expect(integrationPermissionSummary({default: "allow", tools: {}}).label).toBe("Allow all")
         expect(integrationPermissionSummary({default: "deny", tools: {}}).label).toBe("Denied")
         expect(integrationPermissionSummary({default: "ask", tools: {}}).label).toBe("Always asks")
-        expect(integrationPermissionSummary({default: "inherit", tools: {}}).label).toBe(
+        expect(integrationPermissionSummary({default: "allow_reads", tools: {}}).label).toBe(
             "Allow reads",
+        )
+        // A connection saved `inherit` follows the agent. It must not read back as the preset
+        // that promises to ask for writes.
+        expect(integrationPermissionSummary({default: "inherit", tools: {}}).label).toBe(
+            "Follows agent policy",
         )
     })
 })

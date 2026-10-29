@@ -52,44 +52,6 @@ const {commitEntityRef} = useEntityCommit()
 commitEntityRef({type: "testset", id: entity.id, name: entity.name})
 ```
 
-### Entity-Specific Hooks
-
-```tsx
-// For revisions
-const {commitRevision} = useRevisionCommit()
-commitRevision(revisionId, revisionName)
-
-// For variants
-const {commitVariant} = useVariantCommit()
-commitVariant(variantId, variantName)
-```
-
-### Bound Commit Hook
-
-For components that need a pre-bound commit action based on entity state:
-
-```tsx
-import {useBoundCommit} from "@agenta/entity-ui"
-
-function CommitButton({revisionId, hasChanges}: Props) {
-    const {commit, canCommit, isCommitting} = useBoundCommit({
-        type: "revision",
-        id: revisionId,
-        name: "My Revision",
-        canCommit: hasChanges,
-        metadata: {loadableId: "playground-123"}, // Optional context for adapter
-    })
-
-    return (
-        <Button onClick={commit ?? undefined} disabled={!canCommit} loading={isCommitting}>
-            Commit
-        </Button>
-    )
-}
-```
-
-The `metadata` field passes context-specific information to the adapter's `commitContextAtom`, useful for scenarios like playground-derived column changes.
-
 ## Hook Return Types
 
 ```typescript
@@ -98,21 +60,6 @@ interface UseEntityCommitReturn {
     commitEntityRef: (entity: EntityReference, initialMessage?: string) => void
     isCommitting: boolean
     isOpen: boolean
-}
-
-interface UseBoundCommitOptions {
-    type: EntityType
-    id: string | null | undefined
-    name?: string
-    canCommit?: boolean // If false, commit action will be null
-    metadata?: Record<string, unknown> // Passed to adapter's commitContextAtom
-}
-
-interface UseBoundCommitReturn {
-    commit: (() => void) | null // null if id missing or canCommit is false
-    isCommitting: boolean
-    isOpen: boolean
-    canCommit: boolean
 }
 ```
 
@@ -133,7 +80,7 @@ interface UseBoundCommitReturn {
 | `commitModalEntityNameAtom` | `string`           | Display name from adapter             |
 | `commitModalCanCommitAtom`  | `boolean`          | Adapter validation result             |
 | `commitModalCanProceedAtom` | `boolean`          | Can submit (has message + can commit) |
-| `commitModalStateAtom`      | `CommitModalState` | Combined state object                 |
+| `commitModalStateAtom`      | object | Combined state object                 |
 
 ### Action Atoms
 

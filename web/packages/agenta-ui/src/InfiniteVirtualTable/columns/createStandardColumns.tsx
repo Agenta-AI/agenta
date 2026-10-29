@@ -38,7 +38,7 @@ let UserReferenceComponent: ComponentType<{userId: string | null | undefined}> =
  * @example
  * ```tsx
  * import { configureUserReference } from '@agenta/ui/table'
- * import { UserReference } from '@/oss/components/References'
+ * import { UserReference } from './UserReference' // app-layer component
  *
  * configureUserReference(UserReference)
  * ```

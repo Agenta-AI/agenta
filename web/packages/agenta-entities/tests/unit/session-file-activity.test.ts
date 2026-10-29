@@ -73,7 +73,23 @@ describe("drivePathFromToolPath", () => {
         ).toEqual({origin: "session", path: "notes/a.md"})
     })
 
+    it("strips the local durable root a run gets today, and the one it got before 2026-09", () => {
+        // The local root moved from `/tmp/agenta` to `/var/lib/agenta`; sessions recorded under the
+        // old one keep its paths forever, so both have to resolve to the same drive path.
+        expect(drivePathFromToolPath("/var/lib/agenta/mounts/proj-1/mount-1/notes/a.md")).toEqual({
+            origin: "session",
+            path: "notes/a.md",
+        })
+        expect(drivePathFromToolPath("/tmp/agenta/mounts/proj-1/mount-1/notes/a.md")).toEqual({
+            origin: "session",
+            path: "notes/a.md",
+        })
+    })
+
     it("routes the `<cwd>-agent` sibling mount to the agent origin", () => {
+        expect(
+            drivePathFromToolPath("/var/lib/agenta/mounts/proj-1/mount-1-agent/skills/SKILL.md"),
+        ).toEqual({origin: "agent", path: "skills/SKILL.md"})
         expect(
             drivePathFromToolPath("/tmp/agenta/mounts/proj-1/mount-1-agent/skills/SKILL.md"),
         ).toEqual({origin: "agent", path: "skills/SKILL.md"})
@@ -84,18 +100,31 @@ describe("drivePathFromToolPath", () => {
         ).toEqual({origin: "session", path: "agent-files/SKILL.md"})
     })
 
-    it("strips the ephemeral workspace roots a run without a durable mount gets", () => {
+    it("drops a throwaway run dir, which no drive holds", () => {
         expect(
             drivePathFromToolPath("/tmp/agenta-sandbox-agent-wzkOSy/workspace/src/i.ts"),
-        ).toEqual({origin: "session", path: "workspace/src/i.ts"})
-        expect(drivePathFromToolPath("/tmp/agenta-sandbox-agent-wzkOSy-agent/notes.md")).toEqual({
-            origin: "agent",
-            path: "notes.md",
-        })
-        expect(drivePathFromToolPath("/home/sandbox/agenta-a1b2c3d4e5f6/out.txt")).toEqual({
-            origin: "session",
-            path: "out.txt",
-        })
+        ).toBeNull()
+        expect(drivePathFromToolPath("/home/sandbox/agenta-a1b2c3d4e5f6/out.txt")).toBeNull()
+    })
+
+    // #7715: a user folder named like a throwaway run dir cut the path there and sent it to the
+    // agent mount, so `agent-files/agenta-outreach-agent/library/x.md` looked for `library/x.md`.
+    it("never cuts a path at a user folder named `agenta-*`", () => {
+        expect(
+            drivePathFromToolPath("/agent-files/agenta-outreach-agent/library/persona.md"),
+        ).toBeNull()
+        expect(drivePathFromToolPath("/agent-files/agenta-outreach-agent/README.md")).toBeNull()
+        expect(drivePathFromToolPath("/notes/agenta-demo/a.md")).toBeNull()
+        expect(
+            drivePathFromToolPath(
+                "/var/lib/agenta/mounts/proj-1/mount-1/agent-files/agenta-outreach-agent/a.md",
+            ),
+        ).toEqual({origin: "session", path: "agent-files/agenta-outreach-agent/a.md"})
+        expect(
+            drivePathFromToolPath(
+                "/var/lib/agenta/mounts/proj-1/mount-1-agent/agenta-x-agent/a.md",
+            ),
+        ).toEqual({origin: "agent", path: "agenta-x-agent/a.md"})
     })
 
     it("passes a cwd-relative path through, minus the `./` noise", () => {

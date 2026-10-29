@@ -55,7 +55,7 @@ const genericItems = (input: unknown): ApprovalPreviewItem[] => {
 }
 
 /** The path argument a file tool names, if it has one. */
-const pathArgument = (input: unknown): string | undefined => {
+export const pathArgument = (input: unknown): string | undefined => {
     if (!isRecord(input)) return undefined
     for (const key of PATH_KEYS) {
         const value = input[key]

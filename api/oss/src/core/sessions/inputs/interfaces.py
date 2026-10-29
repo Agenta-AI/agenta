@@ -7,6 +7,18 @@ from oss.src.core.sessions.inputs.dtos import PendingInput, PendingInputCreate
 
 class SessionInputsDAOInterface(ABC):
     @abstractmethod
+    async def claim_dispatch(
+        self, *, project_id: UUID, session_id: str, input_id: UUID, execution_id: str
+    ) -> bool:
+        pass
+
+    @abstractmethod
+    async def release_dispatch(
+        self, *, project_id: UUID, session_id: str, input_id: UUID, execution_id: str
+    ) -> bool:
+        pass
+
+    @abstractmethod
     def transaction(self) -> AsyncContextManager[Any]:
         pass
 
@@ -29,6 +41,12 @@ class SessionInputsDAOInterface(ABC):
         session_id: str,
         idempotency_key: str,
         transaction: Optional[Any] = None,
+    ) -> Optional[PendingInput]:
+        pass
+
+    @abstractmethod
+    async def fetch_by_execution_id(
+        self, *, project_id: UUID, session_id: str, execution_id: str
     ) -> Optional[PendingInput]:
         pass
 

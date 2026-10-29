@@ -1670,6 +1670,8 @@ export interface TraceMetrics {
     totalTokens?: number
     promptTokens?: number
     completionTokens?: number
+    cacheReadTokens?: number
+    cacheWriteTokens?: number
     totalCost?: number
 }
 
@@ -1824,6 +1826,18 @@ export const traceDataSummaryAtomFamily = atomFamily((traceId: string | null) =>
                 "metrics.tokens.cumulative.completion",
                 "metrics.acc.tokens.completion",
                 "ag.metrics.tokens.cumulative.completion",
+            ),
+            cacheReadTokens: extractMetricValue(
+                agData,
+                rootSpan,
+                "metrics.tokens.cumulative.cache_read",
+                "ag.metrics.tokens.cumulative.cache_read",
+            ),
+            cacheWriteTokens: extractMetricValue(
+                agData,
+                rootSpan,
+                "metrics.tokens.cumulative.cache_creation",
+                "ag.metrics.tokens.cumulative.cache_creation",
             ),
             totalCost: extractMetricValue(
                 agData,

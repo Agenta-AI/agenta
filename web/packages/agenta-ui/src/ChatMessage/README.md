@@ -110,7 +110,6 @@ function ChatEditor() {
 | `extractTextFromContent(content)`               | Extract text from content (string or parts) |
 | `extractDisplayTextFromMessage(message)`        | Get display text including tool calls       |
 | `hasAttachments(content)`                       | Check if content has images/files           |
-| `getAttachmentInfo(content)`                    | Get image and file counts                   |
 | `updateTextInContent(content, text)`            | Update text while preserving attachments    |
 | `addImageToContent(content, url, detail?)`      | Add image attachment                        |
 | `addFileToContent(content, data, name, format)` | Add file attachment                         |

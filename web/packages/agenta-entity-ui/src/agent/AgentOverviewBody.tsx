@@ -34,6 +34,8 @@ export interface AgentOverviewBodyProps {
     alwaysShowPin?: boolean
     /** Display names for the triggers section's bound-agent labels. */
     agentNames?: Map<string, string>
+    /** The Channels connect section, host-owned (it wires to the channels API). */
+    channels?: ReactNode
     /** Overrides the config card's tools-row wording, for a host that names the concept its way. */
     configCopy?: Partial<AgentConfigSummaryCopy>
 }
@@ -58,6 +60,7 @@ export const AgentOverviewBody = ({
     onRenameRow,
     alwaysShowPin,
     agentNames,
+    channels,
     configCopy,
 }: AgentOverviewBodyProps) => (
     <AgentOverviewLayout
@@ -103,6 +106,7 @@ export const AgentOverviewBody = ({
         rail={
             <PanelSurface className="flex flex-col gap-3">
                 <AgentConfigSummaryCard appId={agentId} onEdit={onEditConfig} copy={configCopy} />
+                {channels}
                 <AgentFilesCard appId={agentId} />
                 {/* Scoped to this agent. Automation RUNS say what already happened; an agent
                     whose schedule quietly stopped looks identical there. */}

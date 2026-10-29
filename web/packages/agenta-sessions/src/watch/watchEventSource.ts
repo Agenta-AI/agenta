@@ -1,5 +1,7 @@
 import {useEffect, useRef} from "react"
 
+import {joinTabLeadership, type TabLeadership} from "./tabLeader"
+
 const RETRY_BASE_MS = 1_000
 const RETRY_MAX_MS = 30_000
 const MIN_INTERVAL_MS = 3_000
@@ -32,17 +34,21 @@ export type RefreshSession = () => Promise<unknown>
  *   server events (or a reconnect loop) cannot fan out into a refetch storm. Interaction events
  *   bypass that window because a reader must see an approval answer within one second even when
  *   it follows the pending event immediately.
+ * - `shareAcrossTabs`: the tab the visible tabs elected holds the stream and relays its events to
+ *   the others (`tabLeader`), for a stream every tab would otherwise open for itself.
  */
 export const useWatchEventSource = ({
     url,
     enabled = true,
     on,
     refreshSession,
+    shareAcrossTabs = false,
 }: {
     url: string | null
     enabled?: boolean
     on: WatchEventHandlers
     refreshSession: RefreshSession
+    shareAcrossTabs?: boolean
 }): void => {
     const onRef = useRef(on)
     onRef.current = on
@@ -61,6 +67,9 @@ export const useWatchEventSource = ({
         let disposed = false
         let lastNotifiedAt: number | null = null
         let attempt = 0
+        // Set while this tab takes part in a shared stream; `leading` says whether it holds it.
+        let membership: TabLeadership | null = null
+        let leading = false
         const pendingEvents = new Map<string, MessageEvent<string>>()
 
         const flushPending = () => {
@@ -101,6 +110,7 @@ export const useWatchEventSource = ({
 
         const open = () => {
             if (disposed || source !== null || document.visibilityState !== "visible") return
+            if (membership && !leading) return
             const eventSource = new EventSource(url, {withCredentials: true})
             source = eventSource
             eventSource.onopen = () => {
@@ -108,7 +118,9 @@ export const useWatchEventSource = ({
             }
             for (const eventName of eventNames) {
                 eventSource.addEventListener(eventName, (event) => {
-                    notify(eventName, event as MessageEvent<string>)
+                    const message = event as MessageEvent<string>
+                    notify(eventName, message)
+                    membership?.relay({name: eventName, data: message.data})
                 })
             }
             eventSource.onerror = () => {
@@ -126,19 +138,58 @@ export const useWatchEventSource = ({
             }
         }
 
+        const onRelay = (payload: unknown) => {
+            if (!payload || typeof payload !== "object") return
+            const {name, data} = payload as {name?: unknown; data?: unknown}
+            if (typeof name !== "string" || !eventNames.includes(name)) return
+            notify(name, new MessageEvent(name, {data: typeof data === "string" ? data : ""}))
+        }
+
+        const join = () => {
+            if (disposed || document.visibilityState !== "visible") return
+            if (!shareAcrossTabs) {
+                open()
+                return
+            }
+            if (membership) return
+            membership = joinTabLeadership({
+                channelName: `agenta-watch:${url}`,
+                onLeadChange: (lead) => {
+                    leading = lead
+                    if (lead) open()
+                    else close()
+                },
+                onRelay,
+            })
+            if (!membership) {
+                open()
+                return
+            }
+            // A tab that follows hears only what happens from now on. `ready` is what a stream
+            // sends on every connect to cover the gap, so the tab raises it for itself.
+            if (eventNames.includes("ready")) notify("ready", new MessageEvent("ready", {data: ""}))
+        }
+
+        const leave = () => {
+            membership?.leave()
+            membership = null
+            leading = false
+            close()
+        }
+
         const onVisibility = () => {
-            if (document.visibilityState === "visible") open()
-            else close()
+            if (document.visibilityState === "visible") join()
+            else leave()
         }
 
         document.addEventListener("visibilitychange", onVisibility)
-        open()
+        join()
         return () => {
             disposed = true
             document.removeEventListener("visibilitychange", onVisibility)
             if (retryHandle !== undefined) window.clearTimeout(retryHandle)
             if (trailingHandle !== undefined) window.clearTimeout(trailingHandle)
-            close()
+            leave()
         }
-    }, [enabled, eventNamesKey, url])
+    }, [enabled, eventNamesKey, shareAcrossTabs, url])
 }

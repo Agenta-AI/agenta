@@ -1,14 +1,15 @@
 import {useCallback, useState} from "react"
 
-import {stagedFilesToParts, useComposerAttachments} from "@agenta/chat/hooks"
+import {stagedFilesToOutbound, useComposerAttachments} from "@agenta/chat/hooks"
 import {markSessionFresh} from "@agenta/chat/state"
-import {useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import {newId} from "@/lib/ids"
 
 import {useNewAgentAction} from "../agents/useNewAgentAction"
 
+import {lastStartedAgentIdAtom, rememberStartedAgentAtom} from "./lastStartedAgent"
 import {stashPendingTaskAtom, takePendingTaskAtom} from "./pendingTask"
 
 /**
@@ -20,9 +21,12 @@ import {stashPendingTaskAtom, takePendingTaskAtom} from "./pendingTask"
  * to upload against before the session exists. Creating an agent reuses that same id, so a file
  * staged before "+ New" was pressed still rides along.
  */
-export const useHomeHandoff = (base: string) => {
+export const useHomeHandoff = (base: string, projectId: string) => {
     const router = useRouter()
     const stash = useSetAtom(stashPendingTaskAtom)
+    const rememberAgent = useSetAtom(rememberStartedAgentAtom)
+    // The agent the last chat here was started with; `HomeFocus` falls back past a stale one.
+    const preferredAgentId = useAtomValue(lastStartedAgentIdAtom(projectId))
     const dropPendingTask = useSetAtom(takePendingTaskAtom)
     const newAgent = useNewAgentAction(base)
     const [sessionId] = useState(() => {
@@ -31,22 +35,22 @@ export const useHomeHandoff = (base: string) => {
         markSessionFresh(id)
         return id
     })
-    const attachments = useComposerAttachments({sessionId})
+    const attachments = useComposerAttachments({sessionId, largeFilesToDrive: true})
     // The task path navigates too, and the moment between send and the chat route mounting was
     // silent. On success the page unmounts, so this only ever has to come back down on failure.
     const [starting, setStarting] = useState(false)
 
-    const stagedParts = useCallback(() => {
-        const staged = attachments.files
-        return {
-            staged,
-            parts: staged.length > 0 ? stagedFilesToParts(staged, sessionId) : undefined,
-        }
-    }, [attachments.files, sessionId])
+    const stagedParts = useCallback(
+        (typed: string) => {
+            const staged = attachments.files
+            return {staged, ...stagedFilesToOutbound(typed, staged, sessionId)}
+        },
+        [attachments.files, sessionId],
+    )
 
     const onStartTask = useCallback(
-        async ({agentId, text}: {agentId: string; text: string}) => {
-            const {staged, parts} = stagedParts()
+        async ({agentId, text: typed}: {agentId: string; text: string}) => {
+            const {staged, parts, text} = stagedParts(typed)
             stash({sessionId, task: {agentId, text, parts}})
             setStarting(true)
             // Cleared BEFORE the navigation. The chat route seeds its own tray from the
@@ -68,13 +72,34 @@ export const useHomeHandoff = (base: string) => {
                 setStarting(false)
                 return
             }
+            // Remembered once the chat route has taken the task: the next visit should open on
+            // the agent a chat was actually begun with, and a start that never landed is not that.
+            rememberAgent({projectId, agentId})
         },
-        [attachments, base, dropPendingTask, router, sessionId, stagedParts, stash],
+        [
+            attachments,
+            base,
+            dropPendingTask,
+            projectId,
+            rememberAgent,
+            router,
+            sessionId,
+            stagedParts,
+            stash,
+        ],
     )
 
     const onCreateFromPrompt = useCallback(
-        async ({text, templateName}: {text: string; templateName?: string}) => {
-            const {staged, parts} = stagedParts()
+        async ({
+            text: typed,
+            templateName,
+            templateKey,
+        }: {
+            text: string
+            templateName?: string
+            templateKey?: string
+        }) => {
+            const {staged, parts, text} = stagedParts(typed)
             // Same ordering as `onStartTask`: the create navigates to the chat route, which seeds
             // its tray from the store on mount, so the rows must be gone before that.
             attachments.clearAttachments(staged.map((file) => file.uid))
@@ -85,6 +110,9 @@ export const useHomeHandoff = (base: string) => {
                 // A template names the agent after itself; free text leaves the create core's
                 // own default to name it from the task.
                 name: templateName,
+                // Carries the template's accounts to the session's connect step. Absent for free
+                // text, which has nothing declarable to ask for.
+                templateKey,
             })
             if (ok) return
             // The same channel the chat composer uses for a send that did not land: docked above
@@ -97,5 +125,12 @@ export const useHomeHandoff = (base: string) => {
         [attachments, newAgent, sessionId, stagedParts],
     )
 
-    return {attachments, onStartTask, onCreateFromPrompt, sending: starting || newAgent.creating}
+    return {
+        attachments,
+        preferredAgentId,
+        onStartTask,
+        onCreateFromPrompt,
+        sending: starting || newAgent.creating,
+        newAgent,
+    }
 }

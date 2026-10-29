@@ -1,304 +1,127 @@
-import {type ReactNode, useCallback, useMemo, useState} from "react"
+import {type ReactNode, useMemo, useState} from "react"
 
 import {
     activeModelsSummary,
     credentialSummary,
     deleteSecretAtom,
     isSubscriptionConnection,
-    subscriptionIsReady,
     SecretManagementPolicy,
     providerConnectionsAtom,
     useVaultSecret,
     type ProviderConnection,
 } from "@agenta/entities/secret"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
-import {
-    ProviderDrawer,
-    providerIconFor,
-    SubscriptionConnectionCard,
-} from "@agenta/entity-ui/secretProvider"
-import {formatDay} from "@agenta/shared/utils/dateTime"
-import {Button, DataTable, EmptyState, type DataTableColumn} from "@agenta/ui/ui"
-import {PencilSimpleLine, Plus, Trash, WarningCircle} from "@phosphor-icons/react"
+import {type OrganizationProjectChoice} from "@agenta/entity-ui/secretProvider"
+import {Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/ui/ui"
 import {useAtomValue, useSetAtom} from "jotai"
+
+import {OrganizationProvidersPanel} from "./OrganizationProvidersPanel"
+import {ProvidersPanel, type ProviderRemovalState, type ProvidersSource} from "./ProvidersPanel"
+
+export type {ProviderRemovalState}
 
 /** The capability map is global; the key only records which surface asked for it. */
 const HARNESS_CATALOG_KEY = "agenta:settings:ai-providers"
 
 export const SUBSCRIPTION_DOCS_URL = "https://docs.agenta.ai/self-host/quick-start"
 
-/** What the host needs to render its own confirm chrome; the page owns the removal itself. */
-export interface ProviderRemovalState {
-    connection: ProviderConnection | null
-    open: boolean
-    pending: boolean
-    error: string | null
-    onConfirm: () => void
-    onClose: () => void
+/** What the Project and Organization tabs need from the host. */
+export interface AIProvidersOrganization {
+    /** The current project's name, for "Project · {project}". */
+    projectName: string
+    /** The organization's name, for "Organization · {org}" and the drawer's copy. */
+    name: string
+    /** `choose` (EE with RBAC), `plan` (EE without it), `all` (OSS). */
+    projectChoice: OrganizationProjectChoice
+    /** Where "See plans" points. */
+    plansHref?: string
 }
 
 export interface AIProvidersPageProps {
-    /**
-     * Removal confirmation. The page runs the delete and tracks pending/error; the host only
-     * supplies the surface — a modal on desktop, a bottom sheet on mobile. Without one the
-     * delete verb hides rather than going dead.
-     */
+    /** The host's confirm surface; the page runs the delete. Absent hides the Delete verb. */
     renderRemoveDialog?: (state: ProviderRemovalState) => ReactNode
     /** Where "configured in the deployment" points. */
     subscriptionDocsUrl?: string
+    /** Turns on the Project and Organization tabs. Absent keeps the project page alone. */
+    organization?: AIProvidersOrganization
 }
 
-interface ConnectionRow extends ProviderConnection {
-    key: string
+/** Settings → AI providers, with one tab per owner when the host names the organization. */
+export const AIProvidersPage = ({organization, ...props}: AIProvidersPageProps) => {
+    const [tab, setTab] = useState<"project" | "organization">("project")
+    if (!organization) return <ProjectProvidersPanel {...props} />
+    return (
+        <Tabs value={tab} onValueChange={(next) => setTab(next as typeof tab)}>
+            <TabsList variant="line" className="mb-5">
+                <TabsTrigger value="project">Project · {organization.projectName}</TabsTrigger>
+                <TabsTrigger value="organization">Organization · {organization.name}</TabsTrigger>
+            </TabsList>
+            <TabsContent value="project">
+                <ProjectProvidersPanel {...props} />
+            </TabsContent>
+            <TabsContent value="organization">
+                <OrganizationProvidersPanel
+                    scope={{
+                        name: organization.name,
+                        projectChoice: organization.projectChoice,
+                        plansHref: organization.plansHref,
+                    }}
+                    renderRemoveDialog={props.renderRemoveDialog}
+                    subscriptionDocsUrl={props.subscriptionDocsUrl ?? SUBSCRIPTION_DOCS_URL}
+                />
+            </TabsContent>
+        </Tabs>
+    )
 }
 
-/**
- * Settings → AI providers.
- *
- * One table of CONNECTIONS, not of providers: a project may hold two OpenAI keys, and each is its
- * own row with its own name, models, and harnesses. Clicking a row opens that connection's card
- * directly; "Add provider" opens the same drawer at the catalog. No toasts anywhere in the flow —
- * the card carries its own errors, and a removal that fails says so under the table it happened in.
- *
- * Design: docs/design/provider-connections-models/experience.md ("Settings page").
- */
-export const AIProvidersPage = ({
+/** The project's own AI providers: one row per connection, and every provider stays connectable. */
+const ProjectProvidersPanel = ({
     renderRemoveDialog,
     subscriptionDocsUrl = SUBSCRIPTION_DOCS_URL,
-}: AIProvidersPageProps) => {
+}: Omit<AIProvidersPageProps, "organization">) => {
     const {loading, mutate} = useVaultSecret()
     const connections = useAtomValue(providerConnectionsAtom)
     const capabilities = useAtomValue(harnessCapabilitiesAtomFamily(HARNESS_CATALOG_KEY))
     const deleteSecret = useSetAtom(deleteSecretAtom)
 
-    const [drawerOpen, setDrawerOpen] = useState(false)
-    const [selected, setSelected] = useState<ProviderConnection | null>(null)
-    const [pendingRemoval, setPendingRemoval] = useState<ProviderConnection | null>(null)
-    const [removing, setRemoving] = useState(false)
-    const [removeError, setRemoveError] = useState<string | null>(null)
-
-    const canRemove = Boolean(renderRemoveDialog)
-
-    // A connection Agenta provisioned is not the user's to edit or remove — the API answers 409 —
-    // so it is not listed here. It stays in `providerConnectionsAtom`, which is what the composer
-    // gate and the model pickers count: hiding the row must not make the project look keyless,
-    // which is also why the drawer below still receives the unfiltered list.
-    // A subscription connection has no credential to show in a Credential column and no card to
-    // edit; it gets its own panel above the table instead.
-    const rows = useMemo<ConnectionRow[]>(
-        () =>
-            connections
-                .filter(
-                    (connection) =>
-                        connection.managementPolicy !== SecretManagementPolicy.ManagerOnly &&
-                        !isSubscriptionConnection(connection),
-                )
-                .map((connection) => ({...connection, key: connection.id})),
-        [connections],
-    )
-
-    const subscription = useMemo(
-        () => connections.find(isSubscriptionConnection) ?? null,
-        [connections],
-    )
-    const subscriptionConnected = subscriptionIsReady(subscription?.subscription)
-
-    const openCatalog = useCallback(() => {
-        setSelected(null)
-        setDrawerOpen(true)
-    }, [])
-
-    const openConnection = useCallback((connection: ProviderConnection) => {
-        setSelected(connection)
-        setDrawerOpen(true)
-    }, [])
-
-    const removeConnection = useCallback(async () => {
-        if (!pendingRemoval) return
-        setRemoving(true)
-        setRemoveError(null)
-        try {
-            await deleteSecret(pendingRemoval.source)
-            mutate()
-            setPendingRemoval(null)
-        } catch {
-            // No toast anywhere in this flow: the failure is stated under the table it happened in.
-            setRemoveError(`Agenta could not remove ${pendingRemoval.name}. Try again.`)
-            setPendingRemoval(null)
-        } finally {
-            setRemoving(false)
+    const source = useMemo<ProvidersSource>(() => {
+        // Manager-only rows 409 on edit; the drawer still gets every connection so none look
+        // keyless.
+        const rows = connections.filter(
+            (connection) =>
+                connection.managementPolicy !== SecretManagementPolicy.ManagerOnly &&
+                !isSubscriptionConnection(connection),
+        )
+        return {
+            connections,
+            rows,
+            loading: loading && rows.length === 0,
+            describe: (connection: ProviderConnection) =>
+                [
+                    connection.title !== connection.name ? connection.title : null,
+                    credentialSummary(connection),
+                    activeModelsSummary(connection, capabilities),
+                ]
+                    .filter(Boolean)
+                    .join(" · "),
+            manage: true,
+            remove: async (connection: ProviderConnection) => {
+                await deleteSecret(connection.source)
+                mutate()
+            },
+            removeFailed: (_failure: unknown, connection: ProviderConnection) =>
+                `Agenta could not remove ${connection.name}. Try again.`,
+            catalog: {},
+            subscriptions: connections,
+            onSaved: mutate,
         }
-    }, [deleteSecret, mutate, pendingRemoval])
-
-    const columns = useMemo<DataTableColumn<ConnectionRow>[]>(
-        () => [
-            {
-                key: "kind",
-                title: "Provider",
-                width: 200,
-                render: (record) => {
-                    const Icon = providerIconFor(record.kind)
-                    return (
-                        <div className="flex min-w-0 items-center gap-2">
-                            <Icon className="size-5 shrink-0" />
-                            <span className="truncate">{record.title}</span>
-                        </div>
-                    )
-                },
-            },
-            {
-                key: "name",
-                title: "Name",
-                width: 200,
-                render: (record) => <span className="truncate">{record.name}</span>,
-            },
-            // Provider and Name identify the row and stay on a phone; the rest are a wider
-            // screen's, reachable there — see `DataTableColumn.responsive` (#6206).
-            {
-                key: "credential",
-                title: "Credential",
-                width: 220,
-                responsive: "md",
-                render: (record) => (
-                    <span className="font-mono text-xs">{credentialSummary(record)}</span>
-                ),
-            },
-            {
-                key: "models",
-                title: "Active models",
-                width: 180,
-                responsive: "md",
-                render: (record) => activeModelsSummary(record, capabilities),
-            },
-            {
-                key: "created_at",
-                title: "Created",
-                width: 170,
-                responsive: "md",
-                render: (record) =>
-                    record.createdAt
-                        ? formatDay({date: record.createdAt, outputFormat: "YYYY-MM-DD HH:mm"})
-                        : "-",
-            },
-        ],
-        [capabilities],
-    )
+    }, [connections, loading, capabilities, deleteSecret, mutate])
 
     return (
-        <>
-            <section className="flex flex-col gap-4">
-                <SubscriptionConnectionCard
-                    connection={subscription}
-                    onRemove={
-                        canRemove
-                            ? (record) => {
-                                  setRemoveError(null)
-                                  setPendingRemoval(record)
-                              }
-                            : undefined
-                    }
-                />
-
-                <DataTable<ConnectionRow>
-                    className="ph-no-capture"
-                    columns={columns}
-                    rows={rows}
-                    rowKey={(record) => record.key}
-                    loading={loading}
-                    onRowClick={openConnection}
-                    actions={(record) => [
-                        {
-                            key: "edit",
-                            label: "Edit",
-                            icon: <PencilSimpleLine size={16} />,
-                            onClick: () => openConnection(record),
-                        },
-                        {type: "divider"},
-                        {
-                            key: "delete",
-                            label: "Delete",
-                            icon: <Trash size={16} />,
-                            danger: true,
-                            hidden: !canRemove,
-                            onClick: () => {
-                                setRemoveError(null)
-                                setPendingRemoval(record)
-                            },
-                        },
-                    ]}
-                    primaryActions={
-                        <Button disabled={loading} onClick={openCatalog}>
-                            <Plus size={14} />
-                            Add provider
-                        </Button>
-                    }
-                    empty={
-                        <EmptyState
-                            image="simple"
-                            description={
-                                <div className="flex flex-col gap-1">
-                                    {/* The table lists API-key connections only, so its empty
-                                        state must not claim the project has nothing connected
-                                        while the subscription card above says Connected. */}
-                                    <span className="text-xs font-medium text-colorText">
-                                        {subscriptionConnected
-                                            ? "No API keys connected"
-                                            : "No providers connected"}
-                                    </span>
-                                    <span>
-                                        {subscriptionConnected
-                                            ? "Your ChatGPT subscription runs agents already. Add an API key to use another provider, or to run prompts and evaluations."
-                                            : "Connect a provider with your own API key to run agents, prompts, and evaluations."}
-                                    </span>
-                                </div>
-                            }
-                        >
-                            <Button variant="outline" onClick={openCatalog}>
-                                <Plus size={14} />
-                                Add provider
-                            </Button>
-                        </EmptyState>
-                    }
-                />
-
-                {removeError ? (
-                    <span className="flex items-center gap-1 text-xs text-colorError">
-                        <WarningCircle size={14} />
-                        {removeError}
-                    </span>
-                ) : null}
-
-                <p className="m-0 text-xs text-colorTextSecondary">
-                    A Claude subscription is detected by the runner from your deployment&apos;s
-                    mounted login folder and is not listed here.{" "}
-                    <a href={subscriptionDocsUrl} target="_blank" rel="noreferrer">
-                        Set one up
-                    </a>
-                    .
-                </p>
-            </section>
-
-            {renderRemoveDialog?.({
-                connection: pendingRemoval,
-                open: !!pendingRemoval,
-                pending: removing,
-                error: removeError,
-                onConfirm: () => void removeConnection(),
-                onClose: () => setPendingRemoval(null),
-            })}
-
-            <ProviderDrawer
-                open={drawerOpen}
-                onClose={() => {
-                    setDrawerOpen(false)
-                    setSelected(null)
-                }}
-                context="settings"
-                connections={connections}
-                connection={selected}
-                onSaved={mutate}
-                subscriptionDocsUrl={subscriptionDocsUrl}
-            />
-        </>
+        <ProvidersPanel
+            source={source}
+            renderRemoveDialog={renderRemoveDialog}
+            subscriptionDocsUrl={subscriptionDocsUrl}
+        />
     )
 }

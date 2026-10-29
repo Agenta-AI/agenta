@@ -6,11 +6,9 @@ import {
     invalidateToolConnections,
     useToolConnectionsQuery,
 } from "@agenta/entities/gatewayTool"
-import {getAgentaApiUrl, getAgentaWebUrl} from "@agenta/shared/api"
 import {defaultConnectionName, generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
-import {EnhancedModal, ModalContent, ModalFooter, message} from "@agenta/ui"
+import {EnhancedModal, ModalContent, ModalFooter} from "@agenta/ui"
 import {
-    Divider,
     Field,
     Input,
     Select,
@@ -20,6 +18,8 @@ import {
     SelectValue,
 } from "@agenta/ui/ui"
 import Image from "next/image"
+
+import {openToolAuthPopup} from "../utils/openToolAuthPopup"
 
 const DEFAULT_PROVIDER = "composio"
 
@@ -34,6 +34,8 @@ interface Props {
     authSchemes: string[]
     onClose: () => void
     onSuccess?: () => void
+    /** A drawer panel to open inside, masking only that drawer. Absent = the page. */
+    container?: HTMLElement | null
 }
 
 function resolveAvailableModes(authSchemes: string[]): AuthMode[] {
@@ -58,8 +60,12 @@ export default function ConnectDrawer({
     authSchemes,
     onClose,
     onSuccess,
+    container = null,
 }: Props) {
     const [loading, setLoading] = useState(false)
+    /** A failed create said NOTHING before — the spinner just stopped, indistinguishable from
+     * a popup that never came. The server's refusal must reach the person who clicked. */
+    const [submitError, setSubmitError] = useState<string | null>(null)
     // One suffix per drawer instance keeps the derived slug stable while the author edits the name.
     const slugSuffixRef = useRef(randomAlphanumeric(3))
 
@@ -71,6 +77,9 @@ export default function ConnectDrawer({
     const seedName = defaultConnectionName(integrationName, existingCount)
 
     const nameTouchedRef = useRef(false)
+    // An open auth popup's listener and poll; stopped if the drawer unmounts first.
+    const popupCleanupRef = useRef<(() => void) | null>(null)
+    useEffect(() => () => popupCleanupRef.current?.(), [])
     const [name, setName] = useState(seedName)
     const [nameError, setNameError] = useState<string | null>(null)
     const slug = generateDefaultSlug(
@@ -91,6 +100,7 @@ export default function ConnectDrawer({
         slugSuffixRef.current = randomAlphanumeric(3)
         setName(seedName)
         setNameError(null)
+        setSubmitError(null)
         setLoading(false)
         onClose()
     }, [onClose, seedName])
@@ -106,6 +116,7 @@ export default function ConnectDrawer({
             return
         }
         setNameError(null)
+        setSubmitError(null)
         try {
             setLoading(true)
 
@@ -125,68 +136,32 @@ export default function ConnectDrawer({
                 ?.redirect_url
             if (typeof redirectUrl === "string" && redirectUrl) {
                 // Composio handles all auth (OAuth and API key) via their redirect UI
-                const popup = window.open(
-                    redirectUrl,
-                    "tools_oauth",
-                    "width=600,height=700,popup=yes",
-                )
-                if (!popup) {
-                    setLoading(false)
-                    message.warning("Popup blocked. Redirecting in this tab.")
-                    window.location.assign(redirectUrl)
-                    return
-                }
-
                 const connectionId = result.connection?.id
-
-                const onAuthDone = async () => {
-                    window.focus()
-                    if (connectionId) {
-                        try {
-                            await fetchToolConnection(connectionId)
-                        } catch {
-                            /* best-effort */
+                popupCleanupRef.current = openToolAuthPopup(redirectUrl, () => {
+                    popupCleanupRef.current = null
+                    void (async () => {
+                        if (connectionId) {
+                            try {
+                                await fetchToolConnection(connectionId)
+                            } catch {
+                                /* best-effort */
+                            }
                         }
-                    }
-                    invalidateConnections()
-                    handleClose()
-                    onSuccess?.()
-                }
-
-                const trustedOrigins = new Set<string>([window.location.origin])
-                for (const url of [getAgentaApiUrl(), getAgentaWebUrl()]) {
-                    if (!url) continue
-                    try {
-                        trustedOrigins.add(new URL(url).origin)
-                    } catch {
-                        // ignore invalid env URLs
-                    }
-                }
-
-                const handler = (event: MessageEvent) => {
-                    if (
-                        event.data?.type === "tools:oauth:complete" &&
-                        trustedOrigins.has(event.origin)
-                    ) {
-                        window.removeEventListener("message", handler)
-                        void onAuthDone()
-                    }
-                }
-                window.addEventListener("message", handler)
-
-                // Fallback: detect popup closed
-                const pollTimer = setInterval(() => {
-                    if (popup && popup.closed) {
-                        clearInterval(pollTimer)
-                        window.removeEventListener("message", handler)
-                        void onAuthDone()
-                    }
-                }, 1000)
+                        invalidateConnections()
+                        handleClose()
+                        onSuccess?.()
+                    })()
+                })
+                if (!popupCleanupRef.current) setLoading(false)
             } else {
                 handleClose()
                 onSuccess?.()
             }
-        } catch {
+        } catch (error) {
+            console.error("[ConnectDrawer] create connection failed", error)
+            setSubmitError(
+                "Couldn't start the connection — the server rejected it. Try again; if it keeps failing, this deployment's connections provider isn't configured.",
+            )
             setLoading(false)
         }
     }, [slug, name, selectedMode, integrationKey, handleClose, onSuccess, invalidateConnections])
@@ -195,45 +170,48 @@ export default function ConnectDrawer({
         <EnhancedModal
             open={open}
             onCancel={handleClose}
-            title={`Connect to ${integrationName}`}
-            footer={null}
-            width={480}
-            destroyOnClose
-        >
-            <ModalContent>
-                {/* Integration header */}
-                <div className="flex items-center gap-3">
-                    {integrationLogo && (
+            // The integration's mark heads the dialog, beside the close button.
+            title={
+                <span className="flex size-8 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-solid border-border bg-background shadow-xs">
+                    {integrationLogo ? (
                         <Image
                             src={integrationLogo}
                             alt={integrationName}
-                            width={36}
-                            height={36}
-                            className="w-9 h-9 rounded object-contain shrink-0"
+                            width={18}
+                            height={18}
+                            className="size-[18px] object-contain"
                             unoptimized
                         />
+                    ) : (
+                        <span className="text-sm font-semibold text-muted-foreground">
+                            {integrationName.charAt(0).toUpperCase()}
+                        </span>
                     )}
-                    <div className="flex flex-col min-w-0">
-                        <span className="font-medium leading-snug">{integrationName}</span>
-                        {integrationDescription && (
-                            <span className="text-xs text-colorTextDescription line-clamp-2">
-                                {integrationDescription}
-                            </span>
-                        )}
-                    </div>
+                </span>
+            }
+            footer={null}
+            width={480}
+            destroyOnClose
+            getContainer={container ?? false}
+            contained={!!container}
+        >
+            <ModalContent>
+                <div className="flex flex-col gap-1">
+                    <span className="text-base font-medium leading-snug text-foreground">
+                        Connect {integrationName}
+                    </span>
+                    {integrationDescription && (
+                        <span className="text-sm text-colorTextDescription line-clamp-2">
+                            {integrationDescription}
+                        </span>
+                    )}
                 </div>
-
-                <Divider className="!m-0" />
 
                 {/* Form (explicitly controlled — no antd Form) */}
                 <div className="flex flex-col gap-4">
-                    <Field
-                        label="Name"
-                        required
-                        tooltip="Display name for this connection"
-                        error={nameError}
-                    >
+                    <Field label="Name" error={nameError}>
                         <Input
+                            autoFocus
                             placeholder={`e.g. My ${integrationName} Account`}
                             value={name}
                             aria-invalid={nameError ? true : undefined}
@@ -266,7 +244,11 @@ export default function ConnectDrawer({
                     )}
                 </div>
 
-                <Divider className="!m-0" />
+                {submitError ? (
+                    <p className="m-0 text-xs leading-snug text-[var(--ag-colorError)]">
+                        {submitError}
+                    </p>
+                ) : null}
 
                 <ModalFooter
                     onCancel={handleClose}

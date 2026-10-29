@@ -4,7 +4,7 @@
  * What the agent may do through one connection, per tool key.
  */
 export interface GatewayPermissions {
-    default: GatewayPermissions.Default;
+    default?: GatewayPermissions.Default | undefined;
     tools?: Record<string, GatewayPermissions.Tools.Value> | undefined;
 }
 
@@ -14,6 +14,7 @@ export namespace GatewayPermissions {
         Allow: "allow",
         Ask: "ask",
         Deny: "deny",
+        AllowReads: "allow_reads",
     } as const;
     export type Default = (typeof Default)[keyof typeof Default];
 
@@ -23,6 +24,7 @@ export namespace GatewayPermissions {
             Allow: "allow",
             Ask: "ask",
             Deny: "deny",
+            AllowReads: "allow_reads",
         } as const;
         export type Value = (typeof Value)[keyof typeof Value];
     }

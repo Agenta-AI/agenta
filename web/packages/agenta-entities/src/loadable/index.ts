@@ -57,10 +57,7 @@
 
 export type {
     // Loadable-specific types
-    LoadableMode,
     LoadableSourceType,
-    ConnectedSource,
-    LinkedRunnable,
     LoadableState,
     OutputMapping,
     // Re-exported shared types (from runnable/types)

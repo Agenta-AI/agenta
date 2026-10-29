@@ -11,6 +11,9 @@ Rules:
 - unset enabled providers means exactly ``local``;
 - an explicitly empty list is invalid;
 - unknown and duplicate ids are invalid;
+- ``inprocess`` is enabled wherever ``daytona`` is, with no setting of its own (added last,
+  so a default taken from the head of the list stays ``daytona``); who is offered it is
+  decided by the per-user preference in the web app;
 - the default must be enabled; unset default means ``local``.
 """
 
@@ -19,7 +22,8 @@ from __future__ import annotations
 import os
 from typing import List, Optional
 
-KNOWN_SANDBOX_PROVIDERS = ("local", "daytona")
+# `inprocess` runs Pi inside the runner; a Daytona sandbox runs only its tool calls.
+KNOWN_SANDBOX_PROVIDERS = ("local", "daytona", "inprocess")
 
 
 class SandboxProviderConfigError(ValueError):
@@ -57,6 +61,18 @@ def parse_enabled_sandbox_providers(raw: Optional[str]) -> List[str]:
     return ids
 
 
+def with_implied_sandbox_providers(ids: List[str]) -> List[str]:
+    """The effective enabled list: ``inprocess`` follows ``daytona``.
+
+    Its commands run in a Daytona sandbox, so it needs nothing ``daytona`` does not
+    already have. The runner (``withImpliedProviders``), the API mirror and
+    ``web/entrypoint.sh`` apply the same rule.
+    """
+    if "daytona" in ids and "inprocess" not in ids:
+        return [*ids, "inprocess"]
+    return list(ids)
+
+
 def parse_default_sandbox_provider(raw: Optional[str], enabled: List[str]) -> str:
     """Parse ``AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER``; unset -> ``local``; must be enabled."""
     value = (raw or "").strip().lower() or "local"
@@ -75,9 +91,11 @@ def parse_default_sandbox_provider(raw: Optional[str], enabled: List[str]) -> st
 
 
 def enabled_sandbox_providers(env=os.environ) -> List[str]:
-    """The enabled provider set, parsed from the environment."""
-    return parse_enabled_sandbox_providers(
-        env.get("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS")
+    """The effective enabled provider set, parsed from the environment."""
+    return with_implied_sandbox_providers(
+        parse_enabled_sandbox_providers(
+            env.get("AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS")
+        )
     )
 
 
@@ -87,6 +105,25 @@ def default_sandbox_provider(env=os.environ) -> str:
         env.get("AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER"),
         enabled_sandbox_providers(env),
     )
+
+
+def run_default_sandbox_provider(env=os.environ) -> str:
+    """The provider a run gets when its agent names no ``sandbox.kind``.
+
+    The configured default when it is enabled, else the first enabled provider, else
+    ``local``. It never raises: a bad registry is reported by the runner and the API at boot,
+    and a template must still parse here.
+    """
+    try:
+        enabled = enabled_sandbox_providers(env)
+    except SandboxProviderConfigError:
+        return "local"
+    configured = (
+        (env.get("AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER") or "").strip().lower()
+    )
+    if configured in enabled:
+        return configured
+    return enabled[0] if enabled else "local"
 
 
 def sandbox_provider_enabled(provider: str, env=os.environ) -> bool:

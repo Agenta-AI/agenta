@@ -21,7 +21,7 @@ Further investigation revealed multiple places in the pipeline where a single fa
 
 ## Quick Links
 
-- **Worktree deployment**: `http://144.76.237.122:8480`
+- **Worktree deployment**: `http://<dev-host>:8480`
 - **Branch**: `feat/otlp-best-effort-hardening`
 - **Key files modified**:
   - `api/oss/src/apis/fastapi/tracing/utils.py`

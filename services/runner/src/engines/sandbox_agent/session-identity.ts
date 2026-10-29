@@ -42,7 +42,7 @@ export interface KeepaliveConfig {
   poolMax: number;
 }
 
-export type KeepaliveProviderName = "local" | "daytona";
+export type KeepaliveProviderName = "local" | "daytona" | "inprocess";
 
 const KEEPALIVE_ENV = "AGENTA_RUNNER_SESSION_KEEPALIVE";
 const TTL_ENV = "AGENTA_RUNNER_SESSION_TTL_MS";
@@ -68,6 +68,8 @@ const DAYTONA_POOL_MAX_ENV = "AGENTA_RUNNER_DAYTONA_SESSION_MAX_WARM";
 // enabled after the E3 live verification. 0 disables keeping Daytona sandboxes running.
 const DEFAULT_DAYTONA_TTL_MS = 120_000;
 const DEFAULT_DAYTONA_POOL_MAX = 20;
+/** Warm in-process sessions one runner keeps: larger than `local`'s, because eviction also stops the conversation's command sandbox. */
+const INPROCESS_POOL_MAX = 64;
 
 function positiveIntEnv(name: string, fallback: number): number {
   const raw = process.env[name];
@@ -119,6 +121,10 @@ export function readKeepaliveConfig(
       // pool's host-memory budget; Slice 4 adds the strict warm-slot accounting semantics.
       poolMax: positiveIntEnv(DAYTONA_POOL_MAX_ENV, DEFAULT_DAYTONA_POOL_MAX),
     };
+  }
+  if (provider === "inprocess") {
+    // Local windows, because the warm state is a few MB of this process.
+    return { ...readKeepaliveConfig("local"), poolMax: INPROCESS_POOL_MAX };
   }
   return {
     enabled: boolEnv(KEEPALIVE_ENV, true),
@@ -301,6 +307,10 @@ function configShape(request: AgentRunRequest) {
           provider: request.modelConnection.provider,
           deployment: request.modelConnection.deployment,
           endpoint: request.modelConnection.endpoint ?? null,
+          // Only when present, so every connection without it keeps the identity it had.
+          ...(request.modelConnection.protocol
+            ? { protocol: request.modelConnection.protocol }
+            : {}),
           credentialMode: request.modelConnection.credentialMode,
           environment: request.modelConnection.environment ?? null,
           credentials: (request.modelConnection.credentials ?? []).map(
@@ -321,12 +331,17 @@ function configShape(request: AgentRunRequest) {
           // exactly the case warm reuse is for; hashing it would cold-start a session for a token
           // rotation the harness handled itself. And the login is a credential — it does not enter
           // a digest input any more than it enters a log line.
-          subscription: request.modelConnection.subscription
-            ? {
-                id: request.modelConnection.subscription.id,
-                generation: request.modelConnection.subscription.generation,
-              }
-            : null,
+          subscription:
+            (request.modelConnection.organizationSubscription ??
+            request.modelConnection.subscription)
+              ? {
+                  id: (request.modelConnection.organizationSubscription ??
+                    request.modelConnection.subscription)!.id,
+                  generation: (request.modelConnection
+                    .organizationSubscription ??
+                    request.modelConnection.subscription)!.generation,
+                }
+              : null,
         }
       : null,
     sandboxCredentials:
@@ -854,6 +869,7 @@ export type PoolScopeSource = "run-context" | "mount";
 /** A pool key plus the scope source that produced it (for the greppable `[keepalive] scope=` log). */
 export interface PoolScope {
   key: string;
+  projectId: string;
   source: PoolScopeSource;
 }
 
@@ -897,5 +913,5 @@ export function poolKeyFor(
   if (!sessionId) return null;
   const scope = projectScopeFor(request, mountProjectId);
   if (!scope) return null;
-  return { key: `${scope.id}:${sessionId}`, source: scope.source };
+  return { key: `${scope.id}:${sessionId}`, projectId: scope.id, source: scope.source };
 }

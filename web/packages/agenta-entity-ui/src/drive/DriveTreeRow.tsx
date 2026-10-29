@@ -1,13 +1,16 @@
 import {useEffect, useRef} from "react"
 
-import {humanSize, isHiddenPath, type DriveTreeNode} from "@agenta/entities/drive"
+import {isHiddenPath, type DriveTreeNode} from "@agenta/entities/drive"
 import {type MountUploadItem} from "@agenta/entities/drive"
 import {fileOrigin} from "@agenta/entities/drive"
-import {CaretDown, CaretRight, CircleNotch, FolderSimple} from "@phosphor-icons/react"
+import {CaretDown, CaretRight, CircleNotch} from "@phosphor-icons/react"
 
 import {FOCUS_RING} from "./DriveFileRow"
-import {driveFileIcon} from "./driveIcons"
+import {DriveFolderGlyph, DriveTypeMark} from "./DriveTypeMark"
 import {OriginTag} from "./OriginTag"
+
+/** Indent shared with the loading placeholder. */
+const ROW_INDENT = (depth: number) => 6 + depth * 12
 
 /** One tree row (folder or file), indented by depth; selection = fill + primary ring. Renders a
  * SINGLE row — the hierarchy is materialized by {@link flattenTree}, not recursion, so each row is
@@ -70,21 +73,21 @@ export const TreeRow = ({
                 onSelect(node.path)
                 if (node.isFolder) onToggle(node.path)
             }}
-            className={`w-full cursor-pointer overflow-hidden rounded transition-colors ${
+            className={`h-7 w-full cursor-pointer overflow-hidden rounded-md transition-colors ${
                 selected
-                    ? "bg-colorFillSecondary shadow-[inset_0_0_0_1px_var(--ag-colorPrimary)]"
+                    ? "bg-colorFillTertiary font-medium text-colorText"
                     : pending
                       ? // Subtle primary tint marks a pending upload row, matching the grid tile.
                         "bg-[var(--ant-color-primary-bg)]"
-                      : "hover:bg-colorFillTertiary"
+                      : "text-colorTextSecondary hover:bg-colorFillTertiary hover:text-colorText"
             } ${hidden ? "opacity-60" : ""}`}
         >
             <div
                 ref={contentRef}
                 data-tree-row=""
                 data-parent={parent}
-                className="flex w-max items-center whitespace-nowrap"
-                style={{paddingLeft: 6 + depth * 14, transform: `translateX(${-scrollX}px)`}}
+                className="flex h-7 w-max items-center whitespace-nowrap"
+                style={{paddingLeft: ROW_INDENT(depth), transform: `translateX(${-scrollX}px)`}}
             >
                 {/* Caret and row both expand/collapse a folder. The caret ALSO stays a collapse-only
                     control that never touches the right-pane selection (collapse a folder while
@@ -117,30 +120,21 @@ export const TreeRow = ({
                     type="button"
                     data-tree-main=""
                     data-path={node.path}
-                    className={`flex cursor-pointer items-center gap-1.5 border-0 bg-transparent py-1 pr-3 text-left text-xs ${FOCUS_RING} ${
+                    className={`flex h-7 cursor-pointer items-center gap-1.5 border-0 bg-transparent py-0 pr-3 text-left text-xs text-current ${FOCUS_RING} ${
                         node.isFolder ? "" : "pl-4"
                     }`}
                 >
                     {node.isFolder ? (
-                        <FolderSimple size={14} className="shrink-0 text-colorWarning" />
+                        <DriveFolderGlyph open={isOpen} />
                     ) : (
-                        <span className="shrink-0">{driveFileIcon(node.path)}</span>
+                        <DriveTypeMark path={node.path} size="mini" />
                     )}
                     {/* Full name (no truncation): long/deep names are read by scrolling the GROUP. */}
-                    <span className="font-mono" title={node.path}>
-                        {node.name}
-                    </span>
+                    <span title={node.path}>{node.name}</span>
                     {/* Only the top-level items carry the tag; nested rows inherit it from their
                         (already-tagged) agent-files folder, so the tree stays quiet. */}
                     {showOrigin && depth === 0 ? (
                         <OriginTag origin={fileOrigin(node.path)} />
-                    ) : null}
-                    {/* Size flows right after the name (not right-aligned) — a right-aligned size would
-                        sit off-screen at the group's scroll edge. */}
-                    {!node.isFolder && !pending && node.size != null ? (
-                        <span className="shrink-0 text-xs text-colorTextQuaternary">
-                            {humanSize(node.size)}
-                        </span>
                     ) : null}
                     {/* In-flight upload status, trailing the name — the row is otherwise a normal file row. */}
                     {pending && !pending.error && pending.percent < 100 ? (
@@ -188,11 +182,10 @@ export const TreeRow = ({
  * depth and aligned to the file-row icon column, so real rows swap in without a shift. Not focusable
  * or selectable (it stands for rows that don't exist yet). */
 export const TreeLoadingRow = ({depth, width = "58%"}: {depth: number; width?: string}) => (
-    // Same box model as a real TreeRow line — `py-1` around a `text-xs` (16px) line — so the row
-    // measures the SAME height and content swaps in with no shift. The bar sits in an h-4 line box.
+    // Same 28px box as a real TreeRow, so content swaps in with no shift.
     <div
-        className="flex items-center gap-1.5 py-1"
-        style={{paddingLeft: 6 + depth * 14 + 16}}
+        className="flex h-7 items-center gap-1.5"
+        style={{paddingLeft: ROW_INDENT(depth) + 16}}
         aria-hidden
     >
         <div className="h-3.5 w-3.5 shrink-0 animate-pulse rounded bg-colorFillSecondary" />

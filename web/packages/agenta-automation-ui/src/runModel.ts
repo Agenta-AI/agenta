@@ -226,6 +226,28 @@ export function runError(delivery: TriggerDelivery): string | null {
     return delivery.data?.error || delivery.status?.stacktrace || null
 }
 
+/**
+ * Why a failed run failed, in a sentence a reader can act on.
+ *
+ * The dispatcher's `status.message` is only ever "failed", so it is never shown; the code says
+ * which stage gave up. The error detail, when there is one, follows for the reader who wants it —
+ * except for a revoked connection, where the fix is the whole message.
+ */
+export function runFailureReason(delivery: TriggerDelivery): string {
+    const code = String(delivery.status?.code ?? "")
+    const detail = runError(delivery)?.trim()
+    if (code === "409") {
+        return "The app connection is no longer valid. Reconnect it, then turn the automation back on."
+    }
+    const lead =
+        code === "400"
+            ? "The run couldn't be prepared from this event's data."
+            : code === "500"
+              ? "The agent couldn't be started."
+              : "The agent stopped before finishing."
+    return detail ? `${lead} ${detail}` : lead
+}
+
 /** The owner filter `useTriggerDeliveries` takes, in this app's vocabulary. */
 export function deliveriesOwner(automation: Automation | null) {
     if (!automation?.id) return undefined

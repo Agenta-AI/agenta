@@ -102,39 +102,6 @@ function MyComponent() {
 }
 ```
 
-### `createTypedEntityActionHook`
-
-Creates a typed hook for a specific entity type, wrapping the base hook.
-
-```typescript
-import {createTypedEntityActionHook} from "./shared"
-
-// Create typed hook
-const useTestsetCommit = createTypedEntityActionHook(useEntityCommit, "testset")
-
-// Usage in component
-function TestsetActions({testsetId}: {testsetId: string}) {
-    const {action, isActioning, isOpen} = useTestsetCommit()
-
-    // Simpler API - no need to specify type
-    action(testsetId, "My Testset")
-}
-```
-
-## Types
-
-### `BaseModalState`
-
-Common state shape for all modals:
-
-```typescript
-interface BaseModalState {
-    isOpen: boolean
-    isLoading: boolean
-    error: Error | null
-}
-```
-
 ## Design Decisions
 
 ### Why Not a Full Modal State Factory?

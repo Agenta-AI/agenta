@@ -2,7 +2,7 @@ import {randomUUID} from "crypto"
 
 import {test as baseTest} from "@agenta/web-tests/tests/fixtures/base.fixture"
 import {getProjectScopedBasePath} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
-import {expect, pollLocatorState} from "@agenta/web-tests/utils"
+import {appToast, expect, pollLocatorState} from "@agenta/web-tests/utils"
 import type {EvaluationRunForKindDetection} from "@agenta/web-tests/utils/evaluationKind"
 import type {Locator, Page} from "@playwright/test"
 
@@ -795,9 +795,7 @@ const testWithHumanFixtures = baseTest.extend<HumanEvaluationFixtures>({
                 await createEvaluatorSubmitButton.click()
 
                 await expect(evaluatorSlugInput).toHaveCount(0)
-                await expect(
-                    page.getByRole("status").getByText("Evaluator created successfully"),
-                ).toBeVisible()
+                await expect(appToast(page, "Evaluator created successfully")).toBeVisible()
             }
 
             await ensureSingleHumanEvaluatorSelection({
@@ -854,9 +852,7 @@ const testWithHumanFixtures = baseTest.extend<HumanEvaluationFixtures>({
                 await expect(annotateButton).toBeEnabled()
                 await annotateButton.click()
 
-                await expect(
-                    page.getByRole("status").getByText("Annotations saved successfully"),
-                ).toBeVisible()
+                await expect(appToast(page, "Annotations saved successfully")).toBeVisible()
 
                 await expect(
                     page

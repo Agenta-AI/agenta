@@ -9,6 +9,7 @@ written by exactly one writer.
 """
 
 import asyncio
+import json
 import uuid
 from datetime import datetime, timedelta, timezone
 from unittest.mock import AsyncMock
@@ -45,7 +46,8 @@ from oss.src.dbs.postgres.sessions.streams.dao import SessionStreamsDAO
 import oss.src.dbs.postgres.shared.engine as engine_module
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 import oss.src.models.db_models  # noqa: F401
-from oss.src.utils.env import env
+from oss.src.core.access.principals import envelope_to_json
+from oss.tests.pytest.utils.principals import any_approval, make_envelope
 
 
 pytestmark = pytest.mark.integration
@@ -732,15 +734,20 @@ async def _insert_pending_interaction(scope, *, token: str):
         await session.execute(
             text(
                 "INSERT INTO session_interactions "
-                "(project_id, id, session_id, turn_id, token, kind, status) "
+                "(project_id, id, session_id, turn_id, token, kind, status, "
+                "run_envelope) "
                 "VALUES (:project_id, :id, :session_id, 'turn-A', :token, "
-                "'user_approval', 'pending')"
+                "'user_approval', 'pending', CAST(:run_envelope AS jsonb))"
             ),
             {
                 "project_id": scope["project_id"],
                 "id": interaction_id,
                 "session_id": scope["session_id"],
                 "token": token,
+                # The asking run's envelope: an M2 interaction always has one.
+                "run_envelope": json.dumps(
+                    envelope_to_json(envelope=make_envelope(run_id="turn-A"))
+                ),
             },
         )
     return interaction_id
@@ -789,6 +796,7 @@ async def test_full_service_stop_and_answer_have_one_postgres_winner(command_sco
             answer={"approved": True},
             expected_execution_id="turn-A",
             idempotency_key="answer-race",
+            approved_by=any_approval(),
         ),
         return_exceptions=True,
     )
@@ -824,6 +832,7 @@ async def test_full_service_stop_between_parallel_answers_cancels_the_remainder(
         answer={"approved": True},
         expected_execution_id="turn-A",
         idempotency_key="parallel-answer-first",
+        approved_by=any_approval(),
     )
     assert first.command is None
     assert first.waiting_for_interactions is True
@@ -845,6 +854,7 @@ async def test_full_service_stop_between_parallel_answers_cancels_the_remainder(
             answer={"approved": True},
             expected_execution_id="turn-A",
             idempotency_key="parallel-answer-second",
+            approved_by=any_approval(),
         )
 
     interactions = SessionInteractionsDAO(engine=command_scope["engine"])
@@ -889,6 +899,7 @@ async def test_full_service_parallel_answers_create_one_terminal_continuation(
         answer={"approved": True},
         expected_execution_id="turn-A",
         idempotency_key="parallel-continue-answer-first",
+        approved_by=any_approval(),
     )
     assert first.command is None
 
@@ -899,6 +910,7 @@ async def test_full_service_parallel_answers_create_one_terminal_continuation(
         answer={"approved": False},
         expected_execution_id="turn-A",
         idempotency_key="parallel-continue-answer-second",
+        approved_by=any_approval(),
     )
     assert second.command is not None
 
@@ -918,7 +930,7 @@ async def test_full_service_parallel_answers_create_one_terminal_continuation(
         ).all()
     assert before == [(second.execution_id, None)]
 
-    assert await service.settle_execution_completed(
+    assert await service.settle_execution_ended(
         project_id=command_scope["project_id"],
         session_id=command_scope["session_id"],
         execution_id=second.execution_id,
@@ -979,6 +991,7 @@ async def test_full_service_failure_rolls_back_answer_execution_and_command(
             answer={"approved": True},
             expected_execution_id="turn-A",
             idempotency_key="answer-rollback",
+            approved_by=any_approval(),
         )
 
     interaction = await SessionInteractionsDAO(
@@ -1039,6 +1052,7 @@ async def test_full_service_concurrent_same_key_same_answer_replays_ids(command_
         answer={"approved": True},
         expected_execution_id="turn-A",
         idempotency_key="answer-same",
+        approved_by=any_approval(),
     )
 
     first, second = await asyncio.gather(
@@ -1063,6 +1077,7 @@ async def test_full_service_concurrent_same_key_conflicting_answer_is_409_domain
         interaction_id=interaction_id,
         expected_execution_id="turn-A",
         idempotency_key="answer-conflict",
+        approved_by=any_approval(),
     )
 
     results = await asyncio.gather(
@@ -1247,7 +1262,6 @@ async def test_executing_continuation_refuses_a_competing_send(
     in when a released message tore down the warm sandbox and turned the approved call into
     "Command aborted".
     """
-    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", True)
     await _seed_live_continuation(command_scope, token="live-executing")
     service = _commands_service(command_scope)
 
@@ -1266,7 +1280,6 @@ async def test_parked_continuation_still_accepts_a_send(command_scope, monkeypat
     The park writes a pending interaction row against the continuation's own execution, so the
     same `running` row in Postgres must not be read as ownership. This is review finding N2.
     """
-    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", True)
     await _seed_live_continuation(command_scope, token="live-parked")
     await _park_continuation_on_its_own_gate(command_scope, token="live-parked-gate")
     service = _commands_service(command_scope)

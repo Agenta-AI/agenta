@@ -29,7 +29,7 @@ export const PI_GATE_ENVELOPE_VERSION = 1;
 export const PI_GATE_ENVELOPE_KIND = "agenta.gate";
 
 /** Which Pi gate raised the dialog. Routes the runner's `GateDescriptor.executor`. */
-export type PiGateKind = "pi-builtin" | "pi-custom-tool";
+export type PiGateKind = "pi-builtin" | "pi-custom-tool" | "pi-mcp-tool";
 
 export interface PiGateEnvelope {
   v: typeof PI_GATE_ENVELOPE_VERSION;
@@ -41,6 +41,18 @@ export interface PiGateEnvelope {
   toolCallId: string;
   /** The call arguments, verbatim, so the approval card and the stored-decision key are exact. */
   input: unknown;
+  /**
+   * `pi-mcp-tool` only: the configured MCP server this call belongs to, and the tool name the
+   * SERVER advertises.
+   *
+   * Both are IDENTITY, not policy — the runner still reads the permission from the run's own
+   * request, and validates that `mcpServer` names a configured server before it does. They are
+   * carried rather than parsed back out of `toolName` because Pi's tool name is a lossy rewrite of
+   * both halves (OR80): `acme-prod`/`get-issue` render as `mcp__acme_prod__get_issue`, which no
+   * amount of parsing turns back into the names the policy is keyed on.
+   */
+  mcpServer?: string;
+  mcpTool?: string;
 }
 
 export interface BuildPiGateEnvelopeInput {
@@ -48,6 +60,8 @@ export interface BuildPiGateEnvelopeInput {
   toolName: string;
   toolCallId: string;
   input: unknown;
+  mcpServer?: string;
+  mcpTool?: string;
 }
 
 /** Serialize a gate identity into the dialog `message` string (extension side). */
@@ -59,6 +73,8 @@ export function buildPiGateEnvelope(input: BuildPiGateEnvelopeInput): string {
     toolName: input.toolName,
     toolCallId: input.toolCallId,
     input: input.input,
+    ...(input.mcpServer !== undefined ? { mcpServer: input.mcpServer } : {}),
+    ...(input.mcpTool !== undefined ? { mcpTool: input.mcpTool } : {}),
   };
   return JSON.stringify(envelope);
 }
@@ -114,7 +130,11 @@ export function parsePiGateEnvelope(request: unknown): PiGateParseResult {
 }
 
 function isPiGateKind(value: unknown): value is PiGateKind {
-  return value === "pi-builtin" || value === "pi-custom-tool";
+  return (
+    value === "pi-builtin" ||
+    value === "pi-custom-tool" ||
+    value === "pi-mcp-tool"
+  );
 }
 
 /** Return the envelope only when every required identity field is present and well-typed. */
@@ -128,6 +148,13 @@ function validatePiGateEnvelope(value: unknown): PiGateEnvelope | undefined {
   if (typeof record.toolCallId !== "string" || !record.toolCallId)
     return undefined;
   if (!("input" in record)) return undefined;
+  // An MCP gate without both identity halves cannot be resolved against the run's policy, and a
+  // gate that cannot be resolved must not reach the fallback ladder. Reject the envelope so the
+  // caller fails closed, exactly as it does for a malformed one.
+  const mcpServer = nonEmptyString(record.mcpServer);
+  const mcpTool = nonEmptyString(record.mcpTool);
+  if (record.gate === "pi-mcp-tool" && (!mcpServer || !mcpTool))
+    return undefined;
   return {
     v: PI_GATE_ENVELOPE_VERSION,
     kind: PI_GATE_ENVELOPE_KIND,
@@ -135,5 +162,11 @@ function validatePiGateEnvelope(value: unknown): PiGateEnvelope | undefined {
     toolName: record.toolName,
     toolCallId: record.toolCallId,
     input: record.input,
+    ...(mcpServer !== undefined ? { mcpServer } : {}),
+    ...(mcpTool !== undefined ? { mcpTool } : {}),
   };
+}
+
+function nonEmptyString(value: unknown): string | undefined {
+  return typeof value === "string" && value.length > 0 ? value : undefined;
 }

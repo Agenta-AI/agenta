@@ -19,15 +19,21 @@ vi.mock("@agenta/chat/hooks", () => ({
     useTypewriter: (target: string) => ({text: target, settled: true}),
 }))
 
-vi.mock("@agenta/entity-ui/drive", async (original) => ({
-    ...(await original<object>()),
-    chatFileResolver: {
-        renderCode: (text: string, fallback: ReactNode) => {
-            resolved.push(text)
-            return fallback
-        },
-    },
-}))
+const recordCode = (text: string, fallback: ReactNode) => {
+    resolved.push(text)
+    return fallback
+}
+
+// `AssistantMarkdown` resolves links with `chatReplyFileResolver` (the drive resolver plus image
+// previews). Stub `renderCode` on both resolvers so the suite records links whichever one renders.
+vi.mock("@agenta/entity-ui/drive", async (original) => {
+    const actual = await original<typeof import("@agenta/entity-ui/drive")>()
+    return {
+        ...actual,
+        chatFileResolver: {...actual.chatFileResolver, renderCode: recordCode},
+        chatReplyFileResolver: {...actual.chatReplyFileResolver, renderCode: recordCode},
+    }
+})
 
 const {AssistantMarkdown} = await import("@/features/chat/AssistantMarkdown")
 

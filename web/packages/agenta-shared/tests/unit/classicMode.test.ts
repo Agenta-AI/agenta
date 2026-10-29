@@ -203,7 +203,7 @@ describe("readSettledAdvancedNavHidden", () => {
     }
     const profile = (createdAt?: string) => ({
         id: "u",
-        uid: "u",
+        uid: localStorage.getItem(ACTIVE_USER_ID_KEY) ?? "u",
         username: "u",
         email: "u@example.com",
         ...(createdAt ? {created_at: createdAt} : {}),
@@ -211,6 +211,11 @@ describe("readSettledAdvancedNavHidden", () => {
 
     beforeEach(() => {
         localStorage.clear()
+    })
+
+    it("waits when the profile and stored scope belong to different identities", () => {
+        setUp({override: "true"})
+        expect(readSettledAdvancedNavHidden({...profile(CUTOFF_AFTER), uid: "migrated"})).toBeNull()
     })
 
     it("honours an explicit Classic mode over the cohort default", () => {
@@ -273,13 +278,18 @@ describe("the gate cookie", () => {
     }
     const profile = (createdAt?: string) => ({
         id: "u",
-        uid: "u",
+        uid: localStorage.getItem(ACTIVE_USER_ID_KEY) ?? "u",
         username: "u",
         email: "u@example.com",
         ...(createdAt ? {created_at: createdAt} : {}),
     })
     const OLD = "2026-07-01 00:00:00.000000+00:00"
     const NEW = "2026-08-02 00:00:00.000000+00:00"
+
+    it("leaves the cookie untouched until the profile scope settles", () => {
+        browser("session-id", {"nav-simplified-override": "true"})
+        expect(readSettledClassicModeCookie({...profile(NEW), uid: "profile-uid"})).toBeUndefined()
+    })
 
     it("publishes classic mode on only from an explicit choice", () => {
         browser("u", {"nav-simplified-override": "false"})

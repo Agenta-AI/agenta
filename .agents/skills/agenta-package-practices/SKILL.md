@@ -1,6 +1,6 @@
 ---
 name: agenta-package-practices
-description: Where to put frontend code (package vs app layer) and how to use the @agenta/* packages. Use when authoring or moving code in web/packages, choosing between @agenta/ui, @agenta/entities, @agenta/entity-ui, @agenta/shared, @agenta/playground, using molecules, loadable/runnable bridges, the EntityPicker, or writing package unit tests.
+description: Where to put frontend code (package vs the web/mobile app layer) and how to use the @agenta/* packages. Use when authoring or moving code in web/packages, choosing which @agenta/* package owns something (ui, entities, entity-ui, shared, chat, sessions, playground, the *-ui domain packages, ...), using molecules, the loadable bridge, the EntityPicker, or writing package unit tests.
 ---
 
 # Agenta package practices
@@ -12,10 +12,10 @@ state primitives (molecules, bridges, pickers) or package unit tests.
 
 ## When to use this skill
 
-- Deciding whether new code belongs in `web/oss`/`web/ee` (app layer) or a package.
-- Importing from `@agenta/ui`, `@agenta/entities`, `@agenta/entity-ui`, `@agenta/shared`,
-  `@agenta/playground`.
-- Building with molecules, the loadable bridge, the runnable bridge, or the EntityPicker.
+- Deciding whether new code belongs in `web/mobile` (the app layer) or a package.
+  `web/oss` and `web/ee` are the abandoned desktop app: never add code there.
+- Choosing which of the `@agenta/*` packages owns a piece of code, or importing from one.
+- Building with molecules, the loadable bridge, or the EntityPicker.
 - Writing or fixing unit tests inside a package under `web/packages/*/tests/`.
 
 ## Code placement: packages vs application code
@@ -24,20 +24,37 @@ state primitives (molecules, bridges, pickers) or package unit tests.
 
 ```text
 Is the code used by 2+ features, or could be?
-├─ NO  → Keep it in the app layer (web/oss/src/ or web/ee/src/)
+├─ NO  → Keep it in the app layer (web/mobile/src/features/<feature>/)
 └─ YES → Move it to a package, picking by purpose:
+         ├─ Pure utility / type (no React)              → @agenta/shared
          ├─ Reusable UI component / style util          → @agenta/ui
-         ├─ Entity state (molecule, atoms, controllers) → @agenta/entities
-         ├─ Entity-specific UI (modals, pickers)        → @agenta/entity-ui
-         ├─ Playground state                            → @agenta/playground
-         ├─ Playground UI                               → @agenta/playground-ui
-         └─ Pure utility / type (no React, no antd)     → @agenta/shared
+         ├─ Entity state + API (molecule, atoms)        → @agenta/entities
+         ├─ Entity-specific UI (modals, pickers, drive) → @agenta/entity-ui
+         ├─ Agent chat (model, transport, components)   → @agenta/chat
+         ├─ Domain logic, no screens                    → the domain's headless package
+         │    (annotation, auth, navigation, observability, playground,
+         │     sessions, settings, skills)
+         └─ Domain UI / a whole surface                 → the domain's -ui package
+              (annotation-ui, auth-ui, automation-ui, home-ui, navigation-ui,
+               observability-ui, playground-ui, sessions-ui, settings-ui, skills-ui)
 ```
+
+A new domain gets a headless/`-ui` pair when it has both state and UI; see
+`web/packages/README.md` for the full list with one-line purposes.
 
 ### Hard rules
 
-- **Respect the hierarchy.** A package may only import from packages below it:
-  `shared ← ui ← entities ← entity-ui ← playground ← playground-ui`. Circular imports
+- **Respect the layers.** Dependencies point one way, down this stack:
+  1. `@agenta/shared` (imports no other package); `@agentaai/api-client` ← `@agenta/sdk`
+  2. `@agenta/ui` (shared only)
+  3. `@agenta/entities` (sdk, shared, ui)
+  4. headless domain packages (entities, shared, sdk; `navigation` also reads
+     `sessions`, `settings` reads `navigation` and `ui`). They own state and API calls,
+     not screens, and never import `entity-ui`, `chat`, or a `-ui` package.
+  5. `@agenta/entity-ui`, `@agenta/chat`, and the `-ui` packages. These may import each
+     other (e.g. `entity-ui` → `sessions-ui`, `playground-ui` → `chat`), but never in
+     a cycle.
+  Declare every `@agenta/*` import in the package's `package.json`. Circular imports
   break the build.
 - **No legacy compat shims in packages.** Keep `OldFormat → NewFormat` adapters in the
   app layer. Packages stay clean.
@@ -55,22 +72,23 @@ Is the code used by 2+ features, or could be?
 
 ## Package overview
 
+There are 24 `@agenta/*` packages plus `@agentaai/api-client`. The full list, with a
+one-line purpose each, is `web/packages/README.md`. The core ones:
+
 | Package | Purpose | Key exports |
 | --- | --- | --- |
-| `@agenta/shared` | Pure utilities (no React) | Path utilities, common types |
-| `@agenta/ui` | Reusable React components | `EnhancedModal`, `InfiniteVirtualTable`, `cn`, `textColors`, presentational components |
-| `@agenta/entities` | Entity state/hooks/controllers | Molecules, bridges, controllers |
-| `@agenta/entity-ui` | Entity-specific UI components | `EntityPicker`, `EntityCascader`, modals |
-| `@agenta/playground` | Playground-specific components | `PlaygroundContent`, `EntitySelector`, `InputMappingModal` |
+| `@agenta/shared` | Utilities, types, schemas, hooks; host QueryClient API | `./api`, `./state`, `./utils`, `getHostQueryClient` |
+| `@agenta/ui` | Shared UI kit | shadcn primitives (`./ui`), `EnhancedModal`, `InfiniteVirtualTable`, `cn`, `textColors`, presentational components |
+| `@agenta/sdk` | Fern client wrapper | per-resource clients in `./resources` |
+| `@agenta/entities` | Entity state and API calls | molecules (`workflowMolecule`, `testcaseMolecule`, ...), the loadable bridge |
+| `@agenta/entity-ui` | Entity-specific UI | `EntityPicker`, modals, drawers, drill-in, the drive |
+| `@agenta/chat` | Agent chat | model, transport, state, hooks, chat components |
+| `@agenta/playground` | Playground state controllers | `./state`, `./snapshot`, `./agent-chat` |
+| `@agenta/playground-ui` | Playground UI | comparison view, execution items, agent build, commit |
 
-READMEs:
-
-| Package | README |
-| --- | --- |
-| `@agenta/ui` | `web/packages/agenta-ui/README.md` |
-| `@agenta/entities` | `web/packages/agenta-entities/README.md` |
-| `@agenta/shared` | `web/packages/agenta-shared/README.md` |
-| `@agenta/playground` | `web/packages/agenta-playground/` |
+READMEs: `agenta-ui`, `agenta-entities`, `agenta-entity-ui`, `agenta-shared`,
+`agenta-playground`, `agenta-playground-ui`, and `agenta-api-client` each have a
+`README.md` at the package root.
 
 ## Subpath imports for tree-shaking
 
@@ -91,6 +109,7 @@ import type {SimpleChatMessage, MessageContent, ToolCall} from "@agenta/shared/t
 `@agenta/ui`:
 
 ```typescript
+import {...} from "@agenta/ui/ui"                 // shadcn primitives (Button, Dialog, Sheet, ...)
 import {...} from "@agenta/ui"                    // presentational components, cn, textColors
 import {...} from "@agenta/ui/table"              // InfiniteVirtualTable, paginated stores
 import {...} from "@agenta/ui/editor"             // Editor, JSON parsing utilities
@@ -103,19 +122,22 @@ import {...} from "@agenta/ui/cell-renderers"     // Table cell renderers, CellR
 `@agenta/entities`:
 
 ```typescript
-import {...} from "@agenta/entities"              // clean named exports (preferred)
+import {...} from "@agenta/entities/workflow"     // workflowMolecule (apps, evaluators, agents)
 import {...} from "@agenta/entities/shared"       // molecule factories, transforms
 import {...} from "@agenta/entities/trace"        // trace/span molecule, schemas
 import {...} from "@agenta/entities/testset"      // testset/revision molecules
 import {...} from "@agenta/entities/testcase"     // testcase molecule
 import {...} from "@agenta/entities/loadable"     // loadable bridge
-import {...} from "@agenta/entities/runnable"     // runnable bridge
-import {...} from "@agenta/entity-ui"             // UI components (modals, pickers)
+import {...} from "@agenta/entities/runnable"     // execution utilities, port helpers
+import {...} from "@agenta/entity-ui/selection"   // EntityPicker and adapters
 ```
 
-## EnhancedModal (required for all new modals)
+## Modals
 
-All new modals MUST use `EnhancedModal` from `@agenta/ui` instead of raw antd `Modal`.
+`EnhancedModal` from `@agenta/ui` is an antd-`Modal`-compatible facade over the
+`@agenta/ui` Radix `Dialog`, kept so existing call sites work unchanged. Use it
+instead of raw antd `Modal` in package code. In `web/mobile`, and for new
+surfaces, compose `Dialog`/`Sheet` from `@agenta/ui/ui` directly.
 
 ```typescript
 import {EnhancedModal, ModalContent, ModalFooter} from "@agenta/ui"
@@ -165,13 +187,15 @@ import {
 ## Package selection guide
 
 ```text
-Need a modal?                          → EnhancedModal from @agenta/ui
+Need a primitive (button, dialog, ...)? → @agenta/ui/ui
+Need a modal?                          → Dialog from @agenta/ui/ui (EnhancedModal for antd-style call sites)
 Class-name utils or theme colors?      → cn, textColors, bgColors from @agenta/ui
 Section layout primitives?             → SectionCard, SectionLabel, ConfigBlock from @agenta/ui
 Entity state management (molecules)?   → *Molecule from @agenta/entities/{entity}
-Entity selection UI?                   → EntityPicker, EntityCascader from @agenta/entity-ui
-Loadable/runnable bridges?             → loadableBridge, runnableBridge from @agenta/entities/{type}
-Building playground features?          → components from @agenta/playground
+Entity selection UI?                   → EntityPicker from @agenta/entity-ui/selection
+Loadable bridge?                       → loadableBridge from @agenta/entities/loadable
+Building playground features?          → state from @agenta/playground, UI from @agenta/playground-ui
+Chat, sessions, observability, ...?    → the domain's headless + -ui package pair
 ```
 
 ## Molecule pattern (entity state management)
@@ -224,9 +248,10 @@ async function handleSave(id: string) {
 }
 ```
 
-Available molecules: `testcaseMolecule` (`@agenta/entities/testcase`), `traceSpanMolecule`
-(`@agenta/entities/trace`), `testsetMolecule` and `revisionMolecule`
-(`@agenta/entities/testset`).
+Examples: `workflowMolecule` (`@agenta/entities/workflow`), `testcaseMolecule`
+(`@agenta/entities/testcase`), `traceSpanMolecule` (`@agenta/entities/trace`),
+`testsetMolecule` and `revisionMolecule` (`@agenta/entities/testset`). Other entity
+subpaths (`session`, `secret`, `gatewayTool`, ...) follow the same pattern.
 
 Data flow: `Server → TanStack Query → atoms.serverData → atoms.draft (local changes) →
 atoms.data (merged) → useController → component`.
@@ -267,41 +292,43 @@ connect(loadableId, testsetRevisionId, "MyTestset v1", "testcase")
 Selectors: `rows`, `columns`, `activeRow`, `mode`, `isDirty`, `connectedSource`.
 Actions: `addRow`, `updateRow`, `removeRow`, `setActiveRow`, `connectToSource`, `disconnect`.
 
-## Runnable bridge pattern
+## Runnables (executable entities)
 
 Full documentation: `web/packages/agenta-entities/src/runnable/README.md`.
 
-A runnable represents an executable entity (app revision, evaluator).
+A runnable is an executable entity (app, evaluator, or agent revision). There is no
+separate runnable bridge: read revision data straight from `workflowMolecule`.
+`@agenta/entities/runnable` holds the execution utilities and port helpers.
 
 ```typescript
-import {runnableBridge} from "@agenta/entities/runnable"
+import {workflowMolecule} from "@agenta/entities/workflow"
 import {useAtomValue} from "jotai"
 
-const data = useAtomValue(runnableBridge.selectors.data(revisionId))
-const inputPorts = useAtomValue(runnableBridge.selectors.inputPorts(revisionId))
-const outputPorts = useAtomValue(runnableBridge.selectors.outputPorts(revisionId))
-
-const evalController = runnableBridge.runnable("evaluatorRevision")
-const presets = useAtomValue(evalController.selectors.presets(evaluatorId))
+const data = useAtomValue(workflowMolecule.selectors.data(revisionId))
+const inputPorts = useAtomValue(workflowMolecule.selectors.inputPorts(revisionId))
+const outputPorts = useAtomValue(workflowMolecule.selectors.outputPorts(revisionId))
+const config = useAtomValue(workflowMolecule.selectors.configuration(revisionId))
 ```
-
-Selectors: `data`, `query`, `isDirty`, `inputPorts`, `outputPorts`, `configuration`.
 
 ## Entity selection system
 
 Full documentation: `web/packages/agenta-entity-ui/src/selection/README.md`.
 
-Use the unified `EntityPicker` from `@agenta/entity-ui` for hierarchical selection
-(App → Variant → Revision).
+Use the unified `EntityPicker` from `@agenta/entity-ui/selection` for hierarchical
+selection (Workflow → Variant → Revision).
 
 ```typescript
-import {EntityPicker, type AppRevisionSelectionResult, type TestsetSelectionResult} from "@agenta/entity-ui"
+import {
+    EntityPicker,
+    type TestsetSelectionResult,
+    type WorkflowRevisionSelectionResult,
+} from "@agenta/entity-ui/selection"
 
 // Cascading dropdowns (inline forms, compact)
-<EntityPicker<AppRevisionSelectionResult> variant="cascading" adapter="appRevision" onSelect={handleSelect} />
+<EntityPicker<WorkflowRevisionSelectionResult> variant="cascading" adapter="workflowRevision" onSelect={handleSelect} />
 
 // Breadcrumb navigation (modals)
-<EntityPicker<AppRevisionSelectionResult> variant="breadcrumb" adapter="appRevision" onSelect={handleSelect} showSearch showBreadcrumb rootLabel="All Apps" />
+<EntityPicker<WorkflowRevisionSelectionResult> variant="breadcrumb" adapter="workflowRevision" onSelect={handleSelect} showSearch showBreadcrumb rootLabel="All Apps" />
 
 // List with hover popovers (sidebars, 2-level)
 <EntityPicker<TestsetSelectionResult> variant="list-popover" adapter="testset" onSelect={handleSelect} autoSelectLatest selectLatestOnParentClick />
@@ -313,15 +340,15 @@ Pre-built adapters:
 
 | Adapter | Hierarchy | Selection result |
 | --- | --- | --- |
-| `appRevision` | App → Variant → Revision | `AppRevisionSelectionResult` |
-| `evaluatorRevision` | Evaluator → Variant → Revision | `EvaluatorRevisionSelectionResult` |
+| `workflowRevision` | Workflow → Variant → Revision (filter apps/evaluators with query flags; `createWorkflowRevisionAdapter` for a 2-level variant) | `WorkflowRevisionSelectionResult` |
+| `evaluator` | Flat evaluator list | `EvaluatorSelectionResult` |
 | `testset` | Testset → Revision | `TestsetSelectionResult` |
 
 ## Package unit tests
 
-Packages host tests under `tests/unit/`, not in `src/`. Two packages currently run
-vitest: `@agenta/entities` and `@agenta/playground`. Any new package shipping testable
-logic should match this layout.
+Packages host tests under `tests/unit/`, not in `src/`. Most packages run vitest
+(each has a `vitest.config.ts` at its root). Any new package shipping testable logic
+should match this layout.
 
 ### Layout
 
@@ -392,16 +419,17 @@ resolve: {
 
 ### Mocking the Fern client in tests
 
-Mock `@agenta/sdk`, not axios. Constructing a real Fern client reads env vars and
-initializes transport, neither of which a unit test wants.
+Mock `@agenta/sdk/resources` (the per-resource accessors), not axios. Constructing a
+real Fern client reads env vars and initializes transport, neither of which a unit test
+wants.
 
 ```typescript
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
 const fernRetrieve = vi.fn()
 
-vi.mock("@agenta/sdk", () => ({
-    getAgentaSdkClient: () => ({workflows: {retrieveWorkflowRevision: fernRetrieve}}),
+vi.mock("@agenta/sdk/resources", () => ({
+    getWorkflowsClient: () => ({retrieveWorkflowRevision: fernRetrieve}),
 }))
 
 // Import the unit-under-test AFTER vi.mock so it picks up the mocked module.

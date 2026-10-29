@@ -70,6 +70,26 @@ def test_create_with_no_meta_stays_none():
 # --- the trusted escape ---------------------------------------------------------
 
 
+def test_trusted_template_create_passes_both_protected_discriminators():
+    incoming = {
+        "_ag": {
+            "create_request": {
+                "namespace": "agent-template-load",
+                "key_hash": "sha256:" + "1" * 64,
+                "request_fingerprint": "sha256:" + "2" * 64,
+            },
+            "template_origin": {
+                "kind": "internal",
+                "key": "sample",
+                "version": "1.0.0",
+                "digest": "sha256:" + "3" * 64,
+            },
+        }
+    }
+
+    assert guard_platform_meta(incoming, None, trusted=True, preserve=False) is incoming
+
+
 def test_trusted_write_passes_through_unchanged():
     incoming = {"user_note": "kept", "_ag": {"origin": {"provider": "github"}}}
     assert (

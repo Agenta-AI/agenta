@@ -6,7 +6,7 @@
  * the user add/manage them through the existing propless, atom-driven trigger drawers
  * (`@agenta/entity-ui/gatewayTrigger`). It reuses the same hooks and "⋯" menu the
  * workspace settings sections use; nothing about trigger CRUD is rebuilt here. In the
- * playground, running/paused is irrelevant, so rows expose a "Test run" action (status
+ * playground, running/paused is irrelevant, so rows expose a "Run now" action (status
  * shown as a passive dot); pause/resume stays in the schedule drawer.
  *
  * Two pieces of real work live here:
@@ -35,7 +35,6 @@ import {DropdownMenuItem, DropdownMenuSeparator} from "@agenta/ui/ui"
 import {
     ArrowsClockwise,
     ClockCounterClockwise,
-    Flask,
     Pause,
     PencilSimpleLine,
     Play,
@@ -46,7 +45,6 @@ import {useSetAtom} from "jotai"
 
 import TriggerDeliveriesDrawer from "../../gatewayTrigger/drawers/TriggerDeliveriesDrawer"
 
-import {AddTextLink} from "./AddTextLink"
 import {AppTriggerProviderGroups} from "./triggerManagement/AppTriggerProviderGroups"
 import {ScheduleTriggerRow} from "./triggerManagement/ScheduleTriggerRow"
 import {useAgentTriggers} from "./triggerManagement/useAgentTriggers"
@@ -83,8 +81,7 @@ export function TriggerManagementSection({
     onOpenRunHistory,
     automationDrawer,
 }: TriggerManagementSectionProps) {
-    const {scopedSubscriptions, scopedSchedules, defaultReferences, defaultBoundLabel} =
-        useAgentTriggers(entityId)
+    const {scopedSubscriptions, scopedSchedules} = useAgentTriggers(entityId)
 
     const {
         remove: removeSubscription,
@@ -133,7 +130,7 @@ export function TriggerManagementSection({
                       2,
                   )}\n\`\`\``
             setPendingRun({text, nonce: Date.now(), newSession: true})
-            message.success("Starting test run")
+            message.success("Starting run")
         },
         [entityId, setPendingRun],
     )
@@ -248,8 +245,8 @@ export function TriggerManagementSection({
                     disabled={disabled || !record.id}
                     onSelect={() => simulateSchedule(record)}
                 >
-                    <Flask size={16} />
-                    Test run
+                    <Play size={16} />
+                    Run now
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
@@ -280,7 +277,7 @@ export function TriggerManagementSection({
                         onSelect={() => toggleSchedule(record, false)}
                     >
                         <Pause size={16} />
-                        Pause
+                        Deactivate
                     </DropdownMenuItem>
                 ) : (
                     <DropdownMenuItem
@@ -288,7 +285,7 @@ export function TriggerManagementSection({
                         onSelect={() => toggleSchedule(record, true)}
                     >
                         <Play size={16} />
-                        Resume
+                        Activate
                     </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
@@ -320,15 +317,6 @@ export function TriggerManagementSection({
             disabled,
         ],
     )
-
-    // The empty state's link — the region header owns the "+". Both default-bind to this agent.
-    const openScheduleCreate = useCallback(() => {
-        openScheduleDrawer({
-            defaultReferences,
-            defaultBoundLabel,
-            playgroundEntityId: entityId ?? undefined,
-        })
-    }, [openScheduleDrawer, defaultReferences, defaultBoundLabel, entityId])
 
     return (
         <div className="flex flex-col gap-2 py-3">
@@ -368,10 +356,8 @@ export function TriggerManagementSection({
             ) : null}
 
             {scopedSubscriptions.length === 0 && scopedSchedules.length === 0 && !disabled ? (
-                <span className="text-xs text-[var(--ag-zinc-5)]">
-                    No automations yet —{" "}
-                    <AddTextLink label="add an automation" onClick={openScheduleCreate} />
-                </span>
+                // One quiet line; the header's "+" is the way to add one.
+                <span className="text-xs text-colorTextTertiary">No automations yet</span>
             ) : null}
 
             {/* Propless, atom-driven drawers — mounted once; they manage their own

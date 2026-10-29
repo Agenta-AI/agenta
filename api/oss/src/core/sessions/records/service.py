@@ -12,6 +12,8 @@ from oss.src.core.sessions.records.dtos import (
     SessionRecordEvent,
     SessionRecordsPage,
     SessionRecordsReadState,
+    RunnerEnding,
+    runner_ending,
 )
 from oss.src.core.sessions.executions.dtos import SessionExecutionSettlement
 from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInterface
@@ -80,7 +82,7 @@ class RecordsService:
 
         guarded = await self._handle_late_events(events=events)
         records = await self.records_dao.append_many(events=guarded)
-        await self._settle_completed_continuations(records=records)
+        await self._settle_ended_continuations(records=records)
         await self._mark_endings_written(events=guarded)
         return records
 
@@ -89,7 +91,7 @@ class RecordsService:
         *,
         events: List[SessionRecordEvent],
     ) -> None:
-        if self.executions_dao is None or not env.agenta.sessions.durable_stop:
+        if self.executions_dao is None:
             return
 
         endings: Dict[UUID, Set[Tuple[str, str]]] = {}
@@ -117,7 +119,7 @@ class RecordsService:
                     exc_info=True,
                 )
 
-    async def _settle_completed_continuations(
+    async def _settle_ended_continuations(
         self,
         *,
         records: List[SessionRecord],
@@ -127,28 +129,28 @@ class RecordsService:
         The runner flushes its terminal record before releasing its heartbeat. Without this
         bridge, an admitted continuation remained ``running`` forever; once its heartbeat went
         stale, recovery could replay work that had already completed. Only an effective runner
-        ending qualifies: paused turns remain continuable, watchdog endings are not successful
-        completion, and quarantined late endings already lost the Stop/watchdog race.
+        ending qualifies: paused turns remain continuable, a cancel is settled by its Stop command,
+        watchdog endings are not the runner's, and quarantined late endings already lost the
+        Stop/watchdog race. An `error` ending settles as failed.
 
         Record persistence is the source of truth and happened immediately above. Settlement is
         best effort here because records and executions use different database engines; the
         watchdog repeats the reconciliation before it collapses stale ownership.
         """
-        if self.executions_dao is None or not env.agenta.sessions.durable_approvals:
+        if self.executions_dao is None:
             return
 
         candidates = {
-            (record.project_id, record.session_id, record.turn_id)
+            (record.project_id, record.session_id, record.turn_id): ending
             for record in records
             if record.record_type == TERMINAL_RECORD_TYPE
             and record.turn_id
             and record.quarantined_at is None
             and (record.attributes or {}).get(RECORD_SETTLED_BY_ATTRIBUTE)
             != SETTLED_BY_WATCHDOG
-            and (record.attributes or {}).get("stopReason")
-            not in ("paused", "cancelled", "error")
+            and (ending := runner_ending((record.attributes or {}).get("stopReason")))
         }
-        for project_id, session_id, execution_id in candidates:
+        for (project_id, session_id, execution_id), ending in candidates.items():
             try:
                 execution = await self.executions_dao.fetch_execution(
                     project_id=project_id,
@@ -168,12 +170,13 @@ class RecordsService:
                     project_id=project_id,
                     session_id=session_id,
                     execution_id=execution_id,
-                    terminal_outcome="completed",
+                    terminal_outcome=ending,
                     settled_by="runner",
+                    defer_to_stop=ending == "failed",
                 )
             except Exception:
                 log.warning(
-                    "[RECORDS] Continuation completion settlement failed",
+                    "[RECORDS] Continuation ending settlement failed",
                     project_id=str(project_id),
                     session_id=session_id,
                     turn_id=execution_id,
@@ -207,9 +210,6 @@ class RecordsService:
         A failed lookup quarantines nothing and appends everything. Losing a record is worse
         than showing one that should have been hidden, and the next delivery gets another go.
         """
-        if not env.agenta.sessions.durable_stop:
-            return events
-
         if self.executions_dao is not None:
             return await self._handle_by_execution_state(events=events)
 
@@ -368,6 +368,35 @@ class RecordsService:
             record_id=record_id,
         )
 
+    async def mark_records_incomplete(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        turn_id: Optional[str] = None,
+    ) -> None:
+        log.warning(
+            "[RECORDS] A runner reported a dropped record; the log cannot rebuild context",
+            project_id=str(project_id),
+            session_id=session_id,
+            turn_id=turn_id,
+        )
+        await self.records_dao.mark_records_incomplete(
+            project_id=project_id,
+            session_id=session_id,
+        )
+
+    async def get_records_incomplete(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> bool:
+        return await self.records_dao.get_records_incomplete(
+            project_id=project_id,
+            session_id=session_id,
+        )
+
     async def get_records_page(
         self,
         *,
@@ -449,13 +478,13 @@ class RecordsService:
             settled_by=settled_by,
         )
 
-    async def runner_completed_turns(
+    async def runner_ended_turns(
         self,
         *,
         project_id: UUID,
         keys: Sequence[Tuple[str, str]],
-    ) -> Set[Tuple[str, str]]:
-        return await self.records_dao.runner_completed_turns(
+    ) -> Dict[Tuple[str, str], RunnerEnding]:
+        return await self.records_dao.runner_ended_turns(
             project_id=project_id,
             keys=keys,
         )

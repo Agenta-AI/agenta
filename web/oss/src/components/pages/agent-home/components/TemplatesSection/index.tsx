@@ -1,7 +1,6 @@
 import {useMemo, useState} from "react"
 
 import {
-    AGENT_TEMPLATES,
     ALL_TEMPLATES_CATEGORY,
     templateCategories,
     type AgentStarterTemplate,
@@ -10,6 +9,9 @@ import {SectionRail, type SectionRailItem} from "@agenta/entity-ui"
 import {TemplateCard} from "@agenta/home-ui"
 import {Typography} from "antd"
 import {ArrowRight} from "lucide-react"
+
+import TemplateCatalogStatus from "@/oss/components/TemplateStrip/components/TemplateCatalogStatus"
+import {useAgentTemplateCatalog} from "@/oss/components/TemplateStrip/hooks/useAgentTemplateCatalog"
 
 import {TEMPLATES_SECTION} from "../../assets/constants"
 
@@ -25,26 +27,27 @@ interface TemplatesSectionProps {
 /** "Or start from a template" — category side-rail (shared SectionRail) + a narrow card grid. */
 const TemplatesSection = ({onSelectTemplate, onBrowseAll, hideHeader}: TemplatesSectionProps) => {
     const [active, setActive] = useState(ALL_TEMPLATES_CATEGORY)
+    const {templates, status} = useAgentTemplateCatalog()
 
     // Rail items: All + each present category, counted so the rail doubles as a legend.
     const railItems = useMemo<SectionRailItem[]>(() => {
-        const categories = templateCategories()
+        const categories = templateCategories(templates)
         return [
-            {value: ALL_TEMPLATES_CATEGORY, label: "All", count: AGENT_TEMPLATES.length},
+            {value: ALL_TEMPLATES_CATEGORY, label: "All", count: templates.length},
             ...categories.map((category) => ({
                 value: category,
                 label: category,
-                count: AGENT_TEMPLATES.filter((t) => t.category === category).length,
+                count: templates.filter((t) => t.category === category).length,
             })),
         ]
-    }, [])
+    }, [templates])
 
     const filtered = useMemo(
         () =>
             active === ALL_TEMPLATES_CATEGORY
-                ? AGENT_TEMPLATES
-                : AGENT_TEMPLATES.filter((template) => template.category === active),
-        [active],
+                ? templates
+                : templates.filter((template) => template.category === active),
+        [templates, active],
     )
 
     return (
@@ -65,37 +68,41 @@ const TemplatesSection = ({onSelectTemplate, onBrowseAll, hideHeader}: Templates
                 </div>
             )}
 
-            <SectionRail
-                items={railItems}
-                value={active}
-                onChange={setActive}
-                railWidth="w-[132px]"
-            >
-                {filtered.length > 0 ? (
-                    // auto-fill fills the content column with ~320px cards (2–4 cols by width),
-                    // fixed row height so switching categories never reflows card sizes.
-                    <div className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-x-4 gap-y-10 pt-5">
-                        {filtered.map((template) => (
-                            <TemplateCard
-                                key={template.key}
-                                template={template}
-                                onSelect={onSelectTemplate}
-                            />
-                        ))}
-                    </div>
-                ) : (
-                    <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-[var(--ag-colorBorder)] px-4 py-6 text-xs text-[var(--ag-colorTextSecondary)]">
-                        <span>No templates in {active}.</span>
-                        <button
-                            type="button"
-                            onClick={() => setActive(ALL_TEMPLATES_CATEGORY)}
-                            className="border-0 bg-transparent p-0 font-medium text-[var(--ag-colorPrimary)]"
-                        >
-                            Show all
-                        </button>
-                    </div>
-                )}
-            </SectionRail>
+            {status !== "success" ? (
+                <TemplateCatalogStatus rows={4} className="pt-5" />
+            ) : (
+                <SectionRail
+                    items={railItems}
+                    value={active}
+                    onChange={setActive}
+                    railWidth="w-[132px]"
+                >
+                    {filtered.length > 0 ? (
+                        // auto-fill fills the content column with ~320px cards (2–4 cols by width),
+                        // fixed row height so switching categories never reflows card sizes.
+                        <div className="grid grid-cols-[repeat(auto-fill,minmax(320px,1fr))] gap-x-4 gap-y-10 pt-5">
+                            {filtered.map((template) => (
+                                <TemplateCard
+                                    key={template.key}
+                                    template={template}
+                                    onSelect={onSelectTemplate}
+                                />
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="flex items-center justify-between gap-3 rounded-lg border border-dashed border-[var(--ag-colorBorder)] px-4 py-6 text-xs text-[var(--ag-colorTextSecondary)]">
+                            <span>No templates in {active}.</span>
+                            <button
+                                type="button"
+                                onClick={() => setActive(ALL_TEMPLATES_CATEGORY)}
+                                className="border-0 bg-transparent p-0 font-medium text-[var(--ag-colorPrimary)]"
+                            >
+                                Show all
+                            </button>
+                        </div>
+                    )}
+                </SectionRail>
+            )}
         </section>
     )
 }

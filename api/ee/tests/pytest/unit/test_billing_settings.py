@@ -281,20 +281,11 @@ class TestDefaults:
     def test_get_free_plan_falls_back_to_hobby(self):
         assert settings.get_free_plan() == DefaultPlan.CLOUD_V0_HOBBY.value
 
-    def test_get_trial_plan_disabled_when_stripe_disabled_by_default(self):
-        if settings.env.stripe.enabled:
-            assert settings.get_trial_plan() == DefaultPlan.CLOUD_V0_PRO.value
-        else:
-            assert settings.get_trial_plan() is None
-
-    def test_get_trial_days_disabled_when_stripe_disabled_by_default(self):
-        if settings.env.stripe.enabled:
-            assert settings.get_trial_days() == 14
-        else:
-            assert settings.get_trial_days() is None
-
-    def test_trial_enabled_false_when_stripe_disabled_by_default(self):
-        assert settings.trial_enabled() is settings.env.stripe.enabled
+    def test_no_trial_without_a_trial_pricing_entry(self):
+        # The test env's pricing carries no `"trial": N` entry, Stripe or not.
+        assert settings.get_trial_plan() is None
+        assert settings.get_trial_days() is None
+        assert settings.trial_enabled() is False
 
     def test_get_effective_pricing_includes_resolved_defaults(self):
         result = settings.get_effective_pricing()

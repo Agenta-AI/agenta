@@ -205,14 +205,16 @@ const TraceTypeHeader = ({
     const displayTrace = activeTrace || traces?.[0]
 
     return (
-        <div className="h-10 px-4 flex items-center justify-between gap-2 border-0 border-b border-solid border-colorSplit">
+        // min-h-10 matches the tree's search row beside it; on a phone-width panel the actions
+        // wrap under the span name instead of squeezing it to nothing.
+        <div className="box-border min-h-10 px-4 py-1 flex shrink-0 flex-wrap items-center justify-between gap-2 border-0 border-b border-solid border-colorSplit">
             <SimpleTooltip side="top" title={activeTrace?.span_name || (error ? "Error" : "")}>
-                <span className={clsx("truncate text-nowrap flex-1 text-sm font-medium")}>
+                <span className={clsx("truncate text-nowrap flex-1 min-w-32 text-sm font-medium")}>
                     {activeTrace?.span_name || (error ? "Error" : "")}
                 </span>
             </SimpleTooltip>
 
-            <div className="flex gap-2">
+            <div className="flex min-w-0 flex-wrap gap-2">
                 <TooltipWithCopyAction
                     copyText={activeTrace?.span_id || ""}
                     title="Copy span id"
@@ -223,21 +225,25 @@ const TraceTypeHeader = ({
                         label={`# ${activeTrace?.span_id || "-"}`}
                     />
                 </TooltipWithCopyAction>
-                <SimpleTooltip
-                    title={!canOpenInPlayground ? openInPlaygroundState.reason : undefined}
-                    side="bottom"
-                >
-                    <EnhancedButton
-                        type="default"
-                        size="small"
-                        icon={<Play size={14} />}
-                        loading={isOpening}
-                        disabled={!canOpenInPlayground || isOpening}
-                        onClick={handleOpenInPlayground}
+                {/* Like the slotted actions, the button exists only when the host binds the
+                    playground action. `/m` does not bind it, so `/m` shows no button. */}
+                {openTraceInPlayground && (
+                    <SimpleTooltip
+                        title={!canOpenInPlayground ? openInPlaygroundState.reason : undefined}
+                        side="bottom"
                     >
-                        Playground
-                    </EnhancedButton>
-                </SimpleTooltip>
+                        <EnhancedButton
+                            type="default"
+                            size="small"
+                            icon={<Play size={14} />}
+                            loading={isOpening}
+                            disabled={!canOpenInPlayground || isOpening}
+                            onClick={handleOpenInPlayground}
+                        >
+                            Playground
+                        </EnhancedButton>
+                    </SimpleTooltip>
+                )}
                 <AddToTestsetButton
                     label="Add to testset"
                     size="small"

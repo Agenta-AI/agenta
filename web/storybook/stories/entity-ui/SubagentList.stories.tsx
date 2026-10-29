@@ -73,7 +73,6 @@ const listArgs = (entries: typeof ENTRIES) => ({
     openEdit: noop,
     removeItem: noop,
     closeEditor: noop,
-    emptyAdd: <a>add a subagent</a>,
 })
 
 // Showcase, not an antd parity pair. `data-vrt-subject` is the harness's readiness marker.

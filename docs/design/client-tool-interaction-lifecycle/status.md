@@ -491,7 +491,7 @@ No test pinned the old behaviour, so none needed adjusting. `web/oss` AgentChatS
 passed across 26 files; `tsc --noEmit`, eslint `--max-warnings 0` and prettier `--check`
 clean on the file.
 
-## Live QA (2026-08-10, dev stack `agenta-ee-dev-rel112`, http://144.76.237.122:8180)
+## Live QA (2026-08-10, dev stack `agenta-ee-dev-rel112`, http://<dev-host>:8180)
 
 Verdict: **FINDINGS** — the new settlement contract holds everywhere it was exercised, including
 Mahmoud's original compound scenario, but replay does not settle FORM cards from pre-fix

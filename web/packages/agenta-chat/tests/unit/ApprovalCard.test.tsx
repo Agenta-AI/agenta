@@ -422,3 +422,33 @@ describe("keyboard shortcuts", () => {
         cleanup()
     })
 })
+
+describe("the read-only card (a person who can view but not send)", () => {
+    const renderReadOnly = () =>
+        renderToStaticMarkup(
+            <ApprovalCard
+                approvals={[{approvalId: "a1", toolName: "bash", input: {command: "ls"}}]}
+                entityId="rev-1"
+                steerEnabled
+                readOnly
+                readOnlyNote="Waiting for Alice Martin or someone who can send in this chat."
+                onRespond={() => undefined}
+                onApproveAll={() => undefined}
+            />,
+        )
+
+    it("readOnly renders no answer buttons", () => {
+        grantState.eligible = true
+        const html = renderReadOnly()
+        expect(html).not.toContain("Approve")
+        expect(html).not.toContain("Deny")
+        expect(html).not.toContain("Redirect")
+        expect(html).not.toContain("Always auto-approve")
+    })
+
+    it("keeps the eyebrow and shows who it waits for", () => {
+        const html = renderReadOnly()
+        expect(html).toContain("Needs your approval")
+        expect(html).toContain("Waiting for Alice Martin or someone who can send in this chat.")
+    })
+})

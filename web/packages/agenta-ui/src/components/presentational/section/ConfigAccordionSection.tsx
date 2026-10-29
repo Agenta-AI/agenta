@@ -476,7 +476,8 @@ export function ConfigAccordionSection({
             </div>
 
             {opensDrawer ? null : (
-                <HeightCollapse open={isOpen}>
+                // The 4px bleed keeps a focused control's 3px ring inside the collapse's clip.
+                <HeightCollapse open={isOpen} className="-mx-1" contentClassName="px-1">
                     {/* Top padding gives the body room below the header band (which carries the
                         fill + bottom divider), so it reads as content, not a header continuation. */}
                     <div className={bodyClassName}>

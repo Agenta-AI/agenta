@@ -5,6 +5,7 @@ import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import {authFlowAtom} from "@/oss/state/session"
+import {handPendingTemplateToMobile} from "@/oss/state/url/template"
 
 /**
  * Null-rendering: mirrors Classic mode to a cookie, and hops to `/m` on the first visit.
@@ -16,7 +17,7 @@ const ClassicModeGate = () => {
     const {asPath} = useRouter()
 
     useClassicModeCookieSync()
-    useClassicModeRedirect(authFlow === "authed", asPath)
+    useClassicModeRedirect(authFlow === "authed", asPath, handPendingTemplateToMobile)
 
     return null
 }

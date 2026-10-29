@@ -1,0 +1,227 @@
+/**
+ * What an agent may do with one connected MCP server, per tool.
+ *
+ * This mirrors `MCPPolicy` in `sdks/python/agenta/sdk/agents/mcp/models.py`, which is the
+ * authority. Three fields answer three different questions and are deliberately not
+ * collapsed into one:
+ *
+ * - `tools` is a FILTER. A tool it hides is never advertised, so it needs no permission and
+ *   may not be given one: the SDK refuses such an entry rather than dropping it, because the
+ *   author either meant to list the tool or meant to permit a different one.
+ * - `permission` is the whole-server decision. It governs every tool while no per-tool table
+ *   is declared, which is what leaves a configuration written before per-tool policy behaving
+ *   exactly as it did. Once a table IS declared it decides nothing on its own: see
+ *   `resolvedNewToolPermission`.
+ * - `tool_permissions` is the per-tool decision, keyed by the name the SERVER advertises
+ *   (`echo`), never the harness-rendered one (`mcp__acme_prod__echo`). The upstream name is
+ *   the only spelling every harness agrees on.
+ *
+ * The pair is an opt-in. With neither `tool_permissions` nor `new_tool_permission` set,
+ * nothing per-tool is written and the server permission governs. With either set, the table
+ * is authoritative and a run default cannot widen it, because a per-tool policy a default
+ * can widen is not a policy.
+ */
+
+export type McpPermission = "allow" | "ask" | "deny"
+
+export interface McpToolFilterPolicy {
+    mode?: "all" | "include"
+    names?: string[]
+}
+
+export interface McpServerPolicy {
+    tools?: McpToolFilterPolicy
+    permission?: McpPermission | null
+    tool_permissions?: Record<string, McpPermission>
+    new_tool_permission?: McpPermission | null
+}
+
+const PERMISSIONS: readonly McpPermission[] = ["allow", "ask", "deny"]
+
+/**
+ * Whether a saved value is one of the three decisions.
+ *
+ * The saved shape is JSON, so a value can be anything: a spelling from another surface
+ * (`"Allow"`), a leftover from an older field, a number. A value that is not exactly one of
+ * these is not a decision and is dropped, which is what the runner's intake does with the same
+ * input, and what an ABSENT value already does. So an unreadable value is never more permissive
+ * than saying nothing, and never reaches a control that has nothing to draw it as (D172).
+ */
+export function isMcpPermission(value: unknown): value is McpPermission {
+    return typeof value === "string" && (PERMISSIONS as readonly string[]).includes(value)
+}
+
+/** How the wire spells the two per-tool fields. This module, like the SDK model it mirrors,
+ *  spells them `tool_permissions` and `new_tool_permission`. */
+const WIRE_PER_TOOL_FIELDS = ["toolPermissions", "newToolPermission"] as const
+
+/**
+ * Whether this policy declares a per-tool table this reader cannot see.
+ *
+ * The wire names the two per-tool fields differently from the model, and the wire policy is a
+ * free-form mapping, so a policy in the wire's convention reaches this reader with its table
+ * invisible. What is left reads as a legitimate "server allow, no table" policy, so a tool the
+ * table denied would be shown, and run, as allowed (issue 6917).
+ *
+ * Narrow on purpose: the two aliases, not any unknown key, so a policy carrying a field this
+ * package predates still reads.
+ */
+export function isMisCasedPolicy(policy: McpServerPolicy): boolean {
+    const raw = policy as unknown as Record<string, unknown>
+    return WIRE_PER_TOOL_FIELDS.some((field) => field in raw)
+}
+
+const EMPTY: McpServerPolicy = {}
+
+/** The policy on a config item, whatever shape the item is otherwise in. */
+export function readMcpPolicy(item: Record<string, unknown> | null | undefined): McpServerPolicy {
+    const policy = item?.policy
+    if (!policy || typeof policy !== "object") return EMPTY
+    return policy as McpServerPolicy
+}
+
+/** The table's readable entries. An entry whose value is not a decision is dropped. */
+export const toolPermissions = (policy: McpServerPolicy): Record<string, McpPermission> => {
+    const declared = policy.tool_permissions ?? {}
+    // A null prototype, because a server's tool names arrive verbatim and nothing validates
+    // them. `readable["__proto__"] = "deny"` on an ordinary object sets the prototype instead
+    // of an entry, so the denial is dropped on the way in and the name then reads back as
+    // `Object.prototype`, which is truthy and is returned as though it were a permission. A
+    // table with no prototype has nothing to shadow, so the name is an entry like any other.
+    const readable: Record<string, McpPermission> = Object.create(null)
+    for (const [tool, permission] of Object.entries(declared)) {
+        if (isMcpPermission(permission)) readable[tool] = permission
+    }
+    return readable
+}
+
+/**
+ * Whether the author opted into per-tool policy for this server.
+ *
+ * Read from what was DECLARED rather than from what parsed, the way the runner reads it: a table
+ * whose only entry is unreadable is still a table somebody wrote, and reading the opt-in off the
+ * parse would hand that server back to its whole-server permission.
+ */
+export function isPerTool(policy: McpServerPolicy): boolean {
+    return (
+        Object.keys(policy.tool_permissions ?? {}).length > 0 || policy.new_tool_permission != null
+    )
+}
+
+/** Whether the filter hides this tool, in which case it may not carry a permission. */
+export function isToolHidden(policy: McpServerPolicy, toolName: string): boolean {
+    if (policy.tools?.mode !== "include") return false
+    return !(policy.tools.names ?? []).includes(toolName)
+}
+
+/**
+ * What an advertised tool with no entry of its own gets.
+ *
+ * `ask` is the floor rather than "fall through to the run default": a tool nobody has looked
+ * at yet must reach a human. Null means the author opted out entirely, which is what leaves
+ * an existing configuration unchanged.
+ *
+ * The whole-server permission is deliberately NOT consulted here, which is what the runner's
+ * own gate does: a declared table with no floor beside it resolves to `ask`, because a human
+ * decides for anything the table does not name. Reading `permission` as the floor made this
+ * label promise that a `permission: allow` server would run an unnamed tool unapproved, which
+ * is both the unsafe direction and not what the run does (D88).
+ */
+export function resolvedNewToolPermission(policy: McpServerPolicy): McpPermission | null {
+    // A table this reader cannot see is still a table: the author opted in, so the server
+    // permission decides nothing, and `ask` is the floor a human answers at.
+    if (isMisCasedPolicy(policy)) return "ask"
+    if (!isPerTool(policy)) return null
+    // An unreadable floor beside a declared table is the same as none: a human decides.
+    return isMcpPermission(policy.new_tool_permission) ? policy.new_tool_permission : "ask"
+}
+
+/**
+ * The decision one advertised tool ends up with, and where it came from.
+ *
+ * `source` is what the editor shows: an explicit entry reads as chosen, anything else reads
+ * as inherited, and saying which is the difference between a table someone can trust and a
+ * list of values with no provenance.
+ */
+export function effectiveToolPermission(
+    policy: McpServerPolicy,
+    toolName: string,
+): {permission: McpPermission | null; source: "tool" | "new" | "server" | "default"} {
+    // Refused rather than read, and before the table is consulted, because the table this
+    // reader can see is not the one the author wrote (issue 6917).
+    if (isMisCasedPolicy(policy)) return {permission: "ask", source: "new"}
+
+    const table = toolPermissions(policy)
+    const entry = Object.hasOwn(table, toolName) ? table[toolName] : undefined
+    if (entry) return {permission: entry, source: "tool"}
+
+    // A declared table answers for every tool it does not name, from `new_tool_permission` or
+    // the `ask` floor. Never from the server permission, so the provenance is always "new".
+    const resolved = resolvedNewToolPermission(policy)
+    if (resolved) return {permission: resolved, source: "new"}
+    // An unreadable server permission is not a decision either, so the run's ladder decides,
+    // which is what an absent one already does.
+    const server = isMcpPermission(policy.permission) ? policy.permission : null
+    return {permission: server, source: server ? "server" : "default"}
+}
+
+const withoutKey = (table: Record<string, McpPermission>, key: string) => {
+    const next: Record<string, McpPermission> = Object.assign(Object.create(null), table)
+    delete next[key]
+    return next
+}
+
+/** Drop the per-tool fields entirely when nothing is left in them. */
+function pruned(policy: McpServerPolicy): McpServerPolicy {
+    const next: McpServerPolicy = {...policy}
+    if (Object.keys(next.tool_permissions ?? {}).length === 0) delete next.tool_permissions
+    if (next.new_tool_permission == null) delete next.new_tool_permission
+    return next
+}
+
+/**
+ * Set or clear one tool's permission.
+ *
+ * Giving a hidden tool a permission is refused rather than written, matching the SDK: it would
+ * produce a configuration that fails validation on every run of the agent, not once at save.
+ *
+ * Clearing one is always allowed, and has to be. A filter narrowed after the fact leaves
+ * entries for tools it now hides, and the SDK rejects the whole policy for exactly those
+ * entries, so refusing to clear them left an agent that could not run and no way to repair it
+ * from here (CR18).
+ */
+export function setToolPermission(
+    policy: McpServerPolicy,
+    toolName: string,
+    permission: McpPermission | null,
+): McpServerPolicy {
+    if (permission && isToolHidden(policy, toolName)) return policy
+    const table = toolPermissions(policy)
+    return pruned({
+        ...policy,
+        tool_permissions: permission
+            ? Object.assign(Object.create(null), table, {[toolName]: permission})
+            : withoutKey(table, toolName),
+    })
+}
+
+export function setNewToolPermission(
+    policy: McpServerPolicy,
+    permission: McpPermission | null,
+): McpServerPolicy {
+    return pruned({...policy, new_tool_permission: permission})
+}
+
+/**
+ * Entries naming tools the server no longer advertises.
+ *
+ * Kept rather than pruned: a server can stop advertising a tool temporarily, and silently
+ * dropping the author's decision would re-admit it under the new-tool default when it came
+ * back. Shown, so someone can remove it on purpose.
+ */
+export function staleToolPermissions(policy: McpServerPolicy, advertised: string[]): string[] {
+    const known = new Set(advertised)
+    return Object.keys(toolPermissions(policy))
+        .filter((name) => !known.has(name))
+        .sort()
+}

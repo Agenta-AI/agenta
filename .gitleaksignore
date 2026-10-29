@@ -304,7 +304,28 @@ ea3257c7cc43d635b7bd8a16863d26df8d012c85:api/oss/tests/pytest/unit/secrets/test_
 84bb7fe0c9f926c6a60d7bd8577ba64043b655e7:api/oss/tests/pytest/unit/secrets/test_managed_secrets.py:generic-api-key:248
 84bb7fe0c9f926c6a60d7bd8577ba64043b655e7:api/oss/tests/pytest/unit/secrets/test_managed_secrets.py:generic-api-key:303
 e30afd32abeb0b51f22a0590b5bf44899978712b:.agents/skills/agent-release-gate/resources/test_out_of_credit_skip.py:generic-api-key:50
+9e9fec16acda13e00567df1dee63b3485f7c4a10:.agents/skills/agent-release-gate/resources/qa-gate-runs/20260806-215437/results.json:generic-api-key:18
+9e9fec16acda13e00567df1dee63b3485f7c4a10:.agents/skills/agent-release-gate/resources/qa-gate-runs/20260806-215437/results.json:generic-api-key:94
+9e9fec16acda13e00567df1dee63b3485f7c4a10:.agents/skills/agent-release-gate/resources/qa-gate-runs/20260806-215512/results.json:generic-api-key:18
 # Upstream commit ids in a research doc's source table (the Pi and Hermes Agent repos), not
 # tokens. Regenerate these lines if that table moves — a fingerprint is anchored to its line.
 a7cf435e35ff3274b27e851fd49ec0385c1b2ddf:docs/design/hosted-subscription-connections/research/other-providers.md:sourcegraph-access-token:374
 a7cf435e35ff3274b27e851fd49ec0385c1b2ddf:docs/design/hosted-subscription-connections/research/other-providers.md:sourcegraph-access-token:375
+
+# Two test placeholders in a credential-normalization test. The value gitleaks matched is the
+# literal `sk-live-abc123`, written to show that a key pasted with a trailing newline is trimmed;
+# it was never a credential. The tip no longer contains it — a601b25ef2 replaced it with
+# `placeholder-provider-key` — but gitleaks scans the pushed commit range rather than the tree,
+# so the earlier commit still trips the scan. Regenerate these lines if the branch is rebased.
+eed2ad997ebc4ee3395067ee281ed40b76d226fe:api/oss/tests/pytest/unit/secrets/test_dtos.py:generic-api-key:633
+eed2ad997ebc4ee3395067ee281ed40b76d226fe:api/oss/tests/pytest/unit/secrets/test_dtos.py:generic-api-key:635
+# A made-up verify token in a Storybook fixture for the WhatsApp manage panel (PR #7132); replaced in a later commit.
+81ef0808a9841fdbc5b4bacae42909b3256398d8:web/packages/agenta-settings-ui/src/channels/storyFixtures.tsx:generic-api-key:158
+# A made-up Groq key in the useSaveProviderKey unit test (PR #7450).
+7e9971de019b39e9542d07f2049039595632a7b6:web/packages/agenta-entity-ui/tests/unit/saveProviderKey.test.ts:generic-api-key:78
+7d66de71e1de22490d33e921b63471a1859acd7f:web/packages/agenta-entity-ui/tests/unit/saveProviderKey.test.ts:generic-api-key:78
+02ce6b45a0038294256fced7b1ceec879b574c17:web/packages/agenta-entity-ui/tests/unit/saveProviderKey.test.ts:generic-api-key:78
+# A made-up key in the MCP probe redaction test (PR #7580): the test checks that a key typed
+# into the server address never reaches the error excerpt. It was never a credential.
+fa13fd6147bbdaa76fe42324e5e0da0025d2f275:api/oss/tests/pytest/unit/gateways/test_gateways_mcp_probe.py:generic-api-key:955
+6b7f6b127ae55c352b950cc39a63931641cdd0bf:api/oss/tests/pytest/unit/gateways/test_gateways_mcp_probe.py:generic-api-key:955

@@ -35,12 +35,18 @@ export const AutomationRunHistoryView = ({
     automation,
     header,
     renderConversation,
+    frame = "page",
 }: {
     automation: Automation | null
     /** The way back to the automation — rendered above the list, on its own grid. */
     header?: ReactNode
     /** The run's transcript, given its session — the host's chat surface. */
     renderConversation: (sessionId: string) => ReactNode
+    /**
+     * Where it sits. A page centres the single-column list on the page's 760px line; a drawer
+     * already is the column, so the list fills it edge to edge on the drawer's own gutters.
+     */
+    frame?: "page" | "drawer"
 }) => {
     const {runs: allRuns, caption, isLoading, error, refetch} = useAutomationRuns(automation)
 
@@ -88,7 +94,8 @@ export const AutomationRunHistoryView = ({
                 // line like every other screen — and the back link centres with it, on the same
                 // 30px as the heading below. The split layout stays full-bleed: its rule divides
                 // the window, not a column.
-                !showPane && "mx-auto max-w-[760px]",
+                frame === "page" && !showPane && "mx-auto max-w-[760px]",
+                frame === "drawer" && "pt-3",
             )}
         >
             {header}
@@ -98,8 +105,12 @@ export const AutomationRunHistoryView = ({
                         className={cn(
                             "flex min-h-0 flex-col",
                             showPane
-                                ? "min-w-[240px] max-w-[380px] flex-[1_1_240px] border-0 border-r border-solid border-border pb-6 pl-5 pr-4"
-                                : "w-full min-w-0 max-w-[760px] flex-1 pb-6 pl-5 pr-5",
+                                ? "min-w-[240px] max-w-[380px] flex-[1_1_240px] border-0 border-r border-solid border-border pb-6 pr-4"
+                                : "w-full min-w-0 flex-1 pb-6 pr-5",
+                            // The heading's own 10px inset makes up the rest: 30px on a page's
+                            // grid, the drawer header's 16px in a drawer.
+                            frame === "drawer" ? "pl-1.5" : "pl-5",
+                            frame === "page" && !showPane && "max-w-[760px]",
                         )}
                     >
                         <div className="flex shrink-0 items-center gap-2 pl-2.5">

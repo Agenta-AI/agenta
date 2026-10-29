@@ -1,4 +1,4 @@
-import {useEffect, useMemo, useState} from "react"
+import {useEffect, useMemo, useRef, useState} from "react"
 
 import {Button} from "@agenta/ui/ui"
 import {useQuery} from "@tanstack/react-query"
@@ -9,8 +9,10 @@ import {HomePageSkeleton} from "@/features/home/states/HomePageSkeleton"
 import {
     fetchProjects,
     projectHomeUrl,
+    projectTemplateUrl,
     readDesktopLastUsed,
     readLastContext,
+    peekTemplateKey,
     type LastContext,
 } from "@/lib/context"
 
@@ -28,12 +30,11 @@ interface ContextResolverProps {
 
 /**
  * `/m/` root flow: resolve a project (remembered → desktop continuity → first) and forward to
- * its home. There is no picker page — switching lives in the drawer, exactly like the desktop
- * rail. This route only ever shows the home skeleton, an error, or leaves.
+ * its home. There is no picker page — switching lives in the drawer. This route only ever shows
+ * the home skeleton, an error, or leaves.
  *
- * Also the body of every `/w/...` index gate — the desktop's `WorkspaceSelection` /
- * `WorkspaceRedirect` / `WorkspaceProjectRedirect` trio, collapsed into one resolver because
- * mobile answers all three questions from the same project list.
+ * Also the body of every `/w/...` index gate, collapsed into one resolver because mobile answers
+ * all of them from the same project list.
  */
 export const ContextResolver = ({workspaceId}: ContextResolverProps = {}) => {
     const router = useRouter()
@@ -69,9 +70,22 @@ export const ContextResolver = ({workspaceId}: ContextResolverProps = {}) => {
         [router.isReady, stored, groups, result, workspaceId],
     )
 
+    // The template key this mount resolves to, read once. The effect below can run more than
+    // once (the remembered project, then the fetched tree, or React's development double run),
+    // and every run must forward to the same place: a later run that read no key sent the user
+    // to the project home, and whichever navigation landed last won.
+    const templateKeyRef = useRef<string | null>(null)
+
     useEffect(() => {
         if (!target?.projectId) return
-        const next = projectHomeUrl(target)
+        // On the URL, or remembered by AuthGate before a sign-in dropped the query.
+        if (templateKeyRef.current === null) {
+            templateKeyRef.current =
+                (typeof router.query.template === "string" ? router.query.template.trim() : "") ||
+                peekTemplateKey()
+        }
+        const templateKey = templateKeyRef.current
+        const next = templateKey ? projectTemplateUrl(target, templateKey) : projectHomeUrl(target)
         // A gate that forwards to itself would loop; nothing here ever resolves to its own
         // path, but the guard keeps that true if a route is added under a project home.
         if (router.asPath.split("?")[0] === next) return

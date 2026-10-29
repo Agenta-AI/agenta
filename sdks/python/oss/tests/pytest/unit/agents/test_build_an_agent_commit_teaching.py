@@ -1,27 +1,19 @@
-"""The ``build-an-agent`` skill teaches the commit shape the deployment actually serves.
+"""The ``build-an-agent`` skill teaches the commit shape the catalog advertises.
 
-The skill body and its ``references/config-schema.md`` are assembled at import from
-``AGENTA_WORKFLOWS_ORDERED_OPERATIONS_ENABLED``, exactly like the op catalog assembles the
-``commit_revision`` description and input schema. The two must agree: an agent that reads the
-ordered form in its tool description and the legacy form in its skill picks between them from
-call to call. That is not a theory — a live agent followed a `delta.set` example out of this
-skill against an ordered-operations deployment, sent a one-entry ``skills`` list, and replaced
-the user's existing skill.
-
-So these tests read the skill in BOTH flag states (a subprocess each, since the flag is read at
-import) and assert that neither state ever mentions the other's shape.
+The skill body and its ``references/config-schema.md`` must agree with the op catalog's
+``commit_revision`` description and input schema: an agent that reads the ordered form in its
+tool description and the legacy form in its skill picks between them from call to call. That
+is not a theory — a live agent followed a `delta.set` example out of this skill, sent a
+one-entry ``skills`` list, and replaced the user's existing skill.
 """
 
 import json
-import os
 import re
 import subprocess
 import sys
 
 import jsonschema
 import pytest
-
-FLAG = "AGENTA_WORKFLOWS_ORDERED_OPERATIONS_ENABLED"
 
 _PROBE = """
 import json
@@ -40,17 +32,11 @@ print(json.dumps({
 LEGACY_COMMIT_MARKERS = ("delta.set", "delta.remove", "wholesale", "replaces the old")
 
 
-def _skill(flag_value):
-    env = dict(os.environ)
-    if flag_value is None:
-        env.pop(FLAG, None)
-    else:
-        env[FLAG] = flag_value
+def _skill():
     result = subprocess.run(
         [sys.executable, "-c", _PROBE],
         capture_output=True,
         text=True,
-        env=env,
         check=True,
     )
     return json.loads(result.stdout.strip().splitlines()[-1])
@@ -58,14 +44,7 @@ def _skill(flag_value):
 
 @pytest.fixture(scope="module")
 def ordered():
-    return _skill("true")
-
-
-@pytest.fixture(scope="module")
-def legacy():
-    # Explicitly off: ordered operations are the default now, so an unset variable is the
-    # ordered state, not this one.
-    return _skill("false")
+    return _skill()
 
 
 def _commit_surface(skill):
@@ -95,16 +74,14 @@ def _gateway_connections(value):
             yield from _gateway_connections(child)
 
 
-@pytest.mark.parametrize("fixture_name", ["ordered", "legacy"])
-def test_new_gateway_connections_are_taught_as_allow_all(request, fixture_name):
+def test_new_gateway_connections_are_taught_as_allow_all(ordered):
     """Adding an integration grants all of it. Restricting is a separate, asked-for act.
 
     Examples outrank prose for a model, so every worked ADD example has to show the
     allow-all policy. The restrict guidance names its tools in the map and keeps
     ``default`` on ``allow``, so it never reads as a stricter default to copy.
     """
-    skill = request.getfixturevalue(fixture_name)
-    config_schema = skill["files"]["references/config-schema.md"]
+    config_schema = ordered["files"]["references/config-schema.md"]
     examples = list(_gateway_connections(_example_payloads(config_schema)))
 
     assert examples
@@ -130,14 +107,14 @@ class TestOrderedModeNeverTeachesTheLegacyShape:
             )
 
     def test_no_example_writes_a_commit_message(self, ordered):
-        # With ordered operations on, the server derives the message from the operations and
+        # The server derives the message from the operations and
         # `message` is off the model-visible schema entirely. An example that writes one earns
         # a schema rejection on a closed object.
         config_schema = ordered["files"]["references/config-schema.md"]
         assert '"message"' not in config_schema
 
     def test_a_playbook_may_name_delta_set_only_for_test_run(self, ordered):
-        # `test_run` keeps its uncommitted `delta.set` in both flag states, and the playbooks
+        # `test_run` keeps its uncommitted `delta.set`, and the playbooks
         # legitimately name it. Anywhere else, in any bundled file, it is the legacy commit.
         for path, content in ordered["files"].items():
             if path == "references/config-schema.md":
@@ -198,55 +175,11 @@ class TestOrderedModeTeachesTheOrderedShape:
             '{"key": "code-review-checklist", "list": "skills"}',
         ) in (shapes)
 
-    def test_an_unset_flag_teaches_the_ordered_shape(self):
-        # The default is what a fresh deployment serves, so it is what the skill has to
-        # teach. Asserted separately from the `ordered` fixture, which sets the variable:
-        # a default that drifted back to legacy would leave that fixture green.
-        default = _skill(None)
-        assert "delta.operations" in default["body"]
-        for name, content in _commit_surface(default).items():
-            assert "delta.set" not in content, (
-                f"{name} teaches the legacy commit shape on a default deployment"
-            )
-
     def test_every_example_validates_against_the_real_commit_schema(self, ordered):
         # Field for field against what the catalog advertises: the schema is closed at every
         # level, so an invented field, a `message`, or a missing `base_revision_id` fails here.
         schema = ordered["commit_schema"]
         payloads = _example_payloads(ordered["files"]["references/config-schema.md"])
         assert len(payloads) == 5
-        for payload in payloads:
-            jsonschema.validate(payload, schema)
-
-
-class TestLegacyModeKeepsTheLegacyTeaching:
-    """The mirror: a flag-off deployment really does work the legacy way."""
-
-    def test_the_reference_still_teaches_the_delta_merge_semantics(self, legacy):
-        config_schema = legacy["files"]["references/config-schema.md"]
-        assert "## How a delta commits (merge semantics)" in config_schema
-        assert "delta.set" in config_schema
-        assert "wholesale" in config_schema
-        assert '"message"' in config_schema
-
-    @pytest.mark.parametrize(
-        "phrase", ["read_config", "base_revision_id", "operations"]
-    )
-    def test_nothing_mentions_the_ordered_shape(self, legacy, phrase):
-        # `read_config` does not exist on a flag-off deployment, so naming it would send the
-        # agent after a tool it does not have.
-        for name, content in _commit_surface(legacy).items():
-            assert phrase not in content, f"{name} names the ordered shape ({phrase!r})"
-
-    def test_every_example_validates_against_the_real_commit_schema(self, legacy):
-        schema = legacy["commit_schema"]
-        section = legacy["files"]["references/config-schema.md"].split(
-            "## Example requests", 1
-        )[1]
-        payloads = [
-            json.loads(block)
-            for block in re.findall(r"```json\n(.*?)```", section, flags=re.DOTALL)
-        ]
-        assert len(payloads) == 4
         for payload in payloads:
             jsonschema.validate(payload, schema)

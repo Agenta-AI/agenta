@@ -14,13 +14,19 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from agenta.sdk.agents.connections import (
     EndpointResolutionError,
     SubscriptionLoginRequiredError,
     UnsupportedDeploymentError,
     UnsupportedProviderError,
 )
+from agenta.sdk.agents.errors import AgentRunFailed
+from agenta.sdk.agents.utils.wire import result_from_wire
+from agenta.sdk.decorators import routing
 from agenta.sdk.decorators.routing import handle_invoke_failure
+from agenta.sdk.middlewares.running import normalizer
 from agenta.sdk.middlewares.running.normalizer import NormalizerMiddleware
 
 
@@ -135,3 +141,262 @@ async def test_both_error_sites_agree_on_one_exception():
     assert routed["status"]["failure_code"] == normalized["failure_code"]
     assert routed["status"]["code"] == normalized["code"]
     assert routed["status"]["message"] == normalized["message"]
+
+
+# ------------------------------------------------------ what the refusal body carries
+
+
+_TRACEBACK_MARKERS = ("Traceback (most recent call last)", 'File "', ", line ")
+
+
+def _looks_like_a_traceback(body: str) -> bool:
+    return any(marker in body for marker in _TRACEBACK_MARKERS)
+
+
+async def test_a_refusal_body_carries_no_traceback(monkeypatch):
+    """This body answers `POST /services/agent/v0/invoke`, which the playground calls from
+    a browser, so it was shipping module paths and the service's own layout to a page."""
+    monkeypatch.delenv("AGENTA_SDK_ERRORS_INCLUDE_STACKTRACE", raising=False)
+
+    def raise_deep():
+        raise RuntimeError("the handler blew up")
+
+    try:
+        raise_deep()
+    except RuntimeError as exception:
+        status = await _normalized_status(exception)
+
+    assert "stacktrace" not in status
+    assert not _looks_like_a_traceback(json.dumps(status))
+    # And the parts a client branches on are all still there.
+    assert status["code"] == 500
+    assert status["message"] == "the handler blew up"
+    assert status["type"]
+
+
+async def test_a_refusal_the_sdk_authored_carries_no_traceback_either(monkeypatch):
+    """The other branch: an `ErrorStatus` the SDK raised with a stacktrace of its own."""
+    monkeypatch.delenv("AGENTA_SDK_ERRORS_INCLUDE_STACKTRACE", raising=False)
+
+    status = await _normalized_status(
+        SubscriptionLoginRequiredError(slug="chatgpt", provider="chatgpt")
+    )
+
+    assert "stacktrace" not in status
+    assert status["failure_code"] == "subscription_login_required"
+
+
+async def test_the_traceback_is_returned_when_a_developer_asks_for_it(monkeypatch):
+    """Local development keeps the old body, deliberately and explicitly."""
+    monkeypatch.setenv("AGENTA_SDK_ERRORS_INCLUDE_STACKTRACE", "true")
+
+    def raise_deep():
+        raise RuntimeError("the handler blew up")
+
+    try:
+        raise_deep()
+    except RuntimeError as exception:
+        status = await _normalized_status(exception)
+
+    assert _looks_like_a_traceback(json.dumps(status["stacktrace"]))
+
+
+async def test_a_withheld_traceback_is_logged_rather_than_dropped(monkeypatch):
+    """Turning the switch off must cost an operator nothing: the same text lands on the
+    failure line this path already writes, so they read one record rather than two."""
+    monkeypatch.delenv("AGENTA_SDK_ERRORS_INCLUDE_STACKTRACE", raising=False)
+    recorded: list = []
+    monkeypatch.setattr(
+        normalizer.log,
+        "warning",
+        lambda *args, **kwargs: recorded.append(kwargs),
+    )
+
+    try:
+        raise RuntimeError("the handler blew up")
+    except RuntimeError as exception:
+        await _normalized_status(exception)
+
+    assert recorded, "the traceback was withheld and not logged"
+    assert _looks_like_a_traceback(json.dumps(recorded[-1]["stacktrace"]))
+    assert recorded[-1]["status_code"] == 500
+
+
+# ---------------------------------------------------------------------------
+# D68: the invoke routing layer answers the same request, so it answers the same way
+# ---------------------------------------------------------------------------
+
+
+async def _routed_body(exception: Exception) -> dict:
+    _, body = await _status_and_body(exception)
+    return body
+
+
+async def test_the_routing_layers_refusal_body_carries_no_traceback(monkeypatch):
+    """The other half of the same request. A handler's own exception is caught by the
+    normalizer, and everything raised around it by this layer, so a caller that could not
+    read a traceback from one could still read one from the other."""
+    monkeypatch.delenv("AGENTA_SDK_ERRORS_INCLUDE_STACKTRACE", raising=False)
+
+    def raise_deep():
+        raise RuntimeError("the route blew up")
+
+    try:
+        raise_deep()
+    except RuntimeError as exception:
+        body = await _routed_body(exception)
+
+    assert "stacktrace" not in body["status"]
+    assert not _looks_like_a_traceback(json.dumps(body))
+    # And the parts a client branches on are all still there.
+    assert body["status"]["code"] == 500
+    assert body["status"]["message"] == "the route blew up"
+    assert body["status"]["type"]
+
+
+async def test_the_routing_layers_authored_refusal_carries_no_traceback_either(
+    monkeypatch,
+):
+    """The `ErrorStatus` branch, which returned whatever stacktrace the raiser attached."""
+    monkeypatch.delenv("AGENTA_SDK_ERRORS_INCLUDE_STACKTRACE", raising=False)
+
+    body = await _routed_body(
+        SubscriptionLoginRequiredError(slug="chatgpt", provider="chatgpt")
+    )
+
+    assert "stacktrace" not in body["status"]
+    assert body["status"]["failure_code"] == "subscription_login_required"
+
+
+async def test_the_routing_layer_returns_the_traceback_when_asked(monkeypatch):
+    """One switch, so a developer who turns it on gets both paths, not one of them."""
+    monkeypatch.setenv("AGENTA_SDK_ERRORS_INCLUDE_STACKTRACE", "true")
+
+    def raise_deep():
+        raise RuntimeError("the route blew up")
+
+    try:
+        raise_deep()
+    except RuntimeError as exception:
+        body = await _routed_body(exception)
+
+    assert _looks_like_a_traceback(json.dumps(body["status"]["stacktrace"]))
+
+
+async def test_the_routing_layer_logs_the_traceback_it_withholds(monkeypatch):
+    """This path wrote no failure line at all, so withholding the traceback would have
+    been the only record of it disappearing."""
+    monkeypatch.delenv("AGENTA_SDK_ERRORS_INCLUDE_STACKTRACE", raising=False)
+    recorded: list = []
+    monkeypatch.setattr(
+        routing.log,
+        "warning",
+        lambda *args, **kwargs: recorded.append(kwargs),
+    )
+
+    try:
+        raise RuntimeError("the route blew up")
+    except RuntimeError as exception:
+        await _routed_body(exception)
+
+    assert recorded, "the traceback was withheld and not logged"
+    assert _looks_like_a_traceback(json.dumps(recorded[-1]["stacktrace"]))
+    assert recorded[-1]["status_code"] == 500
+
+
+async def test_both_error_sites_withhold_and_return_together(monkeypatch):
+    """The reason the switch lives beside `failure_code_of` rather than in either module:
+    one request must not be able to get two different answers."""
+    monkeypatch.delenv("AGENTA_SDK_ERRORS_INCLUDE_STACKTRACE", raising=False)
+
+    try:
+        raise RuntimeError("boom")
+    except RuntimeError as exception:
+        assert "stacktrace" not in (await _routed_body(exception))["status"]
+        assert "stacktrace" not in await _normalized_status(exception)
+
+        monkeypatch.setenv("AGENTA_SDK_ERRORS_INCLUDE_STACKTRACE", "1")
+        assert (await _routed_body(exception))["status"]["stacktrace"]
+        assert (await _normalized_status(exception))["stacktrace"]
+
+
+# ---------------------------------------------------------------------------
+# A runner failure that the caller's own configuration caused is a 4xx
+# ---------------------------------------------------------------------------
+
+
+def _gateway_refusal(code: str, message: str) -> AgentRunFailed:
+    """A failed run as `result_from_wire` raises it for a refusal the LLM gateway sent.
+
+    The runner recovers the gateway's code from the `⟦agenta_code:...⟧` marker and sends it
+    as `errorDetail`, with `retryable: false`: the same request fails the same way until the
+    caller changes the request or its configuration.
+    """
+    return result_failure(
+        {
+            "ok": False,
+            "error": f"The model provider refused the request (HTTP 400): {message}",
+            "errorDetail": {"code": code, "message": message, "retryable": False},
+        }
+    )
+
+
+def result_failure(data: dict) -> AgentRunFailed:
+    try:
+        result_from_wire(data)
+    except AgentRunFailed as exception:
+        return exception
+    raise AssertionError("result_from_wire did not raise")
+
+
+_REFUSALS = [
+    (
+        "routing_field_not_allowed",
+        "Request field 'fallbacks' selects models and is not enforceable on "
+        "standard/anthropic",
+    ),
+    (
+        "secret_missing",
+        "No project secret for provider:openai under mode project_only",
+    ),
+    ("endpoint_not_found", "Endpoint custom/default not found"),
+]
+
+
+@pytest.mark.parametrize("code,message", _REFUSALS)
+async def test_a_gateway_refusal_is_a_client_error_on_both_sites(code, message):
+    exception = _gateway_refusal(code, message)
+
+    status, body = await _status_and_body(exception)
+    normalized = await _normalized_status(exception)
+
+    assert status == 422
+    assert normalized["code"] == 422
+    assert body["status"]["failure_code"] == code
+    assert normalized["failure_code"] == code
+    assert message in normalized["message"]
+
+
+async def test_a_retryable_runner_failure_stays_a_server_error():
+    # The model failed behind the gateway and another attempt may work: not the caller's fault.
+    exception = result_failure(
+        {
+            "ok": False,
+            "error": "The model failed to answer.",
+            "errorDetail": {
+                "code": "upstream_error",
+                "message": "The model failed to answer.",
+                "retryable": True,
+            },
+        }
+    )
+
+    assert (await _normalized_status(exception))["code"] == 500
+
+
+async def test_a_runner_failure_with_no_detail_stays_a_server_error():
+    exception = result_failure(
+        {"ok": False, "error": "The platform is busy and could not start this turn."}
+    )
+
+    assert (await _normalized_status(exception))["code"] == 500

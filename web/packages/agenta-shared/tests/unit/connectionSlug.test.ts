@@ -49,6 +49,42 @@ describe("connectionDisplayName", () => {
         )
     })
 
+    it("keeps a real name even when the app name is known", () => {
+        expect(
+            connectionDisplayName(
+                {name: "Work account", slug: "gmail-work", integration_key: "gmail"},
+                "Gmail",
+            ),
+        ).toBe("Work account")
+    })
+
+    it("reads a name that is only the slug as the app plus the slug's own suffix", () => {
+        expect(
+            connectionDisplayName(
+                {name: "youtube-main", slug: "youtube-main", integration_key: "youtube"},
+                "YouTube",
+            ),
+        ).toBe("YouTube (main)")
+    })
+
+    it("reads a name that is only the integration key as the app", () => {
+        expect(
+            connectionDisplayName(
+                {name: "google_maps", slug: "google_maps", integration_key: "google_maps"},
+                "Google Maps",
+            ),
+        ).toBe("Google Maps")
+    })
+
+    it("names an unnamed connection by its app when the app is known", () => {
+        expect(
+            connectionDisplayName(
+                {name: null, slug: "github-7mx", integration_key: "github"},
+                "GitHub",
+            ),
+        ).toBe("GitHub (7mx)")
+    })
+
     it("falls back to the slug only when there is no name at all", () => {
         expect(connectionDisplayName({name: null, slug: "github-7mx"})).toBe("github-7mx")
         expect(connectionDisplayName({name: "   ", slug: "github-7mx"})).toBe("github-7mx")

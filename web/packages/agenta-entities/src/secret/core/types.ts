@@ -37,8 +37,31 @@ export type StandardProviderSettingsDto = AgentaApi.StandardProviderSettingsDto
 export type CustomProviderSettingsDto = AgentaApi.CustomProviderSettingsDto
 export type CustomModelSettingsDto = AgentaApi.CustomModelSettingsDto
 
-export type StandardProviderDto = AgentaApi.StandardProviderDto
-export type CustomProviderDto = AgentaApi.CustomProviderDto
+/**
+ * Connection policy fields not yet represented by the generated client.
+ */
+export type StandardProviderDto = AgentaApi.StandardProviderDto & {
+    models?: CustomModelSettingsDto[] | null
+    harnesses?: string[] | null
+}
+export type McpStandardProviderDto = AgentaApi.McpStandardProviderDto
+export type CustomProviderDto = AgentaApi.CustomProviderDto & {
+    harnesses?: string[] | null
+    protocol?: LlmEndpointProtocol | null
+}
+
+/**
+ * The wire protocol a custom endpoint speaks, and therefore the provider family it belongs to.
+ *
+ * Only the family changes behaviour: the relay serves `/v1/chat/completions`, `/v1/responses` and
+ * `/v1/messages` on every custom endpoint, and the harness picks the suffix. Absent on records
+ * written before the field existed, which the resolver already reads as `openai`.
+ */
+export const LlmEndpointProtocol = {
+    Openai: "openai",
+    Anthropic: "anthropic",
+} as const
+export type LlmEndpointProtocol = (typeof LlmEndpointProtocol)[keyof typeof LlmEndpointProtocol]
 
 export type CustomSecretDto = AgentaApi.CustomSecretDto
 export type CustomSecretSettingsDto = AgentaApi.CustomSecretSettingsDto
@@ -65,6 +88,17 @@ export interface AgentSecretBinding {
     binding: {type: "env"; name: string}
 }
 
+/**
+ * A vault row carrying the custom-provider fields the generated client does not declare yet.
+ *
+ * `LlmProvider` lives in `@agenta/shared` and stays free of this domain's wire additions, so the
+ * secret entity widens it here — the same way `CustomProviderDto` is widened above.
+ */
+export interface ProviderVaultRow extends LlmProvider {
+    /** Declared endpoint protocol on a `custom_provider` row; absent means the row declares none. */
+    protocol?: LlmEndpointProtocol
+}
+
 export interface NamedSecretRow extends LlmProvider {
     slug?: string
     format: CustomSecretFormat
@@ -80,11 +114,18 @@ export interface NamedSecretRow extends LlmProvider {
 export const SecretKind = AgentaApi.SecretKind
 export type SecretKind = AgentaApi.SecretKind
 
-export const StandardProviderKind = AgentaApi.StandardProviderKind
-export type StandardProviderKind = AgentaApi.StandardProviderKind
+// The wire names gained an `Llm` prefix when the gateway split LLM and MCP
+// providers into separate enums. The local names stay unprefixed — they are
+// this package's public API and ~30 call sites across three packages import
+// them from here — so grep the wire spelling when tracing back to Fern.
+export const StandardProviderKind = AgentaApi.LlmStandardProviderKind
+export type StandardProviderKind = AgentaApi.LlmStandardProviderKind
 
-export const CustomProviderKind = AgentaApi.CustomProviderKind
-export type CustomProviderKind = AgentaApi.CustomProviderKind
+export const McpStandardProviderKind = AgentaApi.McpStandardProviderKind
+export type McpStandardProviderKind = AgentaApi.McpStandardProviderKind
+
+export const CustomProviderKind = AgentaApi.LlmCustomProviderKind
+export type CustomProviderKind = AgentaApi.LlmCustomProviderKind
 
 // ---------------------------------------------------------------------------
 // App-level catalog (no wire equivalent)
@@ -109,6 +150,7 @@ export const PROVIDER_LABELS: Record<string, string> = {
     sagemaker: "AWS SageMaker",
     azure: "Azure OpenAI",
     minimax: "MiniMax",
+    xai: "xAI",
     // Stored value stays "custom"; only the user-visible label changes. The v1 custom deployment
     // speaks the OpenAI Chat Completions dialect, so name it for what it connects to.
     custom: "OpenAI-compatible endpoint",
@@ -131,12 +173,17 @@ export const PROVIDER_KINDS: Record<string, string> = {
  * Standard provider kinds shown in the OSS provider picker.
  *
  * Fern includes both `"mistral"` and `"mistralai"` in `StandardProviderKind`
- * for backwards compatibility, but the OSS UI only shows the canonical
+ * for backwards compatibility, but the OSS LLM picker only shows the canonical
  * `"mistral"` entry — filter the alias out here.
+ *
+ * `"mock"` is filtered for a different reason: it is the gateway's test double,
+ * not a provider anyone can hold credentials for, so it has no place in a
+ * user-facing picker. It is a wire kind, so it stays in the enum and in
+ * `LITELLM_MODEL_PREFIXES`; it is only hidden from this list.
  */
 export const STANDARD_PROVIDER_KINDS: StandardProviderKind[] = (
     Object.values(StandardProviderKind) as StandardProviderKind[]
-).filter((kind) => kind !== StandardProviderKind.Mistralai)
+).filter((kind) => kind !== StandardProviderKind.Mistralai && kind !== StandardProviderKind.Mock)
 
 /**
  * Truthy, obviously-not-a-key sentinel the vault persister writes to disk in place of secret
@@ -175,3 +222,9 @@ export interface VaultMigrationStatus {
     migrating: boolean
     migrated: boolean
 }
+
+/**
+ * Who owns a connection: the project, or the organization. A request names `organization`
+ * explicitly; omitted, it means the project's connection.
+ */
+export type SecretOwnerScope = "project" | "organization"

@@ -1,7 +1,24 @@
 export {ApprovalCard, type ApprovalCardProps} from "./ApprovalCard"
 export {ChatComposer, type ChatComposerProps} from "./ChatComposer"
 export {default as ComposerAttachments} from "./ComposerAttachments"
+export {default as ComposerQuotes} from "./ComposerQuotes"
 export {default as ComposerRejections, type ComposerRejectionsProps} from "./ComposerRejections"
+export {
+    default as RunFailureCallout,
+    type RunFailureCalloutProps,
+    // The failure classes the callout recognises, so a host can enumerate what it must offer an
+    // escape for rather than keeping a second list that drifts.
+    BUY_CREDITS_CODES,
+    NOT_SENT_CODES,
+    OWN_KEY_CODES,
+    PLAN_LIMIT_TITLES,
+    planLimitTitle,
+    REFUSAL_TITLES,
+    refusalTitle,
+    RETRYABLE_CODES,
+    STARTER_CREDIT_CODES,
+    SUBSCRIPTION_LOGIN_CODES,
+} from "./RunFailureCallout"
 export {
     default as AttachmentCard,
     type AttachmentCardProps,
@@ -9,6 +26,11 @@ export {
     type AttachmentCardAction,
 } from "./AttachmentCard"
 export {default as AttachmentCardGrid, type AttachmentCardGridProps} from "./AttachmentCardGrid"
+export {
+    default as AttachmentStrip,
+    type AttachmentStripFile,
+    type AttachmentStripProps,
+} from "./AttachmentStrip"
 export {
     default as AttachmentDropOverlay,
     type AttachmentDropOverlayProps,
@@ -28,6 +50,7 @@ export {TurnFooter} from "./TurnFooter"
 export {TurnMetrics} from "./TurnMetrics"
 export {TurnTimestamp} from "./TurnTimestamp"
 export {ConnectionWarningStrip} from "./ConnectionWarningStrip"
+export {McpServerNoticeCard, type McpServerNoticeCardProps} from "./McpServerNoticeCard"
 export {SessionHistoryNotice, type SessionHistoryNoticeState} from "./SessionHistoryNotice"
 export {StartupActivity, WaitingForInput, WorkingDots} from "./TurnActivity"
 export {ConnectionDock, type ConnectionDockProps} from "./ConnectionDock"
@@ -42,3 +65,9 @@ export {
     type UseChatMarkdownLinkResolver,
 } from "./ChatMarkdown"
 export {PermissionsPickerPanel, useRovingList, type RovingListOptions} from "./SlashCommand"
+export {
+    type ActivityFailure,
+    ActivityTimeline,
+    type ActivityTimelineProps,
+    ActivityNode,
+} from "./activity"

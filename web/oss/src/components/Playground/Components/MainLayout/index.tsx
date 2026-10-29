@@ -1,8 +1,14 @@
 import {memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
-import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "@agenta/chat/state"
+import {
+    chatPanelMaximizedAtom,
+    configPanelCollapsedAtom,
+    phoneViewportAtom,
+    useFilesPaneLayout,
+} from "@agenta/chat/state"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import type {ConfigViewMode} from "@agenta/entity-ui"
+import {useSessionFilesPane} from "@agenta/entity-ui/drive"
 import {
     executionController,
     executionItemController,
@@ -20,6 +26,11 @@ import {useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
 
 import AgentChatSkeleton from "@/oss/components/AgentChatSlice/components/AgentChatSkeleton"
+import {useChatScopeKey} from "@/oss/components/AgentChatSlice/state/scope"
+import {
+    activeSessionIdAtomFamily,
+    sessionsListAtomFamily,
+} from "@/oss/components/AgentChatSlice/state/sessions"
 // Direct file import — the SessionInspector barrel would statically pull the (dynamic,
 // open-on-demand) inspector drawer back into this chunk.
 import PanelSessionInspectorButton from "@/oss/components/SessionInspector/PanelSessionInspectorButton"
@@ -256,8 +267,21 @@ const PlaygroundMainView = ({
     // toggle. Dropping this READER is what made « a no-op: the button still wrote the atom and
     // nothing listened.
     const configPanelCollapsed = useAtomValue(configPanelCollapsedAtom)
+    const chatScope = useChatScopeKey()
+    const sessions = useAtomValue(sessionsListAtomFamily(chatScope))
+    const rawActiveId = useAtomValue(activeSessionIdAtomFamily(chatScope))
+    const activeSessionId = sessions.some((s) => s.id === rawActiveId)
+        ? rawActiveId
+        : sessions[0]?.id
+    const filesPane = useSessionFilesPane(chatScope, activeSessionId ?? "")
+    const filesLayout = useFilesPaneLayout(`w:${chatScope}`, activeSessionId ?? "", filesPane.open)
+    const filesExpanded = isAgentConfig && filesLayout.expanded
+    const phoneViewport = useAtomValue(phoneViewportAtom)
+    const fullWidthFiles = filesExpanded || (isAgentConfig && phoneViewport && filesPane.open)
     const configCollapsed =
-        !isComparisonView && isAgentConfig && (chatMaximized || configPanelCollapsed)
+        !isComparisonView &&
+        isAgentConfig &&
+        (fullWidthFiles || chatMaximized || configPanelCollapsed)
     // Ease the config pane between its width and 0 on EITHER collapse trigger. The transition class
     // must land in the SAME commit as the size change (else it snaps), so detect the flip during
     // render via a ref compare; hold it ~280ms so removing the class doesn't snap, then drop it
@@ -343,7 +367,18 @@ const PlaygroundMainView = ({
                 <div className="w-full h-full overflow-y-auto overflow-x-hidden">
                     {configEntityIds.map((variantId) => (
                         <PlaygroundVariantConfig
-                            key={variantId}
+                            // The same stable key the split view below already uses, and for the
+                            // same reason: an agent self-commit switches the revision in place, so
+                            // keying this panel by the revision id would tear it down on every
+                            // commit and take its local state with it — the open item in the
+                            // section drawer included. `PlaygroundVariantConfig` reads everything
+                            // through `variantId`-keyed families, so the switch arrives as a prop
+                            // update. This branch was left behind when the split view was fixed.
+                            key={
+                                renderAgentGenerationHost
+                                    ? "agent-config-host"
+                                    : `variant-config-${variantId}`
+                            }
                             variantId={variantId}
                             embedded={embedded}
                             externalViewMode={configViewMode}
@@ -382,13 +417,20 @@ const PlaygroundMainView = ({
                         fillMin={420}
                         animate={animateSplit}
                         barHidden={configCollapsed}
+                        resizable={!configCollapsed}
+                        // Only full-width files drop the pane from layout: every other collapse
+                        // keeps it in flow so the flex-basis ease above still runs.
+                        paneClassName={fullWidthFiles ? "hidden" : undefined}
                         // Controlled width: the drag must write through per tick, or the pane
                         // only snaps at pointer-up.
                         onResize={(size) => setAgentPaneSize(size)}
                         onResizeEnd={(size) => setAgentPaneSize(size)}
                         className="h-full"
                         pane={
-                            <div className="ag-panel-raised group relative flex h-full min-h-0 w-full flex-col">
+                            <div
+                                className="ag-panel-raised group relative flex h-full min-h-0 w-full flex-col"
+                                inert={configCollapsed}
+                            >
                                 <section
                                     ref={setConfigPanelRef}
                                     className="ag-scroll-no-bar min-h-0 w-full grow overflow-y-auto"

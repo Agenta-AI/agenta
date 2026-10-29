@@ -9,17 +9,18 @@ import {
 } from "@agenta/entity-ui/agent"
 import {InlineRenameInput, useDeferredMenuSelect, useInlineRename} from "@agenta/sessions-ui"
 import {useMediaQuery} from "@agenta/ui/hooks"
-import {Button} from "@agenta/ui/ui"
+import {Button, SkeletonBlock} from "@agenta/ui/ui"
 import {ChatCircleDots} from "@phosphor-icons/react"
 
-import {Skeleton} from "@/components/ui/skeleton"
 import {FOCUS_RING} from "@/lib/interactive"
 import {cn} from "@/lib/utils"
 
 /**
  * Who the agent is, as the overview's header row: the roster's tile (icon picker behind it), the
  * name renaming in place the way a roster row does, the description under it, then Open chat
- * and the shared kebab. The kebab's Rename starts the editor here rather than a modal.
+ * and the shared kebab. The kebab's Rename starts the editor here rather than a modal, and below
+ * `lg` it also carries Open configuration — the only tap to the config on a phone, where the rail
+ * that holds the Configuration card is hidden.
  */
 export const AgentOverviewTitle = ({
     agentId,
@@ -27,6 +28,8 @@ export const AgentOverviewTitle = ({
     description,
     pending,
     onOpenChat,
+    onEditConfig,
+    onPublish,
 }: {
     agentId: string
     name: string
@@ -34,6 +37,10 @@ export const AgentOverviewTitle = ({
     /** The roster is still in flight and the record has not landed. */
     pending: boolean
     onOpenChat: () => void
+    /** Opens this agent's configuration in the session workspace — the rail card's Edit verb. */
+    onEditConfig: () => void
+    /** Opens the Publish panel; the kebab offers it below `lg`, where the Channels card is hidden. */
+    onPublish?: () => void
 }) => {
     const renameAgent = useRenameAgent()
     const onCommit = useCallback(
@@ -79,7 +86,7 @@ export const AgentOverviewTitle = ({
             </AgentIconPopover>
             <div className="flex min-w-0 flex-1 flex-col gap-0.5 pt-1 lg:pt-0">
                 {pending ? (
-                    <Skeleton className="h-7 w-40" />
+                    <SkeletonBlock className="h-7 w-40" />
                 ) : rename.renaming ? (
                     <InlineRenameInput
                         rename={rename}
@@ -141,6 +148,13 @@ export const AgentOverviewTitle = ({
                 <AgentActionsMenu
                     agent={{id: agentId, name}}
                     align="end"
+                    // Only below `lg`. Beside the rail the Configuration card's Edit is the same
+                    // trip and is already on screen, so offering it twice is noise; below `lg`
+                    // the rail is hidden and this kebab is the only tap that reaches the config —
+                    // and with it the MCP servers section, which lives in the agent's
+                    // configuration rather than in settings.
+                    onOpen={wide ? undefined : onEditConfig}
+                    onPublish={wide ? undefined : onPublish}
                     onRename={() => handleSelect("rename")}
                     onEditDescription={wide ? () => handleSelect("describe") : undefined}
                     onCloseAutoFocus={handleCloseAutoFocus}

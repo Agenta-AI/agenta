@@ -11,6 +11,7 @@
 import {z} from "zod"
 
 import {safeParseWithLogging} from "../../shared/utils/zodSchema"
+import type {Visibility} from "../../sharing/core/schema"
 import {
     mountFileContentResponseSchema,
     pendingInputAdmissionResponseSchema,
@@ -22,7 +23,6 @@ import {
     sessionCancelExecutionResponseSchema,
     sessionSnapshotSchema,
     sessionsQueryResponseSchema,
-    sessionStreamCommandResponseSchema,
     sessionStreamSchema,
     sessionMountsResponseSchema,
     sessionStreamResponseSchema,
@@ -37,7 +37,6 @@ import {
     type SessionExpansion,
     type SessionOrigin,
     type SessionStream,
-    type SessionStreamCommandResponse,
     type SessionsQueryResponse,
     type SessionWindowing,
 } from "../core/schema"
@@ -180,22 +179,47 @@ export async function fetchSessionSnapshot({
     return safeParseWithLogging(sessionSnapshotSchema, data, "[fetchSessionSnapshot]") ?? null
 }
 
+/** `busy` is a 409 `session_busy`: another input already rides the pending stop. */
+export type PendingInputWriteOutcome = "applied" | "not_found" | "conflict" | "busy" | "failed"
+
+const refusalOf = (error: unknown): PendingInputWriteOutcome | null => {
+    if (typeof error !== "object" || error === null) return null
+    const {statusCode, body} = error as {statusCode?: unknown; body?: unknown}
+    if (statusCode === 404) return "not_found"
+    if (statusCode !== 409) return null
+    const detail = (body as {detail?: {code?: unknown}} | undefined)?.detail
+    return detail?.code === "session_busy" ? "busy" : "conflict"
+}
+
+/** Run a pending-input write, keeping the refusal status `callFern` would otherwise swallow. */
+async function writePendingInput<T>(
+    label: string,
+    fn: () => Promise<T>,
+): Promise<{data: T | null; refusal: PendingInputWriteOutcome | null}> {
+    let refusal: PendingInputWriteOutcome | null = null
+    const data = await callFern(label, fn, (error) => {
+        refusal = refusalOf(error)
+        return refusal !== null
+    })
+    return {data, refusal}
+}
+
 export async function removePendingSessionInput({
     sessionId,
     projectId,
     appId,
     abortSignal,
     inputId,
-}: SessionScopedParams & {inputId: string}): Promise<boolean> {
-    if (!projectId || !sessionId || !inputId) return false
+}: SessionScopedParams & {inputId: string}): Promise<PendingInputWriteOutcome> {
+    if (!projectId || !sessionId || !inputId) return "failed"
 
-    const data = await callFern("[removePendingSessionInput]", () =>
+    const {data, refusal} = await writePendingInput("[removePendingSessionInput]", () =>
         getSessionsClient().removePendingSessionInput(
             {session_id: sessionId, input_id: inputId},
             projectScopedRequest(projectId, appId, abortSignal),
         ),
     )
-    return !!data
+    return refusal ?? (data ? "applied" : "failed")
 }
 
 export async function updatePendingSessionInput({
@@ -215,19 +239,23 @@ export async function updatePendingSessionInput({
         filename?: string
         attachment_id?: string
     }[]
-}): Promise<boolean> {
-    if (!projectId || !sessionId || !inputId) return false
-    const data = await callFern("[updatePendingSessionInput]", () =>
+}): Promise<PendingInputWriteOutcome> {
+    if (!projectId || !sessionId || !inputId) return "failed"
+    const {data, refusal} = await writePendingInput("[updatePendingSessionInput]", () =>
         getSessionsClient().updatePendingSessionInput(
             {session_id: sessionId, input_id: inputId, text, attachments},
             projectScopedRequest(projectId, appId, abortSignal),
         ),
     )
-    return (
+    if (refusal) return refusal
+    return data &&
         safeParseWithLogging(pendingInputResponseSchema, data, "[updatePendingSessionInput]") !==
-        null
-    )
+            null
+        ? "applied"
+        : "failed"
 }
+
+export type PendingInputAdmission = z.infer<typeof pendingInputAdmissionResponseSchema>
 
 export async function sendPendingSessionInputNow({
     sessionId,
@@ -235,125 +263,26 @@ export async function sendPendingSessionInputNow({
     appId,
     abortSignal,
     inputId,
-}: SessionScopedParams & {inputId: string}): Promise<boolean> {
-    if (!projectId || !sessionId || !inputId) return false
-    const data = await callFern("[sendPendingSessionInputNow]", () =>
+}: SessionScopedParams & {inputId: string}): Promise<{
+    outcome: PendingInputWriteOutcome
+    admission: PendingInputAdmission | null
+}> {
+    if (!projectId || !sessionId || !inputId) return {outcome: "failed", admission: null}
+    const {data, refusal} = await writePendingInput("[sendPendingSessionInputNow]", () =>
         getSessionsClient().sendPendingSessionInputNow(
             {session_id: sessionId, input_id: inputId},
             projectScopedRequest(projectId, appId, abortSignal),
         ),
     )
-    return (
-        safeParseWithLogging(
-            pendingInputAdmissionResponseSchema,
-            data,
-            "[sendPendingSessionInputNow]",
-        ) !== null
-    )
-}
-
-const SESSION_CAPABILITY_TIMEOUT_SECONDS = 2
-const SESSION_CAPABILITY_NEGATIVE_RETRY_MS = 30_000
-
-export interface SessionFeatureCapabilities {
-    durableApprovals: boolean
-    queue: boolean
-    steer: boolean
-}
-
-interface SessionCapabilityCacheEntry {
-    result?: SessionFeatureCapabilities
-    retryAt?: number
-    request?: Promise<SessionFeatureCapabilities | null>
-}
-
-const durableApprovalsCapabilityCache = new Map<string, SessionCapabilityCacheEntry>()
-
-const durableApprovalsCapabilityKey = ({projectId, sessionId}: SessionScopedParams): string =>
-    JSON.stringify([projectId, sessionId])
-
-export function invalidateSessionDurableApprovalsCapability(
-    params?: Pick<SessionScopedParams, "projectId" | "sessionId">,
-): void {
-    if (!params) {
-        durableApprovalsCapabilityCache.clear()
-        return
-    }
-    durableApprovalsCapabilityCache.delete(durableApprovalsCapabilityKey(params))
-}
-
-const hasSessionCapability = (capabilities: SessionFeatureCapabilities): boolean =>
-    capabilities.durableApprovals || capabilities.queue || capabilities.steer
-
-const cachedSessionCapabilities = (key: string): SessionFeatureCapabilities | null => {
-    const cached = durableApprovalsCapabilityCache.get(key)
-    if (!cached?.result) return null
-    if (hasSessionCapability(cached.result) || Date.now() < (cached.retryAt ?? 0)) {
-        return cached.result
-    }
-    return null
-}
-
-export const fetchSessionCapabilities = async ({
-    sessionId,
-    projectId,
-    appId,
-    abortSignal,
-}: SessionScopedParams): Promise<SessionFeatureCapabilities | null> => {
-    if (!projectId || !sessionId) return null
-
-    const key = durableApprovalsCapabilityKey({projectId, sessionId})
-    const cached = cachedSessionCapabilities(key)
-    if (cached) return cached
-
-    const existing = durableApprovalsCapabilityCache.get(key)
-    if (existing?.request) return existing.request
-
-    const entry: SessionCapabilityCacheEntry = {}
-    const request = (async () => {
-        let capabilities: SessionFeatureCapabilities | null = null
-        try {
-            const data = await callFern("[fetchSessionDurableApprovalsCapability]", () =>
-                getSessionsClient().fetchSessionStream(
-                    {session_id: sessionId},
-                    {
-                        ...projectScopedRequest(projectId, appId, abortSignal),
-                        timeoutInSeconds: SESSION_CAPABILITY_TIMEOUT_SECONDS,
-                        maxRetries: 0,
-                    },
-                ),
-            )
-            const validated = data
-                ? safeParseWithLogging(
-                      sessionStreamResponseSchema,
-                      data,
-                      "[fetchSessionDurableApprovalsCapability]",
-                  )
-                : null
-            capabilities = validated
-                ? {
-                      durableApprovals: validated.capabilities.durable_approvals,
-                      queue: validated.capabilities.queue,
-                      steer: validated.capabilities.steer,
-                  }
-                : null
-        } catch {
-            capabilities = null
-        }
-
-        if (durableApprovalsCapabilityCache.get(key) === entry) {
-            entry.result = capabilities ?? undefined
-            entry.retryAt =
-                !capabilities || hasSessionCapability(capabilities)
-                    ? undefined
-                    : Date.now() + SESSION_CAPABILITY_NEGATIVE_RETRY_MS
-            entry.request = undefined
-        }
-        return capabilities
-    })()
-    entry.request = request
-    durableApprovalsCapabilityCache.set(key, entry)
-    return request
+    if (refusal) return {outcome: refusal, admission: null}
+    const admission = data
+        ? safeParseWithLogging(
+              pendingInputAdmissionResponseSchema,
+              data,
+              "[sendPendingSessionInputNow]",
+          )
+        : null
+    return admission ? {outcome: "applied", admission} : {outcome: "failed", admission: null}
 }
 
 export interface QueryInteractionsParams extends Omit<SessionScopedParams, "sessionId"> {
@@ -455,6 +384,35 @@ export interface RespondInteractionResult {
 export const isInteractionConflict = (error: unknown): boolean =>
     (error as {statusCode?: number; response?: {status?: number}} | null)?.statusCode === 409 ||
     (error as {response?: {status?: number}} | null)?.response?.status === 409
+
+/**
+ * The `code` the respond route puts on a conflict body, which is what says WHICH conflict it is.
+ *
+ * The route answers several different conditions with one status, so 409 alone is not an answer:
+ * `execution_terminal` is the interaction or its execution already settled, `execution_mismatch`
+ * is the interaction belonging to a different execution, and `idempotency_key_reused` is the same
+ * key carrying a different answer. Only the first is something a reader has nothing to do about.
+ * Fern keeps the parsed body on the thrown error.
+ */
+export const interactionConflictCode = (error: unknown): string | undefined => {
+    const body = (error as {body?: unknown} | null)?.body
+    if (!body || typeof body !== "object") return undefined
+    const code = (body as {code?: unknown}).code
+    return typeof code === "string" ? code : undefined
+}
+
+/**
+ * A conflict that means the answer is already in and there is nothing left to do about it.
+ *
+ * Narrower than it looks from the outside. The route accepts a repeat of the SAME answer under
+ * the same idempotency key, and accepts an interaction already answered with the same resolution,
+ * so a plain replay does not conflict at all; this fires for a row that moved on underneath a
+ * decision. The two 409s it deliberately does not cover, `execution_mismatch` and
+ * `idempotency_key_reused`, both mean the reader's decision did not land where they thought, and
+ * they have to be told.
+ */
+export const isSettledInteractionConflict = (error: unknown): boolean =>
+    isInteractionConflict(error) && interactionConflictCode(error) === "execution_terminal"
 
 /** True for the backend's `404 No such file or folder`. */
 const isNotFound = (error: unknown): boolean =>
@@ -599,6 +557,25 @@ export async function querySessionStreams({
         "[querySessionStreams]",
     )
     return validated?.streams ?? null
+}
+
+/**
+ * The project's alive streams for a liveness poll. A failed read throws instead of resolving
+ * `null`: cached as success, `null` read as "nothing alive", which stopped the poll and tore down
+ * the live reader of a turn running elsewhere until a reload.
+ */
+export async function readAliveStreams(
+    projectId: string,
+    signal?: AbortSignal,
+): Promise<SessionStream[]> {
+    const streams = await querySessionStreams({
+        projectId,
+        isAlive: true,
+        abortSignal: signal,
+        lowPriority: true,
+    })
+    if (streams === null) throw new Error("Session liveness is unavailable")
+    return streams
 }
 
 interface SessionPredicatesParams {
@@ -830,6 +807,11 @@ export interface SetSessionHeaderParams {
      * means nobody knows yet and dropping it would lose a name for no reason.
      */
     onRefused?: () => void
+    /**
+     * The visibility a header call that CREATES the session asks for. The server ignores it
+     * on an existing session and drops a `private` it cannot give an owner.
+     */
+    visibility?: Visibility
 }
 
 /**
@@ -846,6 +828,7 @@ export async function setSessionHeader({
     abortSignal,
     nameSource,
     onRefused,
+    visibility,
 }: SetSessionHeaderParams): Promise<boolean> {
     if (!projectId || !sessionId) return false
 
@@ -858,6 +841,8 @@ export async function setSessionHeader({
     // body.
     const request = projectScopedRequest(projectId, appId, abortSignal)
     if (nameSource) request.queryParams.name_source = nameSource
+    // `visibility` is a query parameter of the header route too (the body is the header).
+    if (visibility) request.queryParams.visibility = visibility
 
     // A 409 is the documented answer when an automatic name would replace one a person
     // controls. It is an expected outcome rather than a fault, so it is not logged as one.
@@ -902,58 +887,6 @@ export async function fetchSessionStream({
     return validated?.stream ?? null
 }
 
-/** Resolve the approval owner before mutating either the server gate or the local transcript. */
-export async function fetchSessionDurableApprovalsCapability(
-    params: SessionScopedParams,
-): Promise<boolean> {
-    const capabilities = await fetchSessionCapabilities(params)
-    if (!capabilities) throw new Error("Session capabilities are unavailable. Please try again.")
-    return capabilities.durableApprovals
-}
-
-export interface CommandSessionStreamParams extends SessionScopedParams {
-    /** Steal the run lock from whoever holds it. */
-    force?: boolean
-    /** Fire-and-forget: start the run without holding a connection. */
-    detached?: boolean
-}
-
-/**
- * CONTROL-PLANE call to start/resume/steer/cancel a run (the prompt × force matrix). Returns
- * a handle (`{mode, turn_id, watcher_id, …}`), NOT the token stream — the v6 chunk stream is
- * delivered out-of-band (see the agent-chat transport). Use `force` to steal the lock,
- * `detached` for fire-and-forget.
- *
- * FOLLOWUP(sessions,lifecycle): steer/attach remain unwired in the user-facing desktop chat;
- * cancel IS consumed by the mobile StopButton (cooperative ≤30s; clean "cancelled" settle
- * arrives with the agent-cancel-steer runner work). There's still no live-turn re-watch.
- * See docs/designs/sessions/frontend-integration.md.
- */
-export async function commandSessionStream({
-    sessionId,
-    projectId,
-    appId,
-    abortSignal,
-    force,
-    detached,
-}: CommandSessionStreamParams): Promise<SessionStreamCommandResponse | null> {
-    if (!projectId || !sessionId) return null
-
-    // The prompt→request.data (inputs) mapping is defined by the sessions feature owner when the send path gets wired (see PR #5375 body).
-    const data = await callFern("[commandSessionStream]", () =>
-        getSessionsClient().setSessionStream(
-            {session_id: sessionId, force, detached},
-            projectScopedRequest(projectId, appId, abortSignal),
-        ),
-    )
-    if (!data) return null
-
-    return (
-        safeParseWithLogging(sessionStreamCommandResponseSchema, data, "[commandSessionStream]") ??
-        null
-    )
-}
-
 /**
  * KILL — end a session: collapse the stream nest, force-clear the runner's alive lock (its
  * existing teardown signal, so the sandbox tears down), mark the row ended, and cancel every
@@ -975,81 +908,6 @@ export async function killSession({
         ),
     )
     return data !== null
-}
-
-/** Stop keeps accepted, idle, stale, and failed outcomes distinct. */
-export interface CancelSessionStreamParams extends SessionScopedParams {
-    /** The server cancels this observed execution or nothing. */
-    expectedExecutionId?: string
-}
-
-export type CancelSessionOutcome =
-    | {status: "cancelled"; response: SessionStreamCommandResponse | null}
-    | {status: "idle"}
-    /** The server refused: another turn holds the session, or the Stop arrived too late. */
-    | {status: "stale"; message: string}
-    | {status: "failed"; message: string}
-
-const STALE_CANCEL_FALLBACK =
-    "That run had already finished. The session is running something else now."
-const FAILED_CANCEL_FALLBACK = "Could not stop the run. It may still be running."
-
-/** The response envelope's error message, when it is there. */
-const cancelErrorMessage = (error: unknown, fallback: string): string => {
-    const detail = (error as {body?: {detail?: unknown}} | null)?.body?.detail
-    if (typeof detail === "string") return detail
-    const message = (detail as {message?: unknown} | null)?.message
-    if (typeof message === "string") return message
-    return error instanceof Error && error.message ? error.message : fallback
-}
-
-/** Stop the current turn and preserve the server outcome for the caller. */
-export async function cancelSessionStream({
-    sessionId,
-    projectId,
-    appId,
-    abortSignal,
-    expectedExecutionId,
-}: CancelSessionStreamParams): Promise<CancelSessionOutcome> {
-    if (!projectId || !sessionId) return {status: "failed", message: FAILED_CANCEL_FALLBACK}
-
-    try {
-        const data = await getSessionsClient().setSessionStream(
-            {
-                session_id: sessionId,
-                // Omission selects the server's arrival-time guard.
-                ...(expectedExecutionId ? {expected_execution_id: expectedExecutionId} : {}),
-            },
-            projectScopedRequest(projectId, appId, abortSignal),
-        )
-        const response =
-            safeParseWithLogging(
-                sessionStreamCommandResponseSchema,
-                data,
-                "[cancelSessionStream]",
-            ) ?? null
-        if (!response || !response.cancelled_turn_ids) {
-            return {status: "failed", message: FAILED_CANCEL_FALLBACK}
-        }
-        if (response.cancelled_turn_ids.length === 0) return {status: "idle"}
-        return {
-            status: "cancelled",
-            response,
-        }
-    } catch (error) {
-        if (isAbortError(error)) throw error
-        if (isInteractionConflict(error)) {
-            return {
-                status: "stale",
-                message: cancelErrorMessage(error, STALE_CANCEL_FALLBACK),
-            }
-        }
-        console.error(
-            "[cancelSessionStream] failed:",
-            error instanceof Error ? error.message : String(error),
-        )
-        return {status: "failed", message: cancelErrorMessage(error, FAILED_CANCEL_FALLBACK)}
-    }
 }
 
 /**
@@ -1342,6 +1200,33 @@ export async function queryMountDir({
     return validated?.files ?? null
 }
 
+/** One raw folder level (no git pruning, no counts). A missing folder (404) is `null`; any other
+ * failure throws, so the query retries it instead of caching "no file here" for every mention. */
+export async function listMountFolder({
+    mountId,
+    projectId,
+    appId,
+    abortSignal,
+    path,
+}: Omit<MountFilesParams, "lowPriority">): Promise<MountFile[] | null> {
+    if (!projectId || !mountId) return null
+
+    let data
+    try {
+        // maxRetries 0: the query owns the retries.
+        data = await getLowPriorityMountsClient().getMountFiles(
+            {mount_id: mountId, path: path || undefined, depth: 1},
+            projectScopedRequest(projectId, appId, abortSignal, 0),
+        )
+    } catch (error) {
+        if (isNotFound(error)) return null
+        throw error
+    }
+
+    const validated = safeParseWithLogging(mountFileListResponseSchema, data, "[listMountFolder]")
+    return validated?.files ?? null
+}
+
 /** Read one mount file's text content (`?read=<path>`). Returns `null` on failure/missing scope. */
 export async function readMountFile({
     mountId,
@@ -1452,14 +1337,6 @@ export async function cancelSessionExecution({
             "[cancelSessionExecution]",
         )
         if (!validated) return null
-        if (!("command" in validated)) {
-            return {
-                command: {id: "", state: "applied"},
-                execution: {id: validated.turn_id ?? null, state: "idle"},
-                accepted: true,
-                conflict: false,
-            }
-        }
         return {
             command: validated.command,
             execution: {...validated.execution, id: validated.execution.id ?? null},

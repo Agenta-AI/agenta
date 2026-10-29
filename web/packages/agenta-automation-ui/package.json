@@ -21,7 +21,6 @@
         "@agenta/shared": "workspace:../agenta-shared",
         "@agenta/ui": "workspace:../agenta-ui",
         "@phosphor-icons/react": "^2.1.10",
-        "clsx": "^2.1.1",
         "lucide-react": "^0.475.0"
     },
     "peerDependencies": {

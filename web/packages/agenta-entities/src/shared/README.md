@@ -17,7 +17,6 @@ shared/
 │   └── index.ts
 ├── relations/        # Entity parent-child relationships
 │   ├── registry.ts                 # Central relation registry
-│   ├── extendWithRelations.ts      # Molecule extension helper
 │   ├── bindings.ts                 # Cross-domain binding utilities
 │   └── index.ts
 ├── utils/            # Common utilities
@@ -327,7 +326,6 @@ import { EntityTable } from '@agenta/entity-ui'
 import {
   getSchemaAtPath,
   getDefaultValue,
-  createDefaultArrayItem,
 } from '@agenta/entities/shared'
 
 const schema = { type: 'object', properties: { name: { type: 'string' } } }
@@ -340,42 +338,29 @@ const defaultName = getDefaultValue(nameSchema)
 ```typescript
 import {
   createTimestampNormalizer,
-  composeTransforms,
   parseISODate,
 } from '@agenta/entities/shared'
 
 // Normalize dates for WebKit compatibility
-const normalizeTimestamps = createTimestampNormalizer(['created_at', 'updated_at'])
-const transform = composeTransforms(normalizeTimestamps, customTransform)
+const normalizeTimestamps = createTimestampNormalizer(parseISODate)
 ```
 
 ### ID Utilities
 
 ```typescript
-import {
-  isLocalId,
-  isServerId,
-  generateLocalId,
-} from '@agenta/entities/shared'
+import { generateLocalId } from '@agenta/entities/shared'
 
-const localId = generateLocalId() // 'local-1704067200000-abc123'
-isLocalId(localId)  // true
-isServerId(uuid)    // true
+const localId = generateLocalId() // 'local-…'
 ```
 
 ### Batch Operations
 
 ```typescript
-import { batchUpdate, batchCreate, batchDelete } from '@agenta/entities/shared'
+import { batchUpdate } from '@agenta/entities/shared'
 
 batchUpdate(molecule, [
   { id: 'tc-1', changes: { name: 'First' } },
   { id: 'tc-2', changes: { name: 'Second' } },
-])
-
-const newIds = batchCreate(localMolecule, [
-  { name: 'Item 1' },
-  { name: 'Item 2' },
 ])
 ```
 
@@ -429,8 +414,7 @@ Define and query parent-child relationships between entities.
 The relations system provides:
 
 - **Relation Registry** - Central store for all entity relationships
-- **extendWithRelations** - Extend molecules with relation-derived atoms
-- **Path Discovery** - Query hierarchies (e.g., `app → variant → revision`)
+- **Path Discovery** - Query hierarchies (e.g., `testset → revision → testcase`)
 
 ### Quick Start
 
@@ -438,7 +422,6 @@ The relations system provides:
 import {
   EntityRelation,
   entityRelationRegistry,
-  extendWithRelations,
 } from '@agenta/entities/shared'
 
 // 1. Define a relation
@@ -454,15 +437,6 @@ const testcaseRelation: EntityRelation<Revision, Testcase> = {
 
 // 2. Register for global discovery
 entityRelationRegistry.register(testcaseRelation)
-
-// 3. Extend molecule with relation atoms
-const revisionWithTestcases = extendWithRelations(revisionMolecule, {
-  testcases: testcaseRelation,
-})
-
-// 4. Use in components
-const testcaseIds = useAtomValue(revisionWithTestcases.atoms.testcasesIds(revisionId))
-const testcases = useAtomValue(revisionWithTestcases.atoms.testcases(revisionId))
 ```
 
 ### EntityRelation Interface
@@ -509,19 +483,19 @@ interface RelationBindingConfig {
 import { entityRelationRegistry } from '@agenta/entities/shared'
 
 // Register relations
-entityRelationRegistry.register(appToVariantRelation)
-entityRelationRegistry.register(variantToRevisionRelation)
+entityRelationRegistry.register(testsetToRevisionRelation)
+entityRelationRegistry.register(revisionToTestcaseRelation)
 
 // Query hierarchy
-const children = entityRelationRegistry.getChildren("app") // ["variant"]
-const parents = entityRelationRegistry.getParents("variant") // ["app"]
+const children = entityRelationRegistry.getChildren("testset") // ["revision"]
+const parents = entityRelationRegistry.getParents("revision") // ["testset"]
 
 // Get full path
-const path = entityRelationRegistry.getPath("app", "appRevision")
-// Returns: ["app", "variant", "appRevision"]
+const path = entityRelationRegistry.getPath("testset", "testcase")
+// Returns: ["testset", "revision", "testcase"]
 
 // Validate path
-entityRelationRegistry.isValidPath(["app", "variant", "appRevision"]) // true
+entityRelationRegistry.isValidPath(["testset", "revision", "testcase"]) // true
 ```
 
 ### Modes: Populate vs Reference
@@ -543,43 +517,20 @@ const relation = {
 }
 ```
 
-### One-Off Relation Atoms
-
-When you don't need to extend the molecule:
-
-```typescript
-import { createRelationIdsAtom, createRelationDataAtom } from '@agenta/entities/shared'
-
-// Create atoms for specific parent ID
-const testcaseIdsAtom = createRelationIdsAtom(revisionMolecule, revisionId, testcaseRelation)
-const testcasesAtom = createRelationDataAtom(revisionMolecule, revisionId, testcaseRelation)
-```
-
 ### Binding Utilities
 
 For cross-domain connections (e.g., linking loadable data sources to runnable executors), use the binding utilities:
 
 ```typescript
-import {
-  getLoadableId,
-  parseLoadableId,
-  isLoadableBindingId,
-  getLoadableEntityType,
-  getLoadableEntityId,
-} from '@agenta/entities/shared'
+import { loadableBindingRelation, parseLoadableId } from '@agenta/entities/shared'
 
 // Generate a loadable binding ID
-const loadableId = getLoadableId('revision', 'rev-123')
+const loadableId = loadableBindingRelation.binding!.getId('revision', 'rev-123')
 // → "testset:revision:rev-123"
 
 // Parse a loadable binding ID
 const parsed = parseLoadableId(loadableId)
 // → { type: 'revision', id: 'rev-123', format: 'testset' }
-
-// Validation and extraction
-isLoadableBindingId('testset:revision:abc-123') // true
-getLoadableEntityType('testset:revision:abc-123') // 'revision'
-getLoadableEntityId('testset:revision:abc-123')   // 'abc-123'
 ```
 
 ### Pre-Defined Relation Modules
@@ -588,17 +539,16 @@ Entity modules define and auto-register their relations on import:
 
 | Module | Relations | Hierarchy |
 |--------|-----------|-----------|
-| `@agenta/entities/appRevision` | `appToVariantRelation`, `variantToRevisionRelation` | App → Variant → AppRevision |
+| `@agenta/entities/workflow` | `workflowToVariantRelation`, `workflowVariantToRevisionRelation`, `workflowToRevisionRelation` | Workflow → Variant → WorkflowRevision |
 | `@agenta/entities/testset` | `testsetToRevisionRelation`, `revisionToTestcaseRelation` | Testset → Revision → Testcase |
 
 ```typescript
 // Relations are auto-registered when the module is imported
-import { appToVariantRelation, variantToRevisionRelation } from '@agenta/entities/appRevision'
 import { testsetToRevisionRelation } from '@agenta/entities/testset'
 
 // The registry now knows about the full hierarchy
-entityRelationRegistry.getPath("app", "appRevision")
-// → ["app", "variant", "appRevision"]
+entityRelationRegistry.getPath("testset", "testcase")
+// → ["testset", "revision", "testcase"]
 ```
 
 ### Circular Dependency Prevention
@@ -626,14 +576,10 @@ const childIds = atom((get) => {
 
 // In state/molecule.ts — BAD: imports from relations.ts
 import { parentToChildRelation } from "../relations"
-const childIds = atom((get) => {
-  const data = get(parentMolecule.atoms.data(id))
-  return getChildIds(data, parentToChildRelation)
-})
 ```
 
-**Reference pattern:** `appRevision/state/molecule.ts` follows this rule correctly —
-it does not import from `appRevision/relations.ts`.
+**Reference pattern:** `testset/state/revisionMolecule.ts` follows this rule correctly —
+it does not import from `testset/relations.ts`.
 
 ---
 
@@ -646,7 +592,7 @@ Molecules use `jotai-family` for explicit memory management:
 molecule.cleanup.remove(id)
 
 // Auto-cleanup stale atoms
-molecule.cleanup.setAutoCleanup((createdAt, id) => {
+molecule.cleanup.setShouldRemove((createdAt, id) => {
   return Date.now() - createdAt > 5 * 60 * 1000 // 5 minutes
 })
 
@@ -705,7 +651,6 @@ import {
   EntityListCounts,
   TotalCountMode,
   createPaginatedListCountsAtom,
-  createListCountsAtom,
 } from '@agenta/entities/shared'
 ```
 
@@ -803,29 +748,6 @@ import { LoadMoreButton } from '@agenta/ui'
   totalCount={totalCount}
   showCount
 />
-```
-
-### Creating Custom List Counts
-
-For non-paginated lists:
-
-```typescript
-import { createListCountsAtom } from '@agenta/entities/shared'
-
-const countsAtom = createListCountsAtom(myListAtom)
-// Returns: { loadedCount: N, totalCount: N, hasMore: false, ... }
-```
-
-For custom pagination state:
-
-```typescript
-import { createListCountsFromPaginationAtom } from '@agenta/entities/shared'
-
-const countsAtom = createListCountsFromPaginationAtom(
-  myRowsAtom,
-  myPaginationAtom,
-  { totalCountMode: 'unknown' }
-)
 ```
 
 ### Configuring Paginated Stores

@@ -2,9 +2,13 @@ import type {ToolUIPart, UIMessage} from "ai"
 
 import {isToolPart, partToolName} from "./parts"
 
-// Copied verbatim from web/oss/src/components/AgentChatSlice/components/ApprovalDock.tsx
-// (2026-07-25); the OSS original remains authoritative for the desktop chat until the re-plumb
-// PR deletes it. Keep byte-parity if either side changes.
+/** Approval history survives after the tool settles or its gate is hidden. */
+export const toolHadApproval = (part: ToolUIPart): boolean =>
+    part.state === "approval-requested" ||
+    part.state === "approval-responded" ||
+    part.state === "output-denied" ||
+    part.approval !== undefined
+
 export interface PendingApproval {
     approvalId: string
     toolName: string
@@ -13,16 +17,10 @@ export interface PendingApproval {
     manifest?: unknown
 }
 
-// Copied verbatim from web/oss/src/components/AgentChatSlice/components/ApprovalDock.tsx
-// (2026-07-25); the OSS original remains authoritative for the desktop chat until the re-plumb
-// PR deletes it. Keep byte-parity if either side changes.
 interface ApprovalRef {
     id: string
 }
 
-// Copied verbatim from web/oss/src/components/AgentChatSlice/components/ApprovalDock.tsx
-// (2026-07-25); the OSS original remains authoritative for the desktop chat until the re-plumb
-// PR deletes it. Keep byte-parity if either side changes.
 /** Manifests keyed by toolCallId, from the egress's `data-approval-manifest` sibling parts. */
 const manifestsByToolCallId = (parts: UIMessage["parts"] = []): Map<string, unknown> => {
     const found = new Map<string, unknown>()

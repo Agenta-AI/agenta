@@ -14,6 +14,7 @@ from pydantic import ValidationError
 from agenta.sdk.agents.connections import (
     Connection,
     Endpoint,
+    GatewayCredentials,
     ModelRef,
     ResolvedConnection,
     ResolvedSubscription,
@@ -206,6 +207,35 @@ def test_local_use_credentials_do_not_require_an_http_endpoint():
     assert [credential.usage for credential in resolved.credentials] == ["local_use"]
 
 
+def test_direct_gemini_resolves_to_the_versioned_api_base():
+    # Pi and LiteLLM call `{baseUrl}/models/...` for Gemini and add no version themselves.
+    resolved = build_resolved_connection(
+        provider="gemini",
+        model="gemini-2.5-flash",
+        credential_mode="env",
+        values={"GEMINI_API_KEY": "not-a-real-gemini-key"},
+    )
+    assert resolved.to_wire()["endpoint"] == {
+        "baseUrl": "https://generativelanguage.googleapis.com/v1beta"
+    }
+
+
+def test_an_explicit_gemini_endpoint_is_sent_as_written():
+    for base_url in [
+        "https://proxy.example.test",
+        "https://proxy.example.test/gemini",
+        "https://proxy.example.test/gemini/v1beta",
+    ]:
+        resolved = build_resolved_connection(
+            provider="gemini",
+            model="gemini-2.5-flash",
+            credential_mode="env",
+            values={"GEMINI_API_KEY": "not-a-real-gemini-key"},
+            endpoint=Endpoint(base_url=base_url),
+        )
+        assert resolved.endpoint.base_url == base_url
+
+
 @pytest.mark.parametrize("values", [{"": "value"}, {"OPENAI_API_KEY": ""}])
 def test_build_resolved_connection_maps_malformed_bindings_to_configuration_error(
     values,
@@ -359,6 +389,46 @@ def test_resolved_connection_rejects_invalid_credential_combinations(
             credential_mode=mode,
             credentials=credentials,
             endpoint=endpoint,
+        )
+
+
+# Credential mode "none" with gateway credentials
+
+
+def test_credential_mode_none_with_gateway_credentials_is_the_normal_combination():
+    # The gateway-routed shape: no provider secret, our own credentials carry the header.
+    resolved = ResolvedConnection(
+        provider="openai",
+        model="gpt-5.5",
+        credential_mode="none",
+        endpoint=Endpoint(base_url="https://gw.example/gateways/llms/standard/openai"),
+        gateway_credentials=GatewayCredentials(value="Secret token"),
+    )
+    assert resolved.credential_mode == "none"
+    assert resolved.credentials == []
+    assert resolved.gateway_credentials is not None
+
+
+def test_a_provider_secret_alongside_credential_mode_none_is_rejected():
+    # `credentials` and `credential_mode` must still agree (the generic rule that predates
+    # the gateway field): a provider secret cannot ride alongside `credential_mode "none"`,
+    # gateway credentials or not.
+    with pytest.raises(ValidationError):
+        ResolvedConnection(
+            provider="openai",
+            model="gpt-5.5",
+            credential_mode="none",
+            credentials=[
+                {
+                    "binding": {"kind": "environment", "name": "OPENAI_API_KEY"},
+                    "value": "sk-secret",
+                    "usage": "opaque_http",
+                }
+            ],
+            endpoint=Endpoint(
+                base_url="https://gw.example/gateways/llms/standard/openai"
+            ),
+            gateway_credentials=GatewayCredentials(value="Secret token"),
         )
 
 

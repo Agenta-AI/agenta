@@ -146,3 +146,29 @@ declare module "axios" {
         _skipAuthUpgradeRedirect?: boolean
     }
 }
+
+/**
+ * The MCP data plane: the one route where a 401 is somebody else's answer.
+ *
+ * Everything else under the API domain answers 401 when OUR session has expired, which is
+ * what the session library refreshes and retries on. This route relays a call to a server the
+ * person chose, and that server's 401 means the credential THEY supplied was refused. The two
+ * are indistinguishable at the transport, so the library refreshed and retried a rejected API
+ * key ten times and handed the journey a mangled failure with no status on it: the screen that
+ * exists to say "the server rejected this key (401)" could never be reached, and the sheet
+ * reported an unreachable server instead (round 6d, D175).
+ *
+ * Excluding it from interception costs nothing here: the session is carried in cookies on the
+ * same origin, so the browser attaches it either way, and this route is a POST that no
+ * refresh would have helped.
+ */
+const MCP_RELAY_PATH = "/gateways/mcps/custom/"
+
+export const isMcpRelayUrl = (url: string): boolean => {
+    if (!url) return false
+    try {
+        return new URL(url, "http://relative.invalid").pathname.includes(MCP_RELAY_PATH)
+    } catch {
+        return url.includes(MCP_RELAY_PATH)
+    }
+}

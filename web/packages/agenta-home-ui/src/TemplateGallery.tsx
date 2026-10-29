@@ -16,15 +16,19 @@
 import {useDeferredValue, useMemo, useState, type ReactNode} from "react"
 
 import {
-    AGENT_TEMPLATES,
     ALL_TEMPLATES_CATEGORY,
+    agentTemplatesAtom,
+    agentTemplatesStatusAtom,
+    refetchAgentTemplatesAtom,
     templateCategories,
     type AgentStarterTemplate,
 } from "@agenta/entities/workflow"
-import {FilterRailLayout} from "@agenta/ui/components/presentational"
-import {SearchInput} from "@agenta/ui/ui"
+import {FilterRailLayout, LoadError} from "@agenta/ui/components/presentational"
+import {SearchInput, SkeletonBlock} from "@agenta/ui/ui"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {TemplateCard} from "./TemplateCard"
+import {TEMPLATE_GALLERY_COPY} from "./templateGalleryCopy"
 
 export interface TemplateGalleryProps {
     /** Controlled so a host can keep it in the URL (the desktop does). */
@@ -105,27 +109,36 @@ export const TemplateGallery = ({
     onCategoryChange,
     onSelectTemplate,
     leading,
-    title = "Templates",
-    subtitle = "Start from a proven agent — review what it does, connect what it needs, and open the playground.",
-    searchPlaceholder = "Search templates…",
+    title = TEMPLATE_GALLERY_COPY.title,
+    subtitle = TEMPLATE_GALLERY_COPY.subtitle,
+    searchPlaceholder = TEMPLATE_GALLERY_COPY.searchPlaceholder,
     className,
     layout = "toolbar",
 }: TemplateGalleryProps) => {
-    const categories = useMemo(() => templateCategories(), [])
+    // The catalogue comes from the API: until it answers, an empty list means "not yet", never
+    // "no templates" — so the results area says which one it is.
+    const templates = useAtomValue(agentTemplatesAtom)
+    const status = useAtomValue(agentTemplatesStatusAtom)
+    const refetchTemplates = useSetAtom(refetchAgentTemplatesAtom)
+    const categories = useMemo(() => templateCategories(templates), [templates])
     const [query, setQuery] = useState("")
     const deferredQuery = useDeferredValue(query.trim().toLowerCase())
 
     // Rail items: All + each present category with a count.
+    // No chips before the catalogue has loaded: "All 0" would claim an empty catalogue.
     const railItems = useMemo(
-        () => [
-            {value: ALL_TEMPLATES_CATEGORY, label: "All", count: AGENT_TEMPLATES.length},
-            ...categories.map((item) => ({
-                value: item,
-                label: item,
-                count: AGENT_TEMPLATES.filter((template) => template.category === item).length,
-            })),
-        ],
-        [categories],
+        () =>
+            status === "success"
+                ? [
+                      {value: ALL_TEMPLATES_CATEGORY, label: "All", count: templates.length},
+                      ...categories.map((item) => ({
+                          value: item,
+                          label: item,
+                          count: templates.filter((template) => template.category === item).length,
+                      })),
+                  ]
+                : [],
+        [categories, status, templates],
     )
 
     // All → every present category; otherwise just the active one.
@@ -133,11 +146,11 @@ export const TemplateGallery = ({
         const visible = category === ALL_TEMPLATES_CATEGORY ? categories : [category]
         return visible.map((item) => ({
             category: item,
-            templates: AGENT_TEMPLATES.filter(
+            templates: templates.filter(
                 (template) => template.category === item && matchesQuery(template, deferredQuery),
             ),
         }))
-    }, [categories, category, deferredQuery])
+    }, [categories, category, deferredQuery, templates])
 
     const resultCount = sections.reduce((sum, section) => sum + section.templates.length, 0)
     const hasQuery = deferredQuery.length > 0
@@ -145,7 +158,24 @@ export const TemplateGallery = ({
     /** The grid, or why it is empty. The same in both frames — only the empty card's top inset
      * differs, since the rail frame has no search box above it to space against. */
     const renderResults = (emptyInset = false) =>
-        resultCount === 0 ? (
+        status === "pending" ? (
+            <div
+                aria-busy
+                className={`grid grid-cols-1 gap-x-4 gap-y-10 pt-5 sm:grid-cols-2 xl:grid-cols-3${
+                    emptyInset ? " mt-6" : ""
+                }`}
+            >
+                {Array.from({length: 6}, (_, index) => (
+                    <SkeletonBlock key={index} className="h-36 w-full rounded-lg" />
+                ))}
+            </div>
+        ) : status === "error" ? (
+            <LoadError
+                title="Could not load templates"
+                onRetry={() => refetchTemplates()}
+                className={emptyInset ? "mt-6" : undefined}
+            />
+        ) : resultCount === 0 ? (
             <div
                 className={`flex flex-col items-center gap-3 rounded-lg border border-dashed border-colorBorder px-6 py-12 text-center${
                     emptyInset ? " mt-6" : ""
@@ -209,15 +239,17 @@ export const TemplateGallery = ({
                     ))}
                 </nav>
 
-                {/* One scroller: the sections wrapper below scrolls, so search stays pinned. */}
-                <div className="flex min-h-0 flex-1 flex-col gap-5">
+                {/* One scroller: the sections wrapper below scrolls, so search stays pinned.
+                    `min-w-0`: a flex child defaults to min-width:auto, so at `lg` the grid's
+                    min-content width would push this column past the row and clip the cards. */}
+                <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col gap-5">
                     <SearchInput
                         value={query}
                         onValueChange={setQuery}
                         placeholder={searchPlaceholder}
                         className="w-full sm:w-[320px]"
                     />
-                    {resultCount === 0 ? (
+                    {resultCount === 0 || status !== "success" ? (
                         renderResults()
                     ) : (
                         <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pb-2 pr-1">

@@ -1,71 +1,87 @@
 ---
 title: "Create an automation"
 sidebar_label: "Create an automation"
-description: "Prepare an agent for unattended runs, then add a schedule or app trigger."
+description: "Run an agent on a schedule or whenever something happens in an app you connect, then check what each run did."
 ---
 
 ```mdx-code-block
-import Image from "@theme/IdealImage";
 import { Stream } from "@cloudflare/stream-react";
 ```
 
-An automation runs an agent without anyone in the chat. Before you add a trigger, give the agent the instructions, tools, and permissions it needs to finish on its own. For the underlying concept, see [Automations](/concepts/automations).
+An automation runs an agent without anyone typing in the chat. It starts in one of two ways:
 
-## Prepare the agent
+- **On a schedule.** For example, every weekday at 9:00.
+- **When something happens in an app you have connected.** For example, when a new issue is opened in GitHub.
 
-An unattended run cannot ask you anything. Three parts of the agent have to carry what you would have carried in the chat.
+To learn how automations work, see [Automations](/concepts/automations).
 
-### 1. Put the answers in the instructions
+## Get the agent ready
 
-Open `Sidebar > Agents > <agent name>` and find `Instructions` in the `Configuration` column. Click the `AGENTS.md` row and write down the choices the agent would otherwise ask you about: which source to read, which format to produce, what to do when the data is missing, and where the result goes. Click `Save`.
+An automation cannot answer the agent's questions, so the agent has to know the job before it runs.
 
-[Write your agent's instructions](/guides/write-your-agents-instructions) covers the writing itself.
+Open the agent and describe the job in the chat: what to do and where to find the information. The agent writes this into its own instructions and adds the tools it needs.
 
-### 2. Give the agent somewhere to put the result
+## Create the automation
 
-Tell the agent where to leave its result.
+Go to `Sidebar > Automations` and click `New automation`.
 
-Open `Tools`, click `Add tool`, and choose `Third-party integration`. In the `Add app tools` dialog pick the app you want to deliver into, choose the action under `CHOOSE AN ACTION`, and click `Done`. Then name that destination in the instructions.
+<Stream controls autoplay muted loop src="f32acd7ba24a22793626d625f83498fb" height="400px" />
 
-If later runs need the result, tell the agent to save it in its folder.
+### 1. Give it a name
 
-### 3. Settle the permissions
+Type a name, or leave it empty. An empty name is filled in from the schedule and the agent, for example `Weekdays at 09:00 UTC — Support digest`.
 
-Open `Advanced`, then the `Permissions` section, and set `Policy`:
+### 2. Pick the agent
 
-| Option | What it does |
-|---|---|
-| `Allow reads` | Reads run, writes ask |
-| `Allow all` | Every tool runs without asking. A new agent starts here |
-| `Ask` | A human approves every tool call |
-| `Deny all` | Every tool call is refused |
+Under `Agent`, choose the agent you prepared.
 
-<Stream controls autoplay muted loop src="043728b716bd954b6084a6fb8d247b1b" height="400px" />
+### 3. Choose when it runs
 
-:::warning
-Under `Ask`, the run waits at the first tool call. Under `Allow reads`, it waits when the agent needs to write. Set permissions that let the automation finish before you attach a trigger.
+Click `Runs when` and choose one of the two options at the top:
+
+- `On a schedule` runs the agent at the times you set.
+- `When something happens` runs the agent each time a chosen event happens in a connected app.
+
+#### On a schedule
+
+A new automation runs every weekday at 9:00 UTC. To change it, choose a `Cadence`:
+
+- `Hourly`: every 1 to 12 hours, at the minute you pick.
+- `Daily`: every day, at the times you pick.
+- `Weekly`: on the weekdays you pick, at the times you pick.
+- `Monthly`: on the days of the month you pick, at the times you pick.
+- `Cron`: a cron expression, for schedules the other options cannot express.
+
+:::note
+Times are in UTC, not your local time. In summer, 9:00 UTC is 11:00 in Berlin and 5:00 in New York.
 :::
 
-There is no separate auto-approve list. When you select `Always allow` on a tool's approval card during a chat, Agenta writes that tool's own `Permission`, or adds a harness built-in to the harness allow list.
+<Stream controls autoplay muted loop src="28e50ba6169b9c9a3c0773826e9c9843" height="400px" />
 
-For the wider set of controls, see [Control what an agent can do](/guides/control-what-an-agent-can-do).
+#### When something happens
 
-## Attach the trigger
+The panel lists the apps you have connected. An automation can only watch one of these apps.
 
-Triggers live in `Sidebar > Settings > Triggers`, not in the agent's configuration.
+To add an app, click `Connect another app…`, search for the app, click it, and click `Connect`. When the connection is done, open `Runs when` again. The app is now in the list.
 
-- **`Scheduled runs`** runs the agent on a clock. Click `Schedule`. See [Schedule an automation](/guides/schedule-an-automation).
-- **`Event triggers`** runs the agent when an event fires in a connected app. Click `Subscribe`. See [Trigger an automation from an app](/guides/trigger-an-automation-from-an-app).
+Click the app, then click the event to watch, such as "issue opened". Some events need details before they can run, such as which repository to watch. Fill them in and click `Done`.
 
-Both forms carry a `Run in playground` button that runs the agent with the message you configured. The schedule form saves with `Create schedule`, the trigger form with `Create`.
+<Stream controls autoplay muted loop src="f0fcbe8b948279df7a7816c684e34707" height="400px" />
 
-## Where automations are listed
+### 4. Write the message
 
-`Sidebar > Settings > Triggers` lists every event trigger and scheduled run in the project, alongside the app connections they depend on.
+Under `Instruction`, write the message the agent receives on every run, as you would type it in the chat. Say what to do and where to put the result. For example:
 
-<Image
-  style={{ display: "block", margin: "24px 0" }}
-  img={require("/images/agents/agenta-triggers-wide.png")}
-  alt="Settings then Triggers, showing the Connections, Event triggers, and Scheduled runs sections"
-  loading="lazy"
-/>
+> Summarize support tickets from the previous day and post the digest to #ops.
+
+### 5. Create it
+
+Click `Create automation`. The automation's page opens, and the automation appears in `Sidebar > Automations`.
+
+## Check the automation's history
+
+Agenta saves every run with the full conversation the agent had. To see them, open the automation from `Sidebar > Automations` and click the `Run history` card.
+
+## Related
+
+- [Automations](/concepts/automations) explains how to prepare an agent for work that runs without anyone in the chat.

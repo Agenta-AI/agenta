@@ -9,6 +9,11 @@ describe("fileCandidate", () => {
         )
     })
 
+    it("rejects a directory mention: a trailing slash has no file to open or name to show", () => {
+        expect(fileCandidate("client/src/")).toBeNull()
+        expect(fileCandidate("./knowledge-base/")).toBeNull()
+    })
+
     it("still normalizes an explicitly relative path", () => {
         expect(fileCandidate("./src/README.md")).toBe("src/README.md")
     })
@@ -33,10 +38,14 @@ describe("knownFromRecords", () => {
         expect(knownFromRecords(byBasename, path)).toBe(true)
     })
 
-    it("defers a bare basename to on-demand verification even when the file is at the mount root", () => {
-        // knownFromRecords never trusts a bare mention, root file or not — OnDemandFileRef verifies
-        // it with a real read instead, which is the only way to tell the two cases apart.
+    it("knows a bare basename the agent wrote at the cwd root (#7522)", () => {
         const byBasename = new Map([["README.md", ["/tmp/agenta/mounts/p/m/README.md"]]])
+        expect(knownFromRecords(byBasename, "README.md")).toBe(true)
+        expect(knownFromRecords(new Map([["README.md", ["README.md"]]]), "README.md")).toBe(true)
+    })
+
+    it("does not know a bare basename written in the agent mount", () => {
+        const byBasename = new Map([["README.md", ["/tmp/agenta/mounts/p/m-agent/README.md"]]])
         expect(knownFromRecords(byBasename, "README.md")).toBe(false)
     })
 

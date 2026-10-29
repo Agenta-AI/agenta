@@ -10,7 +10,7 @@ import {
     TestRoleType,
     TestcaseType,
 } from "@agenta/web-tests/playwright/config/testTags"
-import {pollLocatorState} from "@agenta/web-tests/utils"
+import {appToast, pollLocatorState} from "@agenta/web-tests/utils"
 
 import {buildAcceptanceTags} from "../utils/tags"
 
@@ -401,14 +401,14 @@ const testEvaluators = () => {
             // Step 4: Verify the success message (already checked inside the helper,
             // but we confirm the final state here as well).
             // The HUMAN evaluator path toasts through `@agenta/ui/app-message`, which
-            // renders a `role="status"` notification rather than an antd `.ant-message`
-            // node. The automatic-evaluator assertions elsewhere in this file still use
+            // draws a Sonner toast rather than an antd `.ant-message` node. The
+            // automatic-evaluator assertions elsewhere in this file still use
             // `.ant-message` and are still correct: that path toasts through antd
             // (`WorkflowRevisionDrawerWrapper` imports `message` from "antd"). Same
             // message text, two different emitters.
-            await expect(
-                page.getByRole("status").getByText(HUMAN_EVALUATOR_CREATE_SUCCESS_MESSAGE).first(),
-            ).toBeVisible({timeout: 10000})
+            await expect(appToast(page, HUMAN_EVALUATOR_CREATE_SUCCESS_MESSAGE)).toBeVisible({
+                timeout: 10000,
+            })
 
             // Step 5: Verify the new evaluator appears in the Human tab table.
             // Use the search input to narrow results, then poll via [data-row-key].

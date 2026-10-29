@@ -23,6 +23,11 @@
  */
 
 import {loadableStateAtomFamily} from "@agenta/entities/loadable"
+import type {
+    AppRevisionCommitPayload,
+    AppRevisionCreateVariantPayload,
+    AppRevisionCrudResult,
+} from "@agenta/entities/runnable"
 import {loadableController, snapshotAdapterRegistry} from "@agenta/entities/runnable"
 import {fetchTestcasesPage, testcaseMolecule} from "@agenta/entities/testcase"
 import type {TraceSpan, TraceSpanNode} from "@agenta/entities/trace"
@@ -58,11 +63,6 @@ import {
 } from "../atoms/playground"
 import {executionByMessageIdAtomFamily, messageIdsAtomFamily, messagesByIdAtomFamily} from "../chat"
 import type {ChatMessage} from "../chat"
-import type {
-    AppRevisionCommitPayload,
-    AppRevisionCreateVariantPayload,
-    AppRevisionCrudResult,
-} from "../context"
 import {createInitialExecutionState, executionStateAtomFamily} from "../execution"
 import type {ExecutionSession, RunResult} from "../execution"
 import {
@@ -1858,11 +1858,6 @@ let _onSelectionChange: SelectionChangeCallback | null = null
  */
 export function setOnSelectionChangeCallback(cb: SelectionChangeCallback | null): void {
     _onSelectionChange = cb
-}
-
-/** @internal */
-export function getOnSelectionChangeCallback(): SelectionChangeCallback | null {
-    return _onSelectionChange
 }
 
 // ============================================================================

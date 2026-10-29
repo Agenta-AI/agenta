@@ -16,7 +16,9 @@ import type {
 } from "@agenta/entities/session"
 import {getAgentaApiUrl} from "@agenta/shared/api"
 import {CLIENT_TOOL_INTERACTION_ENDED_OUTPUT} from "@agenta/shared/clientTools"
+import {projectIdAtom} from "@agenta/shared/state"
 import type {UIMessage} from "ai"
+import {getDefaultStore} from "jotai"
 
 /**
  * Replay adapter — durable session-record `AgentEvent`s → v6 `UIMessage[]`.
@@ -36,8 +38,14 @@ import type {UIMessage} from "ai"
 type Part = Record<string, unknown>
 
 /** Content URL for one durable attachment. Mirrors the OSS original's `attachmentMedia.ts`. */
-export function attachmentContentUrl(sessionId: string, attachmentId: string): string {
+export function attachmentContentUrl(
+    sessionId: string,
+    attachmentId: string,
+    projectId: string | null = getDefaultStore().get(projectIdAtom),
+): string {
     const params = new URLSearchParams({session_id: sessionId})
+    // Replay supplies the record's project so navigation cannot change the content scope.
+    if (projectId) params.set("project_id", projectId)
     return `${getAgentaApiUrl()}/sessions/attachments/${encodeURIComponent(attachmentId)}/content?${params.toString()}`
 }
 
@@ -50,7 +58,25 @@ export const APPROVED_EXECUTION_RESULT_UNKNOWN_PREFIX = APPROVED_EXECUTION_RESUL
     APPROVED_EXECUTION_RESULT_UNKNOWN.indexOf(":"),
 )
 
+/**
+ * The fields a `mcp_server_failed` record contributes to its replayed part.
+ *
+ * Deliberately the same allow-list the live egress applies (`_mcp_server_failed_part`,
+ * sdks/python/agenta/sdk/agents/adapters/vercel/stream.py), so a replayed turn and a streamed
+ * one hand `readMcpServerNotice` the identical payload. A field added on one side and not the
+ * other is silent, which is how `detail` — and with it the reconnect endpoint — was lost the
+ * first time (OR85).
+ */
+const MCP_SERVER_FAILED_FIELDS = [
+    "serverName",
+    "reasonCode",
+    "status",
+    "message",
+    "detail",
+] as const
+
 interface DraftMessage {
+    displayContent?: string | null
     id: string
     role: "user" | "assistant"
     parts: Part[]
@@ -91,6 +117,56 @@ interface DraftMessage {
 interface TranscriptIndex {
     tools: Map<string, Part>
     approvals: Map<string, Part>
+    /**
+     * `tool_result` payloads whose `tool_call` has not been seen yet, by tool call id. Two record
+     * writers can commit concurrently, so the durable log can store a result before its call. The
+     * result waits here and settles the part when the call arrives.
+     */
+    pendingResults: Map<string, Record<string, unknown>>
+    /** Tool calls a parked client tool or elicitation owns; their row state settles them. */
+    interactive: Set<string>
+}
+
+const newTranscriptIndex = (): TranscriptIndex => ({
+    tools: new Map(),
+    approvals: new Map(),
+    pendingResults: new Map(),
+    interactive: new Set(),
+})
+
+/** Settle a tool part from its `tool_result` payload. */
+function applyToolResult(part: Part, payload: Record<string, unknown>): void {
+    if (payload.denied) {
+        part.state = "output-denied"
+    } else if (payload.isError) {
+        part.state = "output-error"
+        part.errorText =
+            typeof payload.output === "string"
+                ? payload.output
+                : payload.output == null
+                  ? ""
+                  : String(payload.output)
+    } else {
+        part.state = "output-available"
+        part.output = payload.data !== undefined ? payload.data : payload.output
+    }
+}
+
+const OPEN_TOOL_STATES = new Set(["input-available", "input-streaming"])
+
+/**
+ * Close the tool parts a finished turn left open. A turn that ended (done or cancelled) runs no
+ * more tools, so a part still waiting for input there lost its result and would show as running
+ * forever. Parked client tools and elicitations are left alone: their interaction rows own them.
+ */
+function settleOpenToolParts(draft: DraftMessage, index: TranscriptIndex): void {
+    for (const part of draft.parts) {
+        const toolCallId = part.toolCallId
+        if (typeof toolCallId !== "string" || !toolCallId) continue
+        if (!OPEN_TOOL_STATES.has(part.state as string)) continue
+        if (index.interactive.has(toolCallId)) continue
+        part.state = "output-available"
+    }
 }
 
 const roleOf = (sender?: string | null): "user" | "assistant" =>
@@ -304,7 +380,7 @@ export function reconcileInteractionRowStates(
         ...message,
         parts: message.parts.map((part) => ({...part})) as UIMessage["parts"],
     }))
-    const index: TranscriptIndex = {tools: new Map(), approvals: new Map()}
+    const index = newTranscriptIndex()
     for (const message of cloned) {
         for (const rawPart of message.parts) {
             const part = rawPart as Part
@@ -339,6 +415,7 @@ function replayClientTool(
         reqPayload.toolCallId ?? toolCall.id ?? toolCall.toolCallId ?? payload.id,
     )
     if (!toolCallId) return
+    index.interactive.add(toolCallId)
     const toolName = str(reqPayload.toolName ?? toolCall.name ?? toolCall.title)
     const input = unwrapToolArguments(reqPayload.input ?? toolCall.rawInput ?? toolCall.input)
     let part = index.tools.get(toolCallId)
@@ -371,12 +448,16 @@ function applyEvent(
     payload: Record<string, unknown>,
     index: TranscriptIndex,
     sessionId: string,
+    projectId: string,
 ): void {
     const type = payload.type as string | undefined
     const str = (v: unknown): string => (typeof v === "string" ? v : v == null ? "" : String(v))
 
     switch (type) {
         case "message": {
+            if (payload.display_content === null || typeof payload.display_content === "string") {
+                draft.displayContent = payload.display_content
+            }
             draft.parts.push({type: "text", text: str(payload.text)})
             const attachments = Array.isArray(payload.attachments) ? payload.attachments : []
             for (const raw of attachments) {
@@ -386,7 +467,7 @@ function applyEvent(
                 if (!attachmentId) continue
                 draft.parts.push({
                     type: "file",
-                    url: attachmentContentUrl(sessionId, attachmentId),
+                    url: attachmentContentUrl(sessionId, attachmentId, projectId),
                     mediaType: str(attachment.mediaType) || "application/octet-stream",
                     filename: str(attachment.filename) || undefined,
                     providerMetadata: {
@@ -443,20 +524,23 @@ function applyEvent(
             }
             draft.parts.push(part)
             index.tools.set(toolCallId, part)
+            // Its result was stored first: settle the part with it now.
+            const earlyResult = index.pendingResults.get(toolCallId)
+            if (earlyResult) {
+                index.pendingResults.delete(toolCallId)
+                applyToolResult(part, earlyResult)
+            }
             return
         }
         case "tool_result": {
-            const part = index.tools.get(str(payload.id))
-            if (!part) return
-            if (payload.denied) {
-                part.state = "output-denied"
-            } else if (payload.isError) {
-                part.state = "output-error"
-                part.errorText = str(payload.output)
-            } else {
-                part.state = "output-available"
-                part.output = payload.data !== undefined ? payload.data : payload.output
+            const toolCallId = str(payload.id)
+            const part = index.tools.get(toolCallId)
+            if (!part) {
+                // The log stored this result before its call. Keep it for the call.
+                if (toolCallId) index.pendingResults.set(toolCallId, payload)
+                return
             }
+            applyToolResult(part, payload)
             return
         }
         case "interaction_request": {
@@ -464,6 +548,15 @@ function applyEvent(
             // (a parked browser-fulfilled call). `user_input` is left to its tool_call/result parts.
             if (payload.kind === "client_tool") {
                 replayClientTool(draft, payload, index, str)
+                return
+            }
+            if (payload.kind === "user_input") {
+                const reqPayload = (payload.payload ?? {}) as Record<string, unknown>
+                const toolCall = (reqPayload.toolCall ?? {}) as Record<string, unknown>
+                const toolCallId = str(
+                    reqPayload.toolCallId ?? toolCall.id ?? toolCall.toolCallId ?? payload.id,
+                )
+                if (toolCallId) index.interactive.add(toolCallId)
                 return
             }
             if (payload.kind !== "user_approval") return
@@ -557,6 +650,27 @@ function applyEvent(
             })
             return
         }
+        case "mcp_server_failed": {
+            // A configured MCP server that failed its handshake. The live stream projects the
+            // same runner event as a `data-mcp-server-failed` part
+            // (`_mcp_server_failed_part`, sdks/python/agenta/sdk/agents/adapters/vercel/stream.py)
+            // and the chat reads it from there (`model/mcpServerNotice.ts`). Replay must rebuild
+            // that part or the notice survives only until the durable log overtakes the live
+            // messages: `adoptServerTranscript` (hooks/useAgentConversation.ts) replaces the
+            // streamed transcript with this one as soon as the record watermark moves, which on a
+            // settled turn is seconds. Dropping it there also un-suppresses the harness's own
+            // "No such tool available" card, so the reader of a disconnected connection's turn is
+            // left with the one wording that says nothing about authorization and offers nothing
+            // to do (UI QA round 4, D2).
+            const notice: Part = {}
+            for (const key of MCP_SERVER_FAILED_FIELDS) {
+                if (payload[key] !== undefined && payload[key] !== null) notice[key] = payload[key]
+            }
+            if (typeof notice.serverName === "string" && notice.serverName.trim()) {
+                draft.parts.push({type: "data-mcp-server-failed", data: notice})
+            }
+            return
+        }
         case "error": {
             // Stamp the run failure, don't push it as text: a replayed error must render through
             // the same red bubble as a live one. First non-empty wins — a cascading later error
@@ -615,7 +729,7 @@ export function transcriptToMessages(
         {user?: DraftMessage; assistant?: DraftMessage; hasUser: boolean}
     >()
     // Paused resumes close the draft, but later answers and results still target its tool part.
-    const index: TranscriptIndex = {tools: new Map(), approvals: new Map()}
+    const index = newTranscriptIndex()
 
     for (const row of records) {
         const payload = row.payload
@@ -720,7 +834,7 @@ export function transcriptToMessages(
             drafts.push(current)
         }
         if (traceId && !current.traceId) current.traceId = traceId
-        applyEvent(current, p, index, row.session_id)
+        applyEvent(current, p, index, row.session_id, row.project_id)
         if (
             p.type === "error" &&
             current.approvalContinuation &&
@@ -732,6 +846,12 @@ export function transcriptToMessages(
 
     // Recorded results win; otherwise saved answers, neutral terminal state, then pending.
     applyInteractionRowStates(index, options?.interactionRowStates)
+
+    // A finished turn (done, not paused, or cancelled) runs no more tools.
+    for (const d of drafts) {
+        if (d.paused || !(d.recordTerminal || d.runStopped)) continue
+        settleOpenToolParts(d, index)
+    }
 
     // A resumed turn's remaining approval gate was answered even when its response row is absent.
     // A continuation turn proves the same thing: the runner emits no records under its new
@@ -762,6 +882,7 @@ export function transcriptToMessages(
             // and metrics bar light up on reload. traceId stays absent until the backend stamps one;
             // usage is present whenever the turn persisted a `usage` event.
             const metadata: Record<string, unknown> = {}
+            if (d.displayContent !== undefined) metadata.display_content = d.displayContent
             if (d.traceId) metadata.traceId = d.traceId
             if (d.usage) metadata.usage = d.usage
             if (d.paused) metadata.paused = true

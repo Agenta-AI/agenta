@@ -19,7 +19,11 @@ import {describeInstruction, type ItemDescriptor} from "./itemDescriptors"
 export type ItemRowStatusTone = "new" | "edited" | "invalid" | "incomplete"
 export interface ItemRowStatus {
     tone: ItemRowStatusTone
-    label: string
+    /**
+     * Omit it to tint the row's border and draw no tag. A row that states the problem in
+     * its own body — an MCP server's "Login expired" — would otherwise say it twice.
+     */
+    label?: string
     tooltip?: ReactNode
 }
 
@@ -49,6 +53,8 @@ const STATUS_ACCENT: Record<ItemRowStatusTone, string> = {
 }
 
 export function StatusTag({status}: {status: ItemRowStatus}) {
+    // A status with no label tints the row's border and draws nothing here.
+    if (!status.label) return null
     const tag = (
         <Tag tone={STATUS_TAG_TONE[status.tone]} className={TAG_CLS}>
             {status.label}

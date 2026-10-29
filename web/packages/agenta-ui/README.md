@@ -52,8 +52,8 @@ import { copyToClipboard, cn, sizeClasses, textColors, bgColors } from '@agenta/
 | `@agenta/ui/chat-message` | Chat messages | `ChatMessageEditor`, `ChatMessageList`, message types/schemas |
 | `@agenta/ui/llm-icons` | LLM icons | `LLMIconMap`, provider icons |
 | `@agenta/ui/select-llm-provider` | Provider selector | `SelectLLMProvider` |
-| `@agenta/ui/app-message` | App messages | `AppMessageContext`, `useAppMessage` |
-| `@agenta/ui/cell-renderers` | Cell renderers | `CellRendererRegistry`, table cell components |
+| `@agenta/ui/app-message` | App messages | `AppMessageContext` (default), `message`, `modal`, `notification` |
+| `@agenta/ui/cell-renderers` | Cell renderers | Table cell content components (`SmartCellContent`, `JsonCellContent`, ...) |
 
 ### Usage Examples
 
@@ -72,10 +72,10 @@ import {ChatMessageEditor, ChatMessageList} from "@agenta/ui/chat-message"
 import type {SimpleChatMessage} from "@agenta/ui/chat-message"
 
 // App message context (toast notifications)
-import {AppMessageContext, useAppMessage} from "@agenta/ui/app-message"
+import AppMessageContext, {message} from "@agenta/ui/app-message"
 
 // Cell renderers for tables
-import {CellRendererRegistry, registerCellRenderer} from "@agenta/ui/cell-renderers"
+import {SmartCellContent, JsonCellContent} from "@agenta/ui/cell-renderers"
 ```
 
 ## Documentation

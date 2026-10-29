@@ -111,20 +111,13 @@ export interface ToolManagementListProps {
     onOpenIntegration?: (row: IntegrationRow) => void
     /** Drops every entry an integration owns, in one write. */
     onRemoveIntegration?: (row: IntegrationRow) => void
-    /** Add trigger shown in the empty state. Omitted when there is no drawer to open. */
-    emptyAdd?: ReactNode
     /** Per-tool draft/validation status (unsaved edits, missing fields). */
     statusFor?: ToolStatusFor
 }
 
-/** Shared empty-state line. The add half is optional: a host with no drawer renders no control. */
-function EmptyLine({label, add}: {label: string; add?: ReactNode}) {
-    return (
-        <span className="text-xs text-[var(--ag-zinc-5)]">
-            {label}
-            {add ? <> — {add}</> : null}
-        </span>
-    )
+/** Shared empty-state line: one quiet line, the section header's "+" is the way to add. */
+function EmptyLine({label}: {label: string}) {
+    return <span className="text-xs text-colorTextTertiary">{label}</span>
 }
 
 /** The Integrations section body: one row per connected app, no sub-header. */
@@ -134,12 +127,11 @@ export function ToolManagementList({
     disabled,
     onOpenIntegration,
     onRemoveIntegration,
-    emptyAdd,
     statusFor,
 }: ToolManagementListProps) {
     if (integrationRows.length === 0) {
         if (disabled) return null
-        return <EmptyLine label="No integrations yet" add={emptyAdd} />
+        return <EmptyLine label="No integrations yet" />
     }
 
     return (
@@ -187,8 +179,6 @@ export interface SubagentListProps {
     removeItem: (kind: "tool", index: number) => void
     closeEditor: () => void
     disabled?: boolean
-    /** Add trigger shown in the empty state. Omitted when there is no picker to open. */
-    emptyAdd?: ReactNode
     statusFor?: ToolStatusFor
 }
 
@@ -227,14 +217,13 @@ export function SubagentList({
     removeItem,
     closeEditor,
     disabled,
-    emptyAdd,
     statusFor,
 }: SubagentListProps) {
     const keys = subagentKeys(entries)
 
     if (entries.length === 0) {
         if (disabled) return null
-        return <EmptyLine label="No subagents yet" add={emptyAdd} />
+        return <EmptyLine label="No subagents yet" />
     }
 
     return (

@@ -60,7 +60,6 @@ const TOOLS = [
 const listArgs = (tools: unknown[]) => ({
     tools,
     integrationRows: buildIntegrationRows(tools),
-    emptyAdd: <a>add an integration</a>,
     onOpenIntegration: noop,
     onRemoveIntegration: noop,
 })

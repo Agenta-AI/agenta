@@ -13,6 +13,8 @@ export interface AuthMessage {
  * for a fresh one on a credentials retry. Omit the prop entirely on deployments without one.
  */
 export interface AuthSecurityAdapter {
+    /** True once the widget has produced a token, so a form can submit on its own. */
+    hasToken: boolean
     /** Blocks submit until a token exists; return null to abort (the adapter sets its message). */
     ensureToken: () => string | null
     /** Stamp the token where the app's transport reads it, just before the auth call. */

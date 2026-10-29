@@ -60,24 +60,41 @@ change-management protocol.
 
 ### The flow
 
-1. **Setup (workflow 41)** runs `scripts/preview-clone-create.sh`: ensure
-   environment `pr-<PR_NUMBER>` exists (`environmentCreate` from the template
-   with `skipInitialDeploys`; an ambiguous create failure is reconciled by
-   polling the name, never by re-creating), then ONE `environmentPatchCommit`
-   that points the eight app services at the run's image tag (Railway
-   auto-deploys every service whose config changed), then deploy the rest in
-   the proven order (infra, then alembic, then everything else; supertokens
-   must wait for alembic), then smoke `/w`, `/api/health`,
-   `/services/health` through the clone's own gateway domain. On a later push
-   to the same PR the environment is patched in place, not re-created.
-2. **Deploy (workflow 43)** runs `preview-clone-create.sh --verify-only`, a
-   mutation-free re-check that emits the preview URL for the tests job and
-   the PR comment (setup already deployed and smoked).
-3. **Cleanup (workflow 45)** runs `scripts/preview-clone-destroy.sh` when the
-   PR closes or converts to draft: one `environmentDelete` (idempotent — an
-   absent environment is a success). A daily cron additionally sweeps stale
-   `pr-*` environments older than 24h (`--stale-hours 24`) as a safety net
-   for previews that outlived their PR.
+1. **Automatic tests (workflow 14)** resolve the PR head and build pinned images
+   through workflow 42 before allocating Railway infrastructure.
+2. **Lifecycle (workflow 49)** serializes mutations per PR and calls
+   `scripts/preview_lifecycle.py`. The controller records ownership, invokes the
+   existing clone/create/readiness script, and publishes the URL and revision.
+3. **Tests (workflow 44)** run against the ready preview. The finalizer deletes
+   the complete environment after all dependent tests terminate, unless an
+   unexpired manual review request still needs it. Failed tests remain failed.
+4. **Independent cleanup (workflow 45)** runs every five minutes, on workflow
+   completion and on PR close/draft conversion. It handles missed finalizers,
+   deadlines and cancellation, and verifies environment absence after deletion.
+   Legacy previews and abandoned acceptance environments retain a six-hour fallback.
+
+### Request a manual preview
+
+Post exactly `/preview` as a new comment on an open, non-draft PR from this
+repository. Your current repository permission must be write, maintain or admin.
+Edited comments, bot comments, ordinary issues and fork PRs do not start previews.
+
+The bot shows the URL, exact commit and UTC expiry. The preview lasts one hour
+from readiness. Repeating the command does not extend that hour. After expiry,
+post a new command to create another preview. If CI is already using the ready
+exact revision, the command adds manual review time to that environment.
+
+A newer CI revision supersedes the previous deployment. Preview data is disposable.
+The next successful sweep enforces expiry; GitHub delays and Railway outages can
+extend actual runtime. This is not an exact timer or a monetary cap. Retained
+storage, the shared template, production and subscription fees remain separate costs.
+
+Do not edit or delete the bot's machine-readable state block. A corrupt or duplicate
+record fails closed for maintainer inspection. Do not call create/destroy scripts
+against a managed `pr-<number>` while its controller or tests are active.
+
+For rollback, disable new starts first. Keep workflow 45 running until all controlled
+previews are absent; removing cleanup first can strand billable environments.
 
 Everything is pure GraphQL through `template/lib-graphql.sh`; the Railway CLI
 is not involved.
@@ -93,13 +110,22 @@ script retries that deploy exactly once).
 ### Configuration
 
 The template location is config-driven so a future template project move
-needs no code change. Two GitHub repo variables, read by workflows 41/43/45
+needs no code change. Two GitHub repo variables, read by workflows 45/49
 and exported to the scripts:
 
 - `RAILWAY_TEMPLATE_PROJECT` — template project name (fallback:
   `agenta-oss-clone-spike`, which is also the scripts' own default).
 - `RAILWAY_TEMPLATE_ENV` — template environment name (fallback:
   `pr-template`, also the scripts' default).
+
+Lifecycle duration variables accept integers from 1 to 240 minutes:
+
+- `RAILWAY_MANUAL_PREVIEW_MINUTES`: default 60 from readiness.
+- `RAILWAY_PREVIEW_STARTUP_MINUTES`: default 30 from provisioning start.
+- `RAILWAY_CI_PREVIEW_MAX_MINUTES`: default 120 from provisioning start.
+
+Each accepted request snapshots these values. Configuration changes do not renew
+an existing preview. Builds before provisioning do not consume review time.
 
 Other knobs:
 
@@ -110,10 +136,23 @@ Other knobs:
 
 ### Evidence
 
-Workflow 48 (`48-railway-clone-preview-test.yml`) is the acceptance harness:
-it runs N consecutive full cycles (create + patch + deploy + smoke, then
-destroy) with the production scripts against the template project and prints
-per-cycle timing and API call counts to the step summary.
+Workflow 50 runs offline lifecycle and provider-boundary tests on relevant PRs.
+Run them locally with:
+
+```sh
+python3 -m unittest discover -s hosting/railway/oss/scripts -p 'test_preview*.py' -v
+```
+
+Workflow 48 (`48-railway-clone-preview-test.yml`) is opt-in real-provider acceptance.
+Its default mode runs consecutive full clone cycles. With `lifecycle_pr`,
+`comment_id` and the exact successful workflow-14 `patch_tag`, it replays a real
+human `/preview` comment through the handler, creates an isolated proof environment,
+tests accelerated expiry and finalization, verifies deletion, and uploads a JSON
+report. It does not touch the PR's CI environment or wait for web tests.
+
+GitHub registers new comment and scheduled workflows only from the default branch.
+Pre-merge acceptance verifies the handler and provider effects; check one native
+`/preview` comment after merge to verify event registration.
 
 ## Prebuilt Wrapper Images (Preview Environments)
 
@@ -213,25 +252,12 @@ export RAILWAY_ENVIRONMENT_NAME="staging"
 
 #### The mobile app (`/m`)
 
-A from-scratch `bootstrap.sh` run keeps the mobile web app **opt-in**, unlike the
-compose stack, which now starts `web-mobile` by default. Set the flag before
-`bootstrap.sh` and it creates a `web-mobile` service; the gateway already routes
-`/m` and `/m/*` to it. The two gate keys below are optional now: both gates
-default on, so set them only to opt out (`false`).
-
-```bash
-export AGENTA_RAILWAY_WITH_MOBILE=true
-# The device gate is on by default; this line only makes it explicit. A phone
-# landing on a desktop route goes to /m. Set it to false to turn the gate off.
-export AGENTA_MOBILE_GATE=true
-# Let desktop browsers open /m directly instead of being bounced back. This one
-# IS a change from the default, and preview environments want it:
-export AGENTA_MOBILE_REVERSE_GATE=false
-```
-
-`bootstrap.sh` is the only place the flag is read. `configure.sh` and
-`deploy-from-images.sh` configure and deploy the service whenever it exists,
-so an existing deployment picks it up by re-running bootstrap with the flag.
+`bootstrap.sh` creates a `web-mobile` service with every environment, and the
+gateway routes `/m` and `/m/*` to it. There is no flag for it. A phone on a
+desktop route is sent to `/m`, and a laptop can open `/m` directly.
+An environment bootstrapped before `web-mobile` became standard has no such
+service; re-run `bootstrap.sh` to add it. `configure.sh` and
+`deploy-from-images.sh` configure and deploy it whenever it exists.
 `ghcr.io/agenta-ai/agenta-web-mobile` must be readable by Railway.
 
 ### Upgrade Existing Deployment
@@ -396,7 +422,7 @@ accounting) and stays around 15 calls per preview cycle.
 ## Notes
 
 - This fast-start flow keeps auth minimal (`AGENTA_LICENSE=oss`).
-- CI is wired for Railway preview environments via `.github/workflows/14-check-pr-preview.yml` (PR preview automation entrypoint), `.github/workflows/41-railway-setup.yml` (reusable/manual create-or-update of the preview environment), `.github/workflows/42-railway-build.yml` (reusable/manual image build), `.github/workflows/43-railway-deploy.yml` (reusable/manual verify + PR comment), `.github/workflows/44-railway-tests.yml` (reusable/manual post-deploy tests), `.github/workflows/45-railway-cleanup.yml` (destroy on close + daily stale sweep), `.github/workflows/47-railway-template-drift.yml` (daily template drift check), and `.github/workflows/48-railway-clone-preview-test.yml` (acceptance harness).
+- CI is wired for Railway preview environments via `.github/workflows/14-check-pr-preview.yml` (automatic PR preview entrypoint: build, deploy, tests, cleanup), `.github/workflows/42-railway-build.yml` (reusable/manual image build), `.github/workflows/44-railway-tests.yml` (reusable post-deploy tests), `.github/workflows/45-railway-cleanup.yml` (five-minute sweep, PR close/draft conversion, and workflow-completion reconciliation), `.github/workflows/46-railway-preview-comment.yml` (`/preview` comment entrypoint), `.github/workflows/47-railway-template-drift.yml` (daily template drift check), `.github/workflows/48-railway-clone-preview-test.yml` (opt-in real-provider acceptance harness), `.github/workflows/49-railway-lifecycle.yml` (reusable per-PR lifecycle controller for create/deploy/finish/sweep), and `.github/workflows/50-railway-lifecycle-checks.yml` (offline lifecycle regression tests). Workflows 41 and 43 were removed; setup and deploy are now folded into the lifecycle controller.
 - Postgres and Redis are provisioned as image-backed services with explicit volume mounts.
 - Redis now gets a `/data` volume during bootstrap for persistence.
 - `configure.sh` sets `RAILWAY_RUN_UID=0` and `RAILWAY_RUN_GID=0` on the Redis

@@ -6,10 +6,13 @@ from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from oss.src.core.sessions.records.dtos import (
+    NON_ENDING_STOP_REASONS,
     RECORD_SETTLED_BY_ATTRIBUTE,
+    RunnerEnding,
     SETTLED_BY_WATCHDOG,
     SESSION_MESSAGE_PREVIEW_TEXT_LIMIT,
     TERMINAL_RECORD_TYPE,
+    runner_ending,
     SessionMessagePreview,
     SessionRecord,
     SessionRecordEvent,
@@ -242,22 +245,33 @@ class RecordsDAO(RecordsDAOInterface):
                     # transcript reconstruction goes through.
                     RecordDBE.quarantined_at.is_(None),
                 )
-                # Producer event time first: it is the only key that is monotonic across
-                # turns. `record_index` restarts at 0 every turn, and the worker can batch
-                # records from two turns into one write so they share `created_at` — the old
-                # (created_at, record_index) order then sorted the NEXT turn's first record
-                # ahead of the PREVIOUS turn's later ones, interleaving the conversation.
-                # Rows written before `timestamp` existed sort last within their ingest batch.
-                .order_by(
-                    RecordDBE.timestamp.asc().nullslast(),
-                    RecordDBE.created_at.asc(),
-                    RecordDBE.record_index.asc(),
-                )
+                .order_by(*self._send_order())
             )
 
             dbes = (await session.execute(stmt)).scalars().all()
             return [map_record_dbe_to_dto(dbe=dbe) for dbe in dbes]
 
+    @staticmethod
+    def _send_order():
+        # The order the runner sent the records, for transcript reads. `sequence` is commit
+        # order, not send order: two record workers race, so a tool_result can commit (and
+        # take a lower sequence) before its tool_call. The runner's own keys hold the send
+        # order: `timestamp` is its event time and the only key monotonic across turns, and
+        # `record_index` is the position within the turn. `record_index` comes before
+        # `created_at` (the worker's commit time) because two records can share a
+        # millisecond. Unsequenced legacy rows stay first. `sequence` and `record_id` only
+        # make the order total, so offset paging never repeats or skips a row.
+        return (
+            RecordDBE.sequence.is_(None).desc(),
+            RecordDBE.timestamp.asc().nullslast(),
+            RecordDBE.record_index.asc().nullslast(),
+            RecordDBE.created_at.asc(),
+            RecordDBE.sequence.asc().nullsfirst(),
+            RecordDBE.record_id.asc(),
+        )
+
+    # Commit order, for "everything after N" readers. Live catch-up skips every record at or
+    # below the last sequence it sent, so this read must stay in sequence order.
     @staticmethod
     def _transcript_order():
         return (
@@ -296,7 +310,7 @@ class RecordsDAO(RecordsDAOInterface):
                         RecordDBE.sequence <= through_sequence,
                     ),
                 )
-                .order_by(*self._transcript_order())
+                .order_by(*self._send_order())
                 .offset(offset)
                 .limit(limit + 1)
             )
@@ -353,8 +367,10 @@ class RecordsDAO(RecordsDAOInterface):
                     )
                 )
 
+        # A cursor at 0 was created by `mark_records_incomplete`, not by a sequenced append, so it
+        # proves no sequenced history.
         history_complete = record_count == 0 or (
-            latest_sequence is not None and not null_after_cutover
+            bool(latest_sequence) and not null_after_cutover
         )
         return SessionRecordsReadState(
             latest_sequence=latest_sequence or 0,
@@ -523,17 +539,18 @@ class RecordsDAO(RecordsDAOInterface):
 
         return {(row.session_id, row.turn_id) for row in rows}
 
-    async def runner_completed_turns(
+    async def runner_ended_turns(
         self,
         *,
         project_id: UUID,
         keys: Sequence[Tuple[str, str]],
-    ) -> Set[Tuple[str, str]]:
+    ) -> Dict[Tuple[str, str], RunnerEnding]:
         if not keys:
-            return set()
+            return {}
+        stop_reason = func.coalesce(RecordDBE.attributes["stopReason"].astext, "")
         async with self.engine.session() as session:
             stmt = (
-                select(RecordDBE.session_id, RecordDBE.turn_id)
+                select(RecordDBE.session_id, RecordDBE.turn_id, stop_reason)
                 .where(
                     RecordDBE.project_id == project_id,
                     RecordDBE.record_type == TERMINAL_RECORD_TYPE,
@@ -544,15 +561,63 @@ class RecordsDAO(RecordsDAOInterface):
                         "",
                     )
                     != SETTLED_BY_WATCHDOG,
-                    func.coalesce(RecordDBE.attributes["stopReason"].astext, "").notin_(
-                        ("paused", "cancelled", "error")
-                    ),
+                    stop_reason.notin_(NON_ENDING_STOP_REASONS),
                     tuple_(RecordDBE.session_id, RecordDBE.turn_id).in_(keys),
                 )
                 .distinct()
             )
             rows = (await session.execute(stmt)).all()
-        return {(row.session_id, row.turn_id) for row in rows}
+        endings: Dict[Tuple[str, str], RunnerEnding] = {}
+        for session_id, turn_id, reason in rows:
+            ending = runner_ending(reason)
+            # Should a turn hold both endings, completed wins.
+            if ending and endings.get((session_id, turn_id)) != "completed":
+                endings[(session_id, turn_id)] = ending
+        return endings
+
+    async def mark_records_incomplete(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> None:
+        # A session whose every record was dropped has no cursor yet. The insert seeds
+        # `latest_sequence` at 0, so the first sequenced append still gets sequence 1.
+        stmt = (
+            insert(SessionSequenceCursorDBE)
+            .values(
+                project_id=project_id,
+                session_id=session_id,
+                latest_sequence=0,
+                records_incomplete_at=func.now(),
+            )
+            .on_conflict_do_update(
+                index_elements=["project_id", "session_id"],
+                set_={
+                    "records_incomplete_at": func.now(),
+                    "updated_at": func.now(),
+                },
+                where=SessionSequenceCursorDBE.records_incomplete_at.is_(None),
+            )
+        )
+        async with self.engine.session() as session:
+            await session.execute(stmt)
+            await session.commit()
+
+    async def get_records_incomplete(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+    ) -> bool:
+        async with self.engine.session() as session:
+            marked_at = await session.scalar(
+                select(SessionSequenceCursorDBE.records_incomplete_at).where(
+                    SessionSequenceCursorDBE.project_id == project_id,
+                    SessionSequenceCursorDBE.session_id == session_id,
+                )
+            )
+        return marked_at is not None
 
     async def get_event(
         self,

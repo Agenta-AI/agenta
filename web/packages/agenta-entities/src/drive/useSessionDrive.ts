@@ -17,7 +17,13 @@ import {
 } from "@agenta/entities/session"
 
 import {agentMountQueryFamily} from "./agentDrive"
-import {cleanPath, driveFileStats, isInternalDrivePath, relativeTime} from "./driveTree"
+import {
+    cleanPath,
+    driveFileStats,
+    isHiddenPath,
+    isInternalDrivePath,
+    relativeTime,
+} from "./driveTree"
 
 /** The agent's durable mount is symlinked into the session cwd under this name (runner:
  * `AGENT_FILES_LINK_NAME`). Its files live in a SEPARATE mount/prefix, so the drive folds them in
@@ -77,6 +83,10 @@ export const isListableDrivePath = (path: string, opts?: {fromAgentMount?: boole
     if (!rel || isInternalDrivePath(rel)) return false
     return opts?.fromAgentMount === true || rel !== AGENT_FILES_DIR
 }
+
+/** {@link isListableDrivePath} minus hidden paths; the explorer asks the wider one (#6027). */
+export const isSummaryDrivePath = (path: string, opts?: {fromAgentMount?: boolean}): boolean =>
+    isListableDrivePath(path, opts) && !isHiddenPath(path)
 
 /** True when a listing holds BOTH agent and session files — the only time the origin tags/filter
  * carry information (a single-origin drive doesn't need them). */
@@ -379,6 +389,8 @@ const SUMMARY_LATEST_LIMIT = 5
  *  - The COUNT is a BOUNDED `limit=0` scan per mount (`total`/`total_capped`): the backend stops
  *    after a cap and reports "N+", so the "N files" badge never blocks on enumerating a huge tree.
  *
+ * Counts and lists exclude hidden paths (see {@link isSummaryDrivePath}).
+ *
  * Returns the same {@link SessionDriveData} shape so consumers are unchanged.
  */
 export function useSessionDriveSummary(sessionId: string, artifactId?: string): SessionDriveData {
@@ -410,7 +422,7 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
                 .filter(
                     (entry): entry is {resolved: DriveToolPath; at: number} =>
                         entry.resolved !== null &&
-                        isListableDrivePath(entry.resolved.path, {
+                        isSummaryDrivePath(entry.resolved.path, {
                             fromAgentMount: entry.resolved.origin === "agent",
                         }),
                 ),
@@ -484,9 +496,9 @@ export function useSessionDriveSummary(sessionId: string, artifactId?: string): 
         // `agent-files` from the session mount is the fold marker and goes, the same name from the
         // agent mount is a real directory and stays.
         const rootEntries: MountFile[] = [
-            ...(rootQuery.data ?? []).filter((f) => isListableDrivePath(f.path)),
+            ...(rootQuery.data ?? []).filter((f) => isSummaryDrivePath(f.path)),
             ...(agentRootQuery.data ?? [])
-                .filter((f) => isListableDrivePath(f.path, {fromAgentMount: true}))
+                .filter((f) => isSummaryDrivePath(f.path, {fromAgentMount: true}))
                 .map((f) => ({
                     ...f,
                     path: `${agentPrefix}${cleanPath(f.path)}`,

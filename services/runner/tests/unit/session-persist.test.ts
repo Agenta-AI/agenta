@@ -6,7 +6,7 @@
  *  - delta families (message_start/message_delta/message_end) are coalesced into
  *    a single `message` event (stripReplay)
  *  - drainPersist waits for all pending POSTs
- *  - fetch failures are swallowed after retries
+ *  - transient failures retry for a time budget; a record that still fails is lost and counted
  *  - the live emitter is always called, even for delta events
  */
 import { describe, it, beforeEach, vi } from "vitest";
@@ -25,8 +25,13 @@ vi.stubGlobal("fetch", async (_url: string, init?: RequestInit) => {
   return new Response(JSON.stringify({ ok: true }), { status: 200 });
 });
 
-const { buildPersistingEmitter, drainPersist, takePersistFailures } =
-  await import("../../src/sessions/persist.ts");
+const {
+  buildPersistingEmitter,
+  drainPersist,
+  recordsIncomplete,
+  reportRecordsIncomplete,
+  takePersistFailures,
+} = await import("../../src/sessions/persist.ts");
 
 beforeEach(() => {
   postedBodies.length = 0;
@@ -35,6 +40,38 @@ beforeEach(() => {
 });
 
 describe("buildPersistingEmitter", () => {
+  it("retries an accepted-but-timed-out record with the same id and timestamp", async () => {
+    const attempts: any[] = [];
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      attempts.push(JSON.parse(init!.body as string));
+      assert.ok(init!.signal instanceof AbortSignal);
+      if (attempts.length === 1) throw new DOMException("Timed out after acceptance", "TimeoutError");
+      return new Response("{}", { status: 200 });
+    });
+    try {
+      const emitter = buildPersistingEmitter("retry-timeout", () => "test");
+      emitter.persist({ type: "message", text: "hello" }, "user");
+      await emitter.flush();
+      assert.equal(attempts.length, 2);
+      assert.match(attempts[0].record_id, /^[0-9a-f-]{36}$/);
+      assert.deepEqual(attempts[0], attempts[1]);
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("flushes and releases unfinished text and thought prefixes exactly once", async () => {
+    const emitter = buildPersistingEmitter("unfinished-prefix", () => "test");
+    emitter.emit({ type: "message_start", id: "m" });
+    emitter.emit({ type: "message_delta", id: "m", delta: "remember this" });
+    emitter.emit({ type: "thought_start", id: "t" });
+    emitter.emit({ type: "thought_delta", id: "t", delta: "partial thought" });
+    await emitter.flush();
+    await emitter.flush();
+    const rows = postedBodies as any[];
+    assert.deepEqual(rows.map((row) => row.attributes.text), ["remember this", "partial thought"]);
+    assert.notEqual(rows[0].record_id, rows[1].record_id);
+  });
   it("persists a plain message event and forwards to the live emitter", async () => {
     const live: unknown[] = [];
     const { emit, flush } = buildPersistingEmitter(
@@ -517,97 +554,166 @@ describe("buildPersistingEmitter API contract", () => {
   });
 });
 
-describe("durable records (AGENTA_RECORDS_DURABLE)", () => {
-  it('legacy (explicitly "false"): a permanent failure is dropped and NOT counted', async () => {
-    vi.stubEnv("AGENTA_RECORDS_DURABLE", "false");
-    fetchFailCount = 99; // never succeeds
-    const { emit, flush } = buildPersistingEmitter("sess-legacy", () => "t");
-    emit({ type: "message", text: "x" });
-    await flush();
-
-    assert.equal(postedBodies.length, 0); // dropped
-    assert.equal(takePersistFailures("sess-legacy"), 0); // counting is off
-  });
-
-  it("durable: a permanent failure is dropped AND counted for the session", async () => {
-    vi.stubEnv("AGENTA_RECORDS_DURABLE", "true");
-    vi.stubEnv("AGENTA_RECORDS_INGEST_MAX_RETRIES", "2"); // keep the test fast
-    fetchFailCount = 99;
-    const { emit } = buildPersistingEmitter("sess-durable", () => "t");
-    emit({ type: "message", text: "x" });
-    emit({ type: "done" });
-    // Drain directly (not flush): flush's turn-end consumer would read + clear the count.
-    await drainPersist("sess-durable");
-
-    assert.equal(postedBodies.length, 0); // both records dropped
-    assert.equal(takePersistFailures("sess-durable"), 2);
-    // take clears the count.
-    assert.equal(takePersistFailures("sess-durable"), 0);
-  });
-
-  it("durable is the default: an absent flag counts the drop", async () => {
-    vi.stubEnv("AGENTA_RECORDS_INGEST_MAX_RETRIES", "2"); // keep the test fast
-    fetchFailCount = 99;
-    const { emit } = buildPersistingEmitter("sess-default", () => "t");
-    emit({ type: "message", text: "x" });
-    await drainPersist("sess-default");
-
-    assert.equal(postedBodies.length, 0);
-    assert.equal(takePersistFailures("sess-default"), 1);
-  });
-
-  it('an empty flag (compose "${VAR:-}" passthrough) still means durable', async () => {
-    vi.stubEnv("AGENTA_RECORDS_DURABLE", "");
-    vi.stubEnv("AGENTA_RECORDS_INGEST_MAX_RETRIES", "2");
-    fetchFailCount = 99;
-    const { emit } = buildPersistingEmitter("sess-empty", () => "t");
-    emit({ type: "message", text: "x" });
-    await drainPersist("sess-empty");
-
-    assert.equal(postedBodies.length, 0);
-    assert.equal(takePersistFailures("sess-empty"), 1);
-  });
-
-  it("durable: the turn-end flush consumes the drop count (warns + clears)", async () => {
-    vi.stubEnv("AGENTA_RECORDS_DURABLE", "true");
-    vi.stubEnv("AGENTA_RECORDS_INGEST_MAX_RETRIES", "2");
-    fetchFailCount = 99;
-    const warns: string[] = [];
-    const writeSpy = vi
-      .spyOn(process.stderr, "write")
-      .mockImplementation((chunk: string | Uint8Array) => {
-        warns.push(String(chunk));
-        return true;
+describe("durable records", () => {
+  /** A fetch that answers each ingest from `answer`, recording the bodies that landed. */
+  function stubIngest(answer: (body: any, attempt: number) => Response | Error) {
+    const landed: any[] = [];
+    const auths: string[] = [];
+    let attempt = 0;
+    const spy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (_url, init) => {
+        const body = JSON.parse(init!.body as string);
+        auths.push(new Headers(init!.headers).get("authorization") ?? "");
+        const out = answer(body, ++attempt);
+        if (out instanceof Error) throw out;
+        if (out.ok) landed.push(body);
+        return out;
       });
+    return { landed, auths, restore: () => spy.mockRestore(), attempts: () => attempt };
+  }
+
+  it("retries a transient failure until it lands (no drop)", async () => {
+    vi.stubEnv("AGENTA_RECORDS_INGEST_RETRY_BUDGET_MS", "5000");
+    const ingest = stubIngest((_b, n) =>
+      n === 1 ? new Response("", { status: 503 })
+        : n === 2 ? new Response("", { status: 429 })
+        : n === 3 ? new TypeError("fetch failed")
+        : new Response("{}", { status: 200 }),
+    );
+    try {
+      const { emit, flush } = buildPersistingEmitter("sess-recover", () => "t");
+      emit({ type: "message", text: "x" });
+      await flush();
+      assert.equal(ingest.attempts(), 4);
+      assert.equal(ingest.landed.length, 1);
+      assert.equal(takePersistFailures("sess-recover"), 0);
+      assert.equal(recordsIncomplete("sess-recover"), false);
+    } finally {
+      ingest.restore();
+    }
+  });
+
+  it("does not retry a non-transient 4xx: the record is lost, counted and marked", async () => {
+    vi.stubEnv("AGENTA_RECORDS_INGEST_RETRY_BUDGET_MS", "5000");
+    const ingest = stubIngest((body) =>
+      body.record_type === "message"
+        ? new Response("", { status: 422 })
+        : new Response("{}", { status: 200 }),
+    );
+    try {
+      const { emit } = buildPersistingEmitter("sess-422", () => "t");
+      emit({ type: "message", text: "x" });
+      emit({ type: "done" });
+      await drainPersist("sess-422");
+      // One attempt for the 422, then the next record still goes out (one attempt: it lands).
+      assert.equal(ingest.attempts(), 2);
+      assert.deepEqual(ingest.landed.map((b) => b.record_type), ["done"]);
+      assert.equal(takePersistFailures("sess-422"), 1);
+      assert.equal(recordsIncomplete("sess-422"), true);
+    } finally {
+      ingest.restore();
+    }
+  });
+
+  it("loses a record when the budget runs out; later records get one attempt each", async () => {
+    vi.stubEnv("AGENTA_RECORDS_INGEST_RETRY_BUDGET_MS", "250");
+    const errors: string[] = [];
+    const errorSpy = vi
+      .spyOn(console, "error")
+      .mockImplementation((...args) => void errors.push(args.join(" ")));
+    const bodies: any[] = [];
+    const ingest = stubIngest((body) => {
+      bodies.push(body);
+      return new Response("", { status: 500 });
+    });
+    try {
+      const { emit, flush } = buildPersistingEmitter("sess-budget", () => "t", undefined, undefined, "turn-1");
+      emit({ type: "message", text: "a" });
+      emit({ type: "message", text: "b" });
+      emit({ type: "done" });
+      await flush();
+      const first = bodies.filter((b) => b.attributes.text === "a");
+      assert.ok(first.length >= 2, `the first record retried: ${first.length}`);
+      // Every retry is the same row: same record id and timestamp.
+      assert.ok(first.every((b) => JSON.stringify(b) === JSON.stringify(first[0])));
+      // The log already has a hole, so the records behind it do not wait out a full budget.
+      assert.equal(bodies.filter((b) => b.attributes.text === "b").length, 1);
+      assert.equal(bodies.filter((b) => b.record_type === "done").length, 1);
+      assert.equal(takePersistFailures("sess-budget"), 3);
+      assert.equal(recordsIncomplete("sess-budget"), true);
+      // One alertable line, at ERROR, per lost record.
+      const drops = errors.filter((line) => line.includes("[sessions/persist] RECORD_DROPPED"));
+      assert.equal(drops.length, 3);
+      assert.ok(drops.every((line) => /"outcome":"lost"/.test(line)));
+    } finally {
+      ingest.restore();
+      errorSpy.mockRestore();
+    }
+  });
+
+  it("the turn-end flush leaves the loss count for the caller (does not consume it)", async () => {
+    vi.stubEnv("AGENTA_RECORDS_INGEST_RETRY_BUDGET_MS", "0");
+    const ingest = stubIngest(() => new Response("", { status: 422 }));
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
       const { emit, flush } = buildPersistingEmitter("sess-flush", () => "t");
       emit({ type: "message", text: "x" });
       await flush();
-
-      // The drain surfaced the incomplete durable log at turn end...
-      assert.equal(
-        warns.some(
-          (w) => w.includes("sess-flush") && w.includes("durable log incomplete"),
-        ),
-        true,
-      );
+      // flush drains but MUST NOT consume the count. The turn's caller (server.ts's finally)
+      // reads it once, after the drain, to decide whether to report the session's record log
+      // incomplete. If flush consumed it here, that caller would read zero.
+      assert.equal(takePersistFailures("sess-flush"), 1);
+      assert.equal(takePersistFailures("sess-flush"), 0);
     } finally {
-      writeSpy.mockRestore();
+      ingest.restore();
+      errorSpy.mockRestore();
     }
-    // ...and cleared the counter, so nothing accumulates unread.
-    assert.equal(takePersistFailures("sess-flush"), 0);
+  });
+});
+
+describe("reportRecordsIncomplete", () => {
+  it("posts the session and turn to the api and marks the session here", async () => {
+    const calls: Array<{ url: string; body: unknown; auth: string | null }> = [];
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (url, init) => {
+        calls.push({
+          url: String(url),
+          body: JSON.parse(init!.body as string),
+          auth: new Headers(init!.headers).get("authorization"),
+        });
+        return new Response("{}", { status: 200 });
+      });
+    try {
+      await reportRecordsIncomplete("sess-report", "turn-9", () => "ApiKey t");
+    } finally {
+      fetchSpy.mockRestore();
+    }
+    assert.equal(calls.length, 1);
+    assert.match(calls[0].url, /\/sessions\/records\/incomplete$/);
+    assert.deepEqual(calls[0].body, {
+      session_id: "sess-report",
+      turn_id: "turn-9",
+    });
+    assert.equal(calls[0].auth, "ApiKey t");
+    assert.equal(recordsIncomplete("sess-report"), true);
   });
 
-  it("durable: a transient failure recovers within the retry budget (no drop counted)", async () => {
-    vi.stubEnv("AGENTA_RECORDS_DURABLE", "true");
-    vi.stubEnv("AGENTA_RECORDS_INGEST_MAX_RETRIES", "5");
-    fetchFailCount = 2; // fails twice, then the 3rd attempt lands
-    const { emit, flush } = buildPersistingEmitter("sess-recover", () => "t");
-    emit({ type: "message", text: "x" });
-    await flush();
-
-    assert.equal(postedBodies.length, 1); // landed
-    assert.equal(takePersistFailures("sess-recover"), 0);
+  it("a failed report is swallowed and the local mark still holds", async () => {
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => {
+        throw new Error("ECONNREFUSED");
+      });
+    try {
+      await assert.doesNotReject(() =>
+        reportRecordsIncomplete("sess-report-down", "turn-1", () => "t"),
+      );
+    } finally {
+      fetchSpy.mockRestore();
+    }
+    assert.equal(recordsIncomplete("sess-report-down"), true);
   });
 });
 

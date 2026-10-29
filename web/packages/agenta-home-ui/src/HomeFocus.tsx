@@ -4,6 +4,7 @@ import type {useComposerAttachments} from "@agenta/chat/hooks"
 import {templateBuilderMessage, type AgentStarterTemplate} from "@agenta/entities/workflow"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 
+import {resolveBoundAgentId} from "./boundAgent"
 import {HomeEntityList, type HomeListAgent, type HomeListTab} from "./HomeEntityList"
 import {HomeGreeting} from "./HomeGreeting"
 import {HomeTaskComposer} from "./HomeTaskComposer"
@@ -24,6 +25,11 @@ export interface HomeFocusProps {
     className?: string
     title?: string
     agents: HomeListAgent[]
+    /**
+     * The agent the composer binds before anyone chooses — the host's memory of the last one a
+     * chat was started with. Falls back to the head of the roster when absent or no longer listed.
+     */
+    preferredAgentId?: string | null
     /** The starter catalogue, from the host — the same list its templates route renders. */
     templates: AgentStarterTemplate[]
     /** The attachment engine; the host owns its rollout flag and scope. */
@@ -31,12 +37,21 @@ export interface HomeFocusProps {
     /** Run the task with the bound agent. */
     onStartTask: (input: {agentId: string; text: string}) => void | Promise<void>
     /**
-     * Create an agent from what was typed in create mode. A template contributes only its NAME —
-     * its instruction is already in the composer, where it can be edited before sending.
+     * Create an agent from what was typed in create mode. A template contributes its NAME and its
+     * KEY — the instruction is already in the composer, where it can be edited before sending.
+     *
+     * The key is what lets the session ask for the template's accounts (`useSessionSetupStep`).
+     * Without it a template picked here would be the one create path that never gates.
      */
-    onCreateFromPrompt: (input: {text: string; templateName?: string}) => void | Promise<void>
+    onCreateFromPrompt: (input: {
+        text: string
+        templateName?: string
+        templateKey?: string
+    }) => void | Promise<void>
     /** Where "Browse all N templates" lands. */
     templatesHref: string
+    /** The host's create menu, beside the list's tabs. */
+    newAction?: ReactNode
     /** A start or a create is in flight and the page has not moved yet. */
     sending?: boolean
     /** The agents list's states — the host's own designed versions. */
@@ -44,6 +59,9 @@ export interface HomeFocusProps {
     loadingSlot?: ReactNode
     emptySlot?: ReactNode
     errorSlot?: ReactNode
+    /** The templates tab's states: the catalogue is still loading, or failed (with a retry). */
+    templatesLoading?: boolean
+    templatesErrorSlot?: ReactNode
 }
 
 /**
@@ -53,23 +71,27 @@ export interface HomeFocusProps {
  * merely informative (next triggers, usage) live on the pages that own them — carried here as
  * summaries they made Home a table of contents for other pages rather than a place to start work.
  *
- * "+ New agent" does not navigate. It flips THIS composer into create mode, so describing an agent
- * and describing a task happen in the same box, one above the same list.
+ * "+ New agent" is the host's create menu. The composer's create mode is for a project with no
+ * agents yet, and for a template picked from the list.
  */
 export const HomeFocus = ({
     className,
     title = "What should we work on?",
     agents,
+    preferredAgentId,
     templates,
     attachments,
     onStartTask,
     onCreateFromPrompt,
     templatesHref,
+    newAction,
     sending,
     loading,
     loadingSlot,
     emptySlot,
     errorSlot,
+    templatesLoading,
+    templatesErrorSlot,
 }: HomeFocusProps) => {
     // Both DERIVE from the roster until someone chooses otherwise, rather than snapshotting it at
     // mount: the list can arrive empty and fill a moment later, and a snapshot left the page stuck
@@ -86,14 +108,9 @@ export const HomeFocus = ({
         bindingChoice ?? (hasAgents ? {kind: "agent", id: null} : {kind: "new"})
     const inputRef = useRef<RichChatInputHandle | null>(null)
 
-    // Resolved ONCE, here, because the composer's dock and the list's check are the same fact. A
-    // stale id (an agent archived under the page) falls back rather than naming something gone.
+    // Resolved ONCE, here, because the composer's dock and the list's check are the same fact.
     const boundAgentId =
-        binding.kind !== "agent"
-            ? null
-            : ((binding.id && agents.some((agent) => agent.id === binding.id)
-                  ? binding.id
-                  : agents[0]?.id) ?? null)
+        binding.kind !== "agent" ? null : resolveBoundAgentId(agents, binding.id, preferredAgentId)
 
     /**
      * Put the caret in the composer, and a seed with it.
@@ -117,7 +134,7 @@ export const HomeFocus = ({
         requestAnimationFrame(attempt)
     }, [])
 
-    // "+ New agent" answers "what next" with "type here", so the caret goes there.
+    // Clearing a binding (the dock's ✕, the picker's "New agent") answers with "type here".
     const startCreating = useCallback(() => {
         setBindingChoice({kind: "new"})
         focusSoon()
@@ -179,6 +196,8 @@ export const HomeFocus = ({
                                 ...input,
                                 templateName:
                                     binding.kind === "template" ? binding.template.name : undefined,
+                                templateKey:
+                                    binding.kind === "template" ? binding.template.key : undefined,
                             })
                             setBindingChoice({kind: "agent", id: null})
                         }}
@@ -205,11 +224,13 @@ export const HomeFocus = ({
                         binding.kind === "template" ? binding.template.key : undefined
                     }
                     templatesHref={templatesHref}
-                    onNew={startCreating}
+                    newAction={newAction}
                     loading={loading}
                     loadingSlot={loadingSlot}
                     emptySlot={emptySlot}
                     errorSlot={errorSlot}
+                    templatesLoading={templatesLoading}
+                    templatesErrorSlot={templatesErrorSlot}
                 />
             </div>
         </div>

@@ -5,6 +5,9 @@ import {ConfirmModal} from "./ConfirmModal"
 interface ConfirmRequest {
     title: string
     message: string
+    /** Names the act on the button. Absent falls back to the generic answer. */
+    okText?: string
+    danger?: boolean
     onOk: () => void | Promise<void>
 }
 
@@ -34,7 +37,8 @@ export const useConfirmModal = () => {
             open={Boolean(request)}
             title={request?.title ?? ""}
             body={request?.message}
-            confirmLabel="Confirm"
+            confirmLabel={request?.okText ?? "Confirm"}
+            destructive={request?.danger}
             pending={pending}
             error={error}
             onClose={close}

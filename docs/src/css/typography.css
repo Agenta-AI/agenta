@@ -1,0 +1,353 @@
+body {
+  color: var(--ifm-font-color-base);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Lighter bold text weight for better readability */
+strong,
+b {
+  font-weight: var(--ifm-font-weight-bold);
+}
+
+/* Headings. The :not() guards keep the OpenAPI reference's own heading
+   sizes; card titles have their own rule in content.css. */
+h1:not([class*="openapi"]) {
+  font-size: var(--ifm-heading-h1-font-size);
+  line-height: 38px;
+  font-weight: var(--ifm-h1-font-weight);
+  letter-spacing: -0.02em;
+}
+
+h2:not([class*="openapi"]):not([class*="cardTitle"]) {
+  font-size: var(--ifm-heading-h2-font-size);
+  line-height: 28px;
+  font-weight: var(--ifm-h2-font-weight);
+  letter-spacing: -0.01em;
+}
+
+h3:not([class*="openapi"]) {
+  font-size: var(--ifm-heading-h3-font-size);
+  line-height: 24px;
+  font-weight: var(--ifm-h3-font-weight);
+}
+
+h4:not([class*="openapi"]) {
+  font-size: var(--ifm-heading-h4-font-size);
+  line-height: 22px;
+  font-weight: var(--ifm-h4-font-weight);
+}
+
+/* The first paragraph under a page title reads as its lead: larger, muted. */
+.theme-doc-markdown > header + p,
+/* Infima spaces block content by --ifm-leading (1.25em = 18.75px); a little
+   tighter between paragraphs. */
+.markdown > p {
+  margin-bottom: 14px;
+}
+
+.theme-doc-markdown > header + .row > .col > p:first-child {
+  font-size: 16px;
+  line-height: 26px;
+  color: var(--contentsecondary);
+  margin-top: -8px;
+}
+
+.markdown h2:not([class*="cardTitle"]) {
+  margin-top: 44px;
+}
+
+.markdown > h2:first-child,
+.markdown > header + h2 {
+  margin-top: 0;
+}
+
+/* Heading anchor: a small bordered square with a link icon after the
+   heading text, shown while the heading is hovered (Docusaurus toggles the
+   opacity). Replaces the stock "#"; the a.hash-link selectors outrank the
+   theme's .hash-link rules (its 0.5em padding and '#' content). */
+a.hash-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin-left: 8px;
+  padding: 0;
+  vertical-align: middle;
+  border: 1px solid var(--borderdefault);
+  border-radius: var(--radius-sm);
+  background-color: var(--bgelevated1);
+  color: var(--contentsecondary);
+  text-decoration: none !important;
+  /* The link's only text is a zero-width space; collapsing it keeps the
+     icon centred. */
+  font-size: 0;
+  line-height: 0;
+  transition:
+    opacity var(--ifm-transition-fast) ease,
+    border-color var(--ifm-transition-fast) ease,
+    color var(--ifm-transition-fast) ease;
+}
+
+a.hash-link::before {
+  content: "";
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  background-color: currentColor;
+  -webkit-mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7'/><path d='M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7'/></svg>")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><path d='M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7'/><path d='M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7'/></svg>")
+    center / contain no-repeat;
+}
+
+a.hash-link:hover {
+  border-color: var(--borderdark);
+  color: var(--contentprimary);
+}
+
+/* Code */
+pre,
+code {
+  font-family: var(--ifm-font-family-monospace);
+}
+
+/* Inline code: a flat tint, no border, in the text colour. */
+code:not(pre code) {
+  font-size: 0.85em;
+  font-weight: var(--ifm-font-weight-normal);
+  letter-spacing: -0.01em;
+  padding: 0.15em 0.3em;
+  color: var(--contentprimary);
+  background-color: var(--bgelevated1);
+  border: 0;
+  border-radius: 4px;
+}
+
+/* Code blocks: a soft, generously padded panel with the copy icon always
+   visible in the corner. The container carries the surface; the inner
+   pre/code stay transparent so nothing doubles up. */
+.theme-code-block {
+  /* The theme's module reads this for the container and the pre. */
+  --ifm-code-border-radius: 16px;
+  box-shadow: none !important;
+  border: 0;
+  border-radius: 16px;
+  background-color: var(--bgelevated1) !important;
+  margin-bottom: 24px;
+}
+
+.theme-code-block pre,
+.theme-code-block pre code {
+  background-color: transparent !important;
+  border: 0;
+  box-shadow: none;
+}
+
+.theme-code-block pre {
+  font-size: 14px;
+  line-height: 1.65;
+  padding: 0;
+  margin: 0;
+}
+
+/* The theme pads the inner <code> with --ifm-pre-padding (1rem) as well;
+   one padding, on the element that scrolls, so highlighted lines can bleed
+   to the panel edges. */
+.theme-code-block {
+  --ifm-pre-padding: 25px;
+}
+
+.theme-code-block pre code {
+  font-size: 14px;
+  letter-spacing: -0.01em;
+  /* Sides keep --ifm-pre-padding (highlighted lines bleed by it); top and
+     bottom sit 2px tighter. */
+  padding-top: 23px;
+  padding-bottom: 23px;
+}
+
+/* Title bar (```lang title="...") */
+.theme-code-block > div:first-child:not([class*="codeBlockContent"]) {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--borderlight);
+  font-size: 13px;
+  color: var(--contentsecondary);
+  background-color: transparent;
+}
+
+/* Copy button: bare icon in the top-right corner, always visible. */
+.theme-code-block [class*="buttonGroup"] {
+  top: 10px;
+  right: 6px;
+  opacity: 1;
+}
+
+.theme-code-block [class*="buttonGroup"] button {
+  width: 28px;
+  height: 28px;
+  padding: 6px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background-color: transparent;
+  color: var(--contentprimary);
+  opacity: 1;
+  transition: background-color var(--ifm-transition-fast) ease;
+}
+
+.theme-code-block [class*="buttonGroup"] button:hover {
+  background-color: var(--bgelevated2);
+}
+
+.theme-code-block button[aria-label="Toggle word wrap"] {
+  display: none;
+}
+
+/* The ejected copy icon is stroke-based; the theme's rule fills it. */
+.theme-code-block [class*="copyButtonIcon"] {
+  fill: none;
+}
+
+.theme-code-block [class*="copyButtonIcons"] {
+  width: 16px;
+  height: 16px;
+}
+
+/* Highlighted lines and the error-line marker */
+.code-block-error-line {
+  background-color: #ff000020;
+  display: block;
+  margin: 0 calc(-1 * var(--ifm-pre-padding));
+  padding: 0 var(--ifm-pre-padding);
+  border-left: 3px solid #ff000080;
+}
+
+/* Links inside articles: underlined, offset, and neutral. */
+article a:not([class*="card"]):not(.hash-link):not(.table-of-contents__link):not(.pagination-nav__link):not([rel="tag"]) {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  text-decoration-color: var(--borderdark);
+  transition:
+    text-decoration-color 200ms ease,
+    text-underline-offset 200ms ease;
+}
+
+article a:not([class*="card"]):not(.hash-link):not(.table-of-contents__link):not(.pagination-nav__link):not([rel="tag"]):hover {
+  text-decoration-color: var(--contentprimary);
+  text-underline-offset: 4px;
+}
+
+/* Syntax highlighting: light */
+[data-theme="light"] .token.comment,
+[data-theme="light"] .token.prolog,
+[data-theme="light"] .token.doctype,
+[data-theme="light"] .token.cdata {
+  color: #6a737d;
+  font-style: italic;
+}
+
+[data-theme="light"] .token.punctuation {
+  color: #5e6687;
+}
+
+[data-theme="light"] .token.property,
+[data-theme="light"] .token.tag,
+[data-theme="light"] .token.boolean,
+[data-theme="light"] .token.number,
+[data-theme="light"] .token.constant,
+[data-theme="light"] .token.symbol,
+[data-theme="light"] .token.deleted {
+  color: #0184bc;
+}
+
+[data-theme="light"] .token.selector,
+[data-theme="light"] .token.attr-name,
+[data-theme="light"] .token.string,
+[data-theme="light"] .token.char,
+[data-theme="light"] .token.builtin,
+[data-theme="light"] .token.inserted {
+  color: #0c7c59;
+}
+
+[data-theme="light"] .token.operator,
+[data-theme="light"] .token.entity,
+[data-theme="light"] .token.url,
+[data-theme="light"] .language-css .token.string,
+[data-theme="light"] .style .token.string {
+  color: #a626a4;
+}
+
+[data-theme="light"] .token.atrule,
+[data-theme="light"] .token.attr-value,
+[data-theme="light"] .token.keyword {
+  color: #d73a49;
+}
+
+[data-theme="light"] .token.function,
+[data-theme="light"] .token.class-name {
+  color: #6f42c1;
+}
+
+[data-theme="light"] .token.regex,
+[data-theme="light"] .token.important,
+[data-theme="light"] .token.variable {
+  color: #e36209;
+}
+
+/* Syntax highlighting: dark */
+[data-theme="dark"] .token.comment,
+[data-theme="dark"] .token.prolog,
+[data-theme="dark"] .token.doctype,
+[data-theme="dark"] .token.cdata {
+  color: #8b949e;
+  font-style: italic;
+}
+
+[data-theme="dark"] .token.punctuation {
+  color: #c9d1d9;
+}
+
+[data-theme="dark"] .token.property,
+[data-theme="dark"] .token.tag,
+[data-theme="dark"] .token.boolean,
+[data-theme="dark"] .token.number,
+[data-theme="dark"] .token.constant,
+[data-theme="dark"] .token.symbol,
+[data-theme="dark"] .token.deleted {
+  color: #79c0ff;
+}
+
+[data-theme="dark"] .token.selector,
+[data-theme="dark"] .token.attr-name,
+[data-theme="dark"] .token.string,
+[data-theme="dark"] .token.char,
+[data-theme="dark"] .token.builtin,
+[data-theme="dark"] .token.inserted {
+  color: #7ee787;
+}
+
+[data-theme="dark"] .token.operator,
+[data-theme="dark"] .token.entity,
+[data-theme="dark"] .token.url,
+[data-theme="dark"] .language-css .token.string,
+[data-theme="dark"] .style .token.string {
+  color: #d2a8ff;
+}
+
+[data-theme="dark"] .token.atrule,
+[data-theme="dark"] .token.attr-value,
+[data-theme="dark"] .token.keyword {
+  color: #ff7b72;
+}
+
+[data-theme="dark"] .token.function,
+[data-theme="dark"] .token.class-name {
+  color: #d2a8ff;
+}
+
+[data-theme="dark"] .token.regex,
+[data-theme="dark"] .token.important,
+[data-theme="dark"] .token.variable {
+  color: #ffa657;
+}

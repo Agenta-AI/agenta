@@ -91,6 +91,9 @@ class WireConnection(_WireModel):
 
     mode: Literal["agenta", "self_managed"] = "agenta"
     slug: Optional[str] = None
+    # Whose connection `slug` names (M5); omitted for the project's. Routing does not
+    # depend on it: the resolved route already points at the organization namespace.
+    scope: Optional[Literal["project", "organization"]] = None
 
 
 class WireCredentialBinding(_WireModel):
@@ -151,6 +154,16 @@ class WireSubscription(_WireModel):
     login: WireSubscriptionLogin
 
 
+class WireSubscriptionFence(_WireModel):
+    """The marker sent in ``subscription`` beside an organization subscription login (M5).
+
+    A runner older than M5 does not read ``organizationSubscription``; it reads this marker
+    as an unusable subscription and refuses the run instead of using an operator login.
+    """
+
+    fence: Literal["organization"]
+
+
 class WireModelConnection(_WireModel):
     """Resolved model routing, non-secret environment, and credentials for one run."""
 
@@ -162,7 +175,14 @@ class WireModelConnection(_WireModel):
     )
     environment: Optional[Dict[str, str]] = None
     credentials: List[WireCredential] = Field(default_factory=list)
-    subscription: Optional[WireSubscription] = None
+    subscription: Optional[Union[WireSubscription, WireSubscriptionFence]] = None
+    # An organization's subscription login (M5). The runner uses it like a project login;
+    # `subscription` then holds the fence.
+    organization_subscription: Optional[WireSubscription] = Field(
+        default=None, alias="organizationSubscription"
+    )
+    # "gemini" when the gateway route also serves Google's native protocol; omitted otherwise.
+    protocol: Optional[str] = None
 
 
 class WireModelCapabilities(_WireModel):
@@ -194,6 +214,7 @@ class WireChatMessage(_WireModel):
 
     role: str
     content: Union[str, List[WireContentBlock]] = ""
+    display_content: Optional[str] = None
 
 
 class WirePropagation(_WireModel):

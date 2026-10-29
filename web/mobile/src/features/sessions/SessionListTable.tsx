@@ -1,23 +1,19 @@
 import {useCallback, useMemo, useState} from "react"
 
 import type {SessionRowVm} from "@agenta/sessions/row"
-import {
-    rowsFromPages,
-    sessionSearchAtom,
-    useSessionList,
-    useSessionPins,
-    useSessionsList,
-} from "@agenta/sessions/state"
+import {sessionSearchAtom, useSessionPins, useSessionsList} from "@agenta/sessions/state"
 import {SessionListLoadMore, type SessionMenuEntry} from "@agenta/sessions-ui"
+import {LoadError} from "@agenta/ui/components/presentational"
 import {useMediaQuery} from "@agenta/ui/hooks"
 import {ListTable, type ListTableColumn, type ListTableGroup} from "@agenta/ui/list-table"
+import {Button, SimpleTooltip} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
+import {Plus} from "lucide-react"
 
 import {deriveSessionGroups, type SessionGrouping} from "./sessionListView"
 import {SessionRowCells} from "./SessionRowCells"
-import {SessionsEmpty} from "./states/SessionsEmpty"
-import {SessionsError} from "./states/SessionsError"
 import {SessionsNoMatch} from "./states/SessionsNoMatch"
+import {useProjectHasSessions} from "./useProjectHasSessions"
 
 /**
  * The columns, shared by the header row and every body row so the two can never drift.
@@ -92,6 +88,7 @@ export const SessionListTable = ({
     agentNames,
     agentNamesReady,
     verbs,
+    onNewSession,
     onClearSearch,
     onResetView,
 }: {
@@ -108,6 +105,8 @@ export const SessionListTable = ({
      */
     agentNamesReady: boolean
     verbs: SessionRowVerbs
+    /** Start a blank session with an agent — an agent heading's "+". */
+    onNewSession?: (agentId: string) => void
     /** Undoes the SEARCH only — what a term that matched nothing needs. */
     onClearSearch: () => void
     /** Undoes every facet, the grouping and the search. */
@@ -129,16 +128,7 @@ export const SessionListTable = ({
     // queried for, so it can never name a search that has not run yet.
     const term = useAtomValue(sessionSearchAtom).trim()
 
-    // Does the project have ANY session? The empty state cannot tell "none yet" from "filters
-    // hid them" out of what the page holds, so it asks. Runs only while the list is empty.
-    const probe = useSessionList({
-        originPolicy: "all",
-        expansions: [],
-        includeArchived: true,
-        limit: 1,
-        enabled: list.isEmpty && !list.isPlaceholder && !list.isPending,
-    })
-    const projectHasSessions = rowsFromPages(probe.data?.pages).length > 0
+    const probe = useProjectHasSessions(list.isEmpty && !list.isPlaceholder && !list.isPending)
 
     // Group headings carry a chevron, so it has to do something: collapsed keys, not a flag per
     // group, because the groups themselves come and go as the grouping changes.
@@ -171,7 +161,34 @@ export const SessionListTable = ({
         return out
     }, [agentNames, agentNamesReady, group, list.groups])
 
-    if (list.isError) return <SessionsError onRetry={list.refetch} />
+    // Under agent grouping every row in a group shares the agent, so the first row names it.
+    // Pins and "No agent yet" are not agents, and "Unknown agent" is one the roster no longer
+    // lists (archived, deleted) — nothing to start a session with. None of them get a "+".
+    const groupActions = useCallback(
+        (run: ListTableGroup<SessionRowVm>) => {
+            if (group !== "agent" || !onNewSession || run.key === "pinned") return null
+            const agentId = run.rows[0]?.agentId
+            if (!agentId || !agentNames.has(agentId)) return null
+            return (
+                <SimpleTooltip title={`New session with ${run.label}`}>
+                    <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`New session with ${run.label}`}
+                        className="size-6 text-muted-foreground hover:text-foreground"
+                        onClick={() => onNewSession(agentId)}
+                    >
+                        <Plus className="size-3.5" />
+                    </Button>
+                </SimpleTooltip>
+            )
+        },
+        [agentNames, group, onNewSession],
+    )
+
+    if (list.isError)
+        return <LoadError framed title="Could not load sessions" onRetry={list.refetch} />
 
     return (
         // Say that these rows are a previous query's while a new one resolves. Typing in the
@@ -199,26 +216,14 @@ export const SessionListTable = ({
                     onOpenRow={verbs.open}
                     collapsedKeys={collapsed}
                     onToggleGroup={toggleGroup}
+                    groupActions={groupActions}
                     empty={
-                        // Never while the rows are a previous query's. "No sessions yet" is a
-                        // claim about the account, and showing it over an unsettled query told
-                        // people with 43 sessions they had none.
-                        //
-                        // And never when a filter is what emptied the list: the two states make
-                        // different claims, and only one of them has a way out.
-                        // Nothing at all while the answer is still unsettled: the rows may be a
-                        // previous query's, or the probe may not have said yet whether this
-                        // project has sessions. Either way both states would be a guess, and one
-                        // of them tells a reader with 43 sessions that they have none.
-                        list.isPlaceholder || probe.isPending ? null : projectHasSessions ? (
-                            // The project has sessions and this list has none, so something on
-                            // this page narrowed them away — no need to work out which control.
+                        // Nothing while unsettled; an empty project gets the onboarding.
+                        list.isPlaceholder || probe.pending ? null : (
                             <SessionsNoMatch
                                 term={term || undefined}
                                 onClear={term ? onClearSearch : onResetView}
                             />
-                        ) : (
-                            <SessionsEmpty />
                         )
                     }
                     renderRow={(vm) => (

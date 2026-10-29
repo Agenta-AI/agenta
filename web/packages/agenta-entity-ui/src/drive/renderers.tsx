@@ -9,25 +9,48 @@
  * context — the sandbox the spec asks for); audio/video/PDF bytes come as cached blobs (see
  * driveMedia.ts for the signed-URL deviation).
  */
-import {useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {driveCodeLanguage, resolveDriveFileKind, type DriveFileKind} from "@agenta/entities/drive"
-import {fetchMountFileBlob} from "@agenta/entities/drive"
 import {humanSize} from "@agenta/entities/drive"
 import {type Mount} from "@agenta/entities/session"
-import {projectIdAtom} from "@agenta/shared/state"
-import {EnhancedButton as Button} from "@agenta/ui/components/presentational"
-import {Segmented, Skeleton} from "@agenta/ui/ui"
+import {
+    PreviewCommentLayer,
+    usePreviewComments,
+    type PreviewCommentTarget,
+} from "@agenta/ui/quote-selection"
+import {
+    Button,
+    Empty,
+    EmptyContent,
+    EmptyHeader,
+    EmptyMedia,
+    EmptyTitle,
+    SkeletonBlock,
+    Tabs,
+    TabsList,
+    TabsTrigger,
+} from "@agenta/ui/ui"
 import {DownloadSimple, FileDashed} from "@phosphor-icons/react"
-import {useAtomValue} from "jotai"
 
 import {
     useDriveDownload,
+    useDriveFileBlob,
     useDriveFileText,
+    useDriveFileVersion,
     useDriveMediaSrc,
     useDriveObjectUrl,
 } from "./driveFileSource"
 import {DriveCodeBlock, DriveMarkdown} from "./driveMarkdown"
+import {HtmlAppBody} from "./htmlApp"
+import {OfficeViewerFrame} from "./officeViewer/OfficeViewerFrame"
+import type {OfficeViewerKind} from "./officeViewer/protocol"
+import {previewTarget, usePreviewCommentMode, usePreviewCommentSession} from "./previewCommentMode"
+import {useQuotableFile} from "./quotable"
+import {SheetFooter, SheetGrid} from "./SheetGrid"
+import {useSheetComments} from "./spreadsheetComments"
+import {useDriveAnchorClickCapture} from "./useDriveLinkClick"
+import type {Sheet, Workbook} from "./workbook"
 
 // The host's code viewer (see `registerDriveCodeBlock`). The desktop registers a Lexical +
 // lazy-Shiki block — an ~8.7 MB chunk it keeps out of first load — so the indirection is also
@@ -35,12 +58,17 @@ import {DriveCodeBlock, DriveMarkdown} from "./driveMarkdown"
 const LazyCodeBlock = DriveCodeBlock
 
 // Inline-render caps (bytes). Over-cap is a graceful card, never a frozen tab.
-const TEXT_CAP = 1.5 * 1024 * 1024
+export const PREVIEW_TEXT_CAP = 1.5 * 1024 * 1024
 const MEDIA_CAP = 25 * 1024 * 1024
+const OFFICE_CAPS: Partial<Record<DriveFileKind, number>> = {
+    spreadsheet: 10 * 1024 * 1024,
+    document: 10 * 1024 * 1024,
+    presentation: 25 * 1024 * 1024,
+}
 
 /** Quote-aware-enough CSV parse for previews (RFC 4180 essentials: quotes, escaped quotes,
  * newlines in quotes). Row-capped by the caller. */
-export function parseCsv(text: string, maxRows = 500): string[][] {
+export function parseCsv(text: string, maxRows = 500, delimiter = ","): string[][] {
     const rows: string[][] = []
     let row: string[] = []
     let cell = ""
@@ -55,7 +83,7 @@ export function parseCsv(text: string, maxRows = 500): string[][] {
                 } else inQuotes = false
             } else cell += ch
         } else if (ch === '"') inQuotes = true
-        else if (ch === ",") {
+        else if (ch === delimiter) {
             row.push(cell)
             cell = ""
         } else if (ch === "\n" || ch === "\r") {
@@ -83,35 +111,8 @@ const Inset = ({children, flush}: {children: React.ReactNode; flush?: boolean}) 
     </div>
 )
 
-const CenterCard = ({
-    icon,
-    title,
-    action,
-}: {
-    icon?: React.ReactNode
-    title: string
-    action?: React.ReactNode
-}) => (
-    <Inset>
-        <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center">
-            {icon ?? <FileDashed size={26} className="text-colorTextQuaternary" />}
-            <div className="text-xs font-medium">{title}</div>
-            {action}
-        </div>
-    </Inset>
-)
-
-const DownloadAction = ({mount, path}: {mount: Mount | null; path: string}) => {
-    const download = useDriveDownload(mount, path)
-    return (
-        <Button icon={<DownloadSimple size={13} />} onClick={download}>
-            Download to open
-        </Button>
-    )
-}
-
 /** The honest fallback: no registry match (or an over-cap file) → name it, offer Download. */
-const DownloadCard = ({
+export const DownloadCard = ({
     mount,
     path,
     title = "No preview for this type",
@@ -119,7 +120,27 @@ const DownloadCard = ({
     mount: Mount | null
     path: string
     title?: string
-}) => <CenterCard title={title} action={<DownloadAction mount={mount} path={path} />} />
+}) => {
+    const download = useDriveDownload(mount, path)
+    return (
+        <Inset>
+            <Empty className="flex-1 gap-2 p-6">
+                <EmptyHeader className="gap-1">
+                    <EmptyMedia variant="icon">
+                        <FileDashed size={26} />
+                    </EmptyMedia>
+                    <EmptyTitle className="text-xs">{title}</EmptyTitle>
+                </EmptyHeader>
+                <EmptyContent>
+                    <Button variant="outline" size="sm" onClick={download}>
+                        <DownloadSimple />
+                        Download to open
+                    </Button>
+                </EmptyContent>
+            </Empty>
+        </Inset>
+    )
+}
 
 // ---- Text-family bodies (content endpoint) --------------------------------------------------
 
@@ -127,20 +148,31 @@ const TextBody = ({
     mount,
     path,
     kind,
+    displayPath,
+    onNavigate,
+    linkExists,
 }: {
     mount: Mount | null
     path: string
     kind: DriveFileKind
+    displayPath?: string
+    onNavigate?: (path: string) => void
+    linkExists?: (path: string) => boolean
 }) => {
     const contentQuery = useDriveFileText(mount, path)
     const content = contentQuery.data
+    // A link to a neighbouring file opens it here; the host's renderer keeps web links.
+    const onClickCapture = useDriveAnchorClickCapture(displayPath ?? path, onNavigate, linkExists)
+    // Rendered markdown is not the file's lines; a quote from it gets a range only when its
+    // excerpt appears once, verbatim, in the source (see `locateQuote`).
+    const quotable = useQuotableFile(mount, path, displayPath, content)
 
     if (contentQuery.isPending)
         return (
             <Inset>
                 <div className="flex flex-col gap-2">
                     {Array.from({length: 6}).map((_, i) => (
-                        <Skeleton key={i} className="h-4 w-full" />
+                        <SkeletonBlock key={i} className="h-4 w-full" />
                     ))}
                 </div>
             </Inset>
@@ -154,7 +186,11 @@ const TextBody = ({
     if (kind === "markdown")
         return (
             <Inset flush>
-                <div className="min-h-0 flex-1 overflow-y-auto p-3">
+                <div
+                    className="min-h-0 flex-1 overflow-y-auto p-3"
+                    onClickCapture={onClickCapture}
+                    {...quotable}
+                >
                     <DriveMarkdown content={content} className="!text-xs" />
                 </div>
             </Inset>
@@ -162,7 +198,10 @@ const TextBody = ({
     return (
         <Inset flush>
             <div className="min-h-0 flex-1 overflow-y-auto p-3">
-                <pre className="m-0 whitespace-pre-wrap break-words font-mono text-xs text-colorTextSecondary">
+                <pre
+                    className="m-0 whitespace-pre-wrap break-words font-mono text-xs text-colorTextSecondary"
+                    {...quotable}
+                >
                     {content}
                 </pre>
             </div>
@@ -172,9 +211,20 @@ const TextBody = ({
 
 /** Syntax-highlighted body for code (and structured-data) files — the same lexical/Shiki block
  * the playground drawers use, read-only, horizontal scroll (code must not soft-wrap). */
-const CodeBody = ({mount, path}: {mount: Mount | null; path: string}) => {
+const CodeBody = ({
+    mount,
+    path,
+    displayPath,
+}: {
+    mount: Mount | null
+    path: string
+    displayPath?: string
+}) => {
     const contentQuery = useDriveFileText(mount, path)
     const content = contentQuery.data
+    // The raw file, not the pretty print: line numbers are the file's. A selection maps onto it
+    // only while the pretty print moved nothing but whitespace (see `locateQuote`).
+    const quotable = useQuotableFile(mount, path, displayPath, content)
 
     const value = useMemo(() => {
         if (typeof content !== "string") return null
@@ -191,7 +241,7 @@ const CodeBody = ({mount, path}: {mount: Mount | null; path: string}) => {
             <Inset>
                 <div className="flex flex-col gap-2">
                     {Array.from({length: 6}).map((_, i) => (
-                        <Skeleton key={i} className="h-4 w-full" />
+                        <SkeletonBlock key={i} className="h-4 w-full" />
                     ))}
                 </div>
             </Inset>
@@ -200,7 +250,10 @@ const CodeBody = ({mount, path}: {mount: Mount | null; path: string}) => {
         return <DownloadCard mount={mount} path={path} title="Couldn't load this file's content" />
     return (
         <Inset flush>
-            <div className="min-h-0 flex-1 overflow-auto p-2 text-xs [&_.agenta-dynamic-code-block]:whitespace-pre">
+            <div
+                className="min-h-0 flex-1 overflow-auto p-2 text-xs [&_.agenta-dynamic-code-block]:whitespace-pre"
+                {...quotable}
+            >
                 <LazyCodeBlock language={driveCodeLanguage(path)} value={value} />
             </div>
         </Inset>
@@ -209,193 +262,72 @@ const CodeBody = ({mount, path}: {mount: Mount | null; path: string}) => {
 
 const CSV_ROW_CAP = 500
 
-const CsvBody = ({mount, path}: {mount: Mount | null; path: string}) => {
+const TableSkeleton = () => (
+    <Inset>
+        <div className="flex flex-col gap-2">
+            {Array.from({length: 6}).map((_, i) => (
+                <SkeletonBlock key={i} className="h-4 w-full" />
+            ))}
+        </div>
+    </Inset>
+)
+
+const CsvBody = ({
+    mount,
+    path,
+    displayPath,
+}: {
+    mount: Mount | null
+    path: string
+    displayPath?: string
+}) => {
     const contentQuery = useDriveFileText(mount, path)
     const content = contentQuery.data
-    // +2 (header + CSV_ROW_CAP body + 1 probe): parse one row PAST the display cap so `capped` below
-    // can tell "exactly CSV_ROW_CAP body rows" from "more than that" and show the truncation banner.
+    // One row past the cap tells "exactly the cap" from "more".
     const rows = useMemo(
-        () => (typeof content === "string" ? parseCsv(content, CSV_ROW_CAP + 2) : []),
-        [content],
+        () =>
+            typeof content === "string"
+                ? parseCsv(content, CSV_ROW_CAP + 1, /\.tsv$/i.test(path) ? "\t" : ",").map((r) =>
+                      r.map((value) => ({value})),
+                  )
+                : [],
+        [content, path],
     )
 
-    if (contentQuery.isPending)
-        return (
-            <Inset>
-                <div className="flex flex-col gap-2">
-                    {Array.from({length: 6}).map((_, i) => (
-                        <Skeleton key={i} className="h-4 w-full" />
-                    ))}
-                </div>
-            </Inset>
-        )
+    // One unnamed sheet at A1, so CSV cells take comments like a spreadsheet's.
+    const workbook = useMemo<Workbook>(
+        () => ({
+            sheets: [
+                {
+                    name: "",
+                    rows: rows.slice(0, CSV_ROW_CAP),
+                    truncated: {rows: rows.length > CSV_ROW_CAP, totalColumns: null},
+                    origin: {r: 0, c: 0},
+                },
+            ],
+        }),
+        [rows],
+    )
+
+    if (contentQuery.isPending) return <TableSkeleton />
     if (typeof content !== "string" || rows.length === 0)
         return <DownloadCard mount={mount} path={path} title="Couldn't load this file's content" />
 
-    const [header, ...body] = rows
-    const capped = body.length > CSV_ROW_CAP
     return (
         <Inset flush>
-            <div className="min-h-0 flex-1 overflow-auto">
-                <table className="w-full border-collapse font-mono text-xs">
-                    <thead>
-                        <tr>
-                            {header.map((h, i) => (
-                                <th
-                                    key={i}
-                                    className="sticky top-0 border-0 border-b border-solid border-colorBorderSecondary bg-colorFillTertiary px-2.5 py-1.5 text-left font-medium text-colorTextSecondary"
-                                >
-                                    {h}
-                                </th>
-                            ))}
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {body.slice(0, CSV_ROW_CAP).map((r, i) => (
-                            <tr key={i}>
-                                {r.map((c, j) => (
-                                    <td
-                                        key={j}
-                                        className="border-0 border-b border-solid border-colorBorderSecondary px-2.5 py-1 align-top"
-                                    >
-                                        {c}
-                                    </td>
-                                ))}
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-            {capped ? (
-                <div className="border-0 border-t border-solid border-colorBorderSecondary px-2.5 py-1 text-xs text-colorTextTertiary">
-                    Showing the first {CSV_ROW_CAP} rows — download for the full file.
-                </div>
-            ) : null}
+            <CommentableTable
+                workbook={workbook}
+                sheet={workbook.sheets[0]}
+                target={previewTarget(path, displayPath, mount?.id)}
+                stickyFirstRow
+            />
+            <SheetFooter sheet={workbook.sheets[0]} />
         </Inset>
     )
 }
 
-// A URL the iframe would resolve against ITS OWN origin (external / absolute / anchor / data) — we
-// leave those alone. Only same-mount relative paths get inlined.
-const isExternalUrl = (u: string): boolean =>
-    /^[a-z][a-z0-9+.-]*:/i.test(u) || u.startsWith("//") || u.startsWith("#")
-
-/** Resolve a relative href against the HTML file's folder (handles `./` and `../`). */
-const resolveRel = (dir: string, rel: string): string => {
-    const out: string[] = []
-    for (const seg of (dir ? dir.split("/") : []).concat(rel.split("/"))) {
-        if (seg === "" || seg === ".") continue
-        if (seg === "..") out.pop()
-        else out.push(seg)
-    }
-    return out.join("/")
-}
-
-const INLINE_ASSET_CAP = 8 * 1024 * 1024
-
-async function fetchMountText(
-    mountId: string,
-    projectId: string,
-    path: string,
-): Promise<string | null> {
-    const blob = await fetchMountFileBlob({mountId, projectId, path})
-    return blob ? blob.text() : null
-}
-
-async function fetchMountDataUri(
-    mountId: string,
-    projectId: string,
-    path: string,
-): Promise<string | null> {
-    const blob = await fetchMountFileBlob({mountId, projectId, path})
-    if (!blob || blob.size > INLINE_ASSET_CAP) return null
-    return new Promise((resolve) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : null)
-        reader.onerror = () => resolve(null)
-        reader.readAsDataURL(blob)
-    })
-}
-
-// The ONLY script that runs in the preview (the agent's are stripped): it turns an internal
-// relative link click into a `postMessage` the parent uses to open that file in the drive. Anchors
-// (#…) and external links fall through to the browser.
-const HTML_NAV_INTERCEPTOR =
-    '(function(){document.addEventListener("click",function(e){var el=e.target;while(el&&el.tagName!=="A")el=el.parentElement;if(!el)return;var href=el.getAttribute("href");if(!href||href.charAt(0)==="#")return;if(/^[a-z][a-z0-9+.-]*:/i.test(href)||href.indexOf("//")===0)return;e.preventDefault();parent.postMessage({type:"ag-html-nav",href:href},"*")},true)})()'
-
-/**
- * Fold a multi-file site into ONE self-contained document the sandboxed iframe can render: linked
- * stylesheets become inline `<style>`, images become data URIs — all fetched from the SAME mount,
- * resolved against the HTML file's folder. Best-effort: external URLs are left alone, and CSS's own
- * `url(...)`/`@import` chains aren't followed (v1).
- *
- * Then hardened for `sandbox="allow-scripts"`: the agent's `<script>`s, inline `on*` handlers, and
- * `javascript:` URLs are stripped so ONLY {@link HTML_NAV_INTERCEPTOR} runs; external links open in a
- * new tab; internal links are intercepted and routed to the drive.
- */
-async function inlineHtmlAssets(
-    html: string,
-    mountId: string | null,
-    dir: string,
-    projectId: string | null,
-): Promise<string> {
-    try {
-        const doc = new DOMParser().parseFromString(html, "text/html")
-
-        // Inline relative stylesheets/images from the mount. Skipped for a LOCAL preview (a composer
-        // attachment has no mount) — the sanitize + interceptor pipeline below still runs, so the
-        // Preview tab assembles instead of loading forever.
-        if (mountId && projectId) {
-            await Promise.all(
-                Array.from(
-                    doc.querySelectorAll<HTMLLinkElement>('link[rel~="stylesheet"][href]'),
-                ).map(async (link) => {
-                    const href = link.getAttribute("href") ?? ""
-                    if (!href || isExternalUrl(href)) return
-                    const css = await fetchMountText(mountId, projectId, resolveRel(dir, href))
-                    if (css == null) return
-                    const style = doc.createElement("style")
-                    style.textContent = css
-                    link.replaceWith(style)
-                }),
-            )
-
-            await Promise.all(
-                Array.from(doc.querySelectorAll<HTMLImageElement>("img[src]")).map(async (img) => {
-                    const src = img.getAttribute("src") ?? ""
-                    if (!src || isExternalUrl(src) || src.startsWith("data:")) return
-                    const uri = await fetchMountDataUri(mountId, projectId, resolveRel(dir, src))
-                    if (uri) img.setAttribute("src", uri)
-                }),
-            )
-        }
-
-        // Strip every agent-authored script vector so allow-scripts only runs our interceptor.
-        doc.querySelectorAll("script").forEach((s) => s.remove())
-        doc.querySelectorAll("iframe[srcdoc]").forEach((f) => f.removeAttribute("srcdoc"))
-        doc.querySelectorAll("*").forEach((el) => {
-            for (const attr of Array.from(el.attributes)) {
-                if (/^on/i.test(attr.name)) el.removeAttribute(attr.name)
-                else if (/^\s*javascript:/i.test(attr.value)) el.setAttribute(attr.name, "#")
-            }
-        })
-        doc.querySelectorAll("a[href]").forEach((a) => {
-            if (isExternalUrl(a.getAttribute("href") ?? "")) {
-                a.setAttribute("target", "_blank")
-                a.setAttribute("rel", "noopener noreferrer")
-            }
-        })
-        const interceptor = doc.createElement("script")
-        interceptor.textContent = HTML_NAV_INTERCEPTOR
-        ;(doc.body ?? doc.documentElement).appendChild(interceptor)
-
-        return `<!DOCTYPE html>\n${doc.documentElement.outerHTML}`
-    } catch {
-        return html
-    }
-}
-
-const HtmlBody = ({
+/** The running app, under the Files pane's toolbar (its ⋯ menu switches to the code). */
+export const DriveHtmlApp = ({
     mount,
     path,
     displayPath,
@@ -403,58 +335,20 @@ const HtmlBody = ({
 }: {
     mount: Mount | null
     path: string
-    /** Presented path of THIS file (with any `agent-files/` prefix) — internal links resolve against
-     * its folder so drive navigation lands on the right node. */
+    /** Presented path of this file; links outside the app resolve against its folder. */
     displayPath?: string
-    /** Open another drive file (an internal link click resolves to its path). */
+    /** Open another drive file (a link outside the app resolves to its path). */
     onNavigate?: (path: string) => void
 }) => {
-    const projectId = useAtomValue(projectIdAtom)
     const contentQuery = useDriveFileText(mount, path)
     const content = contentQuery.data
-    const [view, setView] = useState<"preview" | "source">("preview")
-    const [assembled, setAssembled] = useState<string | null>(null)
-    const frameRef = useRef<HTMLIFrameElement>(null)
-
-    // Assemble the self-contained preview document once the source lands. Works for a local composer
-    // attachment too (mount === null): inlineHtmlAssets skips mount-asset fetches but still sanitizes
-    // + injects the interceptor, so the Preview tab assembles instead of loading forever.
-    useEffect(() => {
-        setAssembled(null)
-        if (typeof content !== "string") return
-        let alive = true
-        const dir = path.includes("/") ? path.split("/").slice(0, -1).join("/") : ""
-        void inlineHtmlAssets(content, mount?.id ?? null, dir, projectId || null).then((html) => {
-            if (alive) setAssembled(html)
-        })
-        return () => {
-            alive = false
-        }
-    }, [content, mount?.id, projectId, path])
-
-    // Internal link clicks (from the injected interceptor) → open that file in the drive. Resolved
-    // against the presented folder; only messages from THIS iframe are trusted.
-    useEffect(() => {
-        if (!onNavigate) return
-        const base = displayPath ?? path
-        const dir = base.includes("/") ? base.split("/").slice(0, -1).join("/") : ""
-        const onMessage = (e: MessageEvent) => {
-            if (e.source !== frameRef.current?.contentWindow) return
-            const data = e.data as {type?: string; href?: string} | null
-            if (!data || data.type !== "ag-html-nav" || typeof data.href !== "string") return
-            const clean = data.href.split(/[?#]/)[0]
-            if (clean) onNavigate(resolveRel(dir, clean))
-        }
-        window.addEventListener("message", onMessage)
-        return () => window.removeEventListener("message", onMessage)
-    }, [onNavigate, displayPath, path])
 
     if (contentQuery.isPending)
         return (
             <Inset>
                 <div className="flex flex-col gap-2">
                     {Array.from({length: 6}).map((_, i) => (
-                        <Skeleton key={i} className="h-4 w-full" />
+                        <SkeletonBlock key={i} className="h-4 w-full" />
                     ))}
                 </div>
             </Inset>
@@ -464,43 +358,13 @@ const HtmlBody = ({
 
     return (
         <Inset flush>
-            <div className="flex shrink-0 items-center border-0 border-b border-solid border-colorBorderSecondary p-1.5">
-                <Segmented
-                    size="sm"
-                    value={view}
-                    onChange={(next) => setView(next as "preview" | "source")}
-                    options={[
-                        {value: "preview", label: "Preview"},
-                        {value: "source", label: "Source"},
-                    ]}
-                />
-            </div>
-            {view === "preview" ? (
-                assembled == null ? (
-                    <div className="min-h-0 flex-1 p-3">
-                        <div className="flex flex-col gap-2">
-                            {Array.from({length: 6}).map((_, i) => (
-                                <Skeleton key={i} className="h-4 w-full" />
-                            ))}
-                        </div>
-                    </div>
-                ) : (
-                    // allow-scripts runs ONLY our interceptor (agent scripts were stripped); still no
-                    // same-origin, so it can't touch the parent. allow-popups(-escape) lets external
-                    // links open a normal tab. Linked CSS + images were inlined; bg-white — docs assume it.
-                    <iframe
-                        ref={frameRef}
-                        srcDoc={assembled}
-                        sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
-                        title="HTML preview"
-                        className="min-h-0 w-full flex-1 border-0 bg-white"
-                    />
-                )
-            ) : (
-                <div className="min-h-0 flex-1 overflow-auto p-2 text-xs [&_.agenta-dynamic-code-block]:whitespace-pre">
-                    <LazyCodeBlock language="html" value={content} />
-                </div>
-            )}
+            <HtmlAppBody
+                mount={mount}
+                path={path}
+                content={content}
+                displayPath={displayPath}
+                onNavigate={onNavigate}
+            />
         </Inset>
     )
 }
@@ -511,7 +375,7 @@ const MediaLoading = () => (
     <Inset>
         <div className="flex flex-col gap-2">
             {Array.from({length: 5}).map((_, i) => (
-                <Skeleton key={i} className="h-4 w-full" />
+                <SkeletonBlock key={i} className="h-4 w-full" />
             ))}
         </div>
     </Inset>
@@ -603,6 +467,198 @@ const VideoBody = ({mount, path}: {mount: Mount | null; path: string}) => {
     )
 }
 
+// ---- Office bodies (bytes keyed by the listing's file version) --------------------------------
+
+type WorkbookState =
+    | {status: "ready"; workbook: Workbook}
+    | {status: "unreadable"}
+    | {status: "too-large"; unpackedBytes: number}
+
+/** Parses the blob with SheetJS, loaded on first use; undefined while parsing. */
+function useWorkbook(blob: Blob | null): WorkbookState | undefined {
+    const [parsed, setParsed] = useState<{blob: Blob; state: WorkbookState} | null>(null)
+    useEffect(() => {
+        if (!blob) return
+        let cancelled = false
+        Promise.all([import("./workbook"), blob.arrayBuffer()])
+            .then(([{parseWorkbook}, bytes]): WorkbookState => {
+                const workbook = parseWorkbook(bytes)
+                return workbook.sheets.length ? {status: "ready", workbook} : {status: "unreadable"}
+            })
+            .catch(
+                (error: unknown): WorkbookState =>
+                    error instanceof Error && "unpackedBytes" in error
+                        ? {status: "too-large", unpackedBytes: error.unpackedBytes as number}
+                        : {status: "unreadable"},
+            )
+            .then((state) => !cancelled && setParsed({blob, state}))
+        return () => {
+            cancelled = true
+        }
+    }, [blob])
+    return parsed && parsed.blob === blob ? parsed.state : undefined
+}
+
+/** A sheet's preview table that takes cell comments in comment mode. */
+const CommentableTable = ({
+    workbook,
+    sheet,
+    target,
+    stickyFirstRow,
+}: {
+    workbook: Workbook
+    sheet: Sheet
+    /** The file comments attach to. */
+    target: PreviewCommentTarget
+    stickyFirstRow?: boolean
+}) => {
+    const sessionId = usePreviewCommentSession()
+    const {enabled} = usePreviewCommentMode()
+    const rootRef = useRef<HTMLDivElement>(null)
+    const comments = usePreviewComments(sessionId, target)
+    const {selection, pick, onPickConsumed, onDraftClose, pinRects} = useSheetComments({
+        rootRef,
+        workbook,
+        sheet,
+        comments,
+        enabled: enabled && !!sessionId,
+    })
+    return (
+        <div ref={rootRef} className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+            {sheet.rows.length > 0 ? (
+                <SheetGrid
+                    rows={sheet.rows}
+                    origin={sheet.origin}
+                    comments={selection}
+                    stickyFirstRow={stickyFirstRow}
+                />
+            ) : (
+                <div className="p-3 text-xs text-colorTextTertiary">This sheet is empty.</div>
+            )}
+            <PreviewCommentLayer
+                rootRef={rootRef}
+                sessionId={sessionId}
+                target={target}
+                pick={pick}
+                onPickConsumed={onPickConsumed}
+                onDraftClose={onDraftClose}
+                pinRects={pinRects}
+            />
+        </div>
+    )
+}
+
+export const SpreadsheetView = ({
+    workbook,
+    target,
+}: {
+    workbook: Workbook
+    /** The file comments attach to. */
+    target: PreviewCommentTarget
+}) => {
+    const [active, setActive] = useState(0)
+    const index = Math.min(active, workbook.sheets.length - 1)
+    const sheet = workbook.sheets[index]
+    return (
+        <Inset flush>
+            <CommentableTable key={index} workbook={workbook} sheet={sheet} target={target} />
+            <SheetFooter sheet={sheet}>
+                <Tabs value={String(index)} onValueChange={(v) => setActive(Number(v))}>
+                    <TabsList
+                        aria-label="Sheets"
+                        className="w-full shrink-0 justify-start overflow-x-auto px-2.5"
+                    >
+                        {workbook.sheets.map((s, i) => (
+                            <TabsTrigger key={i} value={String(i)} className="flex-none text-xs">
+                                {s.name}
+                            </TabsTrigger>
+                        ))}
+                    </TabsList>
+                </Tabs>
+            </SheetFooter>
+        </Inset>
+    )
+}
+
+// The blob's own size: a caller that passed no `size` (an attachment) must not skip the cap.
+const overCap = (kind: DriveFileKind, blob: Blob | null): boolean =>
+    blob !== null && blob.size > (OFFICE_CAPS[kind] ?? Infinity)
+
+const TooLargeCard = ({mount, path, bytes}: {mount: Mount | null; path: string; bytes: number}) => (
+    <DownloadCard mount={mount} path={path} title={`Too large to preview (${humanSize(bytes)})`} />
+)
+
+const SpreadsheetBody = ({
+    mount,
+    path,
+    displayPath,
+}: {
+    mount: Mount | null
+    path: string
+    displayPath?: string
+}) => {
+    const version = useDriveFileVersion(mount, path)
+    const {blob, isPending, failed} = useDriveFileBlob(mount, path, version)
+    const tooLarge = overCap("spreadsheet", blob)
+    const parsed = useWorkbook(tooLarge ? null : blob)
+    if (failed)
+        return <DownloadCard mount={mount} path={path} title="Couldn't load this spreadsheet" />
+    if (tooLarge && blob) return <TooLargeCard mount={mount} path={path} bytes={blob.size} />
+    if (isPending || parsed === undefined) return <TableSkeleton />
+    if (parsed.status === "too-large")
+        return (
+            <DownloadCard
+                mount={mount}
+                path={path}
+                title={`Too large to preview (unpacks to ${humanSize(parsed.unpackedBytes)})`}
+            />
+        )
+    if (parsed.status === "unreadable")
+        return <DownloadCard mount={mount} path={path} title="Couldn't preview this spreadsheet" />
+    return (
+        <SpreadsheetView
+            workbook={parsed.workbook}
+            target={previewTarget(path, displayPath, mount?.id)}
+        />
+    )
+}
+
+/** A DOCX or PPTX in the sandboxed viewer frame; a new file version mounts a fresh frame. */
+const OfficeFrameBody = ({
+    mount,
+    path,
+    kind,
+    displayPath,
+}: {
+    mount: Mount | null
+    path: string
+    kind: OfficeViewerKind
+    displayPath?: string
+}) => {
+    const version = useDriveFileVersion(mount, path)
+    const {blob, isPending, failed} = useDriveFileBlob(mount, path, version)
+    const [failedBlob, setFailedBlob] = useState<Blob | null>(null)
+    const onFailed = useCallback(() => setFailedBlob(blob), [blob])
+    if (isPending) return <MediaLoading />
+    if (failed || !blob)
+        return <DownloadCard mount={mount} path={path} title={`Couldn't load this ${kind}`} />
+    if (overCap(kind, blob)) return <TooLargeCard mount={mount} path={path} bytes={blob.size} />
+    if (failedBlob === blob)
+        return <DownloadCard mount={mount} path={path} title={`Couldn't preview this ${kind}`} />
+    return (
+        <Inset flush>
+            <OfficeViewerFrame
+                key={version}
+                kind={kind}
+                blob={blob}
+                onFailed={onFailed}
+                placeholder={<MediaLoading />}
+                target={previewTarget(path, displayPath, mount?.id)}
+            />
+        </Inset>
+    )
+}
+
 // ---- Dispatch --------------------------------------------------------------------------------
 
 const TEXT_KINDS = new Set<DriveFileKind>(["markdown", "text", "code", "json", "html"])
@@ -618,19 +674,25 @@ export function DriveFileBody({
     size,
     displayPath,
     onNavigate,
+    linkExists,
+    kind: kindProp,
 }: {
     mount: Mount | null
     path: string
     size?: number | null
-    /** Presented path + a navigate callback — used by the HTML preview to route internal links to
-     * other drive files. */
+    /** Presented path + a navigate callback — used by the markdown and HTML previews to route
+     * internal links to other drive files. */
     displayPath?: string
     onNavigate?: (path: string) => void
+    /** Is this presented path in the tree already loaded? Picks between a link's readings. */
+    linkExists?: (path: string) => boolean
+    /** Overrides the extension match, for a file whose media type is known (an attachment). */
+    kind?: DriveFileKind
 }) {
-    const kind = resolveDriveFileKind(path)
+    const kind = kindProp ?? resolveDriveFileKind(path)
 
     if (size != null) {
-        if ((TEXT_KINDS.has(kind) || kind === "csv") && size > TEXT_CAP)
+        if ((TEXT_KINDS.has(kind) || kind === "csv") && size > PREVIEW_TEXT_CAP)
             return (
                 <DownloadCard
                     mount={mount}
@@ -638,7 +700,8 @@ export function DriveFileBody({
                     title={`Too large to preview (${humanSize(size)})`}
                 />
             )
-        if (MEDIA_KINDS.has(kind) && size > MEDIA_CAP)
+        const cap = MEDIA_KINDS.has(kind) ? MEDIA_CAP : OFFICE_CAPS[kind]
+        if (cap !== undefined && size > cap)
             return (
                 <DownloadCard
                     mount={mount}
@@ -651,21 +714,23 @@ export function DriveFileBody({
     switch (kind) {
         case "markdown":
         case "text":
-            return <TextBody mount={mount} path={path} kind={kind} />
-        case "code":
-        case "json":
-            return <CodeBody mount={mount} path={path} />
-        case "csv":
-            return <CsvBody mount={mount} path={path} />
-        case "html":
             return (
-                <HtmlBody
+                <TextBody
                     mount={mount}
                     path={path}
+                    kind={kind}
                     displayPath={displayPath}
                     onNavigate={onNavigate}
+                    linkExists={linkExists}
                 />
             )
+        case "code":
+        case "json":
+            return <CodeBody mount={mount} path={path} displayPath={displayPath} />
+        case "csv":
+            return <CsvBody mount={mount} path={path} displayPath={displayPath} />
+        case "html":
+            return <CodeBody mount={mount} path={path} />
         case "image":
             return <ImageBody mount={mount} path={path} />
         case "pdf":
@@ -674,6 +739,13 @@ export function DriveFileBody({
             return <AudioBody mount={mount} path={path} />
         case "video":
             return <VideoBody mount={mount} path={path} />
+        case "spreadsheet":
+            return <SpreadsheetBody mount={mount} path={path} displayPath={displayPath} />
+        case "document":
+        case "presentation":
+            return (
+                <OfficeFrameBody mount={mount} path={path} kind={kind} displayPath={displayPath} />
+            )
         default:
             return <DownloadCard mount={mount} path={path} />
     }

@@ -15,6 +15,9 @@ class _ScalarsResult:
     def all(self):
         return self._memberships
 
+    def first(self):
+        return self._memberships[0] if self._memberships else None
+
 
 class _ExecuteResult:
     def __init__(self, memberships):

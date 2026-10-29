@@ -82,10 +82,10 @@ export const AutomationDetailBody = ({
     onSave: () => void
     /** The actions menu — on the title's line, not the page header. */
     actions?: ReactNode
-    /** The Test run control — beside the name on a wide screen, under it on a phone. */
+    /** The Run now control — beside the name on a wide screen, under it on a phone. */
     testRun?: ReactNode
 }) => (
-    <div className={className ?? "mx-auto flex w-full max-w-[760px] flex-col px-8 pb-[70px]"}>
+    <div className={className ?? "mx-auto flex w-full max-w-[760px] flex-col px-8 pb-[70px] pt-1"}>
         <div className="flex min-w-0 items-start gap-2">
             <AutomationTitle
                 name={automation.name}
@@ -93,7 +93,7 @@ export const AutomationDetailBody = ({
                 onRename={onRename}
             />
             <span className="ml-auto flex shrink-0 items-center gap-1.5">
-                {/* Test run sits by the name from lg up; on a phone it drops to the meta line
+                {/* Run now sits by the name from lg up; on a phone it drops to the meta line
                     beside the switch, where the row has the room. */}
                 {testRun ? <span className="hidden lg:flex">{testRun}</span> : null}
                 {actions}

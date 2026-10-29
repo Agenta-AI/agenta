@@ -57,10 +57,6 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- $v := (default dict .Values.web).enabled -}}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
 {{- end }}
-{{- define "agenta.webMobile.enabled" -}}
-{{- $v := (default dict .Values.webMobile).enabled -}}
-{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
-{{- end }}
 {{- define "agenta.services.enabled" -}}
 {{- $v := (default dict .Values.services).enabled -}}
 {{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
@@ -108,7 +104,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 {{- define "agenta.seaweedfs.image" -}}
 {{- $img := default dict (default dict (default dict .Values.store).seaweedfs).image -}}
-{{- printf "%s:%s" (default "chrislusf/seaweedfs" $img.repository) (default "4.37" $img.tag) -}}
+{{- printf "%s:%s" (default "chrislusf/seaweedfs" $img.repository) (default "4.47" $img.tag) -}}
 {{- end }}
 {{- define "agenta.seaweedfs.pullPolicy" -}}{{ default "IfNotPresent" (default dict (default dict (default dict .Values.store).seaweedfs).image).pullPolicy }}{{- end }}
 {{- define "agenta.seaweedfs.port" -}}{{ default 8333 (default dict (default dict .Values.store).seaweedfs).port }}{{- end }}
@@ -165,6 +161,47 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- /* Bind address for the runner (AGENTA_RUNNER_HOST). The runner defaults to 127.0.0.1,
        which no probe and no other pod can reach. Always 0.0.0.0 here unless overridden. */ -}}
 {{- define "agenta.agentRunner.host" -}}{{ default "0.0.0.0" (default dict .Values.agentRunner).host }}{{- end }}
+
+{{- /* Whether the runner's sandbox providers include `local`. A local sandbox is a process inside
+       the runner pod that started it, and no other pod can reach it. */ -}}
+{{- define "agenta.agentRunner.localProviderEnabled" -}}
+{{- has "local" (default (list "local") (default dict (default dict .Values.agentRunner).providers).enabled) -}}
+{{- end }}
+
+{{- define "agenta.agentRunner.terminationGracePeriodSeconds" -}}
+{{- $runner := default dict .Values.agentRunner -}}
+{{- if hasKey $runner "terminationGracePeriodSeconds" }}{{ $runner.terminationGracePeriodSeconds }}{{ else }}300{{ end -}}
+{{- end }}
+
+{{- /* Whether the runner Deployment uses the Recreate strategy: an explicit agentRunner.strategy
+       says so, and without one the local provider does (see runner-deployment.yaml). */ -}}
+{{- define "agenta.agentRunner.recreates" -}}
+{{- $runner := default dict .Values.agentRunner -}}
+{{- if $runner.strategy -}}
+{{- eq (toString $runner.strategy.type) "Recreate" -}}
+{{- else -}}
+{{- include "agenta.agentRunner.localProviderEnabled" . -}}
+{{- end -}}
+{{- end }}
+
+{{- /* AGENTA_RUNNER_SHUTDOWN_WAIT_SECONDS: how long a stopping runner pod lets its running turns
+       finish before it cancels them. With RollingUpdate the new pod is already ready, and the
+       default leaves 100 s of the grace period for what comes around the wait: the 10 s preStop
+       delay, the cancel of running turns and of parked prompts (up to 15 s each with the default
+       AGENTA_RUNNER_HARNESS_CANCEL_SETTLE_MS of 10 s) and the sandbox teardown (up to 50 s), with
+       10 s to spare. With Recreate the new pod starts only after the old one exits, so a wait
+       would leave the install without a runner: the default is 0.
+       agenta.validateRunnerShutdownWait refuses an explicit value above grace minus 100. */ -}}
+{{- define "agenta.agentRunner.shutdownWaitSeconds" -}}
+{{- $runner := default dict .Values.agentRunner -}}
+{{- if not (kindIs "invalid" $runner.shutdownWaitSeconds) -}}
+{{- $runner.shutdownWaitSeconds -}}
+{{- else if eq (include "agenta.agentRunner.recreates" .) "true" -}}
+0
+{{- else -}}
+{{- max 0 (sub (int (include "agenta.agentRunner.terminationGracePeriodSeconds" .)) 100) -}}
+{{- end -}}
+{{- end }}
 {{- define "agenta.supertokens.port" -}}{{ default 3567 (default dict (include "agenta.values" . | fromYaml).supertokens).port }}{{- end }}
 {{- define "agenta.redisVolatile.port" -}}{{ default 6379 (default dict .Values.redisVolatile).port }}{{- end }}
 {{- define "agenta.redisDurable.port" -}}{{ default 6381 (default dict .Values.redisDurable).port }}{{- end }}
@@ -184,7 +221,7 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{/* ================================================================
    Canonical values reader. Helpers/templates that touch renamed
    paths (`agenta.*`, `posthog.*`, `postgres.*`, `supertokens.apiKey`,
-   `sendgrid.*`, `composio.*`, `newrelic.*`, `cloudflare.*`) bind
+   `sendgrid.*`, `composio.*`, `cloudflare.*`) bind
    a local at the top of the helper:
 
        {{- $values := include "agenta.values" . | fromYaml -}}
@@ -233,17 +270,29 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
 
 {{/* ================================================================
+   Does the release create the ServiceAccount?
+
+   `default true $sa.create` would treat an explicit
+   `serviceAccount.create: false` as unset and still say true. Use
+   hasKey, so an explicit false is honored and true applies only when
+   the key is omitted.
+
+   serviceaccount.yaml, agenta.serviceAccountName and the migration Job
+   all read this one helper, so they cannot disagree about who owns the
+   ServiceAccount. A disagreement would point pods at a name the chart
+   never created.
+   ================================================================ */}}
+{{- define "agenta.serviceAccount.create" -}}
+{{- $sa := default dict .Values.serviceAccount -}}
+{{- if hasKey $sa "create" -}}{{- $sa.create -}}{{- else }}true{{- end }}
+{{- end }}
+
+{{/* ================================================================
    ServiceAccount name
    ================================================================ */}}
 {{- define "agenta.serviceAccountName" -}}
 {{- $sa := default dict .Values.serviceAccount -}}
-{{- /* See serviceaccount.yaml: `default true` would silently override
-       an explicit `serviceAccount.create: false`. Use hasKey so the
-       helper agrees with the template — otherwise pods would mount a
-       SA name the template never created. */ -}}
-{{- $create := true -}}
-{{- if hasKey $sa "create" -}}{{- $create = $sa.create -}}{{- end -}}
-{{- if $create }}
+{{- if eq (include "agenta.serviceAccount.create" .) "true" }}
 {{- default (include "agenta.fullname" .) $sa.name }}
 {{- else }}
 {{- default "default" $sa.name }}
@@ -404,9 +453,19 @@ http://{{ include "agenta.agentRunner.serviceName" . }}:{{ include "agenta.agent
 {{/* ================================================================
    Redis defaults (maxmemory, eviction policy).
    ================================================================ */}}
-{{- define "agenta.redisVolatile.maxmemory" -}}{{ default "512mb" (default dict .Values.redisVolatile).maxmemory }}{{- end }}
+{{/* The dataset ceiling, which must stay BELOW the container memory limit:
+     redis needs room on top of its data for client buffers, replication
+     buffers and an append-only-file rewrite. The old default of 512mb
+     equalled the limit the production values set, so a full dataset left
+     nothing for that work and the kernel could kill the container. */}}
+{{- define "agenta.redisVolatile.maxmemory" -}}{{ default "384mb" (default dict .Values.redisVolatile).maxmemory }}{{- end }}
 {{- define "agenta.redisVolatile.maxmemoryPolicy" -}}{{ default "volatile-lru" (default dict .Values.redisVolatile).maxmemoryPolicy }}{{- end }}
-{{- define "agenta.redisDurable.maxmemory" -}}{{ default "512mb" (default dict .Values.redisDurable).maxmemory }}{{- end }}
+{{/* The dataset ceiling, which must stay BELOW the container memory limit:
+     redis needs room on top of its data for client buffers, replication
+     buffers and an append-only-file rewrite. The old default of 512mb
+     equalled the limit the production values set, so a full dataset left
+     nothing for that work and the kernel could kill the container. */}}
+{{- define "agenta.redisDurable.maxmemory" -}}{{ default "384mb" (default dict .Values.redisDurable).maxmemory }}{{- end }}
 {{- define "agenta.redisDurable.maxmemoryPolicy" -}}{{ default "noeviction" (default dict .Values.redisDurable).maxmemoryPolicy }}{{- end }}
 {{/* Bytes of corrupt AOF tail redis may auto-truncate at load instead of refusing to start. */}}
 {{- define "agenta.redisDurable.aofLoadCorruptTailMaxSize" -}}{{ default 1048576 (default dict .Values.redisDurable).aofLoadCorruptTailMaxSize }}{{- end }}
@@ -764,6 +823,132 @@ imagePullSecrets:
 {{- end }}
 
 {{/* ================================================================
+   Worker and cron liveness, from a heartbeat file
+
+   cron and the two workers each run their process as PID 1, so the container
+   lifecycle already restarts a process that exits. What nothing caught was a
+   process that is alive and no longer making progress: the probes that used to
+   be here ran `pgrep` against that same PID 1, and `pgrep` is not in the image
+   (agenta#7334).
+
+   So the application records the time on every turn of its loop, and the probe
+   fails when that file goes stale. One value decides both the path the
+   application writes and the path the probe reads, so they cannot disagree.
+
+   What each workload proves is NOT the same:
+     * workerStreams writes once per loop turn, so a wedged loop is caught.
+     * workerQueues hands its loop to taskiq, so a sibling task writes on an
+       interval. That catches a blocked event loop, not a receiver that polls
+       and consumes nothing.
+     * cron writes from a crontab entry, so it proves schedules still fire,
+       which is the cron failure that matters.
+
+   `heartbeat.enabled: false` removes the variable and the probes together.
+   ================================================================ */}}
+{{- define "agenta.heartbeat.enabled" -}}
+{{- $v := (default dict .Values.heartbeat).enabled -}}
+{{- if kindIs "invalid" $v }}true{{- else }}{{- $v -}}{{- end }}
+{{- end }}
+
+{{- define "agenta.heartbeat.path" -}}
+{{- $hb := default dict .Values.heartbeat -}}
+{{- default "/tmp/agenta-heartbeat" $hb.path }}
+{{- end }}
+
+{{- define "agenta.heartbeat.staleSeconds" -}}
+{{- $hb := default dict .Values.heartbeat -}}
+{{- default 120 $hb.staleSeconds }}
+{{- end }}
+
+{{- /* The env var the application and the crontab both read. Empty means off,
+       and then nothing writes and nothing probes. */ -}}
+{{- define "agenta.heartbeatEnv" -}}
+{{- if eq (include "agenta.heartbeat.enabled" .) "true" }}
+- name: AGENTA_HEARTBEAT_FILE
+  value: {{ include "agenta.heartbeat.path" . | quote }}
+{{- end }}
+{{- end }}
+
+{{- /* The probe.
+
+       It reads EVERY file in the directory and fails on the oldest, because each
+       loop writes its own. worker-streams gathers several consumer loops in one
+       process, and a single shared file let a healthy loop keep the probe passing
+       while another was stalled.
+
+       An empty directory fails too. A workload that writes nothing has nothing to
+       prove, and treating "no files" as healthy would make the probe decorative.
+
+       `-s` rather than `-f`, so a zero-byte file fails instead of being read as a
+       nonsense age. The path is quoted throughout, because a configured path may
+       contain a space and `test` and `cat` would otherwise receive split
+       arguments and restart healthy pods. */ -}}
+{{- define "agenta.heartbeatProbe" -}}
+{{- if eq (include "agenta.heartbeat.enabled" .) "true" }}
+{{- $p := include "agenta.heartbeat.path" . -}}
+{{- $stale := include "agenta.heartbeat.staleSeconds" . | int -}}
+exec:
+  command:
+    - sh
+    - -c
+    - |
+      d={{ $p | quote }}; now=$(date +%s); n=0
+      for f in "$d"/*; do
+        [ -e "$f" ] || continue
+        [ -s "$f" ] || exit 1
+        [ $(( now - $(cat "$f") )) -lt {{ $stale }} ] || exit 1
+        n=$((n+1))
+      done
+      [ "$n" -gt 0 ]
+initialDelaySeconds: {{ $stale }}
+periodSeconds: 30
+timeoutSeconds: 5
+failureThreshold: 3
+{{- end }}
+{{- end }}
+
+{{/* ================================================================
+   Redis Durable CA certificate (external instance over TLS)
+
+   A managed Redis service (Cloud Memorystore, ElastiCache, Azure Cache)
+   presents a certificate signed by its own authority, not by a public root.
+   `rediss://` then fails with CERTIFICATE_VERIFY_FAILED until the client is
+   given that authority. These helpers mount it as a file so the connection
+   string can point at it with `?ssl_ca_certs=`, which is the redis-py query
+   parameter, instead of turning verification off.
+
+   Set `redisDurable.external.caCert` to the PEM, or to the string
+   "from-existing-secret" when `secrets.existingSecret` supplies the key
+   REDIS_DURABLE_CA_CERT itself.
+   ================================================================ */}}
+{{- define "agenta.redisDurable.caPath" -}}/etc/agenta/redis-durable/ca.pem{{- end }}
+
+{{- define "agenta.redisDurable.caEnabled" -}}
+{{- $rd := default dict .Values.redisDurable -}}
+{{- $ext := default dict $rd.external -}}
+{{- if and (ne (include "agenta.redisDurable.enabled" .) "true") $ext.caCert }}true{{- else }}false{{- end }}
+{{- end }}
+
+{{- define "agenta.redisDurableCaVolume" -}}
+{{- if eq (include "agenta.redisDurable.caEnabled" .) "true" }}
+- name: redis-durable-ca
+  secret:
+    secretName: {{ include "agenta.secretName" . }}
+    items:
+      - key: REDIS_DURABLE_CA_CERT
+        path: ca.pem
+{{- end }}
+{{- end }}
+
+{{- define "agenta.redisDurableCaVolumeMount" -}}
+{{- if eq (include "agenta.redisDurable.caEnabled" .) "true" }}
+- name: redis-durable-ca
+  mountPath: {{ include "agenta.redisDurable.caPath" . | dir }}
+  readOnly: true
+{{- end }}
+{{- end }}
+
+{{/* ================================================================
    SuperTokens connection URI
    ================================================================ */}}
 {{- define "agenta.supertokensUri" -}}
@@ -841,8 +1026,24 @@ imagePullSecrets:
 {{- $composio := default dict $values.composio -}}
 {{- $cf := default dict (default dict $values.cloudflare).turnstile -}}
 {{- $secrets := default dict .Values.secrets -}}
+{{- /* The web entrypoint turns AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS into the browser's
+       NEXT_PUBLIC_AGENTA_ENABLED_SANDBOX_PROVIDERS. Without it the web falls back to "local",
+       new agents get sandbox.kind "local", and on a daytona-only install every send fails with
+       "sandbox 'local' is not enabled on this deployment". Same registry as agenta.commonEnv. */}}
+{{- $runnerProviders := default dict (default dict .Values.agentRunner).providers }}
+- name: AGENTA_RUNNER_ENABLED_SANDBOX_PROVIDERS
+  value: {{ join "," (default (list "local") $runnerProviders.enabled) | quote }}
+- name: AGENTA_RUNNER_DEFAULT_SANDBOX_PROVIDER
+  value: {{ default "local" $runnerProviders.default | quote }}
 - name: POSTHOG_API_KEY
   value: {{ $posthog.apiKey | default "" | quote }}
+{{- /* The web entrypoint turns CRISP_WEBSITE_ID into the browser's NEXT_PUBLIC_CRISP_WEBSITE_ID.
+       commonEnv does not reach the web pods, so without it here the live chat never loads. */}}
+{{- $crisp := default dict .Values.crisp }}
+{{- if $crisp.websiteId }}
+- name: CRISP_WEBSITE_ID
+  value: {{ $crisp.websiteId | quote }}
+{{- end }}
 {{- with $secrets.oauth }}
 {{- range $key, $val := . }}
 - name: {{ $key }}
@@ -881,6 +1082,38 @@ imagePullSecrets:
       key: CLOUDFLARE_TURNSTILE_SECRET_KEY
       optional: true
 {{- end }}
+{{- /* The web container reads AGENTA_MCP_GATEWAY_ENABLED itself: entrypoint.sh normalizes it
+     and writes NEXT_PUBLIC_AGENTA_MCP_GATEWAY_ENABLED into the runtime env, which is what
+     hides the MCP endpoints tab on a deployment whose API refuses every MCP gateway route.
+     Without it here the browser bundle falls back to "on" and offers a tab that leads to a
+     refusal. Same value as commonEnv renders for the API, from the same key, so the two
+     cannot disagree. */}}
+{{- $mcpGateway := default dict .Values.mcpGateway -}}
+{{- if hasKey $mcpGateway "enabled" }}
+- name: AGENTA_MCP_GATEWAY_ENABLED
+  value: {{ $mcpGateway.enabled | quote }}
+{{- end }}
+{{- end }}
+
+{{/* ================================================================
+   AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED — whether a gateway credential
+   may cross a plain-http hop to a routable host.
+
+   Read by the agenta SDK inside the services container
+   (sdks/python/agenta/sdk/agents/connections/models.py) and by the
+   runner (services/runner/src/engines/sandbox_agent/run-plan.ts), and
+   by nothing in the API image. Those two legs re-validate the same
+   rule, so a value set on one but not the other admits a run and then
+   strands it inside the sandbox. Kept out of commonEnv for that
+   reason: commonEnv would put it on the API, workers, cron and
+   alembic, none of which read it, and still miss the runner.
+   ================================================================ */}}
+{{- define "agenta.gatewayInsecureHttpEnv" -}}
+{{- $gatewayEgress := default dict .Values.gatewayEgress -}}
+{{- if hasKey $gatewayEgress "insecureHttpAllowed" }}
+- name: AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED
+  value: {{ $gatewayEgress.insecureHttpAllowed | quote }}
+{{- end }}
 {{- end }}
 
 {{/* ================================================================
@@ -907,7 +1140,6 @@ imagePullSecrets:
 {{- $aiServices := default dict $agenta.aiServices -}}
 {{- $agentaApi := default dict $agenta.api -}}
 {{- $apiCaching := default dict $agentaApi.caching -}}
-{{- $extras := default dict $agenta.extras -}}
 {{- $logging := default dict $agenta.logging -}}
 {{- $otlp := default dict $agenta.otlp -}}
 {{- $agentaServices := default dict $agenta.services -}}
@@ -921,7 +1153,6 @@ imagePullSecrets:
 {{- $sendgrid := default dict $values.sendgrid -}}
 {{- $composio := default dict $values.composio -}}
 {{- $cf := default dict (default dict $values.cloudflare).turnstile -}}
-{{- $nr := default dict $values.newrelic -}}
 {{- $loops := default dict .Values.loops -}}
 {{- $crisp := default dict .Values.crisp -}}
 {{- $daytona := default dict .Values.daytona -}}
@@ -1017,6 +1248,7 @@ imagePullSecrets:
       name: {{ include "agenta.secretName" . }}
       key: REDIS_DURABLE_PASSWORD
 {{- end }}
+{{- include "agenta.heartbeatEnv" . }}
 - name: AGENTA_WEB_URL
   value: {{ include "agenta.webUrlEffective" . | quote }}
 - name: AGENTA_SERVICES_URL
@@ -1102,6 +1334,18 @@ imagePullSecrets:
 {{- if $access.blockedEmails }}
 - name: AGENTA_ACCESS_BLOCKED_EMAILS
   value: {{ $access.blockedEmails | quote }}
+{{- end }}
+{{- if $access.maxOwnedOrganizations }}
+- name: AGENTA_ACCESS_MAX_OWNED_ORGANIZATIONS
+  value: {{ $access.maxOwnedOrganizations | quote }}
+{{- end }}
+{{- if $access.trustedProxyHops }}
+- name: AGENTA_ACCESS_TRUSTED_PROXY_HOPS
+  value: {{ $access.trustedProxyHops | quote }}
+{{- end }}
+{{- if $access.trustCloudflareIp }}
+- name: AGENTA_ACCESS_TRUST_CLOUDFLARE_IP
+  value: {{ $access.trustCloudflareIp | quote }}
 {{- end }}
 {{- if $access.allowedOwnerEmails }}
 - name: AGENTA_ACCESS_ALLOWED_OWNER_EMAILS
@@ -1204,6 +1448,50 @@ imagePullSecrets:
 - name: AGENTA_INSECURE_EGRESS_ALLOWED
   value: {{ $svcHook.allowInsecure | quote }}
 {{- end }}
+{{- /* Agenta gateways — the four switches api/oss/src/utils/env.py resolves. They belong in
+     commonEnv because that is this chart's equivalent of the one env file compose hands to
+     api, workers and cron: the settings object is a module-level singleton in the API image,
+     so a worker or the cron container that resolved a different value than the API would be
+     the bug. AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED is deliberately NOT here — no API code
+     reads it, and it has its own helper below.
+     Until this block existed the documented keys were accepted and ignored: the schema's root
+     is additionalProperties:true, so `mcpGateway: {enabled: false}` installed cleanly and
+     changed nothing. */}}
+{{- $llmGateway := default dict .Values.llmGateway -}}
+{{- $mcpGateway := default dict .Values.mcpGateway -}}
+{{- $gatewayEgress := default dict .Values.gatewayEgress -}}
+{{- $gatewayCredentials := default dict .Values.gatewayCredentials -}}
+{{- if hasKey $llmGateway "enabled" }}
+- name: AGENTA_LLM_GATEWAY_ENABLED
+  value: {{ $llmGateway.enabled | quote }}
+{{- end }}
+{{- if hasKey $mcpGateway "enabled" }}
+- name: AGENTA_MCP_GATEWAY_ENABLED
+  value: {{ $mcpGateway.enabled | quote }}
+{{- end }}
+{{- /* A YAML list, joined here, the way agentRunner.providers.enabled already is: the
+     application parses one comma-separated string, and a list is what an operator can extend
+     from a second values file without re-typing the whole line. A plain string is accepted
+     too, so a value pasted straight out of the compose env file still works. */}}
+{{- if $mcpGateway.hostAllowlist }}
+- name: AGENTA_MCP_GATEWAY_HOST_ALLOWLIST
+  {{- if kindIs "string" $mcpGateway.hostAllowlist }}
+  value: {{ $mcpGateway.hostAllowlist | quote }}
+  {{- else }}
+  value: {{ join "," $mcpGateway.hostAllowlist | quote }}
+  {{- end }}
+{{- end }}
+{{- if hasKey $gatewayEgress "insecureAllowed" }}
+- name: AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED
+  value: {{ $gatewayEgress.insecureAllowed | quote }}
+{{- end }}
+{{- /* Unset by default, so the application's own 43200s default applies. Rendering an empty
+     string here instead would be read as "no TTL configured" by nobody: the parser sees a
+     value and has to reject it. */}}
+{{- if $gatewayCredentials.ttlSeconds }}
+- name: AGENTA_GATEWAYS_CREDENTIALS_TTL_SECONDS
+  value: {{ $gatewayCredentials.ttlSeconds | quote }}
+{{- end }}
 {{- /* agenta.services.code — SDK sandbox runner selector */}}
 {{- if $svcCode.sandboxRunner }}
 - name: AGENTA_SERVICES_CODE_SANDBOX_RUNNER
@@ -1223,13 +1511,6 @@ imagePullSecrets:
 {{- if hasKey $svcMiddleware "cachingEnabled" }}
 - name: AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED
   value: {{ $svcMiddleware.cachingEnabled | quote }}
-{{- end }}
-{{- /* agenta.extras.demos — EE reads AGENTA_DEMOS for demo workspace seeding */}}
-{{- if $extras.demos }}
-- name: AGENTA_DEMOS
-  value: {{ $extras.demos | quote }}
-- name: AGENTA_EXTRAS_DEMOS
-  value: {{ $extras.demos | quote }}
 {{- end }}
 {{- /* crisp — surfaced as NEXT_PUBLIC_CRISP_WEBSITE_ID to the web container */}}
 {{- if $crisp.websiteId }}
@@ -1324,6 +1605,7 @@ imagePullSecrets:
 {{- if $llm.openrouter }}{{- $llmEnvVars = append $llmEnvVars "OPENROUTER_API_KEY" }}{{- end }}
 {{- if $llm.perplexityai }}{{- $llmEnvVars = append $llmEnvVars "PERPLEXITYAI_API_KEY" }}{{- end }}
 {{- if $llm.togetherai }}{{- $llmEnvVars = append $llmEnvVars "TOGETHERAI_API_KEY" }}{{- end }}
+{{- if $llm.xai }}{{- $llmEnvVars = append $llmEnvVars "XAI_API_KEY" }}{{- end }}
 {{- range $envName := $llmEnvVars }}
 - name: {{ $envName }}
   valueFrom:
@@ -1346,14 +1628,6 @@ imagePullSecrets:
     secretKeyRef:
       name: {{ include "agenta.secretName" . }}
       key: COMPOSIO_API_KEY
-      optional: true
-{{- end }}
-{{- if $nr.licenseKey }}
-- name: NEWRELIC_LICENSE_KEY
-  valueFrom:
-    secretKeyRef:
-      name: {{ include "agenta.secretName" . }}
-      key: NEWRELIC_LICENSE_KEY
       optional: true
 {{- end }}
 {{- if $cf.secretKey }}
@@ -1427,5 +1701,146 @@ imagePullSecrets:
         sleep 2
       done
       echo "Redis Durable is ready."
+{{- end }}
+{{- end }}
+
+{{/* ================================================================
+   Availability under disruption.
+
+   Kubernetes moves pods off a node whenever the platform needs that node:
+   an upgrade, a repair, or a scale-down that packs pods onto fewer nodes.
+   On GKE Autopilot that happens without warning and is not a fault. Two
+   objects decide what it costs:
+
+     * a PodDisruptionBudget, which tells the platform how many pods of a
+       workload may be down at once for a VOLUNTARY disruption. Autopilot
+       respects it for one hour during a node upgrade, then proceeds anyway,
+       and never for a node that fails outright.
+     * topologySpreadConstraints, which keep the replicas of a workload on
+       different nodes and zones, so one node carries at most one of them.
+
+   A workload with one replica cannot survive its node being cleared, with
+   or without a budget. Give any workload that must stay reachable two
+   replicas. Every workload therefore gets the same budget,
+   `maxUnavailable: 1`, whatever its replica count: with two or more
+   replicas one pod may go at a time, and with one replica the budget
+   permits the eviction rather than deferring it. A budget that allows zero
+   disruptions over a single pod (`minAvailable: 1`) protects nothing and
+   stops the platform from draining that node for its whole grace period.
+
+   `podDisruptionBudgets.enabled` (default true) and
+   `topologySpread.enabled` (default true) turn the whole mechanism off for
+   an install that manages placement itself. Per workload,
+   `<workload>.pdb.maxUnavailable` and `<workload>.pdb.minAvailable`
+   override the default, and `<workload>.topologySpreadConstraints` replaces
+   the generated list.
+   ================================================================ */}}
+
+{{/* Every schedulable workload: the component label, its values key, and
+     whether the chart enables it. The alembic Job is deliberately absent:
+     a migration is not a service, and a budget would block the node that
+     runs it. */}}
+{{- define "agenta.workloads" -}}
+- component: api
+  key: api
+  replicas: {{ include "agenta.api.replicas" . }}
+  enabled: {{ include "agenta.api.enabled" . }}
+- component: web
+  key: web
+  replicas: {{ include "agenta.web.replicas" . }}
+  enabled: {{ include "agenta.web.enabled" . }}
+- component: web-mobile
+  key: webMobile
+  replicas: {{ include "agenta.webMobile.replicas" . }}
+  {{- /* Not web.enabled. web-mobile-deployment.yaml renders unconditionally, and
+         values.schema.json refuses webMobile.enabled: false, so the mobile app is
+         always deployed. Tying its budget to the desktop app left it with none
+         whenever someone turned the desktop app off. */}}
+  enabled: true
+- component: services
+  key: services
+  replicas: {{ include "agenta.services.replicas" . }}
+  enabled: {{ include "agenta.services.enabled" . }}
+- component: runner
+  key: agentRunner
+  replicas: {{ include "agenta.agentRunner.replicas" . }}
+  enabled: {{ include "agenta.agentRunner.enabled" . }}
+- component: worker-queues
+  key: workerQueues
+  replicas: {{ include "agenta.workerQueues.replicas" . }}
+  enabled: {{ include "agenta.workerQueues.enabled" . }}
+- component: worker-streams
+  key: workerStreams
+  replicas: {{ include "agenta.workerStreams.replicas" . }}
+  enabled: {{ include "agenta.workerStreams.enabled" . }}
+- component: cron
+  key: cron
+  replicas: {{ include "agenta.cron.replicas" . }}
+  enabled: {{ include "agenta.cron.enabled" . }}
+- component: supertokens
+  key: supertokens
+  replicas: {{ include "agenta.supertokens.replicas" . }}
+  enabled: {{ include "agenta.supertokens.enabled" . }}
+- component: redis-volatile
+  key: redisVolatile
+  replicas: 1
+  enabled: {{ include "agenta.redisVolatile.enabled" . }}
+- component: redis-durable
+  key: redisDurable
+  replicas: 1
+  enabled: {{ include "agenta.redisDurable.enabled" . }}
+- component: seaweedfs
+  key: store.seaweedfs
+  replicas: 1
+  enabled: {{ include "agenta.seaweedfs.enabled" . }}
+{{- end }}
+
+{{- define "agenta.podDisruptionBudgets.enabled" -}}
+{{- $v := default dict (include "agenta.values" . | fromYaml).podDisruptionBudgets -}}
+{{- if hasKey $v "enabled" }}{{ $v.enabled }}{{ else }}true{{ end }}
+{{- end }}
+
+{{- define "agenta.topologySpread.enabled" -}}
+{{- $v := default dict (include "agenta.values" . | fromYaml).topologySpread -}}
+{{- if hasKey $v "enabled" }}{{ $v.enabled }}{{ else }}true{{ end }}
+{{- end }}
+
+{{/* The spread constraints of one workload. Argument: a dict with `root`
+     (the chart context), `component` (the label value) and `replicas`.
+
+     One replica gets nothing: a constraint on a single pod only risks
+     leaving it unschedulable. Two or more get a hard constraint per node
+     and a soft one per zone, because a zone can be full while the cluster
+     is not. `matchLabelKeys: [pod-template-hash]` scopes both to one
+     revision, so the extra pod of a rolling update is not blocked by the
+     pods it replaces. */}}
+{{- define "agenta.topologySpreadConstraints" -}}
+{{- $root := .root -}}
+{{- $values := include "agenta.values" $root | fromYaml -}}
+{{- $wl := default dict (get $values .key) -}}
+{{- /* hasKey, not truthiness. An empty list is falsy in Go templates, so
+       `topologySpreadConstraints: []` fell through to the generated block and the
+       documented way to remove the constraints quietly regenerated them. */ -}}
+{{- if hasKey $wl "topologySpreadConstraints" -}}
+{{- with $wl.topologySpreadConstraints }}{{- toYaml . }}{{- end }}
+{{- else if and (eq (include "agenta.topologySpread.enabled" $root) "true") (gt (int .replicas) 1) -}}
+- maxSkew: 1
+  topologyKey: kubernetes.io/hostname
+  whenUnsatisfiable: DoNotSchedule
+  matchLabelKeys:
+    - pod-template-hash
+  labelSelector:
+    matchLabels:
+      {{- include "agenta.selectorLabels" $root | nindent 6 }}
+      app.kubernetes.io/component: {{ .component }}
+- maxSkew: 1
+  topologyKey: topology.kubernetes.io/zone
+  whenUnsatisfiable: ScheduleAnyway
+  matchLabelKeys:
+    - pod-template-hash
+  labelSelector:
+    matchLabels:
+      {{- include "agenta.selectorLabels" $root | nindent 6 }}
+      app.kubernetes.io/component: {{ .component }}
 {{- end }}
 {{- end }}

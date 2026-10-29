@@ -17,6 +17,8 @@ export interface SessionRowContextMenuProps {
     /** Runs the verb. Return a function to defer it until the menu closes — see
      * `useDeferredMenuSelect`, which the row kebab shares. */
     onSelect?: MenuSelect
+    /** Reports the menu opening and closing. */
+    onOpenChange?: (open: boolean) => void
     /** The row itself; it becomes the trigger, so it must forward a ref (`asChild`). */
     children: ReactElement
 }
@@ -30,6 +32,7 @@ export interface SessionRowContextMenuProps {
 export const SessionRowContextMenu = ({
     entries,
     onSelect,
+    onOpenChange,
     children,
 }: SessionRowContextMenuProps) => {
     const {handleSelect, handleCloseAutoFocus} = useDeferredMenuSelect(onSelect)
@@ -37,7 +40,7 @@ export const SessionRowContextMenu = ({
     if (!entries || entries.length === 0) return children
 
     return (
-        <ContextMenu>
+        <ContextMenu onOpenChange={onOpenChange}>
             <ContextMenuTrigger asChild>{children}</ContextMenuTrigger>
             <ContextMenuContent onCloseAutoFocus={handleCloseAutoFocus}>
                 {entries.map((entry, index) =>

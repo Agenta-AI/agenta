@@ -312,8 +312,8 @@ export function planGatewayRun(
       ),
     };
   }
-  const tool = nonEmptyString(args.tool);
-  if (!tool) {
+  const requestedTool = nonEmptyString(args.tool);
+  if (!requestedTool) {
     return {
       ok: false,
       reason: malformedRunCallText("`tool` was missing or not a string."),
@@ -332,6 +332,7 @@ export function planGatewayRun(
   // A missing integration and a missing tool key are both `deny`, and so is an entry that did
   // not survive normalization. Fail closed: the absence of a rule is never permission.
   const entry = ownEntry(policy.integrations, integration);
+  const tool = configuredToolKey(entry, integration, requestedTool);
   const toolPolicy = ownEntry(entry?.tools, tool);
   // The permission is re-checked even though intake guarantees it: this is the value that
   // becomes the gate's `specPermission`, and an `undefined` there falls through to the run's
@@ -355,6 +356,20 @@ export function planGatewayRun(
     },
     display: `${integration}.${tool}`,
   };
+}
+
+/**
+ * The configured key `tool` names. A provider's catalog lists each tool under its key
+ * (`GET_MAX_ITEM_ID`) and under an action id that prefixes the integration
+ * (`HACKERNEWS_GET_MAX_ITEM_ID`); a model given the catalog cannot tell which one `run_tool` takes,
+ * so both reach the same configured key. Nothing else is guessed: an unknown key stays unknown.
+ */
+function configuredToolKey(entry: NormalizedGatewayIntegration | undefined, integration: string, tool: string): string {
+  if (!entry || ownEntry(entry.tools, tool)) return tool;
+  const prefix = `${integration.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}_`;
+  if (!tool.toUpperCase().startsWith(prefix)) return tool;
+  const key = tool.slice(prefix.length);
+  return ownEntry(entry.tools, key) ? key : tool;
 }
 
 /**

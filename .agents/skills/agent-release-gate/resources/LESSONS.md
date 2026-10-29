@@ -181,24 +181,32 @@ Second trap in the same area: this is a WORKFLOW-revision commit, NOT the in-str
 `data-committed-revision` SSE frame (which is a different mechanism — the agent committing during a
 turn) and NOT a git commit. The playground's Save/Commit button hits the REST route above.
 
-## 15. User MCP servers are Claude-only, public-HTTPS-only, and the harness dials them
+## 15. User MCP servers are public-HTTPS-only and must be a stored connection
 
-Three things will each silently break an MCP smoke test:
+Pi used to reject any run that declares `mcps`. It no longer does: Pi calls gateway MCP tools
+through `services/runner/src/extensions/pi-mcp.ts`, so the `mcp` journey runs on Pi cells too.
 
-- **Pi rejects any run that declares `mcps`** (`run-plan.ts` `PI_USER_MCP_UNSUPPORTED_MESSAGE`).
-  User MCP needs a harness with `capabilities.mcpTools` — i.e. **Claude**. Do not smoke-test MCP on
-  a Pi cell; SKIP it there.
+Two things will each silently break an MCP smoke test:
+
 - **A local MCP server is unreachable.** The SDK resolver AND the runner both run an SSRF guard
   (`assert_endpoint_url_allowed` / `validateUserMcpUrl`) that rejects `http://` and
   private/loopback/metadata hosts unless `AGENTA_INSECURE_EGRESS_ALLOWED` /
   `AGENTA_AGENT_MCPS_HOST_ALLOWLIST` is set (neither is, on bighetzner). Use a **public HTTPS**
   server. DeepWiki (`https://mcp.deepwiki.com/mcp`, no auth) works.
-- **The harness — not the runner process — opens the connection**, from the runner host on `local`
-  (from the sandbox on Daytona). The endpoint must be reachable from wherever the harness runs.
+- **Since v0.119.0 an inline URL is not dialled at all.** When the run carries a gateway, the SDK
+  (`sdk/agents/mcp/resolver.py` `_resolve_gateway`) rewrites every agent MCP server to
+  `/gateways/mcps/custom/<name>` and drops the author's URL. A `{"type":"http","url":...}` entry
+  with no stored connection of that name gets a 404 from our own gateway, which the runner's
+  handshake probe logs as `failed its handshake: status=404` and the wire shows as
+  `data-mcp-server-failed`. It looks like the public server is refusing; it is not. The v0.120.0
+  gate lost a night to this.
 
-The config entry is a full object, not a URL string:
-`{"name","connection":{"type":"http","url":...},"policy":{"tools":{"mode":"all"}}}`. Assert on the
-wire: a `tool-output-available` frame for a tool named `mcp__<server>__<tool>`.
+So register the server first (`POST /api/gateways/mcps/endpoints/` with
+`{"endpoint":{"slug","auth_mode":"none","secret_id":null,"data":{"route":{"base_url":URL}}}}`),
+reference it as
+`{"name","connection":{"type":"gateway","namespace":"custom","slug":...},"policy":{"tools":{"mode":"all"}}}`,
+and delete the endpoint afterwards. The gateway, in the API container, is what dials the URL. Assert
+on the wire: a `tool-output-available` frame for a tool named `mcp__<server>__<tool>`.
 
 ## 16. A warm multi-turn test cannot see anything the object store cannot represent
 

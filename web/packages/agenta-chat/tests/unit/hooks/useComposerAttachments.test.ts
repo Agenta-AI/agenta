@@ -1,10 +1,27 @@
 // @vitest-environment jsdom
-import {act, renderHook} from "@testing-library/react"
-import {afterEach, describe, expect, it} from "vitest"
+import {projectIdAtom} from "@agenta/shared/state"
+import {act, cleanup, renderHook, waitFor} from "@testing-library/react"
+import {getDefaultStore} from "jotai"
+import {afterEach, describe, expect, it, vi} from "vitest"
 
 import {DEFAULT_ATTACHMENT_LIMITS} from "../../../src/assets/attachmentRules"
-import {useComposerAttachments} from "../../../src/hooks/useComposerAttachments"
+import {uploadAttachment, uploadFileToSessionDrive} from "../../../src/assets/attachmentTransport"
+import {
+    stagedFilesToOutbound,
+    stagedFilesToParts,
+    useComposerAttachments,
+    withDriveFileNote,
+    type ComposerAttachment,
+} from "../../../src/hooks/useComposerAttachments"
 import {attachmentsBySession} from "../../../src/state/sessionEphemera"
+
+// Real module except the network call: `uploadExtraFiles` must forward the project, and the
+// no-project guard must reject before the transport is ever reached.
+vi.mock("../../../src/assets/attachmentTransport", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("../../../src/assets/attachmentTransport")>()),
+    uploadAttachment: vi.fn(),
+    uploadFileToSessionDrive: vi.fn(),
+}))
 
 const makeFile = (name: string, type = "text/plain", size = 16): File => {
     const blob = new Uint8Array(size).fill(97)
@@ -28,7 +45,10 @@ const setupSwitchable = (sessionId: string) =>
         },
     )
 
+// No vitest globals, so Testing Library cannot auto-clean. Unmount every hook after each test:
+// a hook left mounted keeps React scheduling work after the file's jsdom environment is gone.
 afterEach(() => {
+    cleanup()
     attachmentsBySession.clear()
 })
 
@@ -174,5 +194,166 @@ describe("useComposerAttachments", () => {
         })
         expect(result.current.files).toHaveLength(0)
         expect(result.current.rejections).toHaveLength(0)
+    })
+})
+
+describe("uploadExtraFiles project scoping", () => {
+    const store = getDefaultStore()
+
+    afterEach(() => {
+        store.set(projectIdAtom, null)
+        vi.mocked(uploadAttachment).mockReset()
+    })
+
+    it("forwards the session's project to the transport", async () => {
+        store.set(projectIdAtom, "project-ext")
+        vi.mocked(uploadAttachment).mockResolvedValue({
+            count: 1,
+            attachment: {id: "att-1"},
+        } as never)
+        const {result} = setup()
+        await act(async () => {
+            await expect(
+                result.current.uploadExtraFiles([makeFile("take.txt")]),
+            ).resolves.toHaveLength(1)
+        })
+        expect(vi.mocked(uploadAttachment)).toHaveBeenCalledWith(
+            expect.objectContaining({projectId: "project-ext"}),
+        )
+    })
+
+    it("refuses to upload without an active project", async () => {
+        store.set(projectIdAtom, null)
+        const {result} = setup()
+        await act(async () => {
+            await expect(
+                result.current.uploadExtraFiles([makeFile("take.txt")]),
+            ).resolves.toBeNull()
+        })
+        expect(vi.mocked(uploadAttachment)).not.toHaveBeenCalled()
+        // The failure is adopted into the tray as a visible, retryable error row.
+        expect(result.current.files.map((f) => [f.status, f.error])).toEqual([
+            ["error", "This upload needs an active project."],
+        ])
+    })
+})
+
+describe("files over the attachment cap", () => {
+    const store = getDefaultStore()
+    const overCap = DEFAULT_ATTACHMENT_LIMITS.maxBytes.document + 1
+
+    afterEach(() => {
+        store.set(projectIdAtom, null)
+        vi.mocked(uploadAttachment).mockReset()
+        vi.mocked(uploadFileToSessionDrive).mockReset()
+    })
+
+    const setupUploads = (largeFilesToDrive: boolean) => {
+        const sessionId = `drive-${Math.random().toString(36).slice(2)}`
+        return {
+            sessionId,
+            ...renderHook(() => useComposerAttachments({sessionId, largeFilesToDrive})),
+        }
+    }
+
+    it("uploads an oversized file to the session drive and a small one as an attachment", async () => {
+        store.set(projectIdAtom, "project-drive")
+        vi.mocked(uploadAttachment).mockResolvedValue({
+            count: 1,
+            attachment: {
+                attachment_id: "0190b8c0-0000-7000-8000-000000000001",
+                filename: "ok.txt",
+                media_type: "text/plain",
+                size: 16,
+                created_at: "2026-10-08T00:00:00Z",
+            },
+        })
+        vi.mocked(uploadFileToSessionDrive).mockResolvedValue({
+            drive: {path: "uploads/huge.txt", filename: "huge.txt", size: overCap},
+        })
+        const {result, sessionId} = setupUploads(true)
+
+        act(() => {
+            result.current.addFiles([
+                makeFile("huge.txt", "text/plain", overCap),
+                makeFile("ok.txt"),
+            ])
+        })
+        expect(result.current.rejections).toHaveLength(0)
+        expect(result.current.files.map((f) => f.name)).toEqual(["huge.txt", "ok.txt"])
+
+        await waitFor(() => expect(result.current.attachmentsSettled).toBe(true))
+        expect(vi.mocked(uploadFileToSessionDrive)).toHaveBeenCalledTimes(1)
+        expect(vi.mocked(uploadFileToSessionDrive)).toHaveBeenCalledWith(
+            expect.objectContaining({sessionId, projectId: "project-drive"}),
+        )
+        expect(vi.mocked(uploadAttachment)).toHaveBeenCalledTimes(1)
+
+        // Only the small file becomes an attachment part; the big one is named in the text.
+        const parts = stagedFilesToParts(result.current.files, sessionId)
+        expect(parts.map((p) => p.filename)).toEqual(["ok.txt"])
+        expect(withDriveFileNote("Summarize these", result.current.files)).toBe(
+            "Summarize these\n\nUploaded to the session drive (too large to attach): `uploads/huge.txt` (10.0 MB)",
+        )
+    })
+
+    it("still rejects an oversized file when the host does not opt in", () => {
+        store.set(projectIdAtom, "project-drive")
+        const {result, unmount} = setupUploads(false)
+        act(() => {
+            result.current.addFiles([makeFile("huge.txt", "text/plain", overCap)])
+        })
+        unmount()
+        expect(result.current.files).toHaveLength(0)
+        expect(result.current.rejections.map((r) => r.name)).toEqual(["huge.txt"])
+        expect(vi.mocked(uploadFileToSessionDrive)).not.toHaveBeenCalled()
+    })
+})
+
+describe("withDriveFileNote", () => {
+    const driveRow = (path: string, size: number): ComposerAttachment => ({
+        uid: `att-${path}`,
+        name: path,
+        status: "done",
+        response: {drive: {path, filename: path, size}},
+    })
+
+    it("returns the text unchanged when no row went to the drive", () => {
+        expect(withDriveFileNote("hello", [])).toBe("hello")
+    })
+
+    it("names the drive file even when the message has no text", () => {
+        expect(withDriveFileNote("", [driveRow("uploads/a.pdf", 2 * 1024 * 1024)])).toBe(
+            "Uploaded to the session drive (too large to attach): `uploads/a.pdf` (2.0 MB)",
+        )
+    })
+
+    it("does not repeat a note the text already carries", () => {
+        const rows = [driveRow("uploads/a.pdf", 1024 * 1024)]
+        const once = withDriveFileNote("hi", rows)
+        expect(withDriveFileNote(once, rows)).toBe(once)
+    })
+})
+
+describe("stagedFilesToOutbound", () => {
+    it("sends only the note and no parts when every row went to the drive", () => {
+        const rows: ComposerAttachment[] = [
+            {
+                uid: "att-big",
+                name: "big.csv",
+                status: "done",
+                response: {
+                    drive: {path: "uploads/big.csv", filename: "big.csv", size: 1024 * 1024},
+                },
+            },
+        ]
+        expect(stagedFilesToOutbound("look", rows, "s-1")).toEqual({
+            text: "look\n\nUploaded to the session drive (too large to attach): `uploads/big.csv` (1.0 MB)",
+            parts: undefined,
+        })
+    })
+
+    it("leaves the text alone and sends no parts for an empty tray", () => {
+        expect(stagedFilesToOutbound("hi", [], "s-1")).toEqual({text: "hi", parts: undefined})
     })
 })

@@ -11,11 +11,29 @@ export const RESERVED_SANDBOX_CREDENTIAL_NAMES: ReadonlySet<string> = new Set([
   "AGENTA_AGENT_TELEMETRY_CONTROL_PATH", "AGENTA_AGENT_MODEL_PROVIDER_OVERRIDE",
   "AGENTA_AGENT_BUILTIN_ACTIVATION", "AGENTA_AGENT_BUILTIN_GATING",
   "AGENTA_AGENT_USAGE_CAPTURE_PATH", "ENABLE_TOOL_SEARCH",
+  "BASH_DEFAULT_TIMEOUT_MS", "BASH_MAX_TIMEOUT_MS",
 ]);
 
 const RESERVED_SANDBOX_CREDENTIAL_PREFIXES = [
   "AGENTA_AGENT_", "SANDBOX_AGENT_", "PI_CODING_AGENT_",
 ] as const;
+
+/**
+ * Whether a caller-supplied environment name belongs to the runtime rather than to the caller.
+ *
+ * M20: this rule was applied to `sandboxCredentials` alone, while `modelConnection.environment`
+ * and its credential bindings land in the same process environment and were never screened. The
+ * names below are how the runner configures its own harnesses — `AGENTA_AGENT_MODEL_PROVIDER_OVERRIDE`
+ * is read by the bundled Pi extension, `CLAUDE_CONFIG_DIR` and `CODEX_HOME` decide where a harness
+ * reads its credentials from, `NODE_OPTIONS` and `LD_PRELOAD` decide what code loads at all — so a
+ * request that can set them reconfigures the runtime rather than its own model connection.
+ */
+export function isReservedSandboxEnvironmentName(name: string): boolean {
+  return (
+    RESERVED_SANDBOX_CREDENTIAL_NAMES.has(name) ||
+    RESERVED_SANDBOX_CREDENTIAL_PREFIXES.some((prefix) => name.startsWith(prefix))
+  );
+}
 
 export type SandboxCredentialsResult =
   | { ok: true; environment: Record<string, string> }
@@ -39,10 +57,7 @@ export function materializeSandboxCredentials(request: AgentRunRequest): Sandbox
     if (typeof credential.value !== "string" || credential.value.length === 0) {
       return { ok: false, error: `sandboxCredentials binding '${name}' requires a non-empty value` };
     }
-    if (
-      RESERVED_SANDBOX_CREDENTIAL_NAMES.has(name) ||
-      RESERVED_SANDBOX_CREDENTIAL_PREFIXES.some((prefix) => name.startsWith(prefix))
-    ) {
+    if (isReservedSandboxEnvironmentName(name)) {
       return { ok: false, error: `sandboxCredentials binding '${name}' is reserved by the runtime` };
     }
     if (occupied.has(name)) {

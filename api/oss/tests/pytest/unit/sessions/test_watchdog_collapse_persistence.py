@@ -101,11 +101,10 @@ class _FakeLock:
         keys = [decode(value) for value in keys_and_args[:numkeys]]
         argv = [decode(value) for value in keys_and_args[numkeys:]]
         if "AGENTA_WATCHDOG_RELEASE_TURN" in script:
-            alive, running, owner, superseded = keys
-            expected_turn, expected_owner, _ttl = argv
+            alive, running, superseded = keys
+            expected_turn, _ttl = argv
             alive_value = decode(self._s[alive]) if alive in self._s else ""
             running_value = decode(self._s[running]) if running in self._s else ""
-            owner_value = decode(self._s[owner]) if owner in self._s else ""
             released_alive = int(bool(expected_turn) and alive_value == expected_turn)
             released_running = int(
                 bool(expected_turn) and running_value == expected_turn
@@ -114,32 +113,15 @@ class _FakeLock:
                 self._s.pop(alive, None)
             if released_running:
                 self._s.pop(running, None)
-            foreign_turn = (alive_value and alive_value != expected_turn) or (
-                running_value and running_value != expected_turn
-            )
-            released_owner = int(
-                bool(expected_owner)
-                and owner_value == expected_owner
-                and not foreign_turn
-            )
-            if released_owner:
-                self._s.pop(owner, None)
             if expected_turn:
                 self._s[superseded] = b"1"
-            return [released_alive, released_running, released_owner]
+            return [released_alive, released_running]
 
         k = keys[0]
         v = argv[0]
         cur = self._s.get(k)
         if isinstance(cur, bytes):
             cur = cur.decode()
-        if len(argv) > 1:
-            from oss.src.dbs.redis.sessions.contract import owner_replica_id
-
-            if cur is None or owner_replica_id(cur) == owner_replica_id(v):
-                self._s[k] = v.encode()
-                return v.encode()
-            return cur.encode() if cur else None
         if cur == v:
             self._s.pop(k, None)
             return 1
@@ -343,8 +325,6 @@ def _build_services(engine):
 async def test_a_lost_pass_persists_the_collapse_against_real_postgres(
     anyio_backend, wd_engine, monkeypatch
 ):
-    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
-
     session_id = "wd-" + uuid.uuid4().hex[:12]
     turn_id = str(uuid.uuid4())
     await _seed_scenario(wd_engine, session_id=session_id, turn_id=turn_id)
@@ -408,15 +388,14 @@ async def test_b_lost_turn_clear_persists_after_a_nested_session_close(
 ):
     """The `newly_lost` is_running clear survives a nested session between load and write.
 
-    Same failure mode as finding 7, one branch up. The owner lookup is patched to open an
-    `engine.session()`, whose `finally` closes the shared task-scoped session before settlement
-    and the lost-turn update. Core writes must still reopen that session and persist.
+    Same failure mode as finding 7, one branch up. The endings bookkeeping is patched to open an
+    `engine.session()`, whose `finally` closes the shared task-scoped session before the
+    lost-turn update. Core writes must still reopen that session and persist.
 
     This never failed in production: before the fix the write sat immediately after the load,
     with nothing nested in between. The test pins the property rather than a past bug. Make the
     write an ORM attribute assignment again and it fails on `is_running` still true.
     """
-    monkeypatch.setattr(env.agenta.sessions, "durable_stop", True)
 
     session_id = "wd-" + uuid.uuid4().hex[:12]
     turn_id = str(uuid.uuid4())
@@ -424,19 +403,19 @@ async def test_b_lost_turn_clear_persists_after_a_nested_session_close(
         wd_engine, session_id=session_id, turn_id=turn_id
     )
 
-    real_get_owner_value = orphan_sweep.get_owner_value
+    real_mark_endings_written = orphan_sweep._mark_endings_written
     nested_sessions = []
 
-    async def _get_owner_value_through_a_nested_session(*args, **kwargs):
+    async def _mark_endings_written_through_a_nested_session(*args, **kwargs):
         # Open and close the shared task-scoped session, exactly as a DAO call would.
         async with wd_engine.session():
             nested_sessions.append(1)
-        return await real_get_owner_value(*args, **kwargs)
+        return await real_mark_endings_written(*args, **kwargs)
 
     monkeypatch.setattr(
         orphan_sweep,
-        "get_owner_value",
-        _get_owner_value_through_a_nested_session,
+        "_mark_endings_written",
+        _mark_endings_written_through_a_nested_session,
     )
 
     lock, records_service, commands_service = _build_services(wd_engine)

@@ -136,7 +136,10 @@ export async function prepareWorkspace({
     // Clear stale .req.json from a prior turn: relayDir is keyed on the durable cwd and
     // is never otherwise cleared, so an old request would be re-picked-up by the fresh `seen` set.
     rmSync(plan.workspace.relayDir, { recursive: true, force: true });
-    mkdirSync(plan.workspace.relayDir, { recursive: true });
+    // Owner-only: a session's tool requests and results are not readable by another user on the
+    // runner host. The environment's teardown deletes the folder.
+    mkdirSync(dirname(plan.workspace.relayDir), { recursive: true });
+    mkdirSync(plan.workspace.relayDir, { mode: 0o700 });
   }
   if (plan.prompt.agentsMd)
     writeFileSync(

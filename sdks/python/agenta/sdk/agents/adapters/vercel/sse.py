@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import os
+from contextvars import copy_context
 from json import dumps
 from typing import Any, AsyncGenerator
 
@@ -53,11 +54,21 @@ def vercel_sse_stream(aiter: AsyncGenerator[Any, None]):
         # pull times out, we emit a comment, and re-await the SAME pending pull (never dropping or
         # reordering a real part).
         iterator = aiter.__aiter__()
+
+        async def pull():
+            return await iterator.__anext__()
+
+        # All pulls share ONE context. A task per pull would each start on a fresh copy, so
+        # whatever the upstream sets while producing a chunk (the workflow span activation, the
+        # run's redactor) would be gone for the next chunk and for the upstream's `finally`.
+        # Pulls are strictly sequential, so the context is never entered concurrently.
+        context = copy_context()
+        loop = asyncio.get_running_loop()
         pending: asyncio.Task | None = None
         try:
             while True:
                 if pending is None:
-                    pending = asyncio.ensure_future(iterator.__anext__())
+                    pending = loop.create_task(pull(), context=context)
                 try:
                     chunk = await asyncio.wait_for(
                         asyncio.shield(pending), timeout=interval

@@ -1,0 +1,231 @@
+"""Pins the "after" column of the M1 statement-count table.
+
+These are access-decision statements, not total endpoint statements: each hot path makes
+exactly one Postgres statement, whatever the number of organizations and projects.
+"""
+
+import pytest
+
+import oss.src.core.access.service as access_module
+from oss.src.core.access.permissions.service import check_action_access
+from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.rbac import AlwaysEnforcedRbac
+from oss.src.core.access.service import AccessService
+from oss.src.core.memberships.dtos import MembershipPolicy
+from oss.src.core.memberships.service import MembershipsService
+from oss.src.dbs.postgres.memberships.dao import MembershipsDAO
+from oss.src.dbs.postgres.shared.engine import get_transactions_engine
+from oss.src.utils.env import env
+from oss.tests.pytest.utils.membership_seed import (
+    delete_seeded_organization,
+    execute,
+    seed_organization,
+)
+from oss.tests.pytest.utils.statements import count_statements
+from oss.tests.pytest.utils.memberships import FakeAccessCache
+from oss.tests.pytest.utils.principals import HumanPrincipalsDAO, bearer_request_access
+from oss.tests.pytest.utils.sharing import AllowAllResourcePolicy
+
+
+pytestmark = pytest.mark.integration
+
+POLICIES = [MembershipPolicy.ORGANIZATION_WIDE, MembershipPolicy.PROJECT_ROWS]
+
+
+@pytest.fixture
+async def member_of_three_organizations():
+    """A user in 3 organizations with 2 projects each (6 projects)."""
+
+    organizations = [
+        await seed_organization(members={"m": "editor"}, projects_per_workspace=2)
+    ]
+    user = organizations[0].user_ids["m"]
+    for _ in range(2):
+        seeded = await seed_organization(
+            members={"owner": "owner"}, projects_per_workspace=2
+        )
+        for statement in (
+            "INSERT INTO organization_members (id, user_id, organization_id, role) "
+            "VALUES (gen_random_uuid(), :u, :o, 'editor')",
+            "INSERT INTO project_members (id, user_id, project_id, role) "
+            "SELECT gen_random_uuid(), :u, p.id, 'editor' FROM projects p "
+            "WHERE p.organization_id = :o",
+        ):
+            await execute(statement, {"u": user, "o": seeded.organization_id})
+        organizations.append(seeded)
+
+    yield user, organizations
+
+    for seeded in organizations:
+        await delete_seeded_organization(seeded)
+
+
+def _service(policy) -> MembershipsService:
+    return MembershipsService(
+        memberships_dao=MembershipsDAO(engine=get_transactions_engine()),
+        policy=policy,
+    )
+
+
+@pytest.mark.parametrize("policy", POLICIES)
+async def test_project_list_is_one_statement(policy, member_of_three_organizations):
+    user, organizations = member_of_three_organizations
+    service = _service(policy)
+
+    with count_statements(get_transactions_engine()) as statements:
+        listings = await service.list_for_user(user_id=user)
+    assert len(listings) == 6
+    assert len(statements) == 1
+
+    # Twelve projects, each with a project row: still one statement.
+    for seeded in organizations:
+        for name in ("extra-a", "extra-b"):
+            await execute(
+                "WITH p AS (INSERT INTO projects (id, project_name, is_default, "
+                "organization_id, workspace_id) VALUES (gen_random_uuid(), :n, false, "
+                ":o, :w) RETURNING id) "
+                "INSERT INTO project_members (id, user_id, project_id, role) "
+                "SELECT gen_random_uuid(), :u, p.id, 'editor' FROM p",
+                {
+                    "n": name,
+                    "o": seeded.organization_id,
+                    "w": seeded.workspace_ids[0],
+                    "u": user,
+                },
+            )
+    with count_statements(get_transactions_engine()) as statements:
+        listings = await service.list_for_user(user_id=user)
+    assert len(listings) == 12
+    assert len(statements) == 1
+
+
+@pytest.fixture
+def registered_memberships(monkeypatch):
+    import oss.src.core.memberships.service as memberships_module
+
+    def _register(policy):
+        service = _service(policy)
+        monkeypatch.setattr(memberships_module, "_memberships_service", service)
+        return service
+
+    return _register
+
+
+@pytest.mark.parametrize("policy", POLICIES)
+async def test_project_routes_make_one_statement(
+    policy, member_of_three_organizations, registered_memberships
+):
+    """The route handlers themselves, with the real resolver: GET /projects/,
+    GET /projects/{id} and GET /projects/current read nothing else."""
+
+    from types import SimpleNamespace
+
+    import oss.src.routers.projects_router as projects_router
+
+    user, organizations = member_of_three_organizations
+    registered_memberships(policy)
+    project = organizations[1].project_ids[0]
+    request = SimpleNamespace(
+        state=SimpleNamespace(user_id=str(user), project_id=str(project))
+    )
+
+    with count_statements(get_transactions_engine()) as statements:
+        listed = await projects_router.get_projects(request=request)
+    assert len(listed) == 6
+    assert len(statements) == 1
+
+    for project_id in (str(project), "current"):
+        with count_statements(get_transactions_engine()) as statements:
+            fetched = await projects_router.get_project(
+                project_id=project_id, request=request
+            )
+        assert fetched.project_id == project
+        assert len(statements) == 1
+
+
+@pytest.mark.parametrize("policy", POLICIES)
+async def test_project_fetch_is_one_statement(policy, member_of_three_organizations):
+    user, organizations = member_of_three_organizations
+    service = _service(policy)
+
+    with count_statements(get_transactions_engine()) as statements:
+        listing = await service.fetch_for_user(
+            user_id=user, project_id=organizations[1].project_ids[0]
+        )
+    assert listing is not None
+    assert len(statements) == 1
+
+
+@pytest.mark.parametrize("policy", POLICIES)
+async def test_bearer_membership_check_is_one_statement(
+    policy, member_of_three_organizations
+):
+    user, organizations = member_of_three_organizations
+    service = _service(policy)
+
+    with count_statements(get_transactions_engine()) as statements:
+        assert await service.is_member(
+            user_id=user, project_id=organizations[2].project_ids[1]
+        )
+    assert len(statements) == 1
+
+
+@pytest.fixture
+def registered_access(monkeypatch):
+    def _register(policy):
+        monkeypatch.setattr(
+            access_module,
+            "_access_service",
+            AccessService(
+                memberships=_service(policy),
+                rbac=AlwaysEnforcedRbac(),
+                principals=HumanPrincipalsDAO(),
+                resource_policy=AllowAllResourcePolicy(),
+            ),
+        )
+
+    return _register
+
+
+@pytest.mark.parametrize("policy", POLICIES)
+async def test_check_action_access_miss_is_one_statement(
+    policy, member_of_three_organizations, registered_access, monkeypatch
+):
+    user, organizations = member_of_three_organizations
+    registered_access(policy)
+    monkeypatch.setattr(env.agenta.api.caching, "enabled", False, raising=False)
+
+    with (
+        bearer_request_access(user),
+        count_statements(get_transactions_engine()) as statements,
+    ):
+        allowed = await check_action_access(
+            user_uid=str(user),
+            project_id=str(organizations[0].project_ids[0]),
+            permission=Permission.VIEW_APPLICATIONS,
+        )
+    assert allowed is True
+    assert len(statements) == 1
+
+
+async def test_check_action_access_hit_is_zero_statements(
+    member_of_three_organizations, registered_access, monkeypatch
+):
+    """The stack's Redis is not published to the host, so the cache is a dict with the
+    same get/set contract. No decision is cached (M2); the second identical call reads
+    the cached membership and no Postgres row."""
+
+    user, organizations = member_of_three_organizations
+    registered_access(MembershipPolicy.PROJECT_ROWS)
+    FakeAccessCache().install(monkeypatch)
+    arguments = dict(
+        user_uid=str(user),
+        project_id=str(organizations[0].project_ids[0]),
+        permission=Permission.VIEW_APPLICATIONS,
+    )
+
+    with bearer_request_access(user):
+        assert await check_action_access(**arguments) is True
+        with count_statements(get_transactions_engine()) as statements:
+            assert await check_action_access(**arguments) is True
+    assert statements == []

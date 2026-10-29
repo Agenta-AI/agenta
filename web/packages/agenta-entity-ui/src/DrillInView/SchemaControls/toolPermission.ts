@@ -29,9 +29,9 @@ import {
     parseGatewayTool,
 } from "./toolUtils"
 
-/** A legacy per-tool entry's `permission`. The connection policy's four values minus `inherit`,
- *  which only a `gateway_connection` entry can hold. */
-export type ToolPermission = Exclude<GatewayPermission, "inherit">
+/** A legacy per-tool entry's `permission`. The connection policy's values minus `inherit` and
+ *  `allow_reads`, which only a `gateway_connection` entry can hold. */
+export type ToolPermission = Exclude<GatewayPermission, "inherit" | "allow_reads">
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
     Boolean(v && typeof v === "object" && !Array.isArray(v))
@@ -133,6 +133,10 @@ export const PLATFORM_OPS = new Set([
     "resume_schedule",
     "pause_subscription",
     "resume_subscription",
+    "list_channel_destinations",
+    "send_channel_message",
+    "read_channel_messages",
+    "search_channel_messages",
 ])
 
 /** The seven built-ins by lower-cased name, so a gate can be written under its canonical name. */

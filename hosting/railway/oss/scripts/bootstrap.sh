@@ -15,12 +15,8 @@ SOURCE_COMPOSE_FILE="${RAILWAY_SOURCE_COMPOSE_FILE:-$(railway_source_compose_fil
 
 WEB_IMAGE="${AGENTA_WEB_IMAGE:-ghcr.io/agenta-ai/agenta-web:latest}"
 WEB_MOBILE_IMAGE="${AGENTA_WEB_MOBILE_IMAGE:-ghcr.io/agenta-ai/agenta-web-mobile:latest}"
-# The mobile app (/m) stays opt-in for a from-scratch Railway bootstrap, unlike
-# the compose stack, which now starts web-mobile by default. Template clones get
-# the service from template.json either way. Everything downstream (configure.sh,
-# deploy-from-images.sh) keys off whether the service exists, so this flag is the
-# single switch.
-WITH_MOBILE="${AGENTA_RAILWAY_WITH_MOBILE:-false}"
+# The mobile app (/m) ships with every environment, so bootstrap always creates
+# web-mobile. Template clones get it from template.json.
 API_IMAGE="${AGENTA_API_IMAGE:-ghcr.io/agenta-ai/agenta-api:latest}"
 SERVICES_IMAGE="${AGENTA_SERVICES_IMAGE:-ghcr.io/agenta-ai/agenta-services:latest}"
 RUNNER_IMAGE="${AGENTA_RUNNER_IMAGE:-ghcr.io/agenta-ai/agenta-runner:latest}"
@@ -28,8 +24,11 @@ SUPERTOKENS_IMAGE="${SUPERTOKENS_IMAGE:-$(require_compose_service_image "$SOURCE
 REDIS_IMAGE="${REDIS_IMAGE:-$(require_compose_redis_image "$SOURCE_COMPOSE_FILE")}"
 POSTGRES_IMAGE="${POSTGRES_IMAGE:-$(require_compose_service_image "$SOURCE_COMPOSE_FILE" "postgres")}"
 GATEWAY_IMAGE="${AGENTA_GATEWAY_IMAGE:-}"
-# Pin a 4.37-era SeaweedFS: its advanced IAM (the STS path mounts need) regressed in other releases.
-SEAWEEDFS_IMAGE="${SEAWEEDFS_IMAGE:-chrislusf/seaweedfs:4.37}"
+# Pin SeaweedFS: its advanced IAM (the STS path mounts need) regressed in other releases, and
+# older builds keep listing a pre-versioning object after its delete marker
+# is written, so a deleted file reappears in a geesefs mount and cannot be read.
+# Never go below 4.42.
+SEAWEEDFS_IMAGE="${SEAWEEDFS_IMAGE:-chrislusf/seaweedfs:4.47}"
 
 require_cmd() {
     if ! command -v "$1" >/dev/null 2>&1; then
@@ -275,9 +274,7 @@ main() {
     fi
 
     add_service_image web "$WEB_IMAGE"
-    if [ "$WITH_MOBILE" = "true" ]; then
-        add_service_image web-mobile "$WEB_MOBILE_IMAGE"
-    fi
+    add_service_image web-mobile "$WEB_MOBILE_IMAGE"
     add_service_image api "$API_IMAGE"
     add_service_image services "$SERVICES_IMAGE"
     add_service_image runner "$RUNNER_IMAGE"

@@ -707,10 +707,39 @@ describe("buildRunPlan", () => {
     assert.equal(result.error, RESERVED_MCP_SERVER_NAME_MESSAGE);
   });
 
-  it("errors LOUD on a Pi run carrying a user HTTP MCP server (F-032 silent-drop fix)", () => {
-    // The core of F-032: an http user MCP on Pi previously passed the stdio gate, then
-    // buildSessionMcpServers returned [] for Pi -> the server was dropped with NO log and an
-    // HTTP 200. It must now fail loud, not silently succeed. Fails before any cwd is created.
+  it.each(["__proto__", "constructor", "prototype"])(
+    "refuses a user MCP server named '%s'",
+    (name) => {
+      const result = buildRunPlan(
+        {
+          harness: "claude",
+          sandbox: "local",
+          messages: [{ role: "user", content: "hello" }],
+          mcpServers: [
+            {
+              name,
+              connection: {
+                type: "http",
+                url: "https://mcp.example.com/mcp",
+                headers: { "X-Probe-Header": "value" },
+              },
+              policy: { tools: { mode: "all" } },
+            },
+          ],
+        } as AgentRunRequest,
+        { createLocalCwd: () => "/tmp/local-cwd" },
+      );
+      assert.equal(result.ok, false);
+      if (result.ok) return;
+      assert.match(result.error, new RegExp(`MCP server name '${name}' is reserved`));
+      assert.equal(
+        (({}) as Record<string, unknown>)["X-Probe-Header"],
+        undefined,
+      );
+    },
+  );
+
+  it("accepts a Pi run carrying a registered gateway HTTP MCP server", () => {
     let created = false;
     const result = buildRunPlan(
       {
@@ -719,8 +748,18 @@ describe("buildRunPlan", () => {
         messages: [{ role: "user", content: "hello" }],
         mcpServers: [
           {
-            name: "linear",
-            connection: { type: "http", url: "https://mcp.linear.app/sse" },
+            name: "mock",
+            connection: {
+              type: "http",
+              url: "https://api.example.test/gateways/mcps/standard/mock",
+              credentials: [
+                {
+                  binding: { kind: "header", name: "X-AG-Credentials" },
+                  value: "short-lived-gateway-token",
+                  usage: "opaque_http",
+                },
+              ],
+            },
             policy: { tools: { mode: "all" } },
           },
         ],
@@ -733,14 +772,46 @@ describe("buildRunPlan", () => {
       },
     );
 
+    assert.equal(result.ok, true);
+    assert.equal(created, true);
+  });
+
+  it("rejects a direct Pi MCP URL before creating a cwd", () => {
+    let created = false;
+    const result = buildRunPlan(
+      {
+        harness: "pi_agenta",
+        sandbox: "local",
+        messages: [{ role: "user", content: "hello" }],
+        mcpServers: [
+          {
+            name: "direct",
+            connection: {
+              type: "http",
+              url: "https://mcp.example.test/mcp",
+              credentials: [
+                {
+                  binding: { kind: "header", name: "X-AG-Credentials" },
+                  value: "short-lived-gateway-token",
+                  usage: "opaque_http",
+                },
+              ],
+            },
+            policy: { tools: { mode: "all" } },
+          },
+        ],
+      } as AgentRunRequest,
+      {
+        createLocalCwd: () => {
+          created = true;
+          return "/tmp/local-cwd";
+        },
+      },
+    );
     assert.equal(result.ok, false);
     if (result.ok) return;
-    assert.match(result.error, /not supported on the Pi harness/);
-    assert.equal(
-      created,
-      false,
-      "fails before any cwd is created (up-front gate)",
-    );
+    assert.match(result.error, /registered Agenta gateway route/);
+    assert.equal(created, false);
   });
 
   it("allows a non-Pi (claude) run with a user HTTP MCP server (Pi gate is Pi-only)", () => {
@@ -1516,6 +1587,31 @@ describe("buildRunPlan runtime_provided (subscription) gates", () => {
       if (result.ok) return;
       assert.equal(result.error, LOCAL_SUBSCRIPTION_MOUNT_MISSING_MESSAGE);
     });
+  });
+
+  it("accepts a local mock runtime_provided run with no subscription mount", () => {
+    withEnv(
+      {
+        PI_CODING_AGENT_DIR: undefined,
+        CLAUDE_CONFIG_DIR: undefined,
+        CODEX_HOME: undefined,
+      },
+      () => {
+        const result = buildRunPlan({
+          harness: "mock",
+          sandbox: "local",
+          messages: [{ role: "user", content: "hello" }],
+          modelConnection: {
+            provider: "mock",
+            deployment: "direct",
+            credentialMode: "runtime_provided",
+            credentials: [],
+          },
+        });
+
+        assert.equal(result.ok, true, result.ok ? "" : result.error);
+      },
+    );
   });
 
   it("accepts a local Codex runtime_provided run when CODEX_HOME names a mount", () => {

@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "entry": "error-triage",
+  "agents": {
+    "error-triage": {
+      "name": "Error triage",
+      "description": "Triages every new Sentry error by severity and files a ticket for the ones that are real.",
+      "instructions": "./ai.agenta/agents/error-triage/AGENTS.md",
+      "setup": "./ai.agenta/agents/error-triage/SETUP.md",
+      "connections": [
+        {
+          "key": "read-the-errors",
+          "required": true,
+          "purpose": "Read the errors",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "sentry"
+            }
+          ],
+          "setup_notes": "Read issues"
+        },
+        {
+          "key": "file-the-issue",
+          "required": true,
+          "purpose": "File the issue",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "linear"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "jira"
+            }
+          ],
+          "setup_notes": "Search & create issues"
+        }
+      ]
+    }
+  }
+}

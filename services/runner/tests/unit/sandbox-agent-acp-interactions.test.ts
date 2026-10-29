@@ -610,7 +610,11 @@ describe("attachPermissionResponder", () => {
       emitCommitGate(emit);
       await waitFor(() => events.length > 0 || replies.length > 0);
 
-      assert.deepEqual(replies, [], "the harness was never told the call is allowed");
+      assert.deepEqual(
+        replies,
+        [],
+        "the harness was never told the call is allowed",
+      );
       assert.equal(events.length, 1);
       const event = events[0] as {
         type: string;
@@ -1072,7 +1076,9 @@ describe("attachPermissionResponder", () => {
       session,
       run: { emitEvent: () => {} },
       responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
-      serverPermissions: new Map([["github", "deny"]]),
+      mcpPermissions: new Map([
+        ["github", { tools: new Map(), server: "deny" }],
+      ]),
     });
     emit({
       id: "perm-1",
@@ -1083,6 +1089,252 @@ describe("attachPermissionResponder", () => {
     assert.equal(seen.permission?.[0].gate.serverPermission, "deny");
   });
 
+  it("prefers a per-tool MCP permission over the whole-server one", async () => {
+    const { session, emit } = makeSession();
+    const seen: { permission?: any[] } = {};
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {} },
+      responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
+      mcpPermissions: new Map([
+        [
+          "github",
+          {
+            server: "deny",
+            tools: new Map([["search", "allow" as const]]),
+            newTool: "ask" as const,
+          },
+        ],
+      ]),
+    });
+    emit({
+      id: "perm-1",
+      toolCall: { toolCallId: "tool-1", name: "mcp__github__search" },
+    });
+    await flushPromises();
+
+    assert.equal(seen.permission?.[0].gate.serverPermission, "allow");
+  });
+
+  it("gives a tool the table does not name the new-tool floor", async () => {
+    const { session, emit } = makeSession();
+    const seen: { permission?: any[] } = {};
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {} },
+      responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
+      mcpPermissions: new Map([
+        [
+          "github",
+          {
+            server: "allow",
+            tools: new Map([["search", "allow" as const]]),
+            newTool: "ask" as const,
+          },
+        ],
+      ]),
+    });
+    emit({
+      id: "perm-1",
+      toolCall: { toolCallId: "tool-1", name: "mcp__github__create_issue" },
+    });
+    await flushPromises();
+
+    assert.equal(seen.permission?.[0].gate.serverPermission, "ask");
+  });
+
+  it("resolves a server whose own name contains the separator (OR80)", async () => {
+    // `mcp__acme__prod__search` splits at the FIRST `__` to server `acme`, which is not
+    // configured -- so the old parse lost the policy silently and in the permissive direction.
+    const { session, emit } = makeSession();
+    const seen: { permission?: any[] } = {};
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {} },
+      responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
+      mcpPermissions: new Map([
+        ["acme__prod", { server: "deny", tools: new Map() }],
+      ]),
+    });
+    emit({
+      id: "perm-1",
+      toolCall: { toolCallId: "tool-1", name: "mcp__acme__prod__search" },
+    });
+    await flushPromises();
+
+    assert.equal(seen.permission?.[0].gate.serverPermission, "deny");
+  });
+
+  it("denies rather than choosing when two configured servers could match (D2)", async () => {
+    const { session, emit } = makeSession();
+    const seen: { permission?: any[] } = {};
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {} },
+      responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
+      mcpPermissions: new Map([
+        ["acme", { server: "allow", tools: new Map() }],
+        ["acme__prod", { server: "deny", tools: new Map() }],
+      ]),
+    });
+    emit({
+      id: "perm-1",
+      toolCall: { toolCallId: "tool-1", name: "mcp__acme__prod__search" },
+    });
+    await flushPromises();
+
+    assert.equal(seen.permission?.[0].gate.serverPermission, "deny");
+  });
+
+  it("denies when the ambiguity would otherwise resolve to the permissive side (D2)", async () => {
+    // The bypass, stated as the reviewer constructed it: the DENYING server is the short one, so
+    // preferring the longest match answers `allow` for a call the operator denied. The two names
+    // both register — `tool_prefix` maps each to itself — so this is a reachable configuration.
+    const { session, emit } = makeSession();
+    const seen: { permission?: any[] } = {};
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {} },
+      responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
+      mcpPermissions: new Map([
+        [
+          "acme",
+          { tools: new Map([["prod__delete", "deny" as const]]), newTool: "deny" as const },
+        ],
+        [
+          "acme__prod",
+          { tools: new Map([["delete", "allow" as const]]), newTool: "ask" as const },
+        ],
+      ]),
+    });
+    emit({
+      id: "perm-1",
+      toolCall: { toolCallId: "tool-1", name: "mcp__acme__prod__delete" },
+    });
+    await flushPromises();
+
+    assert.equal(seen.permission?.[0].gate.serverPermission, "deny");
+  });
+
+  it("denies an ambiguous Codex dot-form name too (D2)", async () => {
+    // The dotted spelling has the same structural ambiguity; a fix on one separator only would
+    // leave the other reachable.
+    const { session, emit } = makeSession();
+    const seen: { permission?: any[] } = {};
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {} },
+      responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
+      mcpPermissions: new Map([
+        ["acme", { tools: new Map([["prod.delete", "deny" as const]]), newTool: "deny" as const }],
+        ["acme.prod", { tools: new Map([["delete", "allow" as const]]), newTool: "ask" as const }],
+      ]),
+    });
+    emit({
+      id: "perm-1",
+      toolCall: { toolCallId: "tool-1", name: "mcp.acme.prod.delete" },
+    });
+    await flushPromises();
+
+    assert.equal(seen.permission?.[0].gate.serverPermission, "deny");
+  });
+
+  it("still resolves when exactly one configured server claims the name", async () => {
+    // Fail-closed must not swallow the ordinary case: one candidate resolves as before, including
+    // a server whose own name contains the separator.
+    const { session, emit } = makeSession();
+    const seen: { permission?: any[] } = {};
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {} },
+      responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
+      mcpPermissions: new Map([
+        ["acme__prod", { tools: new Map([["delete", "allow" as const]]), newTool: "ask" as const }],
+      ]),
+    });
+    emit({
+      id: "perm-1",
+      toolCall: { toolCallId: "tool-1", name: "mcp__acme__prod__delete" },
+    });
+    await flushPromises();
+
+    assert.equal(seen.permission?.[0].gate.serverPermission, "allow");
+  });
+
+  it("denies an MCP-shaped name no configured server claims (D7)", async () => {
+    const { session, emit } = makeSession();
+    const seen: { permission?: any[] } = {};
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {} },
+      responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
+      mcpPermissions: new Map([
+        ["github", { server: "deny", tools: new Map() }],
+      ]),
+    });
+    emit({
+      id: "perm-1",
+      toolCall: { toolCallId: "tool-1", name: "mcp__other__search" },
+    });
+    await flushPromises();
+
+    // The runner is the only thing that puts `mcp__` names in front of a model, so this is a
+    // tool it advertised and could not identify — most often a display name the harness
+    // rewrote. Deferring would make it indistinguishable from a server with no policy, and
+    // inherit `allow_reads`.
+    assert.equal(seen.permission?.[0].gate.serverPermission, "deny");
+  });
+
+  it("still defers for a tool that is not MCP-shaped at all", async () => {
+    // The deliberate half of D7, pinned: `undefined` keeps exactly one meaning, so a harness
+    // builtin reaches the spec/rules/run-default ladder exactly as it always did.
+    const { session, emit } = makeSession();
+    const seen: { permission?: any[] } = {};
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {} },
+      responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
+      mcpPermissions: new Map([["github", { server: "deny", tools: new Map() }]]),
+    });
+    emit({
+      id: "perm-1",
+      toolCall: { toolCallId: "tool-1", name: "Bash", rawInput: { command: "ls" } },
+    });
+    await flushPromises();
+
+    assert.equal(seen.permission?.[0].gate.serverPermission, undefined);
+  });
+
+  it("still defers for a configured server that set no permission at all", async () => {
+    // The other deliberate half: per-tool policy is an opt-in, so a configuration written before
+    // it existed keeps reaching the run's own ladder rather than gaining a verdict here.
+    const { session, emit } = makeSession();
+    const seen: { permission?: any[] } = {};
+
+    attachPermissionResponder({
+      session,
+      run: { emitEvent: () => {} },
+      responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
+      mcpPermissions: new Map([["github", { tools: new Map() }]]),
+    });
+    emit({
+      id: "perm-1",
+      toolCall: { toolCallId: "tool-1", name: "mcp__github__search" },
+    });
+    await flushPromises();
+
+    assert.equal(seen.permission?.[0].gate.serverPermission, undefined);
+  });
+
   it("passes server-level MCP permissions into Codex dot-form harness gates", async () => {
     const { session, emit } = makeSession();
     const seen: { permission?: any[] } = {};
@@ -1091,7 +1343,9 @@ describe("attachPermissionResponder", () => {
       session,
       run: { emitEvent: () => {} },
       responder: fakeResponder({ kind: "pendingApproval" }, undefined, seen),
-      serverPermissions: new Map([["github", "deny"]]),
+      mcpPermissions: new Map([
+        ["github", { tools: new Map(), server: "deny" }],
+      ]),
     });
     emit({
       id: "perm-1",
@@ -1335,7 +1589,9 @@ describe("attachPermissionResponder: Codex ACP gates", () => {
               target: ["parameters", "agent", "skills"],
               value: {
                 name: "gstack-autoplan",
-                body: { "@ag.file": ".agenta-imports/gstack-autoplan/SKILL.md" },
+                body: {
+                  "@ag.file": ".agenta-imports/gstack-autoplan/SKILL.md",
+                },
               },
             },
           ],
@@ -2112,7 +2368,8 @@ describe("the marker-resolution log detail", () => {
       formatResolutionDetail({
         code: "source_not_found",
         message: "SKILL.md does not exist under .agenta-imports/.",
-        next_step: "Write the file under .agenta-imports/ first, then send the commit again.",
+        next_step:
+          "Write the file under .agenta-imports/ first, then send the commit again.",
         retryable: true,
         value_pointer: "/workflow_revision/delta/operations/0/value/body",
         operation_index: 0,

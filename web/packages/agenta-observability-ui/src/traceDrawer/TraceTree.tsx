@@ -4,9 +4,8 @@ import {filterKeySpans, filterTree} from "@agenta/observability"
 import type {TraceSpanNode} from "@agenta/observability"
 import {useTraceDrawer} from "@agenta/observability/traceDrawer"
 import {EnhancedButton} from "@agenta/ui/components/presentational"
-import {Divider, Input, Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
+import {Input, Popover, PopoverContent, PopoverTrigger} from "@agenta/ui/ui"
 import {Info, MagnifyingGlass, SlidersHorizontal} from "@phosphor-icons/react"
-import clsx from "clsx"
 import {useLocalStorage} from "usehooks-ts"
 
 import {TraceRow} from "../trace/TraceRow"
@@ -16,8 +15,6 @@ import TraceTreeSettings from "./TraceTreeSettings"
 import type {TraceTreeSettingsState} from "./traceTreeSettingsTypes"
 import type {TraceTreeProps} from "./traceTreeTypes"
 
-const treeHeaderClass =
-    "[&_.ant-typography]:text-sm [&_.ant-typography]:leading-[1.5714285714285714] [&_.ant-typography]:font-medium"
 const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: TraceTreeProps) => {
     const [searchValue, setSearchValue] = useState("")
 
@@ -81,7 +78,9 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
     }, [searchedTree, traceTreeSettings.visibility])
 
     const renderTraceLabel = useCallback(
-        (node: TraceSpanNode) => <TraceRow span={node} metrics={traceTreeSettings} />,
+        (node: TraceSpanNode) => (
+            <TraceRow span={node} metrics={traceTreeSettings} className="text-xs" />
+        ),
         [traceTreeSettings],
     )
 
@@ -91,12 +90,9 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
 
     return (
         <div data-testid="trace-tree" className={"h-full overflow-hidden flex flex-col"}>
-            <div
-                className={clsx(
-                    "flex items-center justify-between h-[43px] pl-2 pr-2",
-                    treeHeaderClass,
-                )}
-            >
+            {/* Same height and bottom border as the span header beside it (TraceTypeHeader), so
+                the two rows read as one. */}
+            <div className="box-border h-10 pl-4 pr-2 flex shrink-0 items-center justify-between gap-2 border-0 border-b border-solid border-colorSplit">
                 {/* antd's borderless Input with a prefix icon; the kit Input has no prefix
                     slot, so the icon sits beside it in a shared row. */}
                 <div className="flex items-center gap-2 w-full">
@@ -129,7 +125,6 @@ const TraceTree = ({activeTrace: active, activeTraceId, selected, setSelected}: 
                     </PopoverContent>
                 </Popover>
             </div>
-            <Divider className="m-0" />
 
             <div className="flex-1 min-h-0 overflow-y-auto">
                 <CustomTreeComponent

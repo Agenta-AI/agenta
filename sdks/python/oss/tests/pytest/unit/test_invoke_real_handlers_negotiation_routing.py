@@ -151,6 +151,8 @@ class _FakeBackend(Backend):
         control_command_id=None,
         effective_parameters=None,
         gateway_policy=None,
+        runner_address=None,
+        runner_replica_id=None,
     ) -> _FakeSession:
         return _FakeSession(
             AgentResult(output=self._output, events=self._events, usage={"total": 5})
@@ -183,10 +185,12 @@ def _agent_client(*, text: str = "hello world") -> TestClient:
     return TestClient(app)
 
 
-def _post_agent(client, *, headers=None, flags=None):
+def _post_agent(client, *, headers=None, flags=None, session_id=None):
     body: dict = {"data": {"inputs": {"messages": [{"role": "user", "content": "hi"}]}}}
     if flags is not None:
         body["flags"] = flags
+    if session_id is not None:
+        body["session_id"] = session_id
     with _offline_tracing():
         return client.post("/invoke", json=body, headers=headers or {})
 
@@ -374,6 +378,25 @@ def test_agent_v0_force_header_is_406():
     assert "force-not-supported" in resp.json()["status"]["type"]
 
 
+# =========================================================================== #
+# 400: an agent session_id the platform session store refuses never starts a turn.
+# The SDK's tracing id allows '.' and ':', the session store does not; before this
+# the runner's admission heartbeat got a 422 and the client a 500 "platform is busy".
+# =========================================================================== #
+@pytest.mark.parametrize(
+    "session_id", ["matrix-gpt-4.1_pi", "slack:C123", "a" * 128 + "\n"]
+)
+def test_agent_v0_invalid_session_id_is_400(session_id):
+    resp = _post_agent(_agent_client(), session_id=session_id)
+    assert resp.status_code == 400
+    assert "invalid-session-id" in resp.json()["status"]["type"]
+
+
+def test_agent_v0_valid_session_id_runs():
+    resp = _post_agent(_agent_client(), session_id="matrix-gpt-4_1_pi")
+    assert resp.status_code == 200
+
+
 def test_llm_v0_force_body_flag_is_406(_llm_client):
     resp = _post_llm(_llm_client, flags={"force": True})
     assert resp.status_code == 406
@@ -395,6 +418,34 @@ def test_force_406_body_shape_consistent_across_real_handlers(_llm_client):
     llm_status = llm_resp.json()["status"]
     assert agent_status["type"] == llm_status["type"]
     assert agent_status["code"] == llm_status["code"] == 406
+
+
+@pytest.mark.parametrize("tool", ["files.read", "files.list", "files.search"])
+@pytest.mark.parametrize("loop", [None, {"max_iterations": 1}])
+def test_llm_v0_file_tools_return_configuration_error(
+    _llm_client, monkeypatch, tool, loop
+):
+    async def unexpected_model_call(**kwargs):
+        pytest.fail("File tools must be rejected before calling the model")
+
+    monkeypatch.setattr(
+        running_handlers, "_call_llm_with_fallback", unexpected_model_call
+    )
+    with _offline_tracing():
+        response = _llm_client.post(
+            "/invoke",
+            json={
+                "data": {
+                    "parameters": {
+                        "llms": [{"model": "gpt-4o-mini"}],
+                        "tools": {"internal": [tool]},
+                        "loop": loop,
+                    }
+                }
+            },
+        )
+    assert response.status_code == 400
+    assert "tools.internal" in response.json()["status"]["message"]
 
 
 if __name__ == "__main__":

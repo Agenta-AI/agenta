@@ -24,12 +24,16 @@ INFRA_SETTLE_SECONDS="${RAILWAY_INFRA_SETTLE_SECONDS:-40}"
 APP_SETTLE_SECONDS="${RAILWAY_APP_SETTLE_SECONDS:-60}"
 ALEMBIC_MAX_ATTEMPTS="${RAILWAY_ALEMBIC_MAX_ATTEMPTS:-3}"
 REDIS_IMAGE="${REDIS_IMAGE:-$(require_compose_redis_image "$SOURCE_COMPOSE_FILE")}"
-# Pin a 4.37-era SeaweedFS: its advanced IAM (the STS path mounts need) regressed in other releases.
-SEAWEEDFS_IMAGE="${SEAWEEDFS_IMAGE:-chrislusf/seaweedfs:4.37}"
+# Pin SeaweedFS: its advanced IAM (the STS path mounts need) regressed in other releases, and
+# older builds keep listing a pre-versioning object after its delete marker
+# is written, so a deleted file reappears in a geesefs mount and cannot be read.
+# Never go below 4.42.
+SEAWEEDFS_IMAGE="${SEAWEEDFS_IMAGE:-chrislusf/seaweedfs:4.47}"
 
 AGENTA_API_IMAGE="${AGENTA_API_IMAGE:-}"
 AGENTA_WEB_IMAGE="${AGENTA_WEB_IMAGE:-}"
-# Optional: the mobile app is opt-in (see bootstrap.sh AGENTA_RAILWAY_WITH_MOBILE).
+# Optional here only because an environment bootstrapped before web-mobile became
+# standard may still lack the service; bootstrap.sh now always creates it.
 AGENTA_WEB_MOBILE_IMAGE="${AGENTA_WEB_MOBILE_IMAGE:-}"
 AGENTA_SERVICES_IMAGE="${AGENTA_SERVICES_IMAGE:-}"
 AGENTA_RUNNER_IMAGE="${AGENTA_RUNNER_IMAGE:-}"
@@ -162,7 +166,7 @@ ENV REDIS_URI_VOLATILE=redis://redis.railway.internal:6379/0
 ENV REDIS_URI_DURABLE=redis://redis.railway.internal:6379/0
 ENV SUPERTOKENS_CONNECTION_URI=http://supertokens.railway.internal:3567
 
-CMD ["gunicorn", "entrypoints.routers:app", "--bind", "0.0.0.0:8000", "--worker-class", "uvicorn.workers.UvicornWorker", "--workers", "2", "--max-requests", "10000", "--max-requests-jitter", "1000", "--timeout", "60", "--graceful-timeout", "60", "--log-level", "info", "--access-logfile", "-", "--error-logfile", "-"]
+CMD ["gunicorn", "entrypoints.routers:app", "--bind", "0.0.0.0:8000", "--worker-class", "entrypoints.uvicorn_worker.DrainingUvicornWorker", "--workers", "2", "--max-requests", "100000", "--max-requests-jitter", "10000", "--timeout", "60", "--graceful-timeout", "900", "--log-level", "info", "--access-logfile", "-", "--error-logfile", "-"]
 EOF
 }
 

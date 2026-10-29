@@ -155,6 +155,12 @@ export {Tag, type TagProps, type SyncState} from "./tag"
 // ============================================================================
 
 export {
+    AgentActivityDots,
+    type AgentActivityDotsProps,
+    type AgentActivityFormat,
+} from "./activity-dots"
+
+export {
     environmentColors,
     StatusIndicator,
     type StatusIndicatorProps,
@@ -235,12 +241,19 @@ export {
 } from "./table-states"
 
 // ============================================================================
+// SCREEN STATE COMPONENTS
+// ============================================================================
+
+export {LoadError, type LoadErrorProps} from "./states"
+
+// ============================================================================
 // METRICS COMPONENTS
 // ============================================================================
 
 export {
     ExecutionMetricsDisplay,
     MetaSeparator,
+    TokenBreakdownList,
     type ExecutionMetricsDisplayProps,
     type ExecutionMetricsData,
 } from "./metrics"

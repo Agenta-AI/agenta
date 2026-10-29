@@ -74,7 +74,6 @@ export {
     type QueryState as MoleculeQueryState,
     // Atom family types
     type AtomFamily,
-    type WritableAtomFamily,
     type FlexibleWritableAtomFamily,
     // Core molecule types
     type MoleculeAtoms,
@@ -86,7 +85,6 @@ export {
     // Lifecycle types
     type LifecycleCallback,
     type LifecycleUnsubscribe,
-    type LifecycleEvent,
     type MoleculeLifecycle,
     type LifecycleConfig,
     // React hook types
@@ -110,20 +108,15 @@ export {
     type LocalQueryState,
     // Cache types
     type CacheKeyConfig,
-    type CacheRedirectEntry,
     type CacheConfig,
     // Composition types
     type MoleculeRelation,
-    type MoleculeWithRelations,
     // Type utilities
-    type InferSchemaType,
     type ServerEntity,
     type LocalEntity,
     type AnyEntity,
     // Helper functions
     isLocalEntity,
-    isServerEntity,
-    getEntityId,
     // ============================================================================
     // PUBLIC API INTERFACES (Clean entity controller pattern)
     // ============================================================================
@@ -132,18 +125,11 @@ export {
     // Capability interfaces
     type RunnableCapability,
     type LoadableCapability,
-    // Combined entity types
-    type RunnableEntity,
-    type LoadableEntity,
-    type RunnableLoadableEntity,
     // Entity meta capability
     type EntityMetaFieldMap,
     type EntityMetaAtoms,
     type EntityMetaGetters,
     type EntityMetaCapability,
-    type MetaEntity,
-    type RunnableMetaEntity,
-    type LoadableMetaEntity,
 } from "./types"
 
 // Entity meta capability mixin

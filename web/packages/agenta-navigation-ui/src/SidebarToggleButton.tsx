@@ -32,6 +32,8 @@ export const SidebarToggleButton = ({
                 // extending only the POINTER area, which left a hover fill visibly smaller than
                 // the thing you were pointing at.
                 "shrink-0 !size-7 !p-0",
+                // 4px nearer the rail's right edge on the expanded rail only; collapsed, it centres.
+                !collapsed && "-mr-1",
                 className,
             )}
             aria-label={onDismiss ? "Close navigation" : undefined}

@@ -1303,7 +1303,7 @@ deferred risk.
 
 - GitButler target at start: `origin/release/v0.112.0` at `965851e15d`.
 - Applied stacks at start: none.
-- Deployment: `http://144.76.237.122:8280`.
+- Deployment: `http://<dev-host>:8280`.
 - Compose project: `agenta-ee-dev-wp-b2-rendering`.
 - Postgres published port: 5434.
 

@@ -9,7 +9,10 @@ import {useCommitHostAdapter} from "../useCommitHostAdapter"
  * not live in the entities layer) plus the onboarding event.
  */
 const CommitVariantChangesButton = (
-    props: Omit<CommitVariantChangesButtonProps, "appId" | "onAfterCommit" | "onCommitted">,
+    props: Omit<
+        CommitVariantChangesButtonProps,
+        "appId" | "onAfterCommit" | "onCommitted" | "createVisibility"
+    >,
 ) => {
     const host = useCommitHostAdapter()
 

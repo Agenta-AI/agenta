@@ -10,7 +10,7 @@ import {Tag} from "antd"
 /**
  * Badge — the @agenta/ui primitive that consolidates 7 current tag/status presets
  * (DraftTag, SyncStateTag, StatusTag, SourceIndicator, VersionBadge, MappingStatusTag,
- * TypeChip) into one component + variants. See antd-inventory/agenta-ui-consolidation.md.
+ * TypeChip) into one component + variants. See docs/design/antd-migration/agenta-ui-consolidation.md.
  *
  * This file is the ACCEPTANCE BASELINE: it renders the real presets as they render today.
  * The consolidated @agenta/ui `Badge` (built next) lands beside them and must match pixel-for-pixel.

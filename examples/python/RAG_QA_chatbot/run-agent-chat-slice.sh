@@ -103,6 +103,5 @@ echo "          the agent backend and the web app."
 echo ""
 
 cd "$WEB_DIR"
-NEXT_PUBLIC_AGENT_CHAT_SLICE=true \
-  ${AGENT_CHAT_TRACK:+NEXT_PUBLIC_AGENT_CHAT_TRACK="$AGENT_CHAT_TRACK"} \
+env ${AGENT_CHAT_TRACK:+NEXT_PUBLIC_AGENT_CHAT_TRACK="$AGENT_CHAT_TRACK"} \
   pnpm --filter "$APP_FILTER" dev

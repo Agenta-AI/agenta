@@ -4,7 +4,13 @@ from datetime import datetime, timezone
 
 from oss.src.dbs.postgres.secrets.dbes import SecretsDBE
 from oss.src.core.secrets.managed import SecretManagementDTO
+from oss.src.core.secrets.enums import (
+    SecretAvailability,
+    SecretOwnerKind,
+    is_always_write_only,
+)
 from oss.src.core.secrets.dtos import (
+    SecretOwner,
     Header,
     SecretKind,
     LegacyLifecycleDTO,
@@ -15,7 +21,10 @@ from oss.src.core.secrets.dtos import (
 
 
 # Server-controlled metadata rides inside encrypted JSON, so no schema migration is needed.
-# Rows without the keys read as write_only=False and management=None.
+# Rows without the keys read as management=None, and as write_only=False EXCEPT on a kind the
+# server never lets be readable, where the absence is read as write-only instead. See
+# `is_always_write_only`: that is what lets an already-stored OAuth grant be safe without a
+# migration.
 _WRITE_ONLY_KEY = "write_only"
 _MANAGEMENT_KEY = "management"
 
@@ -54,7 +63,11 @@ def map_secrets_dto_to_dbe(
         organization_id=organization_id,
         kind=secret_dto.secret.kind.value,
         data=_data_payload(
-            secret_dto.secret.data.model_dump(exclude_none=True),
+            # `mode="json"` because the payload is JSON: a field typed as anything but
+            # a JSON primitive (a `UUID`, a `datetime`) reaches `json.dumps` as the
+            # object itself otherwise and raises. Every field that predates this was
+            # already JSON-native, so nothing else renders differently.
+            secret_dto.secret.data.model_dump(mode="json", exclude_none=True),
             write_only=bool(secret_dto.write_only),
             management=management,
         ),
@@ -79,7 +92,14 @@ def map_secrets_dto_to_dbe_update(
 
     stored_data = json.loads(secrets_dbe.data)
 
-    write_only = bool(stored_data.get(_WRITE_ONLY_KEY))
+    # Carried over rather than re-decided, because `write_only` is the creator's choice and an
+    # update must not change it. The one exception is the kind that may never be readable: a
+    # row stored before the rule carries no mark, and writing the payload back without one
+    # would keep it unmarked for good. The kind comes off the row, not the request, so a body
+    # cannot move a secret into or out of this.
+    write_only = is_always_write_only(secrets_dbe.kind) or bool(
+        stored_data.get(_WRITE_ONLY_KEY)
+    )
     management_data = stored_data.get(_MANAGEMENT_KEY)
     management = (
         SecretManagementDTO.model_validate(management_data)
@@ -93,7 +113,7 @@ def map_secrets_dto_to_dbe_update(
         ).items():
             if key == "data" and hasattr(secrets_dbe, key):
                 secrets_dbe.data = _data_payload(
-                    update_secret_dto.secret.data.model_dump(),
+                    update_secret_dto.secret.data.model_dump(mode="json"),
                     write_only=write_only,
                     management=management,
                 )
@@ -101,15 +121,53 @@ def map_secrets_dto_to_dbe_update(
                 setattr(secrets_dbe, key, value)
 
 
-def map_secrets_dbe_to_dto(*, secrets_dbe: SecretsDBE) -> SecretResponseDTO:
+def _secret_kind(kind) -> SecretKind:
+    """The kind as the enum, from the ORM (a member) or from raw SQL (the Postgres enum
+    label, which is the member NAME, for example `PROVIDER_KEY`)."""
+    if isinstance(kind, SecretKind):
+        return kind
+    try:
+        return SecretKind(kind)
+    except ValueError:
+        return SecretKind[kind]
+
+
+def _owner_of(row) -> SecretOwner | None:
+    project_id = getattr(row, "project_id", None)
+    if project_id is not None:
+        return SecretOwner(kind=SecretOwnerKind.PROJECT, id=project_id)
+    organization_id = getattr(row, "organization_id", None)
+    if organization_id is not None:
+        return SecretOwner(kind=SecretOwnerKind.ORGANIZATION, id=organization_id)
+    return None
+
+
+def map_secrets_dbe_to_dto(
+    *,
+    secrets_dbe,
+    selected_project_ids: list | None = None,
+) -> SecretResponseDTO:
+    """Map a stored row (an ORM `SecretsDBE`, or a raw row with the same column names and
+    a decrypted `data`) to the trusted DTO, with its owner.
+
+    `availability` is set on organization rows only; `selected_project_ids` only when the
+    caller read them (management reads)."""
     data = json.loads(secrets_dbe.data)  # type: ignore
     write_only = bool(data.pop(_WRITE_ONLY_KEY, False))
     management = data.pop(_MANAGEMENT_KEY, None)
+    owner = _owner_of(secrets_dbe)
+
+    availability = None
+    if owner is not None and owner.kind == SecretOwnerKind.ORGANIZATION:
+        availability = SecretAvailability(
+            getattr(secrets_dbe, "availability", None)
+            or SecretAvailability.ALL_PROJECTS.value
+        )
 
     vault_secret_dto = SecretResponseDTO(
         id=secrets_dbe.id,  # type: ignore
         slug=secrets_dbe.slug,
-        kind=SecretKind(secrets_dbe.kind).value,
+        kind=_secret_kind(secrets_dbe.kind).value,
         data=data,
         header=Header(name=secrets_dbe.name, description=secrets_dbe.description),
         lifecycle=LegacyLifecycleDTO(
@@ -118,6 +176,9 @@ def map_secrets_dbe_to_dto(*, secrets_dbe: SecretsDBE) -> SecretResponseDTO:
         ),
         write_only=write_only,
         management=management,
+        owner=owner,
+        availability=availability,
+        selected_project_ids=selected_project_ids,
     )
 
     return vault_secret_dto

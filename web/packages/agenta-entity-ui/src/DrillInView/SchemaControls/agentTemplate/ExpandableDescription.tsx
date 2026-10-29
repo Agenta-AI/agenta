@@ -1,5 +1,8 @@
-/** A description that clamps, offering Show more only when clamping really hid something. */
+/** A description that clamps, and toggles open on click only when clamping really hid something. */
 import {useId, useLayoutEffect, useState} from "react"
+
+import {touchTargetExpansion} from "@agenta/ui/ui"
+import {CaretDown} from "@phosphor-icons/react"
 
 import {isDescriptionTruncatable} from "../integrationPolicy"
 
@@ -66,33 +69,47 @@ export function ExpandableDescription({
     const truncatable = isDescriptionTruncatable(text, overflows)
     const clamp = CLAMP[lines] ?? CLAMP[1]
 
+    const textClass = `${TEXT_CLASS} ${expanded ? EXPANDED_CLASS : clamp}`
+
+    if (!truncatable) {
+        return (
+            <span id={textId} ref={setPreview} className={textClass}>
+                {text}
+            </span>
+        )
+    }
+
+    // The description is its own toggle, with a caret, so a row spends no line on a link.
     return (
-        <>
+        <button
+            type="button"
+            aria-expanded={expanded}
+            aria-controls={textId}
+            aria-label={
+                label ? `${expanded ? "Show less" : "Show more"} about ${label}` : undefined
+            }
+            onClick={(event) => {
+                // Rows whose whole surface is clickable must not also toggle on this.
+                event.stopPropagation()
+                setExpanded(!expanded)
+            }}
+            // The invisible expansion carries the 24px floor to the 44px touch minimum.
+            className={`group/desc flex min-h-control-xs w-full min-w-0 cursor-pointer gap-1 border-0 bg-transparent p-0 text-left font-[inherit] ${expanded ? "items-start" : "items-center"} ${touchTargetExpansion({height: 24, border: 0})}`}
+        >
             <span
                 id={textId}
                 ref={setPreview}
-                className={`${TEXT_CLASS} ${expanded ? EXPANDED_CLASS : clamp}`}
+                className={`min-w-0 flex-1 transition-colors group-hover/desc:text-[var(--ag-colorTextSecondary)] ${textClass}`}
             >
                 {text}
             </span>
-            {truncatable ? (
-                <button
-                    type="button"
-                    aria-expanded={expanded}
-                    aria-controls={textId}
-                    aria-label={
-                        label ? `${expanded ? "Show less" : "Show more"} about ${label}` : undefined
-                    }
-                    onClick={(event) => {
-                        // Rows whose whole surface is clickable must not also toggle on this.
-                        event.stopPropagation()
-                        setExpanded(!expanded)
-                    }}
-                    className="mt-1 w-fit cursor-pointer border-0 bg-transparent p-0 text-xs text-[var(--ag-colorLink)]"
-                >
-                    {expanded ? "Show less" : "Show more"}
-                </button>
-            ) : null}
-        </>
+            <CaretDown
+                aria-hidden
+                size={10}
+                className={`shrink-0 text-[var(--ag-colorTextTertiary)] transition-transform ${
+                    expanded ? "mt-[3px] rotate-180" : ""
+                }`}
+            />
+        </button>
     )
 }

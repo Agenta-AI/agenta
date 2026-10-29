@@ -15,10 +15,12 @@ import {
     FILES_PANE_MAX,
     FILES_PANE_MIN,
     filesPaneWidthAtom,
+    phoneViewportAtom,
     sessionStatusAtomFamily,
     useCanPanesCoexist,
+    useFilesPaneLayout,
 } from "@agenta/chat/state"
-import {commandSessionStream} from "@agenta/entities/session"
+import {cancelSessionExecution} from "@agenta/entities/session"
 import {workflowMolecule} from "@agenta/entities/workflow"
 import {DriveSessionProvider} from "@agenta/entity-ui/drive"
 import {SIDEBAR_DEFAULT_WIDTH} from "@agenta/navigation"
@@ -87,7 +89,7 @@ const RAIL_MAX_WIDTH = 480
  * AgentChatPanel — the agent-generation surface hosted INSIDE the playground (the third
  * generation arm beside chat and completion).
  *
- * Single view keeps the slice's session tab bar (design decision D2): parallel conversations,
+ * Single view keeps the slice's session tab bar: parallel conversations,
  * add with `+`, close with `×`, double-click to rename — rendered as a row of status-dotted tags
  * (`SessionTagBar`) whose bottom edge aligns with the config panel header. Sessions are app-scoped
  * (shared with the rest of the playground) and persist to localStorage, so tabs survive a reload;
@@ -118,7 +120,7 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
         (id: string) => {
             const status = store.get(sessionStatusAtomFamily(id))
             if (projectId && shouldCancelRunOnClose({status, projectId})) {
-                commandSessionStream({sessionId: id, projectId}).catch(() => {})
+                cancelSessionExecution({sessionId: id, projectId}).catch(() => {})
             }
         },
         [projectId, store],
@@ -254,6 +256,10 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
     // like the config pane on the other side: its divider runs to the top and the session bar
     // stays confined to the chat. Follows the ACTIVE session (openers set per-session atoms).
     const filesPane = useSessionFilesPane(activeId ?? "")
+    const filesLayout = useFilesPaneLayout(`w:${scope}`, activeId ?? "", filesPane.open)
+    const filesExpanded = filesLayout.expanded
+    const phoneViewport = useAtomValue(phoneViewportAtom)
+    const fullWidthFiles = filesExpanded || (phoneViewport && filesPane.open)
 
     useSessionShortcuts({
         sessions,
@@ -378,13 +384,14 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
         // revision drawer also hosts this panel with its own chat scope, and the rail must follow it.
         <SplitPane
             paneSide="start"
-            paneSize={chatMaximized ? railSize : 0}
+            paneSize={chatMaximized && !fullWidthFiles ? railSize : 0}
+            paneClassName={fullWidthFiles ? "hidden" : undefined}
             paneMin={chatMaximized ? RAIL_MIN_WIDTH : 0}
             paneMax={RAIL_MAX_WIDTH}
             fillMin={320}
-            resizable={chatMaximized}
+            resizable={chatMaximized && !fullWidthFiles}
             animate={animateRailSplit}
-            barHidden={!chatMaximized}
+            barHidden={!chatMaximized || fullWidthFiles}
             className="h-full min-h-0 min-w-0 w-full"
             onResize={(size) => {
                 if (chatMaximized) setRailSize(size)
@@ -393,7 +400,10 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                 /* `inert` drops the clipped rail from tab order + a11y while collapsed. Flex-bounded
                    (not a plain h-full cascade) so the rail's session list actually scrolls — a bare
                    h-full chain through the fade wrapper grew with content and never bounded. */
-                <div className="flex h-full min-h-0 w-full flex-col" inert={!chatMaximized}>
+                <div
+                    className="flex h-full min-h-0 w-full flex-col"
+                    inert={!chatMaximized || fullWidthFiles}
+                >
                     {/* Rail pane is width-0 unless maximized, so no visible fallback is needed. */}
                     <Suspense fallback={null}>
                         {/* min-w matches RAIL_MIN_WIDTH (Tailwind needs the literal). */}
@@ -414,13 +424,18 @@ const AgentChatPanel = ({entityId}: {entityId: string}) => {
                    collapses to 0; the bar's "«" and the pane header's "»" both drive it. */
                 <RightPanelSplit
                     open={filesPane.open}
+                    expanded={fullWidthFiles}
                     widthAtom={filesPaneWidthAtom}
                     min={FILES_PANE_MIN}
                     max={FILES_PANE_MAX}
                     panel={
                         activeId ? (
                             <DriveSessionProvider sessionId={activeId} artifactId={artifactId}>
-                                <SessionFilesPane sessionId={activeId} />
+                                <SessionFilesPane
+                                    sessionId={activeId}
+                                    expanded={filesExpanded}
+                                    onToggleExpand={filesLayout.toggleExpand}
+                                />
                             </DriveSessionProvider>
                         ) : null
                     }

@@ -14,8 +14,9 @@
  *    loads it into the input; this card only MARKS which row is under edit and offers the way out.
  *    See `useAgentChatQueue.commitEdit` for what the resulting send does.
  */
-import {memo, useEffect, useRef, useState} from "react"
+import {memo, useEffect, useMemo, useRef, useState} from "react"
 
+import {splitQuotedMessage, truncateQuoteText, type QuotedExcerpt} from "@agenta/shared/quotes"
 import {getCollapseLabel} from "@agenta/ui/components/presentational"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
 import {Button} from "@agenta/ui/ui"
@@ -23,6 +24,7 @@ import {
     CaretUp,
     File as FileIcon,
     PencilSimple,
+    Quotes,
     SpeakerHigh,
     Stack,
     Trash,
@@ -41,8 +43,9 @@ const CARD_SURFACE =
 const BODY_MAX_H = "max-h-40"
 
 /** Shared tile chrome, so the count block and the type icon read as the same object. */
-const TILE =
-    "inline-flex size-5 shrink-0 items-center justify-center rounded border border-solid border-colorBorderSecondary"
+const TILE_CHROME =
+    "inline-flex h-5 shrink-0 items-center justify-center rounded border border-solid border-colorBorderSecondary"
+const TILE = `${TILE_CHROME} w-5`
 
 /** One attachment tile: image thumbnail, else a type icon. Sized to sit inside a 32px row. */
 const Attachment = ({part}: {part: FileUIPart}) => {
@@ -87,6 +90,23 @@ const Attachments = ({files}: {files: FileUIPart[]}) => {
     )
 }
 
+/** A quoted reply's excerpts as one tile, so the row reads as the reply, not as raw markdown. */
+const QuoteTile = ({quotes}: {quotes: QuotedExcerpt[]}) => {
+    const label = quotes.length === 1 ? "1 quote" : `${quotes.length} quotes`
+    return (
+        <span
+            role="img"
+            aria-label={label}
+            title={quotes.map((q) => `${q.origin}: ${truncateQuoteText(q.text, 80)}`).join("\n")}
+            // Widens to fit a count.
+            className={`${TILE_CHROME} min-w-5 gap-0.5 bg-colorFillTertiary px-1 text-[10px] font-medium tabular-nums text-colorTextSecondary`}
+        >
+            <Quotes size={11} aria-hidden />
+            {quotes.length > 1 ? quotes.length : null}
+        </span>
+    )
+}
+
 const Row = ({
     message,
     editing,
@@ -95,6 +115,7 @@ const Row = ({
     onCancelEdit,
     onRemove,
     onSendNow,
+    sendNowBlocked,
 }: {
     message: QueuedMessage
     editing: boolean
@@ -102,11 +123,14 @@ const Row = ({
     onEdit?: (message: QueuedMessage) => void
     onCancelEdit?: () => void
     onRemove: (id: string) => void
-    onSendNow?: (id: string) => Promise<void>
+    onSendNow?: (id: string) => void
+    sendNowBlocked: boolean
 }) => {
-    const [sending, setSending] = useState(false)
-    const [error, setError] = useState<string | null>(null)
-    const text = message.text.trim()
+    const {quotes, text} = useMemo(() => splitQuotedMessage(message.text.trim()), [message.text])
+    // A bare quote with no reply shows its excerpt instead.
+    const excerpt = !text && quotes.length ? truncateQuoteText(quotes[0].text) : ""
+    // A steer or promoted row is already on its way; any other waits while one is.
+    const sendingThis = message.policy === "steer" || !!message.promotedExecutionId
     const files = message.fileParts ?? []
     const attachmentCount = Math.max(files.length, message.attachmentCount ?? 0)
     return (
@@ -116,9 +140,17 @@ const Row = ({
             }`}
         >
             {files.length > 0 && <Attachments files={files} />}
+            {quotes.length > 0 && <QuoteTile quotes={quotes} />}
             {text ? (
                 <span title={text} className="min-w-0 flex-1 truncate text-xs text-colorText">
                     {text}
+                </span>
+            ) : excerpt ? (
+                <span
+                    title={quotes[0].text}
+                    className="min-w-0 flex-1 truncate text-xs text-colorTextSecondary"
+                >
+                    {excerpt}
                 </span>
             ) : (
                 <span className="min-w-0 flex-1 truncate text-xs italic text-colorTextTertiary">
@@ -138,20 +170,15 @@ const Row = ({
                         size="sm"
                         variant="ghost"
                         className={`h-6 !text-xs text-colorTextSecondary ${touchCls}`}
-                        disabled={sending || editing}
-                        onClick={async () => {
-                            setSending(true)
-                            setError(null)
-                            try {
-                                await onSendNow(message.id)
-                            } catch {
-                                setError("Could not send this queued message. Try again.")
-                            } finally {
-                                setSending(false)
-                            }
-                        }}
+                        disabled={editing || sendingThis || sendNowBlocked || !!message.saving}
+                        title={
+                            !sendingThis && sendNowBlocked
+                                ? "Another message is being sent first"
+                                : undefined
+                        }
+                        onClick={() => onSendNow(message.id)}
                     >
-                        {sending || message.policy === "steer" ? "Sending" : "Send Now"}
+                        {sendingThis ? "Sending" : "Send Now"}
                     </Button>
                 ) : null}
                 {editing ? (
@@ -169,24 +196,40 @@ const Row = ({
                         variant="ghost"
                         aria-label="Edit queued message"
                         className={`size-6 text-colorTextTertiary hover:text-colorText ${touchCls}`}
-                        onClick={() => onEdit(message)}
+                        // A failed edit comes back, not the text it would have replaced.
+                        onClick={() =>
+                            onEdit(
+                                message.unsavedEdit
+                                    ? {
+                                          ...message,
+                                          text: message.unsavedEdit.text,
+                                          fileParts:
+                                              message.unsavedEdit.fileParts ?? message.fileParts,
+                                      }
+                                    : message,
+                            )
+                        }
                     >
                         <PencilSimple size={13} />
                     </Button>
                 ) : null}
-                <Button
-                    size="icon-sm"
-                    variant="ghost"
-                    aria-label="Remove queued message"
-                    className={`size-6 text-colorTextTertiary hover:text-colorText ${touchCls}`}
-                    onClick={() => onRemove(message.id)}
-                >
-                    <Trash size={13} />
-                </Button>
+                {/* A local row has started, unless it is a just-sent one marked removable. */}
+                {(message.removable ?? message.source !== "local") ? (
+                    <Button
+                        size="icon-sm"
+                        variant="ghost"
+                        aria-label="Remove queued message"
+                        disabled={!!message.saving}
+                        className={`size-6 text-colorTextTertiary hover:text-colorText ${touchCls}`}
+                        onClick={() => onRemove(message.id)}
+                    >
+                        <Trash size={13} />
+                    </Button>
+                ) : null}
             </span>
-            {error ? (
+            {message.error ? (
                 <span role="alert" className="basis-full pb-1 text-xs text-colorError">
-                    {error}
+                    {message.error}
                 </span>
             ) : null}
         </div>
@@ -199,7 +242,9 @@ export interface QueuedMessagesDockProps {
     /** The run is parked on the user (HITL), so the queue is held rather than merely waiting. */
     held?: boolean
     onRemove: (id: string) => void
-    onSendNow?: (id: string) => Promise<void>
+    onSendNow?: (id: string) => void
+    /** A stop is already carrying one message into the next turn, so Send Now waits for it. */
+    sendNowBlocked?: boolean
     /** Hand a row's content to the host's composer. Omit on surfaces without an editable input. */
     onEdit?: (message: QueuedMessage) => void
     /** Abandon the edit; the host puts the stashed draft back. */
@@ -216,6 +261,7 @@ const QueuedMessagesDock = ({
     held = false,
     onRemove,
     onSendNow,
+    sendNowBlocked = false,
     onEdit,
     onCancelEdit,
     editingId = null,
@@ -287,7 +333,8 @@ const QueuedMessagesDock = ({
                 <div ref={bodyRef} className={`${BODY_MAX_H} overflow-y-auto px-1 pb-1`}>
                     {queued.map((message) => (
                         <Row
-                            key={message.id}
+                            // The send's id: the server copy takes over the just-sent row in place.
+                            key={message.clientId ?? message.id}
                             message={message}
                             editing={message.id === editingId}
                             touchCls={touchCls}
@@ -295,6 +342,7 @@ const QueuedMessagesDock = ({
                             onCancelEdit={onCancelEdit}
                             onRemove={onRemove}
                             onSendNow={onSendNow}
+                            sendNowBlocked={sendNowBlocked}
                         />
                     ))}
                 </div>

@@ -12,7 +12,7 @@
  */
 import {useCallback, useEffect, useRef, useState} from "react"
 
-import {isHiddenPath} from "@agenta/entities/drive"
+import {isHiddenPath, nameOf} from "@agenta/entities/drive"
 import {type MountFile} from "@agenta/entities/session"
 import {message} from "@agenta/ui/app-message"
 
@@ -28,7 +28,6 @@ const dirOf = (path: string) => {
     const slash = path.lastIndexOf("/")
     return slash === -1 ? "" : path.slice(0, slash)
 }
-const nameOf = (path: string) => path.slice(path.lastIndexOf("/") + 1)
 
 const label = (paths: string[]) =>
     paths.length === 1 ? `Uploaded ${nameOf(paths[0])}` : `Uploaded ${paths.length} files`

@@ -1,4 +1,4 @@
-from typing import Callable, Optional, Dict
+from typing import Any, Callable, Optional, Dict
 from os import getenv
 from json import dumps
 
@@ -69,6 +69,11 @@ _CACHE_ENABLED = (
     or "true"
 ).lower() in TRUTHY
 
+# The exchange answer is cached as in M1 (the middleware TTL, 60 s by default): it saves
+# one API call per services request. A run started with a cached credential after its
+# principal lost access is refused at its first checked call with a clear 403
+# `access_denied` (the agent connection resolution maps the API's refusal).
+
 _ALWAYS_ALLOW_LIST = [
     "/health",
     f"{AGENTA_RUNTIME_PREFIX}/health",
@@ -103,6 +108,20 @@ class DenyException(Exception):
         self.status_code = status_code
         self.content = content
         self.headers = headers
+
+
+def _structured_denial(response) -> Optional[Dict[str, Any]]:
+    """The API's agent-visible refusal (`{"code": "access_denied", ...}`), when the
+    exchange answered with one, so the caller learns why (for example `not_member`)."""
+
+    try:
+        body = response.json()
+    except ValueError:
+        return None
+    detail = body.get("detail") if isinstance(body, dict) else None
+    if isinstance(detail, dict) and detail.get("code"):
+        return detail
+    return None
 
 
 async def get_credentials(
@@ -225,7 +244,8 @@ async def get_credentials(
                 elif response.status_code == 403:
                     raise DenyException(
                         status_code=403,
-                        content="Permission denied. Please check your permissions or contact your administrator.",
+                        content=_structured_denial(response)
+                        or "Permission denied. Please check your permissions or contact your administrator.",
                     )
                 elif response.status_code == 429:
                     resp_headers = {

@@ -45,6 +45,22 @@ SessionId = Annotated[
 ]
 
 
+class CurrentSessionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    session_id: SessionId
+
+
+class CurrentSessionResponse(BaseModel):
+    session_id: str
+    name: str | None = None
+    url: str | None = None
+    url_unavailable_reason: (
+        Literal["agent_reference_missing", "workspace_missing", "web_url_unavailable"]
+        | None
+    ) = None
+
+
 class SessionPredicatesRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -124,9 +140,12 @@ class SessionResponse(BaseModel):
 
 
 class SessionCapabilities(BaseModel):
-    durable_approvals: bool = False
-    queue: bool = False
-    steer: bool = False
+    # Durable approvals, queue and steer are always on. The fields stay, pinned true, for
+    # one release so open tabs on an older web bundle still read them; remove them in the
+    # release after.
+    durable_approvals: bool = True
+    queue: bool = True
+    steer: bool = True
 
 
 class SessionExecutionSnapshot(BaseModel):
@@ -171,6 +190,23 @@ class SessionStreamQueryRequest(BaseModel):
 class SessionStreamResponse(BaseModel):
     stream: Optional[SessionStream] = None
     capabilities: SessionCapabilities = Field(default_factory=SessionCapabilities)
+    runner_address: str = Field(
+        default="",
+        description=(
+            "The address of the runner pod that ran the stream's last turn. Filled only for a "
+            "caller that proves it is runner infrastructure; empty when unknown. A routing "
+            "hint, not proof that the pod is alive."
+        ),
+    )
+    runner_replica_id: str = Field(
+        default="",
+        description=(
+            "The replica id of the runner pod at runner_address. The caller checks it against "
+            "the pod's health answer before it uses the address, because a dead pod's IP can "
+            "pass to another pod. Filled under the same condition as runner_address; empty "
+            "when unknown."
+        ),
+    )
 
 
 class SessionStreamsResponse(BaseModel):
@@ -206,6 +242,15 @@ class SessionRecordsQueryResponse(BaseModel):
     count: int
     records: List[SessionRecord]
     windowing: Optional[SessionTranscriptWindowing] = None
+    # A runner reported that this log lost a record, so it must not rebuild model context.
+    records_incomplete: bool = False
+
+
+class SessionRecordsIncompleteRequest(BaseModel):
+    # No project_id: scope comes from the caller's credential (request.state).
+    session_id: str
+    # The turn whose record was dropped; kept in the log line, not stored.
+    turn_id: Optional[str] = None
 
 
 class SessionSnapshotPending(BaseModel):

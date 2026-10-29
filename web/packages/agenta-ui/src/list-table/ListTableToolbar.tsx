@@ -1,8 +1,13 @@
 import type {ReactNode} from "react"
 
-import {Search} from "lucide-react"
+import {Search, X} from "lucide-react"
 
-import {InputGroup, InputGroupAddon, InputGroupInput} from "../components/ui/input-group"
+import {
+    InputGroup,
+    InputGroupAddon,
+    InputGroupButton,
+    InputGroupInput,
+} from "../components/ui/input-group"
 import {cn} from "../components/ui/utils"
 
 /**
@@ -42,6 +47,17 @@ export const ListTableToolbar = ({
                 aria-label={searchAriaLabel ?? searchPlaceholder}
                 className="text-[13px] md:text-[13px]"
             />
+            {search ? (
+                <InputGroupAddon align="inline-end">
+                    <InputGroupButton
+                        size="icon-xs"
+                        aria-label="Clear search"
+                        onClick={() => onSearchChange("")}
+                    >
+                        <X size={14} aria-hidden />
+                    </InputGroupButton>
+                </InputGroupAddon>
+            ) : null}
         </InputGroup>
         {actions}
     </div>

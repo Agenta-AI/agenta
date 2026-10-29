@@ -19,7 +19,7 @@ function DocCardListItem({
   item: ComponentProps<typeof DocCard>['item'];
 }) {
   return (
-    <article className={clsx(styles.docCardListItem, 'col col--12')}>
+    <article className={styles.docCardListItem}>
       <DocCard item={item} />
     </article>
   );
@@ -32,7 +32,7 @@ export default function DocCardList(props: Props): ReactNode {
   }
   const filteredItems = filterDocCardListItems(items);
   return (
-    <section className={clsx('row', className)}>
+    <section className={clsx(styles.docCardList, className)}>
       {filteredItems.map((item, index) => (
         <DocCardListItem key={index} item={item} />
       ))}

@@ -1,6 +1,6 @@
 import {useCallback} from "react"
 
-import {AutomationDrawer} from "@agenta/automation-ui"
+import {automationRunHistoryDrawerAtom} from "@agenta/automation-ui"
 import {configPanelCollapsedAtom} from "@agenta/chat/state"
 import type {TriggerOwnerRef} from "@agenta/entity-ui/drill-in"
 import {StorageFilesHeader, StorageSection} from "@agenta/entity-ui/drive"
@@ -9,9 +9,8 @@ import {AgentConfigHeader} from "@agenta/playground-ui/agent-config-header"
 import {shortcutAria} from "@agenta/shared/utils"
 import {ShortcutKeys} from "@agenta/ui/shortcuts"
 import {Button, SimpleTooltip} from "@agenta/ui/ui"
+import {Sidebar} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
-import {ChevronsLeft} from "lucide-react"
-import {useRouter} from "next/router"
 
 import {DrillInBridgeProvider} from "./DrillInBridgeProvider"
 
@@ -29,24 +28,23 @@ import {DrillInBridgeProvider} from "./DrillInBridgeProvider"
 export const ConfigPane = ({
     entityId,
     sessionId,
-    workspaceId,
+    filesScope,
     projectId,
 }: {
     entityId: string
     sessionId: string
-    workspaceId: string
+    filesScope: string
     projectId: string
 }) => {
     const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
-    const router = useRouter()
-    // A row's "Run history" is the automation detail screen opened on its runs (`?view=runs`).
+    // A row's "Run history" opens in a drawer over the agent, like the automation editor does,
+    // rather than navigating away from the conversation.
+    const openDrawer = useSetAtom(automationRunHistoryDrawerAtom)
     const openRunHistory = useCallback(
-        ({id}: TriggerOwnerRef) => {
-            void router
-                .push(`/w/${workspaceId}/p/${projectId}/automations/${id}?view=runs`)
-                .catch(() => undefined)
+        ({id, kind}: TriggerOwnerRef) => {
+            openDrawer({automationId: id, kind: kind === "schedule" ? "schedule" : "event"})
         },
-        [router, workspaceId, projectId],
+        [openDrawer],
     )
 
     return (
@@ -59,17 +57,18 @@ export const ConfigPane = ({
                         <StorageSection
                             revisionId={entityId}
                             sessionId={sessionId}
-                            // Mobile shows one conversation at a time, so the session IS the
-                            // pane scope (desktop keys it by chat panel, which has tabs).
-                            scope={sessionId}
+                            scope={filesScope}
                         />
                     }
                     storageHeader={
-                        <StorageFilesHeader revisionId={entityId} sessionId={sessionId} />
+                        <StorageFilesHeader
+                            revisionId={entityId}
+                            sessionId={sessionId}
+                            scope={filesScope}
+                        />
                     }
-                    // The same automations editor the /m screens render, so a schedule opened
-                    // from an agent's panel is the surface it is opened from anywhere else.
-                    automationDrawer={<AutomationDrawer />}
+                    // `SessionWorkspace` mounts the drawers: a linked one must open with this pane collapsed.
+                    automationDrawer={null}
                     onOpenRunHistory={openRunHistory}
                     header={
                         <AgentConfigHeader
@@ -97,7 +96,7 @@ export const ConfigPane = ({
                                         onClick={() => setConfigCollapsed(true)}
                                         className="h-7 w-7 shrink-0 p-0"
                                     >
-                                        <ChevronsLeft size={14} />
+                                        <Sidebar size={16} weight="fill" mirrored />
                                     </Button>
                                 </SimpleTooltip>
                             }

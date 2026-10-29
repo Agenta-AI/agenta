@@ -1,0 +1,49 @@
+---
+title: "Private agents and chats, and sharing with your project"
+slug: private-agents-and-chats
+date: 2026-10-26
+tags: [v0.125.0]
+description: "New agents and chats start private. Share a chat with chosen people or with the whole project, make an agent private, and keep existing work as it was."
+---
+
+<Summary>
+
+New chats and agents that you create in Agenta now start private. Only you see them until you share them. You can share a chat with chosen people as **Can view** or **Can send**, or make it visible to the whole project. You can also make an agent private.
+
+Chats and agents that existed before this release keep working as before. They are visible to the project, with their creator as owner.
+
+</Summary>
+
+{/* truncate */}
+
+## Private by default
+
+- A new chat or agent that you create in the app is private. Other members do not see it in their lists, and a link to it opens the same page as a link to a chat that does not exist.
+- Project roles do not open private items. An organization owner or a project admin cannot see another member's private chat or agent.
+
+## Share a chat
+
+- Share a chat with chosen members of the project as **Can view** (read only) or **Can send** (read, send messages and answer approvals).
+- Or make the chat visible to the whole project. In a chat visible to the project, every member can read it, send messages and answer approvals. Only the owner can rename, delete or change sharing.
+- **Copy share link** copies the link to the chat. The link gives no access by itself. Only people who can already see the chat can open it.
+
+## Private agents
+
+- Make an agent private from the privacy menu in the playground top bar. A private agent is hidden from other members.
+- When an agent becomes private, its Slack and other channel installs stop taking new messages.
+
+## When someone leaves
+
+- When a member leaves a project, their private chats are locked for everyone.
+- A project admin can take ownership of the agents that the member shared with the project.
+
+## Deleting a private chat
+
+Deleting a private chat hides it from everyone else at once.
+
+Read more in [Share agents and chats](/guides/share-agents-and-chats).
+
+## Self-hosting
+
+- Upgrade every pod to v0.124.x before you deploy v0.125.0. Pods older than v0.124.0 cannot read the files of mounts that v0.125.0 creates, because new mounts store their files under the organization. A Helm upgrade straight from 0.123.x to 0.125.0 is not supported.
+- The upgrade runs four database migrations. The update of existing chats takes seconds on most deployments, and about 90 seconds at one million chats.

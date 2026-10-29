@@ -1,5 +1,5 @@
 /** One agent-picker row: a leading mark, a title with a meta line, and an action on the right. */
-import type {ReactNode} from "react"
+import type {MouseEvent, ReactNode} from "react"
 
 export interface CatalogListRowProps {
     /** Logo, icon chip, or anything else that identifies the item. */
@@ -17,7 +17,19 @@ export interface CatalogListRowProps {
     className?: string
     /** Expanded rows below the title, such as a connection chooser. */
     expansion?: ReactNode
+    /** Runs the row's action from a click anywhere on it, or Enter/Space on the focused row. */
+    onClick?: () => void
+    /** The accessible name of that action ("Add GitHub"). */
+    actionLabel?: string
+    /**
+     * `center` (default) centres the logo and action on the text. `start` pins them to the top,
+     * for a row whose text can grow (an expandable description) so they do not drift with it.
+     */
+    align?: "center" | "start"
 }
+
+// A click on a control inside the row belongs to that control, not to the row.
+const INTERACTIVE = "button, a, input, label, [role='button'], [role='radio']"
 
 export function CatalogListRow({
     leading,
@@ -28,16 +40,50 @@ export function CatalogListRow({
     highlighted,
     expansion,
     className,
+    onClick,
+    actionLabel,
+    align = "center",
 }: CatalogListRowProps) {
+    const handleClick = onClick
+        ? (event: MouseEvent<HTMLDivElement>) => {
+              // React bubbles a click out of a portal (a menu, a dialog) into this row too.
+              if (!event.currentTarget.contains(event.target as Node)) return
+              const hit = (event.target as HTMLElement).closest(INTERACTIVE)
+              // The row is itself role=button, so a hit on the row is not a nested control.
+              if (hit && hit !== event.currentTarget && event.currentTarget.contains(hit)) return
+              onClick()
+          }
+        : undefined
+
     return (
         <div
-            className={`border-0 border-t border-solid border-[var(--ag-colorSplit)] px-3 py-2.5 first:border-t-0 ${
+            onClick={handleClick}
+            role={onClick ? "button" : undefined}
+            tabIndex={onClick ? 0 : undefined}
+            aria-label={onClick ? actionLabel : undefined}
+            onKeyDown={
+                onClick
+                    ? (event) => {
+                          if (event.target !== event.currentTarget) return
+                          if (event.key !== "Enter" && event.key !== " ") return
+                          event.preventDefault()
+                          onClick()
+                      }
+                    : undefined
+            }
+            // Borderless; the -mx/px pair keeps the logo on the search field's edge while the
+            // hover fill reaches past it.
+            className={`group/row -mx-2 rounded-lg px-2 py-2 outline-none transition-colors focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-solid focus-visible:outline-ring ${
                 highlighted ? "bg-[var(--ag-colorFillQuaternary)]" : ""
-            } ${className ?? ""}`}
+            } ${onClick ? "cursor-pointer hover:bg-accent/60" : ""} ${className ?? ""}`}
         >
-            {/* items-start, not items-center: the action must stay put while the row grows. */}
-            <div className="flex items-start gap-2.5">
-                {leading ? <span className="mt-px flex shrink-0">{leading}</span> : null}
+            <div className={`flex gap-2.5 ${align === "start" ? "items-start" : "items-center"}`}>
+                {/* A 32px box centres the logo on the title and meta lines together. */}
+                {leading ? (
+                    <span className="flex size-8 shrink-0 items-center justify-center">
+                        {leading}
+                    </span>
+                ) : null}
                 <div className="flex min-w-0 flex-1 flex-col">
                     {/* min-h matches a small Button, so the title line stays level with the action. */}
                     <div className="flex min-h-6 items-center gap-1.5">
@@ -46,7 +92,8 @@ export function CatalogListRow({
                     </div>
                     {children}
                 </div>
-                {action ? <span className="flex shrink-0 items-center">{action}</span> : null}
+                {/* h-8: level with the logo box. */}
+                {action ? <span className="flex h-8 shrink-0 items-center">{action}</span> : null}
             </div>
             {expansion}
         </div>

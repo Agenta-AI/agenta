@@ -17,9 +17,11 @@ composing the individual reads already exposed here:
 """
 
 import re
+import time
 from functools import wraps
-from secrets import compare_digest
-from uuid import UUID
+from uuid import UUID, uuid4
+
+from uuid_utils.compat import uuid7
 
 from fastapi import (
     APIRouter,
@@ -35,8 +37,38 @@ from pydantic import ValidationError
 # FastAPI route params need fastapi.UploadFile; request.form() yields starlette's base class.
 from fastapi import UploadFile as FastAPIUploadFile
 from starlette.datastructures import UploadFile
-from typing import Any, Optional, Union
+from typing import Any, Awaitable, Callable, Dict, Optional, Tuple, Union
 
+from oss.src.core.access.context import fresh_request_memo, get_request_access
+from oss.src.core.access.dtos import RunApproval
+from oss.src.core.sessions.streams.types import SessionCreationRequiresRunCredential
+from oss.src.core.tools.dtos import AgentError
+from oss.src.core.access.principals import access_denied_error, missing_envelope_error
+from oss.src.core.access.types import MissingEnvelope
+from oss.src.middlewares.auth import request_run_envelope
+from oss.src.apis.fastapi.sharing.utils import (
+    ResourceCheck,
+    agent_resource,
+    allow_mount,
+    allow_resource,
+    allow_session_write,
+    check_resource_for,
+    not_found_exception,
+    policy_for_request,
+    prefetch_beat,
+    prefetch_session,
+    prefetch_session_list,
+    prefetch_session_write,
+    session_read_scope_for_request,
+    stream_sharing_for_request,
+    session_recheck,
+    session_resource,
+)
+from oss.src.core.sharing.admission import RunAdmission
+from oss.src.core.sharing.service import session_was_missing
+from oss.src.core.sharing.dtos import SharedItemKind, Visibility
+from oss.src.core.sharing.types import AdmissionDenied
+from oss.src.core.workflows.types import AgentReferenceUnresolved
 from oss.src.utils.env import env
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
@@ -44,6 +76,7 @@ from oss.src.utils.logging import get_module_logger
 from oss.src.dbs.redis.sessions.contract import (
     live_events_channel,
     project_watch_channel,
+    validate_session_id,
     watch_channel,
 )
 from oss.src.dbs.redis.shared.engine import get_lock_engine, get_streams_engine
@@ -54,6 +87,10 @@ from oss.src.apis.fastapi.sessions.live_events import live_event_stream
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
+from oss.src.apis.fastapi.shared.runner_auth import (
+    assert_runner_token,
+    has_valid_runner_token,
+)
 
 # Core domain imports — new paths
 from oss.src.core.sessions.streams.dtos import (
@@ -70,6 +107,7 @@ from oss.src.core.sessions.streams.dtos import (
 from oss.src.core.sessions.streams.types import (
     ConcurrencyLimitExceeded,
     SessionIdInvalid,
+    SessionIdTombstoned,
     SessionNameProtected,
     SessionTurnInUse,
     SessionTurnMismatch,
@@ -94,6 +132,7 @@ from oss.src.core.sessions.records.dtos import (
     SessionLiveFrame,
     SessionRecordEvent,
     TERMINAL_RECORD_TYPE,
+    runner_ending,
 )
 from oss.src.core.sessions.records.streaming import publish_live_frame, publish_record
 from oss.src.core.sessions.interactions.dtos import (
@@ -104,7 +143,6 @@ from oss.src.core.sessions.interactions.dtos import (
     SessionInteractionTransition,
 )
 from oss.src.core.sessions.interactions.service import SessionInteractionsService
-from oss.src.core.sessions.interactions.references import resolve_interaction_references
 from oss.src.core.sessions.interactions.types import InteractionNotFound
 from oss.src.core.sessions.inputs.service import SessionInputsService
 from oss.src.core.sessions.inputs.types import (
@@ -134,13 +172,19 @@ from oss.src.core.sessions.mounts.service import SessionMountsService
 from oss.src.core.sessions.mounts.dtos import SessionMountQuery
 from oss.src.core.sessions.turns.dtos import SessionTurnComplete, SessionTurnCreate
 from oss.src.core.sessions.turns.service import SessionTurnsService
-from oss.src.core.sessions.turns.types import SessionTurnNotFound
+from oss.src.core.sessions.turns.types import (
+    SessionTurnCursorInvalid,
+    SessionTurnNotFound,
+    SessionTurnStreamMismatch,
+)
 from oss.src.core.sessions.dtos import SessionExpansion
 from oss.src.core.sessions.service import SessionsService
+from oss.src.core.mounts.types import MountNotFound
 from oss.src.core.mounts.service import MountsService
 from oss.src.apis.fastapi.mounts.router import handle_mount_exceptions
 from oss.src.apis.fastapi.mounts.utils import (
     BINARY_RESPONSE,
+    SizeCappedUploadRoute,
     _content_disposition_attachment,
     download_mount_file,
     sign_mount_credentials,
@@ -150,13 +194,10 @@ from oss.src.apis.fastapi.mounts.models import (
     MountCredentialsResponse,
     MountFileWrittenResponse,
 )
-from oss.src.core.workflows.dtos import (
-    WorkflowServiceRequest,
-    WorkflowServiceRequestData,
-)
-from oss.src.core.workflows.service import WorkflowsService
 
 from oss.src.apis.fastapi.sessions.models import (
+    CurrentSessionRequest,
+    CurrentSessionResponse,
     SessionCancelRequest,
     SessionCancelResponse,
     SessionCommandRef,
@@ -174,6 +215,7 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionRecordIngestBody,
     SessionRecordQueryRequest,
     SessionRecordResponse,
+    SessionRecordsIncompleteRequest,
     SessionRecordsQueryResponse,
     SessionSnapshotPending,
     SessionSnapshotResponse,
@@ -215,6 +257,7 @@ from oss.src.apis.fastapi.sessions.models import (
     SessionExecutionSnapshot,
 )
 from oss.src.apis.fastapi.sessions.utils import (
+    current_session_response,
     compute_session_response_windowing,
     normalize_session_query_request,
     sanitize_session_stream,
@@ -230,9 +273,9 @@ _SESSION_ID_RE = re.compile(r"^[a-zA-Z0-9_\-]{1,128}$")
 
 def _session_capabilities() -> SessionCapabilities:
     return SessionCapabilities(
-        durable_approvals=env.agenta.sessions.durable_approvals,
-        queue=env.agenta.sessions.queue,
-        steer=env.agenta.sessions.queue and env.agenta.sessions.steer,
+        durable_approvals=True,
+        queue=True,
+        steer=True,
     )
 
 
@@ -255,6 +298,127 @@ def _validate_session_id_http(session_id: str) -> None:
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="session_id contains invalid characters or is empty.",
         )
+
+
+def _invalid_cursor() -> HTTPException:
+    """`windowing.next` that is not a turn of the queried session: one answer for an
+    unknown id and for a turn of another session, readable or hidden."""
+    return HTTPException(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        detail="The cursor is not a turn of this session.",
+    )
+
+
+def _unknown_session_id() -> str:
+    """A session id that names no session. A read route that may not show a session
+    reads this id instead, so it answers exactly what it answers for an unknown id
+    (same body, same work). Only for reads whose answer does not repeat the id."""
+
+    return f"hidden-{uuid4().hex}"
+
+
+# The project stream remembers a decision for at most this long (and never longer
+# than the live stream recheck), so a sharing change reaches an open stream as fast
+# as it reaches a live stream.
+_PROJECT_EVENT_MEMO_SECONDS = 60
+_PROJECT_EVENT_MEMO_LIMIT = 4096
+
+
+def _project_event_target(payload: dict) -> Optional[Tuple[Permission, Any]]:
+    """The item a project event names, with the view action it needs; `None` for an
+    event that names no session or agent. A malformed id raises ValueError, so the
+    filter drops the event."""
+
+    entity = payload.get("entity")
+    item_id = payload.get("id")
+    if entity in ("session", "workflow"):
+        if not isinstance(item_id, str) or not item_id:
+            raise ValueError("project event without an id")
+        if entity == "session":
+            return Permission.VIEW_SESSIONS, session_resource(item_id)
+        return Permission.VIEW_WORKFLOWS, agent_resource(item_id)
+    session_id = payload.get("session_id")
+    if session_id is not None:
+        if not isinstance(session_id, str) or not session_id:
+            raise ValueError("project event with a malformed session id")
+        return Permission.VIEW_SESSIONS, session_resource(session_id)
+    return None
+
+
+def project_event_filter(
+    *,
+    access,
+    project_id: UUID,
+    clock: Callable[[], float] = time.monotonic,
+) -> Callable[[dict], Awaitable[bool]]:
+    """The filter of one `/sessions/watch` connection: an event that names a session
+    or an agent passes only when the watcher may view it (the cached sharing decision,
+    no Postgres when warm). Each decision is remembered inside this connection for at
+    most `_PROJECT_EVENT_MEMO_SECONDS`; nothing is shared between connections."""
+
+    ttl = min(env.sessions.live_auth_recheck_seconds, _PROJECT_EVENT_MEMO_SECONDS)
+    memo: Dict[Tuple[str, str], Tuple[bool, float]] = {}
+
+    async def allow(payload: dict) -> bool:
+        target = _project_event_target(payload)
+        if target is None:
+            return True
+        action, resource = target
+        key = (resource.kind.value, resource.id)
+        now = clock()
+        remembered = memo.get(key)
+        if remembered is not None and remembered[1] > now:
+            return remembered[0]
+        allowed = (
+            await check_resource_for(
+                access=access,
+                action=action,
+                project_id=project_id,
+                resource=resource,
+            )
+            == ResourceCheck.ALLOWED
+        )
+        if len(memo) >= _PROJECT_EVENT_MEMO_LIMIT:
+            for stale in [k for k, (_, until) in memo.items() if until <= now]:
+                del memo[stale]
+            if len(memo) >= _PROJECT_EVENT_MEMO_LIMIT:
+                memo.clear()
+        memo[key] = (allowed, now + ttl)
+        return allowed
+
+    return allow
+
+
+async def _visible_items(request: Request, items: list, *, session_id_of) -> list:
+    """The items of a list that spans sessions, without those of a session the caller
+    may not read (one cached check per distinct session)."""
+
+    visible: dict = {}
+    kept = []
+    for item in items:
+        session_id = session_id_of(item)
+        if session_id not in visible:
+            visible[session_id] = await allow_resource(
+                request,
+                action=Permission.VIEW_SESSIONS,
+                resource=session_resource(session_id),
+            )
+        if visible[session_id]:
+            kept.append(item)
+    return kept
+
+
+def _session_not_available() -> HTTPException:
+    # `POST /sessions/tools/current` for a session that does not exist or is hidden.
+    return HTTPException(
+        status_code=404,
+        detail={
+            "code": "session_not_found",
+            "message": "This session is not available in the current project.",
+            "retryable": False,
+            "next_step": "Do not invent a session link; report that it is unavailable.",
+        },
+    )
 
 
 #: The transitional spelling of `name_source`, before the parameter was named for what it
@@ -295,6 +459,18 @@ def _handle_session_exceptions():
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail=e.message,
+                ) from e
+            except SessionIdTombstoned as e:
+                # A deleted private session's id: answered as a hidden session.
+                raise not_found_exception() from e
+            except SessionCreationRequiresRunCredential as e:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail=AgentError(
+                        code="session_requires_run_credential",
+                        message=e.message,
+                        retryable=False,
+                    ).model_dump(exclude_none=True),
                 ) from e
             except SessionTurnInUse as e:
                 raise HTTPException(
@@ -414,12 +590,23 @@ class SessionStreamsRouter:
         *,
         service: SessionStreamsService,
         interactions_service: SessionInteractionsService,
+        run_admission: RunAdmission,
         records_service: Optional[RecordsService] = None,
     ) -> None:
         self._service = service
         self._interactions_service = interactions_service
+        self._run_admission = run_admission
         self._records_service = records_service
         self.router = APIRouter()
+
+        self.router.add_api_route(
+            "/sessions/tools/current",
+            self.get_current_session,
+            methods=["POST"],
+            operation_id="get_current_session",
+            response_model=CurrentSessionResponse,
+            tags=["Sessions"],
+        )
 
         # Unified collection surface on /sessions/streams/, keyed by ?session_id=.
         self.router.add_api_route(
@@ -435,6 +622,13 @@ class SessionStreamsRouter:
             methods=["POST"],
             operation_id="set_session_stream",
             tags=["Sessions"],
+            description=(
+                "Send a turn to a session, steer the running turn, or attach to it.\n\n"
+                "**Deprecated:** a call with no non-empty `data.inputs` and with `force` "
+                "false or omitted stops the running turn. This stop mode is deprecated "
+                "and will be removed in a later release. To stop a turn, call "
+                "`POST /sessions/{session_id}/cancel`."
+            ),
         )
         self.router.add_api_route(
             "/sessions/streams/",
@@ -512,15 +706,24 @@ class SessionStreamsRouter:
         project_id = request.state.project_id
         user_id = request.state.user_id
 
-        has_permission = await check_action_access(
-            user_uid=str(user_id),
-            project_id=str(project_id),
-            permission=Permission.RUN_SESSIONS,
-        )
-        if not has_permission:
-            raise FORBIDDEN_EXCEPTION
+        # A send to an unknown id creates the session, so a hidden one answers the one
+        # canonical not-found body.
+        if not await allow_resource(
+            request,
+            action=Permission.RUN_SESSIONS,
+            resource=session_resource(payload.session_id),
+        ):
+            raise not_found_exception()
 
         mode = derive_command_mode(payload)
+        if mode == CommandMode.cancel:
+            # Counts the callers left before the deprecated stop mode is removed.
+            log.info(
+                "[SESSIONS] deprecated stop through POST /sessions/streams/ "
+                "project_id=%s session_id=%s",
+                project_id,
+                payload.session_id,
+            )
 
         # A cancel starts nothing, so the per-project concurrency limit must not gate it. Before
         # this, a project at its limit could not stop the very runs that held the limit — the one
@@ -528,14 +731,35 @@ class SessionStreamsRouter:
         if mode != CommandMode.cancel:
             await self._service.check_runner_concurrency_limit(project_id=project_id)
 
-        response = await self._service.command(
-            arrived_at_ms=arrived_at_ms,
-            project_id=project_id,
-            user_id=user_id,
-            request=payload,
+        recheck = session_recheck(
+            request,
+            action=Permission.RUN_SESSIONS,
+            session_id=payload.session_id,
         )
+        try:
+            response = await self._service.command(
+                arrived_at_ms=arrived_at_ms,
+                project_id=project_id,
+                user_id=user_id,
+                request=payload,
+                access=policy_for_request(request, kind=SharedItemKind.SESSION),
+                recheck=recheck,
+            )
+        except SessionStreamNotFound as error:
+            # An attach to an unknown session: the canonical not-found body, as for a
+            # hidden one.
+            raise not_found_exception() from error
 
-        if mode == CommandMode.cancel:
+        # A cancel whose route check found no row, and whose service read found none
+        # either, cancelled nothing: a session created since is someone else's, and its
+        # pending interactions are not this request's to close.
+        unchecked_noop = (
+            session_was_missing(
+                project_id=UUID(str(project_id)), session_id=payload.session_id
+            )
+            and not recheck.checked
+        )
+        if mode == CommandMode.cancel and not unchecked_noop:
             # Close only the displaced turns' gates; the service publishes their watch events.
             try:
                 for turn_id in response.cancelled_turn_ids:
@@ -561,6 +785,31 @@ class SessionStreamsRouter:
 
     @intercept_exceptions()
     @_handle_session_exceptions()
+    async def get_current_session(
+        self, request: Request, *, body: CurrentSessionRequest
+    ) -> CurrentSessionResponse:
+        project_id = UUID(str(request.state.project_id))
+        if not await allow_resource(
+            request,
+            action=Permission.VIEW_SESSIONS,
+            resource=session_resource(body.session_id),
+        ):
+            raise _session_not_available()
+
+        stream = await self._service.fetch(
+            project_id=project_id, session_id=body.session_id
+        )
+        if stream is None:
+            raise _session_not_available()
+        workspace_id = getattr(request.state, "workspace_id", None)
+        return current_session_response(
+            stream=stream,
+            workspace_id=UUID(str(workspace_id)) if workspace_id else None,
+            web_url=env.agenta.web_url,
+        )
+
+    @intercept_exceptions()
+    @_handle_session_exceptions()
     async def fetch_session_stream(
         self,
         request: Request,
@@ -569,6 +818,7 @@ class SessionStreamsRouter:
         project_id = request.state.project_id
         user_id = request.state.user_id
 
+        prefetch_session(request, session_id)
         has_permission = await check_action_access(
             user_uid=str(user_id),
             project_id=str(project_id),
@@ -576,14 +826,39 @@ class SessionStreamsRouter:
         )
         if not has_permission:
             raise FORBIDDEN_EXCEPTION
+        if not await allow_resource(
+            request,
+            action=Permission.VIEW_SESSIONS,
+            resource=session_resource(session_id),
+        ):
+            session_id = _unknown_session_id()
 
-        stream = await self._service.fetch(
-            project_id=UUID(str(project_id)),
-            session_id=session_id,
-        )
+        # The policy read of the check found no row for this session (it reads every
+        # row, archived or deleted too): there is no stream to read. A valid id answers
+        # from that one read; an invalid one still reaches the service's own refusal.
+        if validate_session_id(session_id) and session_was_missing(
+            project_id=UUID(str(project_id)), session_id=session_id
+        ):
+            stream = None
+        else:
+            stream = await self._service.fetch(
+                project_id=UUID(str(project_id)),
+                session_id=session_id,
+            )
+        # Browsers read this route too; a pod address is cluster-internal, so only the
+        # services layer, which proves itself with the runner token, gets it.
+        binding = None
+        if stream is not None and stream.turn_id and has_valid_runner_token(request):
+            binding = await self._service.runner_binding(
+                project_id=UUID(str(project_id)),
+                session_id=session_id,
+                turn_id=stream.turn_id,
+            )
         return SessionStreamResponse(
             stream=sanitize_session_stream(stream),
             capabilities=_session_capabilities(),
+            runner_address=binding.replica_address if binding else "",
+            runner_replica_id=binding.replica_id if binding else "",
         )
 
     @intercept_exceptions()
@@ -596,6 +871,7 @@ class SessionStreamsRouter:
         project_id = request.state.project_id
         user_id = request.state.user_id
 
+        prefetch_session(request, session_id)
         has_permission = await check_action_access(
             user_uid=str(user_id),
             project_id=str(project_id),
@@ -603,6 +879,14 @@ class SessionStreamsRouter:
         )
         if not has_permission:
             raise FORBIDDEN_EXCEPTION
+        # Ending a session is an edit of it (rule S4): only its owner, or anyone for an
+        # ownerless one. A kill of an unknown id is a no-op success.
+        if not await allow_resource(
+            request,
+            action=Permission.EDIT_SESSIONS,
+            resource=session_resource(session_id),
+        ):
+            return {"ok": True}
 
         await self._service.kill(
             project_id=UUID(str(project_id)),
@@ -626,6 +910,7 @@ class SessionStreamsRouter:
         project_id = request.state.project_id
         user_id = request.state.user_id
 
+        prefetch_session(request, payload.session_id)
         has_permission = await check_action_access(
             user_uid=str(user_id),
             project_id=str(project_id),
@@ -633,6 +918,13 @@ class SessionStreamsRouter:
         )
         if not has_permission:
             raise FORBIDDEN_EXCEPTION
+        # A detach of an unknown id is a no-op success.
+        if not await allow_resource(
+            request,
+            action=Permission.RUN_SESSIONS,
+            resource=session_resource(payload.session_id),
+        ):
+            return {"ok": True}
 
         await self._service.detach(
             project_id=UUID(str(project_id)),
@@ -652,6 +944,9 @@ class SessionStreamsRouter:
         project_id = request.state.project_id
         user_id = request.state.user_id
 
+        prefetch_beat(
+            request, session_id=payload.session_id, references=payload.references
+        )
         has_permission = await check_action_access(
             user_uid=str(user_id),
             project_id=str(project_id),
@@ -660,13 +955,35 @@ class SessionStreamsRouter:
         if not has_permission:
             raise FORBIDDEN_EXCEPTION
 
-        if payload.release_owner:
-            _assert_runner_token(request)
+        # The envelope of the caller's credential, whatever its kind. Without one the
+        # beat cannot be authorized: it answers like an unknown session.
+        admission_envelope = request_run_envelope(request)
+        if admission_envelope is None:
+            raise not_found_exception()
 
-        heartbeat = await self._service.heartbeat(
-            project_id=project_id,
-            request=payload,
-        )
+        try:
+            heartbeat = await self._service.heartbeat(
+                project_id=project_id,
+                request=payload,
+                runner_verified=has_valid_runner_token(request),
+                envelope=getattr(request.state, "run_envelope", None),
+                access=policy_for_request(request, kind=SharedItemKind.SESSION),
+                run_admission=self._run_admission,
+                admission_envelope=admission_envelope,
+            )
+        except AdmissionDenied as error:
+            if not error.readable:
+                raise not_found_exception() from error
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=access_denied_error(
+                    decision=error.decision,
+                    principal_kind=admission_envelope.authority.principal.kind,
+                    project_id=UUID(str(project_id)),
+                ).model_dump(exclude_none=True),
+            ) from error
+        except AgentReferenceUnresolved as error:
+            raise not_found_exception() from error
         return heartbeat.model_copy(
             update={"stream": sanitize_session_stream(heartbeat.stream)}
         )
@@ -681,6 +998,8 @@ class SessionStreamsRouter:
         project_id = request.state.project_id
         user_id = request.state.user_id
 
+        prefetch_session_list(request)
+        prefetch_session(request, payload.session_id)
         has_permission = await check_action_access(
             user_uid=str(user_id),
             project_id=str(project_id),
@@ -691,6 +1010,7 @@ class SessionStreamsRouter:
 
         streams = await self._service.query_streams(
             project_id=project_id,
+            read_scope=await session_read_scope_for_request(request),
             filter=SessionStreamQuery(
                 session_id=payload.session_id,
                 flags=SessionStreamQueryFlags(
@@ -699,6 +1019,19 @@ class SessionStreamsRouter:
                 ),
             ),
         )
+        if payload.session_id and len(streams) == 1:
+            # The chat screen's one-session read carries the caller's sharing state, so
+            # opening a chat needs no `GET /sessions/{id}/sharing` (no round trip: the
+            # policy and grants are the entries this request's decision read).
+            streams = [
+                streams[0].model_copy(
+                    update={
+                        "sharing": await stream_sharing_for_request(
+                            request, stream=streams[0]
+                        )
+                    }
+                )
+            ]
         return SessionStreamsResponse(
             count=len(streams),
             streams=[sanitize_session_stream(stream) for stream in streams],
@@ -714,6 +1047,7 @@ class SessionStreamsRouter:
         session_id: str = Query(...),
         name_source: Optional[SessionNameSource] = Query(None),
         author: Optional[str] = Query(None, include_in_schema=False, deprecated=True),
+        visibility: Optional[Visibility] = Query(None),
     ) -> SessionStreamResponse:
         """Rename a session.
 
@@ -733,16 +1067,45 @@ class SessionStreamsRouter:
         moved on. Reading it costs one branch and keeps that call on the guarded path; the
         alternative is a rename that silently claims a person made it. Delete this parameter
         once no such session can still be alive.
+
+        `visibility` is the visibility a header call that creates the session asks for. It
+        is ignored on an existing session, and a `private` without an owner is dropped.
+        A call with a `visibility` may carry no header field: it only creates the session
+        (the /w pre-create of a new chat) and changes nothing on an existing one. Without
+        a `visibility`, a body with no header field (an empty or wrapped body) is refused.
         """
+        if not header.has_header_field and visibility is None:
+            # The body validation error FastAPI answered before this rule moved here.
+            raise HTTPException(
+                status_code=422,
+                detail=[
+                    {
+                        "type": "value_error",
+                        "loc": ["body"],
+                        "msg": "Value error, no header field to update; send name or "
+                        "description at the top level",
+                        "input": {},
+                    }
+                ],
+            )
         _validate_session_id_http(session_id)
         resolved_source = _resolve_name_source(name_source=name_source, author=author)
 
-        if not await check_action_access(
-            user_uid=request.state.user_id,
-            project_id=request.state.project_id,
-            permission=Permission.EDIT_SESSIONS,
+        # A header call on an unknown id creates the session, so a hidden one answers
+        # the one canonical not-found body. A call with no header field changes nothing
+        # on an existing session: it is part of sending a new chat's first message, so it
+        # needs what a send needs (a member may send into a colleague's project chat).
+        action = (
+            Permission.EDIT_SESSIONS
+            if header.has_header_field
+            else Permission.RUN_SESSIONS
+        )
+        if not await allow_resource(
+            request,
+            action=action,
+            resource=session_resource(session_id),
         ):
-            raise FORBIDDEN_EXCEPTION
+            raise not_found_exception()
 
         stream = await self._service.set_header(
             project_id=UUID(request.state.project_id),
@@ -750,6 +1113,10 @@ class SessionStreamsRouter:
             session_id=session_id,
             header=header,
             name_source=resolved_source,
+            access=policy_for_request(
+                request, kind=SharedItemKind.SESSION, requested=visibility
+            ),
+            recheck=session_recheck(request, action=action, session_id=session_id),
         )
         return SessionStreamResponse(stream=sanitize_session_stream(stream))
 
@@ -789,15 +1156,14 @@ class SessionStreamsRouter:
         """
         _validate_session_id_http(session_id)
         project_id = request.state.project_id
-        user_id = request.state.user_id
 
-        has_permission = await check_action_access(
-            user_uid=str(user_id),
-            project_id=str(project_id),
-            permission=Permission.VIEW_SESSIONS,
-        )
-        if not has_permission:
-            raise FORBIDDEN_EXCEPTION
+        if not await allow_resource(
+            request,
+            action=Permission.VIEW_SESSIONS,
+            resource=session_resource(session_id),
+        ):
+            # The stream of an unknown id: open, and nothing is published on it.
+            session_id = _unknown_session_id()
 
         stream = watch_event_stream(
             channel=watch_channel(str(project_id), session_id),
@@ -830,17 +1196,39 @@ class SessionStreamsRouter:
 
         _validate_session_id_http(session_id)
         project_id = str(request.state.project_id)
-        user_id = str(request.state.user_id)
+        # Captured at entry: the rechecks run while the stream is open, after the
+        # request's handler has returned.
+        access = get_request_access()
+        if access is None:
+            raise FORBIDDEN_EXCEPTION
+
+        async def check() -> ResourceCheck:
+            # The streaming generator shares the request's access memo. A fresh memo
+            # per check makes each recheck read the current principal, membership and
+            # session policy, so a removed member, a lost role, a deleted key or a
+            # revoked grant is refused.
+            with fresh_request_memo():
+                return await check_resource_for(
+                    access=access,
+                    action=Permission.VIEW_SESSIONS,
+                    project_id=UUID(project_id),
+                    resource=session_resource(session_id),
+                )
+
+        first = await check()
+        if first == ResourceCheck.NO_CAPABILITY:
+            raise FORBIDDEN_EXCEPTION
+        if first == ResourceCheck.HIDDEN:
+            # The stream of an unknown id: no frame is published on it and its replay
+            # is empty. `check` reads `session_id` when it runs, so the rechecks check
+            # that unknown id too.
+            session_id = _unknown_session_id()
 
         async def authorized() -> bool:
-            return await check_action_access(
-                user_uid=user_id,
-                project_id=project_id,
-                permission=Permission.VIEW_SESSIONS,
-            )
+            # The live recheck is the same resource check: a revoked grant or a removed
+            # owner closes the stream at the next recheck.
+            return await check() == ResourceCheck.ALLOWED
 
-        if not await authorized():
-            raise FORBIDDEN_EXCEPTION
         if self._records_service is None:
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
 
@@ -880,6 +1268,9 @@ class SessionStreamsRouter:
     ) -> StreamingResponse:
         """Relay low-frequency entity changes for the authorized project.
 
+        An event that names a session or an agent reaches only a watcher who may view
+        it, so a private item's id never reaches another member.
+
         A caller with only one required view permission cannot open this stream and falls back to
         the lists' polling behavior.
         """
@@ -898,12 +1289,21 @@ class SessionStreamsRouter:
         )
         if not (can_view_sessions and can_view_workflows):
             raise FORBIDDEN_EXCEPTION
+        # Captured at entry: the filter runs while the stream is open, outside the
+        # request's ContextVar scope.
+        access = get_request_access()
+        if access is None:
+            raise FORBIDDEN_EXCEPTION
 
         stream = watch_event_stream(
             channel=project_watch_channel(str(authorized_project_id)),
             pubsub_factory=lambda: get_streams_engine().get_redis().pubsub(),
             heartbeat_seconds=env.sessions.watch_heartbeat_seconds,
             retry_milliseconds=env.sessions.watch_retry_milliseconds,
+            event_filter=project_event_filter(
+                access=access,
+                project_id=UUID(str(authorized_project_id)),
+            ),
         )
         return StreamingResponse(
             stream,
@@ -955,6 +1355,15 @@ class RecordsRouter:
             tags=["Sessions"],
         )
 
+        self.router.add_api_route(
+            "/incomplete",
+            self.mark_records_incomplete,
+            methods=["POST"],
+            operation_id="mark_records_incomplete",
+            status_code=status.HTTP_200_OK,
+            tags=["Sessions"],
+        )
+
     @intercept_exceptions()
     async def query_records(
         self,
@@ -962,12 +1371,14 @@ class RecordsRouter:
         *,
         query_request: SessionRecordQueryRequest,
     ) -> Union[SessionRecordsQueryResponse, JSONResponse]:
-        if not await check_action_access(
-            user_uid=request.state.user_id,
-            project_id=request.state.project_id,
-            permission=Permission.VIEW_SESSIONS,
+        if not await allow_resource(
+            request,
+            action=Permission.VIEW_SESSIONS,
+            resource=session_resource(query_request.session_id),
         ):
-            raise FORBIDDEN_EXCEPTION
+            query_request = query_request.model_copy(
+                update={"session_id": _unknown_session_id()}
+            )
 
         records = (
             await self.records_service.get_records(
@@ -976,6 +1387,10 @@ class RecordsRouter:
             )
             if query_request.windowing is None
             else None
+        )
+        records_incomplete = await self.records_service.get_records_incomplete(
+            project_id=UUID(request.state.project_id),
+            session_id=query_request.session_id,
         )
         if query_request.windowing is not None:
             page = await self.records_service.get_records_page(
@@ -997,11 +1412,44 @@ class RecordsRouter:
                 )
                 if page.next_offset is not None
                 else None,
+                records_incomplete=records_incomplete,
             )
         return SessionRecordsQueryResponse(
             count=len(records),
             records=records,
+            records_incomplete=records_incomplete,
         )
+
+    @intercept_exceptions()
+    async def mark_records_incomplete(
+        self,
+        request: Request,
+        body: SessionRecordsIncompleteRequest,
+    ) -> dict:
+        # Same permission as record ingest: the runner reports on the log it writes.
+        prefetch_session_write(
+            request, session_id=body.session_id, turn_id=body.turn_id
+        )
+        if not await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=Permission.RUN_SESSIONS,
+        ):
+            raise FORBIDDEN_EXCEPTION
+
+        _validate_session_id_http(body.session_id)
+        # An unknown id writes a cursor row, so a hidden session answers the canonical
+        # not-found body.
+        if not await allow_session_write(
+            request, session_id=body.session_id, turn_id=body.turn_id
+        ):
+            raise not_found_exception()
+        await self.records_service.mark_records_incomplete(
+            project_id=UUID(request.state.project_id),
+            session_id=body.session_id,
+            turn_id=body.turn_id,
+        )
+        return {"ok": True}
 
     @intercept_exceptions()
     async def get_record_event(
@@ -1020,6 +1468,12 @@ class RecordsRouter:
             project_id=UUID(request.state.project_id),
             record_id=record_id,
         )
+        if record is not None and not await allow_resource(
+            request,
+            action=Permission.VIEW_SESSIONS,
+            resource=session_resource(record.session_id),
+        ):
+            record = None
         return SessionRecordResponse(record=record)
 
     @intercept_exceptions()
@@ -1029,6 +1483,15 @@ class RecordsRouter:
         body: SessionRecordIngestBody,
     ) -> dict:
         project_id = request.state.project_id
+        # The write's admission keys and session entry ride in this check's one cache
+        # read. A frame batch is checked on its first frame's session and execution.
+        head = (body[0] if body else None) if isinstance(body, list) else body
+        if head is not None:
+            prefetch_session_write(
+                request,
+                session_id=head.session_id,
+                turn_id=head.execution_id if head.kind == "frame" else head.turn_id,
+            )
         if not await check_action_access(
             user_uid=request.state.user_id,
             project_id=project_id,
@@ -1085,6 +1548,25 @@ class RecordsRouter:
                 session_id=first.session_id,
             )
             if current_execution_id != first.execution_id:
+                # Not the session's running turn (a Stop, a takeover or a newer turn
+                # moved it). To a caller who may run the session: 409, never 403. A
+                # runner reads 403 as lost access and ends the turn with access_denied,
+                # which drops the stopped turn's own records. A hidden or unknown session
+                # keeps the one 403 it answered before. Always the full check, never the
+                # turn's admission: this request's cache read may predate the Stop.
+                if await allow_resource(
+                    request,
+                    action=Permission.RUN_SESSIONS,
+                    resource=session_resource(first.session_id),
+                ) and not session_was_missing(
+                    project_id=UUID(str(project_id)), session_id=first.session_id
+                ):
+                    raise _not_running_turn_exception()
+                raise FORBIDDEN_EXCEPTION
+            # A hidden session answers what a session with no running turn answers.
+            if not await allow_session_write(
+                request, session_id=first.session_id, turn_id=first.execution_id
+            ):
                 raise FORBIDDEN_EXCEPTION
             for frame in frames:
                 await publish_live_frame(
@@ -1106,22 +1588,28 @@ class RecordsRouter:
             return {"ok": True}
 
         assert not isinstance(body, list)
+        # An unknown id stores the record, so a hidden session answers the canonical
+        # not-found body.
+        if not await allow_session_write(
+            request, session_id=body.session_id, turn_id=body.turn_id
+        ):
+            raise not_found_exception()
         # For a finished continuation, commit the core execution outcome before accepting its
         # terminal record into the asynchronous tracing stream. This closes the cross-database
         # window where the watchdog could see no `done`, expose recovery, and replay work that
         # had already finished while the records worker was still settling core state.
+        ending = runner_ending((body.attributes or {}).get("stopReason"))
         if (
-            (env.agenta.sessions.durable_approvals or env.agenta.sessions.queue)
-            and self.commands_service is not None
+            self.commands_service is not None
             and body.record_type == TERMINAL_RECORD_TYPE
             and body.turn_id
-            and (body.attributes or {}).get("stopReason")
-            not in ("paused", "cancelled", "error")
+            and ending is not None
         ):
-            await self.commands_service.settle_execution_completed(
+            await self.commands_service.settle_execution_ended(
                 project_id=UUID(project_id),
                 session_id=body.session_id,
                 execution_id=body.turn_id,
+                terminal_outcome=ending,
             )
 
         published = await publish_record(
@@ -1148,6 +1636,15 @@ class RecordsRouter:
         return {"ok": True}
 
 
+def _not_running_turn_exception() -> HTTPException:
+    """A live frame of a turn that is not the session's running turn. 409, not 403:
+    the runner keeps 403 for lost access."""
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail="This turn is no longer the session's running turn.",
+    )
+
+
 class InteractionsRouter:
     """Interactions sub-router — /sessions/interactions/*"""
 
@@ -1155,23 +1652,10 @@ class InteractionsRouter:
         self,
         *,
         interactions_service: SessionInteractionsService,
-        workflows_service: WorkflowsService,
-        respond_task: Optional[Any] = None,
-        # InteractionsDispatcher (typed loosely, like respond_task: the API layer does not
-        # import the tasks layer). When present, the no-worker respond fallback goes through
-        # it so both paths share ONE answer-composition implementation.
-        interactions_dispatcher: Optional[Any] = None,
-        commands_service: Optional[SessionCommandsService] = None,
-        turns_service: Optional[SessionTurnsService] = None,
-        streams_service: Optional[SessionStreamsService] = None,
+        commands_service: SessionCommandsService,
     ) -> None:
         self.interactions_service = interactions_service
-        self.workflows_service = workflows_service
-        self.respond_task = respond_task
-        self.interactions_dispatcher = interactions_dispatcher
         self.commands_service = commands_service
-        self.turns_service = turns_service
-        self.streams_service = streams_service
 
         self.router = APIRouter()
 
@@ -1221,12 +1705,25 @@ class InteractionsRouter:
         project_id: UUID = request.state.project_id
         user_id: UUID = request.state.user_id
 
+        # The capability check stays ahead of the continuity shortcut of
+        # `allow_session_write`: a role that lost RUN_SESSIONS is refused with 403 even
+        # when its turn's admission record would let the write through. The session entry
+        # rides in this check's one cache read.
+        prefetch_session_write(
+            request, session_id=body.session_id, turn_id=body.turn_id
+        )
         if not await check_action_access(
-            user_uid=str(user_id),
-            project_id=str(project_id),
+            user_uid=str(request.state.user_id),
+            project_id=str(request.state.project_id),
             permission=Permission.RUN_SESSIONS,
         ):
             raise FORBIDDEN_EXCEPTION
+        # An unknown id creates the interaction, so a hidden session answers the
+        # canonical not-found body.
+        if not await allow_session_write(
+            request, session_id=body.session_id, turn_id=body.turn_id
+        ):
+            raise not_found_exception()
 
         interaction = await self.interactions_service.create_interaction(
             project_id=project_id,
@@ -1242,6 +1739,7 @@ class InteractionsRouter:
                 tags=body.tags,
                 meta=body.meta,
             ),
+            envelope=request_run_envelope(request),
         )
         return SessionInteractionResponse(count=1, interaction=interaction)
 
@@ -1252,14 +1750,27 @@ class InteractionsRouter:
         body: SessionInteractionTransitionRequest,
     ) -> SessionInteractionResponse:
         project_id: UUID = request.state.project_id
-        user_id: UUID = request.state.user_id
 
+        # The capability check stays ahead of the continuity shortcut of
+        # `allow_session_write`: a role that lost RUN_SESSIONS is refused with 403 even
+        # when its turn's admission record would let the write through. The session entry
+        # rides in this check's one cache read.
+        prefetch_session(request, body.session_id)
         if not await check_action_access(
-            user_uid=str(user_id),
-            project_id=str(project_id),
+            user_uid=str(request.state.user_id),
+            project_id=str(request.state.project_id),
             permission=Permission.RUN_SESSIONS,
         ):
             raise FORBIDDEN_EXCEPTION
+        # The body names no turn: always the full check. Hidden answers like an unknown
+        # interaction.
+        if not await allow_session_write(
+            request, session_id=body.session_id, turn_id=None
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Interaction not found or already terminal",
+            )
 
         resolution = body.resolution
         # `resolved` is approval-only whether or not an answer rides along, so the row lookup
@@ -1326,14 +1837,25 @@ class InteractionsRouter:
         body: SessionInteractionCancelStaleRequest,
     ) -> dict:
         project_id: UUID = request.state.project_id
-        user_id: UUID = request.state.user_id
 
+        # The capability check stays ahead of the continuity shortcut of
+        # `allow_session_write`: a role that lost RUN_SESSIONS is refused with 403 even
+        # when its turn's admission record would let the write through. The session entry
+        # rides in this check's one cache read.
+        prefetch_session_write(
+            request, session_id=body.session_id, turn_id=body.turn_id
+        )
         if not await check_action_access(
-            user_uid=str(user_id),
-            project_id=str(project_id),
+            user_uid=str(request.state.user_id),
+            project_id=str(request.state.project_id),
             permission=Permission.RUN_SESSIONS,
         ):
             raise FORBIDDEN_EXCEPTION
+        # Hidden answers like a session with no pending interaction.
+        if not await allow_session_write(
+            request, session_id=body.session_id, turn_id=body.turn_id
+        ):
+            return {"cancelled": 0}
 
         cancelled = await self.interactions_service.cancel_session_pending(
             project_id=project_id,
@@ -1351,6 +1873,8 @@ class InteractionsRouter:
     ) -> SessionInteractionsResponse:
         project_id: UUID = request.state.project_id
 
+        # The session entry rides in this check's one cache read.
+        prefetch_session(request, body.query.session_id if body.query else None)
         authorized = await check_action_access(
             user_uid=str(request.state.user_id),
             project_id=str(project_id),
@@ -1359,11 +1883,25 @@ class InteractionsRouter:
         if not authorized:
             raise FORBIDDEN_EXCEPTION
 
+        query = body.query
+        session_id = query.session_id if query else None
+        if session_id and not await allow_resource(
+            request,
+            action=Permission.VIEW_SESSIONS,
+            resource=session_resource(session_id),
+        ):
+            query = query.model_copy(update={"session_id": _unknown_session_id()})
+
         interactions = await self.interactions_service.query_interactions(
             project_id=project_id,
-            query=body.query,
+            query=query,
             windowing=body.windowing,
         )
+        if not session_id:
+            # A query across sessions: drop the interactions of hidden sessions.
+            interactions = await _visible_items(
+                request, interactions, session_id_of=lambda item: item.session_id
+            )
         return SessionInteractionsResponse(
             count=len(interactions), interactions=interactions
         )
@@ -1390,6 +1928,15 @@ class InteractionsRouter:
                 interaction_id=interaction_id,
             )
         except InteractionNotFound:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Interaction not found",
+            )
+        if not await allow_resource(
+            request,
+            action=Permission.VIEW_SESSIONS,
+            resource=session_resource(interaction.session_id),
+        ):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Interaction not found",
@@ -1427,186 +1974,127 @@ class InteractionsRouter:
                 },
             )
 
-        if env.agenta.sessions.durable_approvals and self.commands_service is not None:
-            idempotency_key = (request.headers.get("Idempotency-Key") or "").strip()
-            if not idempotency_key:
-                return JSONResponse(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    content={
-                        "code": "validation_error",
-                        "message": "Idempotency-Key is required for a durable response.",
-                        "retryable": False,
-                        "details": {"field": "Idempotency-Key", "reason": "required"},
-                        "next_step": "Retry with a stable Idempotency-Key header.",
-                    },
-                )
-            if len(idempotency_key) > _MAX_IDEMPOTENCY_KEY_CHARACTERS:
-                return _idempotency_key_too_long_response()
-            if body.answer is None and body.answers is None:
-                return JSONResponse(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    content={
-                        "code": "validation_error",
-                        "message": "answer is required for a durable response.",
-                        "retryable": False,
-                        "details": {"field": "answer", "reason": "required"},
-                    },
-                )
-            interaction_answers = (
-                [(item.interaction_id, item.answer) for item in body.answers]
-                if body.answers is not None
-                else [(interaction_id, body.answer)]
-            )
-            try:
-                if body.answers is not None:
-                    admission = await self.commands_service.respond_interactions(
-                        project_id=UUID(str(project_id)),
-                        user_id=UUID(str(user_id)),
-                        interaction_answers=interaction_answers,
-                        expected_execution_id=body.expected_execution_id,
-                        idempotency_key=idempotency_key,
-                    )
-                else:
-                    admission = await self.commands_service.respond_interaction(
-                        project_id=UUID(str(project_id)),
-                        user_id=UUID(str(user_id)),
-                        interaction_id=interaction_id,
-                        answer=body.answer,
-                        expected_execution_id=body.expected_execution_id,
-                        idempotency_key=idempotency_key,
-                    )
-            except InteractionResponseConflict as error:
-                return JSONResponse(
-                    status_code=(
-                        status.HTTP_422_UNPROCESSABLE_ENTITY
-                        if error.code == "validation_error"
-                        else status.HTTP_409_CONFLICT
-                    ),
-                    content={
-                        "code": error.code,
-                        "message": error.message,
-                        "retryable": False,
-                        **({"details": error.details} if error.details else {}),
-                    },
-                )
-
-            response = SessionInteractionContinuationResponse(
-                interaction=admission.interaction,
-                command=(
-                    SessionCommandRef(
-                        id=admission.command.id,
-                        state=admission.command.state.value,
-                    )
-                    if admission.command is not None
-                    else None
-                ),
-                execution=SessionInteractionContinuationExecution(
-                    id=admission.execution_id,
-                    state=(
-                        "awaiting_interactions"
-                        if getattr(admission, "waiting_for_interactions", False)
-                        else admission.execution_state.value
-                    ),
-                ),
-            )
+        idempotency_key = (request.headers.get("Idempotency-Key") or "").strip()
+        if not idempotency_key:
             return JSONResponse(
-                status_code=status.HTTP_202_ACCEPTED,
-                content=response.model_dump(mode="json"),
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                content={
+                    "code": "validation_error",
+                    "message": "Idempotency-Key is required for a durable response.",
+                    "retryable": False,
+                    "details": {"field": "Idempotency-Key", "reason": "required"},
+                    "next_step": "Retry with a stable Idempotency-Key header.",
+                },
             )
-
-        if body.answers is not None:
-            responses = {}
-            for item in body.answers:
-                responses[item.interaction_id] = await self.respond_interaction(
-                    request=request,
-                    interaction_id=item.interaction_id,
-                    body=SessionInteractionRespondRequest(answer=item.answer),
-                )
-            return responses[interaction_id]
-
+        if len(idempotency_key) > _MAX_IDEMPOTENCY_KEY_CHARACTERS:
+            return _idempotency_key_too_long_response()
+        if body.answer is None and body.answers is None:
+            return JSONResponse(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                content={
+                    "code": "validation_error",
+                    "message": "answer is required for a durable response.",
+                    "retryable": False,
+                    "details": {"field": "answer", "reason": "required"},
+                },
+            )
+        interaction_answers = (
+            [(item.interaction_id, item.answer) for item in body.answers]
+            if body.answers is not None
+            else [(interaction_id, body.answer)]
+        )
+        # Answering continues the session's run: rule S2 on the anchor's session. An
+        # unknown anchor and a hidden one answer the same 404 as the interaction read.
+        anchor_id = interaction_answers[0][0]
         try:
-            interaction = await self.interactions_service.fetch_interaction(
-                project_id=project_id,
-                interaction_id=interaction_id,
+            anchor = await self.interactions_service.fetch_interaction(
+                project_id=UUID(str(project_id)),
+                interaction_id=anchor_id,
             )
         except InteractionNotFound:
+            anchor = None
+        if anchor is None or not await allow_resource(
+            request,
+            action=Permission.RUN_SESSIONS,
+            resource=session_resource(anchor.session_id),
+        ):
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Interaction not found",
             )
-
-        if (
-            interaction.status
-            and interaction.status != SessionInteractionStatus.pending
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Interaction is no longer pending",
-            )
-
-        answer = body.answer or {}
-
-        # CAS flips first: only the responder that wins the row enqueues, so
-        # concurrent responds fire exactly once.
+        # The approver is the answering request's principal and acting user.
+        approved_by = RunApproval(
+            principal=request.state.principal,
+            user_id=UUID(str(user_id)),
+        )
         try:
-            interaction = await self.interactions_service.transition_interaction(
-                transition=SessionInteractionTransition(
-                    project_id=project_id,
-                    session_id=interaction.session_id,
-                    token=interaction.token,
-                    status=SessionInteractionStatus.responded,
-                ),
-            )
-        except InteractionNotFound:
-            raise HTTPException(
+            if body.answers is not None:
+                admission = await self.commands_service.respond_interactions(
+                    project_id=UUID(str(project_id)),
+                    user_id=UUID(str(user_id)),
+                    interaction_answers=interaction_answers,
+                    expected_execution_id=body.expected_execution_id,
+                    idempotency_key=idempotency_key,
+                    approved_by=approved_by,
+                )
+            else:
+                admission = await self.commands_service.respond_interaction(
+                    project_id=UUID(str(project_id)),
+                    user_id=UUID(str(user_id)),
+                    interaction_id=interaction_id,
+                    answer=body.answer,
+                    expected_execution_id=body.expected_execution_id,
+                    idempotency_key=idempotency_key,
+                    approved_by=approved_by,
+                )
+        except MissingEnvelope:
+            # Parked before this release: the interaction was cancelled (committed).
+            return JSONResponse(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="Interaction is no longer pending",
+                content={
+                    "detail": missing_envelope_error(
+                        next_step="Ask for the approval again."
+                    ).model_dump(exclude_none=True)
+                },
+            )
+        except InteractionResponseConflict as error:
+            return JSONResponse(
+                status_code=(
+                    status.HTTP_422_UNPROCESSABLE_ENTITY
+                    if error.code == "validation_error"
+                    else status.HTTP_409_CONFLICT
+                ),
+                content={
+                    "code": error.code,
+                    "message": error.message,
+                    "retryable": False,
+                    **({"details": error.details} if error.details else {}),
+                },
             )
 
-        # Enqueue onto the interactions worker when wired; otherwise fall back to the
-        # dispatcher directly (same answer composition, fired in-process), or as a last
-        # resort an inline blocking invoke (keeps minimal/test compositions usable).
-        if self.respond_task is not None:
-            await self.respond_task.kiq(
-                project_id=str(project_id),
-                user_id=str(user_id),
-                interaction_id=str(interaction_id),
-                answer=answer,
-            )
-        elif self.interactions_dispatcher is not None:
-            await self.interactions_dispatcher.respond(
-                project_id=UUID(str(project_id)),
-                user_id=UUID(str(user_id)),
-                interaction_id=interaction_id,
-                answer=answer,
-            )
-        else:
-            references = await resolve_interaction_references(
-                project_id=UUID(str(project_id)),
-                interaction=interaction,
-                turns_service=self.turns_service,
-                streams_service=self.streams_service,
-            )
-            selector = (
-                interaction.data.selector.model_dump(mode="json")
-                if interaction.data and interaction.data.selector
+        response = SessionInteractionContinuationResponse(
+            interaction=admission.interaction,
+            command=(
+                SessionCommandRef(
+                    id=admission.command.id,
+                    state=admission.command.state.value,
+                )
+                if admission.command is not None
                 else None
-            )
-
-            invoke_request = WorkflowServiceRequest(
-                references=references,
-                selector=selector,
-                data=WorkflowServiceRequestData(inputs=answer),
-                session_id=interaction.session_id,
-            )
-
-            await self.workflows_service.invoke_workflow(
-                project_id=project_id,
-                user_id=user_id,
-                request=invoke_request,
-            )
-
-        return SessionInteractionResponse(count=1, interaction=interaction)
+            ),
+            execution=SessionInteractionContinuationExecution(
+                id=admission.execution_id,
+                state=(
+                    "awaiting_interactions"
+                    if getattr(admission, "waiting_for_interactions", False)
+                    else admission.execution_state.value
+                ),
+            ),
+        )
+        return JSONResponse(
+            status_code=status.HTTP_202_ACCEPTED,
+            content=response.model_dump(mode="json"),
+        )
 
 
 class SessionAttachmentsRouter:
@@ -1647,7 +2135,16 @@ class SessionAttachmentsRouter:
             status_code=status.HTTP_200_OK,
         )
 
-    async def _check(self, request: Request, permission: Permission) -> None:
+    async def _check(
+        self,
+        request: Request,
+        permission: Permission,
+        *,
+        session_id: str,
+        session_action: Permission,
+    ) -> bool:
+        """The capability, then the session's policy for `session_action`. False when the
+        session is hidden from the caller."""
         # Session-only permissions keep the protected mount out of the authorization model.
         if not await check_action_access(
             user_uid=request.state.user_id,
@@ -1655,6 +2152,11 @@ class SessionAttachmentsRouter:
             permission=permission,
         ):
             raise FORBIDDEN_EXCEPTION
+        return await allow_resource(
+            request,
+            action=session_action,
+            resource=session_resource(session_id),
+        )
 
     async def _read_bounded(self, *, file: UploadFile) -> bytes:
         max_raw_bytes = self.attachments_service.limits.max_raw_bytes
@@ -1678,7 +2180,15 @@ class SessionAttachmentsRouter:
     ) -> SessionAttachmentResponse:
         # Authorize first: the size limits below must not be probeable by an unauthorized caller.
         _validate_session_id_http(session_id)
-        await self._check(request, Permission.EDIT_SESSIONS)
+        # A composer upload is part of sending (rule S2). An upload to an unknown id
+        # stores the file, so a hidden one answers the one canonical not-found body.
+        if not await self._check(
+            request,
+            Permission.EDIT_SESSIONS,
+            session_id=session_id,
+            session_action=Permission.RUN_SESSIONS,
+        ):
+            raise not_found_exception()
 
         # The Content-Length check must stay above `request.form()`: touching form data (or
         # declaring the file as a File(...) route param) spools the whole body to disk first.
@@ -1740,7 +2250,13 @@ class SessionAttachmentsRouter:
         session_id: str = Query(...),
     ) -> Response:
         _validate_session_id_http(session_id)
-        await self._check(request, Permission.VIEW_SESSIONS)
+        if not await self._check(
+            request,
+            Permission.VIEW_SESSIONS,
+            session_id=session_id,
+            session_action=Permission.VIEW_SESSIONS,
+        ):
+            raise AttachmentNotFound(attachment_id=attachment_id)
 
         content = await self.attachments_service.fetch_attachment_content(
             project_id=UUID(str(request.state.project_id)),
@@ -1767,7 +2283,16 @@ class SessionAttachmentsRouter:
         body: SessionAttachmentReferenceRequest,
     ) -> SessionAttachmentsResponse:
         _validate_session_id_http(body.session_id)
-        await self._check(request, Permission.RUN_SESSIONS)
+        if not await self._check(
+            request,
+            Permission.RUN_SESSIONS,
+            session_id=body.session_id,
+            session_action=Permission.RUN_SESSIONS,
+        ):
+            # What an unknown session answers: no attachment of it is ready.
+            if body.attachment_ids:
+                raise AttachmentNotFound(attachment_id=body.attachment_ids[0])
+            return SessionAttachmentsResponse(count=0, attachments=[])
 
         attachments = await self.attachments_service.reference_attachments(
             project_id=UUID(str(request.state.project_id)),
@@ -1827,8 +2352,24 @@ class SessionMountsRouter:
             status_code=status.HTTP_200_OK,
         )
         self.router.add_api_route(
+            "/mounts/files/upload",
+            self.upload_session_cwd_file,
+            route_class_override=SizeCappedUploadRoute,
+            methods=["POST"],
+            operation_id="upload_session_cwd_file",
+            response_model=MountFileWrittenResponse,
+            response_model_exclude_none=True,
+            status_code=status.HTTP_200_OK,
+            responses={
+                status.HTTP_400_BAD_REQUEST: {
+                    "description": "`session_id` is not a valid session id."
+                }
+            },
+        )
+        self.router.add_api_route(
             "/mounts/{mount_id}/files/upload",
             self.upload_session_mount_file,
+            route_class_override=SizeCappedUploadRoute,
             methods=["POST"],
             operation_id="upload_session_mount_file",
             response_model=MountFileWrittenResponse,
@@ -1856,6 +2397,27 @@ class SessionMountsRouter:
             ):
                 raise FORBIDDEN_EXCEPTION
 
+    async def _require_mount(
+        self, request: Request, *, mount_id: UUID, permission: Permission
+    ) -> None:
+        """A mount of a hidden session or agent answers as an unknown mount."""
+        scope = await self.mounts_service.fetch_mount_scope(
+            project_id=UUID(request.state.project_id), mount_id=mount_id
+        )
+        if not await allow_mount(request, scope=scope, permission=permission):
+            raise MountNotFound()
+
+    async def _allow_session(
+        self, request: Request, *, session_id: str, actions: tuple
+    ) -> bool:
+        """The session's policy for each action. False when it is hidden."""
+        for action in actions:
+            if not await allow_resource(
+                request, action=action, resource=session_resource(session_id)
+            ):
+                return False
+        return True
+
     @intercept_exceptions()
     async def fetch_session_mounts(
         self,
@@ -1864,7 +2426,12 @@ class SessionMountsRouter:
         session_id: str = Query(...),
         include_archived: bool = Query(default=False),
     ) -> SessionMountsResponse:
+        prefetch_session(request, session_id)
         await self._check(request, Permission.VIEW_SESSIONS, Permission.VIEW_MOUNTS)
+        if not await self._allow_session(
+            request, session_id=session_id, actions=(Permission.VIEW_MOUNTS,)
+        ):
+            session_id = _unknown_session_id()
 
         mounts = await self.session_mounts_service.query_mounts(
             project_id=UUID(request.state.project_id),
@@ -1897,6 +2464,10 @@ class SessionMountsRouter:
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="session_id is required for a session-scoped mounts query.",
             )
+        if not await self._allow_session(
+            request, session_id=resolved_session_id, actions=(Permission.VIEW_MOUNTS,)
+        ):
+            resolved_session_id = _unknown_session_id()
 
         mount_query = SessionMountQuery(
             session_id=resolved_session_id,
@@ -1932,7 +2503,17 @@ class SessionMountsRouter:
     ) -> MountCredentialsResponse:
         _validate_session_id_http(session_id)
 
+        # The session entry rides in this check's one cache read.
+        prefetch_session(request, session_id)
         await self._check(request, Permission.RUN_SESSIONS, Permission.USE_MOUNTS)
+        # Signing an unknown id creates its mount, so a hidden one answers the one
+        # canonical not-found body.
+        if not await self._allow_session(
+            request,
+            session_id=session_id,
+            actions=(Permission.RUN_SESSIONS, Permission.USE_MOUNTS),
+        ):
+            raise not_found_exception()
 
         mount = await self.mounts_service.get_or_create_session_mount(
             project_id=UUID(request.state.project_id),
@@ -1950,6 +2531,48 @@ class SessionMountsRouter:
 
     @intercept_exceptions()
     @handle_mount_exceptions()
+    async def upload_session_cwd_file(
+        self,
+        request: Request,
+        *,
+        file: FastAPIUploadFile,
+        session_id: str = Query(...),
+        path: Optional[str] = Query(default=None),
+    ) -> MountFileWrittenResponse:
+        """Write a file into the session's working directory, creating that mount if needed.
+
+        The composer uses this for files over the attachment cap. A session that has not run
+        yet has no working-directory mount, and the only other route that creates one also
+        signs storage credentials, which the browser must never receive.
+        """
+        _validate_session_id_http(session_id)
+
+        await self._check(request, Permission.EDIT_SESSIONS, Permission.EDIT_MOUNTS)
+        # A composer upload is part of sending (rule S2). An upload to an unknown id
+        # creates its mount, so a hidden one answers the one canonical not-found body.
+        if not await self._allow_session(
+            request, session_id=session_id, actions=(Permission.RUN_SESSIONS,)
+        ):
+            raise not_found_exception()
+
+        mount = await self.mounts_service.get_or_create_session_mount(
+            project_id=UUID(request.state.project_id),
+            user_id=UUID(str(request.state.user_id)),
+            session_id=session_id,
+            name="cwd",
+        )
+
+        written = await upload_mount_file(
+            mounts_service=self.mounts_service,
+            project_id=UUID(request.state.project_id),
+            mount_id=mount.id,
+            file=file,
+            path=path,
+        )
+        return MountFileWrittenResponse(path=written.path, size=written.size)
+
+    @intercept_exceptions()
+    @handle_mount_exceptions()
     async def upload_session_mount_file(
         self,
         request: Request,
@@ -1959,6 +2582,9 @@ class SessionMountsRouter:
         path: Optional[str] = Query(default=None),
     ) -> MountFileWrittenResponse:
         await self._check(request, Permission.EDIT_SESSIONS, Permission.EDIT_MOUNTS)
+        await self._require_mount(
+            request, mount_id=mount_id, permission=Permission.EDIT_MOUNTS
+        )
 
         written = await upload_mount_file(
             mounts_service=self.mounts_service,
@@ -1979,6 +2605,9 @@ class SessionMountsRouter:
         path: str = Query(...),
     ):
         await self._check(request, Permission.VIEW_SESSIONS, Permission.VIEW_MOUNTS)
+        await self._require_mount(
+            request, mount_id=mount_id, permission=Permission.VIEW_MOUNTS
+        )
 
         return await download_mount_file(
             mounts_service=self.mounts_service,
@@ -2041,31 +2670,62 @@ class SessionTurnsRouter:
         project_id: UUID = request.state.project_id
         user_id: UUID = request.state.user_id
 
+        # The capability check stays ahead of the continuity shortcut of
+        # `allow_session_write`: a role that lost RUN_SESSIONS is refused with 403 even
+        # when its turn's admission record would let the write through. The session entry
+        # rides in this check's one cache read.
+        prefetch_session_write(
+            request,
+            session_id=body.session_id,
+            turn_id=str(body.turn_id) if body.turn_id else None,
+        )
         if not await check_action_access(
-            user_uid=str(user_id),
-            project_id=str(project_id),
+            user_uid=str(request.state.user_id),
+            project_id=str(request.state.project_id),
             permission=Permission.RUN_SESSIONS,
         ):
             raise FORBIDDEN_EXCEPTION
+        # A hidden session answers the canonical not-found body, as one with no row does.
+        if not await allow_session_write(
+            request,
+            session_id=body.session_id,
+            turn_id=str(body.turn_id) if body.turn_id else None,
+        ):
+            raise not_found_exception()
+        # A turn needs its session's row. The check found none: a row created since was
+        # never checked, and the runner appends only after its heartbeat created the row.
+        if session_was_missing(
+            project_id=UUID(str(project_id)), session_id=body.session_id
+        ):
+            raise not_found_exception()
 
-        turn = await self.turns_service.append_turn(
-            project_id=project_id,
-            user_id=user_id,
-            turn=SessionTurnCreate(
-                session_id=body.session_id,
-                turn_id=body.turn_id,
-                stream_id=body.stream_id,
-                turn_index=body.turn_index,
-                harness_kind=body.harness_kind,
-                agent_session_id=body.agent_session_id,
-                sandbox_id=body.sandbox_id,
-                references=body.references,
-                trace_id=body.trace_id,
-                span_id=body.span_id,
-                start_time=body.start_time,
-                end_time=body.end_time,
-            ),
-        )
+        # Runtime handles are reused on the next turn, so only the runner may write them.
+        runner_verified = has_valid_runner_token(request)
+
+        try:
+            turn = await self.turns_service.append_turn(
+                project_id=project_id,
+                user_id=user_id,
+                turn=SessionTurnCreate(
+                    session_id=body.session_id,
+                    turn_id=body.turn_id,
+                    stream_id=body.stream_id,
+                    turn_index=body.turn_index,
+                    harness_kind=body.harness_kind,
+                    agent_session_id=body.agent_session_id if runner_verified else None,
+                    sandbox_id=body.sandbox_id if runner_verified else None,
+                    references=body.references,
+                    trace_id=body.trace_id,
+                    span_id=body.span_id,
+                    start_time=body.start_time,
+                    end_time=body.end_time,
+                    # Attribution comes from the request's credential, never the body.
+                    envelope=request_run_envelope(request),
+                ),
+            )
+        except SessionTurnStreamMismatch as error:
+            # The stream is another session's row: answered as a hidden session.
+            raise not_found_exception() from error
         return SessionTurnResponse(count=1, turn=turn)
 
     @intercept_exceptions()
@@ -2077,6 +2737,7 @@ class SessionTurnsRouter:
         project_id: UUID = request.state.project_id
         user_id: UUID = request.state.user_id
 
+        prefetch_session(request, body.session_id)
         if not await check_action_access(
             user_uid=str(user_id),
             project_id=str(project_id),
@@ -2085,13 +2746,24 @@ class SessionTurnsRouter:
             raise FORBIDDEN_EXCEPTION
 
         try:
+            # The body names no turn: always the full check. Hidden answers like a
+            # session without that turn.
+            if not await allow_session_write(
+                request, session_id=body.session_id, turn_id=None
+            ):
+                raise SessionTurnNotFound(body.session_id, body.turn_index)
             turn = await self.turns_service.complete_turn(
                 project_id=project_id,
                 turn=SessionTurnComplete(
                     session_id=body.session_id,
                     turn_index=body.turn_index,
-                    agent_session_id=body.agent_session_id,
+                    agent_session_id=(
+                        body.agent_session_id
+                        if has_valid_runner_token(request)
+                        else None
+                    ),
                     end_time=body.end_time,
+                    envelope=request_run_envelope(request),
                 ),
             )
         except SessionTurnNotFound as e:
@@ -2110,6 +2782,7 @@ class SessionTurnsRouter:
         project_id: UUID = request.state.project_id
         user_id: UUID = request.state.user_id
 
+        prefetch_session(request, body.query.session_id if body.query else None)
         if not await check_action_access(
             user_uid=str(user_id),
             project_id=str(project_id),
@@ -2117,11 +2790,52 @@ class SessionTurnsRouter:
         ):
             raise FORBIDDEN_EXCEPTION
 
-        turns = await self.turns_service.query_turns(
-            project_id=project_id,
-            query=body.query,
-            windowing=body.windowing,
-        )
+        query = body.query
+        session_id = query.session_id if query else None
+        if session_id and not await allow_resource(
+            request,
+            action=Permission.VIEW_SESSIONS,
+            resource=session_resource(session_id),
+        ):
+            query = query.model_copy(update={"session_id": _unknown_session_id()})
+        elif session_id and session_was_missing(
+            project_id=UUID(str(project_id)), session_id=session_id
+        ):
+            # The check's policy read found no row for this session. A turn references a
+            # session row (a NOT NULL foreign key), and its insert refuses a stream that
+            # is not its own session's row, so no turn belongs here. A turn an
+            # earlier build wrote with another session's stream stays unread: it is
+            # that session's data, shown as a session with no row shows nothing.
+            if body.windowing is not None and body.windowing.next is not None:
+                # No turn of this session can be the cursor: as for a hidden session.
+                raise _invalid_cursor()
+            return SessionTurnsResponse(count=0, turns=[])
+        elif not session_id and body.windowing is not None and body.windowing.next:
+            # A query across sessions: the cursor must be a turn of a session the
+            # caller may read, else it answers as an unknown id.
+            cursor = await self.turns_service.fetch_turn(
+                project_id=project_id, turn_id=body.windowing.next
+            )
+            if cursor is None or not await allow_resource(
+                request,
+                action=Permission.VIEW_SESSIONS,
+                resource=session_resource(cursor.session_id),
+            ):
+                raise _invalid_cursor()
+
+        try:
+            turns = await self.turns_service.query_turns(
+                project_id=project_id,
+                query=query,
+                windowing=body.windowing,
+            )
+        except SessionTurnCursorInvalid as error:
+            raise _invalid_cursor() from error
+        if not session_id:
+            # A query across sessions: drop the turns of hidden sessions.
+            turns = await _visible_items(
+                request, turns, session_id_of=lambda item: item.session_id
+            )
         return SessionTurnsResponse(count=len(turns), turns=turns)
 
     @intercept_exceptions()
@@ -2144,6 +2858,12 @@ class SessionTurnsRouter:
             project_id=project_id,
             turn_id=turn_id,
         )
+        if turn is not None and not await allow_resource(
+            request,
+            action=Permission.VIEW_SESSIONS,
+            resource=session_resource(turn.session_id),
+        ):
+            turn = None
         return SessionTurnResponse(count=1 if turn else 0, turn=turn)
 
 
@@ -2250,12 +2970,13 @@ class SessionsRootRouter:
         session_id: str,
     ) -> SessionSnapshotResponse:
         _validate_session_id_http(session_id)
-        if not await check_action_access(
-            user_uid=str(request.state.user_id),
-            project_id=str(request.state.project_id),
-            permission=Permission.VIEW_SESSIONS,
+        if not await allow_resource(
+            request,
+            action=Permission.VIEW_SESSIONS,
+            resource=session_resource(session_id),
         ):
-            raise FORBIDDEN_EXCEPTION
+            # The snapshot of an unknown id.
+            session_id = _unknown_session_id()
         if self.streams_service is None or self.interactions_service is None:
             raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
         if env.sessions.shared_reader and (
@@ -2329,6 +3050,7 @@ class SessionsRootRouter:
         project_id = request.state.project_id
         user_id = request.state.user_id
 
+        prefetch_session_list(request)
         if not await check_action_access(
             user_uid=str(user_id),
             project_id=str(project_id),
@@ -2359,6 +3081,7 @@ class SessionsRootRouter:
         normalized = normalize_session_query_request(body)
         page = await self.sessions_service.query_sessions_page(
             project_id=UUID(str(project_id)),
+            read_scope=await session_read_scope_for_request(request),
             query=normalized.predicates,
             lifecycle=normalized.lifecycle,
             options=normalized.options,
@@ -2387,12 +3110,12 @@ class SessionsRootRouter:
         _validate_session_id_http(session_id)
         project_id = UUID(str(request.state.project_id))
         user_id = request.state.user_id
-        if not await check_action_access(
-            user_uid=str(user_id),
-            project_id=str(project_id),
-            permission=Permission.RUN_SESSIONS,
+        if not await allow_resource(
+            request,
+            action=Permission.RUN_SESSIONS,
+            resource=session_resource(session_id),
         ):
-            raise FORBIDDEN_EXCEPTION
+            raise _pending_input_not_found(input_id=str(input_id))
         try:
             item = await self.inputs_service.update(
                 project_id=project_id,
@@ -2440,12 +3163,12 @@ class SessionsRootRouter:
         _validate_session_id_http(session_id)
         project_id = UUID(str(request.state.project_id))
         user_id = request.state.user_id
-        if not await check_action_access(
-            user_uid=str(user_id),
-            project_id=str(project_id),
-            permission=Permission.RUN_SESSIONS,
+        if not await allow_resource(
+            request,
+            action=Permission.RUN_SESSIONS,
+            resource=session_resource(session_id),
         ):
-            raise FORBIDDEN_EXCEPTION
+            raise _pending_input_not_found(input_id=str(input_id))
         try:
             item = await self.inputs_service.remove(
                 project_id=project_id,
@@ -2485,12 +3208,13 @@ class SessionsRootRouter:
         project_id = request.state.project_id
         user_id = request.state.user_id
 
-        if not await check_action_access(
-            user_uid=str(user_id),
-            project_id=str(project_id),
-            permission=Permission.EDIT_SESSIONS,
+        # A delete of an unknown id deletes nothing and succeeds.
+        if not await allow_resource(
+            request,
+            action=Permission.EDIT_SESSIONS,
+            resource=session_resource(session_id),
         ):
-            raise FORBIDDEN_EXCEPTION
+            return {"ok": True}
 
         await self.sessions_service.delete_session(
             project_id=UUID(str(project_id)),
@@ -2509,12 +3233,12 @@ class SessionsRootRouter:
         project_id = request.state.project_id
         user_id = request.state.user_id
 
-        if not await check_action_access(
-            user_uid=str(user_id),
-            project_id=str(project_id),
-            permission=Permission.EDIT_SESSIONS,
+        if not await allow_resource(
+            request,
+            action=Permission.EDIT_SESSIONS,
+            resource=session_resource(session_id),
         ):
-            raise FORBIDDEN_EXCEPTION
+            return SessionResponse(count=0, session=None)
 
         session = await self.sessions_service.archive_session(
             project_id=UUID(str(project_id)),
@@ -2536,12 +3260,12 @@ class SessionsRootRouter:
         project_id = request.state.project_id
         user_id = request.state.user_id
 
-        if not await check_action_access(
-            user_uid=str(user_id),
-            project_id=str(project_id),
-            permission=Permission.EDIT_SESSIONS,
+        if not await allow_resource(
+            request,
+            action=Permission.EDIT_SESSIONS,
+            resource=session_resource(session_id),
         ):
-            raise FORBIDDEN_EXCEPTION
+            return SessionResponse(count=0, session=None)
 
         session = await self.sessions_service.unarchive_session(
             project_id=UUID(str(project_id)),
@@ -2577,6 +3301,9 @@ def _handle_command_exceptions():
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail=e.message,
                 ) from e
+            except SessionIdTombstoned as e:
+                # A deleted private session's id: answered as a hidden session.
+                raise not_found_exception() from e
             except ExecutionExpectationFailed as e:
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
@@ -2658,6 +3385,36 @@ def _handle_input_exceptions():
     return decorator
 
 
+def _pending_input_not_found(*, input_id: str) -> HTTPException:
+    error = SessionInputNotFound(input_id)
+    return HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail={
+            "code": "pending_input_not_found",
+            "message": str(error),
+            "retryable": False,
+            "details": {"input_id": input_id},
+        },
+    )
+
+
+def _unknown_session_cancel_response(
+    *, expected_execution_id: Optional[str]
+) -> JSONResponse:
+    """What a Stop on an unknown session answers, without its write: nothing runs, so
+    a named execution fails the expectation and an unnamed Stop is a settled no-op."""
+
+    if expected_execution_id is not None:
+        raise ExecutionExpectationFailed(expected=expected_execution_id, current=None)
+    body = SessionCancelResponse(
+        command=SessionCommandRef(id=UUID(str(uuid7())), state="obsolete"),
+        execution=SessionExecutionRef(id=None, state="idle"),
+    )
+    return JSONResponse(
+        status_code=status.HTTP_200_OK, content=body.model_dump(mode="json")
+    )
+
+
 class SessionControlRouter:
     """The Stop plane: one public route and one internal one.
 
@@ -2731,12 +3488,13 @@ class SessionControlRouter:
         _validate_session_id_http(session_id)
         project_id = UUID(str(request.state.project_id))
         user_id = request.state.user_id
-        if not await check_action_access(
-            user_uid=str(user_id),
-            project_id=str(project_id),
-            permission=Permission.RUN_SESSIONS,
+        if not await allow_resource(
+            request,
+            action=Permission.RUN_SESSIONS,
+            resource=session_resource(session_id),
         ):
-            raise FORBIDDEN_EXCEPTION
+            # An unknown session has no execution to send into.
+            raise SessionInputBusy()
         try:
             admission = await self._service.send_pending_input_now(
                 project_id=project_id,
@@ -2772,12 +3530,14 @@ class SessionControlRouter:
     ) -> JSONResponse:
         project_id = UUID(str(request.state.project_id))
         user_id = request.state.user_id
-        if not await check_action_access(
-            user_uid=str(user_id),
-            project_id=str(project_id),
-            permission=Permission.RUN_SESSIONS,
+        # An input to an unknown id starts the session, so a hidden one answers the one
+        # canonical not-found body.
+        if not await allow_resource(
+            request,
+            action=Permission.RUN_SESSIONS,
+            resource=session_resource(payload.session_id),
         ):
-            raise FORBIDDEN_EXCEPTION
+            raise not_found_exception()
         idempotency_key = request.headers.get("Idempotency-Key")
         if idempotency_key is not None:
             idempotency_key = (
@@ -2790,6 +3550,7 @@ class SessionControlRouter:
             content=payload.content,
             policy=payload.on_busy,
             idempotency_key=idempotency_key,
+            envelope=request_run_envelope(request),
         )
         if (
             payload.on_busy == "steer"
@@ -2836,6 +3597,7 @@ class SessionControlRouter:
         project_id = request.state.project_id
         user_id = request.state.user_id
 
+        prefetch_session(request, session_id)
         has_permission = await check_action_access(
             user_uid=str(user_id),
             project_id=str(project_id),
@@ -2844,26 +3606,23 @@ class SessionControlRouter:
         if not has_permission:
             raise FORBIDDEN_EXCEPTION
 
-        if not env.agenta.sessions.durable_stop:
-            legacy = await self._service.request_cancel_legacy(
-                project_id=UUID(str(project_id)),
-                user_id=UUID(str(user_id)),
-                session_id=session_id,
-                expected_execution_id=(
-                    payload.expected_execution_id if payload else None
-                ),
-            )
-            return JSONResponse(
-                status_code=status.HTTP_200_OK,
-                content=legacy.model_dump(mode="json"),
-            )
-
         idempotency_key = request.headers.get("Idempotency-Key")
         if idempotency_key is not None:
             idempotency_key = idempotency_key.strip()
             if len(idempotency_key) > _MAX_IDEMPOTENCY_KEY_CHARACTERS:
                 return _idempotency_key_too_long_response()
             idempotency_key = idempotency_key or None
+
+        if not await allow_resource(
+            request,
+            action=Permission.RUN_SESSIONS,
+            resource=session_resource(session_id),
+        ):
+            return _unknown_session_cancel_response(
+                expected_execution_id=(
+                    payload.expected_execution_id if payload else None
+                )
+            )
 
         admission = await self._service.request_cancel(
             project_id=UUID(str(project_id)),
@@ -2900,24 +3659,20 @@ class SessionControlRouter:
         session_id: str,
     ) -> SessionContinuationResumeResponse:
         project_id = request.state.project_id
-        user_id = request.state.user_id
 
-        has_permission = await check_action_access(
-            user_uid=str(user_id),
-            project_id=str(project_id),
-            permission=Permission.RUN_SESSIONS,
-        )
-        if not has_permission:
-            raise FORBIDDEN_EXCEPTION
+        if not await allow_resource(
+            request,
+            action=Permission.RUN_SESSIONS,
+            resource=session_resource(session_id),
+        ):
+            return SessionContinuationResumeResponse(resumed=False)
 
-        resumed = False
-        if env.agenta.sessions.durable_approvals:
-            resumed = bool(
-                await self._service.resume_recoverable_continuation(
-                    project_id=UUID(str(project_id)),
-                    session_id=session_id,
-                )
+        resumed = bool(
+            await self._service.resume_recoverable_continuation(
+                project_id=UUID(str(project_id)),
+                session_id=session_id,
             )
+        )
         return SessionContinuationResumeResponse(resumed=resumed)
 
     @intercept_exceptions()
@@ -2928,7 +3683,7 @@ class SessionControlRouter:
         command_id: UUID,
         payload: SessionControlOutcomeRequest,
     ) -> SessionControlOutcomeResponse:
-        _assert_runner_token(request)
+        assert_runner_token(request)
 
         report = await self._service.report_outcome(
             command_id=command_id,
@@ -2948,30 +3703,6 @@ class SessionControlRouter:
                 settled_at=report.command.settled_at,
             ),
             admitted=report.admitted,
-        )
-
-
-def _assert_runner_token(request: Request) -> None:
-    """The runner proves it is the platform runtime with the shared secret both sides hold.
-
-    Constant-time compare, so a wrong token leaks no length or prefix through timing. A missing
-    configured token fails closed: an unset secret must never mean "let everyone in".
-    """
-    expected = env.runner.token
-    if not expected:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="runner token is not configured on this deployment",
-        )
-    presented = request.headers.get("X-Agenta-Runner-Token") or ""
-    if not presented:
-        authorization = request.headers.get("Authorization") or ""
-        if authorization.lower().startswith("bearer "):
-            presented = authorization[7:].strip()
-    if not compare_digest(presented.encode("utf-8"), expected.encode("utf-8")):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Unauthorized",
         )
 
 
@@ -3004,20 +3735,19 @@ class SessionsRouter:
         streams_service: SessionStreamsService,
         records_service: RecordsService,
         interactions_service: SessionInteractionsService,
-        workflows_service: WorkflowsService,
         attachments_service: SessionAttachmentsService,
         session_mounts_service: SessionMountsService,
         mounts_service: MountsService,
         turns_service: SessionTurnsService,
         sessions_service: SessionsService,
         commands_service: SessionCommandsService,
+        run_admission: RunAdmission,
         inputs_service: Optional[SessionInputsService] = None,
-        respond_task: Optional[Any] = None,
-        interactions_dispatcher: Optional[Any] = None,
     ) -> None:
         self.streams = SessionStreamsRouter(
             service=streams_service,
             interactions_service=interactions_service,
+            run_admission=run_admission,
             records_service=records_service,
         )
         self.records = RecordsRouter(
@@ -3026,12 +3756,7 @@ class SessionsRouter:
         )
         self.interactions = InteractionsRouter(
             interactions_service=interactions_service,
-            workflows_service=workflows_service,
-            respond_task=respond_task,
-            interactions_dispatcher=interactions_dispatcher,
             commands_service=commands_service,
-            turns_service=turns_service,
-            streams_service=streams_service,
         )
         self.attachments = SessionAttachmentsRouter(
             attachments_service=attachments_service,

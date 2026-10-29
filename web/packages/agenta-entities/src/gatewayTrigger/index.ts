@@ -107,6 +107,7 @@ export {
 } from "./core/eventMessageTemplate"
 export {localFaceToUtcIso, utcIsoToLocalFace} from "./core/window"
 export {previewValue, resolveSelectorPreview} from "./core/selectorPreview"
+export {normalizeRepoFilters} from "./core/repoFilter"
 
 // ---------------------------------------------------------------------------
 // API — HTTP wrappers (axios + zod boundary validation)
@@ -198,7 +199,6 @@ export {
     triggerSubscriptionsQueryAtom,
     useTriggerCatalogEvents,
     useTriggerCatalogIntegrations,
-    useTriggerConnectionActions,
     useTriggerConnectionsQuery,
     useTriggerConnectionSubscriptions,
     useTriggerDelivery,

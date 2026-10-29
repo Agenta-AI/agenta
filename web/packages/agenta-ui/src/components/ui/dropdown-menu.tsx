@@ -1,7 +1,7 @@
 import * as React from "react"
 
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu"
-import {Check, ChevronRight, Circle} from "lucide-react"
+import {Check, ChevronRight} from "lucide-react"
 
 import {cn} from "./utils"
 
@@ -135,15 +135,16 @@ function DropdownMenuRadioItem({
     return (
         <DropdownMenuPrimitive.RadioItem
             data-slot="dropdown-menu-radio-item"
-            className={cn(itemBase, "pl-7", className)}
+            className={cn(itemBase, className)}
             {...props}
         >
-            <span className="pointer-events-none absolute left-1.5 flex size-4 items-center justify-center">
+            <span className="min-w-0 flex-1">{children}</span>
+            {/* One pick: a check on the right, as Select marks it; the slot keeps labels still. */}
+            <span className="pointer-events-none flex size-4 shrink-0 items-center justify-center">
                 <DropdownMenuPrimitive.ItemIndicator>
-                    <Circle className="size-2 fill-current" />
+                    <Check className="size-3.5" />
                 </DropdownMenuPrimitive.ItemIndicator>
             </span>
-            {children}
         </DropdownMenuPrimitive.RadioItem>
     )
 }

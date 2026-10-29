@@ -4,7 +4,7 @@
  * The contexts differ in what they can honestly show. Settings has a connections table beside the
  * drawer, so the drawer is the catalog and nothing else. The agent playground has no such table
  * and a harness runtime underneath it, so it gets Connected above the catalog, and below it the
- * hosted ChatGPT sign-in, Claude setup, and the deployment's mounted subscriptions. The completion playground has
+ * hosted ChatGPT and Claude cards, and the deployment's mounted subscriptions. The completion playground has
  * the table's problem but not the runtime — a completion runs no harness — so it gets Connected
  * and drops both subscription blocks.
  *
@@ -17,31 +17,38 @@
  *
  * Design: providers-drawer-final/README.md
  */
-import {useCallback, useEffect, useMemo, useState} from "react"
+import {createElement, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
+    hostedSubscriptionFamilies,
+    isOrganizationConnection,
     isSubscriptionConnection,
     SecretManagementPolicy,
+    subscriptionConnectionFor,
     type ProviderCatalogEntry,
     type ProviderConnection,
     type SubscriptionPair,
 } from "@agenta/entities/secret"
 import {providerTitleForKind} from "@agenta/entities/secret"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
+import {Badge, Button, Divider} from "@agenta/ui/ui"
 import {ArrowLeft, ArrowSquareOut, WarningCircle} from "@phosphor-icons/react"
 
 import {DrawerFooter} from "../drawers/shared/DrawerFooter"
 import {harnessMetaFor} from "../DrillInView/SchemaControls/harnessMeta"
 
 import {harnessMarkNode} from "./harnessMark"
+import type {OrganizationConnectionScope} from "./OrganizationProjectsSection"
 import {
     PlaygroundConnectedSection,
     PlaygroundSubscriptionsSection,
 } from "./PlaygroundProviderSections"
 import ProviderCatalogList from "./ProviderCatalogList"
 import ProviderConnectionCard, {type ProviderCardSaveState} from "./ProviderConnectionCard"
+import {providerIconFor} from "./providerIcon"
 import SubscriptionConnectionCard from "./SubscriptionConnectionCard"
 import SubscriptionPairCard, {type SubscriptionPairCardSaveState} from "./SubscriptionPairCard"
+import SubscriptionTokenCard from "./SubscriptionTokenCard"
 
 /**
  * Where the drawer was opened from. `playground` is the AGENT playground (the one with a harness
@@ -57,6 +64,8 @@ export interface ProviderDrawerProps {
     connections: ProviderConnection[]
     /** Open straight on this saved connection's card (a Settings table row click). */
     connection?: ProviderConnection | null
+    /** Open straight on a new connection card for this kind (a Settings catalog row click). */
+    kind?: string | null
     /** Called after a connection is saved, so the host can refetch the vault. */
     onSaved?: (savedConnectionId?: string) => void
     /** Where "configured in the deployment" points. */
@@ -68,6 +77,16 @@ export interface ProviderDrawerProps {
     showSubscriptions?: boolean
     /** Panel width. 480 by default; 400 is the floor and 560 the roomy variant. */
     width?: number
+    /**
+     * The Organization tab of AI providers: `connections` are the organization's, a save
+     * goes to the organization, and a member's drawer is locked with Test kept.
+     */
+    organization?: OrganizationConnectionScope
+    /**
+     * The organization connections this project may use, for a surface that cannot use them (the
+     * completion playground): listed in Connected, disabled, as agents only.
+     */
+    organizationConnections?: ProviderConnection[]
 }
 
 /** Which level the drawer is showing. `pushed` records whether a back arrow belongs on it. */
@@ -75,6 +94,15 @@ type DrawerView =
     | {level: "catalog"}
     | {level: "connection"; kind: string; connection: ProviderConnection | null; pushed: boolean}
     | {level: "subscription"; pair: SubscriptionPair}
+
+/** The provider's logo in the 28px tile the catalog rows use. */
+const ProviderTile = ({kind}: {kind: string}) => {
+    return (
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-md border border-solid border-border bg-background">
+            {createElement(providerIconFor(kind), {className: "size-4"})}
+        </span>
+    )
+}
 
 const DEFAULT_SUBSCRIPTION_DOCS_URL = "https://docs.agenta.ai/self-host/quick-start"
 
@@ -114,28 +142,50 @@ const ProviderDrawer = ({
     context,
     connections,
     connection,
+    kind,
     onSaved,
     subscriptionDocsUrl = DEFAULT_SUBSCRIPTION_DOCS_URL,
     showSubscriptions = true,
     width = DRAWER_WIDTH,
+    organization,
+    organizationConnections,
 }: ProviderDrawerProps) => {
     const [view, setView] = useState<DrawerView>({level: "catalog"})
+    const readOnly = !!organization?.readOnly
+    // Outside the Organization tab, an organization connection is the project's to use, never to
+    // edit here: an agent picker hands the drawer every connection it lists.
+    const ownConnections = useMemo(
+        () =>
+            organization
+                ? connections
+                : connections.filter((candidate) => !isOrganizationConnection(candidate)),
+        [connections, organization],
+    )
     // Only what this card can edit: a manager-only connection 409s on save, and a subscription's
     // credential is a sign-in. Both stay in `connections`, so the picker still counts them.
     const userConnections = useMemo(
         () =>
-            connections.filter(
+            ownConnections.filter(
                 (candidate) =>
                     candidate.managementPolicy !== SecretManagementPolicy.ManagerOnly &&
                     !isSubscriptionConnection(candidate),
             ),
-        [connections],
+        [ownConnections],
     )
     const visibleCount = userConnections.length
-    // One per project, so the first is it. Null still renders the card: it carries the Connect verb.
-    const hostedSubscription = useMemo(
-        () => connections.find(isSubscriptionConnection) ?? null,
-        [connections],
+    // One per provider. Null still renders the card: it carries the Connect verb.
+    const chatgptConnection = useMemo(
+        () => subscriptionConnectionFor(ownConnections, "chatgpt"),
+        [ownConnections],
+    )
+    const claudeConnection = useMemo(
+        () => subscriptionConnectionFor(ownConnections, "claude"),
+        [ownConnections],
+    )
+    // A mounted row names where it comes from only when one of these plans is also hosted.
+    const hostedFamilies = useMemo(
+        () => hostedSubscriptionFamilies(ownConnections),
+        [ownConnections],
     )
     // The card owns the save; the footer that triggers it lives out here, so the card publishes
     // what it needs. Cleared on every level change — the next card publishes its own.
@@ -148,16 +198,29 @@ const ProviderDrawer = ({
         setView(next)
     }, [])
 
-    // Opening is what decides the level: with a connection the drawer goes straight to its card
-    // (and shows no back arrow, because there is no list behind it); without one, the catalog.
+    // Opens on the connection's card, else a new card for `kind`, else the catalog. Keyed by the
+    // connection's id: a refetch of the same connection must not reset the view or its save state.
+    const latestConnection = useRef(connection)
+    latestConnection.current = connection
+    const connectionId = connection?.id ?? null
     useEffect(() => {
         if (!open) return
+        const opened = latestConnection.current
         showView(
-            connection
-                ? {level: "connection", kind: connection.kind, connection, pushed: false}
-                : {level: "catalog"},
+            opened
+                ? {level: "connection", kind: opened.kind, connection: opened, pushed: false}
+                : kind
+                  ? {level: "connection", kind, connection: null, pushed: false}
+                  : {level: "catalog"},
         )
-    }, [open, connection, showView])
+    }, [open, connectionId, kind, showView])
+    // The card reads the connection as currently stored, not as it was when the drawer opened.
+    const cardConnection =
+        view.level === "connection" && view.connection && view.connection.id === connection?.id
+            ? connection
+            : view.level === "connection"
+              ? view.connection
+              : null
 
     const onPickProvider = (entry: ProviderCatalogEntry) =>
         showView({level: "connection", kind: entry.kind, connection: null, pushed: true})
@@ -213,9 +276,11 @@ const ProviderDrawer = ({
             // A connection name is user-supplied, so it truncates rather than shoving the X out.
             <span className="flex min-w-0 items-center gap-2" style={{maxWidth: titleMaxWidth}}>
                 {view.pushed ? backButton : null}
+                <ProviderTile kind={view.kind} />
                 <span className="truncate">
                     {view.connection?.name ?? providerTitleForKind(view.kind)}
                 </span>
+                {readOnly ? <Badge className="shrink-0">Organization</Badge> : null}
             </span>
         )
 
@@ -227,7 +292,16 @@ const ProviderDrawer = ({
     // from Settings, that subscriptions are not something this drawer can add; from a playground,
     // what is connected and where it gets renamed or removed.
     const footer =
-        view.level === "connection" ? (
+        view.level === "connection" && readOnly ? (
+            <>
+                <Divider className="m-0" />
+                <div className="flex shrink-0 items-center justify-end gap-2 px-6 py-3">
+                    <Button variant="outline" onClick={onClose}>
+                        Close
+                    </Button>
+                </div>
+            </>
+        ) : view.level === "connection" ? (
             <DrawerFooter
                 onCancel={onCardCancel}
                 left={
@@ -292,6 +366,9 @@ const ProviderDrawer = ({
                     {showConnected ? (
                         <PlaygroundConnectedSection
                             connections={userConnections}
+                            organizationConnections={
+                                context === "completion" ? organizationConnections : undefined
+                            }
                             onSelect={(picked) =>
                                 showView({
                                     level: "connection",
@@ -302,21 +379,20 @@ const ProviderDrawer = ({
                             }
                         />
                     ) : null}
-                    <ProviderCatalogList
-                        onSelect={onPickProvider}
-                        label={isSettings ? undefined : "Add a provider"}
-                        hint={isSettings ? undefined : "several connections per provider are fine"}
-                    />
+                    <ProviderCatalogList onSelect={onPickProvider} />
                     {/* `showSubscriptions` gates the MOUNTED rows only: a deployment that mounts
                         nothing still runs a hosted subscription. */}
                     {isPlayground ? (
                         <PlaygroundSubscriptionsSection
-                            subscriptionDocsUrl={subscriptionDocsUrl}
                             onSelectPair={(pair) => showView({level: "subscription", pair})}
-                            hostedCard={
-                                <SubscriptionConnectionCard connection={hostedSubscription} />
+                            hostedCards={
+                                <>
+                                    <SubscriptionConnectionCard connection={chatgptConnection} />
+                                    <SubscriptionTokenCard connection={claudeConnection} />
+                                </>
                             }
                             showMounted={showSubscriptionRows}
+                            hostedFamilies={hostedFamilies}
                         />
                     ) : null}
                 </>
@@ -332,8 +408,9 @@ const ProviderDrawer = ({
                 <ProviderConnectionCard
                     key={view.connection?.id ?? view.kind}
                     kind={view.kind}
-                    connection={view.connection}
-                    connections={connections}
+                    connection={cardConnection}
+                    connections={ownConnections}
+                    organization={organization}
                     onSaveStateChange={setCardSave}
                     onSaved={(savedConnectionId) => {
                         onSaved?.(savedConnectionId)

@@ -43,14 +43,18 @@ const META: Record<SessionRowStatus, Omit<SessionRowStatusMeta, "status">> = {
     },
     running: {
         label: "Running",
-        dotClassName: "bg-[var(--ag-run-status-success)]",
+        // The deep semantic green, not the run-status mint: the pulse dims the dot to half, and at
+        // 6px the mint's low half read as washed out rather than live.
+        dotClassName: "bg-colorSuccess",
         textClassName: "text-colorSuccessText",
         pulse: true,
     },
     // The rest are states, not calls to action, so they read as muted as the timestamp beside them.
     alive: {
         label: "Ready to resume",
-        dotClassName: "bg-colorInfoBorder",
+        // Ink, as the nav rail paints it (a FILLED dot in the row's own colour): a warm sandbox
+        // is "there", not a colour-coded event. The old info-blue read as a stray tint.
+        dotClassName: "bg-colorText",
         textClassName: "text-muted-foreground",
         pulse: false,
     },

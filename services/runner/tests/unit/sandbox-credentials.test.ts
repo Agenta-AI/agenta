@@ -3,7 +3,10 @@ import { describe, it } from "vitest";
 
 import type { AgentRunRequest } from "../../src/protocol.ts";
 import { daytonaEnvVars } from "../../src/engines/sandbox_agent/daytona.ts";
-import { buildRunPlan } from "../../src/engines/sandbox_agent/run-plan.ts";
+import {
+  buildRunPlan,
+  materializeModelEnvironment,
+} from "../../src/engines/sandbox_agent/run-plan.ts";
 import {
   materializeSandboxCredentials,
   RESERVED_SANDBOX_CREDENTIAL_NAMES,
@@ -148,5 +151,85 @@ describe("sandbox credentials", () => {
     const firstState = normalizeDesiredState(first, configFingerprint(first));
     const rotatedState = normalizeDesiredState(rotated, configFingerprint(rotated));
     assert.equal(firstState.digests.runtime, rotatedState.digests.runtime);
+  });
+});
+
+describe("reserved environment names on the model connection (M20)", () => {
+  function connectionRequest(
+    environment: Record<string, string>,
+    credentials?: unknown[],
+  ): AgentRunRequest {
+    return {
+      modelConnection: {
+        provider: "openai",
+        deployment: "custom",
+        endpoint: { baseUrl: "https://api.example.test/v1" },
+        environment,
+        ...(credentials
+          ? { credentialMode: "env", credentials }
+          : {}),
+      },
+    } as unknown as AgentRunRequest;
+  }
+
+  for (const name of [
+    "AGENTA_AGENT_MODEL_PROVIDER_OVERRIDE",
+    "CLAUDE_CONFIG_DIR",
+    "CODEX_HOME",
+    "NODE_OPTIONS",
+    "LD_PRELOAD",
+    "PATH",
+  ]) {
+    it(`refuses '${name}' on modelConnection.environment`, () => {
+      // The screen was applied to `sandboxCredentials` only, while this field lands in the same
+      // process environment — so it decided which field an override had to arrive in, not whether
+      // one could. `AGENTA_AGENT_MODEL_PROVIDER_OVERRIDE` is the sharp one: the bundled Pi
+      // extension reads it and would re-point the model provider.
+      const result = materializeModelEnvironment(
+        connectionRequest({ [name]: "attacker-supplied" }),
+      );
+      assert.equal(result.ok, false);
+      assert.match(
+        result.ok ? "" : result.error,
+        /reserved by the runtime/,
+      );
+    });
+  }
+
+  it("refuses a reserved name on a credential binding too", () => {
+    // Same environment, a different field of the same object.
+    const result = materializeModelEnvironment(
+      connectionRequest({}, [
+        {
+          binding: { kind: "environment", name: "AGENTA_AGENT_BUILTIN_GATING" },
+          value: "0",
+          usage: "local_use",
+        },
+      ]),
+    );
+    assert.equal(result.ok, false);
+    assert.match(result.ok ? "" : result.error, /reserved by the runtime/);
+  });
+
+  it("still accepts an ordinary provider variable", () => {
+    // The screen must not cost the field its actual purpose.
+    const result = materializeModelEnvironment(
+      connectionRequest({ OPENAI_BASE_URL: "https://api.example.test/v1" }),
+    );
+    assert.equal(result.ok, true);
+    assert.deepEqual(result.ok && result.environment, {
+      OPENAI_BASE_URL: "https://api.example.test/v1",
+    });
+  });
+
+  it("screens every name the sandbox credential path screens", () => {
+    // One rule, one set: a name added to the reserved set must close both doors at once.
+    for (const name of RESERVED_SANDBOX_CREDENTIAL_NAMES) {
+      assert.equal(
+        materializeModelEnvironment(connectionRequest({ [name]: "x" })).ok,
+        false,
+        `${name} should be refused on modelConnection.environment`,
+      );
+    }
   });
 });

@@ -1,10 +1,12 @@
-from typing import List, Optional
+from typing import Dict, List, Optional
+from re import compile as re_compile
 from uuid import UUID
 from datetime import datetime, timezone
 import asyncio
 import traceback
 
 from pydantic import ValidationError
+from sqlalchemy.exc import NoResultFound
 from fastapi import Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
@@ -34,6 +36,31 @@ from oss.src.utils.exceptions import (
 )
 
 from oss.src.core.auth.service import AuthService
+from oss.src.core.access.context import (
+    get_request_memo,
+    reset_request_access,
+    set_request_access,
+)
+from oss.src.core.access.dtos import (
+    PrincipalKind,
+    PrincipalRecord,
+    PrincipalRef,
+    RequestAccess,
+    RequestCredentialKind,
+    RunAuthority,
+    RunContext,
+    RunEnvelope,
+    RunOrigin,
+    RunSender,
+)
+from oss.src.core.access.principals import (
+    ENVELOPE_CLAIM_KEYS,
+    envelope_from_claims,
+    envelope_to_claims,
+    missing_principal_error,
+)
+from oss.src.core.access.types import InvalidRunClaims
+from oss.src.core.memberships.service import get_memberships_service
 
 log = get_module_logger(__name__)
 
@@ -48,6 +75,32 @@ _ALLOWED_TOKENS = (
     _APIKEY_TOKEN_PREFIX,
     _SECRET_TOKEN_PREFIX,
 )
+
+# Gateway credentials use this header. Gateway data-plane Authorization belongs upstream.
+_CREDENTIALS_HEADER = "X-AG-Credentials"
+
+# `/gateways/{plane}/{namespace}/...` is the data plane; `/gateways/{plane}/endpoints/...`
+# is ordinary CRUD. No namespace can spell `endpoints`, which is what keeps the two apart
+# under one mount prefix. Only the LLM plane has the `organization` namespace (M5).
+_GATEWAY_DATA_PLANE = re_compile(
+    r"^(?:/api)?/gateways/"
+    r"(?:llms/(?:builtin|standard|custom|organization)|mcps/(?:builtin|standard|custom))"
+    r"(?:/|$)"
+)
+
+
+def _credentials_header(request: Request) -> Optional[str]:
+    ours = request.headers.get(_CREDENTIALS_HEADER) or request.headers.get(
+        _CREDENTIALS_HEADER.lower()
+    )
+    if ours or _GATEWAY_DATA_PLANE.match(request.url.path):
+        return ours
+    return (
+        request.headers.get("Authorization")
+        or request.headers.get("authorization")
+        or None
+    )
+
 
 _PUBLIC_ENDPOINTS = (
     # AGENTA
@@ -77,11 +130,70 @@ _PUBLIC_ENDPOINTS = (
     # tenant boundary.
     "/sessions/control/commands/",
     "/api/sessions/control/commands/",
+    # SECRETS — the runner pod that ran a device login reports its outcome with the shared
+    # runner token, not a project credential: it holds none for a device login. The route
+    # checks the token itself and applies the outcome only to the row that still waits on
+    # that attempt id. No other secrets route lives under this prefix.
+    "/secrets/subscription-login/attempts/",
+    "/api/secrets/subscription-login/attempts/",
     # TRIGGERS — inbound provider events arrive from Composio with no auth token
     "/triggers/composio/events/",
     "/api/triggers/composio/events/",
     "/preview/triggers/composio/events/",
     "/api/preview/triggers/composio/events/",
+    # CHANNELS — inbound platform events arrive with no Agenta auth token
+    "/channels/slack/events/",
+    "/api/channels/slack/events/",
+    "/preview/channels/slack/events/",
+    "/api/preview/channels/slack/events/",
+    # Telegram carries the bot in the path, so these are prefixes matched by
+    # startswith: the per-bot token segment follows. The stored webhook secret,
+    # checked in the adapter, is what actually authorises the update.
+    "/channels/telegram/events/",
+    "/api/channels/telegram/events/",
+    "/preview/channels/telegram/events/",
+    "/api/preview/channels/telegram/events/",
+    # WhatsApp: Meta's GET verify handshake and its signed POSTs share this
+    # path. The verify token and X-Hub-Signature-256, checked in the ingress,
+    # are what authorise them.
+    "/channels/whatsapp/events/",
+    "/api/channels/whatsapp/events/",
+    "/preview/channels/whatsapp/events/",
+    "/api/preview/channels/whatsapp/events/",
+    "/channels/bridge/events/",
+    "/api/channels/bridge/events/",
+    "/preview/channels/bridge/events/",
+    "/api/preview/channels/bridge/events/",
+    "/channels/agenta/events/",
+    "/api/channels/agenta/events/",
+    "/preview/channels/agenta/events/",
+    "/api/preview/channels/agenta/events/",
+    # The embed widget: no Agenta login. The ingress and the read routes under
+    # this prefix check the visitor key themselves; `config` is public data.
+    "/channels/embed/",
+    "/api/channels/embed/",
+    "/preview/channels/embed/",
+    "/api/preview/channels/embed/",
+    # CHANNELS — Slack redirects the browser here with no Agenta session; the
+    # signed OAuth state is the whole of the authorisation on this route
+    "/channels/catalog/channels/slack/callback/",
+    "/api/channels/catalog/channels/slack/callback/",
+    "/preview/channels/catalog/channels/slack/callback/",
+    "/api/preview/channels/catalog/channels/slack/callback/",
+    # MCP OAuth client identity document, fetched without an Agenta auth token.
+    "/gateways/mcps/oauth/client-metadata.json",
+    "/api/gateways/mcps/oauth/client-metadata.json",
+    # MCP OAuth callback — the browser arrives straight from the authorization server,
+    # a top-level navigation that carries no `Authorization` header and no project or
+    # workspace query parameter, so the middleware could only ever resolve the user's
+    # default scope, which has nothing to do with the attempt. The handler resolves the
+    # session itself (`resolve_session_user_id`) and refuses when there is none, so the
+    # exemption widens no tenant boundary; what it buys is that the refusal reaches the
+    # user as the connect card the opener listens for, instead of a bare JSON 401 in a
+    # popup. Everything the handler acts on comes from the server-side authorization
+    # attempt record the opaque `state` names.
+    "/gateways/mcps/connect/callback",
+    "/api/gateways/mcps/connect/callback",
 )
 
 _ADMIN_ENDPOINT_IDENTIFIER = "/admin/"
@@ -130,6 +242,51 @@ def request_has_grant(request: Request, grant: str) -> bool:
     carry any, so this is False for them by construction.
     """
     return grant in getattr(request.state, "token_grants", ())
+
+
+def request_is_platform_runtime(request: Request) -> bool:
+    """Whether the caller is the platform's own agent runtime.
+
+    The secret-resolve grant reaches a credential only through the runtime-key check or a
+    platform services URL, so it is the one proof a user principal cannot present.
+    """
+    return request_has_grant(request, SECRET_RESOLVE_GRANT)
+
+
+# An audience CONFINES a token to one set of routes, which is the opposite axis from a
+# grant: a grant widens a general-purpose credential, an audience narrows a purpose-built
+# one. The agent sandbox holds the only audience-bound credential today. It reaches the
+# gateway data plane and nothing else, so code running inside the sandbox cannot spend it
+# on the vault — which is the whole reason the gateway holds the provider key instead of
+# the sandbox.
+GATEWAY_TOKEN_AUDIENCE = "gateway"
+ALLOWED_SECRET_TOKEN_AUDIENCES = frozenset({GATEWAY_TOKEN_AUDIENCE})
+
+# Where each audience may be spent. A general-purpose token (no audience) is unaffected;
+# an audience-bound one is refused everywhere its entry is silent about.
+_AUDIENCE_PATHS = {
+    GATEWAY_TOKEN_AUDIENCE: _GATEWAY_DATA_PLANE,
+}
+
+
+def _validate_secret_token_audience(audience: object) -> Optional[str]:
+    """Return the token's audience and reject every unrecognized claim shape or value."""
+    if audience is None:
+        return None
+
+    if not isinstance(audience, str) or audience not in ALLOWED_SECRET_TOKEN_AUDIENCES:
+        raise ValueError("Secret token contains an unsupported audience.")
+
+    return audience
+
+
+def request_audience(request: Request) -> Optional[str]:
+    """The audience the request's verified credential is confined to, if any.
+
+    ``None`` for every general-purpose principal: session, ApiKey, and an unconfined
+    Secret token alike.
+    """
+    return getattr(request.state, "token_audience", None)
 
 
 _ZERO_UUID = "00000000-0000-0000-0000-000000000000"
@@ -205,6 +362,7 @@ async def auth_middleware(request: Request, call_next):
     """
 
     auth_token = None
+    access_token = None
     try:
         await _check_authentication_token(request)
 
@@ -213,6 +371,13 @@ async def auth_middleware(request: Request, call_next):
         auth_ctx = _build_auth_context_from_state(request)
         if auth_ctx is not None:
             auth_token = set_auth_context(auth_ctx)
+            access = _build_request_access_from_state(request)
+            if access is not None:
+                access_token = set_request_access(access)
+                record = getattr(request.state, "principal_record", None)
+                memo = get_request_memo()
+                if record is not None and memo is not None:
+                    memo[("principal", record.principal)] = record
 
         response = await call_next(request)
 
@@ -267,6 +432,8 @@ async def auth_middleware(request: Request, call_next):
         )
 
     finally:
+        if access_token is not None:
+            reset_request_access(access_token)
         if auth_token is not None:
             reset_auth_context(auth_token)
 
@@ -282,8 +449,8 @@ def _build_auth_context_from_state(request: Request) -> Optional[AuthContext]:
     they have no tenant scope and don't call into entitlements. They're
     gated by `request.state.admin` checks at the endpoint instead.
 
-    For ApiKey / Secret / Bearer paths, all four scope fields plus
-    `request.state.credentials` (`"<Scheme> <token>"`) are populated.
+    For ApiKey / Secret / Bearer paths, the three scope fields (organization, project,
+    user) plus `request.state.credentials` (`"<Scheme> <token>"`) are populated.
     Partial state is treated as "not authenticated" — we return `None`
     rather than half-populate the context.
     """
@@ -293,13 +460,10 @@ def _build_auth_context_from_state(request: Request) -> Optional[AuthContext]:
         return None
 
     organization_id = getattr(state, "organization_id", None)
-    workspace_id = getattr(state, "workspace_id", None)
     project_id = getattr(state, "project_id", None)
     user_id = getattr(state, "user_id", None)
     credentials_str = getattr(state, "credentials", None)
-    if not (
-        organization_id and workspace_id and project_id and user_id and credentials_str
-    ):
+    if not (organization_id and project_id and user_id and credentials_str):
         return None
 
     try:
@@ -307,7 +471,6 @@ def _build_auth_context_from_state(request: Request) -> Optional[AuthContext]:
             credentials=parse_credentials(credentials_str),
             scope=AuthScope(
                 organization_id=UUID(organization_id),
-                workspace_id=UUID(workspace_id),
                 project_id=UUID(project_id),
                 user_id=UUID(user_id),
             ),
@@ -317,17 +480,156 @@ def _build_auth_context_from_state(request: Request) -> Optional[AuthContext]:
         return None
 
 
+# -- the request principal (M2) ------------------------------------------------------
+
+
+def _set_principal_state(
+    request: Request,
+    *,
+    principal: Optional[PrincipalRef],
+    credential_kind: Optional[RequestCredentialKind],
+    envelope: Optional[RunEnvelope] = None,
+) -> None:
+    """`request.state.principal`, `.authority`, `.credential_kind`, `.run_envelope`.
+
+    Bearer and ApiKey: the authority is the principal in the request's organization and
+    project. Secret: the authority of the token's claims."""
+
+    request.state.principal = principal
+    request.state.credential_kind = credential_kind
+    request.state.run_envelope = envelope
+    request.state.authority = None
+
+    if principal is None:
+        return
+    if envelope is not None:
+        request.state.authority = envelope.authority
+        return
+    try:
+        request.state.authority = RunAuthority(
+            principal=principal,
+            organization_id=UUID(str(request.state.organization_id)),
+            project_id=UUID(str(request.state.project_id)),
+        )
+    except (TypeError, ValueError):
+        request.state.authority = None
+
+
+def _principal_from_state(value: object) -> Optional[PrincipalRef]:
+    """A principal stored in a cached middleware state, or `None` (a state cached by an
+    older pod, which the caller then rebuilds)."""
+
+    if not isinstance(value, dict):
+        return None
+    try:
+        return PrincipalRef.model_validate(value)
+    except ValidationError:
+        return None
+
+
+def _build_request_access_from_state(request: Request) -> Optional[RequestAccess]:
+    state = request.state
+    principal = getattr(state, "principal", None)
+    authority = getattr(state, "authority", None)
+    credential_kind = getattr(state, "credential_kind", None)
+    user_id = getattr(state, "user_id", None)
+    if principal is None or authority is None or credential_kind is None:
+        return None
+    try:
+        return RequestAccess(
+            principal=principal,
+            authority=authority,
+            credential_kind=credential_kind,
+            acting_user_id=UUID(str(user_id)),
+            envelope=getattr(state, "run_envelope", None),
+        )
+    except (TypeError, ValueError, ValidationError):
+        log.warning("[auth] request access could not be built", exc_info=True)
+        return None
+
+
+def request_run_envelope(request: Request) -> Optional[RunEnvelope]:
+    """The envelope a router stores or mints for work this request starts.
+
+    Secret: the token's envelope, copied. Bearer: origin `web`, the user as sender.
+    ApiKey: origin `api`, the key id as origin id, no sender. `None` outside an
+    authenticated request. It is the only producer-side envelope source in routers."""
+
+    state = request.state
+    envelope = getattr(state, "run_envelope", None)
+    if envelope is not None:
+        return envelope
+
+    authority = getattr(state, "authority", None)
+    credential_kind = getattr(state, "credential_kind", None)
+    if authority is None or credential_kind is None:
+        return None
+
+    if credential_kind == RequestCredentialKind.BEARER_SESSION:
+        return RunEnvelope(
+            authority=authority,
+            context=RunContext(origin=RunOrigin.WEB),
+            sender=RunSender(user_id=UUID(str(state.user_id))),
+        )
+    if credential_kind == RequestCredentialKind.API_KEY:
+        return RunEnvelope(
+            authority=authority,
+            context=RunContext(
+                origin=RunOrigin.API,
+                origin_id=str(authority.principal.id),
+            ),
+        )
+    return None
+
+
+def _web_envelope(*, user_id, organization_id, project_id) -> RunEnvelope:
+    """The envelope of the credential a browser session carries: the user, origin
+    `web`, the user as sender."""
+
+    principal = PrincipalRef(kind=PrincipalKind.HUMAN, id=UUID(str(user_id)))
+    return RunEnvelope(
+        authority=RunAuthority(
+            principal=principal,
+            organization_id=UUID(str(organization_id)),
+            project_id=UUID(str(project_id)),
+        ),
+        context=RunContext(origin=RunOrigin.WEB),
+        sender=RunSender(user_id=principal.id),
+    )
+
+
+def _envelope_from_secret_claims(auth_context: dict) -> Optional[RunEnvelope]:
+    """The envelope of a Secret token. `None` when the token carries no `principal`
+    claim. Raises `DecodeError` (401 `invalid_token`) for claims that are not valid or
+    whose authority differs from the token's scope claims."""
+
+    claims = {
+        key: auth_context[key] for key in ENVELOPE_CLAIM_KEYS if key in auth_context
+    }
+    try:
+        envelope = envelope_from_claims(claims=claims)
+    except InvalidRunClaims as exc:
+        raise DecodeError("Secret token carries invalid run claims.") from exc
+
+    if envelope is None:
+        return None
+
+    authority = envelope.authority
+    if str(authority.organization_id) != str(auth_context.get("organization_id")) or (
+        str(authority.project_id) != str(auth_context.get("project_id"))
+    ):
+        raise DecodeError("Secret token run authority differs from its scope.")
+
+    return envelope
+
+
 async def _check_authentication_token(request: Request):
     try:
         if request.url.path.startswith(_PUBLIC_ENDPOINTS):
             return
 
         if _ADMIN_ENDPOINT_IDENTIFIER in request.url.path:
-            auth_header = (
-                request.headers.get("Authorization")
-                or request.headers.get("authorization")
-                or None
-            )
+            auth_header = _credentials_header(request)
 
             if not auth_header:
                 raise UnauthorizedException()
@@ -342,11 +644,7 @@ async def _check_authentication_token(request: Request):
                 access_token=access_token,
             )
 
-        auth_header = (
-            request.headers.get("Authorization")
-            or request.headers.get("authorization")
-            or None
-        )
+        auth_header = _credentials_header(request)
         supertokens_access_token = request.cookies.get("sAccessToken")
 
         query_project_id = request.query_params.get("project_id")
@@ -438,11 +736,83 @@ async def verify_access_token(
         raise UnauthorizedException() from exc
 
 
+async def resolve_session_user_id(request: Request) -> Optional[UUID]:
+    """The Agenta user behind this request's SuperTokens session cookie, or `None`.
+
+    For routes exempt from `auth_middleware` that still have to name their caller. An
+    exempt route builds no `AuthContext`, so `get_auth_scope()` is empty there, and a
+    browser arriving from a third party carries no `Authorization` header either — the
+    session cookie is all there is. SuperTokens runs in cookie mode here and its
+    SameSite resolves to `lax` (api and web on one site) or `none` (split domains),
+    never `strict`, so a top-level GET navigation back from a third party does present
+    `sAccessToken`.
+
+    Every failure — no cookie, an access token that expired during the round trip, a
+    user the database does not know — returns `None`. The caller decides what to say;
+    none of them may treat `None` as permission.
+    """
+    try:
+        session = await get_session(request, session_required=False)  # type: ignore
+    except Exception:  # pylint: disable=broad-except
+        # TryRefreshTokenError and friends: no principal, and this route cannot
+        # refresh one (the refresh cookie is scoped to /auth/session/refresh).
+        return None
+
+    if session is None:
+        return None
+
+    session_user_id = session.get_user_id()
+    if not session_user_id:
+        return None
+
+    try:
+        user_info = await asyncio.wait_for(
+            get_supertokens_user_by_id(user_id=session_user_id),
+            timeout=_SUPERTOKENS_TIMEOUT,
+        )
+    except Exception:  # pylint: disable=broad-except
+        return None
+
+    user_email = user_info.emails[0] if user_info and user_info.emails else None
+    if not user_email:
+        return None
+
+    user = await db_manager.get_user_with_email(email=user_email)
+    if not user:
+        return None
+
+    try:
+        return UUID(str(user.id))
+    except ValueError:
+        return None
+
+
 async def is_interactive_session(request: Request) -> bool:
     """True when the request is backed by a real session, not an API key."""
     credentials = getattr(request.state, "credentials", "") or ""
     session = await get_session(request, session_required=False)  # type: ignore
     return session is not None and not credentials.startswith(_APIKEY_TOKEN_PREFIX)
+
+
+async def _member_fallback_project(*, user_id, default) -> Optional[UUID]:
+    """A project of the default project's organization that the user may open.
+
+    After workspace removal step 2 an organization has one default project. A user who is
+    not a member of it (EE: no project row on it) lands on a project they may open, chosen
+    as `db_manager.pick_fallback_project` orders them. Runs only after the default project
+    was refused, so the usual path reads nothing more.
+    """
+
+    listings = await get_memberships_service().list_for_user(user_id=UUID(str(user_id)))
+    project_ids = [
+        listing.summary.project_id
+        for listing in listings
+        if str(listing.summary.organization_id) == str(default.project_organization_id)
+    ]
+    return await db_manager.pick_fallback_project(
+        project_ids=project_ids,
+        ref_workspace_id=default.ref_workspace_id,
+    )
 
 
 async def verify_bearer_token(
@@ -568,7 +938,6 @@ async def verify_bearer_token(
             )
 
         project_id = None
-        workspace_id = None
         cache_scope = "invite_accept" if is_invite_accept_route else "default"
 
         cache_key = {
@@ -577,6 +946,13 @@ async def verify_bearer_token(
             "w_id": query_workspace_id[-12:] if query_workspace_id else "",
             "scope": cache_scope,
         }
+        # Older pods cached these branches' successes after a workspace-row check only
+        # (workspace only), with no membership check at all (no parameters), with the
+        # workspace's organization, or with no organization check for the project's own
+        # workspace (project + workspace): step 2 reads none of those entries. The
+        # project-only key is unchanged: its organization always came from the project.
+        if query_workspace_id or not query_project_id:
+            cache_key["v"] = "m4b2"
 
         state = await get_cache(
             project_id=query_project_id,
@@ -586,6 +962,14 @@ async def verify_bearer_token(
         )
         # state = None
 
+        # A state cached by an older pod has no principal: a miss, rebuilt below.
+        if (
+            state is not None
+            and not state.get("deny")
+            and _principal_from_state(state.get("principal")) is None
+        ):
+            state = None
+
         if state is not None:
             if state.get("deny"):
                 _deny("state_cache", "cached deny for user+project")
@@ -594,17 +978,26 @@ async def verify_bearer_token(
             request.state.user_id = state.get("user_id")
             request.state.user_email = state.get("user_email")
             request.state.project_id = state.get("project_id")
-            request.state.workspace_id = state.get("workspace_id")
+            # The organization id, also for a state a step-1 pod cached (its workspace
+            # field may hold a legacy workspace id).
+            request.state.workspace_id = state.get("organization_id")
             request.state.organization_id = state.get("organization_id")
             request.state.organization_name = state.get("organization_name")
             request.state.credentials = state.get("credentials")
+            _set_principal_state(
+                request,
+                principal=_principal_from_state(state.get("principal")),
+                credential_kind=RequestCredentialKind.BEARER_SESSION,
+            )
 
             return
 
         if query_project_id and query_workspace_id:
-            project = await db_manager.get_project_by_id(
+            # The project and its workspace's organization, in one statement.
+            scoped = await db_manager.fetch_project_with_workspace_organization(
                 project_id=query_project_id,
             )
+            project = scoped.project if scoped else None
 
             if not project:
                 await set_cache(
@@ -618,23 +1011,16 @@ async def verify_bearer_token(
                 _deny("resolve", "project not found")
                 raise UnauthorizedException()
 
-            workspace = await db_manager.get_workspace(
-                workspace_id=query_workspace_id,
-            )
-
-            if not workspace:
-                await set_cache(
-                    project_id=query_project_id,
-                    user_id=user_id,
-                    namespace="verify_bearer_token",
-                    key=cache_key,
-                    value={"deny": True},
-                )
-
-                _deny("resolve", "workspace not found")
-                raise UnauthorizedException()
-
-            if project.workspace_id != workspace.id:
+            # The project's organization id needs no read; the project's own workspace
+            # only when that workspace is in the project's organization (a legacy
+            # cross-organization project is refused through it); any other id must name
+            # a workspace of the project's organization.
+            if (
+                str(query_workspace_id) == str(project.workspace_id)
+                and scoped.workspace_organization_id is not None
+                and str(scoped.workspace_organization_id)
+                != str(project.organization_id)
+            ):
                 await set_cache(
                     project_id=query_project_id,
                     user_id=user_id,
@@ -646,8 +1032,39 @@ async def verify_bearer_token(
                 _deny("resolve", "project/workspace mismatch")
                 raise UnauthorizedException()
 
+            if str(query_workspace_id) not in {
+                str(project.workspace_id),
+                str(project.organization_id),
+            }:
+                workspace = await db_manager.get_workspace(
+                    workspace_id=query_workspace_id,
+                )
+
+                if not workspace:
+                    await set_cache(
+                        project_id=query_project_id,
+                        user_id=user_id,
+                        namespace="verify_bearer_token",
+                        key=cache_key,
+                        value={"deny": True},
+                    )
+
+                    _deny("resolve", "workspace not found")
+                    raise UnauthorizedException()
+
+                if str(workspace.organization_id) != str(project.organization_id):
+                    await set_cache(
+                        project_id=query_project_id,
+                        user_id=user_id,
+                        namespace="verify_bearer_token",
+                        key=cache_key,
+                        value={"deny": True},
+                    )
+
+                    _deny("resolve", "project/workspace mismatch")
+                    raise UnauthorizedException()
+
             project_id = query_project_id
-            workspace_id = query_workspace_id
             organization_id = project.organization_id
 
         elif query_project_id and not query_workspace_id:
@@ -668,15 +1085,15 @@ async def verify_bearer_token(
                 raise UnauthorizedException()
 
             project_id = query_project_id
-            workspace_id = project.workspace_id
             organization_id = project.organization_id
 
         elif not query_project_id and query_workspace_id:
-            workspace = await db_manager.get_workspace(
-                workspace_id=query_workspace_id,
+            # A workspace id or an organization id: its default project, in one read.
+            default = await db_manager.fetch_default_project(
+                workspace_or_organization_id=query_workspace_id,
             )
 
-            if not workspace:
+            if not default:
                 await set_cache(
                     project_id=query_project_id,
                     user_id=user_id,
@@ -688,32 +1105,57 @@ async def verify_bearer_token(
                 _deny("resolve", "workspace not found (no project_id)")
                 raise UnauthorizedException()
 
-            workspace_id = query_workspace_id
-            project_id = await db_manager.get_default_project_id_from_workspace(
-                workspace_id=workspace_id
-            )
-            organization_id = workspace.organization_id
+            # The default project of the organization the id names (never a project of
+            # another organization), and that project's organization.
+            project_id = default.project_id
+            organization_id = default.project_organization_id
 
         else:
-            workspace_id = await db_manager.get_default_workspace_id(
-                user_id=user_id,
-            )
+            # Today's choice: the oldest workspace membership. A user without one (no
+            # workspace rows, written by workspace removal step 2) falls back to the
+            # oldest organization membership.
+            try:
+                default_ref = await db_manager.get_default_workspace_id(
+                    user_id=user_id,
+                )
+            except NoResultFound:
+                default_ref = await db_manager.fetch_oldest_organization_id(
+                    user_id=user_id,
+                )
+                if default_ref is None:
+                    raise
 
-            project_id = await db_manager.get_default_project_id_from_workspace(
-                workspace_id=workspace_id
+            default = await db_manager.fetch_default_project(
+                workspace_or_organization_id=default_ref,
             )
+            if not default:
+                raise NoResultFound(f"No default project for {default_ref}")
 
-            workspace = await db_manager.get_workspace(
-                workspace_id=workspace_id,
-            )
+            project_id = default.project_id
+            organization_id = default.project_organization_id
 
-            organization_id = workspace.organization_id
+            # The resolver decides, as `?project_id=` would: a workspace row alone does
+            # not make a member (CONTRACT section 2). A user who may not open the
+            # organization's default project lands on a project they may open. Not
+            # cached on a denial.
+            if (
+                await get_memberships_service().read_membership(
+                    user_id=UUID(str(user_id)),
+                    project_id=UUID(str(project_id)),
+                )
+                is None
+            ):
+                project_id = await _member_fallback_project(
+                    user_id=user_id, default=default
+                )
+                if project_id is None:
+                    _deny("membership", "default_project_member")
+                    raise HTTPException(status_code=401, detail="Unauthorized")
 
         project_id = str(project_id)
-        workspace_id = str(workspace_id)
         organization_id = str(organization_id)
 
-        if not (project_id and workspace_id):
+        if not (project_id and organization_id):
             await set_cache(
                 project_id=query_project_id,
                 user_id=user_id,
@@ -722,7 +1164,7 @@ async def verify_bearer_token(
                 value={"deny": True},
             )
 
-            _deny("resolve", "missing project_id or workspace_id after resolve")
+            _deny("resolve", "missing project_id or organization_id after resolve")
             raise UnauthorizedException()
 
         # Verify the authenticated user is a member of the requested project
@@ -737,15 +1179,29 @@ async def verify_bearer_token(
         # outer except-handler that caches.
         if (query_project_id or query_workspace_id) and not is_invite_accept_route:
             if query_project_id:
-                is_member = await db_manager.project_member_exists(
-                    project_id=project_id,
-                    user_id=user_id,
+                is_member = await get_memberships_service().is_member(
+                    user_id=UUID(str(user_id)),
+                    project_id=UUID(project_id),
                 )
             else:
-                is_member = await db_manager.workspace_member_exists(
-                    workspace_id=workspace_id,
-                    user_id=user_id,
+                # The request acts in the default project: the resolver answers, read
+                # without its cache (this state is cached itself).
+                is_member = (
+                    await get_memberships_service().read_membership(
+                        user_id=UUID(str(user_id)),
+                        project_id=UUID(project_id),
+                    )
+                    is not None
                 )
+                if not is_member:
+                    # Not a member of the organization's default project: a project
+                    # of that organization the user may open, as without parameters.
+                    fallback = await _member_fallback_project(
+                        user_id=user_id, default=default
+                    )
+                    if fallback is not None:
+                        project_id = str(fallback)
+                        is_member = True
 
             if not is_member:
                 _deny(
@@ -790,19 +1246,25 @@ async def verify_bearer_token(
             user_id=user_id,
             user_email=user_email,
             project_id=project_id,
-            workspace_id=workspace_id,
             organization_id=organization_id,
             organization_name=organization_name,
+            envelope=_web_envelope(
+                user_id=user_id,
+                organization_id=organization_id,
+                project_id=project_id,
+            ),
         )
 
         state = {
             "user_id": user_id,
             "user_email": user_email,
             "project_id": project_id,
-            "workspace_id": workspace_id,
+            # Kept for step-1 pods, which build their auth scope from it.
+            "workspace_id": organization_id,
             "organization_id": organization_id,
             "organization_name": organization_name,
             "credentials": f"{_SECRET_TOKEN_PREFIX}{secret_token}",
+            "principal": {"kind": PrincipalKind.HUMAN.value, "id": str(user_id)},
         }
 
         if not is_invite_accept_route:
@@ -817,10 +1279,15 @@ async def verify_bearer_token(
         request.state.user_id = state.get("user_id")
         request.state.user_email = state.get("user_email")
         request.state.project_id = state.get("project_id")
-        request.state.workspace_id = state.get("workspace_id")
+        request.state.workspace_id = state.get("organization_id")
         request.state.organization_id = state.get("organization_id")
         request.state.organization_name = state.get("organization_name")
         request.state.credentials = state.get("credentials")
+        _set_principal_state(
+            request,
+            principal=PrincipalRef(kind=PrincipalKind.HUMAN, id=UUID(str(user_id))),
+            credential_kind=RequestCredentialKind.BEARER_SESSION,
+        )
 
     except GatewayTimeoutException as exc:
         raise exc
@@ -869,6 +1336,17 @@ async def verify_apikey_token(
             key=cache_key,
         )
 
+        # A state cached by an older pod has no key id and principal: a miss.
+        if (
+            state is not None
+            and not state.get("deny")
+            and (
+                not state.get("api_key_id")
+                or _principal_from_state(state.get("principal")) is None
+            )
+        ):
+            state = None
+
         if state is not None:
             if state.get("deny"):
                 raise UnauthorizedException()
@@ -876,10 +1354,16 @@ async def verify_apikey_token(
             request.state.user_id = state.get("user_id")
             request.state.user_email = state.get("user_email")
             request.state.project_id = state.get("project_id")
-            request.state.workspace_id = state.get("workspace_id")
+            request.state.workspace_id = state.get("organization_id")
             request.state.organization_id = state.get("organization_id")
             request.state.organization_name = state.get("organization_name")
             request.state.credentials = state.get("credentials")
+            request.state.api_key_id = state.get("api_key_id")
+            _set_principal_state(
+                request,
+                principal=_principal_from_state(state.get("principal")),
+                credential_kind=RequestCredentialKind.API_KEY,
+            )
 
             return
 
@@ -903,20 +1387,26 @@ async def verify_apikey_token(
         user_id = str(api_key_obj.created_by_id)
         user_email = api_key_obj.user.email
         project_id = str(api_key_obj.project_id)
-        workspace_id = str(apikey_project_db.workspace_id)
         organization_id = str(apikey_project_db.organization_id)
         organization_name = None
         if is_ee():
             organization_name = apikey_project_db.organization.name
 
+        # After the `user.email` read above, so a key whose creator is not a user
+        # keeps failing at the same place as before, with nothing cached.
+        api_key_id = str(api_key_obj.id)
+
         state = {
             "user_id": user_id,
             "user_email": user_email,
             "project_id": project_id,
-            "workspace_id": workspace_id,
+            # Kept for step-1 pods, which build their auth scope from it.
+            "workspace_id": organization_id,
             "organization_id": organization_id,
             "organization_name": organization_name,
             "credentials": f"{_APIKEY_TOKEN_PREFIX}{apikey_token}",
+            "api_key_id": api_key_id,
+            "principal": {"kind": PrincipalKind.API_KEY.value, "id": api_key_id},
         }
 
         await set_cache(
@@ -928,10 +1418,26 @@ async def verify_apikey_token(
         request.state.user_id = state.get("user_id")
         request.state.user_email = state.get("user_email")
         request.state.project_id = state.get("project_id")
-        request.state.workspace_id = state.get("workspace_id")
+        request.state.workspace_id = state.get("organization_id")
         request.state.organization_id = state.get("organization_id")
         request.state.organization_name = state.get("organization_name")
         request.state.credentials = state.get("credentials")
+        request.state.api_key_id = api_key_id
+        _set_principal_state(
+            request,
+            principal=PrincipalRef(kind=PrincipalKind.API_KEY, id=UUID(api_key_id)),
+            credential_kind=RequestCredentialKind.API_KEY,
+        )
+        # The key row was just read (with its creator): its principal record goes into
+        # the request memo, so a cold decision of this request does not read
+        # `api_keys` again. The same fields as `PrincipalsDAO` maps.
+        request.state.principal_record = PrincipalRecord(
+            principal=PrincipalRef(kind=PrincipalKind.API_KEY, id=UUID(api_key_id)),
+            project_id=api_key_obj.project_id,
+            acting_user_id=api_key_obj.created_by_id,
+            is_active=api_key_obj.created_by_id is not None,
+            expires_at=getattr(api_key_obj, "expiration_date", None),
+        )
 
     except Exception as exc:
         log.error(exc)
@@ -954,6 +1460,10 @@ async def verify_secret_token(
             key=_SECRET_KEY,
             algorithms=["HS256"],
             leeway=_SECRET_LEEWAY,
+            # The audience decides which routes accept the token, so this middleware
+            # checks it against the request path below. PyJWT's own check only knows one
+            # expected value per call and would reject every audience-bound token here.
+            options={"verify_aud": False},
         )
 
         try:
@@ -963,13 +1473,78 @@ async def verify_secret_token(
         except ValueError as exc:
             raise DecodeError("Secret token contains invalid grants.") from exc
 
+        try:
+            audience = _validate_secret_token_audience(auth_context.get("aud"))
+        except ValueError as exc:
+            raise DecodeError("Secret token contains an invalid audience.") from exc
+
+        # Reject rather than downgrade. A token that claims an audience AND a grant was
+        # not minted by `sign_secret_token`, so it is forged or corrupt either way.
+        if audience and request.state.token_grants:
+            raise DecodeError("Secret token carries both an audience and grants.")
+
+        request.state.token_audience = audience
+
+        # The run envelope: parsed after the grant and audience checks. A Secret without
+        # a `principal` claim (minted by a pod before M2) is refused; the run is started
+        # again.
+        envelope = _envelope_from_secret_claims(auth_context)
+        if envelope is None:
+            log.debug(
+                "[auth] secret token unauthorized",
+                path=request.url.path,
+                method=request.method,
+                reason="missing_principal",
+            )
+            raise HTTPException(
+                status_code=401,
+                detail=missing_principal_error().model_dump(exclude_none=True),
+            )
+
+        if audience:
+            allowed_paths = _AUDIENCE_PATHS[audience]
+
+            if not allowed_paths.match(request.url.path):
+                log.debug(
+                    "[auth] secret token unauthorized",
+                    path=request.url.path,
+                    method=request.method,
+                    reason="audience_mismatch",
+                    audience=audience,
+                )
+
+                # Raised, never returned as "no principal": an audience-bound credential
+                # presented off its routes is a caller doing something it must be told
+                # about, not an anonymous request that some later check might wave through.
+                raise UnauthorizedException(reason="audience_mismatch")
+
         request.state.user_id = auth_context.get("user_id")
         request.state.user_email = auth_context.get("user_email")
         request.state.project_id = auth_context.get("project_id")
-        request.state.workspace_id = auth_context.get("workspace_id")
+        # The organization claim, also for a token a step-1 pod signed (its workspace
+        # claim may hold a legacy workspace id).
+        request.state.workspace_id = auth_context.get("organization_id")
         request.state.organization_id = auth_context.get("organization_id")
         request.state.organization_name = auth_context.get("organization_name")
         request.state.credentials = f"{_SECRET_TOKEN_PREFIX}{secret_token}"
+        # A workflow invocation receives a nonce before it is forwarded to the
+        # agent service.  A derived gateway credential is restricted to that
+        # nonce and to the callback tools resolved for the invocation.  Keep
+        # these claims separate from the ordinary tenant scope: they are not
+        # general-purpose authorization attributes.
+        request.state.gateway_run_id = auth_context.get("gateway_run_id")
+        request.state.gateway_run_labels = auth_context.get("gateway_run_labels")
+        request.state.gateway_tools = auth_context.get("gateway_tools")
+        request.state.gateway_platform_run = (
+            audience == GATEWAY_TOKEN_AUDIENCE
+            and auth_context.get("gateway_platform_run") is True
+        )
+        _set_principal_state(
+            request,
+            principal=envelope.authority.principal,
+            credential_kind=RequestCredentialKind.RUN_CREDENTIAL,
+            envelope=envelope,
+        )
 
     except ExpiredSignatureError as exc:
         # The signature verified, so this is our own token presented past `_SECRET_EXP` — a
@@ -1044,35 +1619,93 @@ async def sign_secret_token(
     user_id: Optional[str] = None,
     user_email: Optional[str] = None,
     project_id: Optional[str] = None,
-    workspace_id: Optional[str] = None,
     organization_id: Optional[str] = None,
     organization_name: Optional[str] = None,
+    gateway_run_id: Optional[str] = None,
+    gateway_tools: Optional[list[dict]] = None,
+    gateway_run_labels: Optional[Dict[str, str]] = None,
+    gateway_platform_run: bool = False,
     grants: Optional[List[str]] = None,
+    audience: Optional[str] = None,
+    expires_in: Optional[int] = None,
+    *,
+    envelope: RunEnvelope,
 ):
+    """Mint a secret token. `expires_in` overrides the default lifetime, in seconds.
+
+    `envelope` is required: every run credential carries its principal, authority and
+    run context as claims (`principal`, `restrictions`, `authority`, `run`, `sender`,
+    `approved_by`). Its authority must name the token's organization and project.
+
+    Only the gateway credentials route passes it. Every other caller mints a token for a
+    browser or a short server-to-server hop, where 15 minutes is the point; the gateway
+    credential is held inside a sandbox for the length of a turn, and nothing re-mints it
+    there, so its lifetime is a ceiling on how long that turn may reach a gateway.
+    """
     validated_grants = _validate_secret_token_grants(grants)
+    validated_audience = _validate_secret_token_audience(audience)
+
+    # Grants and audiences pull in opposite directions, so a token never carries both.
+    # Without this, "mint a gateway credential" could quietly hand the sandbox the
+    # plaintext-vault capability again the day someone copies a grant-bearing mint call.
+    if validated_audience and validated_grants:
+        raise ValueError("An audience-bound secret token cannot carry grants.")
+
+    if gateway_platform_run and validated_audience != GATEWAY_TOKEN_AUDIENCE:
+        raise ValueError("Only a gateway-audience token can mark a platform run.")
+
+    if not isinstance(envelope, RunEnvelope):
+        raise ValueError("A secret token needs a run envelope.")
+    if str(envelope.authority.project_id) != str(project_id) or str(
+        envelope.authority.organization_id
+    ) != str(organization_id):
+        # The verifier refuses such a token (invalid_token); refuse to mint it.
+        raise ValueError("The run envelope names another organization or project.")
 
     try:
         if not _SECRET_KEY:
             raise InternalServerErrorException()
 
         _issued_at = int(datetime.now(timezone.utc).timestamp())
-        _exp = _issued_at + _SECRET_EXP
+        # A non-positive override is not a shorter life, it is an already-dead token; fall
+        # back rather than mint one nothing can use.
+        _lifetime = expires_in if expires_in and expires_in > 0 else _SECRET_EXP
+        _exp = _issued_at + _lifetime
 
         auth_context = {
             "user_id": user_id,
             "user_email": user_email,
             "project_id": project_id,
-            "workspace_id": workspace_id,
+            # The organization id: step-1 pods read this claim; nothing authorizes on it.
+            "workspace_id": organization_id,
             "organization_id": organization_id,
             "organization_name": organization_name,
+            "gateway_run_id": gateway_run_id,
+            "gateway_tools": gateway_tools,
             "iat": _issued_at,
             "exp": _exp,
         }
+
+        # Labels only, never authorization: they name the session and agent a gateway
+        # call's usage record belongs to. Absent unless set, like `grants` below.
+        if gateway_run_labels:
+            auth_context["gateway_run_labels"] = dict(gateway_run_labels)
 
         # A token with no grants carries no `grants` key at all, rather than a null or
         # empty one, so its payload stays the shape every existing holder was issued.
         if validated_grants:
             auth_context["grants"] = list(validated_grants)
+
+        # Same reasoning for `aud`, and it is also what keeps PyJWT's own audience check
+        # out of the way for every token minted before this claim existed.
+        if validated_audience:
+            auth_context["aud"] = validated_audience
+
+        # Built-in (platform-funded) models accept only a token that carries this mark.
+        if gateway_platform_run:
+            auth_context["gateway_platform_run"] = True
+
+        auth_context.update(envelope_to_claims(envelope=envelope))
 
         secret_token = encode(
             payload=auth_context,

@@ -99,12 +99,21 @@ def test_authoring_extras_absent_from_every_published_default():
     assert "skills" not in builtin_default
 
 
-def test_published_default_carries_no_tool_entries():
+def test_published_default_carries_only_the_agenta_tools_entry():
     """Built-in tools are activated by the runner on every Pi run, so they are not configured
-    here. A new agent can still read, run shell commands, and edit and write files wherever it
-    runs (issue #5590), without any entry in `tools`."""
-    assert _inspect_agent_default()["tools"] == []
-    assert _builtin_agent_default()["tools"] == []
+    here (issue #5590). The one entry turns on the default Agenta tools in every run."""
+    assert _inspect_agent_default()["tools"] == [
+        {
+            "type": "agenta_tools",
+            "tools": {"get_current_session": "allow", "rename_session": "allow"},
+        }
+    ]
+    assert _builtin_agent_default()["tools"] == [
+        {
+            "type": "agenta_tools",
+            "tools": {"get_current_session": "allow", "rename_session": "allow"},
+        }
+    ]
 
 
 def test_harness_default_is_pi_core_in_every_source():

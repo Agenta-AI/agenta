@@ -459,7 +459,24 @@ describe("resolveToolDisplay for Codex calls whose name is not a name", () => {
         expect(
             resolveToolDisplay("x", {
                 command:
+                    "sed -n '1,20p' /var/lib/agenta/mounts/019fe1f4-c599-7c82/019feff6-4b8f/.codex/SKILL.md",
+            }).detail,
+        ).toBe("sed -n '1,20p' .codex/SKILL.md")
+
+        // The local durable root was `/tmp/agenta/mounts/…` before 2026-09. Sessions recorded then
+        // keep those paths forever, so the old root has to keep shortening too.
+        expect(
+            resolveToolDisplay("x", {
+                command:
                     "sed -n '1,20p' /tmp/agenta/mounts/019fe1f4-c599-7c82/019feff6-4b8f/.codex/SKILL.md",
+            }).detail,
+        ).toBe("sed -n '1,20p' .codex/SKILL.md")
+
+        // Daytona runs root the same mount somewhere else again.
+        expect(
+            resolveToolDisplay("x", {
+                command:
+                    "sed -n '1,20p' /home/sandbox/agenta/mounts/019fe1f4-c599-7c82/019feff6-4b8f/.codex/SKILL.md",
             }).detail,
         ).toBe("sed -n '1,20p' .codex/SKILL.md")
     })
@@ -480,7 +497,8 @@ describe("resolveToolDisplay for Codex calls whose name is not a name", () => {
     })
 
     it("reads a file read as a file read, with just the filename as the detail", () => {
-        const raw = "Read file '/tmp/agenta/mounts/019fe1f4/.codex/skills/build-an-agent/SKILL.md'"
+        const raw =
+            "Read file '/var/lib/agenta/mounts/019fe1f4/.codex/skills/build-an-agent/SKILL.md'"
         const display = resolveToolDisplay(raw, null)
 
         expect(display.kind).toBe("file")

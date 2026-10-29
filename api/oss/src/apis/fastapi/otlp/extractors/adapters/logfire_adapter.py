@@ -195,6 +195,24 @@ GENAI_SEMCONV_ATTRIBUTES_EXACT: List[Tuple[str, str]] = [
         "gen_ai.usage.cache_creation.input_tokens",
         "ag.metrics.unit.tokens.cache_creation",
     ),
+    # false when `gen_ai.usage.input_tokens` excludes the cache buckets (the Agenta
+    # runner); absent means inclusive, the OpenTelemetry meaning.
+    (
+        "agenta.usage.input_tokens_includes_cache",
+        "ag.meta.usage.input_tokens_includes_cache",
+    ),
+    # "1h" when the cache writes used Anthropic's 1-hour TTL (Claude Code); absent
+    # means the 5-minute TTL.
+    ("agenta.usage.cache_write_ttl", "ag.meta.usage.cache_write_ttl"),
+    # "provider" when `gen_ai.usage.cost` is the charge the provider billed (OpenRouter
+    # `usage.cost`), not an estimate from a price list.
+    ("agenta.usage.cost_source", "ag.meta.usage.cost_source"),
+    # true when the runner served the call through a custom model connection, whose
+    # prices the public price list does not know.
+    (
+        "agenta.model.custom_connection",
+        "ag.meta.model.custom_connection",
+    ),
 ]
 
 OPERATION_TO_NODETYPE = {

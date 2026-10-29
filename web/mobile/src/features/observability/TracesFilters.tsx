@@ -8,9 +8,7 @@ import {
 import {FilterDialog} from "@agenta/observability-ui"
 
 /**
- * The filter control the desktop toolbar carries. The dialog and the column builder are both
- * shared already; web/oss only reaches for its own wrapper to bind app-layer icons and the
- * annotation row, neither of which `/m` needs to show the same filters.
+ * The traces filter control, on the shared dialog and column builder.
  */
 export const TracesFilters = () => {
     const {filters, setFilters, traces} = useObservability()

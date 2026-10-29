@@ -79,14 +79,6 @@ textSizes.xs // "text-xs" (12px)
 textSizes.sm // "text-sm" (14px)
 textSizes.base // "text-base" (16px)
 textSizes.lg // "text-lg" (18px)
-
-// Gap classes for flex/grid layouts
-gapClasses.none // "gap-0" (0px)
-gapClasses.xs // "gap-1" (4px)
-gapClasses.sm // "gap-2" (8px)
-gapClasses.md // "gap-3" (12px)
-gapClasses.lg // "gap-4" (16px)
-gapClasses.xl // "gap-6" (24px)
 ```
 
 #### Border Direction Pattern
@@ -144,5 +136,5 @@ When adding new utilities:
 
 1. Create a new file in this folder
 2. Export from the file itself
-3. Add the export to `@agenta/ui/src/index.ts`
+3. Add the export to `src/index.ts` (or a subpath barrel)
 4. Keep utilities generic - avoid UI framework dependencies where possible

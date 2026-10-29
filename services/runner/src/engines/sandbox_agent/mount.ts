@@ -34,7 +34,7 @@ export interface MountCredentials {
   endpoint?: string;
   region: string;
   bucket: string;
-  /** geesefs key suffix: `<project_id>/<mount_id>` (the durable prefix, slug-independent). */
+  /** geesefs key suffix: the mount's stored prefix, `mounts/<scope_id>/<mount_id>` (slug-independent). */
   prefix: string;
   accessKey: string;
   secretKey: string;
@@ -215,16 +215,40 @@ export function storeReachableFromSandbox(endpoint?: string): boolean {
   return true;
 }
 
+/** Opt-in geesefs behaviors for one mount; every caller that passes nothing gets today's argv. */
+export interface GeesefsOptions {
+  /**
+   * Keep file modes (and owners) in each object's metadata, so an executable bit survives a
+   * remount and is seen by every later mount with this flag. Without it every file reads 0644.
+   */
+  enablePerms?: boolean;
+  /**
+   * Give up a read after this many attempts (geesefs retries forever by default). A read of a file
+   * that got smaller in the store behind the mount otherwise never ends: geesefs retries the short
+   * read for good, and the reader cannot be killed.
+   */
+  readRetryAttempts?: number;
+}
+
+/**
+ * Read attempts for mounts whose reader must never hang: the runner process itself reads the
+ * `inprocess` drive. About 31 s of retries (1, 2, 4, 8 and 16 s apart), enough for a dropped
+ * connection; a read of a file that shrank behind the mount then returns what it has.
+ */
+export const BOUNDED_READ_RETRY_ATTEMPTS = 6;
+
 /**
  * The geesefs argv for mounting `bucket:prefix` at `cwd`. Endpoint is overridable so the remote
- * path can substitute the public tunnel URL for the in-network one. `--fsync-on-close` favors
- * durability over latency, so a turn's writes land before teardown.
+ * path can substitute the public tunnel URL for the in-network one. `--fsync-on-close` makes a
+ * close start the upload; it does not wait for it (measured), so
+ * a writer that needs its data in the store before another view reads it must `fsync` or `sync -f`.
  */
 function geesefsArgs(
   creds: MountCredentials,
   cwd: string,
   endpoint?: string,
   foreground = true,
+  options: GeesefsOptions = {},
 ): string[] {
   return [
     ...endpointArgs(endpoint ?? creds.endpoint),
@@ -232,6 +256,8 @@ function geesefsArgs(
     creds.region,
     "--no-detect",
     "--fsync-on-close",
+    ...(options.enablePerms ? ["--enable-perms"] : []),
+    ...(options.readRetryAttempts ? ["--read-retry-attempts", String(options.readRetryAttempts)] : []),
     // -f keeps geesefs foreground as a tracked child locally (a detached daemon dies under
     // write-heavy load -> ENOTCONN); remote it must detach, else the blocking RPC times out.
     ...(foreground ? ["-f"] : []),
@@ -291,6 +317,8 @@ export interface MountStorageDeps {
     env: Record<string, string>,
   ) => Promise<{ stop: () => Promise<void> } | void>;
   checkMounted?: (cwd: string) => Promise<boolean>;
+  /** Opt-in geesefs behaviors; absent keeps today's argv. */
+  geesefs?: GeesefsOptions;
   /** Injectable command/probe seams while retaining production unmountStorage behavior. */
   unmountDeps?: UnmountStorageDeps;
   log?: (msg: string) => void;
@@ -342,7 +370,7 @@ export async function mountStorage(
     );
   }
 
-  const args = geesefsArgs(creds, cwd);
+  const args = geesefsArgs(creds, cwd, undefined, true, deps.geesefs);
   const env = credEnv(creds);
 
   // geesefs runs FOREGROUND (-f): spawn it as a long-lived child and poll for the mount to come
@@ -527,6 +555,11 @@ async function defaultCheckMountpoint(
 // --- Remote (Daytona / E2B): geesefs runs INSIDE the sandbox ---------------- //
 
 export interface TunnelDeps {
+  /**
+   * The in-network store endpoint the tunnel has to forward to. Supplied, only a tunnel
+   * whose own upstream is this endpoint is accepted; omitted, the first https tunnel wins.
+   */
+  storeEndpoint?: string;
   /** ngrok agent API base (its local :4040 dashboard). */
   ngrokApi?: string;
   fetchImpl?: typeof fetch;
@@ -534,24 +567,39 @@ export interface TunnelDeps {
   signal?: AbortSignal;
 }
 
+/** host:port of a URL-ish string, for comparing a tunnel's upstream against ours. */
+function upstreamAuthority(value: string): string | null {
+  const raw = value.trim();
+  if (!raw) return null;
+  try {
+    const url = new URL(raw.includes("://") ? raw : `http://${raw}`);
+    return url.port ? `${url.hostname}:${url.port}` : url.hostname;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Resolve the public tunnel URL for the in-network store endpoint. A remote sandbox cannot
  * reach `seaweedfs:8333` on the compose network, so geesefs there must hit a public URL; the
- * `ngrok` service (compose profile `remote`) tunnels the store, and its agent API lists the
- * active tunnels. Returns null when no tunnel is up. The remote mount is then skipped rather than
- * failing the run, but the skip is NOT silent: the caller warns the operator with the cause named,
- * and tells the model the durable folder is unreachable this turn, because a model whose history
- * shows the folder working will otherwise report the user's saved work as lost.
+ * `ngrok-mounts` service (compose profile `with-tunnel`) tunnels it, and its agent API lists the
+ * active tunnels. Returns null when no tunnel forwards to the store. The remote mount is then
+ * skipped rather than failing the run, but the skip is NOT silent: the caller warns the operator
+ * with the cause named, and tells the model the durable folder is unreachable this turn, because
+ * a model whose history shows the folder working will otherwise report the user's saved work as
+ * lost.
+ *
+ * The agent may be tunnelling something else entirely — the development compose files point it
+ * at the platform's own ingress so providers can reach webhooks — so a tunnel is matched on the
+ * upstream it forwards to and never on the order the agent lists them. Returning the wrong URL
+ * would mount an HTTP API as an object store, which fails far from its cause.
  */
 export async function discoverTunnelEndpoint(
   deps: TunnelDeps = {},
 ): Promise<string | null> {
   const log = deps.log ?? defaultLog;
   const doFetch = deps.fetchImpl ?? fetch;
-  const api =
-    deps.ngrokApi ??
-    process.env.AGENTA_MOUNTS_TUNNEL_API ??
-    "http://ngrok:4040";
+  const api = deps.ngrokApi ?? "http://ngrok-mounts:4040";
   try {
     const res = await doFetch(`${api}/api/tunnels`, { signal: deps.signal });
     if (!res.ok) {
@@ -559,10 +607,43 @@ export async function discoverTunnelEndpoint(
       return null;
     }
     const body = (await res.json()) as {
-      tunnels?: Array<{ public_url?: string; proto?: string }>;
+      tunnels?: Array<{
+        public_url?: string;
+        proto?: string;
+        config?: { addr?: string };
+      }>;
     };
     const tunnels = body.tunnels ?? [];
-    // Prefer https; fall back to any public_url.
+
+    if (deps.storeEndpoint) {
+      const wanted = upstreamAuthority(deps.storeEndpoint);
+      // An endpoint we cannot parse is a hard failure, never a licence to guess.
+      if (!wanted) {
+        log(
+          `tunnel discovery: cannot parse store endpoint; ` +
+            `not using another tunnel's URL`,
+        );
+        return null;
+      }
+      // One `ngrok http` can be listed twice, http and https over the same upstream.
+      const matches = tunnels.filter(
+        (t) =>
+          !!t.public_url &&
+          !!t.config?.addr &&
+          upstreamAuthority(t.config.addr) === wanted,
+      );
+      if (matches.length === 0) {
+        log(
+          `tunnel discovery: no tunnel forwards to ${wanted} ` +
+            `(${tunnels.length} tunnel(s) up); not using another tunnel's URL`,
+        );
+        return null;
+      }
+      const preferred = matches.find((t) => t.proto === "https") ?? matches[0];
+      return preferred.public_url ?? null;
+    }
+
+    // No store endpoint to match against: prefer https, then any public_url.
     const https = tunnels.find(
       (t) => t.proto === "https" && !!t.public_url,
     )?.public_url;
@@ -593,6 +674,8 @@ export interface SandboxExec {
 export interface MountStorageRemoteDeps {
   /** Tunnel URL for an in-network store; omit for a public store (geesefs uses `creds.endpoint`). */
   endpoint?: string;
+  /** Opt-in geesefs behaviors; absent keeps the `daytona` provider's argv. */
+  geesefs?: GeesefsOptions;
   mountTimeoutMs?: number;
   /**
    * Liveness poll budget (attempts x ~5.5s: a 5s exec cap + a 500ms delay). Default 12, about a
@@ -710,7 +793,7 @@ export async function mountStorageRemote(
       deps.signal,
     );
     // Background geesefs with its logs to a file so the RPC returns immediately.
-    const args = geesefsArgs(creds, cwd, deps.endpoint, false);
+    const args = geesefsArgs(creds, cwd, deps.endpoint, false, deps.geesefs);
     const logFile = "/tmp/geesefs-mount.log";
     const quotedArgs = args.map(shellQuote).join(" ");
     const geefsCmd = `geesefs --log-file ${shellQuote(logFile)} ${quotedArgs} >>${shellQuote(logFile)} 2>&1 &`;

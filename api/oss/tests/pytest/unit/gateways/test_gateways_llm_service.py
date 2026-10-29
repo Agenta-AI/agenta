@@ -1,0 +1,1788 @@
+"""Unit tests for `LLMGatewayService` (specs-wp7.md, tasks-wp7.md Phases 5, 5b, 6).
+
+Stubbed DAO/policy/resolver/registry — no real adapters, no compose, nothing running.
+"""
+
+import json
+from typing import AsyncIterator, Dict, List, Optional, Set
+from uuid import uuid4
+
+import pytest
+
+from oss.src.utils.env import env
+
+from agenta.sdk.utils.assets import supported_llm_models
+
+from oss.src.core.gateways.dtos import GatewayEndpointNamespace
+from oss.src.core.gateways.llms.dtos import (
+    LLMDeploymentKind,
+    LLMEndpoint,
+    LLMEndpointData,
+    LLMEndpointSettings,
+    LLMModelFilter,
+    LLMProtocol,
+)
+from oss.src.core.gateways.llms.interfaces import (
+    LLMEndpointsDAOInterface,
+    LLMRelayResult,
+    LLMUpstreamInterface,
+)
+from oss.src.core.gateways.llms.catalog import standard_llm_endpoint
+from oss.src.core.gateways.llms.registrar import map_custom_provider_secret_to_endpoint
+from oss.src.core.gateways.llms.registry import LLMUpstreamRegistry
+from oss.src.core.gateways.llms.service import LLMGatewayService
+from oss.src.core.gateways.types import LLMGatewayConnectionNotServedError
+from oss.src.core.gateways.llms.types import (
+    LLMConnectionProviderRequiredError,
+    LLMEndpointNotFoundError,
+    LLMEndpointProviderMissingError,
+    LLMModelNotAllowedError,
+    LLMRoutingFieldNotAllowedError,
+)
+from oss.src.core.gateways.policy.dtos import (
+    BoundSecretRef,
+    ProviderKeyRef,
+    SecretMode,
+    SecretOwner,
+    SecretOwnerKind,
+    GatewayUsage,
+    PolicyDecision,
+    ResolvedSecret,
+    SecretOrigin,
+    SpendAdmission,
+)
+from oss.src.core.gateways.policy.interfaces import (
+    NamedProviderConnection,
+    SecretsResolverInterface,
+)
+from oss.src.core.gateways.policy.types import CeilingExceededError, PolicyDeniedError
+from oss.src.core.secrets.dtos import (
+    SecretResponseDTO,
+    StandardProviderDTO,
+    StandardProviderSettingsDTO,
+)
+from oss.src.core.secrets.enums import SecretKind, StandardProviderKind
+from oss.src.core.shared.dtos import Header
+from oss.src.utils.context import AuthScope
+
+
+def _scope() -> AuthScope:
+    return AuthScope(
+        organization_id=uuid4(),
+        workspace_id=uuid4(),
+        project_id=uuid4(),
+        user_id=uuid4(),
+    )
+
+
+def _custom_row(
+    *,
+    slug="acme",
+    provider_key="openai",
+    deployment_kind=LLMDeploymentKind.CUSTOM,
+    models=None,
+    max_output_tokens=None,
+    secret_id=None,
+) -> LLMEndpoint:
+    return LLMEndpoint(
+        id=uuid4(),
+        slug=slug,
+        provider_key=provider_key,
+        deployment_kind=deployment_kind,
+        namespace=GatewayEndpointNamespace.CUSTOM,
+        secret_id=secret_id,
+        data=LLMEndpointData(
+            models=models or LLMModelFilter(allowlist=["gpt-4o"]),
+            settings=LLMEndpointSettings(max_output_tokens=max_output_tokens),
+        ),
+    )
+
+
+def _secret() -> ResolvedSecret:
+    return ResolvedSecret(
+        secret=SecretResponseDTO(
+            kind=SecretKind.PROVIDER_KEY,
+            data=StandardProviderDTO(
+                kind=StandardProviderKind.OPENAI,
+                provider=StandardProviderSettingsDTO(key="sk-test"),
+            ),
+            header=Header(name="openai"),
+        ),
+        owner=SecretOwner(kind=SecretOwnerKind.PROJECT, id=uuid4()),
+        origin=SecretOrigin.VAULT,
+    )
+
+
+class _MockLlmEndpointsDAO(LLMEndpointsDAOInterface):
+    def __init__(self):
+        self.calls: List[tuple] = []
+        self.rows_by_slug: Dict[str, LLMEndpoint] = {}
+        self.query_result: List[LLMEndpoint] = []
+        self.create_result: Optional[LLMEndpoint] = None
+        self.fetch_result: Optional[LLMEndpoint] = None
+        self.edit_result: Optional[LLMEndpoint] = None
+        self.delete_result: bool = True
+
+    async def create_endpoint(self, *, project_id, user_id, endpoint):
+        self.calls.append(("create_endpoint", project_id, user_id, endpoint))
+        return self.create_result
+
+    async def fetch_endpoint(self, *, project_id, endpoint_id):
+        self.calls.append(("fetch_endpoint", project_id, endpoint_id))
+        return self.fetch_result
+
+    async def fetch_endpoint_by_slug(self, *, project_id, slug):
+        self.calls.append(("fetch_endpoint_by_slug", project_id, slug))
+        return self.rows_by_slug.get(slug)
+
+    async def edit_endpoint(self, *, project_id, user_id, endpoint):
+        self.calls.append(("edit_endpoint", project_id, user_id, endpoint))
+        return self.edit_result
+
+    async def delete_endpoint(self, *, project_id, endpoint_id):
+        self.calls.append(("delete_endpoint", project_id, endpoint_id))
+        return self.delete_result
+
+    async def query_endpoints(self, *, project_id, endpoint=None, windowing=None):
+        self.calls.append(("query_endpoints", project_id, endpoint, windowing))
+        return self.query_result
+
+
+class _MockResolver(SecretsResolverInterface):
+    def __init__(
+        self,
+        *,
+        provider_keys: Optional[Set[str]] = None,
+        secret: Optional[ResolvedSecret] = None,
+        connections: Optional[Dict[str, NamedProviderConnection]] = None,
+    ):
+        self.provider_keys = provider_keys or set()
+        self.secret = secret
+        self.connections = connections or {}
+        self.resolve_calls: List[tuple] = []
+
+    async def resolve(self, *, scope, ref, mode):
+        self.resolve_calls.append((scope, ref, mode))
+        assert self.secret is not None, "resolve() called with no secret stubbed"
+        return self.secret
+
+    async def available_provider_keys(self, *, scope) -> Set[str]:
+        return self.provider_keys
+
+    async def provider_connection_by_slug(self, *, scope, slug):
+        return self.connections.get(slug)
+
+    async def has_connection(self, *, scope, slug):
+        return slug in self.connections
+
+
+class _MockPolicy:
+    def __init__(self, *, allowed: bool = True, admitted: bool = True):
+        self.allowed = allowed
+        self.admitted = admitted
+        self.authorize_calls: List[tuple] = []
+        self.admit_calls: List[tuple] = []
+        self.record_calls: List[tuple] = []
+        self.record_run_ids: List[Optional[str]] = []
+
+    async def authorize(self, *, scope, permission, target):
+        self.authorize_calls.append((scope, permission, target))
+        return PolicyDecision(
+            allowed=self.allowed,
+            permission=permission,
+            reason=None if self.allowed else "permission_denied",
+        )
+
+    async def admit(self, *, scope, target, session_id=None):
+        self.admit_calls.append((scope, target))
+        return SpendAdmission(
+            allowed=self.admitted,
+            reason=None if self.admitted else "entitlement_denied",
+        )
+
+    async def record(
+        self, *, scope, target, decision, outcome, run_id=None, run_labels=None
+    ):
+        self.record_calls.append((scope, target, decision, outcome))
+        self.record_run_ids.append(run_id)
+
+
+class _MockAdapter(LLMUpstreamInterface):
+    def __init__(self, *, result: LLMRelayResult):
+        self.result = result
+        self.calls: List[dict] = []
+
+    async def relay_chat_completion(self, *, route, secret, context, body, headers):
+        self.calls.append(
+            {
+                "route": route,
+                "secret": secret,
+                "context": context,
+                "body": body,
+                "headers": headers,
+            }
+        )
+        return self.result
+
+
+async def _one_chunk_body(data: bytes) -> AsyncIterator[bytes]:
+    yield data
+
+
+def _service(
+    *, dao=None, policy=None, resolver=None, registry=None
+) -> LLMGatewayService:
+    return LLMGatewayService(
+        llm_endpoints_dao=dao if dao is not None else _MockLlmEndpointsDAO(),
+        policy=policy if policy is not None else _MockPolicy(),
+        resolver=resolver if resolver is not None else _MockResolver(),
+        upstream_registry=registry
+        if registry is not None
+        else LLMUpstreamRegistry(adapters={}),
+    )
+
+
+# --- management: thin delegation ------------------------------------------- #
+
+
+@pytest.mark.asyncio
+async def test_create_endpoint_delegates_to_dao_unchanged():
+    dao = _MockLlmEndpointsDAO()
+    dao.create_result = _custom_row()
+    project_id, user_id = uuid4(), uuid4()
+    endpoint_create = object()
+
+    result = await _service(dao=dao).create_endpoint(
+        project_id=project_id, user_id=user_id, endpoint=endpoint_create
+    )
+
+    assert result is dao.create_result
+    assert dao.calls == [("create_endpoint", project_id, user_id, endpoint_create)]
+
+
+@pytest.mark.asyncio
+async def test_fetch_endpoint_delegates_to_dao_unchanged():
+    dao = _MockLlmEndpointsDAO()
+    dao.fetch_result = _custom_row()
+    project_id, endpoint_id = uuid4(), uuid4()
+
+    result = await _service(dao=dao).fetch_endpoint(
+        project_id=project_id, endpoint_id=endpoint_id
+    )
+
+    assert result is dao.fetch_result
+    assert dao.calls == [("fetch_endpoint", project_id, endpoint_id)]
+
+
+@pytest.mark.asyncio
+async def test_edit_endpoint_delegates_to_dao_unchanged():
+    dao = _MockLlmEndpointsDAO()
+    dao.edit_result = _custom_row()
+    project_id, user_id = uuid4(), uuid4()
+    endpoint_edit = object()
+
+    result = await _service(dao=dao).edit_endpoint(
+        project_id=project_id, user_id=user_id, endpoint=endpoint_edit
+    )
+
+    assert result is dao.edit_result
+    assert dao.calls == [("edit_endpoint", project_id, user_id, endpoint_edit)]
+
+
+@pytest.mark.asyncio
+async def test_delete_endpoint_delegates_to_dao_unchanged():
+    dao = _MockLlmEndpointsDAO()
+    project_id, endpoint_id = uuid4(), uuid4()
+
+    result = await _service(dao=dao).delete_endpoint(
+        project_id=project_id, endpoint_id=endpoint_id
+    )
+
+    assert result is True
+    assert dao.calls == [("delete_endpoint", project_id, endpoint_id)]
+
+
+@pytest.mark.asyncio
+async def test_query_endpoints_delegates_to_dao_unchanged():
+    dao = _MockLlmEndpointsDAO()
+    dao.query_result = [_custom_row()]
+    project_id = uuid4()
+
+    result = await _service(dao=dao).query_endpoints(project_id=project_id)
+
+    assert result is dao.query_result
+    assert dao.calls == [("query_endpoints", project_id, None, None)]
+
+
+# Endpoint listing
+
+
+@pytest.mark.asyncio
+async def test_list_endpoints_merges_generated_and_custom_with_two_keys(monkeypatch):
+    monkeypatch.setattr(env.mock_gateways, "enabled", False)
+    dao = _MockLlmEndpointsDAO()
+    custom_row = _custom_row(slug="acme")
+    dao.query_result = [custom_row]
+    resolver = _MockResolver(provider_keys={"openai", "anthropic"})
+
+    result = await _service(dao=dao, resolver=resolver).list_endpoints(scope=_scope())
+
+    generated = [e for e in result if e.namespace == GatewayEndpointNamespace.STANDARD]
+    assert {e.provider_key for e in generated} == {"openai", "anthropic"}
+    assert custom_row in result
+    assert len(result) == len(generated) + 1
+
+
+@pytest.mark.asyncio
+async def test_list_endpoints_with_no_keys_yields_custom_rows_only(monkeypatch):
+    monkeypatch.setattr(env.mock_gateways, "enabled", False)
+    dao = _MockLlmEndpointsDAO()
+    custom_row = _custom_row(slug="acme")
+    dao.query_result = [custom_row]
+    resolver = _MockResolver(provider_keys=set())
+
+    result = await _service(dao=dao, resolver=resolver).list_endpoints(scope=_scope())
+
+    assert result == [custom_row]
+
+
+@pytest.mark.asyncio
+async def test_list_endpoints_offers_builtin_models_only_where_they_are_served(
+    monkeypatch,
+):
+    """The mock under its development switch; `agenta` once its Vertex credential is set,
+    whatever the switch says."""
+    resolver = _MockResolver(provider_keys=set())
+    builtin = GatewayEndpointNamespace.BUILTIN
+
+    async def builtin_slugs():
+        listed = await _service(resolver=resolver).list_endpoints(scope=_scope())
+        return {e.slug for e in listed if e.namespace == builtin}
+
+    monkeypatch.setattr(env.llm_gateway, "vertex_sa_json_b64", None)
+    monkeypatch.setattr(env.mock_gateways, "enabled", False)
+    assert await builtin_slugs() == set()
+    monkeypatch.setattr(env.mock_gateways, "enabled", True)
+    assert await builtin_slugs() == {"mock"}
+
+    monkeypatch.setattr(env.llm_gateway, "vertex_sa_json_b64", "e30=")
+    monkeypatch.setattr(env.llm_gateway, "vertex_project", "agenta-test")
+    assert await builtin_slugs() == {"agenta", "mock"}
+    monkeypatch.setattr(env.mock_gateways, "enabled", False)
+    assert await builtin_slugs() == {"agenta"}
+
+
+# --- list_models (R3) ------------------------------------------------------- #
+
+
+@pytest.mark.asyncio
+async def test_resolve_agent_connection_keeps_custom_vault_material_in_core():
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["acme"] = _custom_row(
+        slug="acme", models=LLMModelFilter(allowlist=["gpt-4o"])
+    )
+    resolver = _MockResolver()
+
+    resolved = await _service(dao=dao, resolver=resolver).resolve_agent_connection(
+        scope=_scope(),
+        model="gpt-4o",
+        provider_key=None,
+        connection_slug="acme",
+    )
+
+    assert resolved.namespace == GatewayEndpointNamespace.CUSTOM
+    assert resolved.name == "acme"
+    assert resolved.provider_key == "openai"
+    assert resolved.deployment_kind == LLMDeploymentKind.CUSTOM
+    assert resolver.resolve_calls == []
+
+
+@pytest.mark.asyncio
+async def test_resolve_agent_connection_returns_standard_metadata_without_reading_the_secret():
+    resolver = _MockResolver(secret=_secret())
+    scope = _scope()
+
+    resolved = await _service(resolver=resolver).resolve_agent_connection(
+        scope=scope,
+        model="gpt-4o-mini",
+        provider_key="openai",
+        connection_slug=None,
+    )
+
+    assert resolved.namespace == GatewayEndpointNamespace.STANDARD
+    assert resolved.name == "openai"
+    assert resolver.resolve_calls == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("model", ["gemini-3.7-flash", "gemini/gemini-3.7-flash"])
+async def test_a_gemini_provider_key_resolves_to_an_openai_compatible_route(model):
+    """Behind the gateway a Gemini key is Google's OpenAI-compatible endpoint. A harness that
+    speaks Gemini's own protocol would find no gateway route, so the route says `openai` +
+    `custom`, and the model loses the catalogue prefix Google's endpoint does not accept."""
+    resolved = await _service(
+        resolver=_MockResolver(secret=_secret())
+    ).resolve_agent_connection(
+        scope=_scope(), model=model, provider_key="gemini", connection_slug=None
+    )
+
+    assert resolved.namespace == GatewayEndpointNamespace.STANDARD
+    assert resolved.name == "gemini"
+    assert resolved.provider_key == "openai"
+    assert resolved.deployment_kind == LLMDeploymentKind.CUSTOM
+    assert resolved.model == "gemini-3.7-flash"
+
+
+def _vertex_row(*, protocol: Optional[str] = None) -> LLMEndpoint:
+    """The endpoint row the vault registrar writes for a Vertex card saved from the UI."""
+    endpoint = map_custom_provider_secret_to_endpoint(
+        SecretResponseDTO(
+            id=uuid4(),
+            slug="my-vertex",
+            kind=SecretKind.CUSTOM_PROVIDER,
+            data={
+                "kind": "vertex_ai",
+                **({"protocol": protocol} if protocol else {}),
+                "provider": {
+                    "extras": {
+                        "vertex_ai_project": "my-project",
+                        "vertex_ai_location": "global",
+                        "vertex_ai_credentials": "{}",
+                    }
+                },
+                "models": [{"slug": "google/gemini-3.7-flash"}],
+                "provider_slug": "my-vertex",
+            },
+            header={"name": "my-vertex"},
+        )
+    )
+    return _custom_row(
+        slug="my-vertex",
+        provider_key=endpoint.provider_key,
+        deployment_kind=endpoint.deployment_kind,
+        models=endpoint.data.models,
+    )
+
+
+@pytest.mark.asyncio
+async def test_an_openai_shaped_vertex_endpoint_resolves_to_a_custom_route():
+    """Pi refused a Vertex connection (`deployment 'vertex_ai' is not supported by harness
+    'pi_core'`). Behind the gateway it is Vertex's OpenAI-compatible endpoint, reached with a
+    token the gateway mints, so the harness drives it as any custom route."""
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["my-vertex"] = _vertex_row()
+
+    resolved = await _service(dao=dao).resolve_agent_connection(
+        scope=_scope(),
+        model="google/gemini-3.7-flash",
+        provider_key=None,
+        connection_slug="my-vertex",
+    )
+
+    assert resolved.namespace == GatewayEndpointNamespace.CUSTOM
+    assert resolved.provider_key == "openai"
+    assert resolved.deployment_kind == LLMDeploymentKind.CUSTOM
+    assert resolved.model == "google/gemini-3.7-flash"
+
+
+@pytest.mark.asyncio
+async def test_an_anthropic_shaped_vertex_endpoint_keeps_its_deployment():
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["my-vertex"] = _vertex_row(protocol="anthropic")
+
+    resolved = await _service(dao=dao).resolve_agent_connection(
+        scope=_scope(),
+        model="claude-haiku-4-5",
+        provider_key=None,
+        connection_slug="my-vertex",
+    )
+
+    assert resolved.provider_key == "anthropic"
+    assert resolved.deployment_kind == LLMDeploymentKind.VERTEX
+
+
+def _bedrock_row(models: List[str]) -> LLMEndpoint:
+    """The endpoint row the vault registrar writes for a Bedrock card saved from the UI."""
+    endpoint = map_custom_provider_secret_to_endpoint(
+        SecretResponseDTO(
+            id=uuid4(),
+            slug="my-bedrock",
+            kind=SecretKind.CUSTOM_PROVIDER,
+            data={
+                "kind": "bedrock",
+                "provider": {
+                    "extras": {
+                        "aws_region_name": "us-east-1",
+                        "aws_bearer_token_bedrock": "bedrock-api-key-test",
+                    }
+                },
+                "models": [{"slug": slug} for slug in models],
+                "provider_slug": "my-bedrock",
+            },
+            header={"name": "my-bedrock"},
+        )
+    )
+    return _custom_row(
+        slug="my-bedrock",
+        provider_key=endpoint.provider_key,
+        deployment_kind=endpoint.deployment_kind,
+        models=endpoint.data.models,
+    )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("is_active", [True, False])
+@pytest.mark.parametrize(
+    "model",
+    [
+        "anthropic.claude-haiku-4-5",
+        "my-bedrock/bedrock/us.anthropic.claude-haiku-4-5-20251001-v1:0",
+        "openai.gpt-oss-20b",
+    ],
+)
+async def test_an_agent_on_a_bedrock_connection_is_sent_to_the_vault_path(
+    model, is_active
+):
+    """The gateway relays Bedrock to `bedrock-mantle`, whose model ids are not the runtime ids
+    people save, and which has no Claude in some regions. Resolve answers with the code the
+    agent SDK reads as "resolve from the vault", for an organization the gateway serves."""
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["my-bedrock"] = _bedrock_row(
+        [
+            "anthropic.claude-haiku-4-5",
+            "us.anthropic.claude-haiku-4-5-20251001-v1:0",
+            "openai.gpt-oss-20b",
+        ]
+    )
+    # A deactivated gateway endpoint does not stop the run: the gateway takes no part in it.
+    dao.rows_by_slug["my-bedrock"].flags.is_active = is_active
+    resolver = _MockResolver()
+
+    with pytest.raises(LLMGatewayConnectionNotServedError) as refused:
+        await _service(dao=dao, resolver=resolver).resolve_agent_connection(
+            scope=_scope(), model=model, provider_key=None, connection_slug="my-bedrock"
+        )
+
+    assert refused.value.code == "llm_gateway_disabled"
+    assert resolver.resolve_calls == []
+
+
+@pytest.mark.asyncio
+async def test_resolve_agent_connection_without_a_provider_or_a_slug_is_typed():
+    """A bare `ValueError` here reached the caller as a generic 500 with nothing to act on.
+
+    The typed refusal is what the boundary maps to a 422 envelope; the required
+    `provider_key` field on `LLMGatewayConnectionResolution` remains the invariant underneath.
+    """
+    with pytest.raises(LLMConnectionProviderRequiredError):
+        await _service().resolve_agent_connection(
+            scope=_scope(), model="gpt-4o", provider_key=None, connection_slug=None
+        )
+
+
+@pytest.mark.asyncio
+async def test_resolve_agent_connection_of_a_provider_less_endpoint_is_typed():
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["acme"] = _custom_row(slug="acme", provider_key=None)
+
+    with pytest.raises(LLMEndpointProviderMissingError) as raised:
+        await _service(dao=dao).resolve_agent_connection(
+            scope=_scope(), model="gpt-4o", provider_key=None, connection_slug="acme"
+        )
+
+    # The message has to name the endpoint the operator must repair.
+    assert "custom/acme" in raised.value.message
+
+
+@pytest.mark.asyncio
+async def test_resolve_agent_connection_of_a_provider_less_endpoint_accepts_a_request_provider():
+    """The request's own provider still satisfies the route, so nothing new is refused."""
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["acme"] = _custom_row(slug="acme", provider_key=None)
+
+    resolved = await _service(dao=dao).resolve_agent_connection(
+        scope=_scope(), model="gpt-4o", provider_key="openai", connection_slug="acme"
+    )
+
+    assert resolved.provider_key == "openai"
+
+
+# --- OR53: a standard connection is selectable by its slug ------------------ #
+
+
+def _named_openai_connection() -> NamedProviderConnection:
+    """One of the project's several OpenAI connections, as the resolver names it."""
+    return NamedProviderConnection(secret_id=uuid4(), provider_key="openai")
+
+
+def _first_standard_model(provider_key: str) -> str:
+    """A model the generated endpoint for this provider admits."""
+    endpoint = standard_llm_endpoint(provider_key=provider_key)
+    assert endpoint is not None
+    return endpoint.data.models.allowlist[0]
+
+
+@pytest.mark.asyncio
+async def test_resolve_agent_connection_finds_a_standard_connection_by_its_slug():
+    """OR53: `custom/my-openai-key` was not found, because a slug only ever meant a row.
+
+    The frontend keeps a standard connection's slug and the SDK sends it as
+    `connection_slug`, so a slug naming a provider-key connection has to reach that
+    connection instead of failing as a custom endpoint nobody ever registered.
+    """
+    connection = _named_openai_connection()
+    resolver = _MockResolver(connections={"my-openai-key": connection})
+
+    resolved = await _service(resolver=resolver).resolve_agent_connection(
+        scope=_scope(),
+        model="gpt-4o",
+        provider_key=None,
+        connection_slug="my-openai-key",
+    )
+
+    assert resolved.namespace == GatewayEndpointNamespace.STANDARD
+    assert resolved.name == "my-openai-key"
+    assert resolved.provider_key == "openai"
+    # Route metadata only: naming the connection must not read its credential.
+    assert resolver.resolve_calls == []
+
+
+@pytest.mark.asyncio
+async def test_a_custom_endpoint_row_still_owns_the_slug_it_is_stored_under():
+    """The stored namespaces are asked first, so nothing that resolves today moves."""
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["acme"] = _custom_row(slug="acme")
+    resolver = _MockResolver(connections={"acme": _named_openai_connection()})
+
+    resolved = await _service(dao=dao, resolver=resolver).resolve_agent_connection(
+        scope=_scope(), model="gpt-4o", provider_key=None, connection_slug="acme"
+    )
+
+    assert resolved.namespace == GatewayEndpointNamespace.CUSTOM
+
+
+@pytest.mark.asyncio
+async def test_a_named_namespace_wins_over_a_custom_row_sharing_the_builtin_slug(
+    monkeypatch,
+):
+    """A custom `mock` must not take a call the author routed to builtin `mock`.
+
+    The two differ in who pays: builtin runs on the platform wallet, custom on the
+    customer's credential. Without the namespace the stored row wins the slug.
+    """
+    monkeypatch.setattr(env.mock_gateways, "enabled", True)
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["mock"] = _custom_row(slug="mock")
+    service = _service(dao=dao)
+
+    builtin = await service.resolve_agent_connection(
+        scope=_scope(),
+        model="gpt-5.5",
+        provider_key="openai",
+        connection_slug="mock",
+        connection_namespace=GatewayEndpointNamespace.BUILTIN,
+    )
+    inferred = await service.resolve_agent_connection(
+        scope=_scope(), model="gpt-4o", provider_key=None, connection_slug="mock"
+    )
+
+    assert (builtin.namespace, builtin.name) == (
+        GatewayEndpointNamespace.BUILTIN,
+        "mock",
+    )
+    assert (inferred.namespace, inferred.name) == (
+        GatewayEndpointNamespace.CUSTOM,
+        "mock",
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_named_namespace_that_does_not_hold_the_slug_is_not_found(monkeypatch):
+    monkeypatch.setattr(env.mock_gateways, "enabled", False)
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["mock"] = _custom_row(slug="mock")
+
+    with pytest.raises(LLMEndpointNotFoundError):
+        await _service(dao=dao).resolve_agent_connection(
+            scope=_scope(),
+            model="gpt-5.5",
+            provider_key="openai",
+            connection_slug="mock",
+            connection_namespace=GatewayEndpointNamespace.BUILTIN,
+        )
+
+
+@pytest.mark.asyncio
+async def test_relaying_through_a_named_standard_connection_uses_that_connection():
+    """The explicit choice survives to the vault read, which is the point of naming it.
+
+    Resolution by provider family takes the first matching key in the project, so a project
+    holding two OpenAI keys gets whichever comes back first. A named connection is bound to
+    its own secret instead.
+    """
+    connection = _named_openai_connection()
+    resolver = _MockResolver(
+        secret=_secret(), connections={"my-openai-key": connection}
+    )
+    adapter = _MockAdapter(
+        result=LLMRelayResult(
+            status_code=200, headers={}, body=_one_chunk_body(b'{"ok": true}')
+        )
+    )
+    registry = LLMUpstreamRegistry(adapters={"relay": adapter})
+
+    body = json.dumps(
+        {"model": _first_standard_model("openai"), "messages": []}
+    ).encode()
+    await _service(resolver=resolver, registry=registry).relay_chat_completion(
+        scope=_scope(),
+        namespace=GatewayEndpointNamespace.STANDARD,
+        name="my-openai-key",
+        body=body,
+        headers={},
+    )
+
+    assert len(resolver.resolve_calls) == 1
+    ref = resolver.resolve_calls[0][1]
+    assert isinstance(ref, BoundSecretRef)
+    assert ref.secret_id == connection.secret_id
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "name,model",
+    [
+        ("anthropic", "claude-haiku-4-5-20251001"),  # Claude Code's dated id
+        ("openrouter", "deepseek/deepseek-v4-flash:nitro"),  # a hand-typed variant
+    ],
+)
+async def test_a_standard_endpoint_relays_a_model_the_catalogue_does_not_list(
+    name, model
+):
+    """The caller's own key pays, so the provider judges the model, not the catalogue."""
+    adapter = _MockAdapter(
+        result=LLMRelayResult(
+            status_code=200, headers={}, body=_one_chunk_body(b'{"ok": true}')
+        )
+    )
+    registry = LLMUpstreamRegistry(adapters={"relay": adapter})
+
+    result = await _service(
+        resolver=_MockResolver(secret=_secret()), registry=registry
+    ).relay_chat_completion(
+        scope=_scope(),
+        namespace=GatewayEndpointNamespace.STANDARD,
+        name=name,
+        body=json.dumps({"model": model, "messages": []}).encode(),
+        headers={},
+    )
+
+    assert result.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_a_standard_endpoint_still_refuses_a_routing_field():
+    with pytest.raises(LLMRoutingFieldNotAllowedError):
+        await _service(resolver=_MockResolver(secret=_secret())).relay_chat_completion(
+            scope=_scope(),
+            namespace=GatewayEndpointNamespace.STANDARD,
+            name="openrouter",
+            body=json.dumps(
+                {"model": "x", "messages": [], "provider": {"order": ["a"]}}
+            ).encode(),
+            headers={},
+        )
+
+
+@pytest.mark.asyncio
+async def test_relaying_through_a_provider_family_still_scans_for_a_key():
+    """The unnamed route is unchanged: no connection is named, so the family is the ref."""
+    resolver = _MockResolver(secret=_secret())
+    adapter = _MockAdapter(
+        result=LLMRelayResult(
+            status_code=200, headers={}, body=_one_chunk_body(b'{"ok": true}')
+        )
+    )
+    registry = LLMUpstreamRegistry(adapters={"relay": adapter})
+
+    body = json.dumps(
+        {"model": _first_standard_model("openai"), "messages": []}
+    ).encode()
+    await _service(resolver=resolver, registry=registry).relay_chat_completion(
+        scope=_scope(),
+        namespace=GatewayEndpointNamespace.STANDARD,
+        name="openai",
+        body=body,
+        headers={},
+    )
+
+    assert isinstance(resolver.resolve_calls[0][1], ProviderKeyRef)
+
+
+@pytest.mark.asyncio
+async def test_an_unknown_slug_still_fails_as_a_custom_endpoint():
+    """The familiar refusal survives: a slug naming nothing is still `custom/<slug>`."""
+    with pytest.raises(LLMEndpointNotFoundError) as raised:
+        await _service().resolve_agent_connection(
+            scope=_scope(),
+            model="gpt-4o",
+            provider_key=None,
+            connection_slug="nothing-here",
+        )
+
+    assert "custom/nothing-here" in raised.value.message
+
+
+@pytest.mark.asyncio
+async def test_list_models_custom_returns_the_allowlist_exactly():
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["acme"] = _custom_row(
+        slug="acme", models=LLMModelFilter(allowlist=["a", "b"])
+    )
+
+    slugs = await _service(dao=dao).list_models(
+        scope=_scope(), namespace=GatewayEndpointNamespace.CUSTOM, name="acme"
+    )
+
+    assert slugs == ["a", "b"]
+
+
+@pytest.mark.asyncio
+async def test_list_models_standard_strips_the_litellm_routing_prefix():
+    """catalog.py bares each id (open-designs.md OD16): the litellm-flavored catalogue
+    entry means nothing to Anthropic's real API, and D34 forbids fixing that at relay
+    time, so the fix is in what the catalogue advertises."""
+    slugs = await _service().list_models(
+        scope=_scope(), namespace=GatewayEndpointNamespace.STANDARD, name="anthropic"
+    )
+
+    # Read the expectation off the catalogue rather than naming a model: a catalogue sync
+    # rotates the ids and reorders the list, and the contract under test is the baring,
+    # not which model happens to lead.
+    catalogued = supported_llm_models["anthropic"]
+    assert slugs == [slug.removeprefix("anthropic/") for slug in catalogued]
+    assert not any(slug.startswith("anthropic/") for slug in slugs)
+
+
+@pytest.mark.asyncio
+async def test_list_models_unknown_name_raises_not_found():
+    with pytest.raises(LLMEndpointNotFoundError):
+        await _service().list_models(
+            scope=_scope(), namespace=GatewayEndpointNamespace.CUSTOM, name="ghost"
+        )
+
+
+@pytest.mark.asyncio
+async def test_list_models_denied_decision_raises_before_reading_slugs():
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["acme"] = _custom_row(
+        slug="acme", models=LLMModelFilter(allowlist=["a"])
+    )
+    policy = _MockPolicy(allowed=False)
+
+    with pytest.raises(PolicyDeniedError):
+        await _service(dao=dao, policy=policy).list_models(
+            scope=_scope(), namespace=GatewayEndpointNamespace.CUSTOM, name="acme"
+        )
+    assert len(policy.authorize_calls) == 1
+
+
+# --- relay_chat_completion: the three orderings ----------------------------- #
+
+
+@pytest.mark.asyncio
+async def test_disallowed_model_raises_without_calling_resolver():
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["acme"] = _custom_row(
+        slug="acme", models=LLMModelFilter(allowlist=["gpt-4o"])
+    )
+    resolver = _MockResolver(secret=_secret())
+
+    body = json.dumps({"model": "gpt-4o-mini", "messages": []}).encode()
+
+    with pytest.raises(LLMModelNotAllowedError):
+        await _service(dao=dao, resolver=resolver).relay_chat_completion(
+            scope=_scope(),
+            namespace=GatewayEndpointNamespace.CUSTOM,
+            name="acme",
+            body=body,
+            headers={},
+        )
+
+    assert resolver.resolve_calls == []
+
+
+@pytest.mark.parametrize(
+    "protocol",
+    [LLMProtocol.CHAT_COMPLETIONS, LLMProtocol.RESPONSES, LLMProtocol.MESSAGES],
+)
+@pytest.mark.asyncio
+async def test_disallowed_model_is_refused_on_every_door_before_the_secret(protocol):
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["acme"] = _custom_row(
+        slug="acme", models=LLMModelFilter(allowlist=["gpt-4o"])
+    )
+    resolver = _MockResolver(secret=_secret())
+
+    body = json.dumps({"model": "gpt-4o-mini"}).encode()
+
+    with pytest.raises(LLMModelNotAllowedError):
+        await _service(dao=dao, resolver=resolver).relay_chat_completion(
+            scope=_scope(),
+            namespace=GatewayEndpointNamespace.CUSTOM,
+            name="acme",
+            body=body,
+            headers={},
+            protocol=protocol,
+        )
+
+    assert resolver.resolve_calls == []
+
+
+def _registered_custom_provider_models() -> LLMModelFilter:
+    """The model filter the vault registrar writes for a one-model custom provider."""
+    endpoint = map_custom_provider_secret_to_endpoint(
+        SecretResponseDTO(
+            id=uuid4(),
+            slug="gw-provider-a-d36033501df1",
+            kind=SecretKind.CUSTOM_PROVIDER,
+            data={
+                # A literal IP keeps the custom_provider URL validator happy.
+                "kind": "custom",
+                "provider": {"url": "https://93.184.216.34/v1", "key": "sk-gw"},
+                "models": [{"slug": "mock/echo"}],
+                "provider_slug": "gw-provider-a",
+            },
+            header={"name": "gw-provider-a"},
+        )
+    )
+    return endpoint.data.models
+
+
+def test_a_registered_custom_provider_allows_both_spellings_of_its_model():
+    models = _registered_custom_provider_models()
+
+    assert models.allows("gw-provider-a/custom/mock/echo")
+    assert models.allows("mock/echo")
+    assert not models.allows("gw-provider-a/custom/mock/other")
+
+
+@pytest.mark.asyncio
+async def test_a_qualified_model_key_is_relayed_and_not_refused_as_not_allowed():
+    """The playground sends Agenta's qualified model key in the body; the registered
+    allowlist holds it, so the call relays instead of returning `model_not_allowed`."""
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["gw-provider-a-d36033501df1"] = _custom_row(
+        slug="gw-provider-a-d36033501df1",
+        models=_registered_custom_provider_models(),
+    )
+    resolver = _MockResolver(secret=_secret())
+    adapter_result = LLMRelayResult(
+        status_code=200, headers={}, body=_one_chunk_body(b"{}")
+    )
+    registry = LLMUpstreamRegistry(
+        adapters={"relay": _MockAdapter(result=adapter_result)}
+    )
+
+    body = json.dumps(
+        {"model": "gw-provider-a/custom/mock/echo", "messages": []}
+    ).encode()
+
+    result = await _service(
+        dao=dao, resolver=resolver, registry=registry
+    ).relay_chat_completion(
+        scope=_scope(),
+        namespace=GatewayEndpointNamespace.CUSTOM,
+        name="gw-provider-a-d36033501df1",
+        body=body,
+        headers={},
+    )
+
+    assert result is adapter_result
+
+
+@pytest.mark.asyncio
+async def test_an_unlisted_model_is_still_refused_on_a_registered_custom_provider():
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["gw-provider-a-d36033501df1"] = _custom_row(
+        slug="gw-provider-a-d36033501df1",
+        models=_registered_custom_provider_models(),
+    )
+    resolver = _MockResolver(secret=_secret())
+
+    body = json.dumps(
+        {"model": "gw-provider-a/custom/mock/other", "messages": []}
+    ).encode()
+
+    with pytest.raises(LLMModelNotAllowedError):
+        await _service(dao=dao, resolver=resolver).relay_chat_completion(
+            scope=_scope(),
+            namespace=GatewayEndpointNamespace.CUSTOM,
+            name="gw-provider-a-d36033501df1",
+            body=body,
+            headers={},
+        )
+
+    assert resolver.resolve_calls == []
+
+
+# --- custom endpoints: the upstream receives its own model id ----------------- #
+
+_FIREWORKS_SLUG = "openai-compatible-endpoint-0fbcbb114d58"
+
+# Model ids with 0, 1 and 3 slashes, and an OpenRouter routing variant. The provider's
+# own id may hold any number of slashes, so none of them may be split on.
+_UPSTREAM_MODEL_IDS = [
+    "kimi-k3-fast",
+    "moonshotai/kimi-k3",
+    "accounts/fireworks/routers/kimi-k3-fast",
+    "deepseek/deepseek-v4-flash:nitro",
+]
+
+
+def _fireworks_row(model_slugs: List[str]) -> LLMEndpoint:
+    """The endpoint row the vault registrar writes for a Fireworks custom provider."""
+    endpoint = map_custom_provider_secret_to_endpoint(
+        SecretResponseDTO(
+            id=uuid4(),
+            slug=_FIREWORKS_SLUG,
+            kind=SecretKind.CUSTOM_PROVIDER,
+            data={
+                "kind": "custom",
+                "provider": {"url": "https://93.184.216.34/v1", "key": "fw-key"},
+                "models": [{"slug": slug} for slug in model_slugs],
+                "provider_slug": "Fireworks",
+            },
+            header={"name": "Fireworks"},
+        )
+    )
+    return _custom_row(slug=_FIREWORKS_SLUG, models=endpoint.data.models)
+
+
+def _fireworks_dao(model_slugs: List[str]) -> _MockLlmEndpointsDAO:
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug[_FIREWORKS_SLUG] = _fireworks_row(model_slugs)
+    return dao
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("upstream_id", _UPSTREAM_MODEL_IDS)
+@pytest.mark.parametrize("qualified", [True, False])
+async def test_resolve_names_a_custom_model_by_its_upstream_id(upstream_id, qualified):
+    """The production canary: `Fireworks/custom/accounts/fireworks/routers/kimi-k3-fast`
+    resolved unchanged, the harness sent it, and Fireworks answered 404."""
+    requested = f"Fireworks/custom/{upstream_id}" if qualified else upstream_id
+
+    resolved = await _service(
+        dao=_fireworks_dao([upstream_id])
+    ).resolve_agent_connection(
+        scope=_scope(),
+        model=requested,
+        provider_key=None,
+        connection_slug=_FIREWORKS_SLUG,
+    )
+
+    assert resolved.model == upstream_id
+
+
+@pytest.mark.asyncio
+async def test_resolve_picks_the_model_the_qualified_key_names_among_nested_ids():
+    """Two saved models where one id is a suffix of the other: the key names the longer."""
+    dao = _fireworks_dao(["kimi-k3-fast", "accounts/fireworks/routers/kimi-k3-fast"])
+    service = _service(dao=dao)
+
+    for upstream_id in ("kimi-k3-fast", "accounts/fireworks/routers/kimi-k3-fast"):
+        resolved = await service.resolve_agent_connection(
+            scope=_scope(),
+            model=f"Fireworks/custom/{upstream_id}",
+            provider_key=None,
+            connection_slug=_FIREWORKS_SLUG,
+        )
+        assert resolved.model == upstream_id
+
+
+@pytest.mark.asyncio
+async def test_resolve_leaves_a_model_the_endpoint_does_not_list_unchanged():
+    resolved = await _service(
+        dao=_fireworks_dao(["kimi-k3-fast"])
+    ).resolve_agent_connection(
+        scope=_scope(),
+        model="Fireworks/custom/other-model",
+        provider_key=None,
+        connection_slug=_FIREWORKS_SLUG,
+    )
+
+    assert resolved.model == "Fireworks/custom/other-model"
+
+
+@pytest.mark.asyncio
+async def test_a_bare_id_shaped_like_a_qualified_key_is_kept_through_resolve_and_relay():
+    """`a/b/x` is a saved model of its own, not a qualified key for `x`. Resolve then
+    relay must reach the model the caller named, whichever spelling it used."""
+    model_slugs = ["x", "a/b/x"]
+    service = _service(dao=_fireworks_dao(model_slugs))
+
+    for requested, upstream_id in (
+        ("a/b/x", "a/b/x"),
+        ("Fireworks/custom/a/b/x", "a/b/x"),
+        ("x", "x"),
+        ("Fireworks/custom/x", "x"),
+    ):
+        resolved = await service.resolve_agent_connection(
+            scope=_scope(),
+            model=requested,
+            provider_key=None,
+            connection_slug=_FIREWORKS_SLUG,
+        )
+        assert resolved.model == upstream_id
+
+        call = await _relay_to_fireworks(
+            model_slugs, {"model": resolved.model, "messages": []}
+        )
+        assert json.loads(call["body"])["model"] == upstream_id
+
+
+@pytest.mark.asyncio
+async def test_resolve_strips_a_provider_name_that_holds_a_slash():
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["team"] = _custom_row(
+        slug="team",
+        models=LLMModelFilter(
+            allowlist=["Team/Fireworks/custom/kimi-k3-fast", "kimi-k3-fast"]
+        ),
+    )
+
+    resolved = await _service(dao=dao).resolve_agent_connection(
+        scope=_scope(),
+        model="Team/Fireworks/custom/kimi-k3-fast",
+        provider_key=None,
+        connection_slug="team",
+    )
+
+    assert resolved.model == "kimi-k3-fast"
+
+
+@pytest.mark.asyncio
+async def test_resolve_strips_the_deployment_prefixed_spelling_like_the_direct_path():
+    resolved = await _service(
+        dao=_fireworks_dao(["accounts/fireworks/routers/kimi-k3-fast"])
+    ).resolve_agent_connection(
+        scope=_scope(),
+        model="custom/accounts/fireworks/routers/kimi-k3-fast",
+        provider_key=None,
+        connection_slug=_FIREWORKS_SLUG,
+    )
+
+    assert resolved.model == "accounts/fireworks/routers/kimi-k3-fast"
+
+
+@pytest.mark.asyncio
+async def test_relay_refuses_a_model_denied_under_its_bare_name():
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug[_FIREWORKS_SLUG] = _custom_row(
+        slug=_FIREWORKS_SLUG,
+        models=LLMModelFilter(
+            allowlist=["Fireworks/custom/kimi-k3-fast", "kimi-k3-fast"],
+            denylist=["kimi-k3-fast"],
+        ),
+    )
+    adapter = _MockAdapter(
+        result=LLMRelayResult(status_code=200, headers={}, body=_one_chunk_body(b"{}"))
+    )
+
+    with pytest.raises(LLMModelNotAllowedError):
+        await _service(
+            dao=dao,
+            resolver=_MockResolver(secret=_secret()),
+            registry=LLMUpstreamRegistry(adapters={"relay": adapter}),
+        ).relay_chat_completion(
+            scope=_scope(),
+            namespace=GatewayEndpointNamespace.CUSTOM,
+            name=_FIREWORKS_SLUG,
+            body=json.dumps(
+                {"model": "Fireworks/custom/kimi-k3-fast", "messages": []}
+            ).encode(),
+            headers={},
+        )
+
+    assert adapter.calls == []
+
+
+async def _relay_to_fireworks(model_slugs: List[str], payload: dict) -> dict:
+    adapter = _MockAdapter(
+        result=LLMRelayResult(status_code=200, headers={}, body=_one_chunk_body(b"{}"))
+    )
+    await _service(
+        dao=_fireworks_dao(model_slugs),
+        resolver=_MockResolver(secret=_secret()),
+        registry=LLMUpstreamRegistry(adapters={"relay": adapter}),
+    ).relay_chat_completion(
+        scope=_scope(),
+        namespace=GatewayEndpointNamespace.CUSTOM,
+        name=_FIREWORKS_SLUG,
+        body=json.dumps(payload).encode(),
+        headers={},
+    )
+    (call,) = adapter.calls
+    return call
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("upstream_id", _UPSTREAM_MODEL_IDS)
+@pytest.mark.parametrize("qualified", [True, False])
+async def test_relay_sends_the_upstream_its_own_model_id(upstream_id, qualified):
+    """The playground relays Agenta's qualified key; the upstream must get the bare id."""
+    requested = f"Fireworks/custom/{upstream_id}" if qualified else upstream_id
+
+    call = await _relay_to_fireworks(
+        [upstream_id], {"model": requested, "messages": [], "stream": True}
+    )
+
+    sent = json.loads(call["body"])
+    assert sent["model"] == upstream_id
+    assert sent["stream"] is True
+    assert call["route"].model == upstream_id
+    assert call["context"].model == upstream_id
+
+
+@pytest.mark.asyncio
+async def test_relay_renames_qualified_fallback_models_too():
+    call = await _relay_to_fireworks(
+        ["kimi-k3-fast", "accounts/fireworks/routers/kimi-k3-fast"],
+        {
+            "model": "Fireworks/custom/kimi-k3-fast",
+            "models": [
+                "Fireworks/custom/accounts/fireworks/routers/kimi-k3-fast",
+                "kimi-k3-fast",
+            ],
+            "messages": [],
+        },
+    )
+
+    sent = json.loads(call["body"])
+    assert sent["model"] == "kimi-k3-fast"
+    assert sent["models"] == ["accounts/fireworks/routers/kimi-k3-fast", "kimi-k3-fast"]
+
+
+@pytest.mark.asyncio
+async def test_relay_of_a_bare_model_keeps_the_body_byte_for_byte():
+    body = {"model": "accounts/fireworks/routers/kimi-k3-fast", "messages": []}
+
+    call = await _relay_to_fireworks(["accounts/fireworks/routers/kimi-k3-fast"], body)
+
+    assert call["body"] == json.dumps(body).encode()
+
+
+@pytest.mark.asyncio
+async def test_policy_denial_records_once_before_raising():
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["acme"] = _custom_row(
+        slug="acme", models=LLMModelFilter(allowlist=["gpt-4o"])
+    )
+    policy = _MockPolicy(allowed=False)
+    resolver = _MockResolver(secret=_secret())
+
+    body = json.dumps({"model": "gpt-4o", "messages": []}).encode()
+
+    with pytest.raises(PolicyDeniedError):
+        await _service(dao=dao, policy=policy, resolver=resolver).relay_chat_completion(
+            scope=_scope(),
+            namespace=GatewayEndpointNamespace.CUSTOM,
+            name="acme",
+            body=body,
+            headers={},
+        )
+
+    assert len(policy.record_calls) == 1
+    outcome = policy.record_calls[0][3]
+    assert outcome.status_code == 403
+    assert resolver.resolve_calls == []
+
+
+@pytest.mark.asyncio
+async def test_ceiling_breach_names_all_three_values():
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["acme"] = _custom_row(
+        slug="acme", models=LLMModelFilter(allowlist=["gpt-4o"]), max_output_tokens=100
+    )
+    resolver = _MockResolver(secret=_secret())
+
+    # Chat Completions' request field is `max_tokens`, not the `max_output_tokens`
+    # config key; the request field varies by protocol while the ceiling itself
+    # is always named `max_output_tokens` in the error).
+    body = json.dumps({"model": "gpt-4o", "messages": [], "max_tokens": 200}).encode()
+
+    with pytest.raises(CeilingExceededError) as excinfo:
+        await _service(dao=dao, resolver=resolver).relay_chat_completion(
+            scope=_scope(),
+            namespace=GatewayEndpointNamespace.CUSTOM,
+            name="acme",
+            body=body,
+            headers={},
+        )
+
+    assert excinfo.value.ceiling == "max_output_tokens"
+    assert excinfo.value.requested == 200
+    assert excinfo.value.allowed == 100
+    assert resolver.resolve_calls == []
+
+
+# Per-protocol ceiling binding
+
+
+@pytest.mark.parametrize(
+    "protocol,field",
+    [
+        (LLMProtocol.CHAT_COMPLETIONS, "max_tokens"),
+        (LLMProtocol.CHAT_COMPLETIONS, "max_completion_tokens"),
+        (LLMProtocol.RESPONSES, "max_output_tokens"),
+        (LLMProtocol.MESSAGES, "max_tokens"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_ceiling_binds_to_the_protocols_own_field_and_rejects_above_it(
+    protocol, field
+):
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["acme"] = _custom_row(
+        slug="acme", models=LLMModelFilter(allowlist=["gpt-4o"]), max_output_tokens=100
+    )
+    resolver = _MockResolver(secret=_secret())
+
+    body = json.dumps({"model": "gpt-4o", field: 200}).encode()
+
+    with pytest.raises(CeilingExceededError) as excinfo:
+        await _service(dao=dao, resolver=resolver).relay_chat_completion(
+            scope=_scope(),
+            namespace=GatewayEndpointNamespace.CUSTOM,
+            name="acme",
+            body=body,
+            headers={},
+            protocol=protocol,
+        )
+
+    assert excinfo.value.requested == 200
+    assert excinfo.value.allowed == 100
+    assert resolver.resolve_calls == []
+
+
+@pytest.mark.parametrize(
+    "protocol,field",
+    [
+        (LLMProtocol.CHAT_COMPLETIONS, "max_tokens"),
+        (LLMProtocol.RESPONSES, "max_output_tokens"),
+        (LLMProtocol.MESSAGES, "max_tokens"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_ceiling_at_or_below_the_limit_is_not_rejected(protocol, field):
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["acme"] = _custom_row(
+        slug="acme", models=LLMModelFilter(allowlist=["gpt-4o"]), max_output_tokens=100
+    )
+    secret = _secret()
+    resolver = _MockResolver(secret=secret)
+
+    adapter_result = LLMRelayResult(
+        status_code=200, headers={}, body=_one_chunk_body(b"{}")
+    )
+    adapter = _MockAdapter(result=adapter_result)
+    registry = LLMUpstreamRegistry(adapters={"relay": adapter})
+    policy = _MockPolicy(allowed=True)
+
+    body = json.dumps({"model": "gpt-4o", field: 100}).encode()
+
+    result = await _service(
+        dao=dao, resolver=resolver, registry=registry, policy=policy
+    ).relay_chat_completion(
+        scope=_scope(),
+        namespace=GatewayEndpointNamespace.CUSTOM,
+        name="acme",
+        body=body,
+        headers={},
+        protocol=protocol,
+    )
+
+    assert result is adapter_result
+
+
+@pytest.mark.asyncio
+async def test_ceiling_ignores_another_protocols_field_name():
+    # A Responses body naming `max_tokens` (Chat Completions'/Messages' field) is not
+    # mistaken for the ceiling field — RESPONSES only reads `max_output_tokens`.
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["acme"] = _custom_row(
+        slug="acme", models=LLMModelFilter(allowlist=["gpt-4o"]), max_output_tokens=100
+    )
+    secret = _secret()
+    resolver = _MockResolver(secret=secret)
+
+    adapter_result = LLMRelayResult(
+        status_code=200, headers={}, body=_one_chunk_body(b"{}")
+    )
+    adapter = _MockAdapter(result=adapter_result)
+    registry = LLMUpstreamRegistry(adapters={"relay": adapter})
+    policy = _MockPolicy(allowed=True)
+
+    body = json.dumps({"model": "gpt-4o", "max_tokens": 999}).encode()
+
+    result = await _service(
+        dao=dao, resolver=resolver, registry=registry, policy=policy
+    ).relay_chat_completion(
+        scope=_scope(),
+        namespace=GatewayEndpointNamespace.CUSTOM,
+        name="acme",
+        body=body,
+        headers={},
+        protocol=LLMProtocol.RESPONSES,
+    )
+
+    assert result is adapter_result
+
+
+@pytest.mark.asyncio
+async def test_successful_non_streaming_call_records_before_it_returns():
+    dao = _MockLlmEndpointsDAO()
+    row = _custom_row(
+        slug="acme", models=LLMModelFilter(allowlist=["gpt-4o"]), secret_id=uuid4()
+    )
+    dao.rows_by_slug["acme"] = row
+    secret = _secret()
+    resolver = _MockResolver(secret=secret)
+
+    adapter_result = LLMRelayResult(
+        status_code=200,
+        headers={},
+        body=_one_chunk_body(b'{"ok": true}'),
+        usage=GatewayUsage(calls=1, input_tokens=3, output_tokens=4, cost=0.01),
+    )
+    adapter = _MockAdapter(result=adapter_result)
+    registry = LLMUpstreamRegistry(adapters={"relay": adapter})
+    policy = _MockPolicy(allowed=True)
+
+    body = json.dumps({"model": "gpt-4o", "messages": []}).encode()
+    result = await _service(
+        dao=dao, resolver=resolver, registry=registry, policy=policy
+    ).relay_chat_completion(
+        scope=_scope(),
+        namespace=GatewayEndpointNamespace.CUSTOM,
+        name="acme",
+        body=body,
+        headers={},
+    )
+
+    assert result is adapter_result
+    assert len(adapter.calls) == 1
+    assert resolver.resolve_calls[0][2] == SecretMode.PROJECT_ONLY
+
+    # Adapters fill usage while the body generator runs, so the recording still waits for
+    # the drain — but on this path the SERVICE is what drains, because the caller builds a
+    # plain `Response` from one chunk and never advances the generator to its end (OR33).
+    assert len(policy.record_calls) == 1
+    assert [chunk async for chunk in result.body] == [b'{"ok": true}']
+
+    outcome = policy.record_calls[0][3]
+    assert outcome.status_code == 200
+    assert outcome.usage.input_tokens == 3
+    assert outcome.owner == secret.owner
+
+
+@pytest.mark.asyncio
+async def test_a_multi_chunk_non_streaming_body_is_joined_not_truncated():
+    """The caller reads one chunk, so the service must hand it all of them as one.
+
+    The relay adapter coalesces its own body with `aread()`, so this is the guarantee for
+    any OTHER adapter: before OR33 a non-streaming answer arriving in two chunks would have
+    reached the caller as its first chunk alone.
+    """
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["acme"] = _custom_row(
+        slug="acme", models=LLMModelFilter(allowlist=["gpt-4o"]), secret_id=uuid4()
+    )
+    resolver = _MockResolver(secret=_secret())
+    policy = _MockPolicy(allowed=True)
+
+    async def _two_chunks() -> AsyncIterator[bytes]:
+        yield b'{"ok":'
+        yield b" true}"
+
+    registry = LLMUpstreamRegistry(
+        adapters={
+            "relay": _MockAdapter(
+                result=LLMRelayResult(status_code=200, headers={}, body=_two_chunks())
+            )
+        }
+    )
+
+    body = json.dumps({"model": "gpt-4o", "messages": []}).encode()
+    result = await _service(
+        dao=dao, resolver=resolver, registry=registry, policy=policy
+    ).relay_chat_completion(
+        scope=_scope(),
+        namespace=GatewayEndpointNamespace.CUSTOM,
+        name="acme",
+        body=body,
+        headers={},
+    )
+
+    assert [chunk async for chunk in result.body] == [b'{"ok": true}']
+    assert len(policy.record_calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_streaming_call_records_only_after_full_consumption():
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["acme"] = _custom_row(
+        slug="acme", models=LLMModelFilter(allowlist=["gpt-4o"]), secret_id=uuid4()
+    )
+    resolver = _MockResolver(secret=_secret())
+    policy = _MockPolicy(allowed=True)
+
+    async def _two_chunks() -> AsyncIterator[bytes]:
+        yield b"chunk-1"
+        yield b"chunk-2"
+
+    adapter_result = LLMRelayResult(status_code=200, headers={}, body=_two_chunks())
+    adapter = _MockAdapter(result=adapter_result)
+    registry = LLMUpstreamRegistry(adapters={"relay": adapter})
+
+    body = json.dumps({"model": "gpt-4o", "messages": [], "stream": True}).encode()
+    result = await _service(
+        dao=dao, resolver=resolver, registry=registry, policy=policy
+    ).relay_chat_completion(
+        scope=_scope(),
+        namespace=GatewayEndpointNamespace.CUSTOM,
+        name="acme",
+        body=body,
+        headers={},
+    )
+
+    assert policy.record_calls == []  # nothing recorded before the body is drained
+
+    first = await result.body.__anext__()
+    assert first == b"chunk-1"
+    assert policy.record_calls == []  # still nothing after a partial read
+
+    remaining = [chunk async for chunk in result.body]
+    assert remaining == [b"chunk-2"]
+    assert len(policy.record_calls) == 1  # recorded exactly once, after exhaustion
+
+
+# --- OR44: every field that can select a model ------------------------------ #
+
+
+def _relay_service_and_adapter(
+    *, allowlist=None, max_output_tokens=None
+) -> tuple["LLMGatewayService", "_MockAdapter", "_MockResolver"]:
+    """A service whose custom `acme` endpoint relays through a capturing adapter."""
+    dao = _MockLlmEndpointsDAO()
+    dao.rows_by_slug["acme"] = _custom_row(
+        slug="acme",
+        models=LLMModelFilter(allowlist=allowlist or ["gpt-4o"]),
+        max_output_tokens=max_output_tokens,
+        secret_id=uuid4(),
+    )
+    resolver = _MockResolver(secret=_secret())
+    adapter = _MockAdapter(
+        result=LLMRelayResult(status_code=200, headers={}, body=_one_chunk_body(b"{}"))
+    )
+    service = _service(
+        dao=dao,
+        resolver=resolver,
+        registry=LLMUpstreamRegistry(adapters={"relay": adapter}),
+        policy=_MockPolicy(allowed=True),
+    )
+    return service, adapter, resolver
+
+
+async def _relay(service, body: dict, *, protocol=LLMProtocol.CHAT_COMPLETIONS):
+    return await service.relay_chat_completion(
+        scope=_scope(),
+        namespace=GatewayEndpointNamespace.CUSTOM,
+        name="acme",
+        body=json.dumps(body).encode(),
+        headers={},
+        protocol=protocol,
+    )
+
+
+@pytest.mark.asyncio
+async def test_a_forbidden_fallback_model_beside_a_permitted_one_is_refused():
+    """OR44: `models` is OpenRouter's fallback array, and it used to travel unexamined.
+
+    The endpoint allows `gpt-4o` alone, so the primary passes; the fallback that runs when
+    the primary fails is the model the allowlist exists to keep out.
+    """
+    service, adapter, resolver = _relay_service_and_adapter(allowlist=["gpt-4o"])
+
+    with pytest.raises(LLMModelNotAllowedError) as excinfo:
+        await _relay(service, {"model": "gpt-4o", "models": ["forbidden-model"]})
+
+    assert excinfo.value.model == "forbidden-model"
+    assert adapter.calls == []
+    assert resolver.resolve_calls == []  # refused before any vault read (§8)
+
+
+@pytest.mark.asyncio
+async def test_a_body_naming_only_the_permitted_model_still_relays():
+    service, adapter, _ = _relay_service_and_adapter(allowlist=["gpt-4o"])
+
+    await _relay(service, {"model": "gpt-4o", "messages": []})
+
+    assert len(adapter.calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_a_fallback_list_of_permitted_models_still_relays():
+    """Checking the field is not the same as banning it: a fallback inside the allowlist
+    is a routing decision the policy has already approved."""
+    service, adapter, _ = _relay_service_and_adapter(
+        allowlist=["gpt-4o", "gpt-4o-mini"]
+    )
+
+    await _relay(service, {"model": "gpt-4o", "models": ["gpt-4o-mini"]})
+
+    assert len(adapter.calls) == 1
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("route", "fallback"),
+        ("provider", {"order": ["azure", "openai"]}),
+        ("preset", "my-router"),
+        ("fallbacks", [{"model": "forbidden-model"}]),
+    ],
+)
+@pytest.mark.asyncio
+async def test_a_routing_extension_the_gateway_cannot_check_is_refused(field, value):
+    """A field that steers routing and that the allowlist cannot evaluate is refused
+    rather than forwarded, so the next one a provider ships cannot ride along."""
+    service, adapter, resolver = _relay_service_and_adapter(allowlist=["gpt-4o"])
+
+    with pytest.raises(LLMRoutingFieldNotAllowedError) as excinfo:
+        await _relay(service, {"model": "gpt-4o", field: value})
+
+    assert excinfo.value.field == field
+    assert adapter.calls == []
+    assert resolver.resolve_calls == []
+
+
+@pytest.mark.asyncio
+async def test_a_null_routing_extension_is_not_treated_as_routing():
+    """A client library that serialises its unset options as `null` sends no routing."""
+    service, adapter, _ = _relay_service_and_adapter(allowlist=["gpt-4o"])
+
+    await _relay(service, {"model": "gpt-4o", "provider": None, "route": None})
+
+    assert len(adapter.calls) == 1
+
+
+@pytest.mark.parametrize("value", ["forbidden-model", {"only": ["forbidden"]}, [1, 2]])
+@pytest.mark.asyncio
+async def test_a_fallback_field_that_is_not_a_list_of_model_ids_is_refused(value):
+    """An unreadable `models` cannot be measured against the allowlist, so it is refused
+    rather than assumed harmless."""
+    service, adapter, _ = _relay_service_and_adapter(allowlist=["gpt-4o"])
+
+    with pytest.raises(LLMRoutingFieldNotAllowedError):
+        await _relay(service, {"model": "gpt-4o", "models": value})
+
+    assert adapter.calls == []
+
+
+@pytest.mark.asyncio
+async def test_fallback_entries_are_matched_exactly_like_the_primary_model():
+    """The exact-string match is the property that rejects case and unicode variants, and
+    it governs the fallback array the same way."""
+    service, _, _ = _relay_service_and_adapter(allowlist=["gpt-4o"])
+
+    with pytest.raises(LLMModelNotAllowedError):
+        await _relay(service, {"model": "gpt-4o", "models": ["GPT-4O"]})
+
+
+# --- OR50: the output-token ceiling is not optional ------------------------- #
+
+
+@pytest.mark.parametrize(
+    "protocol,alias",
+    [
+        (LLMProtocol.CHAT_COMPLETIONS, "max_tokens"),
+        (LLMProtocol.RESPONSES, "max_output_tokens"),
+        (LLMProtocol.MESSAGES, "max_tokens"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_a_request_naming_no_maximum_leaves_with_the_ceiling_written_in(
+    protocol, alias
+):
+    """OR50: an omitted maximum used to mean the upstream's own default applied."""
+    service, adapter, _ = _relay_service_and_adapter(max_output_tokens=10)
+
+    await _relay(service, {"model": "gpt-4o", "messages": []}, protocol=protocol)
+
+    sent = json.loads(adapter.calls[0]["body"])
+    assert sent[alias] == 10
+    assert sent["model"] == "gpt-4o"  # nothing else about the body is rewritten
+    assert sent["messages"] == []
+
+
+@pytest.mark.asyncio
+async def test_the_second_alias_is_checked_not_only_the_first_one_found():
+    """OR50: the parser returned the first recognised integer, so a small `max_tokens`
+    hid a large `max_completion_tokens` beside it."""
+    service, adapter, _ = _relay_service_and_adapter(max_output_tokens=10)
+
+    with pytest.raises(CeilingExceededError) as excinfo:
+        await _relay(
+            service,
+            {"model": "gpt-4o", "max_tokens": 1, "max_completion_tokens": 999999},
+        )
+
+    assert excinfo.value.requested == 999999
+    assert excinfo.value.allowed == 10
+    assert adapter.calls == []
+
+
+@pytest.mark.asyncio
+async def test_a_maximum_at_exactly_the_ceiling_passes_untouched():
+    service, adapter, _ = _relay_service_and_adapter(max_output_tokens=10)
+    body = {"model": "gpt-4o", "max_tokens": 10}
+
+    await _relay(service, body)
+
+    assert adapter.calls[0]["body"] == json.dumps(body).encode()
+
+
+@pytest.mark.parametrize("value", ["999999", 999999.5])
+@pytest.mark.asyncio
+async def test_a_non_integer_maximum_above_the_ceiling_is_still_refused(value):
+    """A count of the wrong type used to skip the check entirely: only `int` was read."""
+    service, _, _ = _relay_service_and_adapter(max_output_tokens=10)
+
+    with pytest.raises(CeilingExceededError):
+        await _relay(service, {"model": "gpt-4o", "max_tokens": value})
+
+
+@pytest.mark.parametrize("value", [None, -1, 0, True, "unlimited"])
+@pytest.mark.asyncio
+async def test_a_maximum_that_names_no_usable_count_gets_the_ceiling_instead(value):
+    """`null`, a negative sentinel and a non-numeric string all name no maximum, so the
+    endpoint's ceiling is what goes upstream — and the unusable spelling does not travel
+    beside it for the upstream to prefer."""
+    service, adapter, _ = _relay_service_and_adapter(max_output_tokens=10)
+
+    await _relay(service, {"model": "gpt-4o", "max_tokens": value})
+
+    assert json.loads(adapter.calls[0]["body"])["max_tokens"] == 10
+
+
+@pytest.mark.asyncio
+async def test_an_endpoint_with_no_ceiling_relays_the_body_byte_for_byte():
+    """D34 is intact where there is no ceiling to write: nothing is re-serialised."""
+    service, adapter, _ = _relay_service_and_adapter(max_output_tokens=None)
+    body = {"model": "gpt-4o", "messages": [], "max_tokens": 999999}
+
+    await _relay(service, body)
+
+    assert adapter.calls[0]["body"] == json.dumps(body).encode()

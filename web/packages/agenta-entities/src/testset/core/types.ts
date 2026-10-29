@@ -176,7 +176,7 @@ export interface TestsetPaginatedMeta {
 
 /**
  * Query metadata for paginated testset store
- * Used with createPaginatedEntityStore from @agenta/ui
+ * Used with createPaginatedEntityStore (shared/paginated)
  */
 export interface TestsetQueryMeta {
     /** Project ID - required (can be null before project is selected) */

@@ -1,21 +1,24 @@
 import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "@agenta/chat/state"
-import {querySessionStreams} from "@agenta/entities/session"
-import {useSessionFilesPane} from "@agenta/entity-ui/drive"
-import {SessionTabRail, withShortcutKey} from "@agenta/sessions-ui"
-import {shortcutAria} from "@agenta/shared/utils"
-import {ShortcutKeys} from "@agenta/ui/shortcuts"
-import {Button, SimpleTooltip} from "@agenta/ui/ui"
-import {useQuery} from "@tanstack/react-query"
-import {useAtom, useAtomValue} from "jotai"
-import {ChevronsLeft, ChevronsRight} from "lucide-react"
+import {FilesPaneToggle, useSessionFilesPane} from "@agenta/entity-ui/drive"
+import {
+    SessionTabRail,
+    SessionTabStrip,
+    sessionMenuAccess,
+    withSessionShortcutKeys,
+} from "@agenta/sessions-ui"
+import {userAtom} from "@agenta/shared/state"
+import {useAtomValue} from "jotai"
 import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
 
 import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
+import {ConfigRevealButton} from "./ConfigRevealButton"
 import {InspectSessionButton} from "./InspectSessionButton"
 import {SessionHistoryMenu} from "./SessionHistoryMenu"
+import {SessionSharingControl} from "./SessionSharingControl"
+import {useSessionHeader} from "./useSessionHeader"
 import {useSessionTabClose} from "./useSessionTabClose"
 import {useStartBlankSession} from "./useStartBlankSession"
 
@@ -39,12 +42,15 @@ export const SessionTabs = ({
     projectId,
     workspaceId,
     agentId,
+    agentResolving = false,
 }: {
     sessionId: string
     projectId: string
     workspaceId: string
-    /** Scope the rail to this agent's sessions. Absent while the session's agent resolves. */
+    /** Scope the rail to this agent's sessions. Absent while resolving, or with no agent. */
     agentId?: string | null
+    /** A null `agentId` is not yet the answer. */
+    agentResolving?: boolean
 }) => {
     const router = useRouter()
     const base = `/w/${workspaceId}/p/${projectId}`
@@ -54,16 +60,53 @@ export const SessionTabs = ({
     const menu = useSessionRowMenu(base)
     const startBlank = useStartBlankSession(base)
     const closeTabs = useSessionTabClose({agentId, sessionId, base})
-    const [configCollapsed, setConfigCollapsed] = useAtom(configPanelCollapsedAtom)
-    const {open: filesOpen, openPane} = useSessionFilesPane(agentId ?? sessionId, sessionId)
-    // Key leads with `session-stream`: a rename patches by key PREFIX, so a nested key never
-    // matches and the title lags. The singular GET redirects onto the web app, so POST it.
-    const query = useQuery({
-        queryKey: ["session-stream", projectId, sessionId],
-        queryFn: async () => (await querySessionStreams({sessionId, projectId}))?.[0] ?? null,
-        enabled: Boolean(projectId && sessionId),
-        staleTime: 30_000,
-    })
+    const configCollapsed = useAtomValue(configPanelCollapsedAtom)
+    const {open: filesOpen, toggle: toggleFiles} = useSessionFilesPane(
+        agentId ?? sessionId,
+        sessionId,
+    )
+    const query = useSessionHeader(projectId, sessionId)
+    const me = useAtomValue(userAtom)
+
+    const leadingExtra = !chatMaximized && configCollapsed ? <ConfigRevealButton /> : undefined
+    const extra = (
+        <>
+            {/* Before the session buttons, at the strip's right end: the chat's own sharing. */}
+            <SessionSharingControl
+                sessionId={sessionId}
+                sessionName={query.data?.name ?? ""}
+                workspaceId={workspaceId}
+                projectId={projectId}
+            />
+            {chatMaximized ? null : (
+                <>
+                    <InspectSessionButton sessionId={sessionId} />
+                    {agentId ? (
+                        <SessionHistoryMenu
+                            agentId={agentId}
+                            base={base}
+                            activeSessionId={sessionId}
+                        />
+                    ) : null}
+                </>
+            )}
+            <FilesPaneToggle open={filesOpen} onToggle={toggleFiles} disabled={!sessionId} />
+        </>
+    )
+
+    // Held back while resolving: an unscoped rail would re-key and refetch once the agent lands.
+    if (!agentId && agentResolving) {
+        return (
+            <>
+                <PageTitle title={query.data?.name} />
+                <SessionTabStrip
+                    className={chatMaximized ? "md:hidden" : undefined}
+                    extra={extra}
+                    leadingExtra={leadingExtra}
+                />
+            </>
+        )
+    }
 
     return (
         <>
@@ -74,25 +117,21 @@ export const SessionTabs = ({
                 policy={{origin: "exclude-trigger", expansions: []}}
                 limit={12}
                 withPinned
+                // Beside the transcript, not the screen's point: its reads queue behind it.
+                lowPriority
                 activeSessionId={sessionId}
                 activeFallbackTitle={query.data?.name}
-                // Both keys work on this surface, so both menu rows name theirs.
                 menuFor={(vm) =>
-                    menu.menuFor(vm).map((entry) => {
-                        if (!("key" in entry)) return entry
-                        if (entry.key === "archive")
-                            return {
-                                ...entry,
-                                label: withShortcutKey(entry.label, "session.archive"),
-                            }
-                        if (entry.key === "rename")
-                            return {...entry, label: withShortcutKey(entry.label, "session.rename")}
-                        return entry
-                    })
+                    withSessionShortcutKeys(menu.menuFor(vm), {isActive: vm.id === sessionId})
                 }
                 onMenuSelect={menu.onMenuSelect}
                 // "Rename" and the tab's pencil open the rail's own editor; this only persists it.
                 onRenameTab={menu.onRenameRow}
+                // Someone else's chat keeps its name: renaming it is the owner's verb.
+                canRenameTab={(vm) =>
+                    sessionMenuAccess({ownerUserId: vm.stream.owner_user_id ?? null}, me?.id) !==
+                    "member"
+                }
                 // Closing drops the tab from this device's open set — never from the server.
                 onClose={(vm, ordered) => closeTabs([vm.id], ordered)}
                 onCloseMany={closeTabs}
@@ -107,65 +146,8 @@ export const SessionTabs = ({
                 // A blank session to type into — NOT the agent's overview, which is where this
                 // used to land.
                 onNew={agentId ? () => startBlank(agentId) : undefined}
-                leadingExtra={
-                    !chatMaximized && configCollapsed ? (
-                        <SimpleTooltip
-                            title={
-                                <span className="flex items-center gap-1.5">
-                                    Show configuration{" "}
-                                    <ShortcutKeys id="panel.config" tone="inverse" />
-                                </span>
-                            }
-                        >
-                            <Button
-                                variant="ghost"
-                                size="icon-sm"
-                                aria-label="Show configuration"
-                                aria-keyshortcuts={shortcutAria("panel.config")}
-                                onClick={() => setConfigCollapsed(false)}
-                                className="h-7 w-7 shrink-0 p-0"
-                            >
-                                <ChevronsRight size={14} />
-                            </Button>
-                        </SimpleTooltip>
-                    ) : undefined
-                }
-                extra={
-                    chatMaximized ? undefined : (
-                        <>
-                            <InspectSessionButton sessionId={sessionId} />
-                            {/* Same slot and order as the desktop bar: inspector, history, then
-                                the files opener at the right edge the pane expands from. */}
-                            <SessionHistoryMenu
-                                agentId={agentId}
-                                base={base}
-                                activeSessionId={sessionId}
-                            />
-                            {filesOpen ? null : (
-                                <SimpleTooltip
-                                    title={
-                                        <span className="flex items-center gap-1.5">
-                                            Show files{" "}
-                                            <ShortcutKeys id="panel.files" tone="inverse" />
-                                        </span>
-                                    }
-                                    side="left"
-                                >
-                                    <Button
-                                        variant="ghost"
-                                        size="icon-sm"
-                                        aria-label="Show files pane"
-                                        aria-keyshortcuts={shortcutAria("panel.files")}
-                                        onClick={openPane}
-                                        className="h-7 w-7 shrink-0 p-0"
-                                    >
-                                        <ChevronsLeft size={14} />
-                                    </Button>
-                                </SimpleTooltip>
-                            )}
-                        </>
-                    )
-                }
+                leadingExtra={leadingExtra}
+                extra={extra}
             />
         </>
     )

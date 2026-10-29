@@ -1,0 +1,10 @@
+{
+  "agenta_app": 1,
+  "name": "Board",
+  "icon": "📋",
+  "entry": "index.html",
+  "access": "read-write",
+  "data": ["board.json"],
+  "config": "config.json",
+  "kit": true
+}

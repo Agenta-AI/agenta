@@ -99,6 +99,8 @@ export function InstructionsDrawer({
                         value={value}
                         onChange={onChange}
                         disabled={disabled}
+                        // destroyOnClose remounts the editor per open, so mount-focus = open-focus.
+                        autoFocus
                         showToolbar
                         defaultView="rendered"
                         hideHeader

@@ -1,0 +1,39 @@
+.shell {
+  display: flex;
+  width: 100%;
+  flex: 1 0 auto;
+}
+
+.sidebar {
+  display: none;
+}
+
+.main {
+  flex-grow: 1;
+  min-width: 0;
+}
+
+@media (min-width: 997px) {
+  .sidebar {
+    display: block;
+    flex: 0 0 var(--doc-sidebar-width);
+    width: var(--doc-sidebar-width);
+    border-right: 1px solid var(--borderdefault);
+  }
+
+  /* Fixed, not sticky: the shell ends where the footer starts, and a sticky
+     menu would scroll away with it. The aside still reserves the width. */
+  .menu {
+    position: fixed;
+    top: var(--ifm-navbar-height);
+    left: var(--doc-frame-offset);
+    width: calc(var(--doc-sidebar-width) - 1px);
+    height: calc(100vh - var(--ifm-navbar-height));
+    overflow-y: auto;
+    box-sizing: border-box;
+  }
+
+  .main {
+    max-width: calc(100% - var(--doc-sidebar-width));
+  }
+}

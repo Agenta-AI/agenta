@@ -8,6 +8,8 @@ export const STRIP_COPY = {
     fromTemplate: "From template:",
     createAgent: "Create agent",
     creatingAgent: "Creating agent",
+    /** Shown only once a template's seeded prompt has been edited — restores the original. */
+    resetPrompt: "Reset prompt",
     // Single source for every "describe an agent" composer (home hero + playground onboarding).
     describeAgentPlaceholder:
         "e.g. Watch our #support channel, triage each thread by urgency, and route it to the right owner — ask me before closing anything.",

@@ -1,12 +1,28 @@
-export {default as SettingsPageShell, type SettingsPageShellProps} from "./SettingsPageShell"
+export type {ConfirmDestructive} from "./confirm"
+export {
+    default as SettingsPageShell,
+    SettingsPageActions,
+    type SettingsPageShellProps,
+} from "./SettingsPageShell"
 export {ThemePicker, type ThemePickerProps, type ThemeChoice} from "./ThemePicker"
-export {PreferencesPage, type PreferencesPageProps, type PreferenceFlag} from "./PreferencesPage"
+export {
+    PreferencesPage,
+    PREFERENCE_SECTIONS,
+    usePreferenceBindings,
+    type PreferencesPageProps,
+    type PreferenceBinding,
+    type PreferenceBindings,
+    type PreferenceItem,
+    type PreferenceKey,
+    type PreferenceSection,
+} from "./PreferencesPage"
 export {AccountPage, type AccountPageProps} from "./AccountPage"
 export {ApiKeysPage, type ApiKeysPageProps} from "./ApiKeysPage"
 export {NamedSecretTable, type NamedSecretTableProps} from "./secrets/NamedSecretTable"
 export {
     AIProvidersPage,
     SUBSCRIPTION_DOCS_URL,
+    type AIProvidersOrganization,
     type AIProvidersPageProps,
     type ProviderRemovalState,
 } from "./providers/AIProvidersPage"
@@ -36,6 +52,24 @@ export {
     checkoutBillingSubscription,
     openBillingPortal,
 } from "./billing/api"
+export {liveChatAllowed, type LiveChatPlan} from "./billing/liveChatAllowed"
+export {
+    BuyCreditsDialog,
+    CreditTopUpsSection,
+    readTopUpReturn,
+    topUpEntry,
+    TopUpReturnNotice,
+    useTopUpOffer,
+    withoutTopUpQuery,
+    TOP_UP_QUERY,
+    type BuyCreditsDialogProps,
+    type CreditTopUpsSectionProps,
+    type TopUpEntry,
+    type TopUpOffer,
+    type TopUpPack,
+    type TopUpReturn,
+    type TopUpStatus,
+} from "./billing/topups"
 export {
     useBillingCatalog,
     type BillingCatalog,
@@ -75,14 +109,91 @@ export {
 export {DomainsSection, type DomainsSectionProps} from "./access/DomainsSection"
 export {SsoProvidersSection, type SsoProvidersSectionProps} from "./access/SsoProvidersSection"
 export {
+    default as McpServersSection,
+    type McpServersSectionCopy,
+    type McpServersSectionProps,
+} from "./mcp/McpServersSection"
+export {
     default as GatewayToolsSection,
     type GatewayToolsSectionCopy,
     type GatewayToolsSectionProps,
 } from "./tools/GatewayToolsSection"
-export {default as IntegrationGrid} from "./tools/IntegrationGrid"
-export {default as IntegrationDetail} from "./tools/IntegrationDetail"
 // Re-exported, not owned: the hook moved down to the entity layer so the client-tool connect flow
 // in @agenta/entity-ui can run it without depending on this package (that direction is a cycle —
 // see `web/packages/agenta-shared/tests/unit/workspaceGraph.test.ts`). Kept here so this package's
 // public API is unchanged for existing importers.
 export {useToolsConnections, type CreateConnectionInput} from "@agenta/entities/gatewayTool"
+
+// Channels connect screen (agent page). The shared UI plus the actions builder the
+// hosts (web/oss, /m) wire to the generated channels client.
+export {
+    ChannelsPage,
+    ChannelsPanelSheet,
+    useChannelPanel,
+    ChannelsHubView,
+    ChannelsSettingsPage,
+    CHANNEL_PLATFORMS,
+    agentConnectionsOf,
+    connectionRowText,
+    platformLogo,
+    isLiveForAgent,
+    ChannelConnectFlow,
+    ChannelManagePanel,
+    ChannelAgentPicker,
+    channelSharingCopy,
+    EMPTY_CONNECTIONS,
+    NOOP_ACTIONS,
+    buildAgentChannelsActions,
+    channelKey,
+    clientErrorMessage,
+    connectionScope,
+    mapConnectionRow,
+    slackInviteHandle,
+    summarizeConnection,
+    QrCode,
+    encodeQr,
+    type AgentChannelsActionsOptions,
+    type ChannelsClientLike,
+    type ChannelsPageProps,
+    type ChannelsPanelRenderProps,
+    type ChannelsPanelSheetProps,
+    type UseChannelPanelOptions,
+    type ChannelsRoute,
+    type EmbedViewProps,
+    type ChannelsHubViewProps,
+    type ChannelsSettingsPageProps,
+    type ChannelConnectFlowProps,
+    type ChannelManagePanelProps,
+    type ChannelAgentPickerProps,
+    type ChannelRowSummary,
+} from "./channels"
+export type {
+    ChannelConnection,
+    ChannelConnections,
+    ChannelPlatform,
+    ChannelInstallMode,
+    ChannelStatus,
+    ChannelAnsweringAgent,
+    ChannelScope,
+    ChannelSetupField,
+    ChannelSetupInfo,
+    ChannelsActions,
+    ChannelsPanelAgent,
+    HostedTelegramLink,
+} from "./channels"
+
+// The agent header's Publish button and the panel it opens: the channels, API and Embed.
+export {
+    PublishButton,
+    AgentPublish,
+    AgentApiPanel,
+    AgentEmbedPanel,
+    AGENT_INVOKE_DOCS_URL,
+    agentHostFromApiUrl,
+    buildAgentSnippets,
+    type AgentApiPanelProps,
+    type AgentEmbedPanelProps,
+    type AgentPublishProps,
+    type AgentSnippetLang,
+    type PublishButtonProps,
+} from "./publish"

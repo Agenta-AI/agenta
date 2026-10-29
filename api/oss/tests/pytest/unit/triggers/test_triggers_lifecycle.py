@@ -4,6 +4,8 @@ from unittest.mock import AsyncMock, MagicMock, call
 from uuid import uuid4
 
 import pytest
+
+from oss.tests.pytest.utils.principals import any_principal
 from fastapi import HTTPException
 
 from oss.src.apis.fastapi.triggers.router import TriggersRouter
@@ -27,6 +29,7 @@ def _subscription(*, is_test=False):
     return TriggerSubscription(
         id=uuid4(),
         created_by_id=uuid4(),
+        principal=any_principal(),
         connection_id=uuid4(),
         trigger_id="ti_lifecycle",
         data=TriggerSubscriptionData(event_key="github.issue.opened"),
@@ -38,6 +41,7 @@ def _schedule():
     return TriggerSchedule(
         id=uuid4(),
         created_by_id=uuid4(),
+        principal=any_principal(),
         data=TriggerScheduleData(event_key="cron.tick", schedule="* * * * *"),
     )
 

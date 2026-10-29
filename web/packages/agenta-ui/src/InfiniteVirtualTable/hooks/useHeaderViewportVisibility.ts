@@ -246,7 +246,6 @@ const useHeaderViewportVisibility = ({
                 if (typeof window === "undefined") {
                     return null
                 }
-                // console.log("createObserver", {currentRoot, nextMargin, intersectionThresholds})
                 const observer = new IntersectionObserver(handleEntries, {
                     root: currentRoot,
                     rootMargin: nextMargin,
@@ -347,7 +346,6 @@ const useHeaderViewportVisibility = ({
                     if (excludedKeySet.has(columnKey) || isFixedHeaderNode(node)) {
                         fixedKeysRef.current.add(columnKey)
                         keyToElementRef.current.delete(columnKey)
-                        // emitVisibilityChanges([{columnKey, visible: true}])
                         return
                     }
                     const existingNode = keyToElementRef.current.get(columnKey)
@@ -361,20 +359,7 @@ const useHeaderViewportVisibility = ({
                     keyToElementRef.current.set(columnKey, node)
                     elementToKeyRef.current.set(node, columnKey)
                     const observer = ensureObserver(enabled)
-                    // console.log("scopesWithChanges registerHeader", {
-                    //     columnKey,
-                    //     timestamp: Date.now(),
-                    // })
                     observer?.observe(node)
-                    if (typeof window !== "undefined") {
-                        // console.log("computeImmediateVisibility", {columnKey, node})
-                        // const visible = computeImmediateVisibility(
-                        //     node,
-                        //     containerRef.current,
-                        //     viewportMargin,
-                        // )
-                        // emitVisibilityChanges([{columnKey, visible}])
-                    }
                     return
                 }
                 const wasFixed = fixedKeysRef.current.delete(columnKey)

@@ -9,6 +9,7 @@ import {Fragment, useCallback, useMemo} from "react"
 
 import {type SessionRowVm} from "@agenta/sessions/row"
 import {useSessionPins, useSessionsList} from "@agenta/sessions/state"
+import {LoadError} from "@agenta/ui/components/presentational"
 import {AnimatePresence, MotionConfig, motion} from "motion/react"
 
 import {ROW_VARIANTS, SESSION_SPRING} from "./assets/motion"
@@ -16,7 +17,6 @@ import {type SessionMenuEntry} from "./menu"
 import {
     SessionGroupHeader,
     SessionListEmpty,
-    SessionListError,
     SessionListLoadMore,
     SessionListSkeleton,
 } from "./SessionListStates"
@@ -166,7 +166,7 @@ export const SessionsListView = ({
     if (list.isError)
         return (
             <div className={className}>
-                <SessionListError onRetry={list.refetch} />
+                <LoadError title="Could not load sessions" onRetry={list.refetch} />
             </div>
         )
     if (list.isPending)

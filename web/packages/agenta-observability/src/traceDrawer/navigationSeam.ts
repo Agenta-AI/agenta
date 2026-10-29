@@ -48,7 +48,8 @@ export const traceDrawerSetQueryParam: TraceDrawerSetQueryParam = (name, value) 
 
 /**
  * Opening a trace in the playground and the workflow-revision drawer are playground concerns,
- * and `@agenta/playground` sits ABOVE this package. The host supplies the actions.
+ * and `@agenta/playground` sits ABOVE this package. The host supplies the actions. A host that
+ * binds no `openTraceInPlayground` gets no Playground button in the span header.
  */
 /** What `openTraceInPlayground` resolves to: the entity to open and where it lives. */
 export interface OpenInPlaygroundResult {

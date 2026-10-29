@@ -149,7 +149,7 @@ export const advancedNavHiddenAtom = atom((get) => {
 export const readSettledAdvancedNavHidden = (user: User | null): boolean | null => {
     if (typeof window === "undefined") return null
     const userId = localStorage.getItem(ACTIVE_USER_ID_KEY)
-    if (!userId) return null
+    if (!userId || (user?.uid && user.uid !== userId)) return null
 
     const override = readStoredBoolean(onboardingScopedKey(userId, "nav-simplified-override"))
     if (override !== null) return override
@@ -185,6 +185,8 @@ export const readSettledClassicModeCookie = (user: User | null): "0" | "1" | nul
     // render of every page load. Treating that as a sign-out clears the cookie mid-session.
     const userId = localStorage.getItem(ACTIVE_USER_ID_KEY)
     if (!userId) return null
+    // The host must migrate and settle the profile scope before publishing a gate answer.
+    if (user?.uid && user.uid !== userId) return undefined
 
     const override = readStoredBoolean(onboardingScopedKey(userId, "nav-simplified-override"))
     if (override !== null) return override ? "0" : "1"
@@ -198,7 +200,7 @@ export const readSettledClassicModeCookie = (user: User | null): "0" | "1" | nul
     return isSimplifiedCohort(user) ? "0" : null
 }
 
-/** The one atom both apps' Preferences pages bind their "Classic mode" switch to. */
+/** The one atom both apps' Preferences pages bind their "Developer Mode" switch to. */
 export const classicModeEnabledAtom = atom(
     (get) => !get(advancedNavHiddenAtom),
     (_get, set, next: boolean) => {

@@ -18,6 +18,7 @@ import {
   daytonaNetworkFields,
 } from "../../src/engines/sandbox_agent/provider.ts";
 import { buildDaytonaSecretPlan } from "../../src/engines/sandbox_agent/daytona-secret-plan.ts";
+import { sessionSandboxLabels } from "../../src/engines/sandbox_agent/sandbox-labels.ts";
 import {
   DAYTONA_PI_COMMAND,
   DAYTONA_PI_DIR,
@@ -172,6 +173,31 @@ describe("daytonaCreateFingerprint", () => {
       fingerprintForKey("sk-ant-new"),
     );
   });
+
+  it("is the same with and without session labels, and for any two sessions", () => {
+    const fingerprintFor = (labels?: Record<string, string>) =>
+      daytonaCreateFingerprint({
+        image: "runner-image",
+        create: buildDaytonaCreate(
+          daytonaConfig(),
+          {},
+          { AWS_PROFILE: "profile-a" },
+          undefined,
+          {},
+          labels,
+        ),
+      });
+
+    const unlabelled = fingerprintFor();
+    assert.equal(
+      unlabelled,
+      fingerprintFor(sessionSandboxLabels("project-1", "session-1")),
+    );
+    assert.equal(
+      fingerprintFor(sessionSandboxLabels("project-1", "session-1")),
+      fingerprintFor(sessionSandboxLabels("project-2", "session-2")),
+    );
+  });
 });
 
 describe("buildDaytonaCreate (lifecycle + artifact on the create object)", () => {
@@ -261,6 +287,41 @@ describe("buildDaytonaCreate (lifecycle + artifact on the create object)", () =>
     assert.equal("autoArchiveInterval" in create, false);
     assert.equal(create.autoDeleteInterval, 120);
     assert.equal(create.ephemeral, false);
+  });
+
+  it("carries both session labels after envVars, and no labels field without them", () => {
+    const create = buildDaytonaCreate(
+      daytonaConfig(),
+      {},
+      {},
+      undefined,
+      {},
+      sessionSandboxLabels("project-1", "session-1"),
+    );
+    assert.deepEqual(create.labels, {
+      "agenta.project": "project-1",
+      "agenta.conversation": "session-1",
+    });
+    const keys = Object.keys(create);
+    assert.ok(keys.indexOf("labels") === keys.indexOf("envVars") + 1);
+
+    const bare = buildDaytonaCreate(daytonaConfig(), {}, {}, undefined);
+    assert.equal("labels" in bare, false);
+  });
+});
+
+describe("sessionSandboxLabels", () => {
+  it("uses the labels the in-process command sandbox uses, and leaves out a missing id", () => {
+    assert.deepEqual(sessionSandboxLabels("project-1", "session-1"), {
+      "agenta.project": "project-1",
+      "agenta.conversation": "session-1",
+    });
+    assert.deepEqual(sessionSandboxLabels(undefined, "session-1"), {
+      "agenta.conversation": "session-1",
+    });
+    assert.deepEqual(sessionSandboxLabels("project-1", undefined), {
+      "agenta.project": "project-1",
+    });
   });
 });
 

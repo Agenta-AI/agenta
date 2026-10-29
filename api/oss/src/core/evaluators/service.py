@@ -1,4 +1,5 @@
 from typing import Any, Dict, Optional, List
+from oss.src.core.sharing.dtos import AgentReadScope
 from oss.src.core.git.dtos import RevisionGrouping
 from uuid import UUID, uuid4
 
@@ -237,6 +238,7 @@ class EvaluatorsService:
         self,
         *,
         project_id: UUID,
+        read_scope: AgentReadScope,
         #
         evaluator_query: Optional[EvaluatorQuery] = None,
         #
@@ -264,6 +266,7 @@ class EvaluatorsService:
 
         workflows = await self.workflows_service.query_workflows(
             project_id=project_id,
+            read_scope=read_scope,
             #
             workflow_query=workflow_query,
             #
@@ -437,6 +440,7 @@ class EvaluatorsService:
         self,
         *,
         project_id: UUID,
+        read_scope: AgentReadScope,
         #
         evaluator_variant_query: Optional[EvaluatorVariantQuery] = None,
         #
@@ -459,6 +463,7 @@ class EvaluatorsService:
 
         workflow_variants = await self.workflows_service.query_workflow_variants(
             project_id=project_id,
+            read_scope=read_scope,
             #
             workflow_variant_query=workflow_variant_query,
             #
@@ -610,6 +615,8 @@ class EvaluatorsService:
         evaluator_revision_ref: Optional[Reference] = None,
         #
         resolve: bool = False,
+        #
+        include_archived: Optional[bool] = True,
     ) -> tuple[
         Optional[EvaluatorRevision],
         Optional[ResolutionInfo],
@@ -674,6 +681,8 @@ class EvaluatorsService:
                 evaluator_ref=evaluator_ref,
                 evaluator_variant_ref=evaluator_variant_ref,
                 evaluator_revision_ref=evaluator_revision_ref,
+                #
+                include_archived=include_archived,
             )
             evaluator_revision, resolution_info = result if result else (None, None)
         else:
@@ -683,6 +692,8 @@ class EvaluatorsService:
                 evaluator_ref=evaluator_ref,
                 evaluator_variant_ref=evaluator_variant_ref,
                 evaluator_revision_ref=evaluator_revision_ref,
+                #
+                include_archived=include_archived,
             )
             resolution_info = None
 
@@ -794,6 +805,7 @@ class EvaluatorsService:
         self,
         *,
         project_id: UUID,
+        read_scope: AgentReadScope,
         #
         evaluator_revision_query: Optional[EvaluatorRevisionQuery] = None,
         #
@@ -819,6 +831,7 @@ class EvaluatorsService:
 
         workflow_revisions = await self.workflows_service.query_workflow_revisions(
             project_id=project_id,
+            read_scope=read_scope,
             #
             workflow_revision_query=workflow_revision_query,
             #
@@ -856,6 +869,8 @@ class EvaluatorsService:
         evaluator_revision_commit: EvaluatorRevisionCommit,
         #
         initial: bool = False,
+        #
+        first_agent_owner_user_id: Optional[UUID] = None,
     ) -> Optional[EvaluatorRevision]:
         workflow_revision_commit = WorkflowRevisionCommit(
             **evaluator_revision_commit.model_dump(
@@ -872,6 +887,8 @@ class EvaluatorsService:
             initial=initial,
             #
             emit=False,
+            #
+            first_agent_owner_user_id=first_agent_owner_user_id,
         )
 
         if not workflow_revision:
@@ -1133,6 +1150,8 @@ class SimpleEvaluatorsService:
         simple_evaluator_create: SimpleEvaluatorCreate,
         #
         evaluator_id: Optional[UUID] = None,
+        #
+        first_agent_owner_user_id: Optional[UUID] = None,
     ) -> Optional[SimpleEvaluator]:
         simple_evaluator_flag_values = _dump_flags(simple_evaluator_create.flags)
         simple_evaluator_flag_values.pop("is_evaluator", None)
@@ -1225,6 +1244,7 @@ class SimpleEvaluatorsService:
             project_id=project_id,
             user_id=user_id,
             evaluator_revision_commit=evaluator_revision_commit,
+            first_agent_owner_user_id=first_agent_owner_user_id,
         )
 
         if evaluator_revision is None:
@@ -1254,6 +1274,7 @@ class SimpleEvaluatorsService:
             project_id=project_id,
             user_id=user_id,
             evaluator_revision_commit=evaluator_revision_commit,
+            first_agent_owner_user_id=first_agent_owner_user_id,
         )
 
         if evaluator_revision is None:
@@ -1391,6 +1412,8 @@ class SimpleEvaluatorsService:
         user_id: UUID,
         #
         simple_evaluator_edit: SimpleEvaluatorEdit,
+        #
+        first_agent_owner_user_id: Optional[UUID] = None,
     ) -> Optional[SimpleEvaluator]:
         simple_evaluator_flags = (
             SimpleEvaluatorFlags(
@@ -1503,6 +1526,7 @@ class SimpleEvaluatorsService:
             user_id=user_id,
             #
             evaluator_revision_commit=evaluator_revision_commit,
+            first_agent_owner_user_id=first_agent_owner_user_id,
         )
 
         if evaluator_revision is None:
@@ -1552,6 +1576,7 @@ class SimpleEvaluatorsService:
         self,
         *,
         project_id: UUID,
+        read_scope: AgentReadScope,
         #
         simple_evaluator_query: Optional[SimpleEvaluatorQuery] = None,
         #
@@ -1581,6 +1606,7 @@ class SimpleEvaluatorsService:
 
         evaluator_queries = await self.evaluators_service.query_evaluators(
             project_id=project_id,
+            read_scope=read_scope,
             #
             evaluator_query=evaluator_query,
             #

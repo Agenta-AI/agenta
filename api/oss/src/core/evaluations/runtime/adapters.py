@@ -8,6 +8,7 @@ from agenta.sdk.evaluations.runtime.models import (
 )
 from agenta.sdk.models.evaluations import EvaluationStatus as SDKEvaluationStatus
 
+from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.evaluations.runtime.cache import RunnableCacheResolver
 from oss.src.core.evaluations.types import (
     EvaluationClosedConflict,
@@ -45,8 +46,10 @@ def _project_inputs(inputs: Any, data: Any) -> Any:
     so filter ``inputs`` down to the keys present in
     ``data.schemas.inputs.properties``.
 
-    If the revision declares no input schema (no ``properties``), inputs pass
-    through unchanged so untyped/legacy revisions are not broken.
+    Inputs pass through unchanged unless the schema declares ``properties`` and
+    sets ``additionalProperties`` to false. Prompt apps accept their template
+    variables as undeclared keys (e.g. a chat revision declares only
+    ``messages``), so filtering them would drop the variables.
     """
     if not isinstance(inputs, dict):
         return inputs
@@ -57,6 +60,8 @@ def _project_inputs(inputs: Any, data: Any) -> Any:
         _read_field(inputs_schema, "properties") if inputs_schema is not None else None
     )
     if not isinstance(properties, dict) or not properties:
+        return inputs
+    if _read_field(inputs_schema, "additionalProperties") is not False:
         return inputs
 
     return {key: value for key, value in inputs.items() if key in properties}
@@ -76,6 +81,31 @@ def _dump_json(source: Any) -> Any:
     if isinstance(source, list):
         return [_dump_json(value) for value in source]
     return source
+
+
+def _response_outputs(response: Any) -> Any:
+    """Read workflow output from the batch-response envelope.
+
+    ``/invoke`` returns ``WorkflowServiceBatchResponse(data={outputs: ...})``.
+    Keep the direct attribute as a compatibility fallback for lightweight
+    adapters that have not adopted that envelope yet.
+    """
+    data = _read_field(response, "data")
+    outputs = _read_field(data, "outputs")
+    return outputs if outputs is not None else _read_field(response, "outputs")
+
+
+def _force_batch_mode(request: Any) -> None:
+    """Make an evaluation workflow invocation return one completed response."""
+    if request is None:
+        return
+
+    flags = _read_field(request, "flags")
+    batch_flags = {**(flags if isinstance(flags, dict) else {}), "stream": False}
+    if isinstance(request, dict):
+        request["flags"] = batch_flags
+    else:
+        request.flags = batch_flags
 
 
 class APIWorkflowServiceRunner:
@@ -101,6 +131,7 @@ class APIWorkflowServiceRunner:
             if self.request_builder
             else request.model_dump(mode="python", exclude_none=True)
         )
+        _force_batch_mode(kwargs.get("request"))
         response = await self.workflows_service.invoke_workflow(**kwargs)
         status = getattr(response, "status", None)
         status_code = getattr(status, "code", None)
@@ -122,7 +153,7 @@ class APIWorkflowServiceRunner:
             ),
             error=error,
             #
-            outputs=getattr(response, "outputs", None),
+            outputs=_response_outputs(response),
             #
             trace_id=getattr(response, "trace_id", None),
             span_id=getattr(response, "span_id", None),
@@ -403,6 +434,7 @@ class APIWorkflowRunner:
         *,
         project_id: UUID,
         user_id: UUID,
+        envelope: RunEnvelope,
         #
         request: WorkflowExecutionRequest,
     ) -> WorkflowExecutionResult:
@@ -410,6 +442,7 @@ class APIWorkflowRunner:
             await self.execute_batch(
                 project_id=project_id,
                 user_id=user_id,
+                envelope=envelope,
                 #
                 requests=[request],
             )
@@ -420,6 +453,7 @@ class APIWorkflowRunner:
         *,
         project_id: UUID,
         user_id: UUID,
+        envelope: RunEnvelope,
         #
         requests: List[WorkflowExecutionRequest],
         #
@@ -433,12 +467,14 @@ class APIWorkflowRunner:
                     return await self._execute_one(
                         project_id=project_id,
                         user_id=user_id,
+                        envelope=envelope,
                         #
                         request=request,
                     )
             return await self._execute_one(
                 project_id=project_id,
                 user_id=user_id,
+                envelope=envelope,
                 #
                 request=request,
             )
@@ -450,6 +486,7 @@ class APIWorkflowRunner:
         *,
         project_id: UUID,
         user_id: UUID,
+        envelope: RunEnvelope,
         #
         request: WorkflowExecutionRequest,
     ) -> WorkflowExecutionResult:
@@ -475,6 +512,10 @@ class APIWorkflowRunner:
             if flags
             else None
         )
+        # An evaluation step consumes a completed value as the next step's
+        # input. It must therefore invoke the workflow in batch mode, even when
+        # the revision's interactive default is streaming.
+        flags = {**(flags or {}), "stream": False}
 
         testcase = request.source.testcase
         if hasattr(testcase, "model_dump"):
@@ -510,6 +551,7 @@ class APIWorkflowRunner:
             user_id=user_id,
             #
             request=service_request,
+            envelope=envelope,
         )
 
         status = getattr(response, "status", None)
@@ -536,7 +578,7 @@ class APIWorkflowRunner:
             trace_id=getattr(response, "trace_id", None),
             span_id=getattr(response, "span_id", None),
             error=error,
-            outputs=getattr(response, "outputs", None),
+            outputs=_response_outputs(response),
         )
 
 
@@ -568,6 +610,7 @@ class APICachedRunner:
         *,
         project_id: UUID,
         user_id: UUID,
+        envelope: RunEnvelope,
         #
         request: WorkflowExecutionRequest,
     ) -> WorkflowExecutionResult:
@@ -575,6 +618,7 @@ class APICachedRunner:
             await self.execute_batch(
                 project_id=project_id,
                 user_id=user_id,
+                envelope=envelope,
                 #
                 requests=[request],
             )
@@ -585,6 +629,7 @@ class APICachedRunner:
         *,
         project_id: UUID,
         user_id: UUID,
+        envelope: RunEnvelope,
         #
         requests: List[WorkflowExecutionRequest],
         #
@@ -627,6 +672,7 @@ class APICachedRunner:
             executed = await self.runner.execute_batch(
                 project_id=project_id,
                 user_id=user_id,
+                envelope=envelope,
                 #
                 requests=missing,
                 #

@@ -21,21 +21,18 @@ vi.mock("@agenta/ui/ui", () => ({
         <button {...props}>{children}</button>
     ),
     SimpleTooltip: ({children}: {children: React.ReactNode}) => children,
-}))
-
-vi.mock("@phosphor-icons/react", () => ({
-    ArrowClockwise: () => null,
-    DownloadSimple: () => null,
-    MagnifyingGlass: () => null,
-}))
-
-vi.mock("@/components/ui/sheet", () => ({
     Sheet: ({open, children}: {open: boolean; children: React.ReactNode}) =>
         open ? <div>{children}</div> : null,
     SheetContent: ({children}: {children: React.ReactNode}) => <div>{children}</div>,
     SheetDescription: ({children}: {children: React.ReactNode}) => <p>{children}</p>,
     SheetHeader: ({children}: {children: React.ReactNode}) => <header>{children}</header>,
     SheetTitle: ({children}: {children: React.ReactNode}) => <h2>{children}</h2>,
+}))
+
+vi.mock("@phosphor-icons/react", () => ({
+    ArrowClockwise: () => null,
+    DownloadSimple: () => null,
+    MagnifyingGlass: () => null,
 }))
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true

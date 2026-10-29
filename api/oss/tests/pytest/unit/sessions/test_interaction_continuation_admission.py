@@ -29,6 +29,7 @@ from oss.src.core.sessions.interactions.dtos import (
     SessionInteractionStatus,
 )
 from oss.src.core.sessions.inputs.dtos import PendingInput, PendingInputState
+from oss.tests.pytest.utils.principals import any_approval, make_envelope
 
 
 class _Commands:
@@ -123,11 +124,6 @@ class _Commands:
         return self.command
 
 
-@pytest.fixture(autouse=True)
-def _durable_approvals_enabled(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", True)
-
-
 class _Interactions:
     def __init__(self, interaction):
         self.interactions = [interaction]
@@ -202,7 +198,10 @@ class _Executions:
             if kwargs["execution_id"] == self.source.execution_id
             else self.continuation
         )
-        if current.terminal_outcome is not None:
+        if current.terminal_outcome is not None or (
+            kwargs.get("defer_to_stop")
+            and current.state == SessionExecutionState.stopping
+        ):
             return SessionExecutionSettlementResult(settlement=current, won=False)
         settled = current.model_copy(
             update={
@@ -296,6 +295,7 @@ async def test_delivery_failure_keeps_answer_and_continuation_recoverable():
     user_id = uuid4()
     interaction_id = uuid4()
     interaction = SessionInteraction(
+        run_envelope=make_envelope(),
         id=interaction_id,
         project_id=project_id,
         session_id="session-1",
@@ -326,6 +326,7 @@ async def test_delivery_failure_keeps_answer_and_continuation_recoverable():
         answer={"approved": True},
         expected_execution_id="source-1",
         idempotency_key="response-1",
+        approved_by=any_approval(),
     )
 
     assert admission.interaction.status == SessionInteractionStatus.responded
@@ -352,6 +353,7 @@ async def test_delivery_failure_keeps_answer_and_continuation_recoverable():
         answer={"approved": True},
         expected_execution_id="source-1",
         idempotency_key="response-1",
+        approved_by=any_approval(),
     )
     assert retry.command.id == admission.command.id
     assert retry.execution_id == "continuation-retry"
@@ -364,6 +366,7 @@ async def test_delivery_failure_keeps_answer_and_continuation_recoverable():
             answer={"approved": False},
             expected_execution_id="source-1",
             idempotency_key="response-1",
+            approved_by=any_approval(),
         )
 
 
@@ -374,6 +377,7 @@ async def test_parallel_answers_wait_then_share_one_continuation():
     second_id = uuid4()
     interactions = _Interactions(
         SessionInteraction(
+            run_envelope=make_envelope(),
             id=first_id,
             project_id=project_id,
             session_id="session-1",
@@ -385,6 +389,7 @@ async def test_parallel_answers_wait_then_share_one_continuation():
     )
     interactions.interactions.append(
         SessionInteraction(
+            run_envelope=make_envelope(),
             id=second_id,
             project_id=project_id,
             session_id="session-1",
@@ -415,6 +420,7 @@ async def test_parallel_answers_wait_then_share_one_continuation():
         answer={"approved": True},
         expected_execution_id="source-1",
         idempotency_key="response-1",
+        approved_by=any_approval(),
     )
 
     assert first.command is None
@@ -431,6 +437,7 @@ async def test_parallel_answers_wait_then_share_one_continuation():
         answer={"approved": False},
         expected_execution_id="source-1",
         idempotency_key="response-2",
+        approved_by=any_approval(),
     )
 
     assert second.command is not None
@@ -448,6 +455,7 @@ async def test_parallel_answers_wait_then_share_one_continuation():
         answer={"approved": True},
         expected_execution_id="source-1",
         idempotency_key="response-1-retry",
+        approved_by=any_approval(),
     )
 
     assert retry.interaction.id == first_id
@@ -463,6 +471,7 @@ async def test_approve_all_commits_one_continuation_for_the_batch():
     second_id = uuid4()
     interactions = _Interactions(
         SessionInteraction(
+            run_envelope=make_envelope(),
             id=first_id,
             project_id=project_id,
             session_id="session-1",
@@ -474,6 +483,7 @@ async def test_approve_all_commits_one_continuation_for_the_batch():
     )
     interactions.interactions.append(
         SessionInteraction(
+            run_envelope=make_envelope(),
             id=second_id,
             project_id=project_id,
             session_id="session-1",
@@ -506,6 +516,7 @@ async def test_approve_all_commits_one_continuation_for_the_batch():
         ],
         expected_execution_id="source-1",
         idempotency_key="approve-all",
+        approved_by=any_approval(),
     )
 
     assert admission.command is not None
@@ -523,6 +534,7 @@ async def test_post_commit_failures_do_not_reject_an_accepted_answer():
     project_id = uuid4()
     interaction_id = uuid4()
     interaction = SessionInteraction(
+        run_envelope=make_envelope(),
         id=interaction_id,
         project_id=project_id,
         session_id="session-1",
@@ -561,6 +573,7 @@ async def test_post_commit_failures_do_not_reject_an_accepted_answer():
         answer={"approved": True},
         expected_execution_id="source-1",
         idempotency_key="response-1",
+        approved_by=any_approval(),
     )
 
     assert admission.interaction.status == SessionInteractionStatus.responded
@@ -590,6 +603,7 @@ async def test_sweep_redelivers_continuation_without_a_heartbeat():
     project_id = uuid4()
     interaction_id = uuid4()
     interaction = SessionInteraction(
+        run_envelope=make_envelope(),
         id=interaction_id,
         project_id=project_id,
         session_id="session-1",
@@ -625,6 +639,7 @@ async def test_next_send_resumes_the_same_open_continuation():
     project_id = uuid4()
     interaction_id = uuid4()
     interaction = SessionInteraction(
+        run_envelope=make_envelope(),
         id=interaction_id,
         project_id=project_id,
         session_id="session-1",
@@ -676,6 +691,7 @@ async def test_exhausted_continuation_stays_recoverable(monkeypatch):
         streams_service=None,
         interactions_service=_Interactions(
             SessionInteraction(
+                run_envelope=make_envelope(),
                 id=interaction_id,
                 project_id=project_id,
                 session_id="session-1",
@@ -723,6 +739,7 @@ async def test_only_the_winning_started_outcome_is_admitted():
         streams_service=None,
         interactions_service=_Interactions(
             SessionInteraction(
+                run_envelope=make_envelope(),
                 id=interaction_id,
                 project_id=project_id,
                 session_id="session-1",
@@ -822,6 +839,7 @@ async def test_parked_running_continuation_does_not_own_send_preflight():
         streams_service=streams,
         interactions_service=_Interactions(
             SessionInteraction(
+                run_envelope=make_envelope(),
                 id=interaction_id,
                 project_id=project_id,
                 session_id="session-1",
@@ -877,6 +895,7 @@ async def test_stale_heartbeat_never_replays_an_admitted_continuation():
         streams_service=streams,
         interactions_service=_Interactions(
             SessionInteraction(
+                run_envelope=make_envelope(),
                 id=interaction_id,
                 project_id=project_id,
                 session_id="session-1",
@@ -918,6 +937,7 @@ async def test_stop_winner_blocks_continuation_admission():
         streams_service=None,
         interactions_service=_Interactions(
             SessionInteraction(
+                run_envelope=make_envelope(),
                 id=interaction_id,
                 project_id=project_id,
                 session_id="session-1",
@@ -975,74 +995,6 @@ async def test_watchdog_keeps_lost_continuation_recoverable():
 
 
 @pytest.mark.asyncio
-async def test_watchdog_does_not_recover_continuation_when_approvals_are_disabled(
-    monkeypatch,
-):
-    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", False)
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    project_id = uuid4()
-    executions = _Executions(
-        project_id=project_id, session_id="session-1", source_id="source-1"
-    )
-    executions.continuation = executions.continuation.model_copy(
-        update={"state": SessionExecutionState.running}
-    )
-    service = SessionCommandsService(
-        commands_dao=_Commands(),
-        streams_service=None,
-        interactions_service=None,
-        lock_engine=None,
-        delivery=_Unreachable(),
-        executions_dao=executions,
-    )
-
-    assert await service.settle_execution_lost(
-        project_id=project_id,
-        session_id="session-1",
-        execution_id="continuation-1",
-        settled_at=datetime.now(timezone.utc),
-    )
-    assert executions.continuation.state == SessionExecutionState.terminal
-    assert executions.continuation.terminal_outcome == SessionCommandOutcome.lost.value
-
-
-@pytest.mark.asyncio
-async def test_watchdog_does_not_recover_input_continuation_when_queue_is_disabled(
-    monkeypatch,
-):
-    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", True)
-    monkeypatch.setattr(env.agenta.sessions, "queue", False)
-    project_id = uuid4()
-    executions = _Executions(
-        project_id=project_id, session_id="session-1", source_id="source-1"
-    )
-    executions.continuation = executions.continuation.model_copy(
-        update={
-            "state": SessionExecutionState.running,
-            "parent_execution_id": "source-1",
-            "source_interaction_id": None,
-        }
-    )
-    service = SessionCommandsService(
-        commands_dao=_Commands(),
-        streams_service=None,
-        interactions_service=None,
-        lock_engine=None,
-        delivery=_Unreachable(),
-        executions_dao=executions,
-    )
-
-    assert await service.settle_execution_lost(
-        project_id=project_id,
-        session_id="session-1",
-        execution_id="continuation-1",
-        settled_at=datetime.now(timezone.utc),
-    )
-    assert executions.continuation.state == SessionExecutionState.terminal
-    assert executions.continuation.terminal_outcome == SessionCommandOutcome.lost.value
-
-
-@pytest.mark.asyncio
 async def test_persisted_completion_terminalizes_continuation_before_recovery():
     project_id = uuid4()
     executions = _Executions(
@@ -1060,7 +1012,7 @@ async def test_persisted_completion_terminalizes_continuation_before_recovery():
         executions_dao=executions,
     )
 
-    assert await service.settle_execution_completed(
+    assert await service.settle_execution_ended(
         project_id=project_id,
         session_id="session-1",
         execution_id="continuation-1",
@@ -1071,8 +1023,68 @@ async def test_persisted_completion_terminalizes_continuation_before_recovery():
 
 
 @pytest.mark.asyncio
+async def test_persisted_error_ending_terminalizes_continuation_as_failed():
+    # Production EU, 2026-10-06: a continuation that ended with a provider error stayed
+    # `running`, and the next Send found the session busy with a turn that was over.
+    project_id = uuid4()
+    executions = _Executions(
+        project_id=project_id, session_id="session-1", source_id="source-1"
+    )
+    executions.continuation = executions.continuation.model_copy(
+        update={"state": SessionExecutionState.running}
+    )
+    service = SessionCommandsService(
+        commands_dao=_Commands(),
+        streams_service=None,
+        interactions_service=None,
+        lock_engine=None,
+        delivery=_Unreachable(),
+        executions_dao=executions,
+    )
+
+    assert await service.settle_execution_ended(
+        project_id=project_id,
+        session_id="session-1",
+        execution_id="continuation-1",
+        terminal_outcome="failed",
+    )
+    assert executions.continuation.state == SessionExecutionState.terminal
+    assert executions.continuation.terminal_outcome == "failed"
+    assert executions.continuation.settled_by == "runner"
+
+
+@pytest.mark.asyncio
+async def test_error_ending_leaves_a_stopping_continuation_to_its_stop():
+    project_id = uuid4()
+    executions = _Executions(
+        project_id=project_id, session_id="session-1", source_id="source-1"
+    )
+    executions.continuation = executions.continuation.model_copy(
+        update={"state": SessionExecutionState.stopping}
+    )
+    service = SessionCommandsService(
+        commands_dao=_Commands(),
+        streams_service=None,
+        interactions_service=None,
+        lock_engine=None,
+        delivery=_Unreachable(),
+        executions_dao=executions,
+    )
+
+    # Reconciled: the Stop command owns the ending, so the watchdog must not keep retrying it
+    # (a False here would hold back the sweep's abandoned-command settlement).
+    assert await service.settle_execution_ended(
+        project_id=project_id,
+        session_id="session-1",
+        execution_id="continuation-1",
+        terminal_outcome="failed",
+    )
+    assert executions.continuation.state == SessionExecutionState.stopping
+    assert executions.continuation.terminal_outcome is None
+
+
+@pytest.mark.asyncio
 async def test_completion_promotes_exactly_one_pending_input_once(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
     project_id = uuid4()
     user_id = uuid4()
     executions = _Executions(
@@ -1119,7 +1131,7 @@ async def test_completion_promotes_exactly_one_pending_input_once(monkeypatch):
     )
     service._reconcile_stopped_redis = AsyncMock()
 
-    assert await service.settle_execution_completed(
+    assert await service.settle_execution_ended(
         project_id=project_id,
         session_id="session-1",
         execution_id="source-1",
@@ -1132,7 +1144,7 @@ async def test_completion_promotes_exactly_one_pending_input_once(monkeypatch):
     )
     assert len(delivery.delivered) == 1
 
-    assert await service.settle_execution_completed(
+    assert await service.settle_execution_ended(
         project_id=project_id,
         session_id="session-1",
         execution_id="source-1",
@@ -1143,7 +1155,6 @@ async def test_completion_promotes_exactly_one_pending_input_once(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_done_record_admits_promoted_input_within_one_second(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
     project_id = uuid4()
     source_reconciled = False
     admitted_at = None
@@ -1182,7 +1193,7 @@ async def test_done_record_admits_promoted_input_within_one_second(monkeypatch):
     service._reconcile_stopped_redis = AsyncMock(side_effect=reconcile_source)
     done_record_at = monotonic()
 
-    assert await service.settle_execution_completed(
+    assert await service.settle_execution_ended(
         project_id=project_id,
         session_id="session-1",
         execution_id="source-1",
@@ -1200,7 +1211,6 @@ async def test_done_record_admits_promoted_input_within_one_second(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_completion_handles_a_lost_input_delivery_reservation(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
     project_id = uuid4()
     executions = _Executions(
         project_id=project_id, session_id="session-1", source_id="source-1"
@@ -1219,54 +1229,13 @@ async def test_completion_handles_a_lost_input_delivery_reservation(monkeypatch)
     )
     service._reconcile_stopped_redis = AsyncMock()
 
-    assert await service.settle_execution_completed(
+    assert await service.settle_execution_ended(
         project_id=project_id,
         session_id="session-1",
         execution_id="source-1",
     )
     assert items.items[0].state == PendingInputState.promoted
     assert executions.continuation.state == SessionExecutionState.recoverable
-
-
-@pytest.mark.asyncio
-async def test_recovery_hooks_are_disabled_with_durable_approvals(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "durable_approvals", False)
-    project_id = uuid4()
-    interaction_id = uuid4()
-    commands = _Commands()
-    commands.command = _continuation_command(project_id, interaction_id)
-    commands.abandoned = [commands.command]
-    delivery = _Unreachable()
-    service = SessionCommandsService(
-        commands_dao=commands,
-        streams_service=None,
-        interactions_service=_Interactions(
-            SessionInteraction(
-                id=interaction_id,
-                project_id=project_id,
-                session_id="session-1",
-                turn_id="source-1",
-                token="approval-1",
-                kind=SessionInteractionKind.user_approval,
-                status=SessionInteractionStatus.responded,
-                data=SessionInteractionData(resolution={"approved": True}),
-            )
-        ),
-        lock_engine=None,
-        delivery=delivery,
-        executions_dao=_Executions(
-            project_id=project_id, session_id="session-1", source_id="source-1"
-        ),
-    )
-
-    assert (
-        await service.resume_recoverable_continuation(
-            project_id=project_id, session_id="session-1"
-        )
-        is None
-    )
-    assert await service.settle_abandoned_commands(now=datetime.now(timezone.utc)) == 0
-    assert delivery.delivered == []
 
 
 class _StartedThenUnreachable:
@@ -1307,6 +1276,7 @@ async def test_a_late_delivery_failure_does_not_demote_a_running_continuation():
     project_id = uuid4()
     interaction_id = uuid4()
     interaction = SessionInteraction(
+        run_envelope=make_envelope(),
         id=interaction_id,
         project_id=project_id,
         session_id="session-1",
@@ -1355,6 +1325,7 @@ async def test_a_send_after_the_budget_is_spent_reopens_the_continuation(monkeyp
     project_id = uuid4()
     interaction_id = uuid4()
     interaction = SessionInteraction(
+        run_envelope=make_envelope(),
         id=interaction_id,
         project_id=project_id,
         session_id="session-1",
@@ -1449,8 +1420,6 @@ def _stop_service(*, project_id, command_data, inputs):
 
 @pytest.mark.asyncio
 async def test_manual_stop_pauses_pending_steer(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    monkeypatch.setattr(env.agenta.sessions, "steer", True)
     project_id = uuid4()
     steered = _pending_input(project_id, policy="steer", position=0)
     inputs = _Inputs([steered])
@@ -1476,8 +1445,6 @@ async def test_manual_stop_pauses_pending_steer(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_steer_stop_promotes_its_saved_input_before_queue(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    monkeypatch.setattr(env.agenta.sessions, "steer", True)
     project_id = uuid4()
     queued = _pending_input(project_id, policy="queue", position=1)
     steered = _pending_input(project_id, policy="steer", position=0)
@@ -1507,8 +1474,6 @@ async def test_steer_stop_promotes_its_saved_input_before_queue(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_steer_handles_a_lost_input_delivery_reservation(monkeypatch):
-    monkeypatch.setattr(env.agenta.sessions, "queue", True)
-    monkeypatch.setattr(env.agenta.sessions, "steer", True)
     project_id = uuid4()
     steered = _pending_input(project_id, policy="steer", position=0)
     inputs = _Inputs([steered])

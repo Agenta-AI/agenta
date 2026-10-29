@@ -73,24 +73,31 @@ def now_ms() -> int:
     return int(datetime.now(timezone.utc).timestamp() * 1000)
 
 
+def parse_attempt_deadline(expires_at: Optional[str]) -> Optional[datetime]:
+    """A stored attempt's ISO deadline as an aware datetime (UTC when it names no zone), or
+    None when it is missing or unreadable. Each caller decides what None means."""
+    if not expires_at:
+        return None
+
+    try:
+        deadline = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+
+    if deadline.tzinfo is None:
+        deadline = deadline.replace(tzinfo=timezone.utc)
+
+    return deadline
+
+
 def attempt_is_live(expires_at: Optional[str]) -> bool:
     """True while a stored device login attempt can still be completed.
 
     An unreadable or missing deadline counts as expired: a fresh attempt costs the user
     one more click, while reusing a dead one leaves them polling forever.
     """
-    if not expires_at:
-        return False
-
-    try:
-        deadline = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
-    except ValueError:
-        return False
-
-    if deadline.tzinfo is None:
-        deadline = deadline.replace(tzinfo=timezone.utc)
-
-    return deadline > datetime.now(timezone.utc)
+    deadline = parse_attempt_deadline(expires_at)
+    return deadline is not None and deadline > datetime.now(timezone.utc)
 
 
 def _jwt_account_id(access: Any) -> Optional[str]:

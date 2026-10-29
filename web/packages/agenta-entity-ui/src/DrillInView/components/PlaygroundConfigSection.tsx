@@ -17,7 +17,7 @@
 
 import {memo, useMemo, useCallback, useEffect, useRef, useState} from "react"
 
-import {workflowMolecule} from "@agenta/entities/workflow"
+import {workflowDraftConsumedAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import type {DataPath} from "@agenta/shared/utils"
 import type {MoleculeDrillInAdapter} from "@agenta/ui/drill-in"
 import {useDrillInUI} from "@agenta/ui/drill-in"
@@ -35,6 +35,7 @@ import {
 import {MoleculeDrillInView} from "./MoleculeDrillInView"
 import {defaultAdapter} from "./PlaygroundConfigSection/adapters"
 import {SIBLING_GROUP_KEYS, type SiblingGroupKey} from "./PlaygroundConfigSection/constants"
+import {isDraftDiscard} from "./PlaygroundConfigSection/draftDiscard"
 import {
     collectAgentaMetadata,
     reattachAgentaMetadata,
@@ -217,22 +218,17 @@ function PlaygroundConfigSection({
     // state (Lexical editor, local control state) may not fully reset via prop
     // changes alone. Computed during render to avoid useEffect/setState loops.
     //
-    // Revision-scoped on purpose: this component can now survive a revision SWITCH
-    // (the agent playground's stable config host swaps `revisionId` in place), and a
-    // switch from a drafted revision to a clean one flips `isDraftEmpty` false→true
-    // exactly like a discard — bumping the version there remounted the whole form
-    // (replaying the sections' entrance) for a plain switch. Only a draft emptying
-    // on the SAME revision is a discard; a revision change just re-seeds the tracker.
+    // A revision SWITCH and a COMMIT empty the draft too, and remounting for either tears down
+    // whatever is open over the form. `isDraftDiscard` holds the rule and why each of the three
+    // looks the same from the value alone.
     const discardVersionRef = useRef(0)
-    const draftTrackerRef = useRef({revisionId, isDraftEmpty})
-    if (
-        draftTrackerRef.current.revisionId === revisionId &&
-        isDraftEmpty &&
-        !draftTrackerRef.current.isDraftEmpty
-    ) {
+    const consumedAtom = useMemo(() => workflowDraftConsumedAtomFamily(revisionId), [revisionId])
+    const draftConsumed = useAtomValue(consumedAtom)
+    const draftTrackerRef = useRef({revisionId, isDraftEmpty, draftConsumed})
+    if (isDraftDiscard(draftTrackerRef.current, {revisionId, isDraftEmpty, draftConsumed})) {
         discardVersionRef.current += 1
     }
-    draftTrackerRef.current = {revisionId, isDraftEmpty}
+    draftTrackerRef.current = {revisionId, isDraftEmpty, draftConsumed}
 
     // Eagerly sync rawEditorValue during render when entering a raw mode.
     // Without this, switching Form → YAML/JSON after a revision change renders

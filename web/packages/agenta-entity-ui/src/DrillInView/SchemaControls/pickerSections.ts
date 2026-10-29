@@ -19,6 +19,9 @@ import {modelRowKey, type PickerConnectionRow, type PickerModelRow} from "./conn
 /** The olive `Subscription` mark, which is the only thing that says a row is not a stored key. */
 export const SUBSCRIPTION_TAG = "Subscription"
 
+/** The mark on an organization connection, which the project uses but does not hold. */
+export const ORGANIZATION_TAG = "Organization"
+
 /**
  * One flyout row.
  *
@@ -35,9 +38,10 @@ const optionFor = (row: PickerConnectionRow, model: PickerModelRow, ambiguous: b
         value: model.modelId,
         key: modelRowKey(row.key, model),
         // The flat search view has no column to say where a result came from, so it says so itself.
-        searchCaption: row.name,
+        searchCaption: model.connectionName,
         metadata: {
             ...(model.slug ? {connectionSlug: model.slug} : {}),
+            ...(model.namespace ? {connectionNamespace: model.namespace} : {}),
             connectionMode: model.mode,
             harness: model.harness,
             ...(model.provider ? {provider: model.provider} : {}),
@@ -93,12 +97,15 @@ export const buildPickerGroupsWithSections = (rows: PickerConnectionRow[]): Prov
             key: row.key,
             label: row.name,
             iconKey: row.iconKey,
-            ...(row.kind === "subscription"
-                ? {tag: SUBSCRIPTION_TAG, tagTone: "olive" as const}
-                : {}),
+            // The group has one tag slot: an organization subscription says whose it is there.
+            ...(row.organization
+                ? {tag: ORGANIZATION_TAG}
+                : row.kind === "subscription"
+                  ? {tag: SUBSCRIPTION_TAG, tagTone: "olive" as const}
+                  : {}),
             // A row that cannot run anything says so under its name instead of disappearing.
             ...(row.disabled ? {disabled: true} : {}),
-            ...(row.hint ? {caption: row.hint} : {}),
+            ...(row.hint || row.source ? {caption: row.hint ?? row.source} : {}),
             sections,
             options: sections.flatMap((section) => section.options),
         }

@@ -255,66 +255,12 @@ export const extractOutputs = (span: TraceSpan | TraceSpanNode | null): unknown 
 }
 
 /**
- * Extract internals data from a span's attributes
- */
-export const extractInternals = (
-    span: TraceSpan | TraceSpanNode | null,
-): Record<string, unknown> => {
-    if (!span?.attributes) return {}
-
-    const agData = getAgDataFromAttributes(span.attributes)
-    const internals = agData?.internals
-    return isRecord(internals) ? internals : {}
-}
-
-/**
  * Extract all ag.data from a span's attributes
  */
 export const extractAgData = (span: TraceSpan | TraceSpanNode | null): Record<string, unknown> => {
     if (!span?.attributes) return {}
 
     return getAgDataFromAttributes(span.attributes) || {}
-}
-
-/**
- * Convert span data to the format used by TestsetDrawer
- * Returns all ag.data fields (inputs, outputs, parameters, internals, etc.)
- */
-export const spanToTraceData = (
-    span: TraceSpan | TraceSpanNode,
-    index: number,
-): {key: string; data: Record<string, unknown>; id: number} => {
-    const agData = extractAgData(span)
-
-    return {
-        key: span.span_id,
-        id: index + 1,
-        data: agData,
-    }
-}
-
-/**
- * Extract testset-relevant data from ag.data
- * Only includes inputs and outputs - excludes parameters, internals, etc.
- * This ensures consistent data shape between playground and observability
- *
- * Accepts any span-like object with attributes property
- */
-export const extractTestsetData = (
-    span: {attributes?: Record<string, unknown> | null} | null | undefined,
-): Record<string, unknown> | null => {
-    if (!span) return null
-
-    // Extract ag.data from attributes (handles both formats)
-    const agData = getAgDataFromAttributes(span.attributes)
-
-    if (!agData) return null
-
-    const inputs = agData.inputs
-    return {
-        inputs: isRecord(inputs) ? inputs : {},
-        outputs: agData.outputs,
-    }
 }
 
 // ============================================================================
@@ -349,21 +295,6 @@ export const collectPathsFromSpans = (spans: (TraceSpan | TraceSpanNode)[]): str
     return Array.from(uniquePaths)
 }
 
-/**
- * Collect filtered data paths (inputs/outputs/internals) from multiple spans
- */
-export const collectDataPathsFromSpans = (spans: (TraceSpan | TraceSpanNode)[]): string[] => {
-    const allPaths = collectPathsFromSpans(spans)
-    return filterDataPaths(allPaths)
-}
-
-/**
- * Convert data paths to select options format
- */
-export const pathsToSelectOptions = (paths: string[]): {value: string; label: string}[] => {
-    return paths.map((path) => ({value: path, label: path}))
-}
-
 // ============================================================================
 // AUTO-MAPPING HELPERS
 // ============================================================================
@@ -382,19 +313,6 @@ export const COLUMN_NAME_MAPPINGS: Record<string, string> = {
 export const getSuggestedColumnName = (path: string): string => {
     const columnName = getColumnNameFromPath(path)
     return COLUMN_NAME_MAPPINGS[columnName] || columnName
-}
-
-/**
- * Auto-generate mapping suggestions from data paths
- * Returns array of { data: path, suggestedColumn: columnName }
- */
-export const generateMappingSuggestions = (
-    paths: string[],
-): {data: string; suggestedColumn: string}[] => {
-    return paths.map((path) => ({
-        data: path,
-        suggestedColumn: getSuggestedColumnName(path),
-    }))
 }
 
 /**

@@ -103,16 +103,18 @@ each rather than seven separate ones. Which loops a container runs is chosen by 
 environment selector; an empty selector runs the whole family.
 
 - **`worker-streams`** — Redis Streams consumers, selected by `AGENTA_WORKER_STREAMS`
-  (subset of `records`, `events`, `spans`; empty ⇒ all three):
+  (subset of `records`, `events`, `spans`, `sessions`; empty ⇒ all four):
   - **Span Ingestion**: consumes the OTLP tracing pipeline (`streams:spans`).
   - **Event Processing**: processes internal event streams (`streams:events`).
   - **Session Records**: persists agent session records (`streams:records`).
+  - **Channel Replies**: sends agent replies to Slack and Telegram (`streams:sessions`). Run this loop in exactly one replica.
 - **`worker-queues`** — TaskIQ queue consumers, selected by `AGENTA_WORKER_QUEUES`
-  (subset of `webhooks`, `triggers`, `interactions`, `evaluations`; empty ⇒ all four):
+  (subset of `webhooks`, `triggers`, `interactions`, `evaluations`, `channels-inbox`; empty ⇒ all five):
   - **Webhook Delivery**: dispatches outbound webhook notifications (`queues:webhooks`).
   - **Trigger Processing**: processes trigger events for automated workflows (`queues:triggers`).
   - **Interaction Dispatch**: dispatches async session interactions (`queues:interactions`).
   - **Evaluation Execution**: runs asynchronous evaluation workloads (`queues:evaluations`).
+  - **Channel Messages**: processes incoming Slack and Telegram messages (`queues:channels-inbox`).
 
 Stream and queue names, consumer groups, and message shapes are unchanged by this
 grouping, so scaling a container out shares work across its consumer groups.

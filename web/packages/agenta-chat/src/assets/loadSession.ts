@@ -82,13 +82,15 @@ const readSessionTranscript = async (
 ): Promise<{
     transcript: SessionTranscript | null
     refreshed?: Promise<SessionTranscript | null>
+    /** The records read failed; a null `transcript` then says nothing about the stored history. */
+    failed?: boolean
 }> => {
     const store = getDefaultStore()
     await Promise.resolve(store.set(revalidateSessionInteractionsAtom, sessionId)).catch(
         () => undefined,
     )
     // The best-effort lifecycle join must never gate transcript loading.
-    const [{records, refreshed}, interactionRowStates] = await Promise.all([
+    const [{records, refreshed, failed}, interactionRowStates] = await Promise.all([
         store.set(fetchSessionRecordsAtom, sessionId),
         store.set(fetchSessionInteractionStatesAtom, sessionId),
     ])
@@ -109,6 +111,7 @@ const readSessionTranscript = async (
     }
     return {
         transcript: toTranscript(records, interactionRowStates),
+        failed,
         refreshed: refreshed
             ? refreshed.then(async (fresh) => {
                   if (!fresh || fresh.length === 0) return null
@@ -128,6 +131,8 @@ const readSessionTranscript = async (
 export const loadSessionMessages = async (
     sessionId: string,
     onRefreshed?: (transcript: SessionTranscript) => void,
+    /** Called when the read FAILED, so a caller can tell that apart from an empty history. */
+    onReadFailed?: () => void,
 ): Promise<SessionTranscript | null> => {
     // Fetch through the shared records query cache (same key as `sessionRecordsQueryFamily`) so
     // hydration, revalidation, and the Inspector's atom subscribers share ONE network flight per
@@ -135,7 +140,8 @@ export const loadSessionMessages = async (
     // (the documented "request failed" contract) so the caller shows the history-unavailable
     // notice instead of leaking an unhandled rejection.
     try {
-        const {transcript, refreshed} = await readSessionTranscript(sessionId)
+        const {transcript, refreshed, failed} = await readSessionTranscript(sessionId)
+        if (failed) onReadFailed?.()
         if (refreshed && onRefreshed) {
             void refreshed
                 .then((fresh) => {
@@ -151,6 +157,7 @@ export const loadSessionMessages = async (
         return transcript
     } catch (err) {
         console.warn("[loadSessionMessages] hydration fetch failed:", err)
+        onReadFailed?.()
         return null
     }
 }

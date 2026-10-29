@@ -89,6 +89,43 @@ describe("platform credential attribution", () => {
     assert.deepEqual(lines, []);
   });
 
+  it("uses the credential for the /api endpoint the SDK builds from a suffix-less internal hop", () => {
+    // The Kubernetes regression, at the layer that decides: the operator sets the documented
+    // `http://api:8000`, the SDK drops a trailing `/api` and appends its own, so the endpoint on
+    // the wire carries an extra segment. With the public base configured the strict branch is
+    // armed, so a mismatch here HAD dropped the credential and 401'd every session call.
+    vi.stubEnv("AGENTA_API_INTERNAL_URL", INTERNAL_BASE);
+    vi.stubEnv("AGENTA_API_URL", PUBLIC_BASE);
+    const { lines, log } = withLog();
+
+    assert.equal(
+      platformCredentialForRequest(
+        request(`${INTERNAL_BASE}/api/otlp/v1/traces`),
+        log,
+      ),
+      CREDENTIAL,
+    );
+    assert.deepEqual(lines, []);
+  });
+
+  it("drops the credential for a root collector sharing the public base's ingress", () => {
+    // The other side of that widening. `PUBLIC_BASE` is mounted under `/api`, so the ingress may
+    // route the root path to somebody else's collector. The runner cannot tell from the api's own
+    // `/api` strip, which runs only after the proxy chose a backend.
+    vi.stubEnv("AGENTA_API_URL", PUBLIC_BASE);
+    const { lines, log } = withLog();
+
+    assert.equal(
+      platformCredentialForRequest(
+        request("https://selfhosted.example.com/otlp/v1/traces"),
+        log,
+      ),
+      "",
+    );
+    assert.equal(lines.length, 1);
+    assert.match(lines[0]!, /dropping the run credential/);
+  });
+
   it("keeps the credential when only the internal hop is configured, and says what to set", () => {
     // The self-hosted shape that regressed in v0.114.0: the runner knows `http://api:8000`, the
     // dispatched run carries the public base, and the two never string-match. Refusing here strips

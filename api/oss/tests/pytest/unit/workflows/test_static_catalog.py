@@ -17,6 +17,7 @@ from uuid import uuid4
 
 import pytest
 
+from oss.src.core.sharing.dtos import AgentReadScope
 from oss.src.core.embeds.exceptions import NonEmbeddableWorkflowReferenceError
 from oss.src.core.embeds.service import EmbedsService
 from oss.src.core.shared.dtos import Reference
@@ -131,7 +132,12 @@ def test_default_static_skill_catalog_replaces_old_authoring_skills():
         and revision.flags.is_skill
     }
 
-    assert skill_slugs == {_STATIC_SLUG, _PLAYBOOK_SLUG}
+    assert skill_slugs == {
+        _STATIC_SLUG,
+        _PLAYBOOK_SLUG,
+        "__ag__agenta_apps",
+        "__ag__create_template",
+    }
     assert _OLD_AUTHORING_SKILL_SLUGS.isdisjoint(catalog.list_slugs())
     for slug in _OLD_AUTHORING_SKILL_SLUGS:
         assert catalog.retrieve_revision(slug=slug) is None
@@ -894,7 +900,7 @@ def test_id_index_maps_artifact_and_variant_to_current_across_versions():
 
 
 # ---------------------------------------------------------------------------
-# Query regression: is_static is never a stored fact, so it never filters
+# `is_static` is computed and never filters the query.
 # ---------------------------------------------------------------------------
 
 
@@ -908,6 +914,7 @@ async def test_query_does_not_filter_on_is_static():
 
     await service.query_workflows(
         project_id=uuid4(),
+        read_scope=AgentReadScope(owner_user_id=None),
         workflow_query=WorkflowQuery(
             flags=WorkflowArtifactQueryFlags(is_application=True),
         ),
@@ -951,6 +958,8 @@ def test_request_input_catalog_entry_shape():
     assert set(schema["properties"]) == {"message", "requestedSchema"}
     assert schema["required"] == ["message", "requestedSchema"]
     assert schema["additionalProperties"] is False
+    # A form about a secret is refused by the chat, so the agent is sent to the secret flow.
+    assert "for a custom secret use request_secret" in tool["description"]
 
 
 def test_request_input_matches_golden_request_fixture():
@@ -1036,3 +1045,108 @@ def test_request_secret_catalog_entry_shape():
     )
     assert "Never ask the user to paste a credential into chat" in description
     assert "do not ask for that secret again" in description
+    # The secret setup edits the name and env var, so a form asking for them first is a detour.
+    assert "do not ask for them first" in description
+
+
+# ---------------------------------------------------------------------------
+# Gateway-target request-connection support
+# ---------------------------------------------------------------------------
+
+
+def _request_connection_tool() -> dict:
+    from agenta.sdk.agents.platform.workflow import REQUEST_CONNECTION_WORKFLOW_SLUG
+
+    revision = StaticWorkflowCatalog().retrieve_revision(
+        slug=REQUEST_CONNECTION_WORKFLOW_SLUG
+    )
+    assert revision is not None
+    return revision.data.parameters["tool"]
+
+
+def test_request_connection_schema_offers_both_paths_without_a_root_union():
+    """`integration` and `target` are both optional properties; "exactly one" is stated in their
+    descriptions because OpenAI and xAI refuse a root-level union. The `mode`/`slug` fields
+    (integration-only) are unchanged in shape."""
+    tool = _request_connection_tool()
+    schema = tool["input_schema"]
+    assert set(schema["properties"]) == {"integration", "target", "slug", "mode"}
+    assert schema["required"] == []
+    assert "oneOf" not in schema
+    assert "Omit when" in schema["properties"]["integration"]["description"]
+    assert "Omit when" in schema["properties"]["target"]["description"]
+    assert "exactly one" in tool["description"]
+    assert schema["additionalProperties"] is False
+    assert schema["properties"]["mode"]["enum"] == ["oauth", "api_key"]
+
+
+# OpenAI refuses a function whose parameter root is not `type: object` or carries any of these
+# keywords (`invalid_function_parameters`), and xAI reads a root-level union branch as the root.
+# The build kit declares every one of these tools on every turn, so one bad root fails them all.
+_ROOT_FORBIDDEN_KEYWORDS = ("oneOf", "anyOf", "allOf", "enum", "const", "not")
+
+
+def _platform_tool_schemas():
+    from agenta.sdk.agents.platform.op_catalog import PLATFORM_OPS
+
+    catalog = StaticWorkflowCatalog()
+    for slug in catalog.list_slugs():
+        revision = catalog.retrieve_revision(slug=slug)
+        tool = ((revision.data.parameters or {}) if revision else {}).get("tool")
+        if tool:
+            yield f"{slug}:{tool['name']}", tool["input_schema"]
+    for op_key, op in PLATFORM_OPS.items():
+        yield f"op:{op_key}", op.resolved_input_schema()
+
+
+_PLATFORM_TOOL_SCHEMAS = dict(_platform_tool_schemas())
+
+
+def test_platform_tool_schemas_cover_client_tools_and_ops():
+    names = set(_PLATFORM_TOOL_SCHEMAS)
+    assert "__ag__request_connection:request_connection" in names
+    assert "__ag__request_secret:request_secret" in names
+    assert "__ag__request_input:request_input" in names
+    assert "op:commit_revision" in names
+
+
+@pytest.mark.parametrize("name", sorted(_PLATFORM_TOOL_SCHEMAS))
+def test_platform_tool_schema_root_is_a_plain_object(name):
+    schema = _PLATFORM_TOOL_SCHEMAS[name]
+    assert schema.get("type") == "object"
+    assert [key for key in _ROOT_FORBIDDEN_KEYWORDS if key in schema] == []
+
+
+def test_request_connection_target_shape():
+    """The new `target` object discriminates by `plane` and names the provider/server."""
+    tool = _request_connection_tool()
+    target = tool["input_schema"]["properties"]["target"]
+    assert target["type"] == "object"
+    assert target["required"] == ["plane", "name"]
+    assert target["additionalProperties"] is False
+    assert target["properties"]["plane"]["enum"] == ["llm", "mcp"]
+    assert target["properties"]["name"]["type"] == "string"
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        {"integration": "slack"},
+        {"target": {"plane": "llm", "name": "openai"}},
+        {"target": {"plane": "mcp", "name": "acme-notion"}},
+    ],
+)
+def test_request_connection_coerces_to_client_tool_config_for_both_paths(call):
+    """Both the existing integration path and the new gateway-target path are valid CALLS of
+    the same tool config — this asserts the tool config itself (unchanged shape: type,
+    render), not the call, since the call is model-authored input, not part of the config."""
+    from agenta.sdk.agents.tools.compat import coerce_tool_config
+    from agenta.sdk.agents.tools.models import ClientToolConfig
+
+    tool = _request_connection_tool()
+    coerced = coerce_tool_config(tool)
+    assert isinstance(coerced, ClientToolConfig)
+    assert coerced.render == {"kind": "connect"}
+    assert coerced.name == "request_connection"
+    # The call itself must validate against the schema's declared properties.
+    assert set(call) <= set(tool["input_schema"]["properties"])

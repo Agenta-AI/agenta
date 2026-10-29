@@ -1,4 +1,8 @@
+import type {Workflow} from "@agenta/entities/workflow"
 import {timeAgo} from "@agenta/shared/utils"
+import type {ListTableView} from "@agenta/ui/list-table"
+
+import {sharingCopy} from "@/lib/sharingCopy"
 
 /**
  * How the agents roster is CUT and NARROWED — the half of the view the filter menu owns, kept
@@ -33,6 +37,8 @@ export interface AgentListView {
     type: AgentTypeFilter
     status: AgentStatusFilter
     group: AgentGrouping
+    /** Rows or cards. A display preference, like `group`, never a filter. */
+    mode: ListTableView
 }
 
 export const ALL_OWNERS = "all"
@@ -42,6 +48,7 @@ export const DEFAULT_AGENT_LIST_VIEW: AgentListView = {
     type: "active",
     status: "all",
     group: "none",
+    mode: "list",
 }
 
 /** The view control's dot: the filters only, never the grouping — cutting a list into runs
@@ -51,6 +58,7 @@ export const isDefaultAgentFilters = (view: AgentListView): boolean =>
     view.type === DEFAULT_AGENT_LIST_VIEW.type &&
     view.status === DEFAULT_AGENT_LIST_VIEW.status
 
+/** The filters and the grouping — never the mode: how the rows are DRAWN is not a view of them. */
 export const isDefaultAgentListView = (view: AgentListView): boolean =>
     isDefaultAgentFilters(view) && view.group === DEFAULT_AGENT_LIST_VIEW.group
 
@@ -60,9 +68,13 @@ export interface AgentListRow {
     name: string
     description: string | null
     updatedAt: string | null
-    /** The creator's display name, resolved once by the screen; empty when unknown. */
+    /** The Owner cell: "You", the owner's name, "No owner" or "Former member". */
     ownerName: string
-    createdById: string | null
+    /** The owner's user id from the agent's access policy; null when it has no owner. */
+    ownerId: string | null
+    /** The reader's own private agent: the lock after the name. Others' private agents never
+     *  reach the list. */
+    isPrivate: boolean
     /** Sessions blocked on a person for this agent — the amber badge, and the Status facet. */
     waiting: number
 }
@@ -106,6 +118,51 @@ const GROUP_ORDER: Record<AgentGrouping, readonly string[]> = {
     activity: ACTIVITY_BUCKETS,
 }
 
+/**
+ * The Owner cell and heading: "You", the owner's name, "No owner" (an API key or an automation
+ * made it), or "Former member" (an id the project roster no longer holds). The owner comes from
+ * the agent's access policy, which each list row carries, so a transfer shows.
+ */
+export const agentOwnerLabel = (
+    ownerId: string | null | undefined,
+    currentUserId: string | null | undefined,
+    names: ReadonlyMap<string, string>,
+): string => {
+    if (!ownerId) return sharingCopy.ownerNone
+    if (currentUserId && ownerId === currentUserId) return sharingCopy.ownerYou
+    return names.get(ownerId)?.trim() || sharingCopy.ownerFormer
+}
+
+/** The one place a workflow becomes a row: both views read what this resolves, never the raw
+ *  workflow and never the lookup maps behind it. */
+export const toAgentListRow = (
+    workflow: Workflow,
+    {
+        currentUserId,
+        ownerNames,
+        waiting,
+    }: {
+        currentUserId: string | null | undefined
+        ownerNames: ReadonlyMap<string, string>
+        waiting: number
+    },
+): AgentListRow => {
+    const ownerId = workflow.access?.owner_user_id ?? null
+    return {
+        id: workflow.id,
+        name: workflow.name || workflow.slug || "Untitled agent",
+        description: workflow.description ?? null,
+        updatedAt: workflow.updated_at ?? workflow.created_at ?? null,
+        ownerName: agentOwnerLabel(ownerId, currentUserId, ownerNames),
+        ownerId,
+        isPrivate:
+            workflow.access?.visibility === "private" &&
+            Boolean(currentUserId) &&
+            ownerId === currentUserId,
+        waiting,
+    }
+}
+
 /** What a row and a cell both say where an agent has never been described. */
 export const NO_DESCRIPTION = "No description"
 
@@ -114,7 +171,7 @@ export const lastActiveLabel = (updatedAt: string | null): string =>
     updatedAt ? timeAgo(Date.parse(updatedAt)) : "—"
 
 const matchesAgentOwner = (row: AgentListRow, owner: AgentOwnerFilter): boolean =>
-    owner === ALL_OWNERS || row.createdById === owner
+    owner === ALL_OWNERS || row.ownerId === owner
 
 const matchesAgentStatus = (row: AgentListRow, status: AgentStatusFilter): boolean => {
     if (status === "waiting") return row.waiting > 0

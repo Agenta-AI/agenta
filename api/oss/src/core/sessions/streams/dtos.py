@@ -3,11 +3,18 @@ from enum import Enum
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    PrivateAttr,
+    field_validator,
+)
 
 from agenta.sdk.models.workflows import WorkflowServiceRequestData
 
 from oss.src.core.shared.dtos import Header, Identifier, Lifecycle
+from oss.src.core.sharing.dtos import AccessPolicy, Visibility, SessionSharingState
 from oss.src.core.sessions.types import (
     SessionDelivery,
     SessionOrigin,
@@ -86,6 +93,20 @@ class SessionStream(Identifier, Header, Lifecycle):
     origin: Optional[SessionOrigin] = None
     trigger: Optional[SessionTrigger] = None
     delivery: Optional[SessionDelivery] = None
+    # The sharing policy, read only. A row written by pre-sharing code (stored NULL) reads
+    # as project-visible.
+    visibility: Visibility = Visibility.PROJECT
+    owner_user_id: Optional[UUID] = None
+    # The caller's sharing state, on the one-session stream query only (the chat screen
+    # reads it there instead of `GET /sessions/{id}/sharing`). None elsewhere.
+    sharing: Optional[SessionSharingState] = None
+    # Set by the row insert only: whether a channel thread names this session id (read
+    # in the insert statement). Never serialized. None: not known.
+    _has_channel_thread: Optional[bool] = PrivateAttr(default=None)
+
+    @property
+    def has_channel_thread(self) -> Optional[bool]:
+        return self._has_channel_thread
 
 
 class SessionStreamReadOptions(BaseModel):
@@ -99,6 +120,12 @@ class SessionStreamQueryResult(BaseModel):
 
 class SessionStreamCreate(Header):
     session_id: str
+    # The initial sharing policy. Required: every insert path decides it on the server.
+    access: AccessPolicy
+    # The channel binding (installation) whose own run creates the row: `access` is then
+    # the channel policy (`channel_session_policy`). Only that binding's run creates a
+    # row a channel thread names, and only for a thread of that binding.
+    channel_binding_id: Optional[UUID] = None
     # Who chose `name`. Typed here and encoded by the mapper, so the core never handles the
     # storage representation.
     name_source: Optional[SessionNameSource] = None
@@ -134,6 +161,8 @@ class SessionStreamHeaderEdit(Header):
     while the row still holds a value, a state no caller ever means. The LLM-facing
     ``rename_session`` schema already rejects both; this closes the direct-API hole.
     """
+
+    model_config = ConfigDict(extra="forbid")
 
     #: The exact name this edit replaces, sent by an automatic caller whose new name a
     #: person asked for. It is a precondition, not a permission: the write lands only while
@@ -173,6 +202,13 @@ class SessionStreamHeaderEdit(Header):
                 " (send an empty string to clear the title)"
             )
         return trimmed
+
+    @property
+    def has_header_field(self) -> bool:
+        """Whether the edit names a header field. The header route refuses an edit
+        without one (a wrapped or empty body), unless the call only creates the session
+        with a requested visibility (the /w pre-create of a new chat)."""
+        return bool(self.model_fields_set.intersection({"name", "description"}))
 
 
 class SessionStreamQuery(BaseModel):
@@ -278,19 +314,19 @@ class SessionHeartbeatRequest(BaseModel):
     """
 
     session_id: str
-    replica_id: str = Field(min_length=1)  # the runner CONTAINER (affinity / owner key)
+    # The runner POD; the turn binds to it. No control characters: the binding joins the id and
+    # the pod address with Unit Separator, so an id that held one could forge the address.
+    replica_id: str = Field(
+        min_length=1, max_length=128, pattern=r"^[^\x00-\x1f\x7f]+$"
+    )
+    # The URL that reaches this pod directly, so a Stop for its turn goes to it. Empty when
+    # the runner has none (compose, Railway), which means "use the Service URL". Stored only
+    # when the beat carries a valid runner token.
+    replica_address: Optional[str] = None
     turn_id: Optional[str] = None  # the current TURN (proves alive-lock ownership)
     is_running: bool = True
     name: Optional[str] = None
     references: Optional[List[SessionReference]] = None
-    # The INVERSE beat, sent once per session as a runner shuts down: hand the affinity key
-    # back instead of renewing it. `claim_owner` never steals, so a replica that dies still
-    # holding `owner:session:<id>` locks the session out of every other replica for the rest
-    # of OWNER_TTL_SECONDS — a local-provider session then refuses every message until the
-    # lease expires. The release is conditional on still being the owner, so it can never
-    # take a session from a live replica. Everything else about the beat is skipped: a
-    # departing runner asserts no liveness and no turn.
-    release_owner: bool = False
 
 
 class SessionLiveness(BaseModel):
@@ -300,20 +336,20 @@ class SessionLiveness(BaseModel):
 
 
 class SessionHeartbeatResult(BaseModel):
-    """A heartbeat's outcome: the reconciled stream plus the session's actual owner replica.
+    """A heartbeat's outcome: the reconciled stream and whether this turn is still current.
 
-    `replica_id` is the replica that currently holds the affinity key after the claim
-    (this caller if it won or already held it, another replica otherwise). The runner reads
-    it to refuse serving a local sandbox session it does not own.
+    `replica_id` echoes the caller's own id. A runner of the previous release reads it, so it
+    stays for one release.
 
-    `stream` is None when a losing replica heartbeats a session that has no row yet: it may
-    not create or stamp one, since that row belongs to the owner.
+    `stream` is None when a refused beat names a session that has no row yet: it may not
+    create or stamp one, since that row belongs to the turn's own runner.
 
     `is_current_turn` (W7.4) is False when this turn_id's alive/running lock was gone or
     reassigned at the moment of this beat — i.e. a cancel/steer/kill interrupted this turn
     since the last heartbeat. The runner's watchdog reads this to abort the in-flight run;
     without it a cancel that raced a heartbeat's nx=True re-acquire would silently re-arm the
-    SAME lock under the SAME turn_id and the interruption would never surface.
+    SAME lock under the SAME turn_id and the interruption would never surface. It is also
+    False when the turn is bound to another runner pod.
     """
 
     stream: Optional[SessionStream] = None

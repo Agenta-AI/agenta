@@ -205,6 +205,7 @@ describe("AgentChatTransport", () => {
                     type: "data-session-accepted",
                     data: {turnId: "turn-1", executionId: "turn-1"},
                 },
+                {type: "data-agent-status", data: {phase: "environment_starting"}},
                 {
                     type: "data-agent-error",
                     data: {code: "runner_error", errorText: "provider failed"},
@@ -246,13 +247,14 @@ describe("AgentChatTransport", () => {
             "start",
             "start-step",
             "data-session-accepted",
+            "data-agent-status",
             "data-agent-error",
             "error",
             "finish-step",
             "finish",
         ])
         expect(chunks[0]).toMatchObject({messageMetadata: {sessionId: "s1", sharedSender: true}})
-        expect(chunks[3]).toMatchObject({
+        expect(chunks[4]).toMatchObject({
             data: {code: "runner_error", errorText: "provider failed"},
         })
         expect(chunks.at(-1)).toMatchObject({

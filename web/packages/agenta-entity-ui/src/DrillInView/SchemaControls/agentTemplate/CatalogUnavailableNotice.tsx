@@ -2,7 +2,7 @@
  * CatalogUnavailableNotice — "the schema asked for the harness catalog and we couldn't fetch it".
  *
  * Replaces antd `Alert action={<Button>Retry</Button>}`. The `@agenta/ui` Alert deliberately does
- * not implement `action` (see antd-inventory/migrations/Alert.md), so the Retry button is composed
+ * not implement `action` (see docs/design/antd-migration/migrations/Alert.md), so the Retry button is composed
  * into the description row instead of sitting in antd's trailing action slot — a declared
  * divergence (the button lands one line lower, right-aligned).
  */

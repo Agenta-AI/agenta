@@ -19,6 +19,8 @@ export interface TestsetRevisionQueryRequest {
     include_archived?: boolean | null;
     /** Include full testcase objects for each returned revision. Defaults to true. */
     include_testcases?: boolean | null;
+    /** Divide matching revisions by artifact or variant and select one revision from each group. */
+    grouping?: AgentaApi.RevisionGrouping | null;
     /** Cursor-based pagination. See the Query Pattern guide. */
     windowing?: AgentaApi.Windowing | null;
 }

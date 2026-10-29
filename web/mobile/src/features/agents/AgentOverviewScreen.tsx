@@ -1,6 +1,6 @@
 import {useCallback, useMemo} from "react"
 
-import {chatPanelMaximizedAtom, configPanelCollapsedAtom} from "@agenta/chat/state"
+import {revealConfigPaneAtom} from "@agenta/chat/state"
 import {agentWorkflowsListQueryStateAtom, type Workflow} from "@agenta/entities/workflow"
 import {pageContentWidthClass} from "@agenta/ui/components/page-width"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -15,8 +15,12 @@ import {NavDrawer} from "../nav/NavDrawer"
 import {SessionAutomationDrawers} from "../sessions/SessionAutomationDrawers"
 import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
+import {AgentChannelsCard} from "./AgentChannelsCard"
 import {AgentOverviewBody} from "./AgentOverviewBody"
 import {AgentOverviewTitle} from "./AgentOverviewTitle"
+import {AgentNotFound} from "./states/AgentNotFound"
+import {useAgentOverviewAccess} from "./useAgentOverviewAccess"
+import {useAgentPublishPanel} from "./useAgentPublishPanel"
 
 /** One agent's overview: who it is, a composer, its activity in tabs, and its own state in a rail. */
 export const AgentOverviewScreen = ({
@@ -33,13 +37,26 @@ export const AgentOverviewScreen = ({
 
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
     const agents = useMemo<Workflow[]>(() => agentsQuery.data ?? [], [agentsQuery.data])
-    const agent = agents.find((candidate) => candidate.id === agentId)
+    const {agent, notFound} = useAgentOverviewAccess({agentId, projectId})
     const name = agent?.name || agent?.slug || "Agent"
     const description = agent?.description?.trim() || null
     const agentNames = useMemo(
         () => new Map(agents.map((entry) => [entry.id, entry.name || entry.slug || "Agent"])),
         [agents],
     )
+
+    // The Channels card resolves the agent a connection answers as, from the same roster the
+    // body's rows read; a connection pointed at an agent this project no longer holds is
+    // unknown, hence null.
+    const resolveAgentName = useCallback((id: string) => agentNames.get(id) ?? null, [agentNames])
+    const publish = useAgentPublishPanel({
+        agentId,
+        agentName: name,
+        agentDescription: description,
+        resolveAgentName,
+        projectId,
+        workspaceId,
+    })
 
     // The shared row verbs — rename, pin, archive, delete — bound here, resolved by the rows.
     const sessionMenu = useSessionRowMenu(base)
@@ -55,15 +72,26 @@ export const AgentOverviewScreen = ({
 
     const startBlank = useStartBlankSession(base)
     const openChat = useCallback(() => startBlank(agentId), [agentId, startBlank])
-    // Configuration is edited in the session workspace here, so this lands on a blank session
-    // with the config pane on screen. BOTH flags are written — either alone leaves it hidden.
-    const setChatMaximized = useSetAtom(chatPanelMaximizedAtom)
-    const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
+    // Edit opens this agent's playground with the configuration showing. `/m` has no `/playground`
+    // route — a session IS the playground here — so it opens a BLANK one: the id is client-side
+    // and nothing reaches the backend until a message lands, so reading the config costs no
+    // session. The reveal is shared with the desktop's Edit so both mean the same thing (#6381).
+    const revealConfigPane = useSetAtom(revealConfigPaneAtom)
     const onEditConfig = useCallback(() => {
-        setChatMaximized(false)
-        setConfigCollapsed(false)
+        revealConfigPane()
         startBlank(agentId)
-    }, [agentId, setChatMaximized, setConfigCollapsed, startBlank])
+    }, [agentId, revealConfigPane, startBlank])
+
+    if (notFound) {
+        return (
+            <>
+                <PageTitle title="Agents" />
+                <AppShell workspaceId={workspaceId} projectId={projectId}>
+                    <AgentNotFound agentsHref={`${base}/agents`} />
+                </AppShell>
+            </>
+        )
+    }
 
     return (
         <>
@@ -86,6 +114,8 @@ export const AgentOverviewScreen = ({
                                     description={description}
                                     pending={agentsQuery.isPending && !agent}
                                     onOpenChat={openChat}
+                                    onEditConfig={onEditConfig}
+                                    onPublish={publish.openHub}
                                 />
                             </div>
                         </div>
@@ -101,14 +131,25 @@ export const AgentOverviewScreen = ({
                             agentName={name}
                             base={base}
                             agentNames={agentNames}
+                            channels={
+                                <AgentChannelsCard
+                                    connections={publish.connections}
+                                    loading={publish.loading}
+                                    loadError={publish.loadError}
+                                    onRetry={() => void publish.reload().catch(() => null)}
+                                    onOpenHub={publish.openHub}
+                                    onOpenConnection={publish.openConnection}
+                                />
+                            }
                             verbs={verbs}
                             onEditConfig={onEditConfig}
                         />
                     </div>
                 </ScreenScaffold>
             </AppShell>
+            {publish.panel}
             {/* Mounted at screen level so a drawer survives its row unmounting underneath it. */}
-            <SessionAutomationDrawers base={base} />
+            <SessionAutomationDrawers base={base} workspaceId={workspaceId} projectId={projectId} />
         </>
     )
 }

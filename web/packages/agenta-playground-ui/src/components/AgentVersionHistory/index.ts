@@ -6,6 +6,8 @@ export type {AgentVersionHistoryDrawerProps} from "./AgentVersionHistoryDrawer"
 // The three panes, so Storybook can render each state without driving the whole drawer.
 export {ChangesPane} from "./ChangesPane"
 export type {ChangesPaneProps} from "./ChangesPane"
+export {RevertConfirmDialog} from "./RevertConfirmDialog"
+export type {RevertConfirmDialogProps} from "./RevertConfirmDialog"
 export {RevertFooter} from "./RevertFooter"
 export type {RevertFooterProps, RevertPhase} from "./RevertFooter"
 export {VersionList} from "./VersionList"

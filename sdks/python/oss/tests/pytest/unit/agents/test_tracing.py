@@ -40,11 +40,12 @@ def test_record_usage_stamps_runner_totals_on_active_workflow_span(monkeypatch):
     span = SimpleNamespace(
         set_attribute=lambda key, value: attributes.__setitem__(key, value)
     )
-    monkeypatch.setattr(tracing.otel_trace, "get_current_span", lambda: span)
+    monkeypatch.setattr(tracing, "current_product_span", lambda: span)
 
     tracing.record_usage({"input": 100, "output": 20, "total": 120, "cost": 0.0042})
 
     assert attributes == {
+        "ag.flags.aggregate_usage": True,
         "gen_ai.usage.input_tokens": 100,
         "gen_ai.usage.output_tokens": 20,
         "gen_ai.usage.prompt_tokens": 100,
@@ -59,7 +60,7 @@ def test_record_usage_derives_total_from_input_and_output(monkeypatch):
     span = SimpleNamespace(
         set_attribute=lambda key, value: attributes.__setitem__(key, value)
     )
-    monkeypatch.setattr(tracing.otel_trace, "get_current_span", lambda: span)
+    monkeypatch.setattr(tracing, "current_product_span", lambda: span)
 
     tracing.record_usage({"input": 100, "output": 20})
 
@@ -72,11 +73,11 @@ def test_record_usage_keeps_cost_without_token_total(monkeypatch, cost):
     span = SimpleNamespace(
         set_attribute=lambda key, value: attributes.__setitem__(key, value)
     )
-    monkeypatch.setattr(tracing.otel_trace, "get_current_span", lambda: span)
+    monkeypatch.setattr(tracing, "current_product_span", lambda: span)
 
     tracing.record_usage({"cost": cost})
 
-    assert attributes == {"gen_ai.usage.cost": cost}
+    assert attributes == {"ag.flags.aggregate_usage": True, "gen_ai.usage.cost": cost}
 
 
 def test_run_context_keeps_trace_when_workflow_capture_fails(monkeypatch):

@@ -797,6 +797,42 @@ describe("localRelayActivitySource", () => {
     source.close();
   });
 
+  it("an already-aborted signal resolves 'closed' without waiting (M11)", async () => {
+    // The interface declares `signal`; this source used to destructure only `timeoutMs`, so an
+    // abort was honoured only if `close()` also happened. A caller that aborts and does not close
+    // waited out the full deadline.
+    dir = mkdtempSync(join(tmpdir(), "agenta-relay-local-"));
+    const source = localRelayActivitySource(dir);
+    assert.ok(source);
+
+    const controller = new AbortController();
+    controller.abort();
+    const started = Date.now();
+    assert.equal(
+      await source.wait({ timeoutMs: 5_000, signal: controller.signal }),
+      "closed",
+    );
+    assert.ok(Date.now() - started < 1_000, "returns immediately, not at the deadline");
+    source.close();
+  });
+
+  it("an abort during a parked wait resolves 'closed' (M11)", async () => {
+    dir = mkdtempSync(join(tmpdir(), "agenta-relay-local-"));
+    const source = localRelayActivitySource(dir);
+    assert.ok(source);
+
+    const controller = new AbortController();
+    const started = Date.now();
+    const wait = source.wait({ timeoutMs: 5_000, signal: controller.signal });
+    const abort = setTimeout(() => controller.abort(), 30);
+
+    assert.equal(await wait, "closed");
+    // Bounded by the loop's own 100ms tick rather than by the caller's deadline.
+    assert.ok(Date.now() - started < 1_000);
+    clearTimeout(abort);
+    source.close();
+  });
+
   it("no event resolves 'timeout' at the deadline", async () => {
     dir = mkdtempSync(join(tmpdir(), "agenta-relay-local-"));
     const source = localRelayActivitySource(dir);

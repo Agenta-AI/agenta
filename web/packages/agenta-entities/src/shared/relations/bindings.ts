@@ -6,18 +6,14 @@
  *
  * This replaces ad-hoc string conventions with typed relations:
  * - Before: `testset:${entityType}:${entityId}` scattered across codebase
- * - After: `getLoadableId(entityType, entityId)` with type safety
+ * - After: `loadableBindingRelation.binding.getId(entityType, entityId)` with type safety
  *
  * @example
  * ```typescript
- * import { getLoadableId, parseLoadableId } from '@agenta/entities/shared'
+ * import { parseLoadableId } from '@agenta/entities/shared'
  *
- * // Generate a loadable ID
- * const loadableId = getLoadableId('revision', 'rev-123')
- * // Result: "testset:revision:rev-123"
- *
- * // Parse a loadable ID back to its components
- * const parsed = parseLoadableId(loadableId)
+ * // Parse a loadable ID ("testset:revision:rev-123") back to its components
+ * const parsed = parseLoadableId("testset:revision:rev-123")
  * // Result: { type: 'revision', id: 'rev-123' }
  * ```
  */
@@ -108,31 +104,6 @@ export const loadableBindingRelation: EntityRelation<unknown, unknown> = {
 // ============================================================================
 
 /**
- * Generate a loadable binding ID.
- *
- * This is a convenience wrapper around `loadableBindingRelation.binding.getId`.
- * Use this in components and controllers for type-safe ID generation.
- *
- * @param entityType - The type of entity (e.g., 'revision', 'testcase', 'trace')
- * @param entityId - The entity's unique identifier
- * @returns A binding ID in the format `testset:{entityType}:{entityId}`
- *
- * @example
- * ```typescript
- * import { getLoadableId } from '@agenta/entities/shared'
- *
- * // In playground controller
- * const loadableId = getLoadableId('revision', selectedRevisionId)
- *
- * // For testcase source
- * const testcaseLoadableId = getLoadableId('testcase', testcaseId)
- * ```
- */
-export function getLoadableId(entityType: string, entityId: string): string {
-    return loadableBindingRelation.binding!.getId(entityType, entityId)
-}
-
-/**
  * Parse a loadable binding ID back to its components.
  *
  * This is a convenience wrapper around `loadableBindingRelation.binding.parseId`.
@@ -160,59 +131,4 @@ export function parseLoadableId(bindingId: string): ParsedBindingId | null {
         ...result,
         format: "testset",
     }
-}
-
-/**
- * Check if a string is a valid loadable binding ID.
- *
- * @param value - The string to check
- * @returns True if the string is a valid loadable binding ID
- *
- * @example
- * ```typescript
- * import { isLoadableBindingId } from '@agenta/entities/shared'
- *
- * isLoadableBindingId('testset:revision:abc-123') // true
- * isLoadableBindingId('invalid-id')               // false
- * ```
- */
-export function isLoadableBindingId(value: string): boolean {
-    return parseLoadableId(value) !== null
-}
-
-/**
- * Extract the entity type from a loadable binding ID.
- *
- * @param bindingId - The binding ID to extract from
- * @returns The entity type, or null if invalid
- *
- * @example
- * ```typescript
- * import { getLoadableEntityType } from '@agenta/entities/shared'
- *
- * getLoadableEntityType('testset:revision:abc-123') // 'revision'
- * getLoadableEntityType('testset:testcase:xyz-456') // 'testcase'
- * ```
- */
-export function getLoadableEntityType(bindingId: string): string | null {
-    const parsed = parseLoadableId(bindingId)
-    return parsed?.type ?? null
-}
-
-/**
- * Extract the entity ID from a loadable binding ID.
- *
- * @param bindingId - The binding ID to extract from
- * @returns The entity ID, or null if invalid
- *
- * @example
- * ```typescript
- * import { getLoadableEntityId } from '@agenta/entities/shared'
- *
- * getLoadableEntityId('testset:revision:abc-123') // 'abc-123'
- * ```
- */
-export function getLoadableEntityId(bindingId: string): string | null {
-    const parsed = parseLoadableId(bindingId)
-    return parsed?.id ?? null
 }

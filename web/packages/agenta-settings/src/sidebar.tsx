@@ -2,11 +2,15 @@ import type {ReactNode} from "react"
 
 import type {SidebarConfig, SidebarSection, SidebarSlotContext} from "@agenta/navigation"
 import {
+    Broadcast,
     Buildings,
+    ChartLineUp,
+    Coins,
     ClockCounterClockwise,
     FolderSimple,
     Key,
     Link,
+    Plugs,
     Receipt,
     ShieldCheck,
     SlidersHorizontal,
@@ -28,10 +32,16 @@ export const getSettingsSidebarIcon = (key: SettingsTabKey): ReactNode => {
             return <Vault size={14} />
         case "llms":
             return <Sparkle size={14} />
+        case "analytics":
+            return <ChartLineUp size={14} />
         case "tools":
             return <Wrench size={14} />
+        case "channels":
+            return <Broadcast size={14} />
         case "webhooks":
             return <Link size={14} />
+        case "mcpEndpoints":
+            return <Plugs size={14} />
         case "workspace":
             return <UsersThree size={14} />
         case "organizationGeneral":
@@ -42,6 +52,8 @@ export const getSettingsSidebarIcon = (key: SettingsTabKey): ReactNode => {
             return <ClockCounterClockwise size={14} />
         case "billing":
             return <Receipt size={14} />
+        case "credits":
+            return <Coins size={14} />
         case "account":
             return <User size={14} />
         case "preferences":
@@ -77,6 +89,7 @@ export const buildSettingsSidebarSections = (
     {getLink}: SettingsSidebarSectionsOptions = {},
 ): SidebarSection[] => {
     const itemsByScope: Record<SettingsScopeKey, SidebarConfig[]> = {
+        connections: [],
         project: [],
         organization: [],
         personal: [],

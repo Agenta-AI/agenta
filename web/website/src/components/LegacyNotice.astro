@@ -1,0 +1,35 @@
+---
+// LegacyNotice — dated update card shown at the top of blog posts published
+// before the July 2026 relaunch (see isLegacyPost in src/lib/blog.ts). It links
+// historical posts to the current product definition without touching the
+// posts' content or publication dates. The markdown twin ([slug].md.ts) emits
+// the same text as a blockquote from the shared constants.
+import {
+  LEGACY_NOTICE_DATE,
+  LEGACY_NOTICE_LINK_HREF,
+  LEGACY_NOTICE_LINK_LABEL,
+  LEGACY_NOTICE_TEXT,
+} from "../lib/blog";
+---
+
+<aside
+  aria-label="Update about Agenta today"
+  style="max-width:720px;margin:40px auto 0;padding:0 24px;"
+  class="ag-pad"
+>
+  <div
+    style="border-radius:14px;background:var(--th-bg-subtle,rgba(255,255,255,0.04));box-shadow:inset 0 0 0 1px var(--th-border-subtle);padding:18px 22px;display:flex;flex-direction:column;gap:6px;"
+  >
+    <span style="font:var(--text-label);color:var(--bp-quiet);"
+      >Update · {LEGACY_NOTICE_DATE}</span
+    >
+    <p style="margin:0;font:var(--text-body-sm);color:var(--th-text-body);">
+      {LEGACY_NOTICE_TEXT}
+      <a
+        href={LEGACY_NOTICE_LINK_HREF}
+        style="color:var(--th-text-hi);text-decoration:underline;"
+        >{LEGACY_NOTICE_LINK_LABEL}</a
+      >.
+    </p>
+  </div>
+</aside>

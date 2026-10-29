@@ -1,3 +1,4 @@
+export * from "./filesPaneLayout"
 export * from "./expandState"
 export * from "./messageStamps"
 export * from "./turnClock"
@@ -6,9 +7,14 @@ export * from "./sessionMessages"
 export * from "./sessionChats"
 export {
     chatPanelMaximizedAtom,
+    playgroundLayoutActionAtom,
     configPanelCollapsedAtom,
+    configPanelCollapsedOverrideAtom,
     configPanelCollapsedPreferenceAtom,
+    configPanelCollapsedPhonePreferenceAtom,
+    configPanelCollapsedViewportPreferenceAtom,
     phoneViewportAtom,
+    revealConfigPaneAtom,
     resolveConfigPanelCollapsed,
     PHONE_VIEWPORT_QUERY,
     rightPanelWidthAtom,

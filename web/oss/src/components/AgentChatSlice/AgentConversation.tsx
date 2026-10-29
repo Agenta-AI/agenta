@@ -1,11 +1,14 @@
 import {useCallback, useEffect, useMemo, useRef, useState, type MutableRefObject} from "react"
 
 import {
+    displayMessageText,
+    editedExecutionText,
+    readDisplayEdit,
+    saveDisplayEdit,
+} from "@agenta/chat/assets"
+import {
     describeAccepted,
-    filesToParts,
     jumpGateOpen,
-    messageText,
-    restoreHeldRefusedSend,
     restoreRefusedSend as restoreRefusedSendInto,
     sideEffectingToolsInRange,
 } from "@agenta/chat/assets"
@@ -13,7 +16,7 @@ import {getMessageTraceId, mergePendingSendEchoRows} from "@agenta/chat/assets"
 import {getPendingSecretInteractions} from "@agenta/chat/clientTools"
 import {AttachmentDropOverlay, ConnectionFocusProvider} from "@agenta/chat/components"
 import {
-    stagedFilesToParts,
+    stagedFilesToOutbound,
     useComposerAttachments,
     useAgentChatQueue,
     useSessionLivePreview,
@@ -29,15 +32,15 @@ import {
 } from "@agenta/chat/hooks"
 import {type SessionRunStatus} from "@agenta/chat/model"
 import {
+    refusedSendRejections,
     ignoreStreamRejection,
     isEmptyAssistantTurn,
-    isSessionBusyRefusal,
     isVisiblePart,
+    REFUSED_SEND_REASON,
 } from "@agenta/chat/model"
 import {getInteractionAvailability, getLivePendingApprovals} from "@agenta/chat/model"
 import {withoutSharedSenderAcceptanceMessages} from "@agenta/chat/model"
 import {hasSessionChat, sessionMessagesAtom, setSessionStatusAtom} from "@agenta/chat/state"
-import {clearSessionFresh} from "@agenta/chat/state"
 import {
     contextWindowForModel,
     harnessCapabilitiesAtomFamily,
@@ -61,11 +64,12 @@ import {DriveFileLinkProvider} from "@/oss/components/Drives/DriveFileLinkProvid
 import {useSessionFilesPane} from "@/oss/components/Drives/SessionFilesPane"
 import {TEMPLATE_STRIP_MODE} from "@/oss/components/pages/agent-home/assets/constants"
 import {useProjectPermissions} from "@/oss/hooks/useProjectPermissions"
+import {projectIdAtom} from "@/oss/state/project"
 
 import {answerThenSteer} from "./assets/answerThenSteer"
-import {isAgentFileUploadsEnabled} from "./assets/constants"
 import {CONTENT_VISIBILITY_ENABLED} from "./assets/conversationLayout"
 import {runWithInFlightSubmit} from "./assets/inFlightSubmit"
+import {sendPendingRun} from "./assets/pendingRunSend"
 import AgentComposerDock from "./components/AgentComposerDock"
 import AgentTranscript from "./components/AgentTranscript"
 import AgentTurn from "./components/AgentTurn"
@@ -92,6 +96,7 @@ import {
     autoTitleSessionAtomFamily,
     bumpSessionActivityAtomFamily,
     firstUserText,
+    precreateThenInvoke,
 } from "./state/sessions"
 import {focusComposerRequestAtom, matchesSessionRequest} from "./state/uiRequests"
 
@@ -139,6 +144,11 @@ const AgentConversation = ({
     const scrollIntent = useScrollIntent({initialArmed: initialMessages.length > 0})
     const {showJump} = scrollIntent
 
+    // antd Tabs keeps inactive session panes mounted; only the active one holds network streams.
+    const scopeKey = useChatScopeKey()
+    const activeSessionId = useAtomValue(activeSessionIdAtomFamily(scopeKey))
+    const onScreen = activeSessionId === sessionId
+
     // The chat stream for this tab: transport, useChat, history hydration, persistence,
     // self-commit pickup, stop/kill and teardown.
     const {
@@ -150,7 +160,6 @@ const AgentConversation = ({
         acceptedRunPending,
         turnDeliverySource,
         settleSharedTurn,
-        sendMessage,
         regenerate,
         setMessages,
         messagesRef,
@@ -166,8 +175,6 @@ const AgentConversation = ({
         markLiveGate,
         answerApproval,
         answerApprovals,
-        retryContinuation,
-        resumeOrphaned,
         isSeen,
         runningElsewhere: livenessRunningElsewhere,
         sharedReaderAdvertised,
@@ -186,6 +193,7 @@ const AgentConversation = ({
         sharedReaderAdvertised,
         runningElsewhere: livenessRunningElsewhere,
         sender: true,
+        visible: onScreen,
         onReadyChange: setSharedSenderReady,
         onExecutionSettled: settleSharedTurn,
         onDisconnect: refreshFromRecords,
@@ -238,8 +246,6 @@ const AgentConversation = ({
     // below `useAgentChatQueue` so the run goes through the same `submit` path as a manual
     // send — respecting a pending HITL approval and any queued messages instead of jumping
     // ahead with a raw `sendMessage`.
-    const scopeKey = useChatScopeKey()
-    const activeSessionId = useAtomValue(activeSessionIdAtomFamily(scopeKey))
     const pendingRun = useAtomValue(simulatedAgentRunAtomFamily(entityId))
     const setPendingRun = useSetAtom(simulatedAgentRunAtomFamily(entityId))
 
@@ -269,18 +275,12 @@ const AgentConversation = ({
     // composer until connected — see `gateActive` on `useAgentModelKeyStatus` for the full chain.
     const modelKey = useAgentModelKeyStatus(entityId)
     const modelBlocked = modelKey.gateActive
-    const [recoverableContinuation, setRecoverableContinuation] = useState(false)
     // Execution id of the continuation the last durable answer started (respond body,
     // `execution.id`). The queue holds every send until that execution writes its terminal record:
     // the transcript-derived hold cannot cover the seconds between the answer and the
     // continuation's first record, and a transcript adopted inside that gap reads as settled.
     const [continuationExecutionId, setContinuationExecutionId] = useState<string | null>(null)
     const approvalResponseOwnerRef = useRef<string | null>(null)
-    const retryRecoverableContinuation = useCallback(async () => {
-        const resumed = await retryContinuation()
-        if (resumed) setRecoverableContinuation(false)
-        return resumed
-    }, [retryContinuation])
 
     // Context-window denominator for the token-budget indicator: the SDK model catalog's own
     // `context_window`, delivered on the (global) harness-capabilities document — never hardcoded.
@@ -302,12 +302,8 @@ const AgentConversation = ({
     const audioPerceivable = Boolean(modelModalities?.includes("audio"))
 
     // Pending attachments for this session + the whole-panel drop target.
-    const attachments = useComposerAttachments({
-        sessionId,
-        uploadsEnabled: isAgentFileUploadsEnabled(),
-    })
+    const attachments = useComposerAttachments({sessionId, largeFilesToDrive: true})
     const {
-        uploadsEnabled,
         files,
         viewingUid,
         setViewingUid,
@@ -352,7 +348,7 @@ const AgentConversation = ({
      * accepting files into an input you cannot send from is a dead end.
      */
     const composerDisabled = onboardingActive ? ideHandoffActive : modelBlocked
-    const attachmentsBlocked = () => !uploadsEnabled || voiceRecorder.active || composerDisabled
+    const attachmentsBlocked = () => voiceRecorder.active || composerDisabled
     const dropTarget = attachments.bindDropTarget(attachmentsBlocked)
 
     // First-run seed + its overlay-gated auto-start. `handleSubmit` is declared below, so the
@@ -389,9 +385,24 @@ const AgentConversation = ({
         sessionId,
         messages,
         locallyBusy: busy,
+        active: onScreen,
         isSharedReaderReady: () => readerReady,
         onExecuted: revalidate,
     })
+    // The composer's send goes through this server admission, not through the chat transport, so
+    // it gets the same pre-create: a new chat exists as a project-visible session before its first
+    // run.
+    const projectId = useAtomValue(projectIdAtom)
+    const queueServer = useMemo(
+        () => ({
+            ...serverInputs,
+            submit: (...args: Parameters<typeof serverInputs.submit>) =>
+                precreateThenInvoke({sessionId, projectId, messages: messagesRef.current}, () =>
+                    serverInputs.submit(...args),
+                ),
+        }),
+        [serverInputs, sessionId, projectId, messagesRef],
+    )
 
     const previousServerInputsStatusRef = useRef(status)
     useEffect(() => {
@@ -402,32 +413,7 @@ const AgentConversation = ({
         }
     }, [status, serverInputs.refresh])
 
-    // Send one released queued message. Stable (only depends on `sendMessage`) so the queue's
-    // release effect doesn't churn on every token.
-    const sendQueued = useCallback(
-        (item: QueuedMessage) => {
-            scrollIntent.follow()
-            // A real send means this session has run — drop the never-run marker so a later
-            // cache-cleared reopen hydrates from the server.
-            clearSessionFresh(sessionId)
-            // Any actual send supersedes a prior user-stop, so clear the marker here (covers the
-            // queue-release path; the manual path also clears it in handleSubmit) — otherwise the
-            // "Stopped" tag would smear onto the freshly-sent turn.
-            setStopped(false)
-            sendMessage(
-                item.fileParts && item.fileParts.length
-                    ? item.text
-                        ? {text: item.text, files: item.fileParts}
-                        : {files: item.fileParts}
-                    : {text: item.text},
-            ).catch(ignoreStreamRejection)
-        },
-        [sendMessage, sessionId],
-    )
-    const markRunOwned = useCallback(
-        () => setSessionStatus({id: sessionId, status: "running"}),
-        [sessionId, setSessionStatus],
-    )
+    const editedSourceRef = useRef<UIMessage | null>(readDisplayEdit(sessionId))
 
     // A refusal that arrived after the send promise resolved. Hand the text back through the same
     // channel a rejected send uses, so both refusal shapes recover identically.
@@ -453,7 +439,9 @@ const AgentConversation = ({
             lateRefusalRef.current.restore,
         )
         if (taken) {
-            lateRefusalRef.current.reject([{name: "Message", reason: "wasn't sent — try again."}])
+            // A late refusal arrives through the watcher, which reports only THAT the send
+            // failed, so this one keeps the standing wording.
+            lateRefusalRef.current.reject([{name: "Message", reason: REFUSED_SEND_REASON}])
         }
         return taken
     }, [])
@@ -469,30 +457,19 @@ const AgentConversation = ({
         removeQueued,
         sendQueuedNow,
         ownsContinuation,
-        queueEnabled,
-        steerEnabled,
         serverBusy,
         hitlPending,
         editingId,
         beginEdit,
         cancelEdit,
         commitEdit,
-        takeLastSent,
         pendingSendRows,
     } = useAgentChatQueue({
-        status,
         messages,
-        acceptedRunPending,
         stopped,
-        resumeOrphaned,
-        recoverable: recoverableContinuation,
-        retryContinuation: retryRecoverableContinuation,
         continuationExecutionId,
-        markRunOwned,
         restoreRefusedSend: restoreLateRefusedSend,
-        sendQueued,
-        sessionId,
-        server: serverInputs,
+        server: queueServer,
     })
 
     // Declared after the queue because it renders the queue's echoes.
@@ -530,7 +507,6 @@ const AgentConversation = ({
                 steer: (text) => submit({text}),
             })
             if (approvalResponseOwnerRef.current === args.id) {
-                setRecoverableContinuation(outcome?.recoverable === true)
                 setContinuationExecutionId(outcome?.executionId ?? null)
             }
             return outcome
@@ -543,7 +519,6 @@ const AgentConversation = ({
             approvalResponseOwnerRef.current = args.toolCallId
             const outcome = await answerClientTool(args)
             if (approvalResponseOwnerRef.current === args.toolCallId) {
-                setRecoverableContinuation(outcome.recoverable)
                 setContinuationExecutionId(outcome.executionId ?? null)
             }
         },
@@ -556,7 +531,6 @@ const AgentConversation = ({
             markLiveGate({kind: "approval", id: ids[0]})
             const outcome = await answerApprovals(ids, approved)
             if (approvalResponseOwnerRef.current === ids[0]) {
-                setRecoverableContinuation(outcome?.recoverable === true)
                 setContinuationExecutionId(outcome?.executionId ?? null)
             }
             return outcome
@@ -576,7 +550,6 @@ const AgentConversation = ({
     }
     useEffect(() => {
         if (pendingApprovalId) {
-            setRecoverableContinuation(false)
             setContinuationExecutionId(null)
         }
     }, [pendingApprovalId])
@@ -624,28 +597,6 @@ const AgentConversation = ({
             }),
         [messages],
     )
-    const refusedSendRef = useRef<QueuedMessage | undefined>(undefined)
-    const restoreRefusedSend = useCallback(
-        () => restoreHeldRefusedSend(refusedSendRef, richInputRef.current, restoreAttachments),
-        [restoreAttachments],
-    )
-    // Restore a refused send after the editor's synchronous submit clear.
-    useEffect(() => {
-        if (!error || !isSessionBusyRefusal(error)) return
-        if (!refusedSendRef.current) refusedSendRef.current = takeLastSent()
-        requestAnimationFrame(() => {
-            restoreRefusedSend()
-        })
-    }, [error, restoreRefusedSend, takeLastSent])
-
-    const handleComposerChange = useCallback(
-        (text: string) => {
-            composer.handleComposerChange(text)
-            if (!text.trim()) restoreRefusedSend()
-        },
-        [composer.handleComposerChange, restoreRefusedSend],
-    )
-
     useEffect(() => {
         const status: SessionRunStatus = error
             ? "error"
@@ -685,14 +636,14 @@ const AgentConversation = ({
         if (consumedRunNonceRef.current === pendingRun.nonce) return
         consumedRunNonceRef.current = pendingRun.nonce
         scrollIntent.follow()
-        void Promise.resolve(submit({text: pendingRun.text}))
-            .then(() =>
+        void sendPendingRun({
+            text: pendingRun.text,
+            submit,
+            editor: richInputRef.current,
+            reportRefusal: (error) => attachments.setRejections(refusedSendRejections(error)),
+            settle: () =>
                 setPendingRun((current) => (current?.nonce === pendingRun.nonce ? null : current)),
-            )
-            .catch(() => {
-                richInputRef.current?.setMarkdown(pendingRun.text)
-                attachments.setRejections([{name: "Message", reason: "wasn't sent — try again."}])
-            })
+        })
     }, [pendingRun, activeSessionId, sessionId, submit, setPendingRun])
 
     // Run-level shortcuts. They live here, not in the panel's session hook, because only this
@@ -780,7 +731,15 @@ const AgentConversation = ({
             attachments.clearAttachments(consumedUids)
             // One path: `submit` sends now or queues behind held messages via the shared release gate.
             if (policy === "steer") await steer({text: trimmed, fileParts})
-            else await submit({text: trimmed, fileParts, stagedFiles})
+            else
+                await submit({
+                    text: trimmed,
+                    executionText: editedExecutionText(editedSourceRef.current, trimmed),
+                    fileParts,
+                    stagedFiles,
+                })
+            editedSourceRef.current = null
+            saveDisplayEdit(sessionId, null)
             setPendingRun((current) => (current?.nonce === pendingRunNonce ? null : current))
             return
         }
@@ -806,34 +765,6 @@ const AgentConversation = ({
             if (!attachmentsSettled) return
             const stagedUids = files.map((file) => file.uid)
 
-            if (!uploadsEnabled) {
-                // Voice and upload flags are independent; this seam preserves the inline recorder path.
-                const inlineFiles = [
-                    ...files
-                        .map((file) => file.originFileObj as File | undefined)
-                        .filter((file): file is File => Boolean(file)),
-                    ...extraFiles,
-                ]
-                let fileParts: FileUIPart[] | undefined
-                if (inlineFiles.length) {
-                    const {parts, rejections: unreadable} = await filesToParts(inlineFiles)
-                    // Hold the send rather than quietly dropping bytes the user staged, and say which
-                    // file failed through the same inline channel the other attachment refusals use.
-                    if (unreadable.length) {
-                        attachments.setRejections(
-                            unreadable.map(({name}) => ({
-                                name,
-                                reason: "couldn't be read — remove it and attach it again",
-                            })),
-                        )
-                        return
-                    }
-                    fileParts = parts
-                }
-                await finishSubmit(trimmed, fileParts, stagedUids, files, policy)
-                return
-            }
-
             // A take sent outright never entered the tray, so it uploads here before the send.
             const uploadedExtras = extraFiles.length
                 ? await attachments.uploadExtraFiles(extraFiles)
@@ -841,16 +772,21 @@ const AgentConversation = ({
             if (!uploadedExtras) return
             const outboundFiles = [...files, ...uploadedExtras]
             outbound = outboundFiles
-            const fileParts = outboundFiles.length
-                ? stagedFilesToParts(outboundFiles, sessionId)
-                : undefined
-            await finishSubmit(trimmed, fileParts, stagedUids, outboundFiles, policy)
-        }).catch(() => {
+            // Files over the attachment cap went to the session drive; the text names them.
+            const outboundMessage = stagedFilesToOutbound(trimmed, outboundFiles, sessionId)
+            await finishSubmit(
+                outboundMessage.text,
+                outboundMessage.parts,
+                stagedUids,
+                outboundFiles,
+                policy,
+            )
+        }).catch((error: unknown) => {
             // The send rejected before the runner took it. The composer was cleared at the
             // send, so the words AND everything it consumed come back (idempotently).
             void richInputRef.current?.setMarkdown(text)
             restoreAttachments(outbound)
-            attachments.setRejections([{name: "Message", reason: "wasn't sent — try again."}])
+            attachments.setRejections(refusedSendRejections(error))
         })
     }
 
@@ -867,8 +803,10 @@ const AgentConversation = ({
 
             const run = () => {
                 if (isUser) {
+                    editedSourceRef.current = msgs[idx]
+                    saveDisplayEdit(sessionId, msgs[idx])
                     setMessages(msgs.slice(0, idx))
-                    richInputRef.current?.setMarkdown(messageText(message))
+                    richInputRef.current?.setMarkdown(displayMessageText(msgs[idx]))
                     requestAnimationFrame(() => richInputRef.current?.focus())
                 } else {
                     regenerate({messageId: message.id}).catch(ignoreStreamRejection)
@@ -1008,13 +946,11 @@ const AgentConversation = ({
                     {quickLookHost}
                     {/* Previews a SENT attachment; the tray's own drawer is below. */}
                     <MessageAttachmentViewer />
-                    {uploadsEnabled ? (
-                        <AttachmentViewerDrawer
-                            uploads={files}
-                            openUid={viewingUid}
-                            onClose={() => setViewingUid(null)}
-                        />
-                    ) : null}
+                    <AttachmentViewerDrawer
+                        uploads={files}
+                        openUid={viewingUid}
+                        onClose={() => setViewingUid(null)}
+                    />
                     {/* Resizable [chat | right panel] split. The panel (turn inspector OR session content)
                 pushes the chat aside rather than overlaying it, and collapses to 0 when closed. */}
                     <RightPanelSplit
@@ -1133,11 +1069,9 @@ const AgentConversation = ({
                                         onSteer={(text) => handleSubmit(text, [], "steer")}
                                         onStop={handleStop}
                                         stopping={stopping}
-                                        queueEnabled={queueEnabled}
-                                        steerEnabled={steerEnabled}
                                         stopShortcutEnabled={activeSessionId === sessionId}
                                         richInputRef={richInputRef}
-                                        composer={{...composer, handleComposerChange}}
+                                        composer={composer}
                                         attachments={attachments}
                                         onboardingChat={onboardingChat}
                                         voice={voice}
@@ -1156,9 +1090,7 @@ const AgentConversation = ({
                                 busy={busy}
                                 hidden={buildMode || inspectorOpen}
                                 onOpenFiles={openFilesPane}
-                                onStageFiles={
-                                    uploadsEnabled ? (files) => setFilesStaged(files) : undefined
-                                }
+                                onStageFiles={(files) => setFilesStaged(files)}
                             />
                         </div>
                     </RightPanelSplit>

@@ -45,7 +45,12 @@ class TestValuesItRefuses:
         assert detail["next_step"]
         assert detail["details"]["field"] == "parameters.agent.harness.kind"
         assert detail["details"]["value"] == "not_a_real_harness"
-        assert set(detail["details"]["allowed"]) == {"pi_core", "claude", "codex"}
+        assert set(detail["details"]["allowed"]) == {
+            "pi_core",
+            "claude",
+            "codex",
+            "mock",
+        }
 
 
 class TestTheEchoedValueSurvivesTheResponse:

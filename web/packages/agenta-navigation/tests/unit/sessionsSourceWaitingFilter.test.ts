@@ -36,7 +36,15 @@ vi.mock("@agenta/sessions/row", () => ({
 
 vi.mock("@agenta/sessions/state", async () => {
     const {atom} = await import("jotai")
-    return {pinnedSessionIdsAtom: atom([] as string[])}
+    return {
+        pinnedSessionIdsAtom: atom([] as string[]),
+        // The source reads through the shared flight, so the stub is its options over `queryInteractions`.
+        actionableInteractionsQueryOptions: (projectId: string) => ({
+            queryKey: ["sessions-page", "actionable-interactions", projectId],
+            queryFn: () => queryInteractions({projectId, actionableOnly: true}),
+            staleTime: 10_000,
+        }),
+    }
 })
 
 vi.mock("@agenta/shared/state", async () => {

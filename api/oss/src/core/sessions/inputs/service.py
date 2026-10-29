@@ -5,6 +5,7 @@ import json
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 from uuid import UUID
 
+from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.sessions.inputs.dtos import (
     PendingInput,
     PendingInputAdmission,
@@ -26,7 +27,6 @@ from oss.src.core.sessions.interactions.interfaces import (
 )
 from oss.src.core.sessions.executions.interfaces import SessionExecutionsDAOInterface
 from oss.src.core.sessions.streams.service import SessionStreamsService
-from oss.src.utils.env import env
 
 
 def input_fingerprint(*, content: Dict[str, Any], policy: str) -> str:
@@ -178,6 +178,7 @@ class SessionInputsService:
         content: Dict[str, Any],
         policy: str,
         idempotency_key: Optional[str],
+        envelope: RunEnvelope,
     ) -> PendingInputAdmission:
         fingerprint = input_fingerprint(content=content, policy=policy)
         if idempotency_key:
@@ -202,7 +203,6 @@ class SessionInputsService:
         # A parked approval has no running heartbeat but still owns Queue.
         queued_behind_interaction = bool(
             policy == "queue"
-            and env.agenta.sessions.queue
             and stream
             and stream.turn_id
             and await self._has_pending_interaction(
@@ -213,11 +213,7 @@ class SessionInputsService:
         )
         busy = busy or queued_behind_interaction
         resumed_execution_id: Optional[str] = None
-        if (
-            not busy
-            and (env.agenta.sessions.durable_approvals or env.agenta.sessions.queue)
-            and self._continuation_resumer is not None
-        ):
+        if not busy and self._continuation_resumer is not None:
             resumed_execution_id = await self._continuation_resumer(
                 project_id=project_id,
                 session_id=session_id,
@@ -229,11 +225,7 @@ class SessionInputsService:
         current_execution_id = resumed_execution_id or (
             stream.turn_id if stream else None
         )
-        queue_enabled = env.agenta.sessions.queue
-        steer_enabled = queue_enabled and env.agenta.sessions.steer
-        if policy == "steer" and not steer_enabled:
-            raise SessionInputBusy(current_execution_id=current_execution_id)
-        if policy not in ("queue", "steer") or not queue_enabled:
+        if policy not in ("queue", "steer"):
             raise SessionInputBusy(current_execution_id=current_execution_id)
         if not idempotency_key:
             raise ValueError("Idempotency-Key is required when queueing input.")
@@ -317,6 +309,7 @@ class SessionInputsService:
                         policy=policy,
                         idempotency_key=idempotency_key,
                         request_fingerprint=fingerprint,
+                        run_envelope=envelope,
                     ),
                     prioritize=policy == "steer",
                     transaction=transaction,
@@ -333,12 +326,93 @@ class SessionInputsService:
                 content=content,
                 policy=policy,
                 idempotency_key=idempotency_key,
+                envelope=envelope,
             )
         return PendingInputAdmission(
             action="pending",
             input=item,
             execution_id=successor_execution_id or current_execution_id,
         )
+
+    async def claim_dispatch(
+        self, *, project_id: UUID, session_id: str, input_id: UUID, execution_id: str
+    ) -> bool:
+        return await self._dao.claim_dispatch(
+            project_id=project_id,
+            session_id=session_id,
+            input_id=input_id,
+            execution_id=execution_id,
+        )
+
+    async def release_dispatch(
+        self, *, project_id: UUID, session_id: str, input_id: UUID, execution_id: str
+    ) -> bool:
+        return await self._dao.release_dispatch(
+            project_id=project_id,
+            session_id=session_id,
+            input_id=input_id,
+            execution_id=execution_id,
+        )
+
+    async def fetch_by_idempotency_key(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        idempotency_key: str,
+    ) -> Optional[PendingInput]:
+        return await self._dao.fetch_by_idempotency_key(
+            project_id=project_id,
+            session_id=session_id,
+            idempotency_key=idempotency_key,
+        )
+
+    async def claim_for_execution(
+        self,
+        *,
+        project_id: UUID,
+        user_id: Optional[UUID],
+        session_id: str,
+        execution_id: str,
+        content: Dict[str, Any],
+        idempotency_key: str,
+        envelope: RunEnvelope,
+    ) -> PendingInput:
+        """Create and promote one exact input without exposing it to the queue."""
+        fingerprint = input_fingerprint(content=content, policy="queue")
+        async with self._dao.transaction() as transaction:
+            item = await self._dao.create_input(
+                user_id=user_id,
+                pending_input=PendingInputCreate(
+                    project_id=project_id,
+                    session_id=session_id,
+                    content=content,
+                    policy="queue",
+                    idempotency_key=idempotency_key,
+                    request_fingerprint=fingerprint,
+                    run_envelope=envelope,
+                ),
+                transaction=transaction,
+            )
+            if item.request_fingerprint != fingerprint:
+                raise SessionInputIdempotencyConflict()
+            if item.state == PendingInputState.promoted:
+                if item.promoted_execution_id != execution_id:
+                    raise SessionInputIdempotencyConflict()
+                return item
+            if item.state != PendingInputState.pending:
+                raise SessionInputIdempotencyConflict()
+
+            promoted = await self._dao.promote_next(
+                project_id=project_id,
+                session_id=session_id,
+                execution_id=execution_id,
+                input_id=item.id,
+                transaction=transaction,
+            )
+            if promoted is None or promoted.promoted_execution_id != execution_id:
+                raise SessionInputIdempotencyConflict()
+            return promoted
 
     async def _has_pending_interaction(
         self,
@@ -365,8 +439,6 @@ class SessionInputsService:
     async def list_pending(
         self, *, project_id: UUID, session_id: str
     ) -> List[PendingInput]:
-        if not env.agenta.sessions.queue:
-            return []
         return await self._dao.list_pending(
             project_id=project_id, session_id=session_id
         )

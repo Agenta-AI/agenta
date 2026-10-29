@@ -1,20 +1,14 @@
 /**
- * Import-from-repo flow (WP-W5): paste a GitHub URL → server scan lists candidates →
- * pick → import → summary. Connected on purpose: scan/import/invalidation live here once
- * instead of in every host; the hosts pass only `projectId` and open/close.
+ * Import skills from a repo, over the shared `RepoImportDrawer`. Connected on purpose:
+ * scan/import/invalidation live here once instead of in every host.
  */
-import {useCallback, useMemo, useState} from "react"
+import {useCallback} from "react"
 
-import {
-    importSkillSource,
-    scanSkillSource,
-    type ScanCandidate,
-    type SkillSourceImportResponse,
-} from "@agenta/skills"
+import {formatCount} from "@agenta/shared/utils"
+import {importSkillSource, scanSkillSource} from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
-import {EnhancedDrawer} from "@agenta/ui/drawer"
-import {Button, Checkbox, Input, Spinner} from "@agenta/ui/ui"
-import {ArrowLeft, CheckCircle, GitBranch, WarningCircle} from "@phosphor-icons/react"
+import {RepoImportDrawer, type RepoScanResult} from "@agenta/ui/create-menu"
+import {CheckCircle, WarningCircle} from "@phosphor-icons/react"
 
 export interface SkillImportDrawerProps {
     open: boolean
@@ -22,10 +16,7 @@ export interface SkillImportDrawerProps {
     projectId: string
     /** Fires once per successful import with what landed — e.g. to also add them to an agent. */
     onImported?: (imported: {name?: string; workflowId?: string; pathInRepo: string}[]) => void
-    width?: number
 }
-
-type Step = "url" | "select" | "done"
 
 const issueText = (issues?: {message?: string | null}[] | null): string =>
     issues
@@ -33,316 +24,109 @@ const issueText = (issues?: {message?: string | null}[] | null): string =>
         .filter(Boolean)
         .join(" ") || "Invalid skill."
 
-export function SkillImportDrawer({
-    open,
-    onClose,
-    projectId,
-    onImported,
-    width = 480,
-}: SkillImportDrawerProps) {
-    const [step, setStep] = useState<Step>("url")
-    const [repoUrl, setRepoUrl] = useState("")
-    const [busy, setBusy] = useState(false)
-    const [error, setError] = useState<string | null>(null)
-    const [commitSha, setCommitSha] = useState<string | null>(null)
-    const [candidates, setCandidates] = useState<ScanCandidate[]>([])
-    const [alreadyImported, setAlreadyImported] = useState<Set<string>>(new Set())
-    const [selected, setSelected] = useState<Set<string>>(new Set())
-    const [result, setResult] = useState<SkillSourceImportResponse | null>(null)
-
-    const reset = useCallback(() => {
-        setStep("url")
-        setRepoUrl("")
-        setBusy(false)
-        setError(null)
-        setCommitSha(null)
-        setCandidates([])
-        setAlreadyImported(new Set())
-        setSelected(new Set())
-        setResult(null)
-    }, [])
-
-    const close = useCallback(() => {
-        onClose()
-        reset()
-    }, [onClose, reset])
-
-    const validCandidates = useMemo(() => candidates.filter((c) => c.valid), [candidates])
-
-    const scan = useCallback(async () => {
-        setBusy(true)
-        setError(null)
-        try {
-            const response = await scanSkillSource({projectId, repoUrl: repoUrl.trim()})
+export function SkillImportDrawer({open, onClose, projectId, onImported}: SkillImportDrawerProps) {
+    const scan = useCallback(
+        async (repoUrl: string): Promise<RepoScanResult> => {
+            const response = await scanSkillSource({projectId, repoUrl})
+            const already = new Set(response?.already_imported_paths ?? [])
             const found = response?.scan?.candidates ?? []
-            if (!response || found.length === 0) {
-                setError("No skills found in this repository.")
-                return
+            const valid = found.filter((c) => c.valid)
+            return {
+                candidates: found.map((c) => {
+                    const imported = already.has(c.path_in_repo)
+                    return {
+                        path: c.path_in_repo,
+                        name: c.skill?.name ?? c.path_in_repo,
+                        description: c.skill?.description,
+                        // Already-linked skills are Refresh's job, not a re-import.
+                        unavailable: imported
+                            ? "Already in this project — check for updates to pick up upstream changes."
+                            : c.valid
+                              ? null
+                              : issueText(c.issues),
+                        badge: imported ? "Already imported" : undefined,
+                    }
+                }),
+                note:
+                    valid.length === 0
+                        ? "No valid skills in this repository."
+                        : valid.every((c) => already.has(c.path_in_repo))
+                          ? "Everything here is already imported — use Refresh on the repo's section to pick up upstream changes."
+                          : undefined,
             }
-            setCommitSha(response.commit_sha ?? null)
-            setCandidates(found)
-            const already = new Set(response.already_imported_paths ?? [])
-            setAlreadyImported(already)
-            // Already-linked skills are Refresh's job, not a re-import — offer only new ones.
-            setSelected(
-                new Set(
-                    found
-                        .filter((c) => c.valid && !already.has(c.path_in_repo))
-                        .map((c) => c.path_in_repo),
-                ),
-            )
-            setStep("select")
-        } catch (err) {
-            setError(
-                err instanceof Error && err.message
-                    ? `Scan failed: ${err.message}`
-                    : "Scan failed. Check the URL and that the repository is public.",
-            )
-        } finally {
-            setBusy(false)
-        }
-    }, [projectId, repoUrl])
+        },
+        [projectId],
+    )
 
-    const runImport = useCallback(async () => {
-        setBusy(true)
-        setError(null)
-        try {
-            const response = await importSkillSource({
-                projectId,
-                repoUrl: repoUrl.trim(),
-                paths: Array.from(selected),
-            })
-            if (!response) {
-                setError("Import failed — the server returned an unexpected response.")
-                return
-            }
+    const confirm = useCallback(
+        async (repoUrl: string, paths: string[]) => {
+            const response = await importSkillSource({projectId, repoUrl, paths})
+            if (!response) throw new Error("the server returned an unexpected response")
             invalidateSkillsListCache()
-            setResult(response)
-            setStep("done")
-            if (onImported && response.imported?.length) {
+            const imported = response.imported ?? []
+            const skipped = response.skipped ?? []
+            if (onImported && imported.length) {
                 onImported(
-                    response.imported.map((entry) => ({
+                    imported.map((entry) => ({
                         name: entry.name ?? undefined,
                         workflowId: entry.workflow_id ?? undefined,
                         pathInRepo: entry.path_in_repo,
                     })),
                 )
             }
-        } catch (err) {
-            setError(
-                err instanceof Error && err.message
-                    ? `Import failed: ${err.message}`
-                    : "Import failed.",
+            return (
+                <div className="flex flex-col gap-3 text-xs">
+                    <span className="flex items-center gap-1.5 font-medium">
+                        <CheckCircle
+                            size={14}
+                            weight="fill"
+                            className="text-[var(--ag-colorSuccess)]"
+                        />
+                        Imported {formatCount(imported.length, "skill")}
+                    </span>
+                    {imported.map((item) => (
+                        <span key={item.path_in_repo} className="pl-5 font-mono">
+                            {item.name ?? item.path_in_repo}
+                        </span>
+                    ))}
+                    {skipped.length ? (
+                        <>
+                            <span className="mt-2 flex items-center gap-1.5 font-medium">
+                                <WarningCircle
+                                    size={14}
+                                    weight="fill"
+                                    className="text-[var(--ag-colorWarning)]"
+                                />
+                                Skipped {skipped.length}
+                            </span>
+                            {skipped.map((item) => (
+                                <span
+                                    key={item.path_in_repo}
+                                    className="pl-5 text-[var(--ag-colorTextSecondary)]"
+                                >
+                                    <span className="font-mono">{item.path_in_repo}</span> —{" "}
+                                    {issueText(item.issues)}
+                                </span>
+                            ))}
+                        </>
+                    ) : null}
+                </div>
             )
-        } finally {
-            setBusy(false)
-        }
-    }, [onImported, projectId, repoUrl, selected])
-
-    const toggle = useCallback((path: string) => {
-        setSelected((prev) => {
-            const next = new Set(prev)
-            if (next.has(path)) next.delete(path)
-            else next.add(path)
-            return next
-        })
-    }, [])
-
-    const imported = result?.imported ?? []
-    const skipped = result?.skipped ?? []
+        },
+        [onImported, projectId],
+    )
 
     return (
-        <EnhancedDrawer
-            rootClassName="ag-drawer-elevated"
+        <RepoImportDrawer
             open={open}
-            onClose={close}
-            placement="right"
-            width={width}
-            destroyOnClose
-            title={
-                <div className="flex flex-col gap-0.5">
-                    <span className="text-sm font-medium">Import skills from a repo</span>
-                    <span className="text-xs font-normal text-[var(--ag-colorTextSecondary)]">
-                        Scan a public GitHub repository for SKILL.md folders.
-                    </span>
-                </div>
-            }
-            styles={{
-                body: {padding: 0, display: "flex", flexDirection: "column", overflow: "hidden"},
-            }}
-            footer={
-                step === "url" ? (
-                    <div className="flex items-center justify-end gap-2">
-                        <Button variant="outline" onClick={close} disabled={busy}>
-                            Cancel
-                        </Button>
-                        <Button onClick={scan} disabled={busy || !repoUrl.trim()}>
-                            {busy ? <Spinner size="small" /> : <GitBranch size={14} />}
-                            Scan repository
-                        </Button>
-                    </div>
-                ) : step === "select" ? (
-                    <div className="flex items-center justify-between gap-2">
-                        <Button variant="outline" onClick={() => setStep("url")} disabled={busy}>
-                            <ArrowLeft size={14} />
-                            Back
-                        </Button>
-                        <Button onClick={runImport} disabled={busy || selected.size === 0}>
-                            {busy ? <Spinner size="small" /> : null}
-                            Import {selected.size} {selected.size === 1 ? "skill" : "skills"}
-                        </Button>
-                    </div>
-                ) : (
-                    <div className="flex items-center justify-end">
-                        <Button onClick={close}>Done</Button>
-                    </div>
-                )
-            }
-        >
-            <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4">
-                {step === "url" ? (
-                    <label className="flex flex-col gap-1.5 text-xs">
-                        <span className="font-medium">Repository URL</span>
-                        <Input
-                            autoFocus
-                            value={repoUrl}
-                            onChange={(e) => setRepoUrl(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === "Enter" && repoUrl.trim() && !busy) void scan()
-                            }}
-                            placeholder="https://github.com/owner/repo"
-                            disabled={busy}
-                        />
-                        <span className="text-[var(--ag-colorTextTertiary)]">
-                            Marketplace, single-skill and multi-skill layouts are detected
-                            automatically.
-                        </span>
-                    </label>
-                ) : null}
-
-                {step === "select" ? (
-                    <>
-                        <div className="flex items-center gap-2 text-xs text-[var(--ag-colorTextSecondary)]">
-                            <span className="min-w-0 flex-1 truncate font-mono">{repoUrl}</span>
-                            {commitSha ? (
-                                <span className="shrink-0 rounded border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorFillQuaternary)] px-1 font-mono text-[10px]">
-                                    {commitSha}
-                                </span>
-                            ) : null}
-                        </div>
-
-                        <div className="flex flex-col gap-1">
-                            {candidates.map((candidate) => {
-                                const path = candidate.path_in_repo
-                                const name = candidate.skill?.name ?? path
-                                const imported = alreadyImported.has(path)
-                                return (
-                                    <label
-                                        key={path}
-                                        className={`box-border flex items-start gap-2.5 rounded-md border border-solid border-[var(--ag-colorBorderSecondary)] p-2.5 ${
-                                            candidate.valid && !imported
-                                                ? "cursor-pointer hover:border-[var(--ag-colorBorder)]"
-                                                : "opacity-60"
-                                        }`}
-                                    >
-                                        <Checkbox
-                                            className="mt-0.5"
-                                            checked={selected.has(path)}
-                                            disabled={!candidate.valid || imported || busy}
-                                            onCheckedChange={() => toggle(path)}
-                                        />
-                                        <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                                            <span className="flex min-w-0 items-center gap-1.5">
-                                                <span className="min-w-0 truncate font-mono text-xs font-medium">
-                                                    {name}
-                                                </span>
-                                                {imported ? (
-                                                    <span className="shrink-0 rounded bg-[var(--ag-colorFillTertiary)] px-1.5 py-px text-[10px] text-[var(--ag-colorTextTertiary)]">
-                                                        Already imported
-                                                    </span>
-                                                ) : null}
-                                                {candidate.valid ? (
-                                                    <span className="shrink-0 rounded bg-[var(--ag-colorFillTertiary)] px-1.5 py-px font-mono text-[10px] text-[var(--ag-colorTextTertiary)]">
-                                                        SKILL.md
-                                                        {candidate.skill?.files?.length
-                                                            ? ` +${candidate.skill.files.length}`
-                                                            : ""}
-                                                    </span>
-                                                ) : null}
-                                            </span>
-                                            <span className="line-clamp-1 text-xs text-[var(--ag-colorTextSecondary)]">
-                                                {imported
-                                                    ? "Already in this project — check for updates to pick up upstream changes."
-                                                    : candidate.valid
-                                                      ? (candidate.skill?.description ??
-                                                        "No description.")
-                                                      : issueText(candidate.issues)}
-                                            </span>
-                                        </span>
-                                    </label>
-                                )
-                            })}
-                        </div>
-
-                        {validCandidates.length === 0 ? (
-                            <span className="text-xs text-[var(--ag-colorTextSecondary)]">
-                                No valid skills in this repository.
-                            </span>
-                        ) : validCandidates.every((c) => alreadyImported.has(c.path_in_repo)) ? (
-                            <span className="text-xs text-[var(--ag-colorTextSecondary)]">
-                                Everything here is already imported — use Refresh on the repo&apos;s
-                                section to pick up upstream changes.
-                            </span>
-                        ) : null}
-                    </>
-                ) : null}
-
-                {step === "done" ? (
-                    <div className="flex flex-col gap-3 text-xs">
-                        <span className="flex items-center gap-1.5 font-medium">
-                            <CheckCircle
-                                size={14}
-                                weight="fill"
-                                className="text-[var(--ag-colorSuccess)]"
-                            />
-                            Imported {imported.length} {imported.length === 1 ? "skill" : "skills"}
-                        </span>
-                        {imported.map((item) => (
-                            <span key={item.path_in_repo} className="pl-5 font-mono">
-                                {item.name ?? item.path_in_repo}
-                            </span>
-                        ))}
-                        {skipped.length ? (
-                            <>
-                                <span className="mt-2 flex items-center gap-1.5 font-medium">
-                                    <WarningCircle
-                                        size={14}
-                                        weight="fill"
-                                        className="text-[var(--ag-colorWarning)]"
-                                    />
-                                    Skipped {skipped.length}
-                                </span>
-                                {skipped.map((item) => (
-                                    <span
-                                        key={item.path_in_repo}
-                                        className="pl-5 text-[var(--ag-colorTextSecondary)]"
-                                    >
-                                        <span className="font-mono">{item.path_in_repo}</span> —{" "}
-                                        {issueText(item.issues)}
-                                    </span>
-                                ))}
-                            </>
-                        ) : null}
-                    </div>
-                ) : null}
-
-                {error ? (
-                    <span className="flex items-start gap-1.5 text-xs text-[var(--ag-colorError)]">
-                        <WarningCircle size={14} className="mt-px shrink-0" />
-                        {error}
-                    </span>
-                ) : null}
-            </div>
-        </EnhancedDrawer>
+            onClose={onClose}
+            title="Import skills from a repo"
+            hint="Scan a public GitHub repository for SKILL.md folders."
+            noun="skills"
+            multiple
+            scan={scan}
+            confirmLabel={(count) => `Import ${formatCount(count, "skill")}`}
+            onConfirm={confirm}
+        />
     )
 }

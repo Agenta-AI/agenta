@@ -118,6 +118,17 @@ helm upgrade --install agenta agenta/agenta -f <your-values-file>
 
 The post-upgrade migration job runs against your existing data automatically.
 
+## Materialize project memberships
+
+OSS gives every organization member access to every project, with the organization role. EE gives access only through a project membership row. Run this once after the EE migration finishes and before people use EE, or members lose access to projects where they have no row:
+
+```bash
+cd api
+AGENTA_LICENSE=ee uv run --no-sync python -m entrypoints.memberships_check --materialize
+```
+
+Run it from a checkout of the same release, with `POSTGRES_URI_CORE` set to your core database. It adds a project row for every member in every project of their organization and sets existing rows to the organization role. It prints `materialize: inserted=<n> updated=<n>`. A second run prints `inserted=0 updated=0`.
+
 ## After the switch
 
 - All organizations, members, projects, and traces are unchanged.

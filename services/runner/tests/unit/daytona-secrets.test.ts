@@ -76,9 +76,10 @@ describe("Daytona Secret allocation", () => {
       ANTHROPIC_API_KEY: "agenta_test_0",
       AGENTA_MCP_SECRET_1: "agenta_test_1",
     });
-    assert.deepEqual(allocation.mcpHeaderPlaceholders, {
-      linear: { Authorization: "dtn_secret_2" },
-    });
+    assert.deepEqual(
+      { ...allocation.mcpHeaderPlaceholders },
+      { linear: { Authorization: "dtn_secret_2" } },
+    );
     // The record handle per SLOT, which is what a later rotation updates. `created` cannot answer
     // this: it is an ordered list for reverse-order compensation and says nothing about which
     // candidate produced which record. The keys are the delivery vocabulary's, so a create-time
@@ -229,6 +230,48 @@ describe("Daytona Secret allocation", () => {
     };
     await assert.rejects(allocateDaytonaSecrets(plan, api), {
       message: "daytona is having a bad day",
+    });
+  });
+
+  it("keys MCP placeholders by server name without touching Object.prototype", async () => {
+    let n = 0;
+    const api: DaytonaSecretApi = {
+      async create(input) {
+        n += 1;
+        return {
+          id: `id-${n}`,
+          name: input.name,
+          placeholder: `dtn_secret_${n}`,
+          hosts: input.hosts,
+        };
+      },
+      async update(id: string): Promise<{ id: string; placeholder: string }> {
+        throw new Error(`unexpected update of ${id}`);
+      },
+      async delete() {},
+    };
+    const allocation = await allocateDaytonaSecrets(
+      {
+        environment: {},
+        candidates: [
+          {
+            ordinal: 0,
+            consumer: { kind: "http_mcp", server: "__proto__" },
+            binding: { kind: "header", name: "X-Probe-Header" },
+            allowedHost: "mcp.example.com",
+            value: "mcp-plain",
+          },
+        ],
+      },
+      api,
+    );
+
+    assert.equal(
+      (({}) as Record<string, unknown>)["X-Probe-Header"],
+      undefined,
+    );
+    assert.deepEqual(allocation.mcpHeaderPlaceholders["__proto__"], {
+      "X-Probe-Header": "dtn_secret_1",
     });
   });
 });

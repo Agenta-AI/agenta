@@ -1,23 +1,13 @@
-/**
- * Normalise a tool UI part into the {@link ClientToolMeta} the dispatcher reads, and decide whether
- * a part is a client tool the playground must fulfill (vs an ordinary server tool or an approval
- * gate, which `ToolActivity` owns).
- */
+// The client-tool meta the dispatcher reads, and whether a part is a client tool at all.
 import {clientToolWidgets} from "@agenta/entity-ui/clientTools"
 import {renderKindFor, type RenderHintLike} from "@agenta/playground/agent-chat"
 import type {ToolUIPart} from "ai"
 
+import {partToolName} from "../model/parts"
 import {hasClientToolWidget, type ClientToolMeta} from "../skin"
 
 const SETTLED = new Set(["output-available", "output-error", "output-denied"])
 const APPROVAL = new Set(["approval-requested", "approval-responded"])
-
-/** Friendly tool name: `tool-<name>` carries it in the type; `dynamic-tool` on `toolName`. */
-export const clientToolName = (part: ToolUIPart): string => {
-    const type = part.type as string
-    if (type === "dynamic-tool") return (part as {toolName?: string}).toolName || "tool"
-    return type.replace(/^tool-/, "")
-}
 
 export const clientToolMeta = (
     part: ToolUIPart,
@@ -26,9 +16,8 @@ export const clientToolMeta = (
     const state = part.state as string
     return {
         toolCallId: part.toolCallId,
-        toolName: clientToolName(part),
-        // Inline hint or the message-scoped sibling `data-render` part (strict tool chunks
-        // cannot carry `render` inline — see @agenta/playground buildRenderMap).
+        toolName: partToolName(part),
+        // Inline hint, or the sibling `data-render` part (see @agenta/playground buildRenderMap).
         renderKind: renderKindFor(
             part as {toolCallId?: string; render?: {kind?: unknown}},
             renderMap,
@@ -41,17 +30,7 @@ export const clientToolMeta = (
     }
 }
 
-/**
- * Whether a tool part is a client tool the playground renders (a widget or a settled chip), rather
- * than letting it fall through to `ToolActivity`. Two ways a part qualifies:
- *
- *  1. **Known client tool** — its `render.kind`/`toolName` is in the registry. Rendered in every
- *     state so the result UX (chip) shows after it settles.
- *  2. **Parked unknown client tool** — the turn has finished (not streaming) yet a non-provider-
- *     executed tool part is still unsettled and is not an approval gate. The runner only leaves a
- *     part in this "turn done, part unsettled, not providerExecuted" state for a client tool, so we
- *     surface the neutral "not handled" widget (which settles the part so it never hangs).
- */
+/** A client tool: registered, or parked unsettled with a render hint (a server tool still running has none). */
 export const isClientToolPart = (
     part: ToolUIPart,
     ctx: {isStreaming: boolean; isLastMessage: boolean},
@@ -68,5 +47,5 @@ export const isClientToolPart = (
 
     // Keep this last-message-only so old parked parts are not auto-settled.
     const parkedUnsettled = !ctx.isStreaming && ctx.isLastMessage && !meta.settled
-    return parkedUnsettled
+    return parkedUnsettled && meta.renderKind !== undefined
 }

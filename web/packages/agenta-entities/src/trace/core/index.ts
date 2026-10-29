@@ -13,7 +13,6 @@ export {
     SpanCategoryEnum,
     type SpanCategory,
     SpanKindEnum,
-    type SpanKind,
     StatusCodeEnum,
     type StatusCode,
     // Sub-entity schemas
@@ -30,21 +29,18 @@ export {
     // Main schemas
     traceSpanSchema,
     type TraceSpan,
-    traceSpanNodeSchema,
     type TraceSpanNode,
     // Response wrappers
     tracesResponseSchema,
     type TracesResponse,
     spansResponseSchema,
     type SpansResponse,
-    type TraceListResponse,
     // New envelope schemas (AGE-3788)
     traceOutputSchema,
     type TraceOutput,
     traceResponseSchema,
     type TraceResponse,
     tracesArrayResponseSchema,
-    type TracesArrayResponse,
     windowingSchema,
     type Windowing,
     sessionIdsResponseSchema,

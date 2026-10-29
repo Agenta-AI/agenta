@@ -9,8 +9,8 @@ import {cn} from "./utils"
  *
  * Because the driven basis is fully React-controlled (nothing here rewrites inline styles the way
  * antd's ResizeObserver does), open/close animation is just a CSS transition on `flex-basis`,
- * gated by `animate` — none of the pre-frame machinery the antd version needed. The one observer
- * it does keep is read-only: it supplies the divider's `aria-value*` bounds and touches no layout.
+ * gated by `animate`. A ResizeObserver bounds the displayed width to the available space without
+ * changing the host's saved width.
  *
  * The divider is a keyboard-operable window splitter: focusable while `resizable`, Arrow keys
  * step it (Shift for a coarse step), Home/End jump to the bounds, and every path — pointer or
@@ -28,12 +28,14 @@ export interface SplitPaneProps {
     paneSize: number
     paneMin?: number
     paneMax?: number
-    /** The fill pane never shrinks below this during a drag. */
+    /** Reserve this width for the fill pane when space permits. */
     fillMin?: number
     /** Divider dragging enabled. */
     resizable?: boolean
     /** Transition the driven pane's flex-basis (240ms, the playground curve). */
     animate?: boolean
+    /** Fade the content out with a close (opacity only; an open shows it at once). */
+    revealContent?: boolean
     /** Collapse the divider to zero width (collapsed rail). It stays MOUNTED and, while
      * `animate`, closes on the same curve as the driven pane — unmounting it moved the fill 9px in
      * the first frame of a collapse, which read as a snap before the slide. */
@@ -147,6 +149,7 @@ export function SplitPane({
     fillMin = 0,
     resizable = true,
     animate = false,
+    revealContent = false,
     barHidden = false,
     paneGrow = false,
     barLabel = "Resize panes",
@@ -165,14 +168,21 @@ export function SplitPane({
     const rootRef = React.useRef<HTMLDivElement>(null)
     const [dragging, setDragging] = React.useState(false)
     const lastRef = React.useRef<{size: number; total: number}>({size: paneSize, total: 0})
-    /** Track width only so the divider can publish `aria-value*`; it never drives layout. */
-    const [measuredTotal, setMeasuredTotal] = React.useState(0)
+    const [measuredTotal, setMeasuredTotal] = React.useState<number | null>(null)
 
+    /** Bounds a candidate pane size to `[paneMin, paneMax]`, further capped by the fill's reserved width. */
     const clamp = React.useCallback(
-        (raw: number, total: number) =>
-            Math.max(paneMin, Math.min(raw, paneMax, Math.max(paneMin, total - fillMin))),
+        (raw: number, total: number) => {
+            const max = Math.max(0, Math.min(paneMax, total - fillMin))
+            return Math.max(Math.min(paneMin, max), Math.min(raw, max))
+        },
         [fillMin, paneMax, paneMin],
     )
+    // Keep the preference intact so expanding the window restores the user's width.
+    const displayedSize =
+        paneSize > 0 && !paneGrow && measuredTotal !== null
+            ? clamp(paneSize, measuredTotal)
+            : paneSize
 
     const readTotal = React.useCallback(() => {
         const rect = rootRef.current?.getBoundingClientRect()
@@ -205,6 +215,7 @@ export function SplitPane({
         // Seed the total up front: a press-and-release with no movement never reaches
         // `handlePointerMove`, and a `total` of 0 breaks any ratio the caller derives from it.
         lastRef.current = {size: paneSize, total: readTotal()}
+        draggingRef.current = true
         setDragging(true)
         onResizeStart?.()
     }
@@ -219,16 +230,35 @@ export function SplitPane({
                 : rect.right - e.clientX - barWidth / 2
         commit(clamp(Math.round(raw), total), total)
     }
-    /** `pointerup` and `pointercancel` (scroll takeover, browser gesture) share one exit — without
-     * it a cancelled pointer leaves `dragging` stuck true and `onResizeEnd` never fires. */
+    /** One idempotent exit for every way a drag can end (a stuck `dragging` disables the slide for good). */
+    const draggingRef = React.useRef(false)
+    const finishDrag = React.useCallback(() => {
+        if (!draggingRef.current) return
+        draggingRef.current = false
+        setDragging(false)
+        onResizeEnd?.(lastRef.current.size, lastRef.current.total)
+    }, [onResizeEnd])
     const handlePointerFinish = (e: React.PointerEvent<HTMLDivElement>) => {
-        if (!dragging) return
         if (e.currentTarget.hasPointerCapture(e.pointerId)) {
             e.currentTarget.releasePointerCapture(e.pointerId)
         }
-        setDragging(false)
-        onResizeEnd?.(lastRef.current.size, lastRef.current.total)
+        finishDrag()
     }
+    React.useEffect(() => {
+        if (!dragging) return
+        window.addEventListener("pointerup", finishDrag)
+        window.addEventListener("pointercancel", finishDrag)
+        window.addEventListener("blur", finishDrag)
+        return () => {
+            window.removeEventListener("pointerup", finishDrag)
+            window.removeEventListener("pointercancel", finishDrag)
+            window.removeEventListener("blur", finishDrag)
+        }
+    }, [dragging, finishDrag])
+    // A pane closed under the pointer ends its drag.
+    React.useEffect(() => {
+        if (!resizable) finishDrag()
+    }, [resizable, finishDrag])
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
         if (!resizable) return
@@ -238,14 +268,14 @@ export function SplitPane({
         // pane and shrinks an end-side one.
         const towardsEnd = paneSide === "start" ? 1 : -1
         let next: number
-        if (e.key === "ArrowRight") next = paneSize + step * towardsEnd
-        else if (e.key === "ArrowLeft") next = paneSize - step * towardsEnd
+        if (e.key === "ArrowRight") next = displayedSize + step * towardsEnd
+        else if (e.key === "ArrowLeft") next = displayedSize - step * towardsEnd
         else if (e.key === "Home") next = paneMin
         else if (e.key === "End") next = paneMax
         else return
         e.preventDefault()
         const size = clamp(next, total)
-        if (size === paneSize) return
+        if (size === displayedSize) return
         // A keystroke is a whole gesture, so it runs the full start → resize → end cycle rather
         // than a parallel one-shot callback.
         onResizeStart?.()
@@ -254,7 +284,7 @@ export function SplitPane({
     }
 
     const ariaValues =
-        resizable && measuredTotal > 0
+        resizable && measuredTotal !== null && measuredTotal > 0
             ? {
                   "aria-valuenow": Math.round(clamp(paneSize, measuredTotal)),
                   "aria-valuemin": Math.round(clamp(paneMin, measuredTotal)),
@@ -264,9 +294,15 @@ export function SplitPane({
 
     // The open width, remembered so a collapsed pane still knows how wide its content was.
     const lastOpenSizeRef = React.useRef(paneSize)
-    if (paneSize > 0) lastOpenSizeRef.current = paneSize
+    if (displayedSize > 0) lastOpenSizeRef.current = displayedSize
     const sliding = animate && !dragging
     const slideMs = paneSlideMs()
+    const revealStyle: React.CSSProperties | undefined = revealContent
+        ? {
+              opacity: paneSize > 0 ? 1 : 0,
+              transition: sliding ? `opacity ${slideMs}ms ${PANE_SLIDE_CURVE}` : undefined,
+          }
+        : undefined
 
     const paneNode = (
         <div
@@ -279,7 +315,7 @@ export function SplitPane({
                 paneClassName,
             )}
             style={{
-                flexBasis: paneSize,
+                flexBasis: displayedSize,
                 // Inline, not a class: the duration is dynamic, and inline also beats any
                 // `transition` a host set through `paneClassName`.
                 transition: sliding ? `flex-basis ${slideMs}ms ${PANE_SLIDE_CURVE}` : undefined,
@@ -297,14 +333,15 @@ export function SplitPane({
             <div
                 data-slot="split-pane-pane-content"
                 className={cn("h-full min-h-0", sliding && "absolute inset-y-0")}
-                style={
-                    sliding
+                style={{
+                    ...(sliding
                         ? {
                               width: lastOpenSizeRef.current,
                               ...(paneSide === "start" ? {right: 0} : {left: 0}),
                           }
-                        : {width: "100%"}
-                }
+                        : {width: "100%"}),
+                    ...revealStyle,
+                }}
             >
                 {pane}
             </div>

@@ -111,10 +111,11 @@ def _shortest_distinct_prefix(digests: List[str], start: int = 6) -> int:
 Permission = Literal["allow", "ask", "deny"]
 PermissionMode = Literal["allow", "ask", "deny", "allow_reads"]
 
-# The four values a gateway connection policy saves. ``inherit`` is explicit here: an absent
+# The values a gateway connection policy saves. ``inherit`` is explicit here: an absent
 # tool key uses the connection default, while ``inherit`` skips that default and defers to
-# the agent-wide mode. The compiler applies it, so ``inherit`` never reaches the runner.
-GatewayPermission = Literal["inherit", "allow", "ask", "deny"]
+# the agent-wide mode. ``allow_reads`` runs a read-only tool and asks for every other one,
+# whatever the agent-wide mode is. The compiler resolves both, so neither reaches the runner.
+GatewayPermission = Literal["inherit", "allow", "ask", "deny", "allow_reads"]
 
 # The deleted pre-redesign vocabulary, still present in old dev-DB drafts. These literals
 # are the only place the SDK may spell them.
@@ -253,6 +254,48 @@ class GatewayConnectionToolConfig(BaseModel):
     # model, so an entry written without ``policy`` must mean "inherit the runner policy"
     # rather than fail the run at parse time.
     policy: GatewayConnectionPolicy = Field(default_factory=GatewayConnectionPolicy)
+
+
+# The Agenta tools an ``agenta_tools`` entry can turn on, in every run of the agent. Every one is
+# a platform op; ``search_skills`` stays in the playground build kit only.
+AGENTA_TOOLS: tuple = (
+    "get_current_session",
+    "rename_session",
+    "rename_agent",
+    "create_schedule",
+    "create_subscription",
+    "remove_schedule",
+    "remove_subscription",
+    "list_schedules",
+    "list_subscriptions",
+    "list_deliveries",
+    "test_subscription",
+    "discover_triggers",
+    "commit_revision",
+    "read_config",
+    "check_skill_updates",
+    "apply_skill_update",
+)
+# What a new agent's entry holds. The defaults live in the saved entry, never in the resolver.
+DEFAULT_AGENTA_TOOLS: Dict[str, Literal["allow", "ask"]] = {
+    "get_current_session": "allow",
+    "rename_session": "allow",
+}
+
+
+class AgentaToolsConfig(BaseModel):
+    """Which Agenta tools every run of this agent gets, and whether each one asks first.
+
+    A tool that is not in ``tools`` is off: the run leaves it out, so the model never sees it.
+    There is no ``deny``: an author who wants a visible, refused tool lists it as its own
+    platform entry, which wins. Like :class:`GatewayConnectionToolConfig`, it does not extend
+    :class:`ToolConfigBase`, so a top-level ``permission`` is refused.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    type: Literal["agenta_tools"] = "agenta_tools"
+    tools: Dict[str, Literal["allow", "ask"]] = Field(default_factory=dict)
 
 
 class CompiledTool(BaseModel):
@@ -472,6 +515,7 @@ ToolConfig = Annotated[
         ClientToolConfig,
         ReferenceToolConfig,
         PlatformToolConfig,
+        AgentaToolsConfig,
     ],
     Field(discriminator="type"),
 ]

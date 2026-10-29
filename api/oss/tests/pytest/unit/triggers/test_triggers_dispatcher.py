@@ -24,6 +24,8 @@ from oss.src.core.triggers.dtos import (
     TriggerSubscriptionFlags,
 )
 from oss.src.tasks.asyncio.triggers.dispatcher import TriggersDispatcher
+from oss.tests.pytest.utils.principals import any_principal
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 def _make_subscription(
@@ -37,6 +39,7 @@ def _make_subscription(
     return TriggerSubscription(
         id=uuid4(),
         created_by_id=uuid4(),
+        principal=any_principal(),
         connection_id=uuid4(),
         flags=TriggerSubscriptionFlags(
             is_active=is_active, is_valid=is_valid, is_test=is_test
@@ -54,6 +57,7 @@ def _make_schedule(*, is_active=True, references=None, inputs_fields=None):
     return TriggerSchedule(
         id=uuid4(),
         created_by_id=uuid4(),
+        principal=any_principal(),
         flags=TriggerScheduleFlags(is_active=is_active),
         data=TriggerScheduleData(
             event_key="cron.tick",
@@ -74,13 +78,15 @@ def _make_dao(*, seen=False, claim_lost=False):
     dao.claim_trigger_delivery = AsyncMock(return_value=not claim_lost)
     dao.update_delivery = AsyncMock()
     dao.abandon_claimed_session = AsyncMock()
+    dao.refuse_delivery = AsyncMock()
     return dao
 
 
-# Raw provider envelope (Composio webhook shape): the message lives under
-# `payload`, the routing ids under `metadata` (`trigger_id` = the provider ti_*,
-# `id` = the per-delivery event id). The dispatcher normalizes this into
-# `event.{event_id,event_type,attributes}` before mapping.
+# Internal trigger event (what ingress enqueues after `normalize_webhook_event`):
+# the message lives under `payload`, the routing ids under `metadata`
+# (`trigger_id` = the provider ti_*, `id` = the provider event id, which is
+# also the delivery dedup key). The dispatcher normalizes this into
+# `event.{event_id,event_type,attributes}`.
 _EVENT = {
     "metadata": {
         "trigger_id": "ti_1",
@@ -95,6 +101,7 @@ def test_build_context_normalizes_provider_envelope():
     project_id = uuid4()
     subscription = _make_subscription()
     dispatcher = TriggersDispatcher(
+        run_admission=NoopRunAdmission(),
         triggers_dao=MagicMock(),
         session_claims_dao=MagicMock(),
         workflows_service=MagicMock(),
@@ -119,6 +126,7 @@ def test_build_context_normalizes_provider_envelope():
 
 def test_build_context_tolerates_missing_metadata_and_payload():
     dispatcher = TriggersDispatcher(
+        run_admission=NoopRunAdmission(),
         triggers_dao=MagicMock(),
         session_claims_dao=MagicMock(),
         workflows_service=MagicMock(),
@@ -141,7 +149,10 @@ async def test_inactive_entity_is_skipped():
     subscription = _make_subscription(is_active=False)
     dao = _make_dao()
     dispatcher = TriggersDispatcher(
-        triggers_dao=dao, session_claims_dao=dao, workflows_service=MagicMock()
+        run_admission=NoopRunAdmission(),
+        triggers_dao=dao,
+        session_claims_dao=dao,
+        workflows_service=MagicMock(),
     )
 
     await dispatcher.dispatch_subscription(
@@ -167,7 +178,10 @@ async def test_invalid_subscription_is_not_silently_skipped():
         )
     )
     dispatcher = TriggersDispatcher(
-        triggers_dao=dao, session_claims_dao=dao, workflows_service=workflows
+        run_admission=NoopRunAdmission(),
+        triggers_dao=dao,
+        session_claims_dao=dao,
+        workflows_service=workflows,
     )
 
     await dispatcher.dispatch_subscription(
@@ -189,7 +203,10 @@ async def test_duplicate_event_is_skipped():
     subscription = _make_subscription(references={"workflow": Reference(slug="wf-1")})
     dao = _make_dao(seen=True)
     dispatcher = TriggersDispatcher(
-        triggers_dao=dao, session_claims_dao=dao, workflows_service=MagicMock()
+        run_admission=NoopRunAdmission(),
+        triggers_dao=dao,
+        session_claims_dao=dao,
+        workflows_service=MagicMock(),
     )
 
     await dispatcher.dispatch_subscription(
@@ -206,7 +223,10 @@ async def test_missing_reference_writes_failed_delivery():
     workflows = MagicMock()
     workflows.invoke_workflow = AsyncMock()
     dispatcher = TriggersDispatcher(
-        triggers_dao=dao, session_claims_dao=dao, workflows_service=workflows
+        run_admission=NoopRunAdmission(),
+        triggers_dao=dao,
+        session_claims_dao=dao,
+        workflows_service=workflows,
     )
 
     await dispatcher.dispatch_subscription(
@@ -243,7 +263,10 @@ async def test_mapping_failure_abandons_the_claimed_session_and_skips_invoke(
     workflows = MagicMock()
     workflows.invoke_workflow = AsyncMock()
     dispatcher = TriggersDispatcher(
-        triggers_dao=dao, session_claims_dao=dao, workflows_service=workflows
+        run_admission=NoopRunAdmission(),
+        triggers_dao=dao,
+        session_claims_dao=dao,
+        workflows_service=workflows,
     )
 
     def _fail_mapping(*args, **kwargs):
@@ -288,7 +311,10 @@ async def test_happy_path_invokes_workflow_and_writes_success():
     workflows = MagicMock()
     workflows.invoke_workflow = AsyncMock(return_value=response)
     dispatcher = TriggersDispatcher(
-        triggers_dao=dao, session_claims_dao=dao, workflows_service=workflows
+        run_admission=NoopRunAdmission(),
+        triggers_dao=dao,
+        session_claims_dao=dao,
+        workflows_service=workflows,
     )
 
     await dispatcher.dispatch_subscription(
@@ -335,7 +361,10 @@ async def test_test_subscription_captures_event_and_skips_workflow():
     workflows = MagicMock()
     workflows.invoke_workflow = AsyncMock()
     dispatcher = TriggersDispatcher(
-        triggers_dao=dao, session_claims_dao=dao, workflows_service=workflows
+        run_admission=NoopRunAdmission(),
+        triggers_dao=dao,
+        session_claims_dao=dao,
+        workflows_service=workflows,
     )
 
     await dispatcher.dispatch_subscription(
@@ -360,7 +389,10 @@ async def test_test_subscription_dedups():
     workflows = MagicMock()
     workflows.invoke_workflow = AsyncMock()
     dispatcher = TriggersDispatcher(
-        triggers_dao=dao, session_claims_dao=dao, workflows_service=workflows
+        run_admission=NoopRunAdmission(),
+        triggers_dao=dao,
+        session_claims_dao=dao,
+        workflows_service=workflows,
     )
 
     await dispatcher.dispatch_subscription(
@@ -385,7 +417,10 @@ async def test_workflow_non_200_writes_failed_delivery():
     workflows = MagicMock()
     workflows.invoke_workflow = AsyncMock(return_value=response)
     dispatcher = TriggersDispatcher(
-        triggers_dao=dao, session_claims_dao=dao, workflows_service=workflows
+        run_admission=NoopRunAdmission(),
+        triggers_dao=dao,
+        session_claims_dao=dao,
+        workflows_service=workflows,
     )
 
     await dispatcher.dispatch_subscription(
@@ -412,6 +447,7 @@ async def test_detached_dispatch_writes_dispatched_delivery():
     run_id = "run-abc-123"
     dispatch_fn = AsyncMock(return_value=run_id)
     dispatcher = TriggersDispatcher(
+        run_admission=NoopRunAdmission(),
         triggers_dao=dao,
         session_claims_dao=dao,
         workflows_service=workflows,
@@ -447,6 +483,7 @@ async def test_detached_dispatch_failure_before_acceptance_marks_delivery_failed
     workflows.invoke_workflow = AsyncMock()
     dispatch_fn = AsyncMock(side_effect=RuntimeError("runner unavailable"))
     dispatcher = TriggersDispatcher(
+        run_admission=NoopRunAdmission(),
         triggers_dao=dao,
         session_claims_dao=dao,
         workflows_service=workflows,
@@ -492,7 +529,10 @@ async def test_inactive_schedule_is_skipped():
     schedule = _make_schedule(is_active=False)
     dao = _make_dao()
     dispatcher = TriggersDispatcher(
-        triggers_dao=dao, session_claims_dao=dao, workflows_service=MagicMock()
+        run_admission=NoopRunAdmission(),
+        triggers_dao=dao,
+        session_claims_dao=dao,
+        workflows_service=MagicMock(),
     )
 
     await dispatcher.dispatch_schedule(
@@ -513,7 +553,10 @@ async def test_duplicate_schedule_event_is_skipped():
     workflows = MagicMock()
     workflows.invoke_workflow = AsyncMock()
     dispatcher = TriggersDispatcher(
-        triggers_dao=dao, session_claims_dao=dao, workflows_service=workflows
+        run_admission=NoopRunAdmission(),
+        triggers_dao=dao,
+        session_claims_dao=dao,
+        workflows_service=workflows,
     )
 
     await dispatcher.dispatch_schedule(
@@ -548,7 +591,10 @@ async def test_first_schedule_event_invokes_workflow():
         )
     )
     dispatcher = TriggersDispatcher(
-        triggers_dao=dao, session_claims_dao=dao, workflows_service=workflows
+        run_admission=NoopRunAdmission(),
+        triggers_dao=dao,
+        session_claims_dao=dao,
+        workflows_service=workflows,
     )
 
     await dispatcher.dispatch_schedule(
@@ -585,7 +631,10 @@ async def test_failed_schedule_invoke_records_the_row_the_retry_dedups_on():
     workflows = MagicMock()
     workflows.invoke_workflow = AsyncMock(side_effect=RuntimeError("boom"))
     dispatcher = TriggersDispatcher(
-        triggers_dao=dao, session_claims_dao=dao, workflows_service=workflows
+        run_admission=NoopRunAdmission(),
+        triggers_dao=dao,
+        session_claims_dao=dao,
+        workflows_service=workflows,
     )
 
     with pytest.raises(RuntimeError):
@@ -616,7 +665,10 @@ async def test_claim_lost_skips_invoke_even_when_dedup_precheck_missed_it():
     workflows = MagicMock()
     workflows.invoke_workflow = AsyncMock()
     dispatcher = TriggersDispatcher(
-        triggers_dao=dao, session_claims_dao=dao, workflows_service=workflows
+        run_admission=NoopRunAdmission(),
+        triggers_dao=dao,
+        session_claims_dao=dao,
+        workflows_service=workflows,
     )
 
     await dispatcher.dispatch_subscription(
@@ -635,7 +687,10 @@ async def test_claim_lost_skips_invoke_for_schedule_too():
     workflows = MagicMock()
     workflows.invoke_workflow = AsyncMock()
     dispatcher = TriggersDispatcher(
-        triggers_dao=dao, session_claims_dao=dao, workflows_service=workflows
+        run_admission=NoopRunAdmission(),
+        triggers_dao=dao,
+        session_claims_dao=dao,
+        workflows_service=workflows,
     )
 
     await dispatcher.dispatch_schedule(
@@ -667,7 +722,10 @@ async def test_claim_failure_allows_retry_with_fresh_ids():
         )
     )
     dispatcher = TriggersDispatcher(
-        triggers_dao=dao, session_claims_dao=dao, workflows_service=workflows
+        run_admission=NoopRunAdmission(),
+        triggers_dao=dao,
+        session_claims_dao=dao,
+        workflows_service=workflows,
     )
 
     with pytest.raises(RuntimeError, match="attribution failed"):
@@ -718,7 +776,10 @@ async def test_post_invoke_write_failure_does_not_permit_a_reinvoke_on_retry():
     dao = _make_dao(seen=False)
     dao.update_delivery = AsyncMock(side_effect=RuntimeError("db write failed"))
     dispatcher = TriggersDispatcher(
-        triggers_dao=dao, session_claims_dao=dao, workflows_service=workflows
+        run_admission=NoopRunAdmission(),
+        triggers_dao=dao,
+        session_claims_dao=dao,
+        workflows_service=workflows,
     )
 
     with pytest.raises(RuntimeError, match="db write failed"):
@@ -737,6 +798,7 @@ async def test_post_invoke_write_failure_does_not_permit_a_reinvoke_on_retry():
     # this time (simulated here via claim_lost), so the retry does NOT invoke.
     dao_retry = _make_dao(seen=False, claim_lost=True)
     dispatcher_retry = TriggersDispatcher(
+        run_admission=NoopRunAdmission(),
         triggers_dao=dao_retry,
         session_claims_dao=dao_retry,
         workflows_service=workflows,

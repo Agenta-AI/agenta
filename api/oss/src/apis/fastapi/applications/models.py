@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, List
+from typing import Any, Dict, Optional, List, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -464,6 +464,10 @@ class ApplicationRevisionRetrieveRequest(BaseModel):
             "revision's `data` (for example, snippet references)."
         ),
     )
+    include_archived: Optional[bool] = Field(
+        default=None,
+        description="When false, an archived application, variant, or revision resolves to nothing.",
+    )
 
 
 class ApplicationRevisionDeployRequest(BaseModel):
@@ -655,6 +659,8 @@ class AgentTemplateOverlay(BaseModel):
 
 class PlaygroundBuildKitContext(BaseModel):
     """Read-only playground build-kit context for one inspect/fetch response."""
+
+    op_access: Dict[str, Literal["read", "write"]] = Field(default_factory=dict)
 
     agent_template_overlay: Optional[AgentTemplateOverlay] = Field(
         default=None,

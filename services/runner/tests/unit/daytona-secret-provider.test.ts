@@ -4,10 +4,16 @@ import { afterEach, describe, it, vi } from "vitest";
 import type { AgentRunRequest, McpServerConfig } from "../../src/protocol.ts";
 import {
   daytonaWithProcessLocalSecrets,
+  flushPendingDaytonaSecretCleanups,
   type DaytonaProviderLike,
   type ProcessLocalDaytonaSecretProvider,
 } from "../../src/engines/sandbox_agent/daytona-secret-provider.ts";
 import { DaytonaReconnectTerminalError } from "../../src/engines/sandbox_agent/daytona-provider.ts";
+import {
+  markSandboxCreated,
+  markSandboxDeleted,
+  resetCreatedSandboxIds,
+} from "../../src/engines/sandbox_agent/created-sandboxes.ts";
 import {
   buildDaytonaSecretPlan,
   type DaytonaSecretPlan,
@@ -138,7 +144,10 @@ function providerFactory(events: string[], attachmentLog: any[]) {
   };
 }
 
-afterEach(() => vi.useRealTimers());
+afterEach(() => {
+  vi.useRealTimers();
+  resetCreatedSandboxIds();
+});
 
 describe("process-local Daytona Secret provider", () => {
   it("attaches Secret names at create and substitutes MCP plaintext with placeholders", async () => {
@@ -280,6 +289,177 @@ describe("process-local Daytona Secret provider", () => {
       "secret:delete:secret-2",
       "secret:delete:secret-1",
     ]);
+  });
+
+  describe("shutdown flush of pending cleanups", () => {
+    function parkedProvider(events: string[], registry: Map<string, any>) {
+      return daytonaWithProcessLocalSecrets(
+        providerFactory(events, []),
+        plan,
+        secretApi(events),
+        {
+          registry,
+          cleanupDelayMilliseconds: 60_000,
+          createFingerprint: GENERATION,
+        },
+      );
+    }
+
+    it("deletes a stopped sandbox, then its Secrets, before the timer fires", async () => {
+      vi.useFakeTimers();
+      const events: string[] = [];
+      const registry = new Map();
+      const provider = parkedProvider(events, registry);
+      const id = await provider.create();
+      await provider.pause!(id);
+
+      await flushPendingDaytonaSecretCleanups(registry);
+
+      assert.deepEqual(events.slice(-3), [
+        "sandbox:destroy:sandbox-1",
+        "secret:delete:secret-2",
+        "secret:delete:secret-1",
+      ]);
+      assert.equal(registry.size, 0);
+
+      // The timer was cancelled: it never runs a second cleanup.
+      const before = events.length;
+      await vi.advanceTimersByTimeAsync(60_000);
+      assert.equal(events.length, before);
+    });
+
+    it("leaves a sandbox with no pending cleanup alone", async () => {
+      vi.useFakeTimers();
+      const events: string[] = [];
+      const registry = new Map();
+      const provider = parkedProvider(events, registry);
+      const id = await provider.create();
+
+      await flushPendingDaytonaSecretCleanups(registry);
+
+      assert.equal(
+        events.some(
+          (event) =>
+            event.startsWith("sandbox:destroy") ||
+            event.startsWith("secret:delete"),
+        ),
+        false,
+        "a running sandbox has no timer, so the flush does not touch it",
+      );
+      assert.equal(registry.has(id), true);
+    });
+
+    it("does nothing for a stopped sandbox that was reconnected", async () => {
+      vi.useFakeTimers();
+      const events: string[] = [];
+      const registry = new Map();
+      const provider = parkedProvider(events, registry);
+      const id = await provider.create();
+      await provider.pause!(id);
+      await provider.reconnect!(id);
+
+      await flushPendingDaytonaSecretCleanups(registry);
+
+      assert.equal(
+        events.some((event) => event.startsWith("secret:delete")),
+        false,
+      );
+      assert.equal(registry.has(id), true);
+    });
+
+    it("waits for a cleanup the timer already started", async () => {
+      vi.useFakeTimers();
+      const events: string[] = [];
+      const registry = new Map();
+      let finishDestroy!: () => void;
+      const destroyStarted = new Promise<void>((resolveStarted) => {
+        const destroyGate = new Promise<void>((resolve) => {
+          finishDestroy = resolve;
+        });
+        const provider = daytonaWithProcessLocalSecrets(
+          (): DaytonaProviderLike => ({
+            name: "daytona",
+            async create() {
+              return "sandbox-1";
+            },
+            async pause() {},
+            async destroy(id) {
+              events.push(`sandbox:destroy:${id}`);
+              resolveStarted();
+              await destroyGate;
+            },
+          }),
+          plan,
+          secretApi(events),
+          {
+            registry,
+            cleanupDelayMilliseconds: 60_000,
+            createFingerprint: GENERATION,
+          },
+        );
+        void (async () => {
+          const id = await provider.create();
+          await provider.pause!(id);
+          await vi.advanceTimersByTimeAsync(60_000);
+        })();
+      });
+      await destroyStarted;
+
+      let flushed = false;
+      const flush = flushPendingDaytonaSecretCleanups(registry).then(() => {
+        flushed = true;
+      });
+      await Promise.resolve();
+      assert.equal(flushed, false, "the flush waits for the running cleanup");
+
+      finishDestroy();
+      await flush;
+      assert.ok(events.includes("secret:delete:secret-1"));
+      assert.equal(registry.size, 0);
+    });
+
+    it("keeps the Secrets and logs when the sandbox delete fails", async () => {
+      vi.useFakeTimers();
+      const events: string[] = [];
+      const logs: string[] = [];
+      const registry = new Map();
+      const provider = daytonaWithProcessLocalSecrets(
+        (): DaytonaProviderLike => ({
+          name: "daytona",
+          async create() {
+            return "sandbox-1";
+          },
+          async pause() {},
+          async destroy() {
+            events.push("sandbox:destroy:failed");
+            throw new Error("daytona unavailable");
+          },
+        }),
+        plan,
+        secretApi(events),
+        {
+          registry,
+          cleanupDelayMilliseconds: 60_000,
+          createFingerprint: GENERATION,
+        },
+      );
+      const id = await provider.create();
+      await provider.pause!(id);
+
+      await flushPendingDaytonaSecretCleanups(registry, (message) =>
+        logs.push(message),
+      );
+
+      assert.ok(events.includes("sandbox:destroy:failed"));
+      assert.equal(
+        events.some((event) => event.startsWith("secret:delete")),
+        false,
+        "absence is unproven, so the Secrets stay",
+      );
+      assert.equal(registry.has(id), true);
+      assert.equal(logs.length, 1);
+      assert.match(logs[0], /sandbox=sandbox-1/);
+    });
   });
 
   it("retains allocation across park/reconnect and cancels timed cleanup", async () => {
@@ -437,7 +617,7 @@ describe("process-local Daytona Secret provider", () => {
     ]);
   });
 
-  it("deletes and rejects reconnect when the process-local allocation is missing", async () => {
+  it("rejects reconnect without deleting when the process-local allocation is missing", async () => {
     const events: string[] = [];
     const provider = daytonaWithProcessLocalSecrets(
       providerFactory(events, []),
@@ -449,13 +629,57 @@ describe("process-local Daytona Secret provider", () => {
         createFingerprint: GENERATION,
       },
     );
+    const missingAllocation = (error: unknown) =>
+      error instanceof DaytonaReconnectTerminalError &&
+      error.state === "missing-process-local-secret-allocation";
+
+    // Another pod's sandbox.
     await assert.rejects(
-      () => provider.reconnect!("old-sandbox"),
-      (error: unknown) =>
-        error instanceof DaytonaReconnectTerminalError &&
-        error.state === "missing-process-local-secret-allocation",
+      () => provider.reconnect!("other-pod-sandbox"),
+      missingAllocation,
     );
-    assert.deepEqual(events, ["sandbox:destroy:old-sandbox"]);
+    assert.deepEqual(events, [], "another pod's sandbox is never deleted");
+
+    // Even an id this process created: with no entry, the wrapper cannot prove its Secrets.
+    markSandboxCreated("daytona/own-sandbox");
+    await assert.rejects(
+      () => provider.reconnect!("daytona/own-sandbox"),
+      missingAllocation,
+    );
+    assert.deepEqual(events, [], "no sandbox delete, no Secret delete");
+  });
+
+  it("never deletes a sandbox without a registry entry that this process did not create", async () => {
+    const events: string[] = [];
+    const logs: string[] = [];
+    const provider = daytonaWithProcessLocalSecrets(
+      providerFactory(events, []),
+      plan,
+      secretApi(events),
+      {
+        registry: new Map(),
+        cleanupDelayMilliseconds: 1_000,
+        createFingerprint: GENERATION,
+        log: (message) => logs.push(message),
+      },
+    );
+    await provider.destroy("other-pod-sandbox");
+    assert.deepEqual(events, []);
+    assert.ok(logs.some((line) => line.includes("not created by this runner")));
+
+    // Its own sandbox with no entry (its cleanup already ran) is still deleted, idempotently.
+    markSandboxCreated("own-sandbox");
+    await provider.destroy("own-sandbox");
+    assert.deepEqual(events, ["sandbox:destroy:own-sandbox"]);
+
+    // A teardown marks the id deleted before it calls the delete; the delete still runs.
+    markSandboxCreated("own-deleting");
+    markSandboxDeleted("daytona/own-deleting");
+    await provider.destroy("own-deleting");
+    assert.deepEqual(events, [
+      "sandbox:destroy:own-sandbox",
+      "sandbox:destroy:own-deleting",
+    ]);
   });
 
   it("deletes the old sandbox and Secrets when the credential SLOT SET changes", async () => {
@@ -630,7 +854,7 @@ describe("process-local Daytona Secret provider", () => {
         )!,
         (event) => log.push(event),
         // The propagation hold is real in production. Waiting it out here would buy the assertions
-        // nothing and cost the suite ten seconds per arm.
+        // nothing and cost the suite thirty seconds per arm.
         { wait: async () => {} },
       );
     };
@@ -645,7 +869,7 @@ describe("process-local Daytona Secret provider", () => {
       assert.equal(result.ok, true);
       assert.equal(
         result.ok && result.holdTurnForMs,
-        10_000,
+        30_000,
         "the turn is held for the provider's stated propagation bound",
       );
       // THE SANDBOX IS THE SAME ONE. This is the assertion the whole lane exists for.

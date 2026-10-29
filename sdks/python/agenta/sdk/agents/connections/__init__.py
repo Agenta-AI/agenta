@@ -9,12 +9,16 @@ the resolver port (:class:`ConnectionResolver`), and the offline SDK-default ada
 from .errors import (
     AgentConnectionError,
     AmbiguousConnectionError,
+    ConnectionAccessDeniedError,
     ConnectionNotFoundError,
     ConnectionResolutionError,
     EndpointResolutionError,
+    GatewayConnectionRefusedError,
+    GatewayInsecureEndpointError,
     InvalidConnectionConfigurationError,
     MissingCredentialError,
     MissingProviderError,
+    OrganizationConnectionUnavailableError,
     ProviderMismatchError,
     SubscriptionConnectionMissingError,
     SubscriptionLoginRequiredError,
@@ -23,6 +27,7 @@ from .errors import (
     UnsupportedDeploymentError,
     UnsupportedProviderError,
     WriteOnlySecretError,
+    is_access_refusal,
 )
 from .interfaces import ConnectionResolver
 from .models import (
@@ -32,6 +37,7 @@ from .models import (
     Deployment,
     Endpoint,
     EnvironmentCredentialBinding,
+    GatewayCredentials,
     ModelRef,
     ResolvedConnection,
     ResolvedCredential,
@@ -41,10 +47,13 @@ from .models import (
 from .resolver import EnvConnectionResolver, StaticConnectionResolver
 
 __all__ = [
+    "ConnectionAccessDeniedError",
+    "is_access_refusal",
     # Contracts
     "Connection",
     "Endpoint",
     "EnvironmentCredentialBinding",
+    "GatewayCredentials",
     "ModelRef",
     "ResolvedConnection",
     "ResolvedCredential",
@@ -61,10 +70,13 @@ __all__ = [
     "AgentConnectionError",
     "ConnectionResolutionError",
     "EndpointResolutionError",
+    "GatewayConnectionRefusedError",
+    "GatewayInsecureEndpointError",
     "InvalidConnectionConfigurationError",
     "ConnectionNotFoundError",
     "MissingCredentialError",
     "MissingProviderError",
+    "OrganizationConnectionUnavailableError",
     "AmbiguousConnectionError",
     "ProviderMismatchError",
     "SubscriptionConnectionMissingError",

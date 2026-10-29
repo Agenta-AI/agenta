@@ -1,3 +1,4 @@
+import {SendRefusedError} from "@agenta/chat/model"
 import {createStore} from "jotai"
 import {describe, expect, it, vi} from "vitest"
 
@@ -35,6 +36,30 @@ describe("mobile Home task admission", () => {
         await store.set(sendPendingTaskAtom, {sessionId: "one", send, retry: true})
         expect(send).toHaveBeenLastCalledWith({...task, delivery: "sending"})
         expect(store.get(pendingTasksAtom).one).toBeUndefined()
+    })
+
+    it("drops the previous refusal's sentence when the retry fails without one", async () => {
+        const store = createStore()
+        store.set(stashPendingTaskAtom, {sessionId: "one", task})
+        const send = vi
+            .fn()
+            .mockRejectedValueOnce(
+                new SendRefusedError({
+                    status: 422,
+                    statedReason: "That agent has no connection to GitHub.",
+                    refusalCode: "missing_connection",
+                }),
+            )
+            .mockRejectedValueOnce(new Error("capabilities unavailable"))
+        await store.set(sendPendingTaskAtom, {sessionId: "one", send})
+        expect(store.get(pendingTasksAtom).one?.failureReason).toBe(
+            "That agent has no connection to GitHub.",
+        )
+        await store.set(sendPendingTaskAtom, {sessionId: "one", send, retry: true})
+        // The second refusal states nothing, so the chip must say nothing rather than repeat
+        // the first refusal's sentence about a connection this attempt never mentioned.
+        expect(store.get(pendingTasksAtom).one?.delivery).toBe("failed")
+        expect(store.get(pendingTasksAtom).one?.failureReason).toBeUndefined()
     })
 
     it("deduplicates concurrent mounts while admission is pending", async () => {

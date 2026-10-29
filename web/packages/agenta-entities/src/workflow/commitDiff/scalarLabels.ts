@@ -108,6 +108,34 @@ const objectLabel = (raw: Record<string, unknown>): string | undefined => {
         .join(", ")
 }
 
+const field = (obj: unknown, key: string): unknown =>
+    obj !== null && typeof obj === "object" ? (obj as Record<string, unknown>)[key] : undefined
+
+/** A secret attachment reads as the variable it sets and the secret behind it. */
+const credentialLabel = (entry: unknown): string | undefined => {
+    const name = field(field(entry, "binding"), "name")
+    const slug = field(field(entry, "secret"), "slug")
+    if (typeof name === "string" && typeof slug === "string") return `${name} (${slug})`
+    if (typeof name === "string") return name
+    return typeof slug === "string" ? slug : undefined
+}
+
+/** Per-path wording for one entry of a list value. */
+const ITEM_LABELS: Record<string, (item: unknown) => string | undefined> = {
+    "sandbox.credentials": credentialLabel,
+}
+
+/** One list entry: an object never prints as `[object Object]`. */
+const itemLabel = (path: string, item: unknown): string => {
+    const named = ITEM_LABELS[path]?.(item)
+    if (named) return named
+    if (Array.isArray(item)) return JSON.stringify(item)
+    if (item !== null && typeof item === "object") {
+        return objectLabel(item as Record<string, unknown>) ?? ""
+    }
+    return String(item)
+}
+
 /**
  * `sandbox.permissions.network` → "Sandbox › network". Keeps the parent, because a bare leaf
  * ("network", "default") is ambiguous across sections.
@@ -142,7 +170,9 @@ export const scalarValueLabel = (
     // Only a real boolean reads as On/Off; the string "false" is a value, not a flag.
     if (typeof raw === "boolean") return raw ? "On" : "Off"
     // A rule list is prose, not JSON: `["Bash"]` is punctuation a reader has to decode.
-    if (Array.isArray(raw)) return raw.length ? raw.map(String).join(", ") : "None"
+    if (Array.isArray(raw)) {
+        return raw.length ? raw.map((item) => itemLabel(path, item)).join(", ") : "None"
+    }
     if (raw !== null && typeof raw === "object") return objectLabel(raw as Record<string, unknown>)
     return value
 }

@@ -6,7 +6,11 @@
  */
 import {atomWithStorage} from "jotai/utils"
 
-import {type AgentModelSelection} from "../../secret/core"
+import {
+    savedConnectionNamespace,
+    explicitAgentConnection,
+    type AgentModelSelection,
+} from "../../secret/core"
 
 export interface AgentCreationPrefs {
     version: 1
@@ -15,6 +19,7 @@ export interface AgentCreationPrefs {
     provider?: string
     connectionMode?: string
     connectionSlug?: string
+    connectionNamespace?: string
 }
 
 const DEFAULT_PREFS: AgentCreationPrefs = {version: 1}
@@ -44,12 +49,21 @@ export function selectionFromAgentCreationPrefs(
         modelId: prefs.model,
         provider: prefs.provider ?? null,
         mode,
-        slug: mode === "agenta" ? (prefs.connectionSlug ?? null) : null,
+        // Under `self_managed` a slug names a stored subscription sign-in; no slug means a
+        // login mounted on the runner. Both are real routes, so the slug is kept in either mode.
+        slug: prefs.connectionSlug ?? null,
+        namespace: savedConnectionNamespace(mode, prefs.connectionNamespace),
         harness: prefs.harness,
     }
 }
 
-/** Apply one resolved candidate without dropping unrelated harness or model settings. */
+/**
+ * Apply one resolved candidate without dropping unrelated harness or model settings.
+ *
+ * The slug is written in either mode. A hosted subscription candidate is `self_managed` with the
+ * slug of its stored sign-in, and without that slug the run falls back to a login mounted on the
+ * runner, which a Daytona sandbox refuses.
+ */
 export function applyAgentModelSelection(
     agentConfig: Record<string, unknown>,
     selection: AgentModelSelection,
@@ -59,10 +73,7 @@ export function applyAgentModelSelection(
     const nextLlm: Record<string, unknown> = {
         ...llm,
         model: selection.modelId,
-        connection: {
-            mode: selection.mode,
-            ...(selection.mode === "agenta" && selection.slug ? {slug: selection.slug} : {}),
-        },
+        connection: explicitAgentConnection(selection),
     }
     if (selection.provider) nextLlm.provider = selection.provider
     else delete nextLlm.provider

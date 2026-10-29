@@ -1,11 +1,7 @@
 /**
  * Which parked `request_input` calls the run is currently blocked on — the sibling of
- * ./connectInteractions, read by the docked question card on both /m and oss.
- *
- * Unlike the connect dock there is no "whole batch" reader here. That one exists to feed progress
- * dots across several cards; the runner parks exactly ONE interaction per turn (a second is
- * force-settled `DEFERRED_NOT_EXECUTED` and re-asked next turn — see `ConnectToolWidget`), so the
- * question dock shows one card and any straggler simply waits behind it.
+ * ./connectInteractions, read by the docked question card. No batch reader: the dock shows one
+ * parked call at a time and the rest wait behind it.
  */
 import {buildRenderMap, isPendingClientToolInteraction} from "@agenta/playground/agent-chat"
 import {CLIENT_TOOL_DESCRIPTORS, canonicalClientToolName} from "@agenta/shared/clientTools"
@@ -46,10 +42,9 @@ export const getPendingElicitationInteractions = (messages: UIMessage[]): Client
 }
 
 /**
- * Whether an earlier part of this turn already auto-settled as a degradation. The dock must not
- * settle a second malformed payload — that is the settle→resume→re-emit loop the degradation cap
- * exists to break. Derived here rather than threaded down from the host, because the dock already
- * scans exactly these parts.
+ * Whether an earlier part of this turn already auto-settled as a degradation. The dock then settles
+ * a repeat malformed payload as a cancel that moves the question to chat, not as another error.
+ * Derived here rather than threaded down from the host, because the dock already scans these parts.
  */
 export const hasEarlierElicitationDegradation = (messages: UIMessage[]): boolean =>
     hasPriorElicitationDegradation(

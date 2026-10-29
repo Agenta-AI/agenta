@@ -39,6 +39,7 @@ export async function runExportCapture(options: {
       cb(options.result),
     );
   const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
   const otel = createSandboxAgentOtel({
     harness: "claude",
@@ -52,7 +53,9 @@ export async function runExportCapture(options: {
   await otel.flush();
 
   return {
-    logs: errorSpy.mock.calls.map((args) => args.join(" ")),
+    logs: [...errorSpy.mock.calls, ...warnSpy.mock.calls].map((args) =>
+      args.join(" "),
+    ),
     exportCalled: exportSpy.mock.calls.length > 0,
   };
 }

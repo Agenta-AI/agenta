@@ -1,0 +1,49 @@
+{{/* One PodDisruptionBudget per enabled workload. See the block in
+     _helpers.tpl for what a budget does and does not promise. */}}
+{{- if eq (include "agenta.podDisruptionBudgets.enabled" .) "true" }}
+{{- $root := . }}
+{{- $values := include "agenta.values" . | fromYaml }}
+{{- range $wl := include "agenta.workloads" $root | fromYamlArray }}
+{{- if eq (toString $wl.enabled) "true" }}
+{{- /* The values key may be a dotted path (store.seaweedfs). */}}
+{{- $node := $values }}
+{{- range splitList "." $wl.key }}{{- $node = default dict (get $node .) }}{{- end }}
+{{- $cfg := default dict $node.pdb }}
+{{- /* `maxUnavailable: 1` for every workload, whatever its replica count.
+       With two or more replicas one pod may go at a time, which is the point
+       of a budget. With one replica the budget permits the eviction instead
+       of deferring it: `minAvailable: 1` over a single pod allows zero
+       voluntary disruptions, so the platform cannot drain that node, warns
+       about it for the whole grace period, and evicts the pod anyway at the
+       end of it. The budget is rendered for a single replica all the same, so
+       the set of budgets does not change shape when a workload is scaled. */}}
+{{- /* hasKey, not truthiness: maxUnavailable 0 is a real setting (block
+       every voluntary eviction), not an unset one. */}}
+{{- $hasMax := hasKey $cfg "maxUnavailable" }}
+{{- $hasMin := hasKey $cfg "minAvailable" }}
+{{- $maxUnavailable := $cfg.maxUnavailable }}
+{{- $minAvailable := $cfg.minAvailable }}
+{{- if not (or $hasMax $hasMin) }}
+{{- $maxUnavailable = 1 }}{{- $hasMax = true }}
+{{- end }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "agenta.fullname" $root }}-{{ $wl.component }}
+  labels:
+    {{- include "agenta.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: {{ $wl.component }}
+spec:
+  {{- if $hasMax }}
+  maxUnavailable: {{ $maxUnavailable }}
+  {{- else }}
+  minAvailable: {{ $minAvailable }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "agenta.selectorLabels" $root | nindent 6 }}
+      app.kubernetes.io/component: {{ $wl.component }}
+{{- end }}
+{{- end }}
+{{- end }}

@@ -9,6 +9,12 @@ import httpx
 from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
 
+from oss.src.core.access.dtos import PrincipalRef
+from oss.src.core.access.principals import (
+    access_denied_error,
+    missing_principal_error,
+)
+from oss.src.core.access.types import AccessDenied, MissingPrincipal
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, set_cache
@@ -50,6 +56,7 @@ from oss.src.core.triggers.exceptions import (
     TriggerReferenceInvalid,
     TriggerScheduleInvalid,
 )
+from oss.src.core.triggers.providers.composio.adapter import normalize_webhook_event
 from oss.src.core.triggers.service import TriggersService
 
 
@@ -110,6 +117,38 @@ def handle_adapter_exceptions():
         return wrapper
 
     return decorator
+
+
+def _request_principal(request: Request) -> PrincipalRef:
+    """The principal the created trigger runs as: the creating request's principal
+    (a human, or an API key). Never taken from the body."""
+
+    principal = getattr(request.state, "principal", None)
+    if principal is None:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return principal
+
+
+def _resume_refused(refusal, *, project_id) -> HTTPException:
+    """A start of a trigger whose principal may no longer run it: 403 `access_denied`
+    or 409 `missing_principal`, with the reason, and the trigger stays paused."""
+
+    if isinstance(refusal, AccessDenied):
+        principal = getattr(refusal, "principal_kind", None)
+        return HTTPException(
+            status_code=403,
+            detail=access_denied_error(
+                decision=refusal.decision,
+                principal_kind=principal or "human",
+                project_id=UUID(str(project_id)),
+            ).model_dump(exclude_none=True),
+        )
+    return HTTPException(
+        status_code=409,
+        detail=missing_principal_error(
+            next_step="Create the trigger again."
+        ).model_dump(exclude_none=True),
+    )
 
 
 class TriggersRouter:
@@ -1008,6 +1047,7 @@ class TriggersRouter:
                 user_id=UUID(str(request.state.user_id)),
                 #
                 subscription=body.subscription,
+                principal=_request_principal(request),
             )
         except ConnectionNotFoundError as e:
             raise HTTPException(status_code=404, detail=e.message) from e
@@ -1035,6 +1075,7 @@ class TriggersRouter:
                 user_id=UUID(str(request.state.user_id)),
                 #
                 subscription=body.subscription,
+                principal=_request_principal(request),
             )
         except ConnectionNotFoundError as e:
             raise HTTPException(status_code=404, detail=e.message) from e
@@ -1261,6 +1302,10 @@ class TriggersRouter:
             )
         except SubscriptionNotFoundError as e:
             raise HTTPException(status_code=404, detail=e.message) from e
+        except (AccessDenied, MissingPrincipal) as refusal:
+            raise _resume_refused(
+                refusal, project_id=request.state.project_id
+            ) from refusal
 
         return TriggerSubscriptionResponse(
             count=1,
@@ -1286,6 +1331,7 @@ class TriggersRouter:
                 user_id=UUID(str(request.state.user_id)),
                 #
                 schedule=body.schedule,
+                principal=_request_principal(request),
             )
         except TriggerScheduleInvalid as e:
             raise HTTPException(status_code=422, detail=e.message) from e
@@ -1465,6 +1511,10 @@ class TriggersRouter:
             )
         except ScheduleNotFoundError as e:
             raise HTTPException(status_code=404, detail=e.message) from e
+        except (AccessDenied, MissingPrincipal) as refusal:
+            raise _resume_refused(
+                refusal, project_id=request.state.project_id
+            ) from refusal
 
         return TriggerScheduleResponse(
             count=1,
@@ -1597,12 +1647,14 @@ class TriggersRouter:
                 detail="Invalid payload",
             )
 
-        metadata = envelope.get("metadata") or {}
-        trigger_id = metadata.get("trigger_id") or metadata.get("nano_id")
-        event_id = metadata.get("id")
+        event = normalize_webhook_event(envelope)
 
-        if not trigger_id or not event_id:
-            # Nothing to route — accept (no-op) so the provider does not retry.
+        if event is None:
+            log.warning(
+                "[TRIGGERS] composio event not routable type=%r",
+                str(envelope.get("type"))[:64],
+            )
+            # Accept (no-op) so the provider does not retry.
             return TriggerEventAck(
                 status="accepted", detail="No trigger_id/id to route"
             )
@@ -1611,9 +1663,9 @@ class TriggersRouter:
             try:
                 await asyncio.wait_for(
                     self.dispatch_task.kiq(
-                        trigger_id=str(trigger_id),
-                        event_id=str(event_id),
-                        event=envelope,
+                        trigger_id=str(event["metadata"]["trigger_id"]),
+                        event_id=str(event["metadata"]["id"]),
+                        event=event,
                     ),
                     timeout=_ENQUEUE_TIMEOUT_SECONDS,
                 )

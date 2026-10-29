@@ -72,7 +72,7 @@ function PickerHarness({options}: {options: SkillListItem[]}) {
             options={options}
             onAdd={noop}
             onRemove={noop}
-            createActions={{onWrite: noop, onUpload: noop, onImport: noop}}
+            onNewSkill={noop}
         />
     )
 }

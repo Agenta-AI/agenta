@@ -2,7 +2,7 @@ import {useEffect, useRef, useState} from "react"
 
 import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
 import {ChatActionIconButton, MetaSeparator} from "@agenta/ui/components/presentational"
-import {ArrowUUpLeft, Check, Copy, TreeStructure} from "@phosphor-icons/react"
+import {ArrowClockwise, Check, Copy, TreeStructure} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import type {MessageUsageMetrics} from "../assets"
@@ -34,6 +34,8 @@ export const TurnFooter = ({
     copyText,
     onRewind,
     onViewTrace,
+    metrics,
+    onRetry,
 }: {
     messageId: string
     /** The turn's own trace. Assistant turns have one; user turns do not. */
@@ -50,6 +52,10 @@ export const TurnFooter = ({
     onRewind?: () => void
     /** Open the trace drawer. Omitted hides the button, as does the inspector preference being off. */
     onViewTrace?: (traceId: string) => void
+    /** Which figures the meta line draws; all by default. See `TurnMetrics`. */
+    metrics?: ("latency" | "tokens" | "cost")[]
+    /** Send the failed turn again. Omitted hides the button. */
+    onRetry?: () => void
 }) => {
     const inspectorEnabled = useAtomValue(playgroundInspectorEnabledAtom)
     const [copied, setCopied] = useState(false)
@@ -77,12 +83,14 @@ export const TurnFooter = ({
 
     const showTrace = !!traceId && !!onViewTrace && inspectorEnabled
     const showCopy = !!copyText && !isStreaming
-    const hasActions = showCopy || !!onRewind || showTrace
+    const hasActions = showCopy || !!onRewind || showTrace || !!onRetry
 
     return (
         <>
             <TurnTimestamp messageId={messageId} traceId={traceId} turnTraceId={turnTraceId} />
-            {isUser ? null : <TurnMetrics traceId={traceId} usage={usage} separator />}
+            {isUser ? null : (
+                <TurnMetrics traceId={traceId} usage={usage} separator show={metrics} />
+            )}
             {hasActions ? <MetaSeparator className="first:hidden" /> : null}
             {showCopy ? (
                 <ChatActionIconButton
@@ -93,10 +101,17 @@ export const TurnFooter = ({
                     tooltip={false}
                 />
             ) : null}
+            {onRetry ? (
+                <ChatActionIconButton
+                    label="Try again"
+                    icon={<ArrowClockwise size={12} />}
+                    onClick={onRetry}
+                />
+            ) : null}
             {onRewind ? (
                 <ChatActionIconButton
                     label={isUser ? "Edit and re-run" : "Re-run this turn"}
-                    icon={<ArrowUUpLeft size={12} />}
+                    icon={<ArrowClockwise size={12} />}
                     onClick={onRewind}
                 />
             ) : null}

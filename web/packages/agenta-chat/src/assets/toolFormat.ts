@@ -31,6 +31,27 @@ export const stripFence = (value: string): string => {
     return s.slice(i, s.length - 3).trim()
 }
 
+/** The tag a harness wraps a tool failure in before handing it back to its own model. */
+const TOOL_USE_ERROR_OPEN = "<tool_use_error>"
+const TOOL_USE_ERROR_CLOSE = "</tool_use_error>"
+
+/**
+ * Unwrap a harness's own tool-error envelope, fence and all.
+ *
+ * `<tool_use_error>…</tool_use_error>` is addressed to the model, not to a person: it is how the
+ * harness tells its own model that a call failed. It reached the screen verbatim inside the failed
+ * tool card (UI QA round 3, D2). Only a wrapper spanning the WHOLE string is removed, so an error
+ * that merely quotes the tag keeps it.
+ */
+export const unwrapToolUseError = (value: string): string => {
+    const stripped = stripFence(value).trim()
+    if (!stripped.startsWith(TOOL_USE_ERROR_OPEN) || !stripped.endsWith(TOOL_USE_ERROR_CLOSE))
+        return stripFence(value)
+    return stripped
+        .slice(TOOL_USE_ERROR_OPEN.length, stripped.length - TOOL_USE_ERROR_CLOSE.length)
+        .trim()
+}
+
 /** Pretty-print `value` for a monospace block: JSON string → indented JSON, object → indented JSON,
  * otherwise the (fence-stripped) string. Never throws. */
 export const formatToolValue = (value: unknown): string => {

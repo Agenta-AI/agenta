@@ -17,7 +17,7 @@ import {
     workflowMolecule,
     type Workflow,
 } from "@agenta/entities/workflow"
-import {atom, getDefaultStore} from "jotai"
+import {atom} from "jotai"
 
 import {flushAgentAutoCommitAtom, isAgentAutoCommitBusy} from "./agentAutoCommit"
 
@@ -131,7 +131,3 @@ export const revertAgentRevisionAtom = atom(
         return landed
     },
 )
-
-/** Imperative form, for hosts outside a Jotai render tree. */
-export const revertAgentRevision = (params: RevertAgentRevisionParams) =>
-    getDefaultStore().set(revertAgentRevisionAtom, params)

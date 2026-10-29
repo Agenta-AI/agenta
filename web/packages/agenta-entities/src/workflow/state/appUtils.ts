@@ -34,6 +34,10 @@ import {
     ensureEnabledSandbox,
     selectionFromAgentCreationPrefs,
 } from "./agentCreationPrefs"
+import {
+    reportAgentCreationFailure,
+    type AgentCreationFailureDetails,
+} from "./agentCreationTelemetry"
 import {loadAgentModelCandidates} from "./agentModelCandidates"
 import {buildServiceUrlFromUri} from "./helpers"
 import {workflowLocalServerDataAtomFamily} from "./store"
@@ -171,12 +175,24 @@ export async function createEphemeralAppFromTemplate({
     signal,
     deferInspect = false,
 }: CreateEphemeralAppFromTemplateParams): Promise<string | null> {
-    if (signal?.aborted) return null
-
+    const startedAt = Date.now()
     const store = getDefaultStore()
     const projectId = store.get(projectIdAtom)
 
-    if (!projectId) return null
+    // Every exit below hands the caller the same generic sentence, so record which one it was.
+    const fail = (details: AgentCreationFailureDetails): null => {
+        reportAgentCreationFailure({
+            ...details,
+            type,
+            elapsed_ms: Date.now() - startedAt,
+            ...(projectId ? {project_id: projectId} : {}),
+        })
+        return null
+    }
+
+    if (signal?.aborted) return fail({reason: "aborted", stage: "entry"})
+
+    if (!projectId) return fail({reason: "no_project"})
 
     // Read cached templates first (fast path — atom may already be populated
     // by a mounted dropdown). Fall back to a direct fetch if empty.
@@ -184,17 +200,17 @@ export async function createEphemeralAppFromTemplate({
     if (templates.length === 0) {
         try {
             const response = await fetchWorkflowCatalogTemplates({isApplication: true})
-            if (signal?.aborted) return null
+            if (signal?.aborted) return fail({reason: "aborted", stage: "templates_fetch"})
             templates = response.templates ?? []
         } catch {
-            return null
+            return fail({reason: "templates_fetch_failed"})
         }
     }
 
     const template = matchTemplateForType(templates, type)
-    if (!template) return null
+    if (!template) return fail({reason: "no_template"})
 
-    if (signal?.aborted) return null
+    if (signal?.aborted) return fail({reason: "aborted", stage: "template_match"})
 
     // Fall back to building the URI from the requested `type` (e.g. "chat",
     // "completion") rather than `template.key`. The catalog can return keys
@@ -229,7 +245,8 @@ export async function createEphemeralAppFromTemplate({
     // candidates take precedence in that order.
     if (type === "agent") {
         const userId = await waitForAgentCreationUserId(signal)
-        if (!userId || signal?.aborted) return null
+        if (signal?.aborted) return fail({reason: "aborted", stage: "user_wait"})
+        if (!userId) return fail({reason: "user_timeout"})
         const agentConfig =
             parameters.agent &&
             typeof parameters.agent === "object" &&
@@ -241,7 +258,13 @@ export async function createEphemeralAppFromTemplate({
             userId,
             pairModelSelection: store.get(subscriptionPairModelsAtom),
         })
-        if (signal?.aborted || candidateState.status !== "ready") return null
+        if (signal?.aborted) return fail({reason: "aborted", stage: "candidate_load"})
+        if (candidateState.status !== "ready")
+            return fail({
+                reason: "sources_not_ready",
+                candidate_count: candidateState.candidates.length,
+                ...candidateState.sources,
+            })
         const selected = resolveAgentModelSelection({
             candidates: candidateState.candidates,
             last: selectionFromAgentCreationPrefs(store.get(agentCreationPrefsAtom)),
@@ -334,7 +357,7 @@ export async function createEphemeralAppFromTemplate({
     try {
         const serviceUrl = buildServiceUrlFromUri(uri)
         const inspectData = await inspectWorkflow(uri, projectId, serviceUrl)
-        if (signal?.aborted) return null
+        if (signal?.aborted) return fail({reason: "aborted", stage: "inspect"})
         const inspectSchemas = inspectData?.revision?.data?.schemas
         if (inspectSchemas) {
             schemas = {
@@ -347,7 +370,7 @@ export async function createEphemeralAppFromTemplate({
         // Inspect failed — proceed with catalog schemas (or empty).
     }
 
-    if (signal?.aborted) return null
+    if (signal?.aborted) return fail({reason: "aborted", stage: "before_seed"})
 
     store.set(workflowLocalServerDataAtomFamily(localId), buildWorkflow(schemas))
 

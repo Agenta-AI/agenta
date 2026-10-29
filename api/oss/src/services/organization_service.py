@@ -1,5 +1,6 @@
 import secrets
-from typing import List
+from uuid import UUID
+from typing import List, Optional
 from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
@@ -7,17 +8,14 @@ from fastapi import HTTPException
 
 from oss.src.utils.env import env
 from oss.src.utils.common import is_ee
-from oss.src.utils.caching import invalidate_cache
 from oss.src.utils.logging import get_module_logger
-from oss.src.models.db_models import UserDB, WorkspaceDB
+from oss.src.models.db_models import UserDB
 from oss.src.services import db_manager
+from oss.src.core.memberships.service import get_memberships_service
 from oss.src.utils import emailing
 from oss.src.models.api.workspace_models import (
     InviteRequest,
     ResendInviteRequest,
-    CreateWorkspace,
-    UpdateWorkspace,
-    WorkspaceResponse,
 )
 from oss.src.core.access.controls import get_role
 from oss.src.core.access.permissions.types import DefaultRole, Permission
@@ -287,7 +285,8 @@ async def invite_user_to_organization(
         payload.email,
         invitation.token,  # type: ignore
         project_id=str(project_db.id),
-        workspace_id=str(project_db.workspace_id),
+        # The organization id where the link carries a workspace id (design D6).
+        workspace_id=str(project_db.organization_id),
         organization_id=str(project_db.organization_id),
         user=user_performing_action,
     )
@@ -353,7 +352,8 @@ async def resend_user_organization_invite(
         payload.email,
         invitation.token,  # type: ignore
         project_id=str(project_db.id),
-        workspace_id=str(project_db.workspace_id),
+        # The organization id where the link carries a workspace id (design D6).
+        workspace_id=str(project_db.organization_id),
         organization_id=str(project_db.organization_id),
         user=user_performing_action,
     )
@@ -370,11 +370,39 @@ async def resend_user_organization_invite(
     return send_email
 
 
+async def _check_invitation_scope(
+    *,
+    organization_id: str,
+    workspace_id: str,
+    scoped,
+) -> None:
+    """The `{ws}` of an accept link must name the organization or one of its workspaces.
+
+    The organization id and the invited project's own workspace need no read; any other
+    id costs one workspace read (no link that the server builds contains one).
+    """
+
+    project = scoped.project
+    if str(workspace_id) == str(organization_id) == str(project.organization_id):
+        return
+    if str(workspace_id) == str(project.workspace_id) and str(
+        scoped.workspace_organization_id
+    ) == str(organization_id):
+        return
+    try:
+        workspace = await db_manager.get_workspace(workspace_id=str(workspace_id))
+    except ValueError:
+        workspace = None
+    if workspace is None or str(workspace.organization_id) != str(organization_id):
+        raise InviteNotFoundError()
+
+
 async def accept_organization_invitation(
     token: str,
     organization_id: str,
     email: str,
     session_email: str,
+    workspace_id: Optional[str] = None,
 ) -> bool:
     """
     Accept an invitation to a workspace.
@@ -417,11 +445,23 @@ async def accept_organization_invitation(
             invited_email=invitation.email,
         )
 
-    project_pre = await db_manager.get_project_by_id(
+    scoped = await db_manager.fetch_project_with_workspace_organization(
         project_id=str(invitation.project_id),
     )
-    if project_pre and await db_manager.check_user_in_workspace_with_email(
-        email, str(project_pre.workspace_id)
+    project_pre = scoped.project if scoped is not None else None
+    if scoped is not None and workspace_id is not None:
+        await _check_invitation_scope(
+            organization_id=organization_id,
+            workspace_id=workspace_id,
+            scoped=scoped,
+        )
+    if (
+        project_pre
+        and await get_memberships_service().fetch_organization_member(
+            organization_id=project_pre.organization_id,
+            user_id=user_exists.id,
+        )
+        is not None
     ):
         raise InviteAlreadyAcceptedError()
 
@@ -439,27 +479,22 @@ async def accept_organization_invitation(
     if project is None:
         raise HTTPException(status_code=400, detail="Invited project no longer exists")
 
-    organization = await db_manager.get_organization_by_id(
-        organization_id=str(project.organization_id)
-    )
-    workspace = await db_manager.get_workspace(
-        workspace_id=str(project.workspace_id),
-    )
-
     log.info(
         "[invite] accepting invitation",
-        email=email,
+        user_id=str(user_exists.id),
         invitation_role=invitation.role,
         project_id=str(project.id),
         organization_id=str(project.organization_id),
     )
 
-    await db_manager.add_user_to_workspace_and_org(
-        organization=organization,
-        workspace=workspace,
-        user=user_exists,
-        project_id=str(project.id),
+    # Writes the organization, workspace and project rows in one transaction and
+    # clears the caches of the user in every project of the organization.
+    await get_memberships_service().set_member_role(
+        organization_id=project.organization_id,
+        user_id=user_exists.id,
         role=invitation.role,
+        join_all_projects=True,
+        actor_user_id=user_exists.id,
     )
 
     await db_manager.update_invitation(
@@ -470,81 +505,72 @@ async def accept_organization_invitation(
         },
     )
 
-    # Invalidate any cached auth deny so the user can access the project
-    # immediately after accepting.
-    await invalidate_cache(
-        namespace="verify_bearer_token",
-        user_id=str(user_exists.id),
+    await notify_org_admin_invitation(
+        organization_id=project.organization_id,
+        project_id=project.id,
+        user=user_exists,
     )
-
-    await notify_org_admin_invitation(workspace, user_exists)
 
     return True
 
 
-async def notify_org_admin_invitation(workspace: WorkspaceDB, user: UserDB) -> bool:
-    """Email the workspace admins when a new member joins."""
+# The organization's name and its owners and admins other than the new member, in one
+# statement (one row with NULL email when there is none).
+_ADMIN_NOTICE_RECIPIENTS_SQL = """
+SELECT DISTINCT o.name AS organization_name, u.email
+FROM organizations o
+LEFT JOIN organization_members om
+       ON om.organization_id = o.id
+      AND om.role IN ('owner', 'admin')
+      AND om.user_id <> :user_id
+LEFT JOIN users u ON u.id = om.user_id
+WHERE o.id = :organization_id
+"""
 
-    organization = await db_manager.get_organization(str(workspace.organization_id))
-    project = await db_manager.get_project_by_workspace(str(workspace.id))
 
-    workspace_admins = await db_manager.get_workspace_administrators(workspace)
+async def notify_org_admin_invitation(
+    *,
+    organization_id: UUID,
+    project_id: UUID,
+    user: UserDB,
+) -> bool:
+    """Email the organization's owners and admins when a new member joins (once per
+    accepted invitation, for every project, design D6)."""
 
-    for workspace_admin in workspace_admins:
+    from sqlalchemy import text  # noqa: PLC0415
+
+    from oss.src.dbs.postgres.shared.engine import (  # noqa: PLC0415
+        get_transactions_engine,
+    )
+
+    async with get_transactions_engine().session() as session:
+        rows = (
+            await session.execute(
+                text(_ADMIN_NOTICE_RECIPIENTS_SQL),
+                {"organization_id": organization_id, "user_id": user.id},
+            )
+        ).all()
+
+    for row in rows:
+        if not row.email:
+            continue
         await emailing.send_email(
             from_email="account@hello.agenta.ai",
-            to_email=workspace_admin.email,
-            subject=f"New Member Joined {organization.name}",
+            to_email=row.email,
+            subject=f"New Member Joined {row.organization_name}",
             username=user.username,
             action="joined your Workspace",
-            workspace=f'"{organization.name}"',
+            workspace=f'"{row.organization_name}"',
             call_to_action=(
                 "Click the link below to view your Organization:</p><br>"
-                f'<a href="{env.agenta.web_url}/w/{workspace.id}/p/{project.id}/settings?tab=workspace">View Organization</a>'
+                f'<a href="{env.agenta.web_url}/w/{organization_id}/p/{project_id}/settings?tab=workspace">View Organization</a>'
             ),
         )
 
     return True
 
 
-async def get_workspace(workspace_id: str) -> WorkspaceDB:
-    """Get a workspace by ID, raising 404 when absent."""
-
-    workspace = await db_manager.get_workspace(workspace_id)
-    if workspace is not None:
-        return workspace
-    raise HTTPException(
-        status_code=404, detail=f"Workspace by id {workspace_id} not found"
-    )
-
-
-async def create_new_workspace(
-    payload: CreateWorkspace, organization_id: str, user_uid: str
-) -> WorkspaceResponse:
-    """Create a new workspace (with owner membership, default project, seeds)."""
-
-    return await db_manager.create_workspace_with_defaults(
-        payload, organization_id, user_uid
-    )
-
-
-async def update_workspace(
-    payload: UpdateWorkspace, workspace_id: str
-) -> WorkspaceResponse:
-    """Update a workspace's details."""
-
-    workspace = await get_workspace(workspace_id)
-
-    return await db_manager.update_workspace(payload, workspace)
-
-
 async def get_all_workspace_permissions() -> List[Permission]:
     """Return the full permission catalog."""
 
     return list(Permission)
-
-
-async def remove_user_from_workspace(workspace_id: str, email: str) -> bool:
-    """Remove a user (or pending invite) from a workspace."""
-
-    return await db_manager.remove_user_from_workspace(workspace_id, email)

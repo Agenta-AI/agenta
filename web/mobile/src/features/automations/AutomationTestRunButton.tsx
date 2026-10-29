@@ -60,7 +60,7 @@ export const AutomationTestRunButton = ({
                 }}
             >
                 <Play aria-hidden className="size-3" />
-                Test run
+                Run now
             </Button>
         </span>
     )

@@ -22,11 +22,14 @@ class MetersDAOInterface:
     async def bump(
         self,
         meters: list[MeterDTO],
+        synced_read: Optional[dict] = None,
     ) -> None:
         """
         Update the 'synced' field for the given list of meters.
 
         :param meters: A list of MeterDTO objects containing the details of meters to update.
+        :param synced_read: Optional map meter id -> the `synced` value the caller read;
+            when given, each update is a compare-and-set on it.
         """
         raise NotImplementedError
 
@@ -43,7 +46,7 @@ class MetersDAOInterface:
 
         Parameters:
         - scope: MeterScope identifying the org and any finer dimensions
-          (workspace/project/user) to filter on.
+          (project/user) to filter on.
         - key: Optional Meters member to filter on. Callers holding a
           Counter/Gauge/Flag must convert via Meters[counter.name] — the DB
           column binds by Python enum *name* (uppercase), not value

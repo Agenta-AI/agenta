@@ -247,18 +247,14 @@ const buildStep = (
     return withHint({...base, required: false}, "unsupported")
 }
 
-/**
- * The payload's questions, in the order the agent wrote them.
- *
- * Deliberately NOT reordered (required first, say): the agent authored these as a narrative, and
- * reordering would also desynchronise the review rows from the message above them.
- */
+/** The payload's questions, in the order the agent wrote them; never reordered (required first, say). */
 export function buildElicitationSteps(payload: ElicitationRequestPayload): ElicitationForm {
+    const {properties} = payload.requestedSchema
     const required = new Set(payload.requestedSchema.required ?? [])
     return {
         message: payload.message,
-        steps: Object.entries(payload.requestedSchema.properties).map(([name, field]) =>
-            buildStep(name, field, required.has(name)),
+        steps: (payload.requestedSchema["x-ag-order"] ?? Object.keys(properties)).map((name) =>
+            buildStep(name, properties[name], required.has(name)),
         ),
         groupHint: payload.requestedSchema["x-ag-stepper"] === true,
     }

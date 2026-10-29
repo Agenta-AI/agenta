@@ -124,7 +124,7 @@ subscription-only self-managed phrasing.
 
 ## Next steps
 
-1. Full plan verification on the dev stack (`144.76.237.122:8280`), light and dark, per
+1. Full plan verification on the dev stack (`<dev-host>:8280`), light and dark, per
    plan.md's 9-point verification plan (rail styling, drawer happy path, custom-provider
    inline, subscription mode + cloud gating, gating matrix, unsaved guard, seams,
    tabs-layout regression, package checks).

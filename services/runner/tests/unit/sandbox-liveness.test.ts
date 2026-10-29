@@ -10,6 +10,9 @@
  * and it never fires after the turn released it. Issue #6418.
  */
 
+import { createServer, type Server } from "node:http";
+import type { AddressInfo } from "node:net";
+
 import { describe, it, expect, vi, afterEach } from "vitest";
 
 import {
@@ -301,6 +304,43 @@ describe("httpLivenessProbe", () => {
     await expect(httpLivenessProbe("http://sandbox/v1/health")()).resolves.toBe(
       404,
     );
+  });
+});
+
+describe("httpLivenessProbe redirects", () => {
+  const servers: Server[] = [];
+  afterEach(async () => {
+    await Promise.all(
+      servers.splice(0).map((s) => new Promise((r) => s.close(r))),
+    );
+  });
+
+  const listen = async (
+    handler: Parameters<typeof createServer>[1],
+  ): Promise<string> => {
+    const server = createServer(handler);
+    servers.push(server);
+    await new Promise<void>((r) => server.listen(0, "127.0.0.1", r));
+    return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  };
+
+  it("reads a 302 as alive without following it", async () => {
+    const targetHits = vi.fn();
+    const target = await listen((_req, res) => {
+      targetHits();
+      res.end("ok");
+    });
+    const sandboxHits = vi.fn();
+    const sandbox = await listen((_req, res) => {
+      sandboxHits();
+      res.writeHead(302, { location: `${target}/internal` }).end();
+    });
+
+    await expect(httpLivenessProbe(`${sandbox}/v1/health`)()).resolves.toBe(
+      302,
+    );
+    expect(sandboxHits).toHaveBeenCalledTimes(1);
+    expect(targetHits).not.toHaveBeenCalled();
   });
 });
 

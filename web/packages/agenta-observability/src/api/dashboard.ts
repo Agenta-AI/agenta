@@ -12,8 +12,6 @@ export interface DashboardAnalyticsParams {
     range: AnalyticsRange
     /** Scope to one app/agent; omit for the whole project. */
     appId?: string | null
-    environment?: string
-    variant?: string
     signal?: AbortSignal
 }
 
@@ -25,8 +23,6 @@ export const fetchDashboardAnalytics = async ({
     projectId,
     range,
     appId,
-    environment,
-    variant,
     signal,
 }: DashboardAnalyticsParams): Promise<DashboardData> => {
     if (signal?.aborted) throw new DOMException("Aborted", "AbortError")
@@ -34,8 +30,6 @@ export const fetchDashboardAnalytics = async ({
     const conditions: Record<string, unknown>[] = []
 
     if (appId) conditions.push({field: "references", operator: "in", value: [{id: appId}]})
-    if (environment) conditions.push({field: "environment", operator: "eq", value: environment})
-    if (variant) conditions.push({field: "variant", operator: "eq", value: variant})
 
     let startTime: string
     let endTime: string | undefined
@@ -73,12 +67,15 @@ export const fetchDashboardAnalytics = async ({
         focus: "trace",
         interval,
         oldest: startTime,
-        newest: endTime,
+        // Send the end we sized the interval from, so the API does not pad to midnight.
+        newest: endDayjs.toISOString(),
         filter: conditions.length ? {conditions} : undefined,
+        // Strict: a failed request (for example a 504 on a long range) throws, so the
+        // query shows an error instead of an empty chart.
+        strict: true,
         abortSignal: signal,
     })
 
-    // `fetchSpansAnalytics` returns null on non-2xx / shape-mismatch; the dashboard treats
-    // that as "no data" rather than throwing.
+    // null only when there is no project id.
     return analyticsToDashboard(analytics ?? {buckets: []}, rangeString)
 }

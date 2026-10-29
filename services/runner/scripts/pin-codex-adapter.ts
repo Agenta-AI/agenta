@@ -4,7 +4,7 @@
  * `@sandbox-agent/cli`), so no `node_modules/.bin/sandbox-agent` exists to call from a
  * Dockerfile. This script resolves the daemon binary through the runner's own
  * resolution (daemon.ts, the same path used at runtime) and forwards argv verbatim,
- * e.g. `tsx scripts/pin-codex-adapter.ts install-agent codex --agent-process-version 1.1.7 -n`.
+ * e.g. `tsx scripts/pin-codex-adapter.ts install-agent codex --agent-process-version 1.7.0 -n`.
  */
 import { spawnSync } from "node:child_process";
 

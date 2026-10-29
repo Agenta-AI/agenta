@@ -10,7 +10,7 @@ proxies and clients never see a silent connection.
 import json
 import math
 import threading
-from typing import Any, AsyncIterator, Callable, Optional
+from typing import Any, AsyncIterator, Awaitable, Callable, Optional
 
 from oss.src.dbs.redis.sessions.contract import (
     WATCH_EVENT_INTERACTION,
@@ -32,9 +32,10 @@ HEARTBEAT_FRAME = ": heartbeat\n\n"
 # every reload/stop waits on these generators forever (live symptom: the dev
 # stack's `uvicorn --reload` logs "Reloading..." and the API stays dead until a
 # hard container restart, since any open browser tab holds a watch stream).
-# `Server.handle_exit` is the first thing uvicorn does on SIGINT/SIGTERM — before
-# the drain — so hooking it (the sse-starlette approach) releases every stream
-# within one poll interval and lets the drain complete. A client disconnect
+# `Server.shutdown` is where every exit path meets — a SIGINT/SIGTERM, and a
+# gunicorn worker that reached `--max-requests` (no signal at all) — and the drain
+# runs inside it, so hooking it releases every stream within one poll interval and
+# lets the drain complete. A client disconnect
 # already releases a stream by cancelling the generator; this covers the server
 # side. A `threading.Event` because the hook may run from a signal frame: no
 # event-loop affinity, and polling it is cheap.
@@ -48,7 +49,7 @@ _SHUTDOWN_POLL_SECONDS = 1.0
 
 
 def request_shutdown() -> None:
-    """Release every open watch stream (idempotent; wired into uvicorn's exit path)."""
+    """Release every open watch stream (idempotent; wired into uvicorn's shutdown)."""
     _shutdown.set()
 
 
@@ -57,16 +58,16 @@ def _install_uvicorn_exit_hook() -> None:
         from uvicorn.server import Server  # noqa: PLC0415 — optional dependency
     except Exception:  # pragma: no cover — no uvicorn (workers, bare test runs)
         return
-    if getattr(Server.handle_exit, "_agenta_watch_hook", False):  # pragma: no cover
+    if getattr(Server.shutdown, "_agenta_watch_hook", False):  # pragma: no cover
         return
-    original = Server.handle_exit
+    original = Server.shutdown
 
-    def handle_exit(self: Any, sig: Any, frame: Any) -> Any:
+    async def shutdown(self: Any, *args: Any, **kwargs: Any) -> Any:
         request_shutdown()
-        return original(self, sig, frame)
+        return await original(self, *args, **kwargs)
 
-    handle_exit._agenta_watch_hook = True  # type: ignore[attr-defined]
-    Server.handle_exit = handle_exit  # type: ignore[method-assign]
+    shutdown._agenta_watch_hook = True  # type: ignore[attr-defined]
+    Server.shutdown = shutdown  # type: ignore[method-assign]
 
 
 _install_uvicorn_exit_hook()
@@ -92,8 +93,8 @@ _KNOWN_EVENTS = {
 # Each project event family also needs its view permission in the project route's conjunction.
 
 
-def format_watch_frame(raw: Any) -> Optional[str]:
-    """One published payload -> one SSE frame; None for anything malformed/unknown."""
+def parse_watch_payload(raw: Any) -> Optional[dict]:
+    """One published payload -> its dict; None for anything malformed/unknown."""
     try:
         payload = json.loads(raw)
     except (ValueError, TypeError):
@@ -106,7 +107,34 @@ def format_watch_frame(raw: Any) -> Optional[str]:
     # publish must drop its own frame, never the connection.
     if not isinstance(event, str) or event not in _KNOWN_EVENTS:
         return None
-    return f"event: {event}\ndata: {json.dumps(payload)}\n\n"
+    return payload
+
+
+def _frame(payload: dict) -> str:
+    return f"event: {payload['type']}\ndata: {json.dumps(payload)}\n\n"
+
+
+def format_watch_frame(raw: Any) -> Optional[str]:
+    """One published payload -> one SSE frame; None for anything malformed/unknown."""
+    payload = parse_watch_payload(raw)
+    return _frame(payload) if payload is not None else None
+
+
+async def _passes(
+    event_filter: Optional[Callable[[dict], Awaitable[bool]]], payload: dict
+) -> bool:
+    """A filter error drops the frame (fail closed) and keeps the connection."""
+    if event_filter is None:
+        return True
+    try:
+        return await event_filter(payload)
+    except Exception as exc:
+        log.warning(
+            "[WATCH] event filter failed, frame dropped",
+            event_type=payload.get("type"),
+            error=repr(exc),
+        )
+        return False
 
 
 async def watch_event_stream(
@@ -115,8 +143,13 @@ async def watch_event_stream(
     pubsub_factory: Callable[[], Any],
     heartbeat_seconds: float,
     retry_milliseconds: int,
+    event_filter: Optional[Callable[[dict], Awaitable[bool]]] = None,
 ) -> AsyncIterator[str]:
     """Subscribe to the session's watch channel and yield SSE frames forever.
+
+    ``event_filter``, when given, decides each parsed payload: a payload it refuses
+    (or that makes it raise) is dropped. The project stream uses it to drop the
+    events of items the watcher may not read.
 
     The first frame is a ``retry:`` preamble: it pins the client's built-in
     auto-reconnect delay (implementation-defined otherwise) so a server-side
@@ -165,9 +198,9 @@ async def watch_event_stream(
             idle_polls = 0
             if message.get("type") != "message":
                 continue
-            frame = format_watch_frame(message.get("data"))
-            if frame is not None:
-                yield frame
+            payload = parse_watch_payload(message.get("data"))
+            if payload is not None and await _passes(event_filter, payload):
+                yield _frame(payload)
     finally:
         # Two independent attempts: a failing unsubscribe must not skip the close, or the
         # connection outlives the disconnected client.

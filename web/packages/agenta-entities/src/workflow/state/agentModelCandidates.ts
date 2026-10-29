@@ -1,7 +1,9 @@
 import {getHostQueryClient} from "@agenta/shared/api"
+import {projectIdAtom, sessionAtom} from "@agenta/shared/state"
 import type {LlmProvider} from "@agenta/shared/types"
 import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
+import {atomWithQuery} from "jotai-tanstack-query"
 
 import {fetchVaultSecret} from "../../secret/api"
 import {
@@ -10,10 +12,12 @@ import {
     subscriptionPairsFrom,
     toProviderConnections,
     type AgentModelCandidate,
+    type BuiltinModelEndpoint,
     type ProviderConnection,
 } from "../../secret/core"
-import {subscriptionPairModelsAtom, vaultSecretsQueryAtom} from "../../secret/state"
+import {subscriptionPairModelsAtom, vaultSecretsWithOrganizationQueryAtom} from "../../secret/state"
 import {
+    fetchBuiltinModelEndpoints,
     fetchHarnessCapabilities,
     fetchSubscriptionStatus,
     type SubscriptionStatusResponse,
@@ -25,12 +29,25 @@ import {
     subscriptionStatusQueryAtomFamily,
 } from "./subscriptionStatus"
 
+/** Whether a candidate source answered, rejected, or never settled. */
+export type AgentModelSourceOutcome = "ok" | "error" | "unsettled"
+
+export interface AgentModelSourceReport {
+    provider_connections: AgentModelSourceOutcome
+    harness_catalog: AgentModelSourceOutcome
+    subscription_status: AgentModelSourceOutcome
+    /** HTTP status of the first errored source in the order above; 0 when the error carries none. */
+    status: number
+}
+
 export interface AgentModelCandidatesState {
     status: "loading" | "error" | "ready"
     candidates: AgentModelCandidate[]
     connections: ProviderConnection[]
     capabilities: HarnessCapabilitiesMap | null
     error: unknown | null
+    /** Set by `loadAgentModelCandidates` only; the atom family derives from live query state. */
+    sources?: AgentModelSourceReport
 }
 
 interface CandidateSourceState {
@@ -44,6 +61,9 @@ interface CandidateSourceState {
     subscriptionError?: unknown
     pairModelSelection?: Record<string, string[] | undefined> | null
     showSubscriptions: boolean
+    builtinEndpoints?: BuiltinModelEndpoint[]
+    /** False while the built-in endpoints read is in flight; credits may be the only route. */
+    builtinSettled?: boolean
 }
 
 export const resolveAgentModelCandidateSources = ({
@@ -56,6 +76,8 @@ export const resolveAgentModelCandidateSources = ({
     subscriptionError,
     pairModelSelection,
     showSubscriptions,
+    builtinEndpoints,
+    builtinSettled = true,
 }: CandidateSourceState): AgentModelCandidatesState => {
     const connections = toProviderConnections(vaultRows ?? [])
     if (!vaultRows || !capabilities) {
@@ -72,6 +94,9 @@ export const resolveAgentModelCandidateSources = ({
     if (showSubscriptions && !subscriptionSettled && !subscriptionError) {
         return {status: "loading", candidates: [], connections, capabilities, error: null}
     }
+    if (!builtinSettled) {
+        return {status: "loading", candidates: [], connections, capabilities, error: null}
+    }
 
     const subscriptionPairs = showSubscriptions
         ? (subscriptionPairsFrom(subscriptionStatus?.harnesses ?? {}) ?? [])
@@ -83,6 +108,7 @@ export const resolveAgentModelCandidateSources = ({
         showSubscriptions,
         subscriptionPairs,
         pairModelSelection,
+        builtinEndpoints,
     })
 
     // A check we could not MAKE is not a deployment with no subscription. Reading a rejected
@@ -110,10 +136,37 @@ export const resolveAgentModelCandidateSources = ({
     return {status: "ready", candidates, connections, capabilities, error: null}
 }
 
+const builtinModelEndpointsQueryKey = (projectId: string | null) => [
+    "gateways",
+    "llms",
+    "builtin",
+    projectId,
+]
+
+/**
+ * Built-in model endpoints. A failed read leaves `data` undefined, which the candidate builder
+ * treats as no built-in source, so the vault rows still show. Gated on the session so a
+ * pre-auth request is not sent at all.
+ */
+export const builtinModelEndpointsQueryAtom = atomWithQuery<BuiltinModelEndpoint[]>((get) => {
+    const projectId = get(projectIdAtom)
+    return {
+        queryKey: builtinModelEndpointsQueryKey(projectId),
+        queryFn: () => fetchBuiltinModelEndpoints(projectId as string),
+        enabled: get(sessionAtom) && Boolean(projectId),
+        staleTime: 5 * 60_000,
+        refetchOnWindowFocus: false,
+        // Optional rows: a refusal (403 where built-ins are off) is final, as in the loader below.
+        retry: false,
+    }
+})
+
 export const agentModelCandidatesAtomFamily = atomFamily((showSubscriptions: boolean) =>
     atom<AgentModelCandidatesState>((get) => {
-        const vault = get(vaultSecretsQueryAtom)
+        // With the organization connections this project may use: an agent can name one.
+        const vault = get(vaultSecretsWithOrganizationQueryAtom)
         const harnessCatalog = get(harnessCatalogQueryAtom)
+        const builtin = get(builtinModelEndpointsQueryAtom)
         const subscription = showSubscriptions
             ? get(subscriptionStatusQueryAtomFamily(SUBSCRIPTION_STATUS_QUERY_HARNESS))
             : null
@@ -134,9 +187,40 @@ export const agentModelCandidatesAtomFamily = atomFamily((showSubscriptions: boo
                     : undefined,
             pairModelSelection: showSubscriptions ? get(subscriptionPairModelsAtom) : null,
             showSubscriptions,
+            builtinEndpoints: builtin.data,
+            builtinSettled: !builtin.isLoading,
         })
     }),
 )
+
+const AGENT_CREATION_SOURCE_RETRY_DELAY_MS = 250
+
+/** Retry one failed source read and log the underlying error for diagnosis. */
+const retryAgentCreationSource =
+    (source: "provider connections" | "harness catalog") =>
+    (failureCount: number, error: unknown): boolean => {
+        const willRetry = failureCount < 1
+        if (willRetry) {
+            console.error(`[agent-create] Retrying ${source} after failure`, {
+                attempt: failureCount + 1,
+                error,
+            })
+        }
+        return willRetry
+    }
+
+const sourceOutcome = (result: {data: unknown; error: unknown}): AgentModelSourceOutcome => {
+    if (result.error !== undefined) return "error"
+    return result.data === undefined ? "unsettled" : "ok"
+}
+
+const httpStatusFrom = (error: unknown): number => {
+    if (!error || typeof error !== "object") return 0
+    const direct = (error as {status?: unknown}).status
+    if (typeof direct === "number") return direct
+    const response = (error as {response?: {status?: unknown}}).response
+    return typeof response?.status === "number" ? response.status : 0
+}
 
 export async function loadAgentModelCandidates({
     projectId,
@@ -156,9 +240,10 @@ export async function loadAgentModelCandidates({
         queryKey: ["vault", "secrets", userId, projectId],
         queryFn: () => fetchVaultSecret({projectId}),
         staleTime: 5 * 60_000,
-        retry: false,
+        retry: retryAgentCreationSource("provider connections"),
+        retryDelay: AGENT_CREATION_SOURCE_RETRY_DELAY_MS,
     } as const
-    const [vault, capabilities, subscription] = await Promise.all([
+    const [vault, capabilities, subscription, builtinEndpoints] = await Promise.all([
         (refreshVault
             ? queryClient.fetchQuery<LlmProvider[]>({...vaultQuery, staleTime: 0})
             : queryClient.ensureQueryData<LlmProvider[]>(vaultQuery)
@@ -171,7 +256,8 @@ export async function loadAgentModelCandidates({
                 queryFn: async () =>
                     (await fetchHarnessCapabilities()) as unknown as HarnessCapabilitiesMap,
                 staleTime: 5 * 60_000,
-                retry: false,
+                retry: retryAgentCreationSource("harness catalog"),
+                retryDelay: AGENT_CREATION_SOURCE_RETRY_DELAY_MS,
             })
             .then((data) => ({data, error: undefined}))
             .catch((error: unknown) => ({data: undefined, error})),
@@ -196,9 +282,18 @@ export async function loadAgentModelCandidates({
                   .then((data) => ({data, error: undefined}))
                   .catch((error: unknown) => ({data: undefined, error}))
             : Promise.resolve({data: null, error: undefined}),
+        queryClient
+            .ensureQueryData<BuiltinModelEndpoint[]>({
+                queryKey: builtinModelEndpointsQueryKey(projectId),
+                queryFn: () => fetchBuiltinModelEndpoints(projectId),
+                staleTime: 5 * 60_000,
+                retry: false,
+            })
+            // Only adds picker rows, so a failure must not block the vault's.
+            .catch(() => undefined),
     ])
 
-    return resolveAgentModelCandidateSources({
+    const resolved = resolveAgentModelCandidateSources({
         vaultRows: vault.data,
         vaultError: vault.error,
         capabilities: capabilities.data,
@@ -208,5 +303,16 @@ export async function loadAgentModelCandidates({
         subscriptionError: subscription.error,
         pairModelSelection,
         showSubscriptions,
+        builtinEndpoints,
     })
+
+    return {
+        ...resolved,
+        sources: {
+            provider_connections: sourceOutcome(vault),
+            harness_catalog: sourceOutcome(capabilities),
+            subscription_status: sourceOutcome(subscription),
+            status: httpStatusFrom(vault.error ?? capabilities.error ?? subscription.error),
+        },
+    }
 }

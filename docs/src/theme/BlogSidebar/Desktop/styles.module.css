@@ -1,0 +1,8 @@
+/* One line per release; long titles truncate (the full title is in the
+   link's title attribute). Height and padding come from .menu__link. */
+.link {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

@@ -1,6 +1,6 @@
 import {test as baseTest} from "@agenta/web-tests/tests/fixtures/base.fixture"
 import {getProjectScopedBasePath} from "@agenta/web-tests/tests/fixtures/base.fixture/apiHelpers"
-import {expect, pollLocatorState} from "@agenta/web-tests/utils"
+import {appToast, expect, pollLocatorState} from "@agenta/web-tests/utils"
 import type {Locator, Page} from "@playwright/test"
 
 import type {EvaluatorFixtures} from "./assets/types"
@@ -154,10 +154,10 @@ const selectEvaluatorTemplate = async (page: Page, templateName: string) => {
 
 /**
  * A success toast. These are no longer antd `message` nodes (`.ant-message`): the
- * @agenta/ui app-message service renders its own `Notification`, which carries
- * `role="status"` for ordinary toasts and `role="alert"` for errors.
+ * @agenta/ui app-message facade draws them with Sonner, which sets no ARIA role on
+ * the toast itself. `appToast` matches the Sonner and `Notification` markers instead.
  */
-const successToast = (page: Page, text: string) => page.getByRole("status").getByText(text).first()
+const successToast = (page: Page, text: string) => appToast(page, text)
 
 // Matched by role, not by a component-library class: `EntityCommitModal` renders
 // through `EnhancedModal`, which is a facade over the @agenta/ui (Radix) `Dialog`,

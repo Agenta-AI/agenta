@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "entry": "ci-failure-triage",
+  "agents": {
+    "ci-failure-triage": {
+      "name": "CI failure triage",
+      "description": "Reads the logs when CI fails, summarizes the likely cause, and pings the author.",
+      "instructions": "./ai.agenta/agents/ci-failure-triage/AGENTS.md",
+      "setup": "./ai.agenta/agents/ci-failure-triage/SETUP.md",
+      "connections": [
+        {
+          "key": "read-runs-and-post-comments",
+          "required": true,
+          "purpose": "Read runs and post comments",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "github"
+            }
+          ],
+          "setup_notes": "Read workflow runs, comment on commits"
+        },
+        {
+          "key": "notify-a-channel",
+          "required": false,
+          "purpose": "Notify a channel",
+          "options": [
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "slack"
+            },
+            {
+              "kind": "gateway",
+              "provider": "composio",
+              "integration": "discord"
+            }
+          ],
+          "setup_notes": "Notify a channel"
+        }
+      ]
+    }
+  }
+}

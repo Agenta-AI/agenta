@@ -18,7 +18,16 @@ import {useAtomValue} from "jotai"
 
 import {InstructionsFileRow} from "../DrillInView/SchemaControls/agentTemplate/ItemRow"
 
-import {agentConfigSummary} from "./agentConfigSummary"
+import {
+    AGENT_CONFIG_ROW_TITLES,
+    agentConfigSummary,
+    DEFAULT_TOOLS_COPY,
+    instructionsSummaryDetail,
+    mcpSummaryDetail,
+    permissionsSummaryDetail,
+    skillsSummaryDetail,
+    type AgentConfigToolsCopy,
+} from "./agentConfigSummary"
 import {SectionLoadError} from "./SectionLoadError"
 import {agentLatestRevisionAtomFamily} from "./state"
 
@@ -42,19 +51,9 @@ const emptyAction = (label: string) => ({summary: label, status: "default" as co
 const stated = (summary: string) => ({summary, status: "default" as const})
 
 /** The tools row's noun; a host that calls it something else passes its own. */
-export interface AgentConfigSummaryCopy {
-    toolsTitle: string
-    toolsCount: (count: number) => string
-    toolsAdd: string
-    toolsNone: string
-}
+export type AgentConfigSummaryCopy = AgentConfigToolsCopy
 
-const DEFAULT_COPY: AgentConfigSummaryCopy = {
-    toolsTitle: "Tools",
-    toolsCount: (count) => `${count} enabled`,
-    toolsAdd: "Add tools",
-    toolsNone: "None enabled",
-}
+const DEFAULT_COPY: AgentConfigSummaryCopy = DEFAULT_TOOLS_COPY
 
 export interface AgentConfigSummaryCardProps {
     appId: string
@@ -96,7 +95,7 @@ export const AgentConfigSummaryCard = ({
             icon: <CpuIcon size={16} />,
             // "Model", not "Model & harness": the harness no longer shows in the summary, and the
             // playground's own section is labelled "Model" too.
-            title: "Model",
+            title: AGENT_CONFIG_ROW_TITLES.model,
             // A model is the one required setting, so its absence is a warning rather than a gap.
             ...(summary.model
                 ? stated(model)
@@ -105,10 +104,10 @@ export const AgentConfigSummaryCard = ({
         {
             key: "instructions",
             icon: <FileTextIcon size={16} />,
-            title: "Instructions",
+            title: AGENT_CONFIG_ROW_TITLES.instructions,
             ...(summary.instructions
-                ? stated(`${INSTRUCTIONS_FILE} · ${summary.instructionWords} words`)
-                : emptyAction(onEdit ? "Add instructions" : "No instructions")),
+                ? stated(instructionsSummaryDetail(summary.instructionWords))
+                : emptyAction(instructionsSummaryDetail(null, {canEdit: Boolean(onEdit)}))),
             // The one row whose summary can't stand in for its value — "28 words" says how much,
             // never what — so it expands in place instead of leaving for the editor.
             expands: Boolean(summary.instructions),
@@ -124,26 +123,26 @@ export const AgentConfigSummaryCard = ({
         {
             key: "mcps",
             icon: <PlugsIcon size={16} />,
-            title: "MCP servers",
+            title: AGENT_CONFIG_ROW_TITLES.mcps,
             ...(summary.mcps
-                ? stated(`${summary.mcps} connected`)
-                : emptyAction(onEdit ? "Connect a server" : "None connected")),
+                ? stated(mcpSummaryDetail(summary.mcps))
+                : emptyAction(mcpSummaryDetail(0, {canEdit: Boolean(onEdit)}))),
         },
         {
             key: "skills",
             icon: <GraduationCapIcon size={16} />,
-            title: "Skills",
+            title: AGENT_CONFIG_ROW_TITLES.skills,
             ...(summary.skills
-                ? stated(`${summary.skills} ${summary.skills === 1 ? "skill" : "skills"}`)
-                : emptyAction(onEdit ? "Add skills" : "None available")),
+                ? stated(skillsSummaryDetail(summary.skills))
+                : emptyAction(skillsSummaryDetail(0, {canEdit: Boolean(onEdit)}))),
             // Expands to the skill names — the count alone says how many, never which.
             expands: summary.skillNames.length > 0,
         },
         {
             key: "permissions",
             icon: <ShieldCheckIcon size={16} />,
-            title: "Permissions",
-            ...stated(summary.permissions || "Not set"),
+            title: AGENT_CONFIG_ROW_TITLES.permissions,
+            ...stated(permissionsSummaryDetail(summary.permissions)),
         },
     ]
 

@@ -1,7 +1,6 @@
 import {useCallback} from "react"
 
 import {
-    AutomationBackLink,
     AutomationCreateBody,
     AutomationTriggerDrawers,
     useAutomationCreate,
@@ -14,7 +13,8 @@ import {ScreenScaffold} from "@/components/ScreenScaffold"
 
 import {useBindProjectContext} from "../context/useBindProjectContext"
 import {AppShell} from "../nav/AppShell"
-import {NavDrawer} from "../nav/NavDrawer"
+
+import {AutomationScreenHeader} from "./AutomationScreenHeader"
 
 export const AutomationDraftScreen = ({
     workspaceId,
@@ -27,7 +27,9 @@ export const AutomationDraftScreen = ({
     const router = useRouter()
     const base = `/w/${workspaceId}/p/${projectId}`
 
-    const state = useAutomationCreate()
+    // `?agent=` preselects the agent picked on the empty Automations page.
+    const agent = router.query.agent
+    const state = useAutomationCreate({defaultAgentId: typeof agent === "string" ? agent : null})
 
     const onCreate = useCallback(async () => {
         const created = await state.create()
@@ -40,15 +42,16 @@ export const AutomationDraftScreen = ({
             <AppShell workspaceId={workspaceId} projectId={projectId}>
                 <ScreenScaffold
                     header={
-                        <div className="mx-auto w-full max-w-[760px] shrink-0 px-8 pb-3.5 pt-[30px]">
-                            <div className="flex min-w-0 items-center gap-2">
-                                <NavDrawer workspaceId={workspaceId} projectId={projectId} />
-                                <AutomationBackLink href={`${base}/automations`} />
-                            </div>
-                        </div>
+                        <AutomationScreenHeader
+                            workspaceId={workspaceId}
+                            projectId={projectId}
+                            title="New automation"
+                            backHref={`${base}/automations`}
+                        />
                     }
                 >
-                    <div className="mx-auto flex w-full max-w-[760px] flex-col px-8 pb-[70px]">
+                    {/* pt-1: the name field's focus ring would otherwise be clipped by the scroller's edge. */}
+                    <div className="mx-auto flex w-full max-w-[760px] flex-col px-8 pb-[70px] pt-1">
                         <AutomationCreateBody
                             state={state}
                             autoEditName

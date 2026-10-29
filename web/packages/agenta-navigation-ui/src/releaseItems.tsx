@@ -36,7 +36,12 @@ const ReleaseGlyph = ({first, last}: {first?: boolean; last?: boolean}): ReactNo
             {last ? (
                 <PackageIcon size={14} className="text-colorTextSecondary" />
             ) : (
-                <CircleIcon size={7} weight="fill" className="text-colorTextQuaternary" />
+                <CircleIcon
+                    size={8}
+                    weight="fill"
+                    // size-2: the menu item scales unsized svgs to 16px.
+                    className="size-2 text-colorTextQuaternary"
+                />
             )}
         </span>
     </span>

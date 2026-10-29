@@ -12,7 +12,6 @@ import {dayjs} from "@agenta/shared/utils/dateTime"
 import {notification} from "antd"
 import JSON5 from "json5"
 import Router from "next/router"
-import {v4 as uuidv4} from "uuid"
 
 import {waitForValidURL} from "@/oss/state/url"
 
@@ -146,19 +145,6 @@ export function durationToStr(ms: number) {
     if (hours > 0) return `${hours}h ${mins}m`
     if (mins > 0) return `${mins}m ${secs}s`
     return `${secs}s`
-}
-
-export const generateOrRetrieveDistinctId = (): string => {
-    if (typeof localStorage !== "undefined") {
-        let distinctId = localStorage.getItem("posthog_distinct_id")
-        if (!distinctId) {
-            distinctId = uuidv4()
-            localStorage.setItem("posthog_distinct_id", distinctId)
-        }
-        return distinctId
-    } else {
-        return uuidv4()
-    }
 }
 
 export const redirectIfNoLLMKeys = async ({secrets: providerKeys}: {secrets: LlmProvider[]}) => {

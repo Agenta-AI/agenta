@@ -1,21 +1,11 @@
-import {
-    GATE_COOKIE_MAX_AGE,
-    decideDesktopGate,
-    resolveGateEnabled,
-} from "@agenta/shared/utils/mobileGate"
+import {GATE_COOKIE_MAX_AGE, decideDesktopGate} from "@agenta/shared/utils/mobileGate"
 import {NextRequest, NextResponse} from "next/server"
 
 /**
  * Forward gate: desktop routes are redirected into the /m app, for two reasons: the device
  * heuristic and the Classic mode preference.
  *
- * AGENTA_MOBILE_GATE covers both. DEFAULT ON; "false" opts out of every redirect.
- *
- * The flag is read inside the handler at request time: on the self-hosted
- * standalone Node server, non-NEXT_PUBLIC process.env is resolved at runtime
- * (the client-only DefinePlugin in next.config.ts does not touch this
- * compiler), so flipping the env + recreating the container is enough — no
- * rebuild. Behind Traefik this middleware never sees /m traffic
+ * There is no switch: every deployment runs /m. Behind Traefik this middleware never sees /m traffic
  * (PathPrefix(`/m`) routes to the mobile app); the matcher still excludes /m
  * for direct-port dev runs.
  *
@@ -29,7 +19,6 @@ export function middleware(request: NextRequest) {
         method: request.method,
         header: (name) => request.headers.get(name),
         cookie: (name) => request.cookies.get(name)?.value,
-        gateEnabled: resolveGateEnabled(process.env.AGENTA_MOBILE_GATE),
     })
 
     if (decision.kind === "redirect") {

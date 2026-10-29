@@ -1,4 +1,4 @@
-import type {ReactElement, ReactNode} from "react"
+import type {MouseEvent, ReactElement, ReactNode} from "react"
 
 import type {ListQueryState} from "@agenta/entities/shared"
 import type {Atom, WritableAtom} from "jotai"
@@ -61,6 +61,18 @@ export interface SidebarEntityReorder {
 export interface SidebarEntityGroup {
     key: string
     label: string
+    /** Set when the heading IS an agent (agent grouping) — what its "+" starts a session with. */
+    agentId?: string
+}
+
+/** A heading's "+": where it goes, what it reads as, and any extra click work. */
+export interface SidebarGroupAdd {
+    /** Followed on a plain click unless `onClick` prevents it; a modified click opens it as is. */
+    link: string
+    /** Accessible name, e.g. "New session with Demo shoot". */
+    label: string
+    /** Extra click work, outside React — it may `preventDefault` and navigate on its own. */
+    onClick?: (event: MouseEvent) => void
 }
 
 /**
@@ -116,6 +128,9 @@ export interface SidebarEntityConfig<TRef extends SidebarEntityRef = SidebarEnti
     }>
     /** Toggles a heading's collapse state. */
     toggleGroupAtom?: WritableAtom<string[], [string], void>
+    /** A heading's "+", or nothing for a heading that gets none. Given the project URL, since
+     * the add's own click may need to build a route. */
+    groupAdd?: (group: SidebarEntityGroup, projectURL: string) => SidebarGroupAdd | undefined
     /** `ref.id -> last used, in ms`. Ranked rows lead newest-first; the rest keep source order. */
     ranksAtom?: Atom<ReadonlyMap<string, number>>
 }
@@ -152,4 +167,5 @@ export interface SidebarEntity {
         reorder?: SidebarEntityReorder
     }>
     toggleGroupAtom?: WritableAtom<string[], [string], void>
+    groupAddLink?: (group: SidebarEntityGroup, projectURL: string) => SidebarGroupAdd | undefined
 }

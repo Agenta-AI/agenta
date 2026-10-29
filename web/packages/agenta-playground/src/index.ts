@@ -26,7 +26,6 @@
  *
  * - Controllers provide clean API for state access (selectors + actions)
  * - Internal atoms are hidden - use controllers instead
- * - Entity injection via PlaygroundEntityProvider
  * - UI components are in @agenta/playground-ui
  */
 
@@ -62,9 +61,6 @@ export {
 // Displayed entities & initialization (consumed by OSS layout/URL sync)
 export {displayedEntityIdsAtom, playgroundInitializedAtom} from "./state"
 
-// Testset import mutation (consumed by OSS testset integration)
-export {loadTestsetNormalizedMutationAtom} from "./state"
-
 export {filterUnreferencedColumnsForSource} from "./state"
 
 // Agent generation lane (consumed by OSS AgentChatPanel): per-entity mode flag
@@ -86,7 +82,6 @@ export {
 } from "./state"
 // The durable half: an approval decision goes to its interaction row, never to part state alone.
 export {approvalResolution, isResumeSend, type ChatStatusLike} from "./state"
-export {RECORD_ANSWER_TIMEOUT_MS, recordAnswerThenRelease} from "./state"
 // Render-hint map for interaction kinds (sibling `data-render` parts → toolCallId lookup).
 export {buildRenderMap, renderKindFor, type RenderHintLike} from "./state"
 // Queued-message release gate for the agent chat composer (HITL-safe, one-by-one).
@@ -107,18 +102,10 @@ export {
 } from "./state"
 
 // ============================================================================
-// ENTITY CONTEXT (Dependency Injection)
-// ============================================================================
-
-export {PlaygroundEntityProvider} from "./state"
-
-export type {PlaygroundEntityProviders} from "./state"
-
-// ============================================================================
 // TYPES (Only types actually consumed externally)
 // ============================================================================
 
-export type {PlaygroundTestResult, PlaygroundNode} from "./state"
+export type {PlaygroundNode} from "./state"
 export type {ChatMessage, SimpleChatMessage, MessageTarget} from "./state"
 export type {ChainExecutionResult, ChainNodeInfo} from "./state"
 export type {ConnectToTestsetPayload, OpenFromTraceResult} from "./state"

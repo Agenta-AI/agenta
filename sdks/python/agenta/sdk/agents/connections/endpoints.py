@@ -5,24 +5,33 @@ from __future__ import annotations
 from typing import Dict, Iterable, List, Optional, Tuple
 from urllib.parse import urlparse
 
-from .errors import InvalidConnectionConfigurationError
+from .errors import (
+    GatewayInsecureEndpointError,
+    InvalidConnectionConfigurationError,
+)
 from .models import (
     Endpoint,
+    GatewayCredentials,
     ResolvedConnection,
     ResolvedCredential,
     ResolvedSubscription,
+    gateway_insecure_http_allowed,
+    is_effective_https_endpoint,
 )
 
+# Each value is the provider's API base: the prefix a client puts before an operation path. For
+# Gemini that prefix carries the API version (`{base}/models/...`), the way Pi and LiteLLM read it.
 _DIRECT_ENDPOINTS: Dict[str, str] = {
     "openai": "https://api.openai.com/v1",
     "anthropic": "https://api.anthropic.com",
-    "gemini": "https://generativelanguage.googleapis.com",
+    "gemini": "https://generativelanguage.googleapis.com/v1beta",
     "mistral": "https://api.mistral.ai/v1",
     "mistralai": "https://api.mistral.ai/v1",
     "minimax": "https://api.minimax.io/v1",
     "groq": "https://api.groq.com/openai/v1",
     "together_ai": "https://api.together.xyz/v1",
     "openrouter": "https://openrouter.ai/api/v1",
+    "xai": "https://api.x.ai/v1",
 }
 _NON_SECRET_ENV = {
     "AWS_REGION",
@@ -30,6 +39,8 @@ _NON_SECRET_ENV = {
     "GOOGLE_CLOUD_PROJECT",
     "GOOGLE_CLOUD_LOCATION",
 }
+# Endpoint-region environment fields; Google project remains environment-provided.
+_REGION_ENV = {"AWS_REGION", "AWS_DEFAULT_REGION", "GOOGLE_CLOUD_LOCATION"}
 _LOCAL_USE_ENV = {
     "AWS_ACCESS_KEY_ID",
     "AWS_SECRET_ACCESS_KEY",
@@ -37,6 +48,11 @@ _LOCAL_USE_ENV = {
     "AWS_PROFILE",
     "GOOGLE_APPLICATION_CREDENTIALS",
 }
+
+
+def direct_endpoint(provider: str) -> Optional[str]:
+    """The registered direct base URL for a provider, or None when it has none."""
+    return _DIRECT_ENDPOINTS.get(provider.lower())
 
 
 def effective_endpoint(
@@ -57,14 +73,21 @@ def effective_endpoint(
             )
         resolved = Endpoint(base_url=base_url)
     elif deployment == "bedrock":
-        region = environment.get("AWS_REGION") or environment.get("AWS_DEFAULT_REGION")
+        # Prefer endpoint configuration, with environment fallback for legacy connections.
+        region = (
+            (endpoint.region if endpoint else None)
+            or environment.get("AWS_REGION")
+            or environment.get("AWS_DEFAULT_REGION")
+        )
         if not region:
             raise ValueError("bedrock model connection requires an AWS region")
         resolved = Endpoint(
             base_url=f"https://bedrock-runtime.{region}.amazonaws.com", region=region
         )
     elif deployment in {"vertex", "vertex_ai"}:
-        location = environment.get("GOOGLE_CLOUD_LOCATION")
+        location = (endpoint.region if endpoint else None) or environment.get(
+            "GOOGLE_CLOUD_LOCATION"
+        )
         if not location:
             raise ValueError("vertex model connection requires GOOGLE_CLOUD_LOCATION")
         resolved = Endpoint(
@@ -114,6 +137,7 @@ def build_resolved_connection(
     endpoint: Optional[Endpoint] = None,
     input_modalities: Optional[List[str]] = None,
     subscription: Optional[ResolvedSubscription] = None,
+    custom_connection: Optional[bool] = None,
 ) -> ResolvedConnection:
     """Build a classified connection and attach the resolver-owned effective route.
 
@@ -158,4 +182,87 @@ def build_resolved_connection(
         endpoint=route,
         input_modalities=input_modalities,
         subscription=subscription,
+        custom_connection=custom_connection,
+    )
+
+
+def gateway_target(*, kind: str, provider: str, slug: str) -> Tuple[str, str]:
+    """The D30 ``(namespace, name)`` pair for a chosen vault candidate.
+
+    ``provider_key`` records carry no endpoint row of their own — the gateway already knows
+    the shape (D30's "generated provider set") — so they route through ``standard/{provider}``.
+    ``custom_provider`` records are a stored row (their own base URL), so they route through
+    ``custom/{slug}``.
+    """
+    if kind == "provider_key":
+        return "standard", provider.lower()
+    return "custom", slug
+
+
+# Providers whose harness SDK adds the `/v1` segment to the base URL itself.
+_SDK_VERSIONED_PROVIDERS = frozenset({"anthropic", "mistral"})
+
+
+def gateway_route(
+    *, namespace: str, name: str, provider: str, gateway_base_url: str
+) -> str:
+    """Return the provider-correct base for a gateway LLM route.
+
+    OpenAI-compatible harnesses append operations such as ``/responses`` to a ``/v1`` base.
+    The Anthropic and Mistral SDKs, like their direct endpoints, own the version segment
+    themselves and append ``/v1/messages`` and ``/v1/chat/completions``. Giving them an
+    already-versioned base produces ``/v1/v1/...``, which the gateway does not route.
+    """
+    route = f"{gateway_base_url.rstrip('/')}/gateways/llms/{namespace}/{name}"
+    return route if provider.lower() in _SDK_VERSIONED_PROVIDERS else f"{route}/v1"
+
+
+def build_gateway_resolved_connection(
+    *,
+    provider: str,
+    model: str,
+    deployment: str,
+    namespace: str,
+    name: str,
+    gateway_base_url: str,
+    gateway_credentials_value: str,
+    input_modalities: Optional[List[str]] = None,
+    custom_connection: Optional[bool] = None,
+    protocol: Optional[str] = None,
+) -> ResolvedConnection:
+    """Build a resolved connection that routes through the gateway (D36/D30/D31).
+
+    No provider secret ever lands here: ``credentials`` stays empty and ``credential_mode``
+    is ``none`` — the gateway holds the provider's secret, not the harness. Our own
+    credentials into the gateway ride ``gateway_credentials`` (``X-AG-Credentials``), never
+    ``credentials``, which stays reserved for a provider's own secret (D36).
+
+    The transport check runs HERE as well as in ``ResolvedConnection``'s validator, and the
+    duplication is the point: the validator is the invariant no construction path can dodge,
+    but it can only raise a ``ValueError`` that reaches a caller as an unhandled 500. This
+    seam is the one every gateway connection passes through, so it is where the same refusal
+    becomes a typed, actionable error.
+    """
+    route = gateway_route(
+        namespace=namespace,
+        name=name,
+        provider=provider,
+        gateway_base_url=gateway_base_url,
+    )
+    if not is_effective_https_endpoint(
+        route, allow_insecure_http=gateway_insecure_http_allowed()
+    ):
+        raise GatewayInsecureEndpointError(base_url=route)
+
+    return ResolvedConnection(
+        provider=provider,
+        model=model,
+        deployment=deployment,
+        credential_mode="none",
+        credentials=[],
+        endpoint=Endpoint(base_url=route),
+        gateway_credentials=GatewayCredentials(value=gateway_credentials_value),
+        input_modalities=input_modalities,
+        custom_connection=custom_connection,
+        protocol=protocol,
     )

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it, vi } from "vitest";
-
+import { DEFAULT_DAYTONA_SNAPSHOT } from "../../src/config/runner-config.ts";
 import {
   DaytonaReconnectTerminalError,
   daytonaWithLifecycle,
@@ -27,6 +27,36 @@ function buildProvider(sandbox: Record<string, any>, getError?: unknown) {
     buildBaseProvider: fakeProvider,
   });
 }
+
+describe("Daytona provider create", () => {
+  it("reports the snapshot and build command when the snapshot is missing", async () => {
+    const provider = daytonaWithLifecycle(
+      {
+        create: {
+          snapshot: DEFAULT_DAYTONA_SNAPSHOT,
+        } as any,
+      },
+      {
+        client: {} as any,
+        target: "eu",
+        buildBaseProvider: () => ({
+          ...fakeProvider(),
+          create: async () => {
+            throw { statusCode: 404 };
+          },
+        }),
+      },
+    );
+
+    await assert.rejects(
+      () => provider.create(),
+      new RegExp(
+        `Daytona snapshot '${DEFAULT_DAYTONA_SNAPSHOT}' was not found.*` +
+          `DAYTONA_API_KEY=\\.\\.\\. DAYTONA_TARGET=eu uv run build_snapshot\\.py`,
+      ),
+    );
+  });
+});
 
 describe("Daytona provider pause", () => {
   afterEach(() => vi.useRealTimers());

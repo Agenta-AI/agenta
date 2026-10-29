@@ -238,6 +238,7 @@ export const ChatJumpToLatest = ({
         <Button
             ref={ref}
             variant="outline"
+            size="sm"
             onClick={onClick}
             tabIndex={show ? 0 : -1}
             aria-hidden={!show}
@@ -245,12 +246,12 @@ export const ChatJumpToLatest = ({
             className={cn(
                 // `hover:bg-colorBgElevated` is load-bearing: the variant's hover fill is 4% white
                 // in dark mode, which would let streamed text read through the pill.
-                "border-colorBorderSecondary bg-colorBgElevated hover:bg-colorBgElevated absolute bottom-2 left-1/2 z-10 -translate-x-1/2 text-xs shadow-sm transition-[opacity,transform] duration-200 ease-out",
+                "border-colorBorderSecondary bg-colorBgElevated hover:bg-colorBgElevated absolute bottom-2 left-1/2 z-10 -translate-x-1/2 rounded-lg !text-[12px] shadow-sm transition-[opacity,transform] duration-200 ease-out",
                 show ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-3 opacity-0",
                 className,
             )}
         >
-            <ArrowDown size={14} />
+            <ArrowDown size={11} className="!size-[11px]" />
             Jump to latest
         </Button>
     )

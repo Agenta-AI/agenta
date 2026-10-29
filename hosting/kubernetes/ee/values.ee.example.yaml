@@ -17,6 +17,7 @@ agenta:
   cryptKey: "replace-me"
   servicesInternalKey: "replace-me"
   runnerToken: "replace-me"
+  insecureEgressAllowed: false
 
 # ================================================================== #
 # Global (Bitnami subchart conventions, image pull secrets)
@@ -89,14 +90,6 @@ global:
 #       enabled: true
 
 # ================================================================== #
-# === agenta.extras ===
-# Consumed by EE (AGENTA_DEMOS): seeds demo workspaces/apps.
-# ================================================================== #
-# agenta:
-#   extras:
-#     demos:
-
-# ================================================================== #
 # === agenta.logging ===
 # ================================================================== #
 # agenta:
@@ -130,14 +123,6 @@ global:
 #     middleware:
 #       authEnabled: true
 #       cachingEnabled: true
-
-# ================================================================== #
-# === agenta.insecureEgressAllowed ===
-# default true (permissive, zero-config self-host); set false to harden a
-# shared/multi-tenant deployment.
-# ================================================================== #
-# agenta:
-#   insecureEgressAllowed: true
 
 # ================================================================== #
 # === agenta.sandboxLocalAllowed ===
@@ -205,6 +190,40 @@ global:
 # ================================================================== #
 # docker:
 #   networkMode: "bridge"
+
+# ================================================================== #
+# === Agenta gateways ===
+# Commented out: the chart's values.yaml already ships these defaults,
+# which mirror hosting/docker-compose/{oss,ee}/env.*.gh.example.
+# Uncomment only what you want to change.
+#
+#   mcpGateway.enabled            -> AGENTA_MCP_GATEWAY_ENABLED (api, workers,
+#                                    cron, alembic, services; also web and
+#                                    web-mobile, which hide the MCP settings
+#                                    tab when it is off)
+#   mcpGateway.hostAllowlist      -> AGENTA_MCP_GATEWAY_HOST_ALLOWLIST
+#   llmGateway.enabled            -> AGENTA_LLM_GATEWAY_ENABLED
+#   gatewayEgress.insecureAllowed -> AGENTA_GATEWAYS_INSECURE_EGRESS_ALLOWED
+#   gatewayEgress.insecureHttpAllowed
+#                                 -> AGENTA_GATEWAYS_INSECURE_HTTP_ALLOWED
+#                                    (services and runner only)
+#   gatewayCredentials.ttlSeconds -> AGENTA_GATEWAYS_CREDENTIALS_TTL_SECONDS
+#                                    (unset -> the application default, 43200)
+#
+# Docs: https://docs.agenta.ai/self-host/reference/configuration#agenta-gateways
+# ================================================================== #
+# mcpGateway:
+#   enabled: true
+#   hostAllowlist:          # list, rendered comma-joined; a string works too
+#     - mcp.internal
+#     - 10.0.0.5
+# llmGateway:
+#   enabled: false
+# gatewayEgress:
+#   insecureAllowed: true
+#   insecureHttpAllowed: true
+# gatewayCredentials:
+#   ttlSeconds: 43200
 
 # ================================================================== #
 # === identity — OIDC providers ===
@@ -275,18 +294,13 @@ global:
 #   openrouter:
 #   perplexityai:
 #   togetherai:
+#   xai:
 
 # ================================================================== #
 # === loops ===
 # ================================================================== #
 # loops:
 #   apiKey:
-
-# ================================================================== #
-# === newrelic ===
-# ================================================================== #
-# newrelic:
-#   licenseKey:
 
 # ================================================================== #
 # postgres — Agenta-managed connection settings
@@ -438,9 +452,9 @@ posthog:
 # env entries. Use extraEnv to reach a Secret key the chart does not model:
 #   api:
 #     extraEnv:
-#       - name: AGENTA_STARTER_CREDITS_BRIDGE_MASTER_KEY
+#       - name: TYPESAFE_API_KEY
 #         valueFrom:
-#           secretKeyRef: {name: agenta, key: AGENTA_STARTER_CREDITS_BRIDGE_MASTER_KEY}
+#           secretKeyRef: {name: agenta, key: TYPESAFE_API_KEY}
 # api:
 #   enabled: true
 #   replicas: 1
@@ -567,7 +581,8 @@ posthog:
 #           secretName: agenta-store-tls
 #     image:
 #       repository: chrislusf/seaweedfs
-#       tag: "4.37"  # pin a 4.37-era image — IAM regressed in other releases
+#       tag: "4.47"  # pinned — IAM regressed in other releases; 4.42 is the floor for
+#                    # versioned deletes (older builds leave deleted files listed but unreadable)
 
 # ================================================================== #
 # === extraObjects — arbitrary Kubernetes resources ===

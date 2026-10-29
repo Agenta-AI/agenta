@@ -1,8 +1,9 @@
-import {useCallback, useMemo} from "react"
+import {useCallback, useMemo, type ReactNode} from "react"
 
 import {AgentOverviewLayout} from "@agenta/entity-ui/agent"
 import {resetSessionFiltersAtom, sessionSearchAtom, useSessionsList} from "@agenta/sessions/state"
 import {useFilterMenuView} from "@agenta/ui/filter-menu"
+import {useMediaQuery} from "@agenta/ui/hooks"
 import {useSetAtom} from "jotai"
 
 import {useScrollFade} from "@/lib/useScrollFade"
@@ -35,6 +36,7 @@ export const AgentOverviewBody = ({
     agentNames,
     verbs,
     onEditConfig,
+    channels,
 }: {
     agentId: string
     agentName: string
@@ -43,7 +45,10 @@ export const AgentOverviewBody = ({
     agentNames: ReadonlyMap<string, string>
     verbs: SessionRowVerbs
     onEditConfig: () => void
+    /** The Channels connect card, host-owned (it wires to the channels API). */
+    channels?: ReactNode
 }) => {
+    const wide = useMediaQuery("(min-width: 1024px)")
     // The grouping is a preference; the tab, the window and the status are the question of the moment.
     const [view, setView] = useFilterMenuView<AgentActivityView>({
         key: "agenta:agent-overview:view",
@@ -126,10 +131,12 @@ export const AgentOverviewBody = ({
             rail={
                 // Only as a side rail. Below `lg` the layout would stack the cards under the
                 // list, where three of them read as a second page; the agent's own state is a
-                // tap away in the session workspace.
+                // tap away in the session workspace, through the header kebab's Open
+                // configuration (see [[AgentOverviewTitle]]).
                 <div className="hidden w-full flex-col gap-3.5 lg:flex">
                     <AgentConfigCard agentId={agentId} onEdit={onEditConfig} />
-                    <AgentDriveCard agentId={agentId} />
+                    {wide ? channels : null}
+                    <AgentDriveCard agentId={agentId} base={base} />
                     <AgentAutomationsCard agentId={agentId} agentNames={agentNames} base={base} />
                 </div>
             }

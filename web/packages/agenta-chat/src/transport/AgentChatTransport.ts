@@ -309,7 +309,9 @@ const sharedAcceptanceChunk = (chunk: AnyChunk): AnyChunk | undefined => {
         chunk.type === "finish-step" ||
         chunk.type === "error" ||
         chunk.type === "data-agent-error" ||
-        chunk.type === "data-session-accepted"
+        chunk.type === "data-session-accepted" ||
+        // The runner's startup narration (#6047): control, not content.
+        chunk.type === "data-agent-status"
     )
         return chunk
     return undefined

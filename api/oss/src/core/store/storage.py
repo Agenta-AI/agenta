@@ -8,13 +8,21 @@ from xml.etree import ElementTree
 
 import aiohttp
 from miniopy_async import Minio
+from miniopy_async.commonconfig import ENABLED, Filter
 from miniopy_async.credentials import Credentials
+from miniopy_async.lifecycleconfig import (
+    LifecycleConfig,
+    NoncurrentVersionExpiration,
+    Rule,
+)
+from miniopy_async.versioningconfig import VersioningConfig
 from miniopy_async.signer import sign_v4_sts
 from miniopy_async.deleteobjects import DeleteObject
 from miniopy_async.error import S3Error
 
 from oss.src.core.store import webidentity
-from oss.src.core.store.dtos import StoreObject
+from oss.src.core.store.dtos import StoreObject, StorePutResult
+from oss.src.core.store.types import StoreObjectTooLarge, StorePreconditionFailed
 from oss.src.core.mounts.types import MountFileNotFound, MountStorageUnavailable
 
 # STS responses are SOAP-ish XML under the 2011-06-15 namespace; strip it for tag lookups.
@@ -26,6 +34,56 @@ _SEAWEEDFS_MAX_SESSION_SECONDS = 43200
 
 # AWS GetFederationToken accepts DurationSeconds in [900, 129600].
 _AWS_MAX_FEDERATION_SECONDS = 129600
+
+# Identifies the lifecycle rule we own, so a rewrite replaces ours and leaves an operator's
+# other rules alone. Never rename it: an old rule under a stale id would linger forever.
+_RETENTION_RULE_ID = "agenta-noncurrent-version-expiration"
+
+_NOT_FOUND_CODES = ("NoSuchKey", "NoSuchObject")
+
+
+def _normalize_etag(value: Optional[str]) -> Optional[str]:
+    """The unquoted etag the API exposes. Stores return it quoted in headers and (usually)
+    unquoted in listings; callers may echo either back, so both forms compare equal."""
+    if value is None:
+        return None
+    etag = value.strip()
+    if etag.startswith("W/"):
+        etag = etag[2:]
+    return etag.strip('"') or None
+
+
+async def _read_bounded(resp, max_bytes: int) -> bytes:
+    """Read the body up to `max_bytes`, refusing a larger object before or while reading it."""
+    declared = resp.headers.get("Content-Length")
+    if declared is not None and declared.isdigit() and int(declared) > max_bytes:
+        raise StoreObjectTooLarge(max_bytes)
+    # One `read(n)` may return fewer than `n` bytes before EOF, so read until EOF or over limit.
+    chunks: List[bytes] = []
+    received = 0
+    while received <= max_bytes:
+        chunk = await resp.content.read(max_bytes + 1 - received)
+        if not chunk:
+            break
+        chunks.append(chunk)
+        received += len(chunk)
+    if received > max_bytes:
+        raise StoreObjectTooLarge(max_bytes)
+    return b"".join(chunks)
+
+
+def _quote_etag(value: str) -> str:
+    return f'"{_normalize_etag(value) or ""}"'
+
+
+def _store_object(obj, key: Optional[str] = None) -> StoreObject:
+    last_modified = getattr(obj, "last_modified", None)
+    return StoreObject(
+        key=key or obj.object_name,
+        size=obj.size or 0,
+        mtime=int(last_modified.timestamp() * 1000) if last_modified else None,
+        etag=_normalize_etag(getattr(obj, "etag", None)),
+    )
 
 
 def _parse_sts_credentials(xml_text: str) -> Credentials:
@@ -141,6 +199,95 @@ class ObjectStore:
         client = self._client()
         if not await client.bucket_exists(bucket):
             await client.make_bucket(bucket)
+
+    async def ensure_version_retention(
+        self,
+        *,
+        bucket: str,
+        retention_days: int,
+    ) -> bool:
+        """Turn on bucket versioning and expire noncurrent versions after `retention_days`.
+
+        Bundled SeaweedFS only. A remote S3 bucket (cloud) belongs to the operator: enabling
+        versioning there changes their storage bill and their lifecycle policy, so we never
+        do it from application startup.
+
+        Idempotent and best-effort by design — it reads the current state first and only
+        writes what differs, so it can run on every boot. `retention_days <= 0` removes
+        our expiration rule but leaves versioning unchanged.
+        Returns True when the bucket ends up versioned with our rule applied.
+        """
+        if not self.enabled or not self.is_seaweedfs:
+            return False
+
+        client = self._client()
+
+        if retention_days <= 0:
+            config = await client.get_bucket_lifecycle(bucket)
+            existing = getattr(config, "rules", None) or []
+            rules = [rule for rule in existing if rule.rule_id != _RETENTION_RULE_ID]
+            if len(rules) != len(existing):
+                if rules:
+                    await client.set_bucket_lifecycle(bucket, LifecycleConfig(rules))
+                else:
+                    await client.delete_bucket_lifecycle(bucket)
+            return False
+
+        versioning = await client.get_bucket_versioning(bucket)
+        if getattr(versioning, "status", None) != ENABLED:
+            await client.set_bucket_versioning(bucket, VersioningConfig(ENABLED))
+
+        if not await self._retention_rule_matches(client, bucket, retention_days):
+            await client.set_bucket_lifecycle(
+                bucket,
+                LifecycleConfig(
+                    await self._retention_rules(client, bucket, retention_days)
+                ),
+            )
+        return True
+
+    @staticmethod
+    async def _retention_rule_matches(
+        client: Minio,
+        bucket: str,
+        retention_days: int,
+    ) -> bool:
+        config = await client.get_bucket_lifecycle(bucket)
+        for rule in getattr(config, "rules", None) or []:
+            if rule.rule_id != _RETENTION_RULE_ID:
+                continue
+            expiration = rule.noncurrent_version_expiration
+            return (
+                bool(expiration and expiration.noncurrent_days == retention_days)
+                and rule.status == ENABLED
+            )
+        return False
+
+    @staticmethod
+    async def _retention_rules(
+        client: Minio,
+        bucket: str,
+        retention_days: int,
+    ) -> List[Rule]:
+        """Our retention rule plus any rule an operator added, since PutBucketLifecycle
+        replaces the whole configuration rather than merging into it."""
+        config = await client.get_bucket_lifecycle(bucket)
+        rules = [
+            rule
+            for rule in (getattr(config, "rules", None) or [])
+            if rule.rule_id != _RETENTION_RULE_ID
+        ]
+        rules.append(
+            Rule(
+                ENABLED,
+                rule_id=_RETENTION_RULE_ID,
+                rule_filter=Filter(prefix=""),
+                noncurrent_version_expiration=NoncurrentVersionExpiration(
+                    noncurrent_days=retention_days
+                ),
+            )
+        )
+        return rules
 
     def _scope_policy(self, *, bucket: str, prefix: str) -> str:
         """Inline STS session policy scoping credentials to one mount prefix.
@@ -351,11 +498,7 @@ class ObjectStore:
         async for obj in client.list_objects(bucket, prefix=prefix, recursive=True):
             if obj is None:
                 continue
-            last_modified = getattr(obj, "last_modified", None)
-            mtime = int(last_modified.timestamp() * 1000) if last_modified else None
-            results.append(
-                StoreObject(key=obj.object_name, size=obj.size or 0, mtime=mtime)
-            )
+            results.append(_store_object(obj))
         return results
 
     async def list_objects_page(
@@ -381,11 +524,7 @@ class ObjectStore:
             # We already have a full page — the presence of one more object means more remain.
             if len(results) >= max_keys:
                 return results, True
-            last_modified = getattr(obj, "last_modified", None)
-            mtime = int(last_modified.timestamp() * 1000) if last_modified else None
-            results.append(
-                StoreObject(key=obj.object_name, size=obj.size or 0, mtime=mtime)
-            )
+            results.append(_store_object(obj))
         return results, False
 
     async def list_objects_shallow(
@@ -410,9 +549,7 @@ class ObjectStore:
             if getattr(obj, "is_dir", False) or name.endswith("/"):
                 subdirs.append(name)
                 continue
-            last_modified = getattr(obj, "last_modified", None)
-            mtime = int(last_modified.timestamp() * 1000) if last_modified else None
-            files.append(StoreObject(key=name, size=obj.size or 0, mtime=mtime))
+            files.append(_store_object(obj, key=name))
         return files, subdirs
 
     async def get_object(
@@ -421,6 +558,20 @@ class ObjectStore:
         bucket: str,
         key: str,
     ) -> bytes:
+        body, _ = await self.get_object_with_etag(bucket=bucket, key=key)
+        return body
+
+    async def get_object_with_etag(
+        self,
+        *,
+        bucket: str,
+        key: str,
+        max_bytes: Optional[int] = None,
+    ) -> Tuple[bytes, Optional[str]]:
+        """The object's bytes plus its etag, read off the GET response in one round trip.
+
+        With `max_bytes`, an object larger than the limit raises `StoreObjectTooLarge` without
+        buffering more than `max_bytes + 1` bytes of it."""
         client = self._client()
         # get_object needs an explicit aiohttp session (miniopy-async 1.21 signature) and hands
         # back a streaming ClientResponse; own the session so it outlives the body read.
@@ -428,13 +579,46 @@ class ObjectStore:
             try:
                 resp = await client.get_object(bucket, key, session)
             except S3Error as e:
-                if e.code in ("NoSuchKey", "NoSuchObject", "NoSuchBucket"):
+                if e.code == "NoSuchBucket":
+                    raise MountStorageUnavailable(
+                        "Mount storage bucket is unavailable."
+                    ) from e
+                if e.code in _NOT_FOUND_CODES:
                     raise MountFileNotFound() from e
                 raise
             try:
-                return await resp.content.read()
+                if max_bytes is None:
+                    body = await resp.content.read()
+                else:
+                    body = await _read_bounded(resp, max_bytes)
             finally:
                 await resp.release()
+            return body, _normalize_etag(resp.headers.get("ETag"))
+
+    async def stat_object(
+        self,
+        *,
+        bucket: str,
+        key: str,
+    ) -> StoreObject:
+        client = self._client()
+        try:
+            obj = await client.stat_object(bucket, key)
+        except S3Error as e:
+            if e.code == "NoSuchBucket":
+                raise MountStorageUnavailable(
+                    "Mount storage bucket is unavailable."
+                ) from e
+            if e.code in _NOT_FOUND_CODES:
+                raise MountFileNotFound() from e
+            raise
+        return _store_object(obj, key=key)
+
+    async def _current_etag(self, *, bucket: str, key: str) -> Optional[str]:
+        try:
+            return (await self.stat_object(bucket=bucket, key=key)).etag
+        except MountFileNotFound:
+            return None
 
     async def put_object(
         self,
@@ -442,10 +626,99 @@ class ObjectStore:
         bucket: str,
         key: str,
         body: bytes,
-    ) -> int:
+        if_match: Optional[str] = None,
+        if_none_match_any: bool = False,
+    ) -> StorePutResult:
+        """Write `body` to `key`. With `if_match` the put only succeeds when the object's current
+        etag equals it; with `if_none_match_any` only when the key does not exist. Either
+        condition failing raises `StorePreconditionFailed` carrying the current etag (None when
+        the key is absent).
+
+        The conditions ride natively as `If-Match` / `If-None-Match: *` headers, which the store
+        checks atomically (verified against the bundled SeaweedFS; AWS S3, MinIO and R2 honour
+        the same headers). miniopy's public `put_object` rewrites unknown headers into
+        `x-amz-meta-*`, so the conditional path goes through its single-shot `_put_object`.
+        """
         client = self._client()
-        await client.put_object(bucket, key, BytesIO(body), length=len(body))
-        return len(body)
+        if if_match is None and not if_none_match_any:
+            try:
+                result = await client.put_object(
+                    bucket, key, BytesIO(body), length=len(body)
+                )
+            except S3Error as e:
+                if e.code == "NoSuchBucket":
+                    raise MountStorageUnavailable(
+                        "Mount storage bucket is unavailable."
+                    ) from e
+                raise
+            return StorePutResult(size=len(body), etag=_normalize_etag(result.etag))
+
+        headers = {"Content-Type": "application/octet-stream"}
+        if if_match is not None:
+            headers["If-Match"] = _quote_etag(if_match)
+        if if_none_match_any:
+            headers["If-None-Match"] = "*"
+        try:
+            result = await client._put_object(bucket, key, body, headers)
+        except S3Error as e:
+            if e.code == "NoSuchBucket":
+                raise MountStorageUnavailable(
+                    "Mount storage bucket is unavailable."
+                ) from e
+            # AWS answers an If-Match on a missing key with 404 rather than 412; both mean the
+            # condition did not hold.
+            if e.code == "PreconditionFailed" or (
+                if_match is not None and e.code in _NOT_FOUND_CODES
+            ):
+                raise StorePreconditionFailed(
+                    await self._current_etag(bucket=bucket, key=key)
+                ) from e
+            raise
+        return StorePutResult(size=len(body), etag=_normalize_etag(result.etag))
+
+    async def delete_object_if_match(
+        self,
+        *,
+        bucket: str,
+        key: str,
+        if_match: str,
+    ) -> int:
+        """Delete `key` only if its current etag equals `if_match`; raises
+        `StorePreconditionFailed` (current etag, None when absent) otherwise. Returns 1.
+
+        Emulated as stat-compare-delete: conditional DeleteObject is not portable across
+        S3-compatible stores. A write landing between the stat and the delete is therefore
+        not caught — the window is one round trip, and the caller holds the etag it wants
+        gone, so the worst case is deleting a version it never saw.
+        """
+        current = await self._current_etag(bucket=bucket, key=key)
+        if current is None or current != _normalize_etag(if_match):
+            raise StorePreconditionFailed(current)
+        client = self._client()
+        try:
+            await client.remove_object(bucket, key)
+        except S3Error as e:
+            if e.code == "NoSuchBucket":
+                raise MountStorageUnavailable(
+                    "Mount storage bucket is unavailable."
+                ) from e
+            raise
+        return 1
+
+    async def put_object_if_absent(self, *, bucket: str, key: str, body: bytes) -> bool:
+        # The public miniopy uploader rewrites metadata into x-amz-meta-* headers.
+        # Its single-object primitive preserves the S3 conditional request header.
+        try:
+            await self._client()._put_object(bucket, key, body, {"If-None-Match": "*"})
+        except S3Error as exc:
+            if exc.code == "NoSuchBucket":
+                raise MountStorageUnavailable(
+                    "Mount storage bucket is unavailable."
+                ) from exc
+            if exc.code == "PreconditionFailed":
+                return False
+            raise
+        return True
 
     async def delete_keys(
         self,

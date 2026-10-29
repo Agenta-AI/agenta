@@ -42,6 +42,7 @@
  * Everything else about geesefs — credentials, FUSE, staleness, ENOTCONN — is irrelevant to this
  * failure and is deliberately absent.
  */
+import { turnLogUnmoved } from "../utils/turn-log.ts";
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
 
@@ -65,7 +66,7 @@ import type { MountCredentials } from "../../src/engines/sandbox_agent/mount.ts"
 import type { SessionEnvironment } from "../../src/engines/sandbox_agent.ts";
 
 /** The one durable cwd every environment of a given session shares. */
-const CWD = "/tmp/agenta/mounts/proj-1/mount-1";
+const CWD = "/var/lib/agenta/mounts/proj-1/mount-1";
 const KEY = "proj-1:session-1";
 
 /** `Promise.withResolvers` is Node 24 but outside this package's tsc `lib` target. */
@@ -230,6 +231,7 @@ function makeEngine(host: Host, options: EngineOptions = {}) {
       );
     },
 
+    readLatestTurnIndex: turnLogUnmoved,
     async runCold() {
       throw new Error(
         "runCold must not be reached: every request here is session-owned",
