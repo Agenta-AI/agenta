@@ -75,7 +75,37 @@ export function wasSandboxCreatedHere(sandboxId: string): boolean {
   return createdSandboxes.has(rawSandboxId(sandboxId));
 }
 
+/**
+ * The snapshot each Daytona sandbox was built from, as this process learned it: the configured
+ * snapshot when this process created the sandbox, or the snapshot Daytona reports when it
+ * reconnected one (a parked sandbox can come from an older snapshot than the configured one).
+ * Absent when neither is known, for example a sandbox built from an image.
+ */
+const sandboxSnapshots = new Map<string, string>();
+
+/** Record (or, with no snapshot, forget) the snapshot `sandboxId` was built from. */
+export function recordSandboxSnapshot(
+  sandboxId: string | undefined,
+  snapshot: string | undefined,
+): void {
+  if (!sandboxId) return;
+  const id = rawSandboxId(sandboxId);
+  sandboxSnapshots.delete(id);
+  if (!snapshot) return;
+  if (sandboxSnapshots.size >= CREATED_SANDBOX_ID_MAX) {
+    const oldest = sandboxSnapshots.keys().next().value;
+    if (oldest !== undefined) sandboxSnapshots.delete(oldest);
+  }
+  sandboxSnapshots.set(id, snapshot);
+}
+
+/** The snapshot `sandboxId` was built from, or undefined when this process does not know it. */
+export function sandboxSnapshotOf(sandboxId: string | undefined): string | undefined {
+  return sandboxId ? sandboxSnapshots.get(rawSandboxId(sandboxId)) : undefined;
+}
+
 /** Test seam: forget every recorded id, as a process restart does. */
 export function resetCreatedSandboxIds(): void {
   createdSandboxes.clear();
+  sandboxSnapshots.clear();
 }

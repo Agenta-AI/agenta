@@ -625,6 +625,13 @@ class SessionStreamsRouter:
             methods=["POST"],
             operation_id="set_session_stream",
             tags=["Sessions"],
+            description=(
+                "Send a turn to a session, steer the running turn, or attach to it.\n\n"
+                "**Deprecated:** a call with no non-empty `data.inputs` and with `force` "
+                "false or omitted stops the running turn. This stop mode is deprecated "
+                "and will be removed in a later release. To stop a turn, call "
+                "`POST /sessions/{session_id}/cancel`."
+            ),
         )
         self.router.add_api_route(
             "/sessions/streams/",
@@ -712,6 +719,14 @@ class SessionStreamsRouter:
             raise not_found_exception()
 
         mode = derive_command_mode(payload)
+        if mode == CommandMode.cancel:
+            # Counts the callers left before the deprecated stop mode is removed.
+            log.info(
+                "[SESSIONS] deprecated stop through POST /sessions/streams/ "
+                "project_id=%s session_id=%s",
+                project_id,
+                payload.session_id,
+            )
 
         # A cancel starts nothing, so the per-project concurrency limit must not gate it. Before
         # this, a project at its limit could not stop the very runs that held the limit — the one

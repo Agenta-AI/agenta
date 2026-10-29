@@ -82,10 +82,11 @@ def _make_dao(*, seen=False, claim_lost=False):
     return dao
 
 
-# Raw provider envelope (Composio webhook shape): the message lives under
-# `payload`, the routing ids under `metadata` (`trigger_id` = the provider ti_*,
-# `id` = the per-delivery event id). The dispatcher normalizes this into
-# `event.{event_id,event_type,attributes}` before mapping.
+# Internal trigger event (what ingress enqueues after `normalize_webhook_event`):
+# the message lives under `payload`, the routing ids under `metadata`
+# (`trigger_id` = the provider ti_*, `id` = the provider event id, which is
+# also the delivery dedup key). The dispatcher normalizes this into
+# `event.{event_id,event_type,attributes}`.
 _EVENT = {
     "metadata": {
         "trigger_id": "ti_1",

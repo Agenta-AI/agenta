@@ -82,6 +82,39 @@ export const llmProvidersUrl = ({workspaceId, projectId}: LastContext): string =
 export const billingUrl = ({workspaceId, projectId}: LastContext): string =>
     `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/settings?tab=billing`
 
+/**
+ * The `/w/<segment>` a project routes under: its organization id. Workspace removal step 2
+ * answers the organization id where a workspace id was, and during the rollout an older API
+ * pod still answers the legacy workspace id for the same project, so routing keys on the
+ * organization, which never changes. A row without one (older API) keeps its workspace id.
+ */
+export const projectRouteSegment = (project: {
+    organization_id?: string | null
+    workspace_id?: string | null
+}): string | undefined => project.organization_id || project.workspace_id || undefined
+
+const PROJECT_PATH = /^\/w\/([^/?#]+)\/p\/([^/?#]+)(.*)$/
+
+/**
+ * The same route with the project's organization id in the `/w/<segment>` part, or null when
+ * the URL already names it (or the project is not in the list, or the list is not loaded).
+ * A legacy workspace id in a bookmark or a link is rewritten once; the rewrite cannot loop,
+ * because its result names the organization.
+ */
+export function canonicalProjectPath(
+    asPath: string,
+    projects: MobileProject[] | undefined,
+): string | null {
+    const match = PROJECT_PATH.exec(asPath)
+    if (!match || !projects) return null
+    const [, segment, projectSegment, rest] = match
+    const projectId = decodeURIComponent(projectSegment)
+    const project = projects.find((row) => row.project_id === projectId)
+    const organizationId = project?.organization_id
+    if (!organizationId || decodeURIComponent(segment) === organizationId) return null
+    return `/w/${encodeURIComponent(organizationId)}/p/${projectSegment}${rest}`
+}
+
 export function writeLastContext(context: LastContext): void {
     try {
         localStorage.setItem(LAST_CONTEXT_KEY, JSON.stringify(context))

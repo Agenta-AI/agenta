@@ -32,7 +32,6 @@ from oss.src.core.channels.dtos import (
 )
 from oss.src.core.channels.service import ChannelsService
 from oss.src.core.channels.utils import ChannelKeyGrain, compose_external_key
-from oss.src.core.sessions.streams.dtos import CommandMode
 from oss.src.dbs.postgres.channels.dao import ChannelsDAO
 from oss.src.dbs.postgres.channels.dbes import ChannelConnectionDBE
 from oss.src.tasks.asyncio.channels.inbox import InboxDispatcher
@@ -45,22 +44,16 @@ pytestmark = pytest.mark.integration
 LOCATOR = {"team": "T1", "channel": "C1", "thread_ts": "1000.1"}
 
 
-class _FakeStreamsService:
-    """Stands in for `SessionStreamsService`: `!stop` only needs a
-    `.command()` call to have happened, not the runner it would reach for
-    real — that reach is out of scope for this checkpoint."""
+class _FakeCommandsService:
+    """Stands in for `SessionCommandsService`: `!stop` only needs a
+    `.request_cancel()` call to have happened, not the runner it would reach
+    for real — that reach is out of scope for this checkpoint."""
 
     def __init__(self):
         self.calls = []
 
-    async def command(self, *, project_id, user_id, request, access):
-        from oss.src.core.sessions.streams.dtos import SessionStreamCommandResponse
-
-        self.calls.append((project_id, user_id, request))
-        return SessionStreamCommandResponse(
-            mode=CommandMode.cancel,
-            session_id=request.session_id,
-        )
+    async def request_cancel(self, *, project_id, user_id, session_id):
+        self.calls.append((project_id, user_id, session_id))
 
 
 @pytest.fixture
@@ -184,7 +177,7 @@ async def test_a_matched_command_travels_through_dispatch_event_and_opens_no_tur
     dispatcher = InboxDispatcher(
         run_admission=NoopRunAdmission(),
         channels_service=registry_scope["service"],
-        streams_service=_FakeStreamsService(),
+        commands_service=_FakeCommandsService(),
         invoke_fn=None,
     )
 

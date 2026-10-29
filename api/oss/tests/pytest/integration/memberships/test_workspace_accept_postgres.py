@@ -231,7 +231,7 @@ async def test_resolver_lists_a_project_without_workspace():
         await delete_seeded_organization(seeded)
 
 
-async def test_resolver_rows_of_legacy_projects_are_unchanged():
+async def test_resolver_rows_of_legacy_projects_answer_the_organization():
     seeded = await seed_organization(members={"m": "editor"}, workspaces=2)
     cross = await _seed_cross_organization_project()
     try:
@@ -239,11 +239,12 @@ async def test_resolver_rows_of_legacy_projects_are_unchanged():
             (seeded, seeded.user_ids["m"]),
             (cross, cross.user_ids["m"]),
         ):
+            # Step 2 (design D6): every project answers its organization's id and name.
             expected = {
-                row["id"]: (row["workspace_id"], row["name"])
+                row["id"]: (row["organization_id"], row["name"])
                 for row in await fetch_all(
-                    "SELECT p.id, p.workspace_id, w.name FROM projects p "
-                    "JOIN workspaces w ON w.id = p.workspace_id "
+                    "SELECT p.id, p.organization_id, o.name FROM projects p "
+                    "JOIN organizations o ON o.id = p.organization_id "
                     "WHERE p.organization_id = :o",
                     {"o": org.organization_id},
                 )
@@ -290,8 +291,9 @@ async def test_fetch_default_project_by_workspace_id():
             ref = await db_manager.fetch_default_project(
                 workspace_or_organization_id=str(workspace_id)
             )
-            assert ref.project_id == project_id
-            assert ref.project_workspace_id == workspace_id
+            # Step 2: any id of the organization answers the organization's default.
+            assert ref.project_id == seeded.project_ids[1]
+            assert ref.ref_workspace_id == workspace_id
             assert ref.ref_organization_id == seeded.organization_id
     finally:
         await delete_seeded_organization(seeded)
@@ -393,7 +395,7 @@ async def test_get_default_project_id_from_workspace_keeps_its_contract():
     try:
         assert await db_manager.get_default_project_id_from_workspace(
             workspace_id=str(seeded.workspace_ids[0])
-        ) == str(seeded.project_ids[0])
+        ) == str(seeded.project_ids[1])
         assert await db_manager.get_default_project_id_from_workspace(
             workspace_id=str(seeded.organization_id)
         ) == str(seeded.project_ids[1])
@@ -434,51 +436,6 @@ async def test_get_project_by_workspace_accepts_the_organization_id():
         await delete_seeded_organization(no_workspaces)
 
 
-async def test_get_project_by_workspace_keeps_the_legacy_answer():
-    # Only its own rows: tests that run in parallel create and delete workspaces and
-    # projects in the same database. The shapes: a workspace with its default project and
-    # two more (one not default, one with a NULL default), a workspace with one default
-    # project, and a workspace whose only project is not default.
-    own = await seed_organization(members={"m": "editor"}, workspaces=3)
-    try:
-        await _add_project(
-            organization_id=own.organization_id,
-            workspace_id=own.workspace_ids[0],
-            is_default=False,
-            name="not-default",
-        )
-        await _add_project(
-            organization_id=own.organization_id,
-            workspace_id=own.workspace_ids[0],
-            is_default=None,
-            name="null-default",
-        )
-        await execute(
-            "UPDATE projects SET is_default = false WHERE workspace_id = :w",
-            {"w": own.workspace_ids[2]},
-        )
-        for workspace_id in own.workspace_ids:
-            today = await fetch_all(
-                _TODAY_PROJECT_BY_WORKSPACE_SQL, {"w": workspace_id}
-            )
-            assert today, workspace_id
-            project = await db_manager.get_project_by_workspace(
-                workspace_id=str(workspace_id)
-            )
-            # Today's order leaves ties of (is_default, created_at) open: the answer is one
-            # of the tied rows.
-            first = today[0]["id"]
-            tied = await fetch_all(
-                "SELECT id FROM projects WHERE workspace_id = :w "
-                "AND is_default IS NOT DISTINCT FROM (SELECT is_default FROM projects WHERE id = :p) "
-                "AND created_at IS NOT DISTINCT FROM (SELECT created_at FROM projects WHERE id = :p)",
-                {"w": workspace_id, "p": first},
-            )
-            assert project.id in {t["id"] for t in tied}, workspace_id
-    finally:
-        await delete_seeded_organization(own)
-
-
 async def test_get_project_by_workspace_keeps_a_workspace_without_default():
     seeded = await seed_organization(members={"m": "editor"}, workspaces=2)
     try:
@@ -488,7 +445,8 @@ async def test_get_project_by_workspace_keeps_a_workspace_without_default():
             {"p": seeded.project_ids[1]},
         )
         project = await db_manager.get_project_by_workspace(workspace_id=str(secondary))
-        assert project.id == seeded.project_ids[1]  # its own project, as today
+        # Step 2: the organization's default, not the workspace's own project.
+        assert project.id == seeded.project_ids[0]
     finally:
         await delete_seeded_organization(seeded)
 
@@ -508,7 +466,8 @@ async def test_get_project_by_workspace_keeps_today_order_for_null_defaults():
         )
         today = await fetch_all(_TODAY_PROJECT_BY_WORKSPACE_SQL, {"w": workspace_id})
         assert today[0]["id"] == null_default  # NULLS FIRST under DESC
-        assert project.id == null_default
+        # Step 2: the default project wins (`is_default IS TRUE` first).
+        assert project.id == seeded.project_ids[0]
     finally:
         await delete_seeded_organization(seeded)
 
@@ -527,10 +486,8 @@ async def test_both_default_helpers_stay_in_the_organization_after_the_step2_con
         by_bearer = await db_manager.fetch_default_project(
             workspace_or_organization_id=str(secondary)
         )
-        # Step 1 keeps today's answer for the member routes (the workspace's own project)
-        # and the Bearer answer is the organization default; both are projects of the
-        # same organization. Step 2 makes them agree.
-        assert by_route.id == seeded.project_ids[2]
+        # Step 2: both helpers answer the organization default.
+        assert by_route.id == seeded.project_ids[1]
         assert by_bearer.project_id == seeded.project_ids[1]
         assert by_route.organization_id == seeded.organization_id
         assert by_bearer.project_organization_id == seeded.organization_id
@@ -541,57 +498,11 @@ async def test_both_default_helpers_stay_in_the_organization_after_the_step2_con
 # --- writers ---------------------------------------------------------------- #
 
 
-async def test_create_project_with_the_organization_id_uses_the_default_workspace():
-    seeded = await _multi_workspace_organization()
-    try:
-        created = await _dao().create_project(
-            organization_id=seeded.organization_id,
-            workspace_id=seeded.organization_id,
-            name="by-organization-id",
-            is_default=False,
-        )
-        rows = await fetch_all(
-            "SELECT workspace_id, is_default FROM projects WHERE id = :p",
-            {"p": created.scope.project_id},
-        )
-        assert rows[0]["workspace_id"] == seeded.workspace_ids[1]
-        assert rows[0]["is_default"] is False
-        assert created.scope.workspace_id == seeded.workspace_ids[1]
-    finally:
-        await delete_seeded_organization(seeded)
-
-
-async def test_create_project_refuses_a_workspace_of_another_organization():
-    seeded = await seed_organization(members={"m": "editor"})
-    other = await seed_organization(members={"owner": "owner"})
-    try:
-        from oss.src.core.memberships.types import WorkspaceNotFound
-
-        with pytest.raises(WorkspaceNotFound):
-            await _dao().create_project(
-                organization_id=seeded.organization_id,
-                workspace_id=other.workspace_ids[0],
-                name="foreign",
-                is_default=False,
-            )
-        with pytest.raises(WorkspaceNotFound):
-            await _dao().create_project(
-                organization_id=seeded.organization_id,
-                workspace_id=other.organization_id,
-                name="foreign-organization",
-                is_default=False,
-            )
-    finally:
-        await delete_seeded_organization(seeded)
-        await delete_seeded_organization(other)
-
-
 async def test_create_project_in_an_organization_without_workspaces():
     seeded = await _seed_organization_without_workspaces()
     try:
         created = await _dao().create_project(
             organization_id=seeded.organization_id,
-            workspace_id=seeded.organization_id,
             name="no-workspace",
             is_default=False,
         )
@@ -605,7 +516,6 @@ async def test_create_project_in_an_organization_without_workspaces():
 
         made_default = await _dao().create_project(
             organization_id=seeded.organization_id,
-            workspace_id=seeded.organization_id,
             name="no-workspace-default",
             is_default=True,
         )
@@ -614,25 +524,6 @@ async def test_create_project_in_an_organization_without_workspaces():
             {"o": seeded.organization_id},
         )
         assert [row["id"] for row in defaults] == [made_default.scope.project_id]
-    finally:
-        await delete_seeded_organization(seeded)
-
-
-async def test_create_project_statement_count_is_unchanged():
-    seeded = await seed_organization(members={"m": "editor"})
-    try:
-        engine = get_transactions_engine()
-        counts = []
-        for workspace_id in (seeded.workspace_ids[0], seeded.organization_id):
-            with count_statements(engine) as statements:
-                await _dao().create_project(
-                    organization_id=seeded.organization_id,
-                    workspace_id=workspace_id,
-                    name=f"count-{uuid4().hex[:6]}",
-                    is_default=False,
-                )
-            counts.append(len(statements))
-        assert counts[0] == counts[1]
     finally:
         await delete_seeded_organization(seeded)
 
@@ -669,7 +560,8 @@ async def test_set_default_project_with_a_workspace_keeps_the_workspace_scope():
                 {"o": seeded.organization_id},
             )
         }
-        assert defaults == {seeded.project_ids[0], extra}
+        # Step 2: the default is organization-wide.
+        assert defaults == {extra}
     finally:
         await delete_seeded_organization(seeded)
 
@@ -677,22 +569,21 @@ async def test_set_default_project_with_a_workspace_keeps_the_workspace_scope():
 async def test_mixed_organization_writes_from_both_versions():
     seeded = await _multi_workspace_organization()
     try:
-        secondary = seeded.workspace_ids[2]
         await execute(
             "UPDATE projects SET is_default = false WHERE id = :p",
             {"p": seeded.project_ids[2]},
         )
-        # (1) A step-1 workspace-scoped write sets a second default (accepted, D-20).
-        await _dao().create_project(
+        # (1) Step 2: a project created as default clears every other default of the
+        # organization (no second default).
+        created = await _dao().create_project(
             organization_id=seeded.organization_id,
-            workspace_id=secondary,
-            name="step1-default",
+            name="step2-default",
             is_default=True,
         )
         ref = await db_manager.fetch_default_project(
             workspace_or_organization_id=str(seeded.organization_id)
         )
-        assert ref.project_id == seeded.project_ids[1]
+        assert ref.project_id == created.scope.project_id
         # (2) A step-2-shaped write: a NULL-workspace project becomes the only default.
         step2 = await _add_project(
             organization_id=seeded.organization_id, workspace_id=None, is_default=False
@@ -707,70 +598,12 @@ async def test_mixed_organization_writes_from_both_versions():
         assert len(ids) == len(set(ids))
         by_id = {p.project_id: p.workspace_id for p in listed}
         assert by_id[step2] == seeded.organization_id
-        assert by_id[seeded.project_ids[0]] == seeded.workspace_ids[0]
+        assert by_id[seeded.project_ids[0]] == seeded.organization_id  # step 2
     finally:
         await delete_seeded_organization(seeded)
 
 
 # --- workspace list items ---------------------------------------------------- #
-
-
-async def test_user_workspace_items_add_organizations_without_workspaces():
-    seeded = await _seed_organization_without_workspaces()
-    try:
-        engine = get_transactions_engine()
-        await db_manager.fetch_user_workspace_items(user_id=str(seeded.owner_id))
-        with count_statements(engine) as statements:
-            items = await db_manager.fetch_user_workspace_items(
-                user_id=str(seeded.owner_id)
-            )
-        assert len(statements) == 1
-        mine = [i for i in items if i.organization_id == seeded.organization_id]
-        assert len(mine) == 1
-        assert mine[0].id == seeded.organization_id
-        assert mine[0].name == await _organization_name(seeded.organization_id)
-        assert mine[0].type == "default"
-    finally:
-        await delete_seeded_organization(seeded)
-
-
-async def test_user_workspace_items_add_members_without_a_workspace_row():
-    seeded = await seed_organization(
-        members={"owner": "owner", "m": "editor"}, workspace_rows=False
-    )
-    try:
-        items = await db_manager.fetch_user_workspace_items(
-            user_id=str(seeded.user_ids["m"])
-        )
-        assert [(i.id, i.organization_id) for i in items] == [
-            (seeded.organization_id, seeded.organization_id)
-        ]
-    finally:
-        await delete_seeded_organization(seeded)
-
-
-async def test_user_workspace_items_of_legacy_users_equal_today():
-    seeded = await seed_organization(members={"m": "editor"}, workspaces=3)
-    try:
-        for user_id in seeded.user_ids.values():
-            today = await fetch_all(
-                "SELECT w.id, w.organization_id, w.name, w.description, w.type "
-                "FROM workspaces w JOIN workspace_members wm ON wm.workspace_id = w.id "
-                "WHERE wm.user_id = :u ORDER BY w.created_at ASC",
-                {"u": user_id},
-            )
-            items = await db_manager.fetch_user_workspace_items(user_id=str(user_id))
-            # Today's order leaves ties of `created_at` open (one transaction can create
-            # several workspaces): same items, in `created_at` order.
-            assert sorted(
-                (i.id, i.organization_id, i.name, i.description, i.type) for i in items
-            ) == sorted(
-                (r["id"], r["organization_id"], r["name"], r["description"], r["type"])
-                for r in today
-            )
-            assert [i.created_at for i in items] == sorted(i.created_at for i in items)
-    finally:
-        await delete_seeded_organization(seeded)
 
 
 async def test_org_details_of_an_organization_without_workspaces():
@@ -1252,7 +1085,8 @@ async def test_apikey_counts_are_unchanged(bearer_world):
     assert counts["cold"][0] == 2, counts
     assert counts["cold"][1] == _APIKEY_COLD_REDIS, counts
     assert counts["warm"] == (0, 1), counts
-    assert request_state.workspace_id == str(seeded.workspace_ids[0])
+    # Step 2: the organization id where the workspace id was.
+    assert request_state.workspace_id == str(seeded.organization_id)
 
 
 async def test_delete_paths_keep_their_statement_counts():
@@ -1321,8 +1155,9 @@ async def test_legacy_workspace_with_a_null_name_keeps_an_empty_name():
         row = await _dao().fetch_membership_row(
             user_id=seeded.user_ids["m"], project_id=seeded.project_ids[0]
         )
-        assert row.summary.workspace_id == seeded.workspace_ids[0]
-        assert row.summary.workspace_name == ""
+        # Step 2: the organization's id and name, whatever the workspace row holds.
+        assert row.summary.workspace_id == seeded.organization_id
+        assert row.summary.workspace_name == row.summary.organization_name
     finally:
         await delete_seeded_organization(seeded)
 
@@ -1348,11 +1183,14 @@ async def test_org_details_of_an_organization_without_workspaces_or_projects():
             )
             with count_statements(engine) as statements:
                 details = await db_manager.get_org_details(organization)
-            assert details["default_workspace"] is None, demo
-            assert details["workspaces"] == [], demo
-            # Today: two default-workspace reads and the workspace list read. Now the
-            # project read takes the place of the workspace list read.
-            assert len(statements) == 3, (demo, statements)
+            # Step 2 (design D6): the organization alias, with no members.
+            assert details["default_workspace"]["id"] == str(seeded.organization_id), (
+                demo
+            )
+            assert details["default_workspace"]["members"] == [], demo
+            assert details["workspaces"] == [str(seeded.organization_id)], demo
+            # Step 1: 3 statements; step 2: the one project read.
+            assert len(statements) == 1, (demo, statements)
     finally:
         await delete_seeded_organization(seeded)
 
@@ -1364,11 +1202,10 @@ async def test_org_details_of_a_legacy_organization_keep_their_statement_count()
         engine = get_transactions_engine()
         with count_statements(engine) as statements:
             details = await db_manager.get_org_details(organization)
-        assert details["default_workspace"]["id"] == str(seeded.workspace_ids[0])
-        assert sorted(details["workspaces"]) == sorted(
-            str(w) for w in seeded.workspace_ids
-        )
-        # default workspace read, project read, members, invitations, workspace list
-        assert len(statements) == 5, statements
+        # Step 2 (design D6): the organization where the default workspace was.
+        assert details["default_workspace"]["id"] == str(seeded.organization_id)
+        assert details["workspaces"] == [str(seeded.organization_id)]
+        # Step 1: 5 statements; step 2: project, invitations, members.
+        assert len(statements) == 3, statements
     finally:
         await delete_seeded_organization(seeded)

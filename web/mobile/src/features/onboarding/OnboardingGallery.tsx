@@ -106,7 +106,7 @@ export const OnboardingGallery = ({
     ) : null
 
     return (
-        <div ref={rootRef} className="min-w-0">
+        <div ref={rootRef} className="min-w-0 md:flex md:min-h-0 md:flex-1 md:flex-col">
             {detail.open && shownPanel ? (
                 <motion.div
                     key={`detail-${panelKey}`}
@@ -133,7 +133,10 @@ export const OnboardingGallery = ({
                 custom={-1}
                 initial={false}
                 animate={detail.open ? "initial" : "animate"}
-                className={cn("flex min-w-0 flex-col gap-6", detail.open && "max-md:hidden")}
+                className={cn(
+                    "flex min-w-0 flex-col gap-6 md:min-h-0 md:flex-1",
+                    detail.open && "max-md:hidden",
+                )}
             >
                 <div className="flex flex-col gap-1.5">
                     <h1
@@ -176,8 +179,8 @@ export const OnboardingGallery = ({
                         })}
                     </div>
                 ) : null}
-                <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 md:grid-cols-[minmax(240px,320px)_minmax(0,1fr)]">
-                    <div className="flex min-w-0 flex-col gap-1 md:-mx-0.5 md:-my-3 md:max-h-[calc(100dvh-340px)] md:min-h-60 md:overflow-y-auto md:px-0.5 md:py-3 md:[mask-image:linear-gradient(180deg,transparent_0,#000_16px,#000_calc(100%-24px),transparent_100%)] md:[scrollbar-width:none] md:[&::-webkit-scrollbar]:hidden">
+                <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-4 md:min-h-0 md:flex-1 md:grid-cols-[minmax(240px,320px)_minmax(0,1fr)] md:grid-rows-[minmax(0,1fr)] md:items-stretch">
+                    <div className="flex min-w-0 flex-col gap-1 md:-mx-0.5 md:-my-3 md:min-h-0 md:overflow-y-auto md:px-0.5 md:py-3 md:[mask-image:linear-gradient(180deg,transparent_0,#000_16px,#000_calc(100%-24px),transparent_100%)] md:[scrollbar-width:none] md:[&::-webkit-scrollbar]:hidden">
                         <button
                             type="button"
                             aria-pressed={scratch}
@@ -264,7 +267,7 @@ export const OnboardingGallery = ({
                             custom={1}
                             initial="initial"
                             animate="animate"
-                            className="sticky top-24"
+                            className="min-h-0"
                         >
                             {shownPanel}
                         </motion.div>
