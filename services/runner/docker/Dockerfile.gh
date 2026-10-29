@@ -169,6 +169,14 @@ RUN node_modules/.bin/tsx scripts/pin-codex-adapter.ts install-agent codex --age
 # than silently shipping cold approvals. Retires when upstream codex-acp#310 lands.
 RUN node_modules/.bin/tsx scripts/patch-codex-acp-approvals.ts
 
+# Let ANY uid walk to the pin. The runtime-user chromium check above creates `~/.local/share` 0700
+# (for its NSS cert db under `pki/`), so a container started with `user: "<id -u>:<id -g>"` (the
+# documented subscription self-host scheme) cannot reach the adapter this image just pinned, and
+# the runner's boot-time seed (src/engines/sandbox_agent/adapter-seed.ts) cannot copy it into the
+# data dir the daemon resolves from the overridden HOME. `a+x` grants traversal only: `share` stays
+# unlistable and `pki/` keeps its own 0700. Everything under `sandbox-agent/` is already 0755.
+RUN chmod a+x /home/node/.local/share
+
 # Call the local tsx binary directly to avoid pnpm/corepack HOME writes when the
 # container runs as a non-root host uid.
 CMD ["node_modules/.bin/tsx", "src/server.ts"]

@@ -1,5 +1,6 @@
 import os
 import uuid
+import uuid_utils.compat as uuid_compat
 from contextlib import asynccontextmanager
 import json
 from pathlib import Path
@@ -13,9 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import joinedload, load_only
 from sqlalchemy.exc import NoResultFound, MultipleResultsFound
 
-from oss.src.core.memberships.service import get_memberships_service
 from oss.src.utils.logging import get_module_logger
-from oss.src.utils.common import is_ee
 from oss.src.utils.env import env
 from oss.src.dbs.postgres.shared.engine import (
     get_transactions_engine,
@@ -54,10 +53,8 @@ from oss.src.models.db_models import (
 from oss.src.dbs.postgres.webhooks.dbes import WebhookSubscriptionDBE
 from oss.src.core.access.permissions.types import (
     Permission,
-    RequiredRole,
 )
 from oss.src.core.access.controls import (
-    get_roles,
     get_role_description,
     get_role_permissions,
 )
@@ -94,23 +91,21 @@ async def fetch_project_by_id(
         return project
 
 
-async def fetch_projects_by_workspace(
-    workspace_id: str,
+async def fetch_projects_by_organization(
+    organization_id: uuid.UUID,
 ) -> List[ProjectDB]:
-    """
-    Retrieve all projects that belong to a workspace ordered by creation date.
-    Args:
-        workspace_id (str): Workspace identifier.
-    Returns:
-        List[ProjectDB]: Projects scoped to the workspace.
-    """
+    """Every project of an organization, the default project first."""
 
     engine = get_transactions_engine()
     async with engine.session() as session:
         result = await session.execute(
             select(ProjectDB)
-            .filter(ProjectDB.workspace_id == uuid.UUID(workspace_id))
-            .order_by(ProjectDB.created_at.asc())
+            .filter(ProjectDB.organization_id == organization_id)
+            .order_by(
+                ProjectDB.is_default.desc().nulls_last(),
+                ProjectDB.created_at.asc(),
+                ProjectDB.id.asc(),
+            )
         )
         return result.scalars().all()
 
@@ -128,26 +123,29 @@ WITH ref AS (
 )
 """
 
-# The organization's default project when no workspace decides: the `default`-type
-# workspace's, else the oldest workspace's, else the oldest project (D-11 order).
+# The organization's default project (D-11 order): the project in the `default`-type
+# workspace, else in the oldest workspace, else the oldest project. Only a workspace of the
+# project's own organization counts (`pw` joins on both ids). A NULL workspace type is not
+# `default` and sorts with the other workspaces by age.
 _ORGANIZATION_DEFAULT_ORDER = """
-(pw.type = 'default') DESC NULLS LAST,
+(pw.type IS NOT DISTINCT FROM 'default') DESC,
 pw.created_at ASC NULLS LAST, pw.id ASC NULLS LAST,
 p.created_at ASC NULLS LAST, p.id ASC
 """
 
-# A workspace's own projects first, in today's order (`is_default DESC`, NULLS FIRST as
-# before, then `created_at`), so every workspace that has a project keeps its answer; for an
-# organization id, or a workspace with no project, the organization's default project.
+_PROJECT_WORKSPACE_JOIN = """
+LEFT JOIN workspaces pw ON pw.id = p.workspace_id AND pw.organization_id = p.organization_id
+"""
+
+# One rule for every reader: a workspace id or an organization id names the organization
+# (the reference's own organization, never another one); the answer is the organization's
+# default project, else its first project by the same order.
 _PROJECT_BY_WORKSPACE_SQL = f"""
 {_WORKSPACE_REF_CTE}
 SELECT p.* FROM ref
-JOIN projects p ON (p.workspace_id = ref.workspace_id OR p.organization_id = ref.organization_id)
-LEFT JOIN workspaces pw ON pw.id = p.workspace_id
-ORDER BY (p.workspace_id = ref.workspace_id) DESC NULLS LAST,
-         CASE WHEN p.workspace_id = ref.workspace_id THEN p.is_default END DESC,
-         CASE WHEN p.workspace_id = ref.workspace_id THEN p.created_at END ASC,
-         (p.is_default IS TRUE) DESC,
+JOIN projects p ON p.organization_id = ref.organization_id
+{_PROJECT_WORKSPACE_JOIN}
+ORDER BY (p.is_default IS TRUE) DESC,
          {_ORGANIZATION_DEFAULT_ORDER}
 LIMIT 1
 """
@@ -155,25 +153,22 @@ LIMIT 1
 _FIRST_PROJECT_BY_WORKSPACE_SQL = f"""
 {_WORKSPACE_REF_CTE}
 SELECT p.* FROM ref
-JOIN projects p ON (p.workspace_id = ref.workspace_id OR p.organization_id = ref.organization_id)
+JOIN projects p ON p.organization_id = ref.organization_id
 ORDER BY (p.workspace_id = ref.workspace_id) DESC NULLS LAST,
          p.created_at ASC NULLS LAST, p.id ASC
 LIMIT 1
 """
 
-# The default project of a workspace (its own default) or of an organization; a workspace
-# without its own default falls back to the organization's default.
+# The default project of the organization a workspace id or an organization id names.
 _DEFAULT_PROJECT_SQL = f"""
 {_WORKSPACE_REF_CTE}
 SELECT p.id AS project_id, p.organization_id AS project_organization_id,
        p.workspace_id AS project_workspace_id, ref.workspace_id AS ref_workspace_id,
        ref.organization_id AS ref_organization_id
 FROM ref
-JOIN projects p ON p.is_default IS TRUE
-     AND (p.workspace_id = ref.workspace_id OR p.organization_id = ref.organization_id)
-LEFT JOIN workspaces pw ON pw.id = p.workspace_id
-ORDER BY (p.workspace_id = ref.workspace_id) DESC NULLS LAST,
-         {_ORGANIZATION_DEFAULT_ORDER}
+JOIN projects p ON p.is_default IS TRUE AND p.organization_id = ref.organization_id
+{_PROJECT_WORKSPACE_JOIN}
+ORDER BY {_ORGANIZATION_DEFAULT_ORDER}
 LIMIT 1
 """
 
@@ -206,6 +201,45 @@ async def fetch_default_project(
         ref_workspace_id=row.ref_workspace_id,
         ref_organization_id=row.ref_organization_id,
     )
+
+
+# Among projects the caller may open, the one a request without `project_id` lands on when
+# the organization's default project is not one of them: the project of the referenced
+# workspace first (the step 1 answer), then the default, then the organization order.
+_MEMBER_FALLBACK_PROJECT_SQL = f"""
+SELECT p.id FROM projects p
+{_PROJECT_WORKSPACE_JOIN}
+WHERE p.id = ANY(CAST(:project_ids AS uuid[]))
+ORDER BY (p.workspace_id = CAST(:ref_workspace_id AS uuid)) DESC NULLS LAST,
+         (p.is_default IS TRUE) DESC,
+         {_ORGANIZATION_DEFAULT_ORDER}
+LIMIT 1
+"""
+
+
+async def pick_fallback_project(
+    *,
+    project_ids: List[uuid.UUID],
+    ref_workspace_id: Optional[uuid.UUID],
+) -> Optional[uuid.UUID]:
+    """The project of `project_ids` a request without `project_id` lands on."""
+
+    if not project_ids:
+        return None
+    engine = get_transactions_engine()
+    async with engine.session() as session:
+        row = (
+            await session.execute(
+                text(_MEMBER_FALLBACK_PROJECT_SQL),
+                {
+                    "project_ids": [str(project_id) for project_id in project_ids],
+                    "ref_workspace_id": (
+                        str(ref_workspace_id) if ref_workspace_id else None
+                    ),
+                },
+            )
+        ).first()
+    return row.id if row else None
 
 
 async def get_project_by_workspace(
@@ -252,26 +286,6 @@ async def fetch_oldest_organization_id(*, user_id: str) -> Optional[str]:
             )
         ).scalar()
     return str(organization_id) if organization_id is not None else None
-
-
-async def fetch_workspace_by_id(
-    workspace_id: str,
-) -> Optional[WorkspaceDB]:
-    engine = get_transactions_engine()
-    async with engine.session() as session:
-        workspace = (
-            (
-                await session.execute(
-                    select(WorkspaceDB).filter_by(
-                        id=uuid.UUID(workspace_id),
-                    )
-                )
-            )
-            .scalars()
-            .first()
-        )
-
-        return workspace
 
 
 async def fetch_organization_by_id(
@@ -528,46 +542,8 @@ async def get_default_workspace_id(user_id: str) -> str:
         return str(memberships[0].workspace_id)
 
 
-class UserWorkspaceItem(NamedTuple):
-    id: uuid.UUID
-    organization_id: uuid.UUID
-    name: Optional[str]
-    description: Optional[str]
-    type: Optional[str]
-    created_at: Optional[datetime]
-    updated_at: Optional[datetime]
-
-
 # The user's workspaces (today's rows), plus one organization-id item for every
 # organization where the user has no workspace membership row.
-_USER_WORKSPACE_ITEMS_SQL = """
-SELECT w.id, w.organization_id, w.name, w.description, w.type, w.created_at, w.updated_at
-FROM workspaces w JOIN workspace_members wm ON wm.workspace_id = w.id
-WHERE wm.user_id = CAST(:user_id AS uuid)
-UNION ALL
-SELECT o.id, o.id, o.name, o.description, 'default', o.created_at, o.updated_at
-FROM organizations o
-WHERE o.id IN (
-    SELECT organization_id FROM organization_members WHERE user_id = CAST(:user_id AS uuid)
-)
-  AND NOT EXISTS (
-      SELECT 1 FROM workspace_members wm JOIN workspaces w ON w.id = wm.workspace_id
-      WHERE wm.user_id = CAST(:user_id AS uuid) AND w.organization_id = o.id)
-ORDER BY created_at ASC NULLS LAST, id ASC
-"""
-
-
-async def fetch_user_workspace_items(*, user_id: str) -> List[UserWorkspaceItem]:
-    """The items of `GET /workspaces/` and of the OSS organization list, in one statement."""
-
-    engine = get_transactions_engine()
-    async with engine.session() as session:
-        rows = (
-            await session.execute(
-                text(_USER_WORKSPACE_ITEMS_SQL), {"user_id": uuid.UUID(str(user_id))}
-            )
-        ).all()
-    return [UserWorkspaceItem(*row) for row in rows]
 
 
 async def create_organization(
@@ -613,40 +589,6 @@ async def create_organization(
         return organization_db
 
 
-async def create_workspace(name: str, organization_id: str):
-    """Create a new workspace in the database.
-
-    Args:
-        name (str): The name of the workspace
-        organization_id (str): The ID of the organization
-
-    Returns:
-        WorkspaceDB: instance of workspace
-    """
-
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        workspace_db = WorkspaceDB(
-            name=name,
-            organization_id=uuid.UUID(organization_id),
-            description="Default Workspace",
-            type="default",
-        )
-
-        session.add(workspace_db)
-
-        await session.commit()
-
-        log.info(
-            "[scopes] workspace created",
-            organization_id=organization_id,
-            workspace_id=workspace_db.id,
-        )
-
-        return workspace_db
-
-
 async def update_organization(organization_id: str, values_to_update: Dict[str, Any]):
     """
     Update the specified organization in the database.
@@ -683,43 +625,6 @@ async def update_organization(organization_id: str, values_to_update: Dict[str, 
         await session.refresh(organization)
 
         return organization
-
-
-async def create_or_update_default_project(values_to_update: Dict[str, Any]):
-    """Update the specified project in the database.
-
-    Args:
-        values_to_update (Dict[str, Any]): The values to update in the project
-    """
-
-    organization_id = values_to_update.get("organization_id")
-    if organization_id is None:
-        raise ValueError(
-            "create_or_update_default_project requires 'organization_id' in values_to_update"
-        )
-
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        result = await session.execute(
-            select(ProjectDB).filter_by(
-                organization_id=organization_id,
-                is_default=True,
-            )
-        )
-        project = result.scalars().first()
-
-        if project is None:
-            project = ProjectDB(project_name="Default", is_default=True)
-
-            session.add(project)
-
-        for key, value in values_to_update.items():
-            if hasattr(project, key):
-                setattr(project, key, value)
-
-        await session.commit()
-        await session.refresh(project)
 
 
 async def get_organizations() -> List[OrganizationDB]:
@@ -895,22 +800,6 @@ async def get_workspace(workspace_id: str) -> WorkspaceDB:
         result = await session.execute(query)
         workspace = result.scalars().first()
         return workspace
-
-
-async def get_workspaces() -> List[WorkspaceDB]:
-    """
-    Retrieve workspaces from the database by their IDs.
-
-    Returns:
-        List: A list of workspaces.
-    """
-
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        result = await session.execute(select(WorkspaceDB))
-        workspaces = result.scalars().all()
-        return workspaces
 
 
 async def get_user_with_id(user_id: str) -> UserDB:
@@ -1144,51 +1033,60 @@ async def delete_project(project_id: str) -> None:
         )
 
 
+# Every default-project writer (and revision oss000000053) takes this lock as the first
+# statement of its transaction, then decides in a later statement, so two writers for one
+# organization never both see "no other default" or clear each other's choice.
+_PROJECT_DEFAULT_LOCK_SQL = """
+SELECT pg_advisory_xact_lock(
+    hashtextextended('agenta:project_default:' || CAST(:organization_id AS text), 0)
+)
+"""
+
+_LOCK_PROJECT_ORGANIZATION_SQL = """
+SELECT pg_advisory_xact_lock(
+    hashtextextended('agenta:project_default:' || p.organization_id::text, 0)
+), p.organization_id
+FROM projects p WHERE p.id = :id
+"""
+
+_SET_DEFAULT_PROJECT_SQL = """
+WITH cleared AS (
+    UPDATE projects SET is_default = false
+    WHERE organization_id = :organization_id AND is_default IS TRUE AND id <> :id
+)
+UPDATE projects SET is_default = true WHERE id = :id
+RETURNING *
+"""
+
+
 async def set_default_project(project_id: str) -> ProjectDB:
-    """
-    Mark the provided project as the default for its workspace.
+    """Make the project the organization's one default. The organization lock comes
+    first, so two writers cannot both see "no other default"."""
 
-    Args:
-        project_id (str): Identifier of project to promote.
-
-    Returns:
-        ProjectDB: Updated project.
-    """
-
+    project_uuid = uuid.UUID(project_id)
     engine = get_transactions_engine()
 
     async with engine.session() as session:
-        project = await session.get(ProjectDB, uuid.UUID(project_id))
-        if project is None:
+        locked = (
+            await session.execute(
+                text(_LOCK_PROJECT_ORGANIZATION_SQL), {"id": project_uuid}
+            )
+        ).first()
+        if locked is None:
             raise NoResultFound(f"Project with ID {project_id} not found")
 
-        if project.is_default:
-            return project
-
-        # The default of the project's scope: its workspace, or its whole organization
-        # when it has no workspace (projects that workspace removal step 2 writes).
-        scope = (
-            ProjectDB.workspace_id == project.workspace_id
-            if project.workspace_id is not None
-            else ProjectDB.organization_id == project.organization_id
+        result = await session.execute(
+            select(ProjectDB)
+            .from_statement(text(_SET_DEFAULT_PROJECT_SQL))
+            .execution_options(populate_existing=True),
+            {"id": project_uuid, "organization_id": locked.organization_id},
         )
-        await session.execute(
-            update(ProjectDB)
-            .where(
-                scope,
-                ProjectDB.is_default == True,  # noqa: E712
-            )
-            .values(is_default=False)
-        )
-
-        project.is_default = True
+        project = result.scalars().one()
         await session.commit()
-        await session.refresh(project)
 
         log.info(
             "[scopes] project set as default",
             organization_id=str(project.organization_id),
-            workspace_id=str(project.workspace_id),
             project_id=project_id,
         )
 
@@ -1390,49 +1288,6 @@ async def delete_invitation(invitation_id: str) -> bool:
         await session.commit()
 
         return True
-
-
-async def get_project_by_organization_id(organization_id: str):
-    """Get project by organization ID.
-
-    Args:
-        organization_id (str): The ID of the organization.
-
-    Returns:
-        ProjectDB: project object
-    """
-
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        result = await session.execute(
-            select(ProjectDB).filter_by(organization_id=uuid.UUID(organization_id))
-        )
-        project = result.scalars().first()
-        return project
-
-
-async def get_default_project_by_organization_id(organization_id: str):
-    """Get the default project for an organization.
-
-    Unlike `get_project_by_organization_id`, this filters to `is_default=True`
-    so callers that depend on the OSS singleton invariant don't accidentally
-    pick up an ephemeral per-account project.
-    """
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        result = await session.execute(
-            select(ProjectDB)
-            .filter_by(
-                organization_id=uuid.UUID(organization_id),
-                is_default=True,
-            )
-            # An organization with several workspaces has a default project in
-            # each: the oldest one is the organization's.
-            .order_by(ProjectDB.created_at.asc(), ProjectDB.id.asc())
-        )
-        return result.scalars().first()
 
 
 async def get_project_invitation_by_token_and_email(
@@ -1684,82 +1539,45 @@ async def admin_create_organization(
         return org_db
 
 
-async def admin_create_workspace(
-    name: str,
-    org_id: uuid.UUID,
-    *,
-    is_default: bool = False,
-) -> WorkspaceDB:
-    """Create or reuse a workspace (admin path).
-
-    On OSS the workspace under the singleton org is itself a singleton —
-    if one already exists it is returned; otherwise a single new
-    workspace is created under a row lock on the org so concurrent
-    callers converge on the same row. Combined with admin_create_organization
-    and the delete guards, OSS exposes exactly one org and one workspace.
-
-    On EE behavior is unchanged: a fresh workspace row is always inserted.
-    """
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        if not is_ee():
-            await session.execute(
-                select(OrganizationDB.id).filter_by(id=org_id).with_for_update()
-            )
-            existing = await session.execute(
-                select(WorkspaceDB).filter_by(organization_id=org_id)
-            )
-            ws_db = existing.scalars().first()
-            if ws_db is not None:
-                await session.commit()
-                return ws_db
-
-            ws_db = WorkspaceDB(
-                name=name,
-                type="default" if is_default else None,
-                organization_id=org_id,
-            )
-            session.add(ws_db)
-            await session.commit()
-            await session.refresh(ws_db)
-            log.info(
-                "[admin] workspace ensured (oss singleton)",
-                workspace_id=str(ws_db.id),
-            )
-            return ws_db
-
-        ws_db = WorkspaceDB(
-            name=name,
-            type="default" if is_default else None,
-            organization_id=org_id,
-        )
-        session.add(ws_db)
-        await session.commit()
-        await session.refresh(ws_db)
-        log.info("[admin] workspace created", workspace_id=str(ws_db.id))
-        return ws_db
+_ADMIN_INSERT_PROJECT_SQL = """
+WITH cleared AS (
+    UPDATE projects SET is_default = false
+    WHERE organization_id = :organization_id AND is_default IS TRUE
+      AND CAST(:is_default AS boolean)
+)
+INSERT INTO projects (id, project_name, is_default, organization_id, workspace_id,
+                      created_at, updated_at)
+VALUES (:id, :name, :is_default, :organization_id, NULL, now(), now())
+RETURNING *
+"""
 
 
 async def admin_create_project(
     name: str,
     org_id: uuid.UUID,
-    ws_id: uuid.UUID,
     *,
     is_default: bool = False,
 ) -> ProjectDB:
+    """Create a project without a workspace; `is_default` clears the organization's
+    other defaults, under the organization lock."""
+
     engine = get_transactions_engine()
 
     async with engine.session() as session:
-        proj_db = ProjectDB(
-            project_name=name,
-            is_default=is_default,
-            organization_id=org_id,
-            workspace_id=ws_id,
+        await session.execute(
+            text(_PROJECT_DEFAULT_LOCK_SQL), {"organization_id": str(org_id)}
         )
-        session.add(proj_db)
+        result = await session.execute(
+            select(ProjectDB).from_statement(text(_ADMIN_INSERT_PROJECT_SQL)),
+            {
+                "id": uuid_compat.uuid7(),
+                "name": name,
+                "is_default": bool(is_default),
+                "organization_id": org_id,
+            },
+        )
+        proj_db = result.scalars().one()
         await session.commit()
-        await session.refresh(proj_db)
         log.info("[admin] project created", project_id=str(proj_db.id))
         return proj_db
 
@@ -1954,20 +1772,6 @@ async def get_organization(organization_id: str) -> OrganizationDB:
         return organization
 
 
-async def get_workspace_members(workspace_id: str) -> List[WorkspaceMemberDB]:
-    """Return all membership rows for a given workspace."""
-
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        result = await session.execute(
-            select(WorkspaceMemberDB).where(
-                WorkspaceMemberDB.workspace_id == uuid.UUID(workspace_id)
-            )
-        )
-        return list(result.scalars().all())
-
-
 async def get_project_members(project_id: str):
     """Get the members of a project."""
 
@@ -2058,270 +1862,88 @@ async def count_organization_members(organization_id: str) -> int:
         return result.scalar() or 0
 
 
-async def get_organization_workspaces(organization_id: str):
-    """Retrieve workspaces belonging to an organization."""
+# The project whose members `GET /organizations/{id}` lists: step 1's exact choice for
+# existing data. The organization's workspace (the `default`-type one, else the oldest),
+# then that workspace's own projects in today's order (`is_default DESC`, NULLs first,
+# then `created_at`); a workspace without projects, or an organization without workspace
+# rows, answers the organization's default by the reader rule. One statement.
+_ORG_DETAILS_PROJECT_SQL = f"""
+WITH ws AS (
+    SELECT w.id FROM workspaces w
+    WHERE w.organization_id = :organization_id
+    ORDER BY (w.type IS NOT DISTINCT FROM 'default') DESC,
+             w.created_at ASC NULLS LAST, w.id ASC
+    LIMIT 1
+)
+SELECT p.* FROM projects p
+LEFT JOIN ws ON ws.id = p.workspace_id
+{_PROJECT_WORKSPACE_JOIN}
+WHERE p.organization_id = :organization_id
+ORDER BY (ws.id IS NOT NULL) DESC,
+         CASE WHEN ws.id IS NOT NULL THEN p.is_default END DESC,
+         CASE WHEN ws.id IS NOT NULL THEN p.created_at END ASC,
+         (p.is_default IS TRUE) DESC,
+         {_ORGANIZATION_DEFAULT_ORDER}
+LIMIT 1
+"""
+
+# The project's members with their organization role (the oldest organization row), and
+# their user, in one statement.
+_ORG_DETAILS_MEMBERS_SQL = """
+SELECT u.id, u.email, u.username, u.created_at, om.role
+FROM project_members pm
+JOIN users u ON u.id = pm.user_id
+LEFT JOIN LATERAL (
+    SELECT role FROM organization_members
+    WHERE organization_id = :organization_id AND user_id = pm.user_id
+    ORDER BY created_at ASC NULLS LAST, id ASC
+    LIMIT 1
+) om ON true
+WHERE pm.project_id = :project_id
+"""
+
+
+async def fetch_org_details_project(organization_id: str) -> Optional[ProjectDB]:
+    """The project whose members the organization details list (one statement)."""
 
     engine = get_transactions_engine()
-
     async with engine.session() as session:
         result = await session.execute(
-            select(WorkspaceDB)
-            .filter_by(organization_id=uuid.UUID(organization_id))
-            .options(  # type: ignore
-                load_only(WorkspaceDB.id, WorkspaceDB.organization_id)
-            )
+            select(ProjectDB).from_statement(text(_ORG_DETAILS_PROJECT_SQL)),
+            {"organization_id": uuid.UUID(str(organization_id))},
         )
-        workspaces = result.scalars().all()
-        return workspaces
-
-
-async def get_workspace_administrators(workspace: WorkspaceDB) -> List[UserDB]:
-    """Retrieve the administrators (ADMIN or OWNER role) of a workspace."""
-
-    members = await get_workspace_members(workspace_id=str(workspace.id))
-
-    admin_user_ids = [
-        str(member.user_id)
-        for member in members
-        if member.role in (RequiredRole.ADMIN, RequiredRole.OWNER)
-    ]
-
-    administrators: List[UserDB] = []
-    for user_id in admin_user_ids:
-        user = await get_user_with_id(user_id=user_id)
-        if user:
-            administrators.append(user)
-
-    return administrators
-
-
-async def create_project(
-    project_name: str,
-    workspace_id: str,
-    organization_id: str,
-    session: AsyncSession,
-    *,
-    is_default: bool = False,
-) -> ProjectDB:
-    """Create a new project."""
-
-    project_db = ProjectDB(
-        project_name=project_name,
-        is_default=is_default,
-        organization_id=uuid.UUID(organization_id),
-        workspace_id=uuid.UUID(workspace_id),
-    )
-
-    session.add(project_db)
-
-    await session.commit()
-
-    log.info(
-        "[scopes] project created",
-        organization_id=organization_id,
-        workspace_id=workspace_id,
-        project_id=project_db.id,
-    )
-
-    return project_db
-
-
-async def create_workspace_db_object(
-    session: AsyncSession,
-    payload,
-    organization: OrganizationDB,
-    user: UserDB,
-    return_wrk_prj: bool = False,
-):
-    """Create a new workspace with its owner membership, default project, and seeds."""
-
-    workspace = WorkspaceDB(
-        name=payload.name,
-        type=payload.type if payload.type else "",
-        description=payload.description if payload.description else "",
-        organization_id=organization.id,
-    )
-
-    session.add(workspace)
-
-    await session.commit()
-
-    log.info(
-        "[scopes] workspace created",
-        organization_id=organization.id,
-        workspace_id=workspace.id,
-    )
-
-    workspace_member = WorkspaceMemberDB(
-        user_id=user.id,
-        workspace_id=workspace.id,
-        role="owner",
-    )
-
-    session.add(workspace_member)
-
-    await session.commit()
-    await session.refresh(workspace, attribute_names=["organization"])
-
-    log.info(
-        "[scopes] workspace membership created",
-        organization_id=workspace.organization_id,
-        workspace_id=workspace.id,
-        user_id=user.id,
-        membership_id=workspace_member.id,
-    )
-
-    # The default project, seeded with every organization member, in one
-    # transaction (MembershipsService.create_project).
-    scope = await get_memberships_service().create_project(
-        organization_id=organization.id,
-        workspace_id=workspace.id,
-        name="Default",
-        is_default=True,
-        actor_user_id=user.id,
-    )
-    project_db = await fetch_project_by_id(project_id=str(scope.project_id))
-
-    await add_default_simple_testsets(
-        project_id=str(project_db.id),
-        user_id=str(user.id),
-    )
-
-    from oss.src.core.evaluators.defaults import create_default_evaluators
-    from oss.src.core.environments.defaults import create_default_environments
-
-    await create_default_evaluators(
-        project_id=project_db.id,
-        user_id=user.id,
-    )
-    await create_default_environments(
-        project_id=project_db.id,
-        user_id=user.id,
-    )
-
-    if return_wrk_prj:
-        return workspace, project_db
-
-    return workspace
-
-
-async def create_workspace_with_defaults(payload, organization_id: str, user_id: str):
-    """Create a new workspace (rich form, with owner/project/seeds).
-
-    Renamed from the EE `create_workspace` to avoid colliding with the OSS
-    `create_workspace(name, organization_id)` helper.
-    """
-
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        user_result = await session.execute(
-            select(UserDB).filter_by(id=uuid.UUID(user_id))
-        )
-        user = user_result.scalars().first()
-        if user is None:
-            raise NoResultFound(f"User with id {user_id} not found")
-
-        organization_result = await session.execute(
-            select(OrganizationDB).filter_by(id=uuid.UUID(organization_id))
-        )
-        organization = organization_result.scalars().first()
-        if organization is None:
-            raise NoResultFound(f"Organization with id {organization_id} not found")
-
-        workspace_db = await create_workspace_db_object(
-            session, payload, organization, user
-        )
-
-        return await get_workspace_in_format(workspace_db)
-
-
-async def update_workspace(payload, workspace: WorkspaceDB):
-    """Update a workspace's details."""
-
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        result = await session.execute(select(WorkspaceDB).filter_by(id=workspace.id))
-        workspace = result.scalars().first()
-
-        if not workspace:
-            raise NoResultFound(f"Workspace with id {str(workspace.id)} not found")
-
-        for key, value in payload.dict(exclude_unset=True).items():
-            if hasattr(workspace, key):
-                setattr(workspace, key, value)
-
-        await session.commit()
-        await session.refresh(workspace)
-
-        return await get_workspace_in_format(workspace)
-
-
-class _OrganizationAsWorkspace(NamedTuple):
-    """The attributes `get_workspace_in_format` reads, built from an organization."""
-
-    id: uuid.UUID
-    organization_id: uuid.UUID
-    name: Optional[str]
-    description: Optional[str]
-    type: str
-    created_at: Optional[datetime]
-    updated_at: Optional[datetime]
-
-    @classmethod
-    def of(cls, organization) -> "_OrganizationAsWorkspace":
-        return cls(
-            id=organization.id,
-            organization_id=organization.id,
-            name=organization.name,
-            description=organization.description,
-            type="default",
-            created_at=organization.created_at,
-            updated_at=organization.updated_at,
-        )
+        return result.scalars().first()
 
 
 async def get_org_details(organization) -> dict:
-    """Retrieve details of an organization (with default workspace + members)."""
+    """The organization details, with the organization where the default workspace
+    goes (workspace removal step 2, design D6): its members are those of the project
+    step 1 listed, with their organization role, plus the pending invitations."""
+
+    from oss.src.models.api.workspace_models import WorkspaceResponse
 
     is_demo = organization.flags.get("is_demo", False) if organization.flags else False
 
-    default_workspace_db = await get_org_default_workspace(organization)
-    project = None
-    if default_workspace_db is None:
-        # No workspace rows (workspace removal step 2): the organization answers its own
-        # id where the default workspace goes, when it has a project. The project read
-        # takes the place of the workspace list read, which has nothing to return here.
-        try:
-            project = await get_project_by_workspace(workspace_id=str(organization.id))
-        except NoResultFound:
-            project = None
-        if project is not None:
-            default_workspace_db = _OrganizationAsWorkspace.of(organization)
-    default_workspace_obj = (
-        await get_workspace_details(
-            default_workspace_db, include_members=not is_demo, project=project
-        )
-        if default_workspace_db is not None
-        else None
+    project = await fetch_org_details_project(str(organization.id))
+    # Design D6: the organization is the default workspace, also without a project (then
+    # with no members).
+    members = (
+        await _org_details_members(organization, project)
+        if project is not None and not is_demo
+        else []
     )
-    default_workspace = (
-        default_workspace_obj.model_dump(mode="json")
-        if default_workspace_obj is not None
-        else None
-    )
-    if isinstance(default_workspace_db, _OrganizationAsWorkspace):
-        workspace_ids = [str(organization.id)]
-    elif default_workspace_db is None:
-        workspace_ids = []
-    else:
-        workspaces = await get_organization_workspaces(
-            organization_id=str(organization.id)
-        )
-        workspace_ids = [str(workspace.id) for workspace in workspaces]
+    default_workspace = WorkspaceResponse(
+        id=str(organization.id),
+        name=organization.name or "",
+        description=organization.description,
+        type="default",
+        members=members,
+        organization=str(organization.id),
+        created_at=str(organization.created_at),
+        updated_at=str(organization.updated_at),
+    ).model_dump(mode="json")
 
-    sample_organization = {
+    return {
         "id": str(organization.id),
         "slug": organization.slug,
         "name": organization.name,
@@ -2330,44 +1952,115 @@ async def get_org_details(organization) -> dict:
         "tags": organization.tags,
         "meta": organization.meta,
         "owner_id": str(organization.owner_id),
-        "workspaces": workspace_ids,
+        "workspaces": [str(organization.id)],
         "default_workspace": default_workspace,
     }
-    return sample_organization
 
 
-async def get_workspace_details(
-    workspace: WorkspaceDB,
-    include_members: bool = True,
-    project: Optional[ProjectDB] = None,
-):
-    """Retrieve details of a workspace in the WorkspaceResponse format."""
+async def _org_details_members(organization, project) -> List[dict]:
+    members = []
 
-    return await get_workspace_in_format(
-        workspace, include_members=include_members, project=project
-    )
-
-
-async def get_project_invitations_filtered(project_id: str, **kwargs):
-    """Get project invitations, optionally filtered to pending ones."""
+    # Pending invitations of every project of the organization: invitations go to the
+    # organization's default project, which may not be the project listed here (one per
+    # email, the newest).
+    invitations = await fetch_pending_organization_invitations(organization.id)
+    for invitation in invitations:
+        user = await get_user_with_email(invitation.email)
+        members.append(
+            {
+                "user": {
+                    "id": str(user.id) if user else invitation.email,
+                    "email": user.email if user else invitation.email,
+                    "username": (
+                        user.username if user else invitation.email.split("@")[0]
+                    ),
+                    "status": (
+                        "pending"
+                        if invitation.expiration_date > datetime.now(timezone.utc)
+                        else "expired"
+                    ),
+                    "created_at": (
+                        str(user.created_at)
+                        if user
+                        else (
+                            str(invitation.created_at)
+                            if str(invitation.created_at)
+                            else None
+                        )
+                    ),
+                },
+                "roles": [
+                    {
+                        "role_name": invitation.role,
+                        "role_description": get_role_description(
+                            "workspace", _role_slug(invitation.role)
+                        ),
+                    }
+                ],
+            }
+        )
 
     engine = get_transactions_engine()
-
     async with engine.session() as session:
-        stmt = select(InvitationDB).filter(
-            InvitationDB.project_id == uuid.UUID(project_id)
+        rows = (
+            await session.execute(
+                text(_ORG_DETAILS_MEMBERS_SQL),
+                {"organization_id": organization.id, "project_id": project.id},
+            )
+        ).all()
+    for row in rows:
+        members.append(
+            {
+                "user": {
+                    "id": str(row.id),
+                    "email": row.email,
+                    "username": row.username,
+                    "status": "member",
+                    "created_at": str(row.created_at),
+                },
+                "roles": (
+                    [
+                        {
+                            "role_name": row.role,
+                            "role_description": get_role_description(
+                                "organization", _role_slug(row.role)
+                            ),
+                            "permissions": _expand_permissions(
+                                get_role_permissions(
+                                    "organization", _role_slug(row.role)
+                                )
+                            ),
+                        }
+                    ]
+                    if row.role
+                    else []
+                ),
+            }
         )
-        if kwargs.get("has_pending", False):
-            stmt = stmt.filter(InvitationDB.used == kwargs["invitation_used"])
+    return members
 
-        result = await session.execute(stmt)
-        invitations = result.scalars().all()
+
+async def fetch_pending_organization_invitations(organization_id) -> List[InvitationDB]:
+    """The unused invitations of the organization's projects, the newest per email."""
+
+    engine = get_transactions_engine()
+    async with engine.session() as session:
+        result = await session.execute(
+            select(InvitationDB)
+            .join(ProjectDB, ProjectDB.id == InvitationDB.project_id)
+            .filter(
+                ProjectDB.organization_id == uuid.UUID(str(organization_id)),
+                InvitationDB.used.is_not(True),
+            )
+            .order_by(InvitationDB.created_at.desc(), InvitationDB.id.desc())
+        )
+        invitations, emails = [], set()
+        for invitation in result.scalars().all():
+            if invitation.email in emails:
+                continue
+            emails.add(invitation.email)
+            invitations.append(invitation)
         return invitations
-
-
-async def get_all_workspace_roles() -> List[dict]:
-    """Return the effective workspace role catalog."""
-    return get_roles("workspace")
 
 
 # ---------------------------------------------------------------------------
@@ -2503,63 +2196,6 @@ async def admin_swap_org_memberships(
             )
 
 
-async def admin_swap_workspace_memberships(
-    workspace_ids: List[uuid.UUID],
-    source_id: uuid.UUID,
-    target_id: uuid.UUID,
-    *,
-    session: Optional[AsyncSession] = None,
-) -> None:
-    """Swap workspace membership roles between source and target."""
-    async with _admin_session(session) as session:
-        source_rows = (
-            (
-                await session.execute(
-                    select(WorkspaceMemberDB).where(
-                        WorkspaceMemberDB.user_id == source_id,
-                        WorkspaceMemberDB.workspace_id.in_(workspace_ids),
-                    )
-                )
-            )
-            .scalars()
-            .all()
-        )
-
-        target_rows = (
-            (
-                await session.execute(
-                    select(WorkspaceMemberDB).where(
-                        WorkspaceMemberDB.user_id == target_id,
-                        WorkspaceMemberDB.workspace_id.in_(workspace_ids),
-                    )
-                )
-            )
-            .scalars()
-            .all()
-        )
-
-        source_by_ws = {row.workspace_id: row.role for row in source_rows}
-        target_by_ws = {row.workspace_id: row.role for row in target_rows}
-
-        for ws_id in set(source_by_ws) & set(target_by_ws):
-            await session.execute(
-                update(WorkspaceMemberDB)
-                .where(
-                    WorkspaceMemberDB.user_id == target_id,
-                    WorkspaceMemberDB.workspace_id == ws_id,
-                )
-                .values(role=source_by_ws[ws_id])
-            )
-            await session.execute(
-                update(WorkspaceMemberDB)
-                .where(
-                    WorkspaceMemberDB.user_id == source_id,
-                    WorkspaceMemberDB.workspace_id == ws_id,
-                )
-                .values(role=target_by_ws[ws_id])
-            )
-
-
 async def admin_swap_project_memberships(
     project_ids: List[uuid.UUID],
     source_id: uuid.UUID,
@@ -2653,7 +2289,6 @@ async def admin_transfer_ownership(
     org_ids: List[uuid.UUID],
     source_id: uuid.UUID,
     target_id: uuid.UUID,
-    workspace_ids: List[uuid.UUID],
     project_ids: List[uuid.UUID],
 ) -> List[uuid.UUID]:
     """The admin ownership transfer in one transaction, under the membership lock of
@@ -2661,9 +2296,10 @@ async def admin_transfer_ownership(
 
     Under the locks it checks again that the source owns each organization and that
     the target has an organization row there; other organizations are left out.
-    Then it moves the ownership, swaps the organization, workspace and project roles
-    (workspaces and projects of the transferred organizations only), and seeds the
-    new owner into every project. Returns the transferred organization ids.
+    Then it moves the ownership, swaps the organization and project roles (projects
+    of the transferred organizations only), and seeds the new owner into every
+    project. Workspace rows are no longer written. Returns the transferred
+    organization ids.
     """
     from oss.src.dbs.postgres.memberships.dao import (  # noqa: PLC0415
         ORGANIZATION_LOCK_SQL,
@@ -2707,20 +2343,6 @@ async def admin_transfer_ownership(
         if not eligible:
             return []
 
-        ws_scope = (
-            (
-                await session.execute(
-                    select(WorkspaceDB.id).where(
-                        WorkspaceDB.id.in_(workspace_ids),
-                        WorkspaceDB.organization_id.in_(eligible),
-                    )
-                )
-            )
-            .scalars()
-            .all()
-            if workspace_ids
-            else []
-        )
         proj_scope = (
             (
                 await session.execute(
@@ -2742,10 +2364,6 @@ async def admin_transfer_ownership(
         await admin_swap_org_memberships(
             eligible, source_id, target_id, session=session
         )
-        if ws_scope:
-            await admin_swap_workspace_memberships(
-                list(ws_scope), source_id, target_id, session=session
-            )
         if proj_scope:
             await admin_swap_project_memberships(
                 list(proj_scope), source_id, target_id, session=session
@@ -2788,30 +2406,6 @@ async def user_exists(user_email: str) -> bool:
     return False if not user else True
 
 
-async def get_org_default_workspace(organization) -> WorkspaceDB:
-    """Get the default workspace for an organization."""
-
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        result = await session.execute(
-            select(WorkspaceDB).filter_by(
-                organization_id=organization.id,
-                type="default",
-            )
-        )
-        workspace = result.scalars().first()
-        if workspace is not None:
-            return workspace
-
-        result = await session.execute(
-            select(WorkspaceDB).filter_by(
-                organization_id=organization.id,
-            )
-        )
-        return result.scalars().first()
-
-
 def _role_slug(role: Any) -> str:
     """Normalize an enum or string role to its slug form."""
     return role.value if hasattr(role, "value") else str(role)
@@ -2822,106 +2416,3 @@ def _expand_permissions(slugs: List[str]) -> List[str]:
     if "*" not in slugs:
         return slugs
     return [p.value for p in Permission]
-
-
-async def get_workspace_in_format(
-    workspace: WorkspaceDB,
-    include_members: bool = True,
-    project: Optional[ProjectDB] = None,
-):
-    """Convert a workspace object to the WorkspaceResponse model."""
-
-    from oss.src.models.api.workspace_models import WorkspaceResponse
-
-    members = []
-
-    if include_members:
-        # The caller may have read the project already.
-        if project is None:
-            project = await get_project_by_workspace(workspace_id=str(workspace.id))
-        project_members = await get_project_members(project_id=str(project.id))
-        invitations = await get_project_invitations_filtered(
-            project_id=str(project.id), invitation_used=False
-        )
-
-        if len(invitations) > 0:
-            for invitation in invitations:
-                if not invitation.used and str(invitation.project_id) == str(
-                    project.id
-                ):
-                    user = await get_user_with_email(invitation.email)
-                    member_dict = {
-                        "user": {
-                            "id": str(user.id) if user else invitation.email,
-                            "email": user.email if user else invitation.email,
-                            "username": (
-                                user.username
-                                if user
-                                else invitation.email.split("@")[0]
-                            ),
-                            "status": (
-                                "pending"
-                                if invitation.expiration_date
-                                > datetime.now(timezone.utc)
-                                else "expired"
-                            ),
-                            "created_at": (
-                                str(user.created_at)
-                                if user
-                                else (
-                                    str(invitation.created_at)
-                                    if str(invitation.created_at)
-                                    else None
-                                )
-                            ),
-                        },
-                        "roles": [
-                            {
-                                "role_name": invitation.role,
-                                "role_description": get_role_description(
-                                    "workspace", _role_slug(invitation.role)
-                                ),
-                            }
-                        ],
-                    }
-                    members.append(member_dict)
-
-        for project_member in project_members:
-            member_role = project_member.role
-            member_dict = {
-                "user": {
-                    "id": str(project_member.user.id),
-                    "email": project_member.user.email,
-                    "username": project_member.user.username,
-                    "status": "member",
-                    "created_at": str(project_member.user.created_at),
-                },
-                "roles": (
-                    [
-                        {
-                            "role_name": member_role,
-                            "role_description": get_role_description(
-                                "project", _role_slug(member_role)
-                            ),
-                            "permissions": _expand_permissions(
-                                get_role_permissions("project", _role_slug(member_role))
-                            ),
-                        }
-                    ]
-                    if member_role
-                    else []
-                ),
-            }
-            members.append(member_dict)
-
-    workspace_response = WorkspaceResponse(
-        id=str(workspace.id),
-        name=workspace.name,
-        description=workspace.description,
-        type=workspace.type,
-        members=members,
-        organization=str(workspace.organization_id),
-        created_at=str(workspace.created_at),
-        updated_at=str(workspace.updated_at),
-    )
-    return workspace_response

@@ -19,6 +19,8 @@ quietly relax it. Webhook delivery keeps its own permissive default, and the gat
 longer reads it.
 """
 
+from uuid import uuid4
+
 import asyncio
 import json
 import threading
@@ -573,7 +575,7 @@ def _vertex_credential(document: dict) -> ResolvedSecret:
         secret=SecretResponseDTO(
             kind=SecretKind.CUSTOM_PROVIDER, data=data, header=Header(name="vertex")
         ),
-        owner=SecretOwner(kind=SecretOwnerKind.PROJECT),
+        owner=SecretOwner(kind=SecretOwnerKind.PROJECT, id=uuid4()),
         origin=SecretOrigin.VAULT,
     )
 

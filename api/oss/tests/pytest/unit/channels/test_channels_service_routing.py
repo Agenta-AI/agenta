@@ -1168,6 +1168,7 @@ class TestConnectionReadsStayOnChannelConnections:
             await service.create_agent(
                 project_id=uuid4(),
                 user_id=uuid4(),
+                guard_user_id=None,
                 agent=ChannelAgentCreate(
                     slug="triage",
                     connection_id=connection_id,

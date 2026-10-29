@@ -17,10 +17,11 @@
  *
  * Design: providers-drawer-final/README.md
  */
-import {createElement, useCallback, useEffect, useMemo, useState} from "react"
+import {createElement, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
 import {
     hostedSubscriptionFamilies,
+    isOrganizationConnection,
     isSubscriptionConnection,
     SecretManagementPolicy,
     subscriptionConnectionFor,
@@ -30,12 +31,14 @@ import {
 } from "@agenta/entities/secret"
 import {providerTitleForKind} from "@agenta/entities/secret"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
+import {Badge, Button, Divider} from "@agenta/ui/ui"
 import {ArrowLeft, ArrowSquareOut, WarningCircle} from "@phosphor-icons/react"
 
 import {DrawerFooter} from "../drawers/shared/DrawerFooter"
 import {harnessMetaFor} from "../DrillInView/SchemaControls/harnessMeta"
 
 import {harnessMarkNode} from "./harnessMark"
+import type {OrganizationConnectionScope} from "./OrganizationProjectsSection"
 import {
     PlaygroundConnectedSection,
     PlaygroundSubscriptionsSection,
@@ -74,6 +77,16 @@ export interface ProviderDrawerProps {
     showSubscriptions?: boolean
     /** Panel width. 480 by default; 400 is the floor and 560 the roomy variant. */
     width?: number
+    /**
+     * The Organization tab of AI providers: `connections` are the organization's, a save
+     * goes to the organization, and a member's drawer is locked with Test kept.
+     */
+    organization?: OrganizationConnectionScope
+    /**
+     * The organization connections this project may use, for a surface that cannot use them (the
+     * completion playground): listed in Connected, disabled, as agents only.
+     */
+    organizationConnections?: ProviderConnection[]
 }
 
 /** Which level the drawer is showing. `pushed` records whether a back arrow belongs on it. */
@@ -134,31 +147,46 @@ const ProviderDrawer = ({
     subscriptionDocsUrl = DEFAULT_SUBSCRIPTION_DOCS_URL,
     showSubscriptions = true,
     width = DRAWER_WIDTH,
+    organization,
+    organizationConnections,
 }: ProviderDrawerProps) => {
     const [view, setView] = useState<DrawerView>({level: "catalog"})
+    const readOnly = !!organization?.readOnly
+    // Outside the Organization tab, an organization connection is the project's to use, never to
+    // edit here: an agent picker hands the drawer every connection it lists.
+    const ownConnections = useMemo(
+        () =>
+            organization
+                ? connections
+                : connections.filter((candidate) => !isOrganizationConnection(candidate)),
+        [connections, organization],
+    )
     // Only what this card can edit: a manager-only connection 409s on save, and a subscription's
     // credential is a sign-in. Both stay in `connections`, so the picker still counts them.
     const userConnections = useMemo(
         () =>
-            connections.filter(
+            ownConnections.filter(
                 (candidate) =>
                     candidate.managementPolicy !== SecretManagementPolicy.ManagerOnly &&
                     !isSubscriptionConnection(candidate),
             ),
-        [connections],
+        [ownConnections],
     )
     const visibleCount = userConnections.length
     // One per provider. Null still renders the card: it carries the Connect verb.
     const chatgptConnection = useMemo(
-        () => subscriptionConnectionFor(connections, "chatgpt"),
-        [connections],
+        () => subscriptionConnectionFor(ownConnections, "chatgpt"),
+        [ownConnections],
     )
     const claudeConnection = useMemo(
-        () => subscriptionConnectionFor(connections, "claude"),
-        [connections],
+        () => subscriptionConnectionFor(ownConnections, "claude"),
+        [ownConnections],
     )
     // A mounted row names where it comes from only when one of these plans is also hosted.
-    const hostedFamilies = useMemo(() => hostedSubscriptionFamilies(connections), [connections])
+    const hostedFamilies = useMemo(
+        () => hostedSubscriptionFamilies(ownConnections),
+        [ownConnections],
+    )
     // The card owns the save; the footer that triggers it lives out here, so the card publishes
     // what it needs. Cleared on every level change — the next card publishes its own.
     const [cardSave, setCardSave] = useState<ProviderCardSaveState | null>(null)
@@ -170,17 +198,29 @@ const ProviderDrawer = ({
         setView(next)
     }, [])
 
-    // Opens on the connection's card, else a new card for `kind`, else the catalog.
+    // Opens on the connection's card, else a new card for `kind`, else the catalog. Keyed by the
+    // connection's id: a refetch of the same connection must not reset the view or its save state.
+    const latestConnection = useRef(connection)
+    latestConnection.current = connection
+    const connectionId = connection?.id ?? null
     useEffect(() => {
         if (!open) return
+        const opened = latestConnection.current
         showView(
-            connection
-                ? {level: "connection", kind: connection.kind, connection, pushed: false}
+            opened
+                ? {level: "connection", kind: opened.kind, connection: opened, pushed: false}
                 : kind
                   ? {level: "connection", kind, connection: null, pushed: false}
                   : {level: "catalog"},
         )
-    }, [open, connection, kind, showView])
+    }, [open, connectionId, kind, showView])
+    // The card reads the connection as currently stored, not as it was when the drawer opened.
+    const cardConnection =
+        view.level === "connection" && view.connection && view.connection.id === connection?.id
+            ? connection
+            : view.level === "connection"
+              ? view.connection
+              : null
 
     const onPickProvider = (entry: ProviderCatalogEntry) =>
         showView({level: "connection", kind: entry.kind, connection: null, pushed: true})
@@ -240,6 +280,7 @@ const ProviderDrawer = ({
                 <span className="truncate">
                     {view.connection?.name ?? providerTitleForKind(view.kind)}
                 </span>
+                {readOnly ? <Badge className="shrink-0">Organization</Badge> : null}
             </span>
         )
 
@@ -251,7 +292,16 @@ const ProviderDrawer = ({
     // from Settings, that subscriptions are not something this drawer can add; from a playground,
     // what is connected and where it gets renamed or removed.
     const footer =
-        view.level === "connection" ? (
+        view.level === "connection" && readOnly ? (
+            <>
+                <Divider className="m-0" />
+                <div className="flex shrink-0 items-center justify-end gap-2 px-6 py-3">
+                    <Button variant="outline" onClick={onClose}>
+                        Close
+                    </Button>
+                </div>
+            </>
+        ) : view.level === "connection" ? (
             <DrawerFooter
                 onCancel={onCardCancel}
                 left={
@@ -316,6 +366,9 @@ const ProviderDrawer = ({
                     {showConnected ? (
                         <PlaygroundConnectedSection
                             connections={userConnections}
+                            organizationConnections={
+                                context === "completion" ? organizationConnections : undefined
+                            }
                             onSelect={(picked) =>
                                 showView({
                                     level: "connection",
@@ -355,8 +408,9 @@ const ProviderDrawer = ({
                 <ProviderConnectionCard
                     key={view.connection?.id ?? view.kind}
                     kind={view.kind}
-                    connection={view.connection}
-                    connections={connections}
+                    connection={cardConnection}
+                    connections={ownConnections}
+                    organization={organization}
                     onSaveStateChange={setCardSave}
                     onSaved={(savedConnectionId) => {
                         onSaved?.(savedConnectionId)

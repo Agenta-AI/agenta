@@ -1,6 +1,7 @@
 import json
 import re
 import secrets as token_secrets
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple
 from uuid import UUID, uuid4
 
@@ -15,6 +16,7 @@ from oss.src.core.channels.dtos import (
     ChannelAgentFlags,
     ChannelAgentEdit,
     ChannelAgentQuery,
+    ChannelBindingRestore,
     ChannelCapabilities,
     ChannelConnection,
     ChannelConnectionCreate,
@@ -165,6 +167,7 @@ class ChannelsService:
         *,
         project_id: UUID,
         user_id: UUID,
+        guard_user_id: Optional[UUID],
         #
         connection: ChannelConnectionCreate,
     ) -> ChannelConnection:
@@ -233,6 +236,7 @@ class ChannelsService:
         reused = await self._reuse_existing_identity(
             project_id=project_id,
             user_id=user_id,
+            guard_user_id=guard_user_id,
             connection=connection,
             capabilities=capabilities,
             locator_input=locator_input,
@@ -286,6 +290,7 @@ class ChannelsService:
                 reused = await self._reuse_existing_identity(
                     project_id=project_id,
                     user_id=user_id,
+                    guard_user_id=guard_user_id,
                     connection=connection,
                     capabilities=capabilities,
                     locator_input=locator_input,
@@ -346,6 +351,7 @@ class ChannelsService:
         *,
         project_id: UUID,
         user_id: UUID,
+        guard_user_id: Optional[UUID],
         connection: ChannelConnectionCreate,
         capabilities: ChannelCapabilities,
         locator_input: Dict[str, Any],
@@ -418,6 +424,7 @@ class ChannelsService:
             reconnected = await self.unarchive_connection(
                 project_id=project_id,
                 user_id=user_id,
+                guard_user_id=guard_user_id,
                 connection_id=reconnected.id,
             )
             if reconnected is None:
@@ -435,6 +442,7 @@ class ChannelsService:
         *,
         project_id: UUID,
         user_id: UUID,
+        guard_user_id: Optional[UUID],
         #
         connection: ChannelConnectionCreate,
     ) -> ChannelConnection:
@@ -548,6 +556,7 @@ class ChannelsService:
                     restored = await self.unarchive_connection(
                         project_id=project_id,
                         user_id=user_id,
+                        guard_user_id=guard_user_id,
                         connection_id=edited.id,
                     )
                     if restored is None:
@@ -859,6 +868,7 @@ class ChannelsService:
         *,
         project_id: UUID,
         user_id: UUID,
+        guard_user_id: Optional[UUID],
         references: Dict[str, Any],
     ) -> ChannelConnection:
         """Create or reuse the one hosted Telegram connection for this project,
@@ -879,6 +889,7 @@ class ChannelsService:
             connection = await self.create_connection(
                 project_id=project_id,
                 user_id=user_id,
+                guard_user_id=guard_user_id,
                 connection=ChannelConnectionCreate(
                     channel="telegram_hosted",
                     slug="agenta-telegram",
@@ -892,6 +903,7 @@ class ChannelsService:
                 await self.unarchive_connection(
                     project_id=project_id,
                     user_id=user_id,
+                    guard_user_id=guard_user_id,
                     connection_id=connection.id,
                 )
                 or connection
@@ -906,6 +918,7 @@ class ChannelsService:
             await self.create_agent(
                 project_id=project_id,
                 user_id=user_id,
+                guard_user_id=guard_user_id,
                 agent=ChannelAgentCreate(
                     connection_id=connection.id,
                     slug="default",
@@ -915,21 +928,20 @@ class ChannelsService:
                 ),
             )
         else:
-            # Per-project connection, retargeted by agent: the connect action
-            # points this project's Telegram at the CALLING agent. If the
-            # answering agent already matches, this is a no-op; if it is a
-            # different agent, retarget it here ("disconnect from agent X and
-            # connect here"). One shared connection, one answering agent.
+            # Points this project's one Telegram connection at the calling agent and
+            # turns it on. Always written, also when the agent already matches: the
+            # write is the owner guard of the bind link.
             answering = next((a for a in active if a.flags.is_default), active[0])
-            if _reference_id(references) != _reference_id(answering.data.references):
-                await self.edit_agent(
-                    project_id=project_id,
-                    user_id=user_id,
-                    agent=ChannelAgentEdit(
-                        id=answering.id,
-                        data=ChannelAgentDataEdit(references=references),
-                    ),
-                )
+            await self.edit_agent(
+                project_id=project_id,
+                user_id=user_id,
+                guard_user_id=guard_user_id,
+                agent=ChannelAgentEdit(
+                    id=answering.id,
+                    data=ChannelAgentDataEdit(references=references),
+                    flags=answering.flags.model_copy(update={"is_active": True}),
+                ),
+            )
 
         return connection
 
@@ -965,22 +977,71 @@ class ChannelsService:
         *,
         project_id: UUID,
         user_id: UUID,
+        guard_user_id: Optional[UUID],
         #
         connection_id: UUID,
     ) -> Optional[ChannelConnection]:
-        binding_ids = await self._connection_binding_ids(
+        """Restore the connection and the bindings archived with it. `guard_user_id` is
+        the person who restores (None for any other principal): a restored binding of a
+        private agent that is not theirs comes back off."""
+
+        connection = await self.channels_dao.fetch_connection(
             project_id=project_id, connection_id=connection_id
+        )
+        if connection is None:
+            return None
+        agents = await self.channels_dao.query_agents(
+            project_id=project_id,
+            agent=ChannelAgentQuery(connection_id=connection_id, include_archived=True),
         )
         restored = await self.channels_dao.unarchive_connection(
             project_id=project_id,
             user_id=user_id,
             #
             connection_id=connection_id,
+            #
+            guard_bindings=await self._restored_binding_guards(
+                project_id=project_id,
+                archived_at=connection.deleted_at,
+                agents=agents,
+            ),
+            guard_user_id=guard_user_id,
         )
         await self._invalidate_bindings(
-            binding_ids=binding_ids, source="channels.unarchive_connection"
+            binding_ids=[agent.id for agent in agents],
+            source="channels.unarchive_connection",
         )
         return restored
+
+    async def _restored_binding_guards(
+        self,
+        *,
+        project_id: UUID,
+        archived_at: Optional[datetime],
+        agents: List[ChannelAgent],
+    ) -> Dict[UUID, ChannelBindingRestore]:
+        """Each active binding the restore brings back (archived with the connection),
+        with the agent its references resolve to. The DAO checks the bindings it locks
+        against these."""
+
+        guards: Dict[UUID, ChannelBindingRestore] = {}
+        if archived_at is None:
+            return guards
+        for agent in agents:
+            if agent.deleted_at != archived_at or not agent.flags.is_active:
+                continue
+            try:
+                artifact_id = await self._activation_guard(
+                    project_id=project_id,
+                    references=agent.data.references,
+                    is_active=True,
+                )
+            except SharedItemNotFound:
+                artifact_id = None  # resolves to no agent: it answers nothing
+            guards[agent.id] = ChannelBindingRestore(
+                references=agent.data.references, artifact_id=artifact_id
+            )
+        return guards
 
     async def describe_connection_restore(
         self,
@@ -1280,6 +1341,7 @@ class ChannelsService:
         *,
         project_id: UUID,
         user_id: UUID,
+        guard_user_id: Optional[UUID],
         #
         agent: ChannelAgentEdit,
     ) -> Optional[ChannelAgent]:
@@ -1317,6 +1379,7 @@ class ChannelsService:
             agent=agent,
             #
             guard_artifact_id=guard_artifact_id,
+            guard_user_id=guard_user_id,
         )
 
     async def create_agent(
@@ -1324,6 +1387,7 @@ class ChannelsService:
         *,
         project_id: UUID,
         user_id: UUID,
+        guard_user_id: Optional[UUID],
         #
         agent: ChannelAgentCreate,
     ) -> ChannelAgent:
@@ -1346,6 +1410,7 @@ class ChannelsService:
             agent=agent,
             #
             guard_artifact_id=guard_artifact_id,
+            guard_user_id=guard_user_id,
         )
 
     async def fetch_agent(
@@ -1366,6 +1431,7 @@ class ChannelsService:
         *,
         project_id: UUID,
         user_id: UUID,
+        guard_user_id: Optional[UUID],
         #
         agent: ChannelAgentEdit,
     ) -> Optional[ChannelAgent]:
@@ -1379,6 +1445,7 @@ class ChannelsService:
         edited = await self._edit_agent_row(
             project_id=project_id,
             user_id=user_id,
+            guard_user_id=guard_user_id,
             #
             agent=_layer_agent_edit(existing=existing, edit=agent),
         )
@@ -1425,6 +1492,7 @@ class ChannelsService:
         *,
         project_id: UUID,
         user_id: UUID,
+        guard_user_id: Optional[UUID],
         #
         agent_id: UUID,
     ) -> ChannelAgent:
@@ -1453,6 +1521,7 @@ class ChannelsService:
         updated = await self._edit_agent_row(
             project_id=project_id,
             user_id=user_id,
+            guard_user_id=guard_user_id,
             #
             agent=ChannelAgentEdit(
                 id=agent.id,
@@ -3016,17 +3085,6 @@ def _parse_sigil(*, content: list, sigil: Optional[str]) -> Optional[str]:
             return match.group(1)
 
     return None
-
-
-def _reference_id(references) -> Optional[str]:
-    """The id of the first (and, for a hosted channel agent, only) reference,
-    handling both a plain dict and a Reference object. Used to tell whether the
-    connection's answering agent already points at the requested app."""
-    if not references:
-        return None
-    value = next(iter(references.values()))
-    raw = value.get("id") if isinstance(value, dict) else getattr(value, "id", None)
-    return str(raw) if raw is not None else None
 
 
 def _channel_defaults(capabilities: ChannelCapabilities):

@@ -124,6 +124,25 @@ export const SUBSCRIPTION_INVALID_MESSAGE =
  * boundary, which a direct `/run` caller reaches without passing through the SDK.
  */
 export const SUBSCRIPTION_SUPPORTED_PROVIDER = "chatgpt";
+
+/**
+ * The marker an M5 SDK sends in `subscription` beside an organization login. A runner older
+ * than M5 does not read `organizationSubscription`; it reads this marker as an unusable
+ * subscription and refuses the run (`SUBSCRIPTION_INVALID_MESSAGE`), so it never falls through
+ * to the operator's own login. This runner accepts the marker only beside
+ * `organizationSubscription`.
+ */
+export const ORGANIZATION_SUBSCRIPTION_FENCE = "organization";
+
+function isOrganizationSubscriptionFence(value: unknown): boolean {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    (value as { fence?: unknown }).fence === ORGANIZATION_SUBSCRIPTION_FENCE &&
+    !("login" in value)
+  );
+}
+
 export const SUBSCRIPTION_UNSUPPORTED_MESSAGE =
   "A subscription connection is supported only for the ChatGPT provider on a Pi harness. " +
   "Use a managed API key (credentialMode 'env') for anything else.";
@@ -851,7 +870,28 @@ export function buildRunPlan(
   // OPERATOR MOUNT (no block): unchanged. Local only, and the harness config var must name a
   // read-write mount of the operator's own login.
   const requestCredentialMode = request.modelConnection?.credentialMode;
-  const requestSubscription = request.modelConnection?.subscription;
+  const organizationSubscription =
+    request.modelConnection?.organizationSubscription;
+  if (organizationSubscription) {
+    // An organization login never takes the operator path: the only `subscription` beside it
+    // is the fence an older runner refuses. Past this it runs exactly like a project login, on
+    // every engine; only its owner differs, which sends its refreshes to the organization's row.
+    const besideSubscription = request.modelConnection?.subscription;
+    if (
+      (besideSubscription &&
+        !isOrganizationSubscriptionFence(besideSubscription)) ||
+      requestCredentialMode !== "runtime_provided"
+    ) {
+      return {
+        ok: false,
+        error:
+          "modelConnection.organizationSubscription requires credentialMode 'runtime_provided' and no project subscription.",
+      };
+    }
+  }
+  const requestSubscription = organizationSubscription
+    ? { ...organizationSubscription, owner: "organization" as const }
+    : request.modelConnection?.subscription;
   if (requestCredentialMode === "runtime_provided" && requestSubscription) {
     // A malformed block is terminal. Falling through would run on the operator's mount instead,
     // which authenticates as the wrong account.

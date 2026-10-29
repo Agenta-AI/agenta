@@ -10,12 +10,12 @@ class SecretsError(Exception):
 
 
 class SubscriptionProviderConflict(SecretsError):
-    """A project already holds a subscription connection for this provider."""
+    """The owner already holds a subscription connection for this provider."""
 
-    def __init__(self, provider: str):
+    def __init__(self, provider: str, owner: str = "project"):
         self.provider = provider
         super().__init__(
-            f"This project already has a {provider} subscription connection. "
+            f"This {owner} already has a {provider} subscription connection. "
             "Remove it before you add another one."
         )
 
@@ -143,3 +143,91 @@ class SubscriptionTokenUnverified(SubscriptionTokenError):
 
     def __init__(self, message: str = "Agenta could not check this token with Claude."):
         super().__init__(message)
+
+
+# -- organization credentials (M5) -----------------------------------------------------
+
+
+class OrganizationSecretKindNotShareable(SecretsError):
+    """Only `provider_key` (of an LLM provider family) and `custom_provider` can be shared."""
+
+    def __init__(self, *, kind: str):
+        self.kind = kind
+        super().__init__("This kind of credential cannot be shared with projects.")
+
+
+class OrganizationSecretNotServed(SecretsError):
+    """The LLM gateway does not serve this deployment, so its value could reach a run only
+    in plaintext."""
+
+    def __init__(self, *, deployment_kind: str):
+        self.deployment_kind = deployment_kind
+        super().__init__(
+            "The LLM gateway does not serve this deployment, so it cannot be shared "
+            "with projects."
+        )
+
+
+class OrganizationSecretValueTooShort(SecretsError):
+    """A credential value under the gateway's echo-scan minimum, after the surrounding
+    whitespace is removed: the scan could not catch it in an upstream answer."""
+
+    def __init__(self, *, min_length: int):
+        self.min_length = min_length
+        super().__init__(
+            "This credential is too short to be shared. Use a value of at least "
+            f"{min_length} characters."
+        )
+
+
+class OrganizationSecretValueNotScannable(SecretsError):
+    """A credential value holds a character a JSON encoder escapes (a quote, a backslash,
+    `<`, `>`, `&`, a space, a control or non-ASCII character), so an upstream could echo it
+    in a spelling the gateway's scan does not search for."""
+
+    def __init__(self):
+        super().__init__(
+            "This credential holds characters that cannot be shared. Use letters, digits "
+            "and common symbols only."
+        )
+
+
+class ProjectLimitNotAllowed(SecretsError):
+    """`selected_projects` in OSS, or in EE without the RBAC entitlement."""
+
+    code = "project_limit_not_allowed"
+
+    def __init__(self):
+        super().__init__(
+            "Limiting a credential to selected projects is not available for this "
+            "organization."
+        )
+
+
+class ProjectNotInOrganization(SecretsError):
+    """A limit names a project of another organization, or an unknown project."""
+
+    code = "project_not_in_organization"
+
+    def __init__(self, *, project_ids=()):
+        self.project_ids = list(project_ids)
+        super().__init__("Every project must belong to this organization.")
+
+
+class OrganizationSecretNotFound(SecretsError):
+    """The id is not a shareable organization row of this organization (an SSO id
+    answers this too)."""
+
+    def __init__(self):
+        super().__init__("Secret not found")
+
+
+class SecretStorageError(SecretsError):
+    """An unexpected database error in a secrets write.
+
+    Raised `from None` with a fixed message: the SQL parameters of a secrets write hold the
+    plaintext value (it is a bind parameter of `pgp_sym_encrypt`), so neither the message
+    nor the traceback may carry the driver error."""
+
+    def __init__(self):
+        super().__init__("The credential could not be stored.")
