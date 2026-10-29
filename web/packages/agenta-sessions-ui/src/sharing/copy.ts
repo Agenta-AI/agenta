@@ -22,6 +22,9 @@ export const sessionRoleCopy: Record<SessionRole, {label: string; description: s
 }
 
 export const sessionSharingCopy = {
+    /** Draft (accounts package, contract section 13 item 16): the agent has "user" items. */
+    personalAccountsNote:
+        "This agent uses each person's own accounts for some items. People you share this chat with can see what it did with yours.",
     shareButton: "Share",
     tooltipPrivate: "Private",
     tooltipPeople: (count: number) => `Shared with ${count} ${count === 1 ? "person" : "people"}`,

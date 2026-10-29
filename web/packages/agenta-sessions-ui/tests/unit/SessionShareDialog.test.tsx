@@ -113,6 +113,16 @@ const flush = async () => {
 }
 
 describe("SessionShareDialog", () => {
+    it("says when the agent uses each person's own accounts", () => {
+        render({usesPersonalAccounts: true})
+        expect(text()).toContain(sessionSharingCopy.personalAccountsNote)
+    })
+
+    it("says nothing about personal accounts for an agent without them", () => {
+        render()
+        expect(text()).not.toContain(sessionSharingCopy.personalAccountsNote)
+    })
+
     it("disables confirm until the disclosure was shown", async () => {
         const {onUpsertGrant} = render()
         expect(buttonNamed(sessionSharingCopy.inviteButton)?.disabled).toBe(true)

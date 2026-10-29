@@ -15,11 +15,13 @@ export const SessionSharingControl = ({
     sessionName,
     workspaceId,
     projectId,
+    agentId,
 }: {
     sessionId: string
     sessionName: string
     workspaceId: string
     projectId: string
+    agentId?: string | null
 }) => {
     const {sharing, owner} = useSessionSharing(sessionId, projectId)
     const openShare = useSetAtom(shareDialogRequestAtom)
@@ -29,7 +31,9 @@ export const SessionSharingControl = ({
         return (
             <SessionShareButton
                 sharing={sharing}
-                onClick={() => openShare({sessionId, sessionName, workspaceId, projectId})}
+                onClick={() =>
+                    openShare({sessionId, sessionName, workspaceId, projectId, agentId})
+                }
             />
         )
     }

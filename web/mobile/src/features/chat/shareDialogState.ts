@@ -6,6 +6,8 @@ export interface ShareDialogRequest {
     sessionName: string
     workspaceId: string
     projectId: string
+    /** The session's agent, for the personal accounts line. Absent when the opener does not know. */
+    agentId?: string | null
 }
 
 export const shareDialogRequestAtom = atom<ShareDialogRequest | null>(null)
