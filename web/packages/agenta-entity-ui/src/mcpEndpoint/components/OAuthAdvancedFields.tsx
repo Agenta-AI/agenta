@@ -110,7 +110,7 @@ export const OAuthAdvancedFields = ({
                 Advanced
             </Button>
             {open ? (
-                <div className="flex flex-col gap-4 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-3">
+                <div className="flex flex-col gap-4">
                     <p className="m-0 text-xs leading-normal text-colorTextSecondary">
                         {needsOwnApp ? OWN_OAUTH_APP_NOTICE : CLIENT_HELP}
                     </p>
@@ -137,7 +137,7 @@ export const OAuthAdvancedFields = ({
                             ) : null}
                         </div>
                     ) : null}
-                    <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="flex flex-col gap-4">
                         <HintedField label="Client ID">
                             <Input
                                 className="font-mono text-[13px]"
