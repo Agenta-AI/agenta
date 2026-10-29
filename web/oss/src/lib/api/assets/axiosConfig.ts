@@ -253,7 +253,12 @@ axios.interceptors.response.use(
             }`
         error.message = msg
 
-        if (error.response?.status === 401) {
+        // On the sign-in and callback pages a 401 comes from a leftover session, and the
+        // page is about to create a new one. Signing out and pushing /auth here abandons the
+        // provider callback before its code is exchanged, so the user has to start over.
+        const onAuthPage =
+            typeof window !== "undefined" && window.location.pathname.startsWith("/auth")
+        if (error.response?.status === 401 && !onAuthPage) {
             signOut()
                 .then(() => {
                     router.push("/auth")

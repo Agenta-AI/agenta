@@ -1,6 +1,11 @@
 import {useEffect, useRef, useState} from "react"
 
-import {isTurnstileEnabled, setPendingTurnstileToken} from "@agenta/auth"
+import {
+    claimOAuthCode,
+    isTurnstileEnabled,
+    OAUTH_CODE_USED_MESSAGE,
+    setPendingTurnstileToken,
+} from "@agenta/auth"
 import {Alert, Spin} from "antd"
 import {useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
@@ -28,11 +33,14 @@ const Callback = () => {
     const hasHandledCallback = useRef(false)
     const setAuthFlow = useSetAtom(authFlowAtom)
     const [turnstileReady, setTurnstileReady] = useState(!isTurnstileEnabled())
+    // Once the exchange fails, the sign-in form under the spinner is the way to retry.
+    const [failed, setFailed] = useState(false)
 
     const state = router.query.state as string
     const code = router.query.code as string
 
     const handleAuthError = (err: unknown) => {
+        setFailed(true)
         if ((err as any)?.isSuperTokensGeneralError === true) {
             setMessage({message: (err as any).message, type: "error"})
         } else if (isBackendAvailabilityIssue(err)) {
@@ -54,6 +62,11 @@ const Callback = () => {
             return
         }
         hasHandledCallback.current = true
+        if (!claimOAuthCode(code)) {
+            setFailed(true)
+            setMessage({message: OAUTH_CODE_USED_MESSAGE, type: "error"})
+            return
+        }
         setAuthFlow("authing")
         try {
             console.log("[AUTH-CALLBACK] Starting third-party callback", {
@@ -153,7 +166,7 @@ const Callback = () => {
 
     return (
         <>
-            <Spin spinning={true} className="!max-h-screen">
+            <Spin spinning={!failed} className="!max-h-screen">
                 <Auth />
             </Spin>
 
