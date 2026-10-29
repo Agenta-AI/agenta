@@ -24,8 +24,9 @@ export function fieldLabel(path: string[]): string {
     return humanizeActionKey(words)
 }
 
+// Dot form only for a name the backend's JSONPath parser reads: a digit cannot come first.
 function selectorStep(key: string): string {
-    return /^[A-Za-z0-9_]+$/.test(key) ? `.${key}` : `[${JSON.stringify(key)}]`
+    return /^[A-Za-z_][A-Za-z0-9_]*$/.test(key) ? `.${key}` : `[${JSON.stringify(key)}]`
 }
 
 /** The selector for an event field path, in bracket form where a key needs it. */

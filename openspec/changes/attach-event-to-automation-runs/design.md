@@ -202,7 +202,8 @@ Tag rules:
   and on keyboard focus. The tag's screen-reader label is the label and the description. No
   description: no tooltip. Touch screens have no hover, so there a tap only adds the pill.
 - Selector: `$.event.attributes.<key>`, or `$.event.attributes["<key>"]` when the key is not
-  letters, digits and underscores.
+  letters, digits and underscores, or starts with a digit. The backend's JSONPath parser
+  rejects a dot step that starts with a digit, such as `$.event.attributes.123`.
 - A tag shows a check when the template already has its selector.
 - No schema, or an empty `properties`: no tags. The checkbox and the preview still show.
 

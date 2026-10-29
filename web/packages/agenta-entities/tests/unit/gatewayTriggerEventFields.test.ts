@@ -105,10 +105,13 @@ describe("labels and selectors", () => {
         expect(fieldLabel(["url"])).toBe("URL")
     })
 
-    it("uses bracket form for a key that is not letters, digits and underscores", () => {
+    it("uses bracket form for a key that is not letters, digits and underscores, or starts with a digit", () => {
         expect(eventFieldSelector(["a.b"])).toBe('$.event.attributes["a.b"]')
         expect(eventFieldSelector(["pull-request"])).toBe('$.event.attributes["pull-request"]')
         expect(eventFieldSelector(["title"])).toBe("$.event.attributes.title")
+        expect(eventFieldSelector(["123"])).toBe('$.event.attributes["123"]')
+        expect(eventFieldSelector(["0abc"])).toBe('$.event.attributes["0abc"]')
+        expect(eventFieldSelector(["_id"])).toBe("$.event.attributes._id")
     })
 
     it("labels a pill from its path, the same label its tag shows", () => {

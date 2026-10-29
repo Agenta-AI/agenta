@@ -59,7 +59,7 @@ A click or a tap on a tag SHALL insert a pill for that field at the cursor. The 
 
 #### Scenario: Key with special characters
 
-- **WHEN** a key has a character other than letters, digits and underscores
+- **WHEN** a key has a character other than letters, digits and underscores, or starts with a digit
 - **THEN** the selector uses bracket form, `$.event.attributes["<key>"]`
 
 ### Requirement: Other mapping keys are kept
