@@ -365,16 +365,15 @@ export const behaviorFromGrants = (
     platform: ChannelPlatform,
     grants: Row[],
 ): ChannelBehaviorState => {
-    const rules = grants
-    if (rules.length === 0) return {dm: true, group: true, spaceIds: null}
+    if (grants.length === 0) return {dm: true, group: true, spaceIds: null}
     const kindRule = (kind: ChannelSpaceKind, effect: "allow" | "deny") =>
-        rules.some(
+        grants.some(
             (grant) =>
                 !grant.space_id &&
                 asString(grant.kind) === kind &&
                 (grant.effect === "deny" ? "deny" : "allow") === effect,
         )
-    const chosen = rules
+    const chosen = grants
         .filter((grant) => grant.effect !== "deny" && asString(grant.space_id))
         .map((grant) => asString(grant.space_id) as string)
     const groupKinds = groupKindsOf(platform)

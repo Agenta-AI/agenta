@@ -62,7 +62,8 @@ const AnswersInRow = ({
     const stored = behavior?.spaceIds ?? null
     const [choice, setChoice] = useState<Choice>(stored === null ? "all" : "only")
     const [draft, setDraft] = useState<string[]>(stored ?? [])
-    const [ownSave, setSaving] = useState(false)
+    const [ownSave, setOwnSave] = useState(false)
+    // off while any save of where it answers runs; the spinner only for this row's own
     const saving = ownSave || busy
     const [error, setError] = useState<string | null>(null)
 
@@ -74,7 +75,7 @@ const AnswersInRow = ({
     }, [storedKey])
 
     const save = async (next: string[] | null) => {
-        setSaving(true)
+        setOwnSave(true)
         setError(null)
         try {
             await onSave(next)
@@ -84,7 +85,7 @@ const AnswersInRow = ({
             setDraft(stored ?? [])
             setError(errorMessage(e, "Could not save this setting."))
         } finally {
-            setSaving(false)
+            setOwnSave(false)
         }
     }
 
@@ -191,7 +192,7 @@ const AnswersInRow = ({
                                     onClick={() => void save(draft)}
                                     data-testid="channels-advanced-answers-save"
                                 >
-                                    {saving ? <Spinner size="small" /> : null}
+                                    {ownSave ? <Spinner size="small" /> : null}
                                     Save
                                 </Button>
                             </div>

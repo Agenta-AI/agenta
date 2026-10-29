@@ -422,3 +422,36 @@ it("keeps asking while the people list loads, after a failed ask too", async () 
         vi.useRealTimers()
     }
 })
+
+it("keeps the channel row off while a switch saves, and back on after", async () => {
+    let release: () => void = () => {}
+    const writeBehavior = vi.fn(
+        () =>
+            new Promise<void>((resolve) => {
+                release = resolve
+            }),
+    )
+    const readBehavior = vi.fn(async () => ({dm: true, group: true, spaceIds: ["c-support"]}))
+    const listSpaces = vi
+        .fn()
+        .mockResolvedValue([{id: "c-support", kind: "topic", name: "#support"}])
+    await render({readBehavior, writeBehavior, listSpaces}, {platform: "slack", kind: "custom"})
+    await act(async () =>
+        (
+            container.querySelector('[data-testid="channels-advanced-toggle"]') as HTMLButtonElement
+        ).click(),
+    )
+    const rowSave = () =>
+        container.querySelector(
+            '[data-testid="channels-advanced-answers-save"]',
+        ) as HTMLButtonElement
+    expect(rowSave().disabled).toBe(false)
+    await act(async () =>
+        (
+            container.querySelector('[data-testid="channels-behavior-dm"]') as HTMLButtonElement
+        ).click(),
+    )
+    expect(rowSave().disabled).toBe(true)
+    await act(async () => release())
+    expect(rowSave().disabled).toBe(false)
+})

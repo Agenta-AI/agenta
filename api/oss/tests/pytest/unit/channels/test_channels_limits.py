@@ -378,11 +378,7 @@ def _sync_guarded(refuse, result):
     given an agent to guard and the caller is not its owner."""
 
     async def write(**kwargs):
-        guarded = (
-            kwargs.get("guard_artifact_id")
-            or kwargs.get("guard_artifact_ids")
-            or kwargs.get("guard_artifact_ids")
-        )
+        guarded = kwargs.get("guard_artifact_id") or kwargs.get("guard_artifact_ids")
         if refuse and guarded:
             raise SharedItemNotFound()
         return result(kwargs)

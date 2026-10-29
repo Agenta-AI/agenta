@@ -91,7 +91,7 @@ async def _settle():
         await asyncio.sleep(0)
 
 
-def test_people_who_wrote_are_listed_once_newest_first():
+def test_recent_senders_are_listed_once_newest_first():
     found = people.recent_senders(
         [
             {"id": "U2", "name": "Ben"},
@@ -202,7 +202,7 @@ async def test_refresh_reloads_the_list(cache):
     assert adapter.list_calls == 2
 
 
-async def test_telegram_has_only_the_people_who_wrote(cache):
+async def test_telegram_has_only_the_recent_senders(cache):
     adapter = SimpleNamespace()  # never asked: the declaration says no
 
     found, directory = await people.query_people(
