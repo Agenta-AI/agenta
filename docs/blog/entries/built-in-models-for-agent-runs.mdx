@@ -1,0 +1,32 @@
+---
+title: "Built-in models now serve only agent runs"
+slug: built-in-models-for-agent-runs
+date: 2026-10-23
+tags: [v0.122.11]
+improvements:
+  - area: Security
+    text: "Code evaluators receive a scoped credential and no write-only provider keys"
+  - area: Security
+    text: "On Daytona, the gateway token stays out of the sandbox environment"
+fixes:
+  - area: Agents
+    text: "The first run of a new agent that uses a stored Claude or ChatGPT sign-in no longer fails"
+  - area: Pi
+    text: "Pi's ChatGPT subscription no longer offers models that ChatGPT refuses"
+description: "The built-in models that Agenta provides now serve only the agent runs that the platform starts. Calls with your own provider keys work as before."
+---
+
+<Summary>
+
+The built-in models that Agenta provides now serve only the agent runs that the platform starts. A direct call to the built-in model route with an API key, or with a credential exchanged from one, gets a `403` with the code `builtin_requires_agent_run`.
+
+Calls with your own provider keys and connections work as before.
+
+</Summary>
+
+{/* truncate */}
+
+## Self-hosting
+
+- Enterprise: the temporary starter-credits bridge and its `AGENTA_STARTER_CREDITS_BRIDGE_*` settings are removed. New organizations get the wallet sign-up grant under the same sign-up policy as before.
+- Enterprise: the migration `ee0000000006` adds the `account_tombstones` table. An email that signs up again within `AGENTA_ACCOUNT_TOMBSTONE_DAYS` (default 365) gets no free credits.

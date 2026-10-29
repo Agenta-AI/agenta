@@ -7,38 +7,19 @@
  * header field alone gave no way to say `Bearer` or `Basic`. The prefix is its own field so
  * the reader sees it, and the preview line is built by the same rule the relay sends by
  * (`credentialBindingPreview`), so it is what goes out.
- *
- * The presets only fill these fields. They are not a mode and nothing stores which one was
- * pressed.
  */
 import {
     credentialBindingPreview,
-    MCP_DEFAULT_CREDENTIAL_BINDING,
     mcpChallengeScheme,
     type MCPCredentialBinding,
     type MCPServerProbe,
 } from "@agenta/entities/mcpEndpoint"
-import {
-    Button,
-    Input,
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@agenta/ui/ui"
+import {Input, Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@agenta/ui/ui"
 
 import {HintedField} from "./HintedField"
 
 type Kind = MCPCredentialBinding["kind"]
 type PrefixChoice = "none" | "Bearer" | "Basic" | "custom"
-
-const CREDENTIAL_PRESETS: {label: string; binding: MCPCredentialBinding}[] = [
-    {label: "Bearer token", binding: MCP_DEFAULT_CREDENTIAL_BINDING},
-    {label: "Custom header", binding: {kind: "header", name: "", prefix: null}},
-    {label: "Basic", binding: {kind: "header", name: "Authorization", prefix: "Basic"}},
-    {label: "Query parameter", binding: {kind: "query", name: "", prefix: null}},
-]
 
 const KIND_LABEL: Record<Kind, string> = {
     header: "Header",
@@ -113,20 +94,6 @@ export const CredentialBindingFields = ({
 
     return (
         <div className="flex flex-col gap-3" data-testid="mcp-credential-binding">
-            <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-xs font-medium text-colorText">Preset</span>
-                {CREDENTIAL_PRESETS.map((preset) => (
-                    <Button
-                        key={preset.label}
-                        variant="outline"
-                        size="xs"
-                        disabled={disabled}
-                        onClick={() => onChange(preset.binding)}
-                    >
-                        {preset.label}
-                    </Button>
-                ))}
-            </div>
             <HintedField label="Send as">
                 <ChoiceSelect
                     label="Send as"
