@@ -33,7 +33,7 @@ pytestmark = pytest.mark.integration
 @pytest.fixture
 async def scope():
     engine = get_transactions_engine()
-    ids = {name: uuid.uuid4() for name in ("user", "org", "ws", "project", "conn")}
+    ids = {name: uuid.uuid4() for name in ("user", "org", "project", "conn")}
     async with engine.session() as session:
         for statement, params in (
             (
@@ -51,14 +51,9 @@ async def scope():
                 {"id": ids["org"], "owner": ids["user"]},
             ),
             (
-                "INSERT INTO workspaces (id, name, organization_id) "
+                "INSERT INTO projects (id, project_name, organization_id) "
                 "VALUES (:id, 'trigger-refuse', :org)",
-                {"id": ids["ws"], "org": ids["org"]},
-            ),
-            (
-                "INSERT INTO projects (id, project_name, workspace_id, organization_id) "
-                "VALUES (:id, 'trigger-refuse', :ws, :org)",
-                {"id": ids["project"], "ws": ids["ws"], "org": ids["org"]},
+                {"id": ids["project"], "org": ids["org"]},
             ),
             (
                 "INSERT INTO gateway_connections "
@@ -86,7 +81,6 @@ async def scope():
             )
         for table, key in (
             ("projects", "project"),
-            ("workspaces", "ws"),
             ("organizations", "org"),
             ("users", "user"),
         ):

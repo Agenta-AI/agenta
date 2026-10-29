@@ -7,8 +7,6 @@ import pytest
 from sqlalchemy.exc import IntegrityError, ProgrammingError
 
 import oss.src.dbs.postgres.memberships.dao as dao_module
-from oss.src.core.memberships.dtos import MembershipPolicy
-from oss.src.core.memberships.service import MembershipsService
 from oss.src.core.memberships.types import (
     MemberNotFound,
     OrganizationOwnerProtected,
@@ -18,10 +16,8 @@ from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 from oss.tests.pytest.utils.membership_seed import (
     create_user,
     delete_seeded_organization,
-    delete_seeded_shapes,
     execute,
     fetch_all,
-    seed_legacy_shapes,
     seed_organization,
     seed_stress_organization,
     user_email,
@@ -57,26 +53,14 @@ async def _organization_roles(organization_id, user_id) -> list:
     return [row["role"] for row in rows]
 
 
-async def _workspace_roles(workspace_ids, user_id) -> dict:
-    rows = await fetch_all(
-        "SELECT workspace_id, role FROM workspace_members "
-        "WHERE workspace_id = ANY(CAST(:w AS uuid[])) AND user_id = :u",
-        {"w": list(workspace_ids), "u": user_id},
-    )
-    return {row["workspace_id"]: row["role"] for row in rows}
-
-
 async def _counts(seeded) -> dict:
     rows = await fetch_all(
         "SELECT "
         "(SELECT count(*) FROM organization_members WHERE organization_id = :o) AS o, "
-        "(SELECT count(*) FROM workspace_members "
-        " WHERE workspace_id = ANY(CAST(:w AS uuid[]))) AS w, "
         "(SELECT count(*) FROM project_members "
         " WHERE project_id = ANY(CAST(:p AS uuid[]))) AS p",
         {
             "o": seeded.organization_id,
-            "w": seeded.workspace_ids,
             "p": seeded.project_ids,
         },
     )
@@ -161,29 +145,22 @@ async def test_create_project_leaves_nothing_when_seeding_fails(monkeypatch):
             {"o": seeded.organization_id},
         )
         assert [(r["project_name"], r["is_default"]) for r in rows] == [
-            ("project-0-0", True)
+            ("project-0", True)
         ]
     finally:
         await delete_seeded_organization(seeded)
 
 
-async def test_workspace_create_seeds_every_organization_member():
+async def test_create_default_project_seeds_every_organization_member():
     seeded = await seed_organization(members={"a": "admin", "v": "viewer"})
-    workspace = uuid4()
     try:
-        await execute(
-            "INSERT INTO workspaces (id, name, type, organization_id, created_at) "
-            "VALUES (:id, 'second', 'default', :o, now())",
-            {"id": workspace, "o": seeded.organization_id},
-        )
-
         created = await _dao().create_project(
             organization_id=seeded.organization_id,
             name="Default",
             is_default=True,
         )
 
-        # Step 2: made default, it is the organization's one default.
+        # Made default, it is the organization's one default.
         assert created.scope.is_default is True
         assert created.seeded_count == 3
         rows = await fetch_all(
@@ -229,7 +206,7 @@ async def test_create_project_seeds_2000_members_in_one_statement():
 
 
 async def test_role_change_keeps_a_removed_row_removed():
-    seeded = await seed_organization(members={"m": "viewer"}, projects_per_workspace=2)
+    seeded = await seed_organization(members={"m": "viewer"}, projects=2)
     member = seeded.user_ids["m"]
     p1, p2 = seeded.project_ids
     try:
@@ -248,7 +225,7 @@ async def test_role_change_keeps_a_removed_row_removed():
 
 
 async def test_role_change_updates_existing_rows_and_creates_none():
-    seeded = await seed_organization(members={"m": "viewer"}, projects_per_workspace=3)
+    seeded = await seed_organization(members={"m": "viewer"}, projects=3)
     member = seeded.user_ids["m"]
     try:
         await execute(
@@ -272,9 +249,7 @@ async def test_role_change_updates_existing_rows_and_creates_none():
 
 
 async def test_invite_accept_writes_every_row():
-    seeded = await seed_organization(
-        members={"owner": "owner"}, workspaces=2, projects_per_workspace=2
-    )
+    seeded = await seed_organization(members={"owner": "owner"}, projects=4)
     newcomer = await create_user(label="newcomer")
     seeded.extra_user_ids.append(newcomer)
     try:
@@ -289,8 +264,6 @@ async def test_invite_accept_writes_every_row():
         assert await _organization_roles(seeded.organization_id, newcomer) == [
             "annotator"
         ]
-        # Step 2: no workspace row is written.
-        assert await _workspace_roles(seeded.workspace_ids, newcomer) == {}
         assert await _project_roles(seeded.project_ids, newcomer) == {
             p: ["annotator"] for p in seeded.project_ids
         }
@@ -330,9 +303,7 @@ async def test_role_change_refuses_the_owner_and_must_exist():
 async def test_must_be_absent_keeps_a_member_written_in_between():
     # Auto-join reads "not a member", then an invitation is accepted, then the
     # auto-join write runs: the invitation's role and rows stay.
-    seeded = await seed_organization(
-        members={"owner": "owner"}, projects_per_workspace=2
-    )
+    seeded = await seed_organization(members={"owner": "owner"}, projects=2)
     user = await create_user(label="invited")
     seeded.extra_user_ids.append(user)
     try:
@@ -374,9 +345,7 @@ async def test_must_be_absent_keeps_a_member_written_in_between():
 
 
 async def test_concurrent_role_writes_leave_one_row_per_project():
-    seeded = await seed_organization(
-        members={"owner": "owner"}, projects_per_workspace=3
-    )
+    seeded = await seed_organization(members={"owner": "owner"}, projects=3)
     newcomer = await create_user(label="newcomer")
     seeded.extra_user_ids.append(newcomer)
     try:
@@ -443,8 +412,6 @@ async def test_remove_member_clears_rows_and_invitations_in_the_organization():
         assert result.user_id == member
         assert result.deleted_invitation_count == 1
         assert await _organization_roles(org_a.organization_id, member) == []
-        # Workspace removal step 2b: legacy workspace rows are neither written nor
-        # deleted; nothing reads them, and step 3 drops the table.
         assert await _project_roles(org_a.project_ids, member) == {}
         invitations = await fetch_all(
             "SELECT id FROM project_invitations WHERE project_id = :p",
@@ -480,7 +447,7 @@ async def test_remove_member_with_only_an_invitation():
 
 
 async def test_transfer_ownership_seeds_the_new_owner_in_every_project():
-    seeded = await seed_organization(members={"a": "admin"}, projects_per_workspace=2)
+    seeded = await seed_organization(members={"a": "admin"}, projects=2)
     new_owner = seeded.user_ids["a"]
     p1, p2 = seeded.project_ids
     try:
@@ -504,10 +471,6 @@ async def test_transfer_ownership_seeds_the_new_owner_in_every_project():
         assert await _organization_roles(seeded.organization_id, seeded.owner_id) == [
             "admin"
         ]
-        # Step 2: workspace rows are not written (the new owner keeps their old row).
-        assert await _workspace_roles(seeded.workspace_ids, new_owner) == {
-            seeded.workspace_ids[0]: "admin"
-        }
         # p1: both had a row, so the roles swap (as the admin transfer tool does);
         # p2: only the former owner had one, so the new owner is seeded as owner.
         assert await _project_roles(seeded.project_ids, new_owner) == {
@@ -527,19 +490,13 @@ async def test_transfer_never_leaves_the_new_owner_below_owner():
     """The former owner's rows held `viewer` (the admin accounts path wrote the column
     default). The swap moves those roles to the new owner; the new owner must still end
     as `owner` on the organization and project rows, and the former owner takes the
-    new owner's previous roles. Step 2 writes no workspace row."""
+    new owner's previous roles."""
 
-    seeded = await seed_organization(members={"a": "editor"}, workspaces=2)
+    seeded = await seed_organization(members={"a": "editor"}, projects=2)
     new_owner = seeded.user_ids["a"]
     try:
-        # The new owner has no row in the second workspace.
-        await execute(
-            "DELETE FROM workspace_members WHERE user_id = :u AND workspace_id = :w",
-            {"u": new_owner, "w": seeded.workspace_ids[1]},
-        )
         for table, scope, ids in (
             ("organization_members", "organization_id", [seeded.organization_id]),
-            ("workspace_members", "workspace_id", seeded.workspace_ids),
             ("project_members", "project_id", seeded.project_ids),
         ):
             await execute(
@@ -555,9 +512,6 @@ async def test_transfer_never_leaves_the_new_owner_below_owner():
         )
 
         assert await _organization_roles(seeded.organization_id, new_owner) == ["owner"]
-        assert await _workspace_roles(seeded.workspace_ids, new_owner) == {
-            seeded.workspace_ids[0]: "editor"
-        }
         assert await _project_roles(seeded.project_ids, new_owner) == {
             p: ["owner"] for p in seeded.project_ids
         }
@@ -576,9 +530,7 @@ async def test_app_and_admin_transfers_leave_the_same_rows():
 
     shapes = []
     for _ in range(2):
-        seeded = await seed_organization(
-            members={"a": "editor"}, projects_per_workspace=3
-        )
+        seeded = await seed_organization(members={"a": "editor"}, projects=3)
         # p2: only the former owner has a row; p3: neither changed.
         await execute(
             "DELETE FROM project_members WHERE project_id = :p AND user_id = :u",
@@ -610,9 +562,6 @@ async def test_app_and_admin_transfers_leave_the_same_rows():
                             await _project_roles(seeded.project_ids, user)
                         ).items()
                     ),
-                    sorted(
-                        (await _workspace_roles(seeded.workspace_ids, user)).values()
-                    ),
                 )
                 for label, user in users.items()
             }
@@ -624,7 +573,7 @@ async def test_app_and_admin_transfers_leave_the_same_rows():
 
 
 async def test_transfer_ownership_leaves_nothing_when_a_step_fails(monkeypatch):
-    seeded = await seed_organization(members={"a": "admin"}, projects_per_workspace=2)
+    seeded = await seed_organization(members={"a": "admin"}, projects=2)
     new_owner = seeded.user_ids["a"]
     try:
         await execute(
@@ -655,12 +604,6 @@ async def test_transfer_ownership_leaves_nothing_when_a_step_fails(monkeypatch):
         ]
         assert await _project_roles(seeded.project_ids, new_owner) == {
             seeded.project_ids[0]: ["admin"]
-        }
-        assert await _workspace_roles(seeded.workspace_ids, new_owner) == {
-            seeded.workspace_ids[0]: "admin"
-        }
-        assert await _workspace_roles(seeded.workspace_ids, seeded.owner_id) == {
-            seeded.workspace_ids[0]: "owner"
         }
     finally:
         await delete_seeded_organization(seeded)
@@ -695,50 +638,6 @@ async def test_transfer_ownership_refuses_a_stale_current_owner():
         await delete_seeded_organization(seeded)
 
 
-async def test_invite_accept_never_adds_a_row_in_another_organization_workspace():
-    shapes = await seed_legacy_shapes()
-    cross = shapes["cross_org_workspace"]
-    newcomer = await create_user(label="newcomer")
-    cross.extra_user_ids.append(newcomer)
-    try:
-        await _dao().set_member_role(
-            organization_id=cross.organization_id,
-            user_id=newcomer,
-            role="viewer",
-            join_all_projects=True,
-        )
-
-        rows = await fetch_all(
-            "SELECT w.organization_id FROM workspace_members wm "
-            "JOIN workspaces w ON w.id = wm.workspace_id WHERE wm.user_id = :u",
-            {"u": newcomer},
-        )
-        assert {r["organization_id"] for r in rows} <= {cross.organization_id}
-    finally:
-        await delete_seeded_shapes(shapes)
-
-
-# -- readers ------------------------------------------------------------------------------
-
-
-@pytest.mark.parametrize(
-    "policy", [MembershipPolicy.ORGANIZATION_WIDE, MembershipPolicy.PROJECT_ROWS]
-)
-async def test_workspace_row_deleted_does_not_change_resolve(policy):
-    seeded = await seed_organization(members={"m": "editor"})
-    member, project = seeded.user_ids["m"], seeded.project_ids[0]
-    service = MembershipsService(memberships_dao=_dao(), policy=policy)
-    try:
-        before = await service.resolve(user_id=member, project_id=project)
-        await execute("DELETE FROM workspace_members WHERE user_id = :u", {"u": member})
-        after = await service.resolve(user_id=member, project_id=project)
-
-        assert before is not None
-        assert after == before
-    finally:
-        await delete_seeded_organization(seeded)
-
-
 async def test_membership_row_reads_the_oldest_organization_row_in_one_statement():
     seeded = await seed_organization(members={"m": "editor"})
     member, project = seeded.user_ids["m"], seeded.project_ids[0]
@@ -765,8 +664,8 @@ async def test_membership_row_reads_the_oldest_organization_row_in_one_statement
         assert row.project_role == "editor"
         assert row.has_organization_row is True
         assert row.has_project_row is True
-        assert row.summary.project_name == "project-0-0"
-        # Step 2: the organization where the workspace was (design D6).
+        assert row.summary.project_name == "project-0"
+        # The organization where the workspace was (design D6).
         assert row.summary.workspace_name == row.summary.organization_name
         assert row.summary.organization_name.startswith("membership-seed-")
         assert row.summary.organization_owner_id == seeded.owner_id
@@ -775,7 +674,7 @@ async def test_membership_row_reads_the_oldest_organization_row_in_one_statement
 
 
 async def test_membership_row_reports_a_null_role_row_as_present():
-    seeded = await seed_organization(members={"m": "editor"}, projects_per_workspace=2)
+    seeded = await seed_organization(members={"m": "editor"}, projects=2)
     member = seeded.user_ids["m"]
     p1, p2 = seeded.project_ids
     try:
@@ -803,9 +702,7 @@ async def test_membership_row_reports_a_null_role_row_as_present():
 
 
 async def test_membership_rows_list_every_project_of_the_user_organizations_in_one_statement():
-    org_a = await seed_organization(
-        members={"m": "editor"}, workspaces=2, projects_per_workspace=2
-    )
+    org_a = await seed_organization(members={"m": "editor"}, projects=4)
     org_b = await seed_organization(members={"owner": "owner"})
     org_c = await seed_organization(members={"owner": "owner"})
     member = org_a.user_ids["m"]
@@ -847,7 +744,7 @@ async def test_membership_rows_list_every_project_of_the_user_organizations_in_o
 
 
 async def test_list_projects_and_fetch_organization_member():
-    seeded = await seed_organization(members={"m": "editor"}, projects_per_workspace=2)
+    seeded = await seed_organization(members={"m": "editor"}, projects=2)
     try:
         scopes = await _dao().list_projects(organization_ids=[seeded.organization_id])
         assert [s.project_id for s in scopes] == seeded.project_ids

@@ -71,7 +71,7 @@ Project membership and access:
 - No new code reads `workspace_members` or `project_members` to decide access.
 - No deployed code reads or writes `workspaces`, `workspace_members`,
   `projects.workspace_id` or `meters.workspace_id`, and the runtime ORM maps none of them
-  (workspace removal step 2b; step 3 drops them). The API answers the organization id where
+  (workspace removal step 2b; step 3 dropped them). The API answers the organization id where
   a workspace id was, and a legacy workspace id is an unknown id. Migrations that need
   these objects use frozen models, never `oss.src.models.db_models`.
   `unit/memberships/test_workspace_storage_unread.py` pins it.

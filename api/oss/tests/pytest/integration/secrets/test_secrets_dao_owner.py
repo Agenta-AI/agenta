@@ -50,9 +50,7 @@ def _key():
 
 @pytest.fixture
 async def org():
-    seeded = await seed_organization(
-        members={"owner": "owner"}, projects_per_workspace=2
-    )
+    seeded = await seed_organization(members={"owner": "owner"}, projects=2)
     other = await seed_organization(members={"owner": "owner"})
     yield seeded, other
     await delete_seeded_organization(seeded)

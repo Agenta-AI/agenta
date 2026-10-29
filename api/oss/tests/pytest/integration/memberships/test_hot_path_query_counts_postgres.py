@@ -36,14 +36,10 @@ POLICIES = [MembershipPolicy.ORGANIZATION_WIDE, MembershipPolicy.PROJECT_ROWS]
 async def member_of_three_organizations():
     """A user in 3 organizations with 2 projects each (6 projects)."""
 
-    organizations = [
-        await seed_organization(members={"m": "editor"}, projects_per_workspace=2)
-    ]
+    organizations = [await seed_organization(members={"m": "editor"}, projects=2)]
     user = organizations[0].user_ids["m"]
     for _ in range(2):
-        seeded = await seed_organization(
-            members={"owner": "owner"}, projects_per_workspace=2
-        )
+        seeded = await seed_organization(members={"owner": "owner"}, projects=2)
         for statement in (
             "INSERT INTO organization_members (id, user_id, organization_id, role) "
             "VALUES (gen_random_uuid(), :u, :o, 'editor')",
@@ -82,14 +78,13 @@ async def test_project_list_is_one_statement(policy, member_of_three_organizatio
         for name in ("extra-a", "extra-b"):
             await execute(
                 "WITH p AS (INSERT INTO projects (id, project_name, is_default, "
-                "organization_id, workspace_id) VALUES (gen_random_uuid(), :n, false, "
-                ":o, :w) RETURNING id) "
+                "organization_id) VALUES (gen_random_uuid(), :n, false, "
+                ":o) RETURNING id) "
                 "INSERT INTO project_members (id, user_id, project_id, role) "
                 "SELECT gen_random_uuid(), :u, p.id, 'editor' FROM p",
                 {
                     "n": name,
                     "o": seeded.organization_id,
-                    "w": seeded.workspace_ids[0],
                     "u": user,
                 },
             )

@@ -16,6 +16,26 @@ Agenta follows semantic versioning with new releases every week. Stay updated by
 The multi-organization release flips OSS from invite-only to open signup. If your instance is reachable beyond a trusted network, set `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS` (and optionally `AGENTA_ACCESS_ALLOWED_DOMAINS`) before upgrading. See [Migrate to Multi-Organization OSS](/self-host/upgrades/multi-org-migration).
 :::
 
+## Upgrading to 0.131.0: the workspace tables are dropped
+
+{/* The version is a placeholder. The release conductor sets it when the release is picked. */}
+
+This release drops the tables `workspaces` and `workspace_members` and the columns `projects.workspace_id` and `meters.workspace_id` (Enterprise). No code has read them since 0.130.0. The API does not change.
+
+### Take a database dump first
+
+Dropping the tables cannot be undone. Take a dump of `workspaces`, `workspace_members`, `projects` and `meters` before you start the upgrade. A down migration recreates the empty tables and columns only; the data comes back only from the dump.
+
+### Upgrade from 0.130.0
+
+Run 0.130.0 on every pod before you start 0.131.0. Pods of 0.130.0 keep working on the new schema, and a rollback to 0.130.0 needs no database change. A rolling upgrade from a release before 0.130.0 is not supported: those pods read the dropped tables.
+
+Each of the two migrations stops without a change of its own: the projects migration when another table or view still depends on a workspace table (Agenta's schema has none; such an object was added by hand), and on Enterprise the meters migration when a meter row still has a workspace (0.130.0 folds them all). The projects migration runs first, so on Enterprise check before you upgrade that `SELECT 1 FROM meters WHERE workspace_id IS NOT NULL LIMIT 1` returns no row. The error names what to fix. Each drop holds a short lock on its table and gives up after 2 seconds of waiting, so a retry is safe.
+
+### Operator job
+
+`entrypoints.memberships_check --report` no longer lists the checks that read workspaces (P2b, P3, P4, P6 and the workspace rows of P10), and `--apply` no longer adds P2b rows. `--materialize` does not change.
+
 ## Upgrading to 0.130.0: old workspace ids stop working
 
 {/* The version is a placeholder. The release conductor sets it when the release is picked. */}

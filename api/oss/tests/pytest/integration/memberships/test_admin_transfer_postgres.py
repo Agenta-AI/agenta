@@ -32,7 +32,7 @@ async def _project_rows(project_ids, user_id) -> dict:
 
 async def test_transfer_seeds_the_new_owner_and_swaps_roles():
     seeded = await seed_organization(
-        members={"owner": "owner", "m": "admin"}, projects_per_workspace=2
+        members={"owner": "owner", "m": "admin"}, projects=2
     )
     owner, member = seeded.owner_id, seeded.user_ids["m"]
     try:

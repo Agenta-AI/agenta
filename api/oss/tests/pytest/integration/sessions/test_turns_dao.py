@@ -51,7 +51,6 @@ async def project_and_stream():
 
     user_id = uuid.uuid4()
     org_id = uuid.uuid4()
-    workspace_id = uuid.uuid4()
     project_id = uuid.uuid4()
     stream_id = uuid.uuid4()
     session_id = f"turns-dao-test-{uuid.uuid4().hex[:8]}"
@@ -78,24 +77,12 @@ async def project_and_stream():
         )
         await session.execute(
             text(
-                "INSERT INTO workspaces (id, name, organization_id) "
-                "VALUES (:id, :name, :organization_id)"
-            ),
-            {
-                "id": workspace_id,
-                "name": "turns-dao-test-ws",
-                "organization_id": org_id,
-            },
-        )
-        await session.execute(
-            text(
-                "INSERT INTO projects (id, project_name, workspace_id, organization_id) "
-                "VALUES (:id, :project_name, :workspace_id, :organization_id)"
+                "INSERT INTO projects (id, project_name, organization_id) "
+                "VALUES (:id, :project_name, :organization_id)"
             ),
             {
                 "id": project_id,
                 "project_name": "turns-dao-test-project",
-                "workspace_id": workspace_id,
                 "organization_id": org_id,
             },
         )
@@ -126,9 +113,6 @@ async def project_and_stream():
         )
         await session.execute(
             text("DELETE FROM projects WHERE id = :id"), {"id": project_id}
-        )
-        await session.execute(
-            text("DELETE FROM workspaces WHERE id = :id"), {"id": workspace_id}
         )
         await session.execute(
             text("DELETE FROM organizations WHERE id = :id"), {"id": org_id}

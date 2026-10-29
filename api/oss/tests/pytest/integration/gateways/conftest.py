@@ -432,7 +432,6 @@ async def other_project():
     engine = get_transactions_engine()
     user_id = uuid.uuid4()
     organization_id = uuid.uuid4()
-    workspace_id = uuid.uuid4()
     project_id = uuid.uuid4()
     credential_id = uuid.uuid4()
 
@@ -458,25 +457,13 @@ async def other_project():
         )
         await session.execute(
             text(
-                "INSERT INTO workspaces (id, name, organization_id) "
-                "VALUES (:id, :name, :organization_id)"
-            ),
-            {
-                "id": workspace_id,
-                "name": "gw-other-ws",
-                "organization_id": organization_id,
-            },
-        )
-        await session.execute(
-            text(
                 "INSERT INTO projects "
-                "(id, project_name, workspace_id, organization_id) "
-                "VALUES (:id, :name, :workspace_id, :organization_id)"
+                "(id, project_name, organization_id) "
+                "VALUES (:id, :name, :organization_id)"
             ),
             {
                 "id": project_id,
                 "name": "gw-other-project",
-                "workspace_id": workspace_id,
                 "organization_id": organization_id,
             },
         )
@@ -509,9 +496,6 @@ async def other_project():
             text("DELETE FROM projects WHERE id = :id"), {"id": project_id}
         )
         await session.execute(
-            text("DELETE FROM workspaces WHERE id = :id"), {"id": workspace_id}
-        )
-        await session.execute(
             text("DELETE FROM organizations WHERE id = :id"),
             {"id": organization_id},
         )
@@ -528,7 +512,6 @@ async def seeded_project():
     engine = get_transactions_engine()
     user_id = uuid.uuid4()
     organization_id = uuid.uuid4()
-    workspace_id = uuid.uuid4()
     project_id = uuid.uuid4()
     secret_id = uuid.uuid4()
 
@@ -554,21 +537,13 @@ async def seeded_project():
         )
         await session.execute(
             text(
-                "INSERT INTO workspaces (id, name, organization_id) "
-                "VALUES (:id, :name, :organization_id)"
-            ),
-            {"id": workspace_id, "name": "gw-ws", "organization_id": organization_id},
-        )
-        await session.execute(
-            text(
                 "INSERT INTO projects "
-                "(id, project_name, workspace_id, organization_id) "
-                "VALUES (:id, :name, :workspace_id, :organization_id)"
+                "(id, project_name, organization_id) "
+                "VALUES (:id, :name, :organization_id)"
             ),
             {
                 "id": project_id,
                 "name": "gw-project",
-                "workspace_id": workspace_id,
                 "organization_id": organization_id,
             },
         )
@@ -580,7 +555,6 @@ async def seeded_project():
 
     yield {
         "organization_id": organization_id,
-        "workspace_id": workspace_id,
         "project_id": project_id,
         "user_id": user_id,
         "secret_id": secret_id,
@@ -601,9 +575,6 @@ async def seeded_project():
         )
         await session.execute(
             text("DELETE FROM projects WHERE id = :id"), {"id": project_id}
-        )
-        await session.execute(
-            text("DELETE FROM workspaces WHERE id = :id"), {"id": workspace_id}
         )
         await session.execute(
             text("DELETE FROM organizations WHERE id = :id"),

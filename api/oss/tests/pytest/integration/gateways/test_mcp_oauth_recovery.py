@@ -150,7 +150,6 @@ def _dao() -> MCPEndpointsDAO:
 def _scope(project) -> AuthScope:
     return AuthScope(
         organization_id=project["organization_id"],
-        workspace_id=project["workspace_id"],
         project_id=project["project_id"],
         user_id=project["user_id"],
     )

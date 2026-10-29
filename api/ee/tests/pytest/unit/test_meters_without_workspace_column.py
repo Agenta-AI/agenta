@@ -1,5 +1,5 @@
-"""Workspace removal step 2b: the meters ORM no longer maps `meters.workspace_id`, so no
-select of a meter row names the column that step 3 drops."""
+"""The meters ORM maps no workspace column (workspace removal dropped it), so no select
+of a meter row names it."""
 
 from sqlalchemy import select
 
