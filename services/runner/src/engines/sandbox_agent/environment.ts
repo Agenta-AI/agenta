@@ -785,11 +785,6 @@ async function acquireEnvironmentOnce(
     // daemon, after which the daemon environment is fixed. Every local mount had to land above
     // this line. From here a `writeDaemonEnv` is a programming-order bug and throws.
     ctx.freezeDaemonEnv();
-    // The local mounts above were made by this acquire, so the first turn need not refresh their
-    // views (see `refreshDriveViewsAtTurnStart`). A mid-run remount never sets this.
-    if (plan.driveOnRunner && (environment.mountedCwd || environment.agentMountedPath)) {
-      environment.driveViewsFresh = true;
-    }
     // A harness that runs in this process has no daemon, so no sandbox provider is built for it.
     const inRunnerHarness = plan.harnessInRunner ? deps.inRunnerHarness : undefined;
     if (plan.harnessInRunner && !inRunnerHarness) throw new Error(`The ${plan.sandboxId} sandbox is not available on this agent service.`);
@@ -1381,15 +1376,11 @@ async function acquireEnvironmentOnce(
     if (isSubscriptionCodexRun(plan))
       await symlinkCodexSubscriptionAuthFile(plan, logger);
 
-    // A Daytona drive mounted above is new: `mountStorageRemote` always detaches and mounts again,
-    // so its view starts empty and the first turn need not refresh it.
-    if (
-      plan.isDaytona &&
-      (environment.installedMountExpiries.cwd !== undefined ||
-        environment.agentMountedPath)
-    ) {
-      environment.driveViewsFresh = true;
-    }
+    // Every drive above was mounted by this acquire, seconds ago, so the first turn skips the
+    // refresh of their views (see `refreshDriveViewsAtTurnStart`). A Daytona mount always detaches
+    // and mounts again. A local mount is reused only when an earlier environment failed to unmount
+    // it. With no mount, the refresh has nothing to do anyway. A mid-run remount never sets this.
+    environment.driveViewsFresh = true;
 
     // Pi native transcripts belong to the conversation workspace, not the temporary agent
     // directory that holds credentials, settings, extensions, skills, and system prompts.

@@ -469,9 +469,9 @@ export interface SessionEnvironment {
    */
   installedMountExpiries: InstalledMountExpiries;
   /**
-   * True from a fresh Daytona mount in this acquire until the first turn starts. That turn skips
-   * the turn-start refresh of the drive views: the mounts are seconds old, so their cached view
-   * is as fresh as a refresh would make it. See `refreshDriveViewsAtTurnStart`.
+   * True from the end of the acquire's mounts until the first turn starts. That turn skips the
+   * turn-start refresh of the drive views, because the mounts are seconds old. See
+   * `refreshDriveViewsAtTurnStart`.
    */
   driveViewsFresh?: boolean;
   durableCwdSafeToDelete: boolean;
