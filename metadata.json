@@ -1,0 +1,45 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "01M64J8KYFT5DFYVC0JHZNTXBB",
+  "strategy": "manual-commit",
+  "branch": "feat/automation-event-field-picker",
+  "checkpoints_count": 4,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 32,
+    "cache_creation_tokens": 26025,
+    "cache_read_tokens": 3263992,
+    "output_tokens": 11406,
+    "api_call_count": 15,
+    "subagent_tokens": {
+      "input_tokens": 262,
+      "cache_creation_tokens": 679717,
+      "cache_read_tokens": 16696454,
+      "output_tokens": 58679,
+      "api_call_count": 124
+    }
+  },
+  "redaction": {
+    "replacements": 46,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 8,
+      "credentialed_uri": 0,
+      "entropy": 38,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
