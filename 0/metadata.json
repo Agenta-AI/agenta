@@ -1,0 +1,166 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "01M64P6TVWVV49TP4CPKS2FS19",
+  "session_id": "3e1af68c-f37f-4771-81cd-00d74aecec15",
+  "strategy": "manual-commit",
+  "created_at": "2026-10-29T20:39:20.558385005Z",
+  "branch": "feat/session-naming-parallel-call",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "api/oss/src/core/workflows/build_kit.py",
+    "api/oss/tests/pytest/unit/applications/test_build_kit_overlay.py",
+    "api/oss/tests/pytest/unit/resources/test_workflow_catalog.py",
+    "api/oss/tests/pytest/unit/workflows/test_agenta_tools_catalog.py",
+    "docs/design/agent-config-editing/benchmark/bench_lib.py",
+    "docs/design/agent-config-editing/benchmark/scenarios/09-self-naming.json",
+    "docs/design/agent-self-naming-tools/README.md",
+    "docs/docs/self-host/reference/01-configuration.mdx",
+    "hosting/docker-compose/ee/env.ee.dev.example",
+    "hosting/docker-compose/ee/env.ee.gh.example",
+    "hosting/docker-compose/oss/env.oss.dev.example",
+    "hosting/docker-compose/oss/env.oss.gh.example",
+    "sdks/python/agenta/sdk/agents/adapters/agenta_builtins.py",
+    "sdks/python/agenta/sdk/agents/handler.py",
+    "sdks/python/agenta/sdk/agents/interfaces.py",
+    "sdks/python/agenta/sdk/agents/naming.py",
+    "sdks/python/agenta/sdk/agents/platform/op_catalog.py",
+    "sdks/python/agenta/sdk/agents/platform_instructions.py",
+    "sdks/python/agenta/sdk/agents/tools/models.py",
+    "sdks/python/agenta/sdk/agents/tools/resolver.py",
+    "sdks/python/agenta/sdk/utils/types.py",
+    "sdks/python/oss/tests/pytest/unit/agents/platform/test_op_catalog.py",
+    "sdks/python/oss/tests/pytest/unit/agents/test_default_persona_self_naming.py",
+    "sdks/python/oss/tests/pytest/unit/agents/test_platform_instructions.py",
+    "sdks/python/oss/tests/pytest/unit/agents/test_session_naming.py",
+    "sdks/python/oss/tests/pytest/unit/agents/test_wire_contract.py",
+    "sdks/python/oss/tests/pytest/unit/agents/tools/test_agenta_tools.py",
+    "services/oss/src/agent/config.py",
+    "services/oss/tests/pytest/unit/agent/test_agenta_tools_run.py",
+    "services/oss/tests/pytest/unit/agent/test_default_agent_template.py",
+    "web/packages/agenta-entities/src/workflow/agentaTools.ts",
+    "web/packages/agenta-entities/tests/unit/agent-credentials-commit.test.ts",
+    "web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/buildKitDescriptors.tsx",
+    "web/packages/agenta-entity-ui/tests/unit/agentaToolsSection.render.test.tsx"
+  ],
+  "agent": "Claude Code",
+  "model": "claude-opus-5-5",
+  "turn_id": "0fab20c57b85",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 284,
+    "cache_creation_tokens": 304920,
+    "cache_read_tokens": 33650589,
+    "output_tokens": 82087,
+    "api_call_count": 136
+  },
+  "redaction": {
+    "replacements": 53,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 15,
+      "credentialed_uri": 0,
+      "entropy": 38,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_015AfPjkBUKRpCwT8oRrUYgo",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "build"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "0fab20c57b85",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 61,
+        "end": 62,
+        "entry_ids": [
+          "44210458-6eaf-4b39-a608-6b3a3ae7cfa4"
+        ],
+        "tool_use_id": "toolu_015AfPjkBUKRpCwT8oRrUYgo"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_015AfPjkBUKRpCwT8oRrUYgo"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: build",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01U18nR1gbfdRJD8kKZubNFi",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "naming-and-resources"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "0fab20c57b85",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 111,
+        "end": 112,
+        "entry_ids": [
+          "da0113c5-1411-4adf-a67b-14f877b3866c"
+        ],
+        "tool_use_id": "toolu_01U18nR1gbfdRJD8kKZubNFi"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01U18nR1gbfdRJD8kKZubNFi"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: naming-and-resources",
+        "default_collapsed": true
+      }
+    },
+    {
+      "id": "claude-skill-toolu_01RaDCoXBQFwNjnygp4sR93H",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "write-docs"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "0fab20c57b85",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 949,
+        "end": 950,
+        "entry_ids": [
+          "99761f93-1920-430c-84de-1d8e679a4d4e"
+        ],
+        "tool_use_id": "toolu_01RaDCoXBQFwNjnygp4sR93H"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01RaDCoXBQFwNjnygp4sR93H"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: write-docs",
+        "default_collapsed": true
+      }
+    }
+  ]
+}

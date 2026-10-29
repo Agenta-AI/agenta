@@ -1,0 +1,73 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "01M64P6TVWVV49TP4CPKS2FS19",
+  "strategy": "manual-commit",
+  "branch": "feat/session-naming-parallel-call",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "api/oss/src/core/workflows/build_kit.py",
+    "api/oss/tests/pytest/unit/applications/test_build_kit_overlay.py",
+    "api/oss/tests/pytest/unit/resources/test_workflow_catalog.py",
+    "api/oss/tests/pytest/unit/workflows/test_agenta_tools_catalog.py",
+    "docs/design/agent-config-editing/benchmark/bench_lib.py",
+    "docs/design/agent-config-editing/benchmark/scenarios/09-self-naming.json",
+    "docs/design/agent-self-naming-tools/README.md",
+    "docs/docs/self-host/reference/01-configuration.mdx",
+    "hosting/docker-compose/ee/env.ee.dev.example",
+    "hosting/docker-compose/ee/env.ee.gh.example",
+    "hosting/docker-compose/oss/env.oss.dev.example",
+    "hosting/docker-compose/oss/env.oss.gh.example",
+    "sdks/python/agenta/sdk/agents/adapters/agenta_builtins.py",
+    "sdks/python/agenta/sdk/agents/handler.py",
+    "sdks/python/agenta/sdk/agents/interfaces.py",
+    "sdks/python/agenta/sdk/agents/naming.py",
+    "sdks/python/agenta/sdk/agents/platform/op_catalog.py",
+    "sdks/python/agenta/sdk/agents/platform_instructions.py",
+    "sdks/python/agenta/sdk/agents/tools/models.py",
+    "sdks/python/agenta/sdk/agents/tools/resolver.py",
+    "sdks/python/agenta/sdk/utils/types.py",
+    "sdks/python/oss/tests/pytest/unit/agents/platform/test_op_catalog.py",
+    "sdks/python/oss/tests/pytest/unit/agents/test_default_persona_self_naming.py",
+    "sdks/python/oss/tests/pytest/unit/agents/test_platform_instructions.py",
+    "sdks/python/oss/tests/pytest/unit/agents/test_session_naming.py",
+    "sdks/python/oss/tests/pytest/unit/agents/test_wire_contract.py",
+    "sdks/python/oss/tests/pytest/unit/agents/tools/test_agenta_tools.py",
+    "services/oss/src/agent/config.py",
+    "services/oss/tests/pytest/unit/agent/test_agenta_tools_run.py",
+    "services/oss/tests/pytest/unit/agent/test_default_agent_template.py",
+    "web/packages/agenta-entities/src/workflow/agentaTools.ts",
+    "web/packages/agenta-entities/tests/unit/agent-credentials-commit.test.ts",
+    "web/packages/agenta-entity-ui/src/DrillInView/SchemaControls/agentTemplate/buildKitDescriptors.tsx",
+    "web/packages/agenta-entity-ui/tests/unit/agentaToolsSection.render.test.tsx"
+  ],
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 284,
+    "cache_creation_tokens": 304920,
+    "cache_read_tokens": 33650589,
+    "output_tokens": 82087,
+    "api_call_count": 136
+  },
+  "redaction": {
+    "replacements": 53,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 15,
+      "credentialed_uri": 0,
+      "entropy": 38,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}

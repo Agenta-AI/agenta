@@ -1,0 +1,53 @@
+Background (from the session that started this one):
+Today, on the first turn of a new session, the model usually calls `rename_session` (and `rename_agent` for placeholder-named agents) before it writes any text. A tool call ends the model call, so the reply waits for a second model call: first text at 6.6 to 9.3 s on staging (built-in Gemini, in-process Pi) versus 3.0 to 3.5 s when the model writes first. Changing the instructions alone did not fix the order. The proposal (option E) moves naming to a small parallel call in the agent service, about $0.0005 per new session versus about $0.006 today. Mahmoud approved it on 2026-10-29 and added two decisions: (1) the rename tools and the naming instructions go away entirely, and old agents get the tools dropped at resolve time; (2) self-hosting users choose the model for this internal call through new environment variables (OpenAI-compatible URL, key, model), with docs. The runner already gives each new session a temporary title (the first message, cut to 60 chars) about 0.3 s into the turn.
+
+Task:
+Build option E from the naming proposal at https://claude.ai/code/artifact/7b994f35-9265-4665-b6d8-6ccb501c128a (read it first with the Artifact tool; its "Steps for one small PR" and "How to test it" sections are the plan). Mahmoud approved option E with the changes below.
+
+## What to build
+1. **Parallel naming call in the agent service** (`sdks/python/agenta/sdk/agents/naming.py`, started from `sdks/python/agenta/sdk/agents/handler.py`). On a first turn of a session with no name, start one small model call next to the turn. It reads only the first user message and returns a session name (max 60 chars), a one-sentence description, and an agent name when the agent name is a placeholder (`is_placeholder_agent_name` in `platform_instructions.py`). Write them with the same endpoints the rename tools use (`PUT /api/sessions/streams/header?name_source=automatic`, and `PUT /api/workflows/{id}` with the name only), and only after the first runner frame arrives, so the runner creates the session row with the right owner first. Thinking off, about 60 output tokens, 10 s timeout. A vague message ("hi") returns nothing and the runner's temporary title stays. Failures go to logs only, never to the user.
+2. **Which model the call uses: new environment variables.** Mahmoud wants self-hosting users to choose the model for this small internal call from their `.env`: an OpenAI-compatible base URL, an API key, and a model name. His placeholder names were `agenta_internal_model_openai_url`, `internal_model_openai_api_key`, `internal_model_model`; he says the names are bad, so pick good ones. Load the `naming-and-resources` skill and follow the existing `AGENTA_*` env conventions (look at how the services and SDK read config, and `api/oss/src/utils/env.py` for the API-side pattern). Propose the names to Mahmoud in your first report before you build on them. Decide and document the behavior when the variables are unset (for example: fall back to the run's own model connection when it has a usable key, otherwise skip the call and keep today's naming). On cloud, the call must use the built-in model; say how cloud sets it (env in agenta_cloud is out of scope for this PR; list it as a deploy step and keep cloud internals out of the public repo).
+3. **Remove first-turn naming from the model's work** (Mahmoud's plan from the thread on the proposal):
+   - Live platform instructions (`session_context_guidance` in `sdks/python/agenta/sdk/agents/platform_instructions.py`): drop the "Name it with `rename_session`" and "Rename yourself with `rename_agent` in this turn" lines.
+   - The default agent instructions `_DEFAULT_AGENTS_MD` in `sdks/python/agenta/sdk/utils/types.py` and its copy in `services/oss/src/agent/config.py`: drop the naming bullet. This text is stored into each new agent's config at creation, so old agents keep it.
+   - Remove `rename_session` and `rename_agent` from the default Agenta tools for new agents, and drop them from every agent's tool list when the service resolves tools (`sdks/python/agenta/sdk/agents/tools/resolver.py`), so old agents whose stored config still lists them never see them. Do NOT keep them as no-op tools: a no-op still costs a model call before the reply. Keeping the list the same on every turn avoids the runner reopening the session and the prompt-cache miss.
+   - Update the unit tests that lock the old text (for example `sdks/python/oss/tests/pytest/unit/agents/test_default_persona_self_naming.py`, `services/oss/tests/pytest/unit/agent/test_default_agent_template.py`) and the self_naming benchmark under `docs/design/agent-config-editing/benchmark/`.
+4. **Docs**: document the new environment variables in the self-hosting docs under `docs/` (load the `write-docs` skill), and use `keep-docs-in-sync` for any other page that describes session or agent naming.
+
+## Rules
+- Load the `build` skill and follow its tier. Load `~/.claude/skills/plain-writing/SKILL.md` for every PR text, report and comment.
+- Base: the open patch release branch `release/v0.127.2` if it exists (`git ls-remote --heads origin 'release/*'`), else `main`. Ready PR, not draft. Never merge into main, never deploy to production.
+- Ruff with `~/.local/bin/ruff` (never `uvx ruff`). Run `py-run-tests` in `sdks/python` and `services`.
+- QA with the cheapest models and accounts you mint yourself. Measure first-turn timing on GKE staging with `~/agenta-release-01271/answer-first/firstturn.py` per the proposal's test plan, if a staging deploy is available to you; otherwise say what is left.
+- Every GitHub comment starts with `🤖 _The AI agent says:_ `. No customer data, IPs or cloud internals in the public repo.
+- Report: PR link, the env names you chose and why, unset behavior, test and timing results, what you could not check.
+
+---
+
+<task-notification>
+<task-id>b1zlj3ry7</task-id>
+<tool-use-id>toolu_0114rdqSZ5NFrUFe5jHC56uY</tool-use-id>
+<output-file>/tmp/claude-1000/-home-mahmoud-code-agenta--claude-worktrees-priceless-cerf-e68981/3e1af68c-f37f-4771-81cd-00d74aecec15/tasks/b1zlj3ry7.output</output-file>
+<status>completed</status>
+<summary>Background command "sleep 5; uv sync --locked -q &amp;&amp; timeout 1500 uv run --no-sync python run-tests.py &gt; ~/agenta-build-session-naming/services-tests.log 2&gt;&amp;1; echo "exit $?" &gt;&gt; ~/agenta-build-session-naming/services-tests.log; tail -5 ~/agenta-build-session-naming/services-tests.log" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bkgs35g0v</task-id>
+<tool-use-id>toolu_018FH42h3drxtn8v6iayAcrK</tool-use-id>
+<output-file>/tmp/claude-1000/-home-mahmoud-code-agenta--claude-worktrees-priceless-cerf-e68981/3e1af68c-f37f-4771-81cd-00d74aecec15/tasks/bkgs35g0v.output</output-file>
+<status>completed</status>
+<summary>Background command "cd /home/mahmoud/code/agenta/.claude/worktrees/priceless-cerf-e68981 &amp;&amp; ~/.local/bin/ruff format services sdks/python -q; ~/.local/bin/ruff check --fix services sdks/python -q; (cd sdks/python &amp;&amp; uv sync --locked -q &amp;&amp; timeout 1500 uv run --no-sync python run-tests.py &gt; ~/agenta-build-session-naming/sdk-tests.log 2&gt;&amp;1; echo "exit $?" &gt;&gt; ~/agenta-build-session-naming/sdk-tests.log) ; tail -5 ~/agenta-build-session-naming/sdk-tests.log" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>b8srd49b4</task-id>
+<tool-use-id>toolu_01QkQSujQ8rhrQhFx8DmnHuy</tool-use-id>
+<output-file>/tmp/claude-1000/-home-mahmoud-code-agenta--claude-worktrees-priceless-cerf-e68981/3e1af68c-f37f-4771-81cd-00d74aecec15/tasks/b8srd49b4.output</output-file>
+<status>completed</status>
+<summary>Background command "uv sync --locked -q 2&gt;&amp;1 | tail -3; timeout 900 uv run --no-sync pytest oss/tests/pytest/unit/workflows oss/tests/pytest/unit/applications oss/tests/pytest/unit/resources oss/tests/pytest/unit/sharing/test_disclosure.py oss/tests/pytest/unit/gateways/test_gateways_mcp_service.py oss/tests/pytest/unit/sessions -q -p no:cacheprovider &gt; ~/agenta-build-session-naming/api-tests.log 2&gt;&amp;1; tail -5 ~/agenta-build-session-naming/api-tests.log" completed (exit code 0)</summary>
+</task-notification>
