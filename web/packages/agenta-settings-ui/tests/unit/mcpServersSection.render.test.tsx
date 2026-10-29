@@ -372,15 +372,12 @@ describe("the status cell", () => {
 
     it("opens the reconnect journey without also opening the connection", () => {
         show([OCTOLENS])
+        openRowMenu("Octolens")
         act(() => {
-            fireEvent.click(
-                within(screen.getByTestId("mcp-connection-status")).getByRole("button", {
-                    name: "Reconnect",
-                }),
-            )
+            fireEvent.click(screen.getByRole("menuitem", {name: "Reconnect"}))
         })
         expect(screen.getByTestId("mcp-connect-journey")).toBeTruthy()
-        // The row's own click opens the drawer; the link must not do both.
+        // The row's own click opens the drawer; the menu item must not do both.
         expect(screen.queryByTestId("mcp-connection-detail")).toBeNull()
     })
 })

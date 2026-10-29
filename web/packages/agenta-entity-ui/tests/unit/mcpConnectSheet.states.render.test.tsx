@@ -41,6 +41,7 @@ vi.mock("jotai", async (importOriginal) => ({
     useSetAtom: () => async () => undefined,
 }))
 
+import {OWN_OAUTH_APP_NOTICE} from "../../src/mcpEndpoint/components/OAuthAdvancedFields"
 import McpConnectJourney, {
     type McpConnectJourneyProps,
 } from "../../src/mcpEndpoint/McpConnectJourney"
@@ -578,9 +579,7 @@ describe("the OAuth screen's Advanced section", () => {
         await open(naming({probe}))
 
         expect(button("Advanced")?.getAttribute("aria-expanded")).toBe("true")
-        expect(text()).toContain(
-            "This server needs an OAuth app you register yourself. Paste its client ID and secret.",
-        )
+        expect(text()).toContain(OWN_OAUTH_APP_NOTICE)
         // Nothing to sign in as until the app is entered.
         expect(button("Connect")?.disabled).toBe(true)
     })
