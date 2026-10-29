@@ -2,14 +2,35 @@ import {GatewayToolsSection} from "@agenta/settings-ui"
 
 import {INTEGRATIONS_SECTION_COPY} from "@/lib/integrationsCopy"
 
-import {useConfirmModal} from "./useConfirmModal"
+import {useProjectPermission} from "../context/useProjectPermission"
 
-/** Settings > Integrations: the shared tools section with this app's confirm dialog. */
-export const IntegrationsTab = () => {
+import type {SettingsTabProps} from "./settingsTabProps"
+import {useConfirmModal} from "./useConfirmModal"
+import {useSettingsProjectGroup} from "./useSettingsProjectGroup"
+
+/**
+ * Settings > Integrations: the shared tools section with this app's confirm dialog, the project
+ * switch as the project group's heading, and `edit_tools` deciding whether the connect dialog
+ * asks "Who can use it".
+ */
+export const IntegrationsTab = ({workspaceId, projectId}: SettingsTabProps) => {
     const {confirm, modal} = useConfirmModal()
+    const {projectSwitch, projectName, projectCount} = useSettingsProjectGroup(
+        workspaceId,
+        projectId,
+        "tools",
+    )
+    const canEdit = useProjectPermission(projectId, "edit_tools")
     return (
         <>
-            <GatewayToolsSection confirm={confirm} copy={INTEGRATIONS_SECTION_COPY} />
+            <GatewayToolsSection
+                confirm={confirm}
+                copy={INTEGRATIONS_SECTION_COPY}
+                projectSwitch={projectSwitch}
+                projectName={projectName}
+                projectCount={projectCount}
+                canEdit={canEdit}
+            />
             {modal}
         </>
     )
