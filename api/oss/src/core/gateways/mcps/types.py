@@ -150,3 +150,15 @@ class MCPConnectionNameTakenError(GatewaysError):
             "Another connection in this project already uses this name; "
             "pick a different one."
         )
+
+
+class MCPSignInMissingError(GatewaysError):
+    """A "user" item's run has no usable sign-in of the run person for this server.
+
+    Never answered with the project's sign-in instead: a "user" item uses only the run
+    person's own account. The runner then does not register the server for the run.
+    """
+
+    def __init__(self, *, target: str):
+        self.target = target
+        super().__init__(f"You are not signed in to {target}.")

@@ -1743,7 +1743,14 @@ class _StubRefresher:
         self._failure = failure
 
     async def refresh_grant(
-        self, *, project_id, endpoint_id, server_url, failed_access_token=None
+        self,
+        *,
+        project_id,
+        endpoint_id,
+        server_url,
+        failed_access_token=None,
+        grant_owner=None,
+        organization_id=None,
     ) -> None:
         self.calls.append(server_url)
         self.endpoint_ids.append(endpoint_id)
@@ -2163,7 +2170,14 @@ class _UnavailableOnceRefresher(_StubRefresher):
     """A token endpoint that fails on its side once, then answers."""
 
     async def refresh_grant(
-        self, *, project_id, endpoint_id, server_url, failed_access_token=None
+        self,
+        *,
+        project_id,
+        endpoint_id,
+        server_url,
+        failed_access_token=None,
+        grant_owner=None,
+        organization_id=None,
     ) -> None:
         await super().refresh_grant(
             project_id=project_id,
@@ -2908,7 +2922,14 @@ class _ReleasingRefresher:
         self.cancelled: List[UUID] = []
 
     async def refresh_grant(
-        self, *, project_id, endpoint_id, server_url, failed_access_token=None
+        self,
+        *,
+        project_id,
+        endpoint_id,
+        server_url,
+        failed_access_token=None,
+        grant_owner=None,
+        organization_id=None,
     ) -> None:
         raise AssertionError("an edit does not refresh")
 

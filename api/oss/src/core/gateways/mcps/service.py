@@ -9,7 +9,12 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 from urllib.parse import urlparse
 from uuid import UUID, uuid4
 
+from agenta.sdk.agents.accounts import AccountSource, user_item_key
+
+from oss.src.core.access.context import get_request_access
 from oss.src.core.access.permissions.types import Permission
+from oss.src.core.account_choices.claims import run_account
+from oss.src.core.account_choices.items import run_person_id
 from oss.src.core.gateway.connections.dtos import Connection
 from oss.src.core.gateway.connections.service import ConnectionsService
 from oss.src.core.gateways.mcps.dtos import (
@@ -49,6 +54,7 @@ from oss.src.core.gateways.mcps.interfaces import (
     MCPRelayResult,
 )
 from oss.src.core.gateways.mcps.oauth.interfaces import MCPOAuthRefresherInterface
+from oss.src.core.gateways.mcps.oauth.sign_ins import is_sign_in_of
 from oss.src.core.gateways.mcps.oauth.storage import grant_refresh_due
 from oss.src.core.gateways.mcps.oauth.types import (
     MCPOAuthRefreshFailedError,
@@ -66,6 +72,7 @@ from oss.src.core.gateways.mcps.types import (
     MCPConnectionNameTakenError,
     MCPEndpointNotFoundError,
     MCPScopeInsufficientError,
+    MCPSignInMissingError,
     MCPToolNotAllowedError,
     MCPUpstreamError,
 )
@@ -73,6 +80,7 @@ from oss.src.core.gateways.policy.dtos import (
     BoundSecretRef,
     ProviderKeyRef,
     ResolvedSecret,
+    SecretOwner,
     SecretOwnerKind,
     SecretMode,
     GatewayOutcome,
@@ -749,8 +757,14 @@ class MCPGatewayService:
         body: bytes,
         headers: Dict[str, str],
         request: Optional["Request"] = None,
+        account_source: AccountSource = "agent",
     ) -> MCPRelayResult:
-        """Relay an MCP request through policy and the selected upstream adapter."""
+        """Relay an MCP request through policy and the selected upstream adapter.
+
+        `account_source` is `user` for a "user" item of the agent: the call then uses the
+        run person's own sign-in to the project's server, from the run's claim, and never
+        the project's (see `_sign_in_ref`).
+        """
 
         # `_ResolvedTarget` is a plain dataclass, not a pydantic model, so a caller
         # passing the namespace as a bare string (the FastAPI path-param case, or a
@@ -862,8 +876,14 @@ class MCPGatewayService:
             )
             return result
 
-        # Resolve the endpoint credentials.
-        auth = await self._resolve_auth(scope=scope, target=target)
+        # Resolve the endpoint credentials. A "user" item names the run person's own
+        # sign-in; it costs no read before the one the agent path makes.
+        sign_in_ref = (
+            self._sign_in_ref(target=target) if account_source == "user" else None
+        )
+        auth = await self._resolve_auth(
+            scope=scope, target=target, sign_in_ref=sign_in_ref
+        )
 
         # 5. Dispatch. Usage is recorded even on failure.
         route = self._route_for(target=target, project_id=scope.project_id)
@@ -918,6 +938,7 @@ class MCPGatewayService:
                     target=target,
                     endpoint=target.endpoint,
                     secret=auth.secret,
+                    sign_in_ref=sign_in_ref,
                     failed_access_token=presented,
                 )
             except (MCPAuthRequiredError, MCPUpstreamError):
@@ -930,13 +951,17 @@ class MCPGatewayService:
         # the connection and ask for a reconnect rather than relay the 401.
         if oauth_connection and result.status_code == 401:
             await record(GatewayOutcome(status_code=401))
-            await self._invalidate_endpoint(
-                scope=scope,
-                endpoint=target.endpoint,
-                presented_access_token=_presented_access_token(auth),
-            )
+            # A person's refused sign-in is that person's to repair; the project's
+            # connection stays as it is.
+            if sign_in_ref is None:
+                await self._invalidate_endpoint(
+                    scope=scope,
+                    endpoint=target.endpoint,
+                    presented_access_token=_presented_access_token(auth),
+                )
             raise self._reconnect_required(
                 endpoint=target.endpoint,
+                for_person=sign_in_ref is not None,
                 path=_target_path(
                     namespace=namespace,
                     provider=provider,
@@ -1093,9 +1118,77 @@ class MCPGatewayService:
                 integration=target.integration,
             )
 
-    async def _resolve_auth(
-        self, *, scope: AuthScope, target: _ResolvedTarget
+    def _sign_in_ref(self, *, target: _ResolvedTarget) -> BoundSecretRef:
+        """The run person's own sign-in to a project server, as the run's claim names it.
+
+        No read: the claim was resolved at run start, and the run person comes from the
+        credential's authority. A run with no person or no entry for the item has no
+        sign-in, and the call is refused rather than answered with the project's.
+        """
+        path = _target_path(
+            namespace=target.namespace,
+            provider=target.provider,
+            integration=target.integration,
+            name=target.name,
+        )
+        if target.namespace != GatewayEndpointNamespace.CUSTOM:
+            raise MCPSignInMissingError(target=path)
+        access = get_request_access()
+        person_id = run_person_id(access.envelope if access is not None else None)
+        entry = run_account(
+            access, user_item_key(kind="mcp_server", match_text=target.name)
+        )
+        if person_id is None or entry is None or entry.secret_id is None:
+            raise MCPSignInMissingError(target=path)
+        return BoundSecretRef(
+            secret_id=entry.secret_id,
+            owner_kind=SecretOwnerKind.USER,
+            user_id=person_id,
+        )
+
+    async def _resolve_sign_in_auth(
+        self, *, scope: AuthScope, target: _ResolvedTarget, sign_in_ref: BoundSecretRef
     ) -> MCPRelayAuth:
+        """Read the run person's sign-in, and renew it when it is a grant that is due."""
+        endpoint = target.endpoint
+        path = _target_path(
+            namespace=target.namespace,
+            provider=target.provider,
+            integration=target.integration,
+            name=target.name,
+        )
+        try:
+            secret = await self.resolver.resolve(
+                scope=scope, ref=sign_in_ref, mode=SecretMode.USER_REQUIRED
+            )
+        except SecretNotFoundError as e:
+            # Deleted since the run started (a sign-out, or the server changed mode).
+            raise MCPSignInMissingError(target=path) from e
+        # The claim names a row by id; it answers only for this server in its current
+        # mode, so a token is never sent to an OAuth server or to another server.
+        if not is_sign_in_of(endpoint, secret.secret):
+            raise MCPSignInMissingError(target=path)
+        if endpoint.auth_mode == MCPAuthScheme.OAUTH:
+            secret = await self._renewed(
+                scope=scope,
+                target=target,
+                endpoint=endpoint,
+                secret=secret,
+                sign_in_ref=sign_in_ref,
+            )
+        return MCPDirectAuth(secret=secret)
+
+    async def _resolve_auth(
+        self,
+        *,
+        scope: AuthScope,
+        target: _ResolvedTarget,
+        sign_in_ref: Optional[BoundSecretRef] = None,
+    ) -> MCPRelayAuth:
+        if sign_in_ref is not None:
+            return await self._resolve_sign_in_auth(
+                scope=scope, target=target, sign_in_ref=sign_in_ref
+            )
         if (
             target.namespace == GatewayEndpointNamespace.BUILTIN
             and target.provider == COMPOSIO_PROVIDER
@@ -1197,10 +1290,15 @@ class MCPGatewayService:
         target: _ResolvedTarget,
         endpoint: MCPEndpoint,
         secret: ResolvedSecret,
+        sign_in_ref: Optional[BoundSecretRef] = None,
         failed_access_token: Optional[str] = None,
     ) -> ResolvedSecret:
         """Return a live grant for an OAuth endpoint, refreshing it if it is due, or if
         the upstream just refused `failed_access_token`.
+
+        `sign_in_ref` names a person's own grant (a "user" item). The refresh then renews
+        that person's row, and a dead grant asks that person to sign in again and leaves
+        the project's connection alone.
 
         Without this the relay sends an expired access token, the upstream answers 401,
         and the endpoint goes on reporting READY because a secret still exists (OR55).
@@ -1220,15 +1318,25 @@ class MCPGatewayService:
             name=target.name,
         )
 
+        for_person = sign_in_ref is not None
         if self.oauth_refresher is None or not server_url:
-            raise self._reconnect_required(endpoint=endpoint, path=path)
+            raise self._reconnect_required(
+                endpoint=endpoint, path=path, for_person=for_person
+            )
 
+        grant_owner = (
+            SecretOwner(kind=SecretOwnerKind.USER, id=sign_in_ref.user_id)
+            if sign_in_ref is not None
+            else None
+        )
         try:
             await self.oauth_refresher.refresh_grant(
                 project_id=scope.project_id,
                 endpoint_id=endpoint.id,
                 server_url=server_url,
                 failed_access_token=failed_access_token,
+                grant_owner=grant_owner,
+                organization_id=scope.organization_id,
             )
         except MCPOAuthRefreshUnavailableError as e:
             raise MCPUpstreamError(
@@ -1243,17 +1351,25 @@ class MCPGatewayService:
                 target=path, status_code=503, detail=f"{e.message} Try again."
             ) from e
         except MCPOAuthRefreshFailedError as e:
-            await self._invalidate_endpoint(
-                scope=scope,
-                endpoint=endpoint,
-                presented_access_token=getattr(grant, "access_token", None),
-            )
+            if not for_person:
+                await self._invalidate_endpoint(
+                    scope=scope,
+                    endpoint=endpoint,
+                    presented_access_token=getattr(grant, "access_token", None),
+                )
             raise self._reconnect_required(
-                endpoint=endpoint, path=path, message=e.reconnect_message
+                endpoint=endpoint,
+                path=path,
+                message=e.reconnect_message,
+                for_person=for_person,
             ) from e
 
         # The refresh rewrote the row this reference already names, so the same lookup
         # returns the new tokens.
+        if sign_in_ref is not None:
+            return await self.resolver.resolve(
+                scope=scope, ref=sign_in_ref, mode=SecretMode.USER_REQUIRED
+            )
         return await self.resolver.resolve(
             scope=scope,
             ref=BoundSecretRef(secret_id=endpoint.secret_id),  # type: ignore[arg-type]
@@ -1262,15 +1378,21 @@ class MCPGatewayService:
 
     @staticmethod
     def _reconnect_required(
-        *, endpoint: MCPEndpoint, path: str, message: Optional[str] = None
+        *,
+        endpoint: MCPEndpoint,
+        path: str,
+        message: Optional[str] = None,
+        for_person: bool = False,
     ) -> MCPAuthRequiredError:
+        # A person repairs their own sign-in; the project's connect needs an admin.
+        query = "?owner_kind=user" if for_person else ""
         return MCPAuthRequiredError(
             message=message,
             requirement=GatewayConnectionRequirement(
                 target=path,
                 state=GatewayConnectionState.NEEDS_AUTH,
                 connect=GatewayConnectAffordance(
-                    endpoint=f"/gateways/mcps/endpoints/{endpoint.id}/connect",
+                    endpoint=f"/gateways/mcps/endpoints/{endpoint.id}/connect{query}",
                     body={},
                 ),
             ),

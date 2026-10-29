@@ -61,7 +61,7 @@ from oss.src.core.gateways.mcps.oauth.types import (
 )
 from oss.src.core.gateways.policy.types import SecretInvalidError
 from oss.src.core.gateways.types import GatewaysError
-from oss.src.core.secrets.dtos import OAuthGrantSettingsDTO
+from oss.src.core.secrets.dtos import OAuthGrantSettingsDTO, SecretOwner
 from oss.src.core.secrets.services import VaultService
 
 
@@ -674,8 +674,13 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         endpoint_id: UUID,
         server_url: str,
         failed_access_token: Optional[str] = None,
+        grant_owner: Optional[SecretOwner] = None,
+        organization_id: Optional[UUID] = None,
     ) -> None:
         """Renew one connection's stored grant, in place.
+
+        `grant_owner` names a person's own sign-in, read and written in
+        `organization_id`; None is the project's grant, as before.
 
         Without `failed_access_token` this renews a grant that is due (see
         `grant_refresh_due`). With it, the upstream refused that token, and the grant is
