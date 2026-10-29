@@ -22,9 +22,8 @@ import {
     SelectItem,
     SelectTrigger,
     SelectValue,
-    touchTargetExpansion,
 } from "@agenta/ui/ui"
-import {CaretDown, CaretRight, Copy} from "@phosphor-icons/react"
+import {CaretDown, Copy, SlidersHorizontal} from "@phosphor-icons/react"
 
 import {HintedField} from "./HintedField"
 
@@ -76,7 +75,6 @@ export const OAuthAdvancedFields = ({
     // Null until the person toggles it, so a server that needs an app opens it by itself.
     const [toggled, setToggled] = useState<boolean | null>(null)
     const open = toggled ?? needsOwnApp
-    const Caret = open ? CaretDown : CaretRight
     const hasClient = !!clientId.trim()
     const callbackRef = useRef<HTMLElement>(null)
     const [copyFailed, setCopyFailed] = useState(false)
@@ -97,17 +95,19 @@ export const OAuthAdvancedFields = ({
     return (
         <div className="flex flex-col gap-3" data-testid="mcp-oauth-advanced">
             <Button
-                variant="link"
-                size="xs"
-                className={cn(
-                    "self-start px-0 text-xs text-colorTextSecondary",
-                    touchTargetExpansion(24),
-                )}
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start px-2 text-xs text-colorTextSecondary"
                 aria-expanded={open}
                 onClick={() => setToggled(!open)}
             >
-                <Caret size={12} data-icon="inline-start" />
-                Advanced
+                <SlidersHorizontal size={14} data-icon="inline-start" />
+                <span className="flex-1 text-left">Advanced</span>
+                <CaretDown
+                    size={12}
+                    data-icon="inline-end"
+                    className={cn("transition-transform", open && "rotate-180")}
+                />
             </Button>
             {open ? (
                 <div className="flex flex-col gap-4">
