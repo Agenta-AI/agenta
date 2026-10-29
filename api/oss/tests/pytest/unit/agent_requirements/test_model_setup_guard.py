@@ -43,8 +43,11 @@ class _Requirements:
         self.requirements = requirements
         self.calls = 0
 
-    async def model_requirements(self, *, scope, parameters):
+    async def model_requirements(
+        self, *, scope, parameters, artifact_id, run_person_id
+    ):
         self.calls += 1
+        self.run_person_id = run_person_id
         return self.requirements
 
 
@@ -116,7 +119,7 @@ class _Guard:
     def __init__(self):
         self.calls = 0
 
-    async def check(self, *, project_id, references, selector=None):
+    async def check(self, *, project_id, references, selector=None, run_person_id=None):
         self.calls += 1
         raise AgentNeedsSetupRefused([])
 
@@ -249,3 +252,61 @@ async def test_an_api_key_of_the_owner_does_not_see_a_private_agent(
         project_id=scope.project_id, references={"workflow": {"slug": "a"}}
     )
     assert requirements.calls == 0
+
+
+async def test_the_guard_checks_for_the_person_the_automation_runs_as(scope):
+    requirements = _Requirements([])
+    guard = ModelSetupGuard(
+        workflows_service=_Workflows({"agent": {}}), requirements_service=requirements
+    )
+    person = uuid4()
+    await guard.check(
+        project_id=scope.project_id,
+        references={"workflow": {"slug": "a"}},
+        run_person_id=person,
+    )
+    assert requirements.run_person_id == person
+
+
+class _RecordingGuard:
+    def __init__(self):
+        self.run_person_ids: List[Any] = []
+
+    async def check(self, *, project_id, references, selector=None, run_person_id=None):
+        self.run_person_ids.append(run_person_id)
+
+
+@pytest.mark.parametrize("kind", ["human", "api_key"])
+async def test_a_trigger_turn_on_checks_for_its_run_person(kind):
+    """A schedule or subscription runs as its stored principal; only a person is a run
+    person, so an API key's automation is checked with none."""
+    from oss.src.core.access.dtos import PrincipalKind, PrincipalRef, RunOrigin
+    from oss.src.core.access.principals import stored_work_envelope
+    from oss.src.core.triggers.service import TriggersService
+
+    principal = PrincipalRef(kind=PrincipalKind(kind), id=uuid4())
+    project_id = uuid4()
+    envelope = stored_work_envelope(
+        principal=principal,
+        organization_id=uuid4(),
+        project_id=project_id,
+        origin=RunOrigin.SCHEDULE,
+        origin_id=str(uuid4()),
+        created_by_id=uuid4(),
+    )
+    service = object.__new__(TriggersService)
+    service.needs_setup_guard = _RecordingGuard()
+    trigger = SimpleNamespace(
+        data=SimpleNamespace(
+            references={
+                "workflow": SimpleNamespace(model_dump=lambda **_: {"slug": "a"})
+            },
+            selector=None,
+        )
+    )
+    await service._check_needs_setup(
+        project_id=project_id, trigger=trigger, envelope=envelope
+    )
+    assert service.needs_setup_guard.run_person_ids == [
+        principal.id if kind == "human" else None
+    ]

@@ -5,6 +5,8 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
+from agenta.sdk.agents.accounts import AccountSource
+
 
 class AgentRequirementKind(str, Enum):
     MODEL_KEY = "model_key"
@@ -23,6 +25,7 @@ class AgentRequirementReason(str, Enum):
     TURNED_OFF = "turned_off"
     NEEDS_SIGN_IN = "needs_sign_in"
     NOT_AVAILABLE = "not_available"
+    NEEDS_PERSONAL_ACCOUNT = "needs_personal_account"
 
 
 class AgentRequirementsStatus(str, Enum):
@@ -55,6 +58,8 @@ class AgentRequirementDetail(BaseModel):
 class AgentRequirement(BaseModel):
     key: str
     kind: AgentRequirementKind
+    # "user": each person who runs the agent sets the item up with their own account.
+    account_source: AccountSource = "agent"
     label: str
     reference: Dict[str, Any]
     paths: List[str]

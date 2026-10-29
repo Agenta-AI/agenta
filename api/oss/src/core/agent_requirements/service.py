@@ -3,6 +3,12 @@
 Reads references only. It never changes the configuration and never replaces a missing
 item, by name or by default. A reference resolves only to the exact item it names.
 
+A `"user"` item names no account: each person who runs the agent brings their own. The
+check reads those items with the run's own resolver (`AccountChoicesService.resolve`), for
+the person who asks, in one statement and only when the agent has such items. So the
+check and the run cannot disagree. The reasons for those items live here, never in the
+resolver.
+
 Reads, per check: the project's one vault entry (a cache read, shared with the LLM
 check through the request memo), one endpoint row when the model key is a custom
 endpoint, the project's MCP endpoints only when the agent names an MCP server, and the
@@ -11,12 +17,14 @@ only to tell `not_shared` from `not_found`, after an organization item was not f
 """
 
 from typing import Awaitable, Callable, Dict, List, Optional, Sequence, Tuple
+from uuid import UUID
 
 from agenta.sdk.agents.capabilities import (
     HARNESS_CONNECTION_CAPABILITIES,
     harness_allows_pair,
     harness_allows_provider,
 )
+from agenta.sdk.agents.accounts import UserItem
 from agenta.sdk.agents.dtos import AgentTemplate
 from agenta.sdk.agents.platform.connections import subscription_runs_on
 from agenta.sdk.agents.requirements import (
@@ -25,9 +33,13 @@ from agenta.sdk.agents.requirements import (
     LlmReference,
     read_agent_references,
     requirement,
+    user_item_reference,
 )
 
 from oss.src.core.access.permissions.types import Permission
+from oss.src.core.account_choices.items import user_items_of_revision
+from oss.src.core.account_choices.policy import personal_accounts_enabled
+from oss.src.core.account_choices.service import AccountChoicesService
 from oss.src.core.agent_requirements.dtos import (
     AgentRequirement,
     AgentRequirementAsk,
@@ -47,6 +59,7 @@ from oss.src.core.secrets.services import VaultService
 from oss.src.utils.context import AuthScope
 
 Allowed = Callable[[Permission], Awaitable[bool]]
+Decision = Callable[[], Awaitable[bool]]
 
 _KIND = AgentRequirementKind
 _REASON = AgentRequirementReason
@@ -105,11 +118,19 @@ class _Found:
         reason: AgentRequirementReason,
         kind: Optional[AgentRequirementKind] = None,
         candidates: int = 0,
+        fixable: bool = True,
     ) -> None:
         self.item = item
         self.kind = kind or AgentRequirementKind(item.kind)
         self.reason = reason
         self.candidates = candidates
+        # A "user" item with no run person, with personal accounts off, or a login
+        # (no flow creates one yet) has no fix.
+        self.fixable = fixable
+
+    @property
+    def is_user(self) -> bool:
+        return self.item.account_source == "user"
 
 
 class AgentRequirementsService:
@@ -120,29 +141,43 @@ class AgentRequirementsService:
         llm_gateway_service: LLMGatewayService,
         mcp_gateway_service: MCPGatewayService,
         connections_service: ConnectionsService,
+        account_choices_service: AccountChoicesService,
     ) -> None:
         self.vault_service = vault_service
         self.llm_gateway_service = llm_gateway_service
         self.mcp_gateway_service = mcp_gateway_service
         self.connections_service = connections_service
+        self.account_choices_service = account_choices_service
 
     async def check(
         self,
         *,
         scope: AuthScope,
         parameters: Optional[dict],
+        artifact_id: Optional[UUID],
+        run_person_id: Optional[UUID],
         #
-        can_edit_agent: Callable[[], Awaitable[bool]],
+        can_edit_agent: Decision,
         allowed: Allowed,
-        manages_organization: Callable[[], Awaitable[bool]],
+        may_run_agent: Decision,
+        manages_organization: Decision,
     ) -> AgentRequirements:
         """The requirements of one agent configuration, with what the caller can do.
+        `run_person_id` is the person who asks, whose accounts the `"user"` items use.
         The caller's permissions are read only when something needs setup."""
         references = read_agent_references(parameters)
         found = await self._find(
             scope=scope,
             references=references,
             manages_organization=manages_organization,
+        )
+        found.extend(
+            await self._user_items(
+                scope=scope,
+                items=user_items_of_revision(parameters),
+                artifact_id=artifact_id,
+                run_person_id=run_person_id,
+            )
         )
         if not found:
             return AgentRequirements.of([])
@@ -151,29 +186,64 @@ class AgentRequirementsService:
         permissions: Dict[Permission, bool] = {}
         for entry in found:
             permission = _MANAGE_PERMISSION[entry.kind]
-            if permission is not None and permission not in permissions:
+            if (
+                not entry.is_user
+                and permission is not None
+                and permission not in permissions
+            ):
                 permissions[permission] = await allowed(permission)
+        runs = any(entry.is_user and entry.fixable for entry in found) and bool(
+            await may_run_agent()
+        )
 
         return AgentRequirements.of(
             [
-                self._requirement(entry, can_edit_agent=edits, permissions=permissions)
+                (
+                    self._user_requirement(entry, can_edit_agent=edits, runs=runs)
+                    if entry.is_user
+                    else self._requirement(
+                        entry, can_edit_agent=edits, permissions=permissions
+                    )
+                )
                 for entry in found
             ]
         )
 
     async def model_requirements(
-        self, *, scope: AuthScope, parameters: Optional[dict]
+        self,
+        *,
+        scope: AuthScope,
+        parameters: Optional[dict],
+        artifact_id: Optional[UUID],
+        run_person_id: Optional[UUID],
     ) -> List[AgentRequirement]:
-        """Only the requirements that block a run, for a turn-on check. Reads the vault
-        and the model key, never the MCP endpoints or the app connections."""
+        """Only the requirements that block a run, for a turn-on check, for the person
+        the automation runs as (`run_person_id`). Reads the vault and the model key,
+        never the MCP endpoints or the app connections."""
         references = read_agent_references(parameters)
         found = await self._find(
             scope=scope,
             references=AgentReferences(llm=references.llm),
             manages_organization=_never,
         )
+        found.extend(
+            await self._user_items(
+                scope=scope,
+                items=[
+                    item
+                    for item in user_items_of_revision(parameters)
+                    if item.kind == _KIND.SUBSCRIPTION.value
+                ],
+                artifact_id=artifact_id,
+                run_person_id=run_person_id,
+            )
+        )
         return [
-            self._requirement(entry, can_edit_agent=False, permissions={})
+            (
+                self._user_requirement(entry, can_edit_agent=False, runs=False)
+                if entry.is_user
+                else self._requirement(entry, can_edit_agent=False, permissions={})
+            )
             for entry in found
         ]
 
@@ -219,6 +289,68 @@ class AgentRequirementsService:
                     scope=scope, items=references.app_connections
                 )
             )
+        return found
+
+    async def _user_items(
+        self,
+        *,
+        scope: AuthScope,
+        items: Sequence[UserItem],
+        artifact_id: Optional[UUID],
+        run_person_id: Optional[UUID],
+    ) -> List[_Found]:
+        """The `"user"` items with no ready account for the run person. One resolve, and
+        only when there are such items and a person to resolve them for."""
+        if not items:
+            return []
+        person = run_person_id if personal_accounts_enabled() else None
+        accounts = {}
+        if person is not None and artifact_id is not None:
+            resolved = await self.account_choices_service.resolve(
+                organization_id=scope.organization_id,
+                project_id=scope.project_id,
+                artifact_id=artifact_id,
+                user_id=person,
+                items=items,
+            )
+            accounts = {account.item_key: account for account in resolved}
+
+        found: List[_Found] = []
+        for item in items:
+            reference = user_item_reference(item)
+            account = accounts.get(item.item_key)
+            if account is not None and account.is_ready:
+                continue
+            if account is None or item.kind == _KIND.SUBSCRIPTION.value:
+                found.append(
+                    _Found(
+                        reference,
+                        reason=_REASON.NEEDS_PERSONAL_ACCOUNT,
+                        fixable=False,
+                    )
+                )
+            elif account.match is None:
+                found.append(
+                    _Found(
+                        reference,
+                        reason=_REASON.NEEDS_PERSONAL_ACCOUNT,
+                        candidates=account.candidates,
+                    )
+                )
+            else:
+                # Matched but not ready: the person signs in again.
+                found.append(
+                    _Found(
+                        reference,
+                        reason=_REASON.NEEDS_SIGN_IN,
+                        kind=(
+                            _KIND.MCP_SIGN_IN
+                            if item.kind == _KIND.MCP_SERVER.value
+                            else None
+                        ),
+                        candidates=account.candidates,
+                    )
+                )
         return found
 
     async def _not_shared(
@@ -492,6 +624,30 @@ class AgentRequirementsService:
                 can_sign_in=can_sign_in,
                 candidates=entry.candidates,
                 ask=ask,
+            ),
+        )
+
+    @staticmethod
+    def _user_requirement(
+        entry: _Found, *, can_edit_agent: bool, runs: bool
+    ) -> AgentRequirement:
+        """A person sets up only their own account, so anyone who may run the agent
+        gets the fix. Nobody else can do it for them, so there is no `ask`."""
+        shape = requirement(
+            entry.item, reason=entry.reason.value, kind=entry.kind.value
+        )
+        if not entry.fixable:
+            return AgentRequirement(**shape)
+        sign_in = entry.kind in (_KIND.MCP_SERVER, _KIND.MCP_SIGN_IN) or (
+            entry.reason == _REASON.NEEDS_SIGN_IN
+        )
+        return AgentRequirement(
+            **shape,
+            fix=AgentRequirementFix(
+                can_edit_agent=can_edit_agent,
+                can_connect=runs and not sign_in,
+                can_sign_in=runs and sign_in,
+                candidates=entry.candidates,
             ),
         )
 

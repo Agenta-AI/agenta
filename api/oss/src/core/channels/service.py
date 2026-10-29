@@ -1361,6 +1361,7 @@ class ChannelsService:
             and stored.data.references == agent.data.references
         ):
             return
+        # A channel turn has no run person (spec 3.1), so no run_person_id.
         await self.needs_setup_guard.check(
             project_id=project_id,
             references={

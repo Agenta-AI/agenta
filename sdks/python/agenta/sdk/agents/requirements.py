@@ -17,6 +17,7 @@ from typing import Any, Dict, List, Optional
 
 from agenta.sdk.engines.running.errors import ERRORS_BASE_URL, ErrorStatus
 
+from .accounts import AccountSource, UserItem, read_user_items
 from .connections import ModelRef
 from .connections.errors import (
     ConnectionNotFoundError,
@@ -50,6 +51,7 @@ REASON_NOT_SHARED = "not_shared"
 REASON_TURNED_OFF = "turned_off"
 REASON_NEEDS_SIGN_IN = "needs_sign_in"
 REASON_NOT_AVAILABLE = "not_available"
+REASON_NEEDS_PERSONAL_ACCOUNT = "needs_personal_account"
 
 AGENT_NEEDS_SETUP = "agent_needs_setup"
 AGENT_NEEDS_SETUP_MESSAGE = "The model needs setup before this agent can run."
@@ -64,6 +66,31 @@ class ItemReference:
     label: str
     reference: Dict[str, Any]
     paths: List[str] = field(default_factory=list)
+    account_source: AccountSource = "agent"
+
+
+def user_item_reference(item: UserItem) -> ItemReference:
+    """The requirement view of an item each person sets up with their own account. Its
+    key is the item key, so the screens and the account choices name it the same way."""
+    if item.kind == KIND_APP_CONNECTION:
+        reference: Dict[str, Any] = {
+            "provider": "composio",
+            "integration": item.match_text,
+        }
+    elif item.kind == KIND_MCP_SERVER:
+        reference = {"type": "gateway", "namespace": "custom", "slug": item.match_text}
+    elif item.kind == KIND_SECRET:
+        reference = {"name": item.match_text}
+    else:
+        reference = {"login": item.match_text}
+    return ItemReference(
+        kind=item.kind,
+        key=item.item_key,
+        label=item.match_text,
+        reference={**reference, "account_source": "user"},
+        paths=list(item.paths),
+        account_source="user",
+    )
 
 
 @dataclass
@@ -78,6 +105,7 @@ class LlmReference:
     scope: Optional[str]
     harness: Optional[str]
     prefix: str
+    account_source: AccountSource = "agent"
 
     @property
     def is_organization(self) -> bool:
@@ -96,10 +124,14 @@ class LlmReference:
             scope=model_ref.connection.scope,
             harness=harness,
             prefix=prefix,
+            account_source=_account_source(model_ref.connection),
         )
 
     def connection_item(self) -> Optional[ItemReference]:
-        """The model key or the subscription login, or None for the operator's login."""
+        """The model key or the subscription login, or None for the operator's login and
+        for a login each person brings (`user_login_item`)."""
+        if self.account_source == "user":
+            return None
         path = f"{self.prefix}llm.connection"
         if self.mode == "self_managed":
             if not self.slug:
@@ -135,6 +167,31 @@ class LlmReference:
             paths=[path],
         )
 
+    def user_login_item(self) -> Optional[ItemReference]:
+        """The subscription login each person brings, or None."""
+        if self.account_source != "user":
+            return None
+        connection: Dict[str, Any] = {
+            "mode": self.mode,
+            "account_source": "user",
+        }
+        items = read_user_items(
+            {
+                "agent": {
+                    "llm": {
+                        "model": self.model,
+                        "provider": self.provider,
+                        "connection": connection,
+                    }
+                }
+            }
+        )
+        if not items:
+            return None
+        item = user_item_reference(items[0])
+        item.paths = [f"{self.prefix}llm.connection"]
+        return item
+
     def model_item(self) -> ItemReference:
         provider = self.provider or ""
         return ItemReference(
@@ -164,6 +221,18 @@ def _agent_section(parameters: Any) -> tuple[Dict[str, Any], str]:
     if isinstance(agent, dict):
         return agent, "agent."
     return parameters, ""
+
+
+def _account_source(value: Any) -> AccountSource:
+    """`"user"` when an item names no account and each person brings their own. Read
+    from the raw entry or the parsed model, so this reader never depends on a model
+    accepting the field."""
+    source = (
+        value.get("account_source")
+        if isinstance(value, dict)
+        else getattr(value, "account_source", None)
+    )
+    return "user" if source == "user" else "agent"
 
 
 def _string(value: Any) -> Optional[str]:
@@ -207,6 +276,7 @@ def _llm(agent: Dict[str, Any], prefix: str) -> Optional[LlmReference]:
         scope=ref.connection.scope,
         harness=_harness(agent),
         prefix=prefix,
+        account_source=_account_source(connection),
     )
 
 
@@ -224,6 +294,12 @@ def _mcp_servers(agent: Dict[str, Any], prefix: str) -> List[ItemReference]:
         return []
     items: Dict[str, ItemReference] = {}
     for index, entry in enumerate(raw):
+        if (
+            isinstance(entry, dict)
+            and _account_source(entry.get("connection")) == "user"
+        ):
+            # `read_user_items` is the one reader of a "user" item.
+            continue
         try:
             server = MCPServerConfig.model_validate(entry)
         except Exception:  # pylint: disable=broad-except
@@ -271,6 +347,8 @@ def _secrets_and_apps(
     credentials = sandbox.get("credentials") if isinstance(sandbox, dict) else None
     for index, entry in enumerate(credentials if isinstance(credentials, list) else []):
         secret = entry.get("secret") if isinstance(entry, dict) else None
+        if _account_source(secret) == "user":
+            continue
         slug = _string(secret.get("slug")) if isinstance(secret, dict) else None
         if slug:
             _add(
@@ -280,6 +358,11 @@ def _secrets_and_apps(
 
     tools = agent.get("tools")
     for index, entry in enumerate(tools if isinstance(tools, list) else []):
+        if (
+            isinstance(entry, dict)
+            and _account_source(entry.get("connection")) == "user"
+        ):
+            continue
         config = _tool_config(entry)
         if isinstance(config, CodeToolConfig):
             for position, slug in enumerate(config.secrets):
@@ -354,6 +437,7 @@ def requirement(
         "paths": list(item.paths),
         "reason": reason,
         "blocks_run": kind in MODEL_KINDS,
+        "account_source": item.account_source,
     }
     if code:
         value["detail"] = {"code": code}
@@ -418,6 +502,20 @@ def model_requirement_from_error(
             return requirement(
                 llm.model_item(), reason=REASON_NOT_AVAILABLE, code=unsupported_code
             )
+    login = llm.user_login_item()
+    if login is not None:
+        # A login each person brings: no account for the run person. The run never
+        # falls back to the agent's or the operator's login.
+        missing = (isinstance(code, str) and code in _CONNECTION_REASONS) or any(
+            isinstance(error, error_class) for error_class, _, _ in _CLASS_CODES
+        )
+        if not missing:
+            return None
+        return requirement(
+            login,
+            reason=REASON_NEEDS_PERSONAL_ACCOUNT,
+            code=code if isinstance(code, str) else None,
+        )
     item = llm.connection_item()
     if item is None:
         return None

@@ -129,6 +129,8 @@ from oss.src.core.agent_requirements.service import AgentRequirementsService
 from oss.src.utils.context import get_auth_scope
 from oss.src.core.access.context import get_request_access
 from oss.src.core.access.organizations import OrganizationAction, decide_organization
+from oss.src.core.account_choices.items import run_person_id
+from oss.src.middlewares.auth import request_run_envelope
 
 
 log = get_module_logger(__name__)
@@ -1573,7 +1575,13 @@ class WorkflowsRouter:
         assert self.requirements_service is not None, "wired in entrypoints/routers.py"
 
         parameters = body.parameters
-        artifact_id: Optional[UUID] = None
+        artifact_id: Optional[UUID] = body.workflow_id
+        if artifact_id is not None and not await allow_agent(
+            request,
+            action=Permission.VIEW_WORKFLOWS,
+            artifact_id=artifact_id,
+        ):
+            raise HTTPException(status_code=404, detail="Workflow not found.")
         if body.workflow_revision_ref is not None:
             revision = await self.workflows_service.fetch_workflow_revision(
                 project_id=UUID(request.state.project_id),
@@ -1611,6 +1619,17 @@ class WorkflowsRouter:
                 )
             )
 
+        async def _may_run_agent() -> bool:
+            if not await _allowed(Permission.RUN_SESSIONS):
+                return False
+            return bool(
+                await allow_agent(
+                    request,
+                    action=Permission.RUN_SESSIONS,
+                    artifact_id=artifact_id,
+                )
+            )
+
         async def _manages_organization() -> bool:
             organization_id = getattr(request.state, "organization_id", None)
             if not organization_id:
@@ -1625,8 +1644,11 @@ class WorkflowsRouter:
         return await self.requirements_service.check(
             scope=get_auth_scope(),
             parameters=parameters if isinstance(parameters, dict) else None,
+            artifact_id=artifact_id,
+            run_person_id=run_person_id(request_run_envelope(request)),
             can_edit_agent=_can_edit_agent,
             allowed=_allowed,
+            may_run_agent=_may_run_agent,
             manages_organization=_manages_organization,
         )
 

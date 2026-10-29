@@ -9,6 +9,7 @@ import pytest
 
 from agenta.sdk.agents.connections import (
     GatewayConnectionRefusedError,
+    SubscriptionConnectionMissingError,
     SubscriptionLoginRequiredError,
     UnsupportedDeploymentError,
     UnsupportedProviderError,
@@ -21,6 +22,7 @@ from agenta.sdk.agents.requirements import (
     LlmReference,
     model_requirement_from_error,
     read_agent_references,
+    requirement,
 )
 from agenta.sdk.middlewares.running.normalizer import NormalizerMiddleware
 
@@ -329,3 +331,126 @@ async def test_the_mcp_readiness_check_sends_nothing_without_a_named_mcp_server(
     assert [item for item in sent if isinstance(item, str)] == [
         "https://api.x/api/workflows/revisions/requirements/query"
     ]
+
+
+# --- "user" items: each person brings the account; `read_user_items` reads them ------ #
+
+
+def _user_agent() -> dict:
+    return {
+        "agent": {
+            "llm": {
+                "model": "claude-sonnet-4-5",
+                "provider": "anthropic",
+                "connection": {"mode": "self_managed", "account_source": "user"},
+            },
+            "tools": [
+                {
+                    "type": "gateway",
+                    "action": "GMAIL_SEND_EMAIL",
+                    "connection": {
+                        "provider": "composio",
+                        "integration": "gmail",
+                        "account_source": "user",
+                    },
+                }
+            ],
+            "mcps": [
+                {
+                    "name": "linear",
+                    "connection": {
+                        "type": "gateway",
+                        "namespace": "custom",
+                        "slug": "linear",
+                        "account_source": "user",
+                    },
+                }
+            ],
+            "sandbox": {
+                "credentials": [
+                    {
+                        "secret": {"account_source": "user"},
+                        "binding": {"type": "env", "name": "GITHUB_TOKEN"},
+                    }
+                ]
+            },
+        }
+    }
+
+
+def test_the_agent_reader_skips_every_user_item():
+    references = read_agent_references(_user_agent())
+    assert references.mcp_servers == []
+    assert references.secrets == []
+    assert references.app_connections == []
+    assert references.llm is not None
+    assert references.llm.account_source == "user"
+    assert references.llm.connection_item() is None
+
+
+def test_a_requirement_says_whose_account_it_needs():
+    item = read_agent_references(
+        {"agent": {"llm": {"model": "gpt-5.5", "provider": "openai"}}}
+    ).llm.connection_item()
+    assert requirement(item, reason="not_found")["account_source"] == "agent"
+
+
+def _user_login() -> LlmReference:
+    return LlmReference(
+        model="claude-sonnet-4-5",
+        provider="anthropic",
+        mode="self_managed",
+        slug=None,
+        namespace=None,
+        scope=None,
+        harness="claude",
+        prefix="agent.",
+        account_source="user",
+    )
+
+
+def test_no_login_for_the_run_person_is_a_missing_model():
+    needs = model_requirement_from_error(
+        SubscriptionConnectionMissingError(slug="claude"), _user_login()
+    )
+    assert needs == {
+        "key": "subscription:user/claude",
+        "kind": "subscription",
+        "label": "claude",
+        "reference": {"login": "claude", "account_source": "user"},
+        "paths": ["agent.llm.connection"],
+        "reason": "needs_personal_account",
+        "blocks_run": True,
+        "account_source": "user",
+        "detail": {"code": "subscription_connection_missing"},
+    }
+
+
+def test_an_outage_on_a_user_login_is_not_a_missing_item():
+    assert (
+        model_requirement_from_error(RuntimeError("vault down"), _user_login()) is None
+    )
+
+
+async def test_the_mcp_readiness_check_sends_nothing_for_a_user_server(monkeypatch):
+    """A `"user"` server is the gateway's to leave out, so the run start adds no
+    request for it."""
+    from agenta.sdk.agents.mcp import parse_mcp_server_configs
+    from agenta.sdk.agents.platform import requirements as platform_requirements
+
+    sent: List[Any] = []
+
+    class _Client:
+        def __init__(self, *args, **kwargs):
+            sent.append(kwargs)
+
+    monkeypatch.setattr(platform_requirements.httpx, "AsyncClient", _Client)
+    servers = parse_mcp_server_configs(_user_agent()["agent"]["mcps"])
+    connection = SimpleNamespace(
+        base_url=lambda: "https://api.x/api", headers=lambda: {}, timeout=5
+    )
+    assert (
+        await platform_requirements.unready_mcp_servers(servers, connection=connection)
+        == set()
+    )
+    assert sent == []

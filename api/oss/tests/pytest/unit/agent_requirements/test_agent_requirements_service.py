@@ -7,6 +7,7 @@ from uuid import uuid4
 import pytest
 
 from oss.src.core.access.permissions.types import Permission
+from oss.src.core.account_choices.dtos import ItemAccount
 from oss.src.core.agent_requirements.service import AgentRequirementsService
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
 from oss.src.core.gateways.mcps.dtos import MCPAuthScheme, MCPEndpointFlags
@@ -106,12 +107,28 @@ def _connection(integration, slug, *, active=True, valid=True):
     )
 
 
-def _service(vault=None, llm=None, mcp=None, connections=None):
+class _AccountChoices:
+    """The run's resolver: one call, one answer per item."""
+
+    def __init__(self, answers=None):
+        self.answers = dict(answers or {})
+        self.calls: List[dict] = []
+
+    async def resolve(self, **kwargs):
+        self.calls.append(kwargs)
+        return [
+            self.answers.get(item.item_key, ItemAccount(item_key=item.item_key))
+            for item in kwargs["items"]
+        ]
+
+
+def _service(vault=None, llm=None, mcp=None, connections=None, accounts=None):
     return AgentRequirementsService(
         vault_service=vault or _Vault(),
         llm_gateway_service=llm or _Llm(),
         mcp_gateway_service=mcp or _Mcp(),
         connections_service=connections or _Connections(),
+        account_choices_service=accounts or _AccountChoices(),
     )
 
 
@@ -151,6 +168,9 @@ async def test_a_ready_agent_returns_an_empty_list_and_reads_no_permission():
         parameters=_agent(),
         can_edit_agent=_can_edit,
         allowed=allowed,
+        artifact_id=None,
+        run_person_id=None,
+        may_run_agent=_yes,
         manages_organization=_no,
     )
 
@@ -167,6 +187,9 @@ async def test_the_agent_reads_only_the_stores_its_items_live_in():
         parameters=_agent(),
         can_edit_agent=_yes,
         allowed=_Allowed(),
+        artifact_id=None,
+        run_person_id=None,
+        may_run_agent=_yes,
         manages_organization=_no,
     )
     assert mcp.calls == 0 and connections.calls == 0
@@ -189,6 +212,9 @@ async def test_two_tools_naming_one_deleted_connection_give_one_requirement():
         parameters=_agent(tools=[tool, other]),
         can_edit_agent=_yes,
         allowed=_Allowed(),
+        artifact_id=None,
+        run_person_id=None,
+        may_run_agent=_yes,
         manages_organization=_no,
     )
     [requirement] = result.requirements
@@ -225,6 +251,9 @@ async def test_app_connection_reasons(connection, reason):
         parameters=_agent(tools=[tool]),
         can_edit_agent=_yes,
         allowed=_Allowed(),
+        artifact_id=None,
+        run_person_id=None,
+        may_run_agent=_yes,
         manages_organization=_no,
     )
     [requirement] = result.requirements
@@ -257,6 +286,9 @@ async def test_mcp_server_reasons(endpoints, kind, reason):
         parameters=_agent(mcps=mcps),
         can_edit_agent=_yes,
         allowed=_Allowed(),
+        artifact_id=None,
+        run_person_id=None,
+        may_run_agent=_yes,
         manages_organization=_no,
     )
     [requirement] = result.requirements
@@ -280,6 +312,9 @@ async def test_a_signed_in_mcp_server_is_ready():
         parameters=_agent(mcps=mcps),
         can_edit_agent=_yes,
         allowed=_Allowed(),
+        artifact_id=None,
+        run_person_id=None,
+        may_run_agent=_yes,
         manages_organization=_no,
     )
     assert result.requirements == []
@@ -311,6 +346,9 @@ async def test_a_missing_custom_secret_is_one_requirement_for_every_path():
         parameters=parameters,
         can_edit_agent=_yes,
         allowed=_Allowed(),
+        artifact_id=None,
+        run_person_id=None,
+        may_run_agent=_yes,
         manages_organization=_no,
     )
     [requirement] = result.requirements
@@ -337,6 +375,9 @@ async def test_a_model_key_requirement_blocks_the_run_and_has_no_remove():
         },
         can_edit_agent=_yes,
         allowed=_Allowed(),
+        artifact_id=None,
+        run_person_id=None,
+        may_run_agent=_yes,
         manages_organization=_no,
     )
     [requirement] = result.requirements
@@ -367,6 +408,9 @@ async def test_an_organization_key_this_project_may_not_use_is_not_shared():
         },
         can_edit_agent=_yes,
         allowed=_Allowed(),
+        artifact_id=None,
+        run_person_id=None,
+        may_run_agent=_yes,
         manages_organization=_yes,
     )
     [requirement] = result.requirements
@@ -396,6 +440,9 @@ async def test_a_member_who_does_not_manage_the_organization_reads_not_found():
         },
         can_edit_agent=_yes,
         allowed=_Allowed(),
+        artifact_id=None,
+        run_person_id=None,
+        may_run_agent=_yes,
         manages_organization=_no,
     )
     [requirement] = result.requirements
@@ -437,6 +484,9 @@ async def test_subscription_reasons(rows, reason):
         },
         can_edit_agent=_yes,
         allowed=_Allowed(),
+        artifact_id=None,
+        run_person_id=None,
+        may_run_agent=_yes,
         manages_organization=_no,
     )
     [requirement] = result.requirements
@@ -461,6 +511,9 @@ async def test_an_unnamed_self_managed_login_is_never_a_requirement():
         },
         can_edit_agent=_yes,
         allowed=_Allowed(),
+        artifact_id=None,
+        run_person_id=None,
+        may_run_agent=_yes,
         manages_organization=_no,
     )
     assert result.requirements == [] and llm.calls == []
@@ -478,6 +531,9 @@ async def test_a_harness_that_cannot_reach_the_provider_makes_the_model_not_avai
         },
         can_edit_agent=_yes,
         allowed=_Allowed(),
+        artifact_id=None,
+        run_person_id=None,
+        may_run_agent=_yes,
         manages_organization=_no,
     )
     [requirement] = result.requirements
@@ -498,6 +554,9 @@ async def test_a_viewer_sees_the_requirement_and_who_can_fix_it():
         parameters=_agent(mcps=mcps),
         can_edit_agent=_no,
         allowed=_Allowed(allowed=False),
+        artifact_id=None,
+        run_person_id=None,
+        may_run_agent=_yes,
         manages_organization=_no,
     )
     [requirement] = result.requirements
@@ -515,6 +574,9 @@ async def test_unset_template_slots_produce_no_requirement():
         parameters=_agent(tools=[], mcps=[]),
         can_edit_agent=_yes,
         allowed=_Allowed(),
+        artifact_id=None,
+        run_person_id=None,
+        may_run_agent=_yes,
         manages_organization=_no,
     )
     assert result.requirements == []
@@ -528,6 +590,8 @@ async def test_model_requirements_read_only_the_model():
     )
     requirements = await service.model_requirements(
         scope=_scope(),
+        artifact_id=None,
+        run_person_id=None,
         parameters=_agent(
             mcps=[
                 {
@@ -562,6 +626,9 @@ async def test_a_named_connection_the_harness_cannot_consume_makes_the_model_not
         },
         can_edit_agent=_yes,
         allowed=_Allowed(),
+        artifact_id=None,
+        run_person_id=None,
+        may_run_agent=_yes,
         manages_organization=_no,
     )
     [requirement] = result.requirements
@@ -593,6 +660,9 @@ async def test_a_subscription_the_harness_cannot_drive_makes_the_model_not_avail
         },
         can_edit_agent=_yes,
         allowed=_Allowed(),
+        artifact_id=None,
+        run_person_id=None,
+        may_run_agent=_yes,
         manages_organization=_no,
     )
     [requirement] = result.requirements

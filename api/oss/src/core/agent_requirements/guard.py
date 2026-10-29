@@ -6,8 +6,9 @@ agent's model, model key or subscription login needs setup. Every other missing 
 left out of the runs, as it is for a chat.
 
 Runs inside the turn-on request, never on a run path. Checked in the request's project
-scope: every item that can block a run today belongs to the project or its organization,
-so the result does not depend on which principal the automation runs as.
+scope, for the person the automation runs as (`run_person_id`): a model login that each
+person brings (`account_source: "user"`) depends on that person. An automation with no
+run person (an API key, a channel) has no such login, so it is refused.
 """
 
 from typing import Any, Dict, List, Optional
@@ -87,6 +88,7 @@ class ModelSetupGuard:
         project_id: UUID,
         references: Optional[Dict[str, Any]],
         selector: Optional[Dict[str, Any]] = None,
+        run_person_id: Optional[UUID] = None,
     ) -> None:
         """Raise `AgentNeedsSetupRefused` when the target agent's model needs setup."""
         if not references:
@@ -111,7 +113,10 @@ class ModelSetupGuard:
         if not isinstance(parameters, dict):
             return
         requirements = await self.requirements_service.model_requirements(
-            scope=scope, parameters=parameters
+            scope=scope,
+            parameters=parameters,
+            artifact_id=revision.artifact_id,
+            run_person_id=run_person_id,
         )
         if requirements:
             raise AgentNeedsSetupRefused(requirements)

@@ -1,4 +1,5 @@
 from typing import Any, Literal, Optional, List
+from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
 
@@ -238,6 +239,13 @@ class WorkflowRevisionRequirementsQueryRequest(BaseModel):
         default=None,
         description="The saved revision to check.",
     )
+    workflow_id: Optional[UUID] = Field(
+        default=None,
+        description=(
+            'The agent an unsaved draft belongs to. With it, the draft\'s `"user"` '
+            "items read the caller's account choices for that agent."
+        ),
+    )
     parameters: Optional[dict] = Field(
         default=None,
         description=(
@@ -250,6 +258,8 @@ class WorkflowRevisionRequirementsQueryRequest(BaseModel):
     def _one_source(self) -> "WorkflowRevisionRequirementsQueryRequest":
         if (self.workflow_revision_ref is None) == (self.parameters is None):
             raise ValueError("send either workflow_revision_ref or parameters")
+        if self.workflow_id is not None and self.parameters is None:
+            raise ValueError("workflow_id goes with parameters")
         return self
 
 

@@ -28,6 +28,9 @@ def _checked(server: MCPServerConfig) -> bool:
         isinstance(connection, MCPGatewayConnection)
         and connection.namespace == "custom"
         and bool(connection.slug)
+        # A "user" server is the gateway's to leave out (no account in the run's claim),
+        # so the run start sends nothing for it.
+        and getattr(connection, "account_source", None) != "user"
     )
 
 
