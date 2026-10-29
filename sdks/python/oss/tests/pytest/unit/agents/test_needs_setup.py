@@ -346,8 +346,7 @@ def _user_agent() -> dict:
             },
             "tools": [
                 {
-                    "type": "gateway",
-                    "action": "GMAIL_SEND_EMAIL",
+                    "type": "gateway_connection",
                     "connection": {
                         "provider": "composio",
                         "integration": "gmail",

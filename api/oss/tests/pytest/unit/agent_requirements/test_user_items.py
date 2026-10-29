@@ -30,8 +30,7 @@ CLAUDE = "subscription:user/claude"
 
 def _gmail_tool() -> dict:
     return {
-        "type": "gateway",
-        "action": "GMAIL_SEND_EMAIL",
+        "type": "gateway_connection",
         "connection": {
             "provider": "composio",
             "integration": "gmail",
