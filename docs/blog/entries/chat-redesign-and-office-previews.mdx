@@ -3,6 +3,20 @@ title: "Office file previews, preview comments and a redesigned chat"
 slug: chat-redesign-and-office-previews
 date: 2026-10-24
 tags: [v0.123.0]
+improvements:
+  - area: Playground
+    text: "Opening an agent opens the playground, not the overview"
+fixes:
+  - area: Models
+    text: "Claude 5 models return JSON that matches your schema"
+  - area: Models
+    text: "Kimi K3.1 Pro agent turns no longer fail with a provider error"
+  - area: Runs
+    text: "Stopping a run while its sandbox starts ends the run as cancelled"
+  - area: Traces
+    text: "The trace drawer no longer swaps spans while you read them"
+  - area: Tools
+    text: "One invalid MCP endpoint no longer hides the valid ones"
 description: "Preview and comment on spreadsheets, Word documents and slides in the Files pane, link to files and folders, and use the redesigned chat transcript and composer."
 ---
 
@@ -59,16 +73,5 @@ Agent links in the app (the agents list, the sidebar, the command palette) now o
 
 The marketplace has a new **SEO Content Agent**. It covers research, content planning, writing and review in one workspace. Briefs and publication readiness keep separate owner approvals. Learn more in [Agent templates and marketplace](/changelog/agent-templates-and-marketplace).
 
-## Fixes
-
-- Claude 5 models now return JSON that matches your schema when you use a JSON schema response format.
-- Kimi K3.1 Pro agent turns no longer fail with "Provider returned error".
-- A broken Gemini tool call is retried once.
-- The trace drawer no longer swaps spans while you read them.
-- Stopping a run while its sandbox starts now ends the run as cancelled.
-- Time spent waiting for an approval no longer counts in the "worked" duration.
-- The Usage settings tab opens when billing is off.
-- One invalid MCP endpoint no longer hides the valid ones.
-- Stopped sandboxes and their secrets are deleted when a run cannot be pooled and when the runner shuts down.
 
 Thank you to the eight new contributors in this release.
