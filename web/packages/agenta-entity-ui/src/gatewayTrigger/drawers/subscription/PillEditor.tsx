@@ -3,6 +3,19 @@ import {useCallback, useEffect, useRef, type ReactNode} from "react"
 
 import {splitTemplate} from "@agenta/entities/gatewayTrigger"
 
+// Copy puts the template here next to the readable text, so a paste in a pill editor gets
+// its pills back. Other apps read only the readable text.
+const TEMPLATE_TYPE = "application/x-agenta-template"
+
+function appendLines(parent: Node, text: string) {
+    text.replace(/\r\n?/g, "\n")
+        .split("\n")
+        .forEach((line, i) => {
+            if (i > 0) parent.appendChild(document.createElement("br"))
+            if (line) parent.appendChild(document.createTextNode(line))
+        })
+}
+
 // Pill-style composer: a contenteditable where `{{token}}` segments render as inline,
 // atomic chips (friendly labels). Source of truth is the template string; it re-renders
 // the DOM only when `value` changes from outside (not on the user's own keystrokes).
@@ -48,23 +61,27 @@ export function PillEditor({
         [labelFor],
     )
 
+    // Text as text nodes and <br>, each `{{selector}}` as a pill.
+    const templateNodes = useCallback(
+        (tpl: string): DocumentFragment => {
+            const frag = document.createDocumentFragment()
+            for (const seg of splitTemplate(tpl)) {
+                if (seg.literal != null) appendLines(frag, seg.literal)
+                else if (seg.selector != null) frag.appendChild(makePill(seg.selector))
+            }
+            return frag
+        },
+        [makePill],
+    )
+
     const render = useCallback(
         (tpl: string) => {
             const el = ref.current
             if (!el) return
             el.innerHTML = ""
-            for (const seg of splitTemplate(tpl)) {
-                if (seg.literal != null) {
-                    seg.literal.split("\n").forEach((part, i) => {
-                        if (i > 0) el.appendChild(document.createElement("br"))
-                        if (part) el.appendChild(document.createTextNode(part))
-                    })
-                } else if (seg.selector != null) {
-                    el.appendChild(makePill(seg.selector))
-                }
-            }
+            el.appendChild(templateNodes(tpl))
         },
-        [makePill],
+        [templateNodes],
     )
 
     const serialize = useCallback((el: HTMLElement): string => {
@@ -95,19 +112,12 @@ export function PillEditor({
         onChange(next)
     }, [serialize, onChange])
 
-    // Insert plain text at the caret, newlines as <br> (what `serialize` reads back).
-    const insertText = useCallback((text: string) => {
+    // Insert nodes at the caret and put the caret after them.
+    const insertNodes = useCallback((frag: DocumentFragment) => {
         const sel = window.getSelection()
         if (!sel?.rangeCount) return
         const range = sel.getRangeAt(0)
         range.deleteContents()
-        const frag = document.createDocumentFragment()
-        text.replace(/\r\n?/g, "\n")
-            .split("\n")
-            .forEach((line, i) => {
-                if (i > 0) frag.appendChild(document.createElement("br"))
-                if (line) frag.appendChild(document.createTextNode(line))
-            })
         const last = frag.lastChild
         range.insertNode(frag)
         if (!last) return
@@ -117,15 +127,60 @@ export function PillEditor({
         sel.addRange(range)
     }, [])
 
+    // Plain text, newlines as <br> (what `serialize` reads back).
+    const insertText = useCallback(
+        (text: string) => {
+            const frag = document.createDocumentFragment()
+            appendLines(frag, text)
+            insertNodes(frag)
+        },
+        [insertNodes],
+    )
+
     // The template is plain text plus atomic pills; pasted markup would both corrupt
-    // `serialize` and inject live nodes into the editor.
+    // `serialize` and inject live nodes into the editor. A copy from a pill editor brings
+    // its template, so its pills come back as pills.
     const onPaste = useCallback(
         (e: React.ClipboardEvent) => {
             e.preventDefault()
-            insertText(e.clipboardData.getData("text/plain"))
+            const tpl = e.clipboardData.getData(TEMPLATE_TYPE)
+            if (tpl) insertNodes(templateNodes(tpl))
+            else insertText(e.clipboardData.getData("text/plain"))
             commit()
         },
-        [insertText, commit],
+        [insertNodes, templateNodes, insertText, commit],
+    )
+
+    // The selection as a template, and as readable text with each pill as its label.
+    const copySelection = useCallback(
+        (e: React.ClipboardEvent): Range | null => {
+            const sel = window.getSelection()
+            if (!sel?.rangeCount || sel.isCollapsed) return null
+            const range = sel.getRangeAt(0)
+            const holder = document.createElement("div")
+            holder.appendChild(range.cloneContents())
+            const tpl = serialize(holder)
+            const text = splitTemplate(tpl)
+                .map((seg) => seg.literal ?? labelFor(seg.selector ?? ""))
+                .join("")
+            e.preventDefault()
+            e.clipboardData.setData("text/plain", text)
+            e.clipboardData.setData(TEMPLATE_TYPE, tpl)
+            return range
+        },
+        [serialize, labelFor],
+    )
+
+    const onCopy = useCallback((e: React.ClipboardEvent) => void copySelection(e), [copySelection])
+
+    const onCut = useCallback(
+        (e: React.ClipboardEvent) => {
+            const range = copySelection(e)
+            if (!range) return
+            range.deleteContents()
+            commit()
+        },
+        [copySelection, commit],
     )
 
     useEffect(() => {
@@ -187,6 +242,8 @@ export function PillEditor({
                 aria-multiline="true"
                 onInput={commit}
                 onPaste={onPaste}
+                onCopy={onCopy}
+                onCut={onCut}
                 onKeyDown={onKeyDown}
                 onClick={onClick}
                 className="box-border max-h-[280px] min-h-[88px] w-full overflow-y-auto whitespace-pre-wrap break-words px-3 py-2 text-base leading-relaxed text-foreground outline-none md:text-sm"
