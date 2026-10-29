@@ -70,15 +70,15 @@ Composio key from the local-only EE env file and a GitHub account connected in t
 - [x] 5.1 `cd api && ruff format && ruff check --fix` and the same in `sdks/python`, with the
   system ruff.
 - [x] 5.2 `cd api && py-run-tests` for the triggers unit tests; all pass.
-- [ ] 5.3 Local stack: create an event subscription through the API with
+- [x] 5.3 Local stack: create an event subscription through the API with
   `inputs_fields = {"messages":[{"role":"user","content":"Say the PR title."}]}` and no
   `include_event`. `GET` it: `data.include_event` is `true`.
-- [ ] 5.4 Local stack: post one signed Composio event for that subscription (the recipe in
+- [x] 5.4 Local stack: post one signed Composio event for that subscription (the recipe in
   `api/oss/tests/pytest/acceptance/triggers/test_triggers_ingress.py`, test
   `test_duplicate_event_id_writes_single_delivery`). Query `/triggers/deliveries/query`: the
   delivery has `data.event.attributes`, and `data.inputs.messages[0].content` ends with the
   event text.
-- [ ] 5.5 Local stack: open the session of that delivery. The agent's reply uses the PR title.
+- [x] 5.5 Local stack: open the session of that delivery. The agent's reply uses the PR title.
 
 ## Part B: Frontend
 

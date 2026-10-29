@@ -25,8 +25,7 @@ Create a trigger schedule with a five-field UTC cron expression:
             "role": "user",
             "content": "Prepare today's support digest."
           }
-        ],
-        "payload": "$.event.attributes"
+        ]
       }
     }
   }
@@ -50,9 +49,9 @@ A subscription requires a ready provider connection, an event key from the trigg
       "event_key": "github_issue_created",
       "trigger_config": { "owner": "acme", "repo": "product" },
       "inputs_fields": {
-        "messages": [{ "role": "user", "content": "Triage this new issue." }],
-        "payload": "$.event.attributes"
-      }
+        "messages": [{ "role": "user", "content": "Triage this new issue." }]
+      },
+      "include_event": true
     }
   }
 }
@@ -60,8 +59,26 @@ A subscription requires a ready provider connection, an event key from the trigg
 
 Confirm the catalog event's integration and description before saving it. Event matching is provider-specific.
 
+`include_event` defaults to `true`. With it on, Agenta adds the event to the last user message: a line `Event data (<event type>):`, then the event's `attributes` as a JSON block. Set it to `false` to send the message alone. Each delivery records the event it received in `data.event`.
+
 ## Input mapping
 
 A leaf beginning with `$` is a JSONPath selector over the fire context; a leaf beginning with `/` is a JSON Pointer. Other strings pass through literally. Unmatched selectors resolve to `null`; selectors are not interpolated inside larger strings.
 
-Include an explicit imperative `messages` entry and map the provider payload under a sibling key. See [Automations](/concepts/automations) for setup and delivery monitoring.
+Include an explicit imperative `messages` entry. The agent reads only `messages`, so a sibling key such as `payload` never reaches it. To put one event field inside the text, write the content as text parts with one selector per part:
+
+```json
+{
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        { "type": "text", "text": "Triage the issue titled: " },
+        { "type": "text", "text": "$.event.attributes.issue.title" }
+      ]
+    }
+  ]
+}
+```
+
+On a subscription, a message text that is not a string is sent as text: a number or an object as its JSON, and an unmatched selector as an empty string. See [Automations](/concepts/automations) for setup and delivery monitoring.
