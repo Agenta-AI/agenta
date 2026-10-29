@@ -15,6 +15,16 @@ export function eventValueText(value: unknown): string {
     return JSON.stringify(value) ?? ""
 }
 
+/**
+ * Whether the dispatcher adds the event to these stored inputs: only to a `messages` list, or
+ * to no inputs at all, as `compose_event_inputs` does. Other shapes reach the agent unchanged.
+ */
+export function addsEventText(inputs: unknown): boolean {
+    if (!inputs || typeof inputs !== "object" || Array.isArray(inputs)) return false
+    const obj = inputs as Record<string, unknown>
+    return Array.isArray(obj.messages) || Object.keys(obj).length === 0
+}
+
 /** The event block added to the agent's message, starting with a blank line. */
 export function formatEventText(eventType: unknown, attributes: unknown): string {
     const header =

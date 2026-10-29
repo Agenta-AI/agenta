@@ -14,6 +14,7 @@ import {
     selectorLabel,
 } from "../../src/gatewayTrigger/core/eventFields"
 import {
+    addsEventText,
     eventValueText,
     formatEventText,
     renderMessagePreview,
@@ -195,5 +196,17 @@ describe("latestDeliveryEvent", () => {
     it("returns null when no delivery has an event", () => {
         expect(latestDeliveryEvent([row("2026-10-01T10:00:00Z")])).toBeNull()
         expect(latestDeliveryEvent([])).toBeNull()
+    })
+})
+
+describe("addsEventText", () => {
+    it("is true for a messages list or no inputs, like compose_event_inputs", () => {
+        expect(addsEventText({messages: [{role: "user", content: "Hi"}]})).toBe(true)
+        expect(addsEventText({})).toBe(true)
+    })
+
+    it("is false for a completion input, which reaches the agent unchanged", () => {
+        expect(addsEventText({message: "Review it"})).toBe(false)
+        expect(addsEventText(null)).toBe(false)
     })
 })

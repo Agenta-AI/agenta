@@ -109,7 +109,7 @@ export {
 } from "./core/eventMessageTemplate"
 export {eventFieldsFromSchema, selectorLabel} from "./core/eventFields"
 export type {EventField} from "./core/eventFields"
-export {renderMessagePreview} from "./core/eventPreview"
+export {addsEventText, renderMessagePreview} from "./core/eventPreview"
 export {latestDeliveryEvent} from "./core/latestDeliveryEvent"
 export {localFaceToUtcIso, utcIsoToLocalFace} from "./core/window"
 export {previewValue, resolveSelectorPreview} from "./core/selectorPreview"

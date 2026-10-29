@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef} from "react"
 
 import {
+    addsEventText,
     eventFieldsFromSchema,
     latestDeliveryEvent,
     parseMessageTemplate,
@@ -135,6 +136,7 @@ export const AutomationInstructionField = ({
         return (
             <EventInstruction
                 inputsText={inputsText}
+                addsEvent={addsEventText(inputsFields ?? {})}
                 onChange={onChange}
                 isChat={isChat}
                 primaryKey={primaryKey}
@@ -161,6 +163,7 @@ export const AutomationInstructionField = ({
 
 function EventInstruction({
     inputsText,
+    addsEvent,
     onChange,
     isChat,
     primaryKey,
@@ -171,6 +174,8 @@ function EventInstruction({
     automation,
 }: {
     inputsText: string
+    /** Whether the dispatcher adds the event to the stored inputs; see `addsEventText`. */
+    addsEvent: boolean
     onChange: (next: string) => void
     isChat: boolean
     primaryKey: string
@@ -196,7 +201,9 @@ function EventInstruction({
     const template = parseMessageTemplate(inputsText, isChat, primaryKey)
     const used = useMemo(() => new Set(templateSelectors(template ?? "")), [template])
     const preview =
-        template === null ? null : renderMessagePreview(template, lastEvent, includeEvent)
+        template === null
+            ? null
+            : renderMessagePreview(template, lastEvent, includeEvent && addsEvent)
 
     const insertApi = useRef<{insert: (selector: string) => void} | null>(null)
     const onInsert = useCallback((field: EventField) => {
