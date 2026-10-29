@@ -34,6 +34,20 @@ export const GOALS_QUESTION: OnboardingQuestionDef = {
     ],
 }
 
+export const WORK_STYLE_QUESTION: OnboardingQuestionDef = {
+    id: "workStyle",
+    title: "Where do your agents run?",
+    subtitle: "Pick the one that fits best.",
+    dot: "Your setup",
+    enabled: true,
+    personProperty: "work_style_v1",
+    choices: [
+        {label: "In the cloud", icon: Users},
+        {label: "On my laptop", icon: Users},
+        {label: "Other", icon: Users, text: true},
+    ],
+}
+
 /** Appends a question to the app's registry for one test, as adding its entry would. */
 export const registerQuestion = (question: OnboardingQuestionDef) => {
     const registry = ONBOARDING_QUESTIONS as unknown as OnboardingQuestionDef[]

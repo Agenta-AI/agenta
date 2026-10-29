@@ -89,8 +89,15 @@ export const OnboardingQuestion = ({
         timerRef.current = setTimeout(onAdvance, answerHoldMs)
     }
 
+    // Read by the key handler, which is bound once per choice set.
+    const writeInRef = useRef(writeIn)
+    writeInRef.current = writeIn
+
     const write = (text: string) => {
         if (!writeIn) return
+        // A write-in restored from the draft is only derived from the stored answer; pin it, so
+        // clearing the line (which leaves the question unanswered) keeps the box open.
+        if (writing !== writeIn) setWriting(writeIn)
         setDraftLine(text)
         onAnswer(text.trim() ? writeInAnswer(writeIn, text) : [])
     }
@@ -106,6 +113,8 @@ export const OnboardingQuestion = ({
                 continueRef.current()
                 return
             }
+            // While the write-in box is open, letters belong to the line, never to a chip.
+            if (writeInRef.current) return
             const index = CHOICE_KEYS.indexOf(event.key.toUpperCase())
             if (event.key.length !== 1 || index < 0 || index >= choices.length) return
             event.preventDefault()

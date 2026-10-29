@@ -26,9 +26,15 @@ import {
     type OnboardingQuestionId,
 } from "@/features/onboarding/onboardingQuestions"
 
-import {GOALS_QUESTION, registerQuestion, withTestQuestions} from "./onboardingTestQuestion"
+import {
+    GOALS_QUESTION,
+    registerQuestion,
+    withTestQuestions,
+    WORK_STYLE_QUESTION,
+} from "./onboardingTestQuestion"
 
 const GOALS = GOALS_QUESTION.id as OnboardingQuestionId
+const WORK_STYLE = WORK_STYLE_QUESTION.id as OnboardingQuestionId
 
 type Template = Parameters<typeof galleryTemplates>[0][number]
 
@@ -130,6 +136,25 @@ describe("onboarding answers", () => {
         expect(personProperties({goals: ["Coding", "Research"]})).toEqual({
             agent_goals_v1: ["Coding", "Research"],
         })
+    })
+
+    it("leaves a write-in question unanswered when its line is cleared, and restores none", () => {
+        registerQuestion(WORK_STYLE_QUESTION)
+        const written = onboardingReducer(draft(), {
+            type: "answer",
+            question: WORK_STYLE,
+            value: "Other: A home server",
+        })
+        expect(written.answers).toEqual({workStyle: "Other: A home server"})
+        const cleared = onboardingReducer(written, {
+            type: "answer",
+            question: WORK_STYLE,
+            value: [],
+        })
+        expect(cleared.answers).toEqual({})
+        // A bare label is not an answer to a write-in choice, so a reload does not restore it.
+        saveOnboardingDraft("onboarding:test", draft({answers: {workStyle: "Other: "}}))
+        expect(readOnboardingDraft("onboarding:test").answers).toEqual({})
     })
 
     it("fits a stored answer to its question's shape and choices", () => {

@@ -247,6 +247,7 @@ import {
     registerQuestion,
     TEAM_QUESTION,
     withTestQuestions,
+    WORK_STYLE_QUESTION,
 } from "./onboardingTestQuestion"
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
@@ -669,6 +670,37 @@ describe("first agent onboarding", () => {
         const [step, draft] = onStepCompleted.mock.lastCall!
         expect(step).toBe("goals")
         expect(personProperties(draft.answers)).toMatchObject({agent_goals_v1: ["Coding"]})
+    })
+
+    it("keeps a restored Other box open when its line is cleared, and letters stay in the line", () => {
+        registerQuestion(WORK_STYLE_QUESTION)
+        const props = baseProps()
+        render(props)
+        answer(/^Engineering/)
+        answer(/^GitHub/)
+        expect(heading()).toBe("Where do your agents run?")
+        click(/^Other/)
+        type("One line is enough", "A home server")
+        // A reload restores the write-in from the draft alone.
+        render(props)
+        expect(heading()).toBe("Where do your agents run?")
+        const field = () =>
+            host!.querySelector('[placeholder^="One line is enough"]') as HTMLInputElement | null
+        expect(field()?.value).toBe("A home server")
+        type("One line is enough", "")
+        expect(field()).not.toBeNull()
+        expect(button(/^Other/).getAttribute("aria-pressed")).toBe("true")
+        expect(button(/^Continue/).disabled).toBe(true)
+        // With the box open, a letter key never picks a chip, even with focus outside the box.
+        act(() => {
+            window.dispatchEvent(new KeyboardEvent("keydown", {key: "a"}))
+        })
+        act(() => vi.runOnlyPendingTimers())
+        expect(heading()).toBe("Where do your agents run?")
+        expect(button(/^In the cloud/).getAttribute("aria-pressed")).toBe("false")
+        type("One line is enough", "A home server")
+        click(/^Continue/)
+        expect(heading()).toBe("500 credits, on us")
     })
 
     it("offers Skip only on the first-agent step", () => {
