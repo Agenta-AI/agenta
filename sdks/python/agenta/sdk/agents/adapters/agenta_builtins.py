@@ -665,7 +665,7 @@ Don't forget:
 - `schedule` is five fields, UTC, with a one-minute floor. Convert the user's timezone yourself
   before writing it.
 - Do not map the provider payload to a sibling key such as `"event"`: the agent never reads it. The
-  event is already in the message unless `include_event` is `false`.
+  event is already in the message.
 """
 
 

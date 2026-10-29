@@ -42,6 +42,11 @@ A click on a card SHALL insert a pill for that field at the cursor. The pill SHA
 - **WHEN** the user types "Review " and clicks the "Title" card
 - **THEN** the box shows "Review " and a "Title" pill, and the stored content is `[{"type":"text","text":"Review "},{"type":"text","text":"$.event.attributes.title"}]`
 
+#### Scenario: One pill alone
+
+- **WHEN** the instruction is only a "Labels" pill
+- **THEN** the stored content is `[{"type":"text","text":"$.event.attributes.labels"}]`, a text part and not a bare selector, so an array value reaches the agent as JSON text
+
 #### Scenario: Used card
 
 - **WHEN** the instruction already has a "Title" pill

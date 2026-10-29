@@ -72,6 +72,11 @@ After it resolves the mapping of a subscription, the dispatcher SHALL turn each 
 - **WHEN** a selector resolves to an object
 - **THEN** the sent text is the compact JSON of that object
 
+#### Scenario: Array field
+
+- **WHEN** a selector in a text part resolves to an array
+- **THEN** the sent text is the compact JSON of that array
+
 #### Scenario: Absent field
 
 - **WHEN** a selector resolves to nothing
@@ -112,4 +117,4 @@ The agent-facing reference on trigger inputs SHALL state that the event is inclu
 #### Scenario: Reference text
 
 - **WHEN** a builder agent reads the trigger inputs reference
-- **THEN** it reads that `include_event` defaults to on and that the agent reads only `messages`
+- **THEN** it reads that the event is added to the last user message by default and that the agent reads only `messages`, and it is not told to set `include_event`

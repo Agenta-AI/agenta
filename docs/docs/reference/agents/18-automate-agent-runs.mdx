@@ -59,7 +59,7 @@ A subscription requires a ready provider connection, an event key from the trigg
 
 Confirm the catalog event's integration and description before saving it. Event matching is provider-specific.
 
-`include_event` defaults to `true`. With it on, Agenta adds the event to the last user message: a line `Event data (<event type>):`, then the event's `attributes` as a JSON block. Set it to `false` to send the message alone. A delivery that runs or tests the subscription records the event in `data.event`. Deliveries made before this change, and refusals before the event is read, do not have it.
+`include_event` defaults to `true`. With it on, Agenta adds the event to the last user message: a line `Event data (<event type>):`, then the event's `attributes` as a JSON block. Set it to `false` to send the message alone. A delivery that runs or tests the subscription records the event in `data.event`. Older deliveries, and refusals before the event is read, do not have it.
 
 ## Input mapping
 
