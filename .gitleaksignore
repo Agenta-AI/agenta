@@ -329,6 +329,5 @@ eed2ad997ebc4ee3395067ee281ed40b76d226fe:api/oss/tests/pytest/unit/secrets/test_
 # into the server address never reaches the error excerpt. It was never a credential.
 fa13fd6147bbdaa76fe42324e5e0da0025d2f275:api/oss/tests/pytest/unit/gateways/test_gateways_mcp_probe.py:generic-api-key:955
 6b7f6b127ae55c352b950cc39a63931641cdd0bf:api/oss/tests/pytest/unit/gateways/test_gateways_mcp_probe.py:generic-api-key:955
-
-# Test URL "http://api:8000/api/otlp/v1/traces" in a unit test. Not a credential.
-b2286394e007d7c33181c11ce3b9c233ea42f4e0:sdks/python/oss/tests/pytest/unit/test_helpers.py:generic-api-key:19
+# Fingerprint line added in 3f0b12cf87 for a test URL; not a credential.
+3f0b12cf8795131ca94d459aaa728070b92bd35f:.gitleaksignore:generic-api-key:333
