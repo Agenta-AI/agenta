@@ -1,5 +1,7 @@
 Scope: the first step of M7 (owner decision, 2026-10-26). Custom secrets, the `specific` binding and organization-owned MCP servers, Composio connections and custom secrets are later steps (design D11).
 
+Prerequisites, from CONTRACT.md section 14 (the contract wins): the code of M3 and M5. M7 does not wait for M6. It ships only after M5 and M9b are live.
+
 ## 1. Schema and parity
 
 - [ ] 1.1 Add the `core_oss` revisions in design "Data structures"; run `api/scripts/migration_gate.py`.
@@ -21,11 +23,11 @@ Scope: the first step of M7 (owner decision, 2026-10-26). Custom secrets, the `s
 ## 4. Sessions and installations
 
 - [ ] 4.1 D6 guard and the M3 sharing refusal. Spec: personal-credential-sessions.
-- [ ] 4.2 Installation check in `ChannelsService`; `run_credential_uses` and the per-turn line.
+- [ ] 4.2 Channel turns use `linked_user_id` for `caller_account`; an unlinked user is refused at run time; no check when a channel binding is saved. `run_credential_uses` and the per-turn line.
 
 ## 5. Durable work edits
 
-- [ ] 5.1 `DurableWorkEditPolicy` in the trigger and evaluation services; refusal names the executing principal; reruns and copies take the starting principal. Spec: durable-work-edits.
+- [ ] 5.1 `DurableWorkEditPolicy` in the trigger and evaluation services; refusal names the executing principal; work that runs as an API key changes only with that key; reruns and copies take the starting principal. Spec: durable-work-edits.
 - [ ] 5.2 Update the M2 scenario "Bob edits Alice's schedule" in `run-principal` when M7 ships, because this rule replaces it.
 
 ## 6. SDK, web, rollout
@@ -44,7 +46,7 @@ Scope: the first step of M7 (owner decision, 2026-10-26). Custom secrets, the `s
 | Concurrent invite and first personal use: exactly one wins | D6 lock |
 | Shared web session refuses Bob's `caller_account`; it uses the project connection on `project_default` | shared-session rule |
 | A shared session's sandbox never holds a user-owned credential; only the owner sends in a marked session | sandbox reuse |
-| Slack binding refused for an agent with a `caller_account` connection; a service-key run refuses that connection | no caller |
+| A linked Slack user's turn uses their own account; an unlinked user's turn is refused at run time; the Slack binding saves; an API-key run refuses a `caller_account` connection | caller rule |
 | Bob's change to what Alice's schedule, subscription or evaluation run executes is refused; Bob can pause, stop, archive and delete it; Bob's copy runs as Bob (M7 edit rule) | durable work edits |
 | Each schedule uses its own principal's accounts | caller rule |
 | Door child run uses Alice's account; a run in another organization cannot | organization wall |

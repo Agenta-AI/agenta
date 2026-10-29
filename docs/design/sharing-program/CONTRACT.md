@@ -1,6 +1,6 @@
 # Sharing program: normative contract
 
-Status: proposed, partly implemented (M1 to M4b step 1 are in production). Version 4 (2026-10-26): adds the owner decisions of 2026-10-26 in sections 4 and 15. Version 3 (2026-10-22) followed three Codex reviews.
+Status: proposed, partly implemented (M1 to M4b step 1 are in production). Version 5 (2026-10-28): adds the owner decisions of 2026-10-28 for M7 in sections 4 and 14. Version 4 (2026-10-26): adds the owner decisions of 2026-10-26 in sections 4 and 15. Version 3 (2026-10-22) followed three Codex reviews.
 
 This file is the single source for the names, rules and ownership boundaries that the OpenSpec changes share. A change specifies only its own additions and points here for everything else. When a change and this file disagree, this file wins, and the change must be fixed.
 
@@ -65,6 +65,12 @@ Owner decisions (2026-10-26) about channels:
 - New channel chats of a private agent are private to the agent's owner.
 - A chat that came from a channel is not view only in Agenta. A person who may send in the chat writes to it in `/m`, under the same rules as any chat.
 - Channel limits (M10) are optional for every agent. They limit where the agent answers and whom it answers. They never change who reads the chats in Agenta. Only the owner changes a private agent's limits.
+
+Owner decision (2026-10-28) about personal accounts in channels (M7):
+
+- On an "Each person's own account" (`caller_account`) connection, a channel turn uses the own account of the linked user (`linked_user_id`). A channel turn from an unlinked user is refused on that connection when it runs, with a short note. It never uses the binding creator's account or the account of the person who created the channel connection.
+- Saving or activating a channel binding is never refused because the agent has such a connection (section 15).
+- A channel session is shared, so this is the one exception to the shared-session rule of section 8.
 
 ## 5. Schedules and subscriptions (M2)
 
@@ -198,7 +204,7 @@ Two kinds of dependency. An implementation dependency means the code of one piec
 | M6d | M2, M6b | M6c |
 | M9a | nothing | everything |
 | M9b | M3 | M6 |
-| M7 | M5, M6a, M3 (session personal-use mark) | M9b |
+| M7 | M5, M3 (session personal-use mark); not M6 (owner decision, 2026-10-28) | M9b |
 | M10 | nothing beyond today's channels code | everything; independent of the private-agent channel change |
 | Needs setup | M5 for the organization reasons (`not_shared`); M7 for `needs_your_account` | everything; each reason ships with the milestone that adds its scope |
 
@@ -218,17 +224,18 @@ Two kinds of dependency. An implementation dependency means the code of one piec
 | M6d | M6a (doors refuse keys and installations only once those are service accounts) and M6b; the run-an-agent door also needs M9b |
 | M9a | nothing |
 | M9b | M3 |
-| M7 | M5, M6a and M9b |
+| M7 | M5 and M9b |
 | M10 | nothing |
 | Needs setup | nothing for the project scope |
 
 ### Parallel tracks
 
-- Track 1 (critical path): M1, then M2, then M3, then M6b, then M6c and M6d, then M7.
+- Track 1 (critical path): M1, then M2, then M3, then M6b, then M6c and M6d.
 - Track 2 (start now, independent): M4a and M9a.
 - Track 3 (after M2's types exist): M5.
 - Track 4 (after M1 is live): M4b.
-- Track 5 (after M3 is live): M9b, which unlocks the run-an-agent door and M7.
+- Track 5 (after M3 is live): M9b, which unlocks the run-an-agent door and the M7 release.
+- Track 6 (after M5): M7, in parallel with M9b. Until M6a exists, every API-key run has no person, so it is refused on `caller_account` connections. When M6a ships, a personal key acts as its human.
 
 ## 15. Agent configuration (owner decisions, 2026-10-26)
 

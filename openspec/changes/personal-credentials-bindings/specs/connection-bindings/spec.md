@@ -22,8 +22,8 @@ For `project_default`, the system SHALL use the connection that the M5 named ref
 - **WHEN** a `project_default` Composio connection names the slug `gmail-support`, that connection is deleted, and the project has another Gmail connection
 - **THEN** the system SHALL refuse the call and SHALL NOT use the other connection
 
-### Requirement: The caller is the human behind the run principal
-For `caller_account`, the system SHALL select the credential of `principal.id` when the run principal is `human`. When the principal is `service_account`, the system SHALL refuse the call. A human without a credential for the service SHALL be refused, and the system SHALL NOT use any other account, including a project connection.
+### Requirement: The caller is the person behind the run
+For `caller_account`, the system SHALL select the credential of the person behind the run: `principal.id` when the run principal is `human`, and the linked user (`linked_user_id`) for a channel turn. A channel turn from an unlinked user, and every API-key run until M6a exists, SHALL have no person, and the system SHALL refuse the call. After M6a, a personal key SHALL act as its human, and a service key SHALL have no person. A person without a credential for the service SHALL be refused. The system SHALL NOT use any other account, including a project connection, the binding creator's account, or the account of the person who created the channel connection.
 
 #### Scenario: Caller has no account
 - **WHEN** Bob's private-session turn reaches a `caller_account` Gmail connection and Bob has no Gmail connection in the organization
@@ -37,8 +37,12 @@ For `caller_account`, the system SHALL select the credential of `principal.id` w
 - **WHEN** Alice's personal agent runs a Sales agent through the M6 run-an-agent door
 - **THEN** the child run in Sales SHALL use Alice's credentials for its `caller_account` connections
 
+#### Scenario: API key run before M6a
+- **WHEN** a run started with an API key reaches a `caller_account` connection, and M6a does not exist yet
+- **THEN** the system SHALL refuse the call and SHALL NOT use a project connection or the key creator's account
+
 #### Scenario: Service key run
-- **WHEN** a run started with a service key reaches a `caller_account` connection
+- **WHEN** a run started with an M6a service key reaches a `caller_account` connection
 - **THEN** the system SHALL refuse the call and SHALL NOT use a project connection
 
 ### Requirement: Personal MCP servers are referenced explicitly

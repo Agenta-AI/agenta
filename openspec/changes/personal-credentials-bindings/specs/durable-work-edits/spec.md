@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Only the executing principal changes what durable work executes
-For a trigger schedule, a trigger subscription and an evaluation run, the system SHALL let only the executing principal change what the work executes: its target agent or environment reference, its input, and for an evaluation run its configuration. A change by any other principal SHALL be refused, also when that principal has `EDIT_TRIGGERS` or `EDIT_EVALUATION_RUNS`. The refusal SHALL name the person the work runs as. The executing principal SHALL NOT change on any edit.
+For a trigger schedule, a trigger subscription and an evaluation run, the system SHALL let only the executing principal change what the work executes: its target agent or environment reference, its input, and for an evaluation run its configuration. A change by any other principal SHALL be refused, also when that principal has `EDIT_TRIGGERS` or `EDIT_EVALUATION_RUNS`. The refusal SHALL name the person the work runs as. Work whose executing principal is an API key SHALL be changed only with that same key. The executing principal SHALL NOT change on any edit.
 
 #### Scenario: Bob edits Alice's schedule
 - **WHEN** Bob, with `EDIT_TRIGGERS`, changes the target agent of a schedule whose executing principal is Alice
@@ -10,6 +10,10 @@ For a trigger schedule, a trigger subscription and an evaluation run, the system
 #### Scenario: Alice edits her own schedule
 - **WHEN** Alice changes the input of a schedule whose executing principal is Alice
 - **THEN** the change SHALL succeed and the schedule SHALL keep principal Alice
+
+#### Scenario: Another key edits a key's schedule
+- **WHEN** a schedule's executing principal is the API key K1, and a request with the API key K2 changes its input
+- **THEN** the system SHALL refuse the change
 
 #### Scenario: Bob edits Alice's evaluation run
 - **WHEN** Bob, with `EDIT_EVALUATION_RUNS`, changes the testset of an evaluation run whose executing principal is Alice

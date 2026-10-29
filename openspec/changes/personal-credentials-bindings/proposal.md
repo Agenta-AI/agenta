@@ -8,21 +8,25 @@ Agenta is multiplayer. An agent that a team shares must be able to act as each p
 
 ## What Changes
 
-The owner decided the scope on 2026-10-26. M7 can ship in one step or in several steps. This change specifies the first step and names the later steps.
+The owner decided the scope on 2026-10-26 and the open rules of the first step on 2026-10-28. M7 can ship in one step or in several steps. This change specifies the first step and names the later steps.
 
 - MCP servers, Composio connections and custom secrets each belong to a person or to a project. For each agent and each such item, the builder picks "Each person's own account" or "The project's shared account".
 - Add the user owner (CONTRACT.md section 8) for provider keys, subscription logins, Composio connections, MCP servers, and MCP OAuth grants for a project's server. A user-owned credential is valid in every project of its organization where its owner runs. Only the owner sees, uses and manages it.
-- Personal MCP servers are in M7. A person adds an MCP server for their own use.
+- Personal MCP servers are in M7. A person adds an MCP server for their own use. An agent names one with the new MCP reference scope `user`.
 - Personal subscription logins are in M7. Organization subscription logins ship in M5 (`organization-credentials`), not here.
 - Give every agent connection an explicit binding. The first step offers two bindings: `caller_account` ("Each person's own account") and `project_default` ("The project's shared account"). Remove `SecretMode`. No binding falls back to another account.
-- `caller_account` uses the human behind the run principal. A run without a human (a service account, including a Slack installation) is refused on a `caller_account` connection in the first step.
+- `caller_account` uses the person behind the run: the human principal of a web run or a schedule, or the linked user of a channel turn. A run with no person is refused on a `caller_account` connection. Until M6a exists, every API-key run has no person.
 - Sign the bindings into the run credential.
 - Apply the shared-session rule of CONTRACT.md section 8.
-- Refuse a channel binding when the agent has a `caller_account` connection.
+- A channel turn uses the linked user's own account. A channel turn from an unlinked user is refused on a `caller_account` connection when it runs. Saving or activating a channel binding is never refused for this.
 - Show per turn which account each connection used.
 - Add the edit rule for durable work (CONTRACT.md sections 5 and 6): only the person a schedule, subscription or evaluation run runs as may change what it runs.
 - Delete a user's personal credentials when the user leaves the organization.
 - EE: an organization policy can forbid personal credentials.
+
+## Order
+
+M7 does not wait for M6. It needs M3 and M5, and it ships only after M9b (CONTRACT.md section 14). When M6a ships, a personal API key acts as its human and gets that human's own accounts. A service key has no person.
 
 ## Later steps
 
@@ -36,7 +40,7 @@ The owner decided the scope on 2026-10-26. M7 can ship in one step or in several
 
 - `personal-credentials`: user-owned credentials, personal MCP servers, privacy, lifecycle, EE policy.
 - `connection-bindings`: bindings, the caller rule, signed claims.
-- `personal-credential-sessions`: the shared-session guard, the sticky mark, the installation check, the per-turn record.
+- `personal-credential-sessions`: the shared-session guard, the sticky mark, the channel-turn rule, the per-turn record.
 - `durable-work-edits`: who may change what a schedule, subscription or evaluation run executes.
 
 ### Modified Capabilities
