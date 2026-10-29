@@ -179,8 +179,7 @@ describe("buildPiExtensionEnv", () => {
   });
 
   describe("a direct Gemini connection", () => {
-    const DEFAULT_GEMINI_BASE =
-      "https://generativelanguage.googleapis.com/v1beta";
+    const DEFAULT_GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta";
     const gemini = (baseUrl: string) =>
       ({
         modelConnection: {
@@ -267,10 +266,7 @@ describe("buildPiExtensionEnv", () => {
     });
 
     it("makes an in-process Pi session call Gemini under the given base URL", async () => {
-      for (const baseUrl of [
-        DEFAULT_GEMINI_BASE,
-        "https://proxy.example.test/gemini",
-      ]) {
+      for (const baseUrl of [DEFAULT_GEMINI_BASE, "https://proxy.example.test/gemini"]) {
         const cwd = tempDir("pi-gemini-inprocess-");
         const opened = await openPiSession({
           cwd,
@@ -289,30 +285,19 @@ describe("buildPiExtensionEnv", () => {
         const requested: string[] = [];
         vi.stubGlobal("fetch", async (input: string | URL | Request) => {
           requested.push(
-            typeof input === "string"
-              ? input
-              : input instanceof URL
-                ? input.href
-                : input.url,
+            typeof input === "string" ? input : input instanceof URL ? input.href : input.url,
           );
-          return new Response(
-            JSON.stringify({ error: { code: 400, message: "stub" } }),
-            {
-              status: 400,
-              headers: { "Content-Type": "application/json" },
-            },
-          );
+          return new Response(JSON.stringify({ error: { code: 400, message: "stub" } }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          });
         });
         try {
           const model = opened.runtime.getModel("google", "gemini-2.5-flash");
           assert.ok(model, "Pi's google provider lists gemini-2.5-flash");
           await opened.runtime.complete(
             model,
-            {
-              messages: [
-                { role: "user", content: "hi", timestamp: Date.now() },
-              ],
-            },
+            { messages: [{ role: "user", content: "hi", timestamp: Date.now() }] },
             { maxRetries: 0 } as never,
           );
 
@@ -1853,7 +1838,7 @@ describe("sandbox uploads", () => {
   });
 });
 
-describe("Pi retries on a run through the LLM gateway", () => {
+describe("the runner's Pi settings (gateway retry and quietStartup)", () => {
   const plan = (throughGateway: boolean, sourcePiAgentDir = "/unused") => ({
     isPi: true,
     isDaytona: false,
@@ -1907,8 +1892,6 @@ describe("Pi retries on a run through the LLM gateway", () => {
     );
   });
 
-  // quietStartup stops pi-acp from running `pi --version` for its startup banner on every
-  // session/new; the runner strips that banner anyway.
   it("leaves Pi's own retries on a run that goes straight to the provider, and quiets the banner", () => {
     const { dir: runDir } = prepareLocalPiAssets({
       plan: plan(false),

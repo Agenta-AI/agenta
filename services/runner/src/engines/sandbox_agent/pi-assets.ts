@@ -309,10 +309,7 @@ export function materializeLocalPiSkillSnapshot(
     // its files. The sweep removes it after the staging TTL. A concurrent repair may have moved
     // it already.
     try {
-      const replaced = join(
-        root,
-        `.${snapshot.digest}.replaced-${randomUUID()}`,
-      );
+      const replaced = join(root, `.${snapshot.digest}.replaced-${randomUUID()}`);
       renameSync(snapshot.dir, replaced);
       // The staging TTL counts from now, not from when the copy was made.
       touchSnapshot(replaced);
@@ -934,8 +931,8 @@ const PI_SETTINGS_FILENAME = "settings.json";
 /**
  * A Pi `settings.json` with the runner's settings merged over whatever the file already holds.
  * `quietStartup` stops pi-acp from building its startup banner, which runs `pi --version` before
- * it answers `session/new` (about 0.6 s on a runner pod) and which the runner strips anyway (see
- * `isBannerLine` in tracing/otel.ts). A run through the gateway also gets `GATEWAY_PI_RETRY`.
+ * it answers `session/new`. The runner strips that banner anyway (`isBannerLine` in
+ * tracing/otel.ts). A run through the gateway also gets `GATEWAY_PI_RETRY`.
  */
 export function withRunnerPiSettings(
   existing: string | undefined,
