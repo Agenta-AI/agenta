@@ -70,3 +70,36 @@ def test_a_save_by_another_member_makes_them_the_principal(admin_api, team):
     assert response.status_code == 200, response.text
     assert response.json()["runs"][0]["principal"] == owner_principal
     assert _principal(owner, run["id"]) == owner_principal
+
+
+def test_a_step_save_that_changes_nothing_writes_the_editor(admin_api, team):
+    owner = _as(admin_api, team, "owner")
+    editor = _as(admin_api, team, "editor")
+    step = {"key": "input", "type": "input", "origin": "custom", "references": {}}
+    response = owner(
+        "POST",
+        "/evaluations/runs/",
+        json={"runs": [{"name": "steps", "data": {"steps": [step]}}]},
+    )
+    assert response.status_code == 200, response.text
+    run = response.json()["runs"][0]
+    editor_principal = _create_run(editor, "steps-probe")["principal"]
+
+    # A closed run refuses the save and keeps its principal.
+    assert owner("POST", f"/evaluations/runs/{run['id']}/close").status_code == 200
+    response = editor(
+        "POST",
+        f"/simple/evaluations/{run['id']}/steps/add",
+        json={"steps": [step]},
+    )
+    assert response.status_code == 409, response.text
+    assert _principal(owner, run["id"]) == run["principal"]
+
+    assert owner("POST", f"/evaluations/runs/{run['id']}/open").status_code == 200
+    response = editor(
+        "POST",
+        f"/simple/evaluations/{run['id']}/steps/add",
+        json={"steps": [step]},
+    )
+    assert response.status_code == 200, response.text
+    assert _principal(owner, run["id"]) == editor_principal

@@ -86,7 +86,7 @@ async def _fresh_engine_per_test():
 
 @pytest_asyncio.fixture
 async def trigger_scope(_fresh_engine_per_test):
-    """A user, organization, workspace, project and project connection in Postgres,
+    """A user, organization, project and project connection in Postgres,
     removed after the test with the trigger rows of the project."""
     import uuid
 
@@ -99,7 +99,6 @@ async def trigger_scope(_fresh_engine_per_test):
     engine = get_transactions_engine()
     user_id = uuid.uuid4()
     organization_id = uuid.uuid4()
-    workspace_id = uuid.uuid4()
     project_id = uuid.uuid4()
     connection_id = uuid.uuid4()
 
@@ -129,25 +128,13 @@ async def trigger_scope(_fresh_engine_per_test):
         )
         await session.execute(
             text(
-                "INSERT INTO workspaces (id, name, organization_id) "
-                "VALUES (:id, :name, :organization_id)"
-            ),
-            {
-                "id": workspace_id,
-                "name": "trigger-test-workspace",
-                "organization_id": organization_id,
-            },
-        )
-        await session.execute(
-            text(
                 "INSERT INTO projects "
-                "(id, project_name, workspace_id, organization_id) "
-                "VALUES (:id, :name, :workspace_id, :organization_id)"
+                "(id, project_name, organization_id) "
+                "VALUES (:id, :name, :organization_id)"
             ),
             {
                 "id": project_id,
                 "name": "trigger-test-project",
-                "workspace_id": workspace_id,
                 "organization_id": organization_id,
             },
         )
@@ -188,9 +175,6 @@ async def trigger_scope(_fresh_engine_per_test):
             )
         await session.execute(
             text("DELETE FROM projects WHERE id = :id"), {"id": project_id}
-        )
-        await session.execute(
-            text("DELETE FROM workspaces WHERE id = :id"), {"id": workspace_id}
         )
         await session.execute(
             text("DELETE FROM organizations WHERE id = :id"), {"id": organization_id}

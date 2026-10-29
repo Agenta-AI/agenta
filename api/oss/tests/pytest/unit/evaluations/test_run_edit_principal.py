@@ -33,6 +33,7 @@ from oss.src.core.evaluations.service import (
     SimpleEvaluationsService,
 )
 from oss.src.core.evaluations.types import (
+    EvaluationClosedConflict,
     EvaluationRun,
     EvaluationRunData,
     EvaluationRunDataStep,
@@ -215,3 +216,28 @@ async def test_step_and_repeat_edits_write_the_editor():
     evaluations.edit_run.reset_mock()
     await service.set_repeats(**scope, repeats=3, principal=_EDITOR)
     assert evaluations.edit_run.await_args.kwargs["principal"] == _EDITOR
+
+
+async def test_a_step_save_that_changes_nothing_on_a_closed_run_is_refused():
+    run = EvaluationRun(
+        id=uuid4(), name="r", data=EvaluationRunData(steps=[_step("input")])
+    )
+    evaluations = SimpleNamespace(
+        fetch_run=AsyncMock(return_value=run),
+        edit_run=AsyncMock(),
+        set_run_principal=AsyncMock(return_value=False),
+    )
+    service = SimpleEvaluationsService.__new__(SimpleEvaluationsService)
+    service.evaluations_service = evaluations
+
+    with pytest.raises(EvaluationClosedConflict):
+        await service.add_steps(
+            project_id=uuid4(),
+            user_id=_EDITOR.id,
+            run_id=run.id,
+            steps=[_step("input")],
+            principal=_EDITOR,
+        )
+
+    assert evaluations.set_run_principal.await_args.kwargs["open_only"] is True
+    evaluations.edit_run.assert_not_awaited()
