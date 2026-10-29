@@ -25,6 +25,7 @@ export function PillEditor({
     insertApi,
     labelFor,
     footer,
+    ariaLabel,
 }: {
     value: string
     onChange: (next: string) => void
@@ -34,6 +35,8 @@ export function PillEditor({
     labelFor: (selector: string) => string
     /** Shown inside the box, under the text, so the two read as one control. */
     footer?: ReactNode
+    /** Accessible name of the text box. */
+    ariaLabel?: string
 }) {
     const ref = useRef<HTMLDivElement>(null)
     const lastSerialized = useRef<string>("")
@@ -240,6 +243,7 @@ export function PillEditor({
                 suppressContentEditableWarning
                 role="textbox"
                 aria-multiline="true"
+                aria-label={ariaLabel}
                 onInput={commit}
                 onPaste={onPaste}
                 onCopy={onCopy}

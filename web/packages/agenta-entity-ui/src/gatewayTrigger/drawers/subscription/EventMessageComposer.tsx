@@ -39,6 +39,7 @@ export function EventMessageComposer({
                 insertApi={insertApi}
                 labelFor={selectorLabel}
                 footer={fields}
+                ariaLabel="Instruction"
             />
             <span
                 className={`text-xs leading-snug ${
