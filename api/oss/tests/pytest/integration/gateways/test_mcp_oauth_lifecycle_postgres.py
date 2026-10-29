@@ -622,10 +622,13 @@ async def test_a_reader_during_an_address_edit_never_sees_the_new_address_with_t
         project_id=project["project_id"], endpoint_id=endpoint.id
     )
 
-    # A relay reads the row as one of these two, never a mix.
+    # A relay reads the row as one of these two, never a mix. The grant is retired before
+    # the address is written, so while the edit is in flight the row is the old address
+    # with no grant: never the new address with the old grant.
+    assert completion.secret_id is not None
     assert (during.data.route.base_url, during.secret_id) == (
         local_mcp_oauth_provider.server_url,
-        completion.secret_id,
+        None,
     )
     assert (after.data.route.base_url, after.secret_id) == (_NEW_URL, None)
     assert await _grant_ids(project, endpoint.id) == []
