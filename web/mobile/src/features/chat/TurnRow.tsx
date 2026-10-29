@@ -239,9 +239,6 @@ const TurnRowInner = ({
         </div>
     ) : (
         <div className="flex min-w-0 max-w-full flex-col gap-3">
-            {mcpNotices.map((item) => (
-                <McpServerNoticeCard key={`mcp-${item.index}`} notice={item.notice} />
-            ))}
             <ActivityTimeline
                 messageId={turn.message.id}
                 clockId={runId}
@@ -275,6 +272,10 @@ const TurnRowInner = ({
                     ))}
                 </div>
             ) : null}
+            {/* After the messages: a server that did not join is what the turn came to. */}
+            {mcpNotices.map((item) => (
+                <McpServerNoticeCard key={`mcp-${item.index}`} notice={item.notice} />
+            ))}
             {!live ? <TurnFiles files={writtenFiles} /> : null}
             {runError ? (
                 <>
