@@ -13,8 +13,12 @@ from fastapi import APIRouter, Request, WebSocket
 from pydantic import BaseModel
 from websockets.asyncio.client import ClientConnection, connect
 
-from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
-from oss.src.core.access.permissions.service import check_action_access
+from oss.src.apis.fastapi.sharing.utils import (
+    ResourceCheck,
+    allow_resource,
+    check_resource_for,
+    session_resource,
+)
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.browser.runner_client import fetch_live_link
 from oss.src.middlewares.auth import authenticate_connection
@@ -51,16 +55,6 @@ def _allowed_origins() -> list[str]:
     return [origin for origin in origins if origin]
 
 
-async def _allowed(request: Request, permission: Permission) -> bool:
-    return bool(
-        await check_action_access(  # type: ignore
-            user_uid=request.state.user_id,
-            project_id=request.state.project_id,
-            permission=permission,  # type: ignore
-        )
-    )
-
-
 class BrowserRouter:
     def __init__(self) -> None:
         self.router = APIRouter()
@@ -81,8 +75,12 @@ class BrowserRouter:
         *,
         live_status_request: BrowserLiveStatusRequest,
     ) -> BrowserLiveStatusResponse:
-        if not await _allowed(request, Permission.VIEW_SESSIONS):
-            raise FORBIDDEN_EXCEPTION  # type: ignore
+        if not await allow_resource(
+            request,
+            action=Permission.VIEW_SESSIONS,
+            resource=session_resource(live_status_request.session_id),
+        ):
+            return BrowserLiveStatusResponse(running=False)
         link = await fetch_live_link(
             project_id=UUID(str(request.state.project_id)),
             session_id=live_status_request.session_id,
@@ -101,22 +99,31 @@ class BrowserRouter:
         # The HTTP auth middleware does not run for WebSockets, so its checks run here.
         request = Request({**websocket.scope, "type": "http", "method": "GET"})
         try:
-            await authenticate_connection(request)
+            access = await authenticate_connection(request)
             project_id = UUID(str(request.state.project_id))
         except Exception:  # noqa: BLE001  # pylint: disable=broad-except
             await websocket.close(code=_CLOSE_UNAUTHORIZED)
             return
-        # The live view takes input: it drives the agent's browser, signed-in sites included.
-        if not await _allowed(request, Permission.RUN_SESSIONS):
-            await websocket.close(code=_CLOSE_FORBIDDEN)
-            return
 
         session_id = (websocket.query_params.get("session_id") or "").strip()
-        link = (
-            await fetch_live_link(project_id=project_id, session_id=session_id)
-            if session_id
-            else None
+        if not session_id:
+            await websocket.close(code=_CLOSE_NO_BROWSER)
+            return
+        # The live view takes input: it drives the agent's browser, signed-in sites included.
+        check = await check_resource_for(
+            access=access,
+            action=Permission.RUN_SESSIONS,
+            project_id=project_id,
+            resource=session_resource(session_id),
         )
+        if check != ResourceCheck.ALLOWED:
+            hidden = check == ResourceCheck.HIDDEN
+            await websocket.close(
+                code=_CLOSE_NO_BROWSER if hidden else _CLOSE_FORBIDDEN
+            )
+            return
+
+        link = await fetch_live_link(project_id=project_id, session_id=session_id)
         if link is None:
             await websocket.close(code=_CLOSE_NO_BROWSER)
             return

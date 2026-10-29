@@ -25,7 +25,6 @@ const ACTION_TIMEOUT_MS = 10_000;
 const NAVIGATION_TIMEOUT_MS = 30_000;
 // A wait ends before the runner's 30-minute tool-call limit, so the agent always gets an answer.
 const MAX_WAIT_MS = 25 * 60_000;
-const MAX_VIEWER_BUFFER_BYTES = 2 * 1024 * 1024;
 
 let browser;
 let context;
@@ -694,17 +693,17 @@ async function restartScreencast() {
   const session = await context.newCDPSession(page);
   screencast = { session, page };
   session.on("Page.screencastFrame", ({ data, metadata, sessionId }) => {
-    session.send("Page.screencastFrameAck", { sessionId }).catch(() => {});
     const text = JSON.stringify({
       type: "frame",
       data,
       width: metadata.deviceWidth,
       height: metadata.deviceHeight,
     });
-    // A slow viewer skips frames instead of growing its send buffer without limit.
-    viewers.forEach(
-      (ws) => ws.readyState === 1 && ws.bufferedAmount < MAX_VIEWER_BUFFER_BYTES && ws.send(text),
-    );
+    const open = [...viewers].filter((ws) => ws.readyState === 1);
+    // Ack once every viewer has the frame, so Chrome sends no faster than the slowest viewer reads.
+    Promise.all(open.map((ws) => new Promise((sent) => ws.send(text, sent))))
+      .then(() => session.send("Page.screencastFrameAck", { sessionId }))
+      .catch(() => {});
   });
   await session.send("Page.startScreencast", {
     format: "jpeg",

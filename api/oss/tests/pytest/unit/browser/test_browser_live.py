@@ -124,15 +124,16 @@ def test_websocket_with_no_running_browser_closes_with_4404(monkeypatch):
     async def signed_in(request):
         request.state.project_id = PROJECT_ID
         request.state.user_id = "019a0000-0000-7000-8000-000000000002"
+        return object()
 
-    async def allowed(request, permission):
-        return True
+    async def allowed(**kwargs):
+        return browser_router.ResourceCheck.ALLOWED
 
     async def no_link(**kwargs):
         return None
 
     monkeypatch.setattr(browser_router, "authenticate_connection", signed_in)
-    monkeypatch.setattr(browser_router, "_allowed", allowed)
+    monkeypatch.setattr(browser_router, "check_resource_for", allowed)
     monkeypatch.setattr(browser_router, "fetch_live_link", no_link)
     with (
         pytest.raises(WebSocketDisconnect) as closed,
