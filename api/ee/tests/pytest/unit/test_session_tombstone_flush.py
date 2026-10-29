@@ -85,3 +85,24 @@ async def test_a_tombstone_whose_session_still_has_spans_is_kept():
     delete_stmt = core.statements[-1]
     params = delete_stmt.compile().params
     assert "s-gone" in str(params) and "s-left" not in str(params)
+
+
+@pytest.mark.asyncio
+async def test_a_kept_tombstone_does_not_block_the_next_page():
+    project_id = uuid4()
+    page_1 = [
+        SimpleNamespace(project_id=project_id, session_id="s-a"),
+        SimpleNamespace(project_id=project_id, session_id="s-b"),
+    ]
+    page_2 = [SimpleNamespace(project_id=project_id, session_id="s-c")]
+    core = _Engine([page_1, [object()], page_2, [object()]])
+    # Page 1: s-a still has spans (kept), s-b is gone. Page 2: s-c is gone.
+    tracing = _Engine([[SimpleNamespace(project_id=project_id, session_id="s-a")], []])
+    dao = TracingRetentionDAO(transactions_engine=core, analytics_engine=tracing)
+
+    deleted = await dao.delete_session_tombstones_before_cutoff(
+        cutoff=CUTOFF, project_ids=[project_id], page_size=2
+    )
+
+    assert deleted == 2
+    assert len(tracing.statements) == 2
