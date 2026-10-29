@@ -114,7 +114,7 @@ export {
     fieldLabel,
     selectorLabel,
 } from "./core/eventFields"
-export type {EventFieldCard, EventFieldGroup} from "./core/eventFields"
+export type {EventField} from "./core/eventFields"
 export {eventValueText, formatEventText, renderMessagePreview} from "./core/eventPreview"
 export {latestDeliveryEvent} from "./core/latestDeliveryEvent"
 export {localFaceToUtcIso, utcIsoToLocalFace} from "./core/window"

@@ -1,5 +1,5 @@
 /** The event automation's instruction: text plus event-field pills, over `inputs_fields`. */
-import {useCallback} from "react"
+import {useCallback, type ReactNode} from "react"
 
 import {
     compileMessageTemplate,
@@ -19,15 +19,18 @@ export function EventMessageComposer({
     labels,
     insertApi,
     disabled,
+    fields,
 }: {
     inputsText: string
     onChange: (next: string) => void
     isChat: boolean
     primaryKey: string
-    /** Selector → field label, from the event's field cards. */
+    /** Selector → field label, from the event's field tags. */
     labels: Record<string, string>
     insertApi?: React.MutableRefObject<{insert: (selector: string) => void} | null>
     disabled?: boolean
+    /** The event's field tags, drawn inside the instruction box under the text. */
+    fields?: ReactNode
 }) {
     const template = parseMessageTemplate(inputsText, isChat, primaryKey)
     const labelFor = useCallback((selector: string) => selectorLabel(selector, labels), [labels])
@@ -42,6 +45,7 @@ export function EventMessageComposer({
                 insertApi={insertApi}
                 labelFor={labelFor}
                 disabled={disabled}
+                footer={fields}
             />
             <span
                 className={`text-xs leading-snug ${

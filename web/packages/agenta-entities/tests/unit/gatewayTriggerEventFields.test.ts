@@ -1,5 +1,5 @@
 /**
- * Field cards, the message preview and the newest recorded event for an event automation.
+ * Field tags, the message preview and the newest recorded event for an event automation.
  *
  * The value and event-text fixtures match the backend tests of `compose_event_inputs`, so the
  * preview and Run now give the same text the dispatcher sends.
@@ -62,11 +62,9 @@ const EVENT_TEXT =
     '{\n  "action": "opened",\n  "number": 42,\n  "title": "Fix the login page"\n}\n```'
 
 describe("eventFieldsFromSchema", () => {
-    it("gives seven cards for the GitHub pull request schema, in schema order", () => {
-        const groups = eventFieldsFromSchema(GITHUB_PULL_REQUEST_SCHEMA)
-        expect(groups).toHaveLength(1)
-        expect(groups[0].label).toBeNull()
-        expect(groups[0].cards.map((c) => c.label)).toEqual([
+    it("gives seven fields for the GitHub pull request schema, in schema order", () => {
+        const fields = eventFieldsFromSchema(GITHUB_PULL_REQUEST_SCHEMA)
+        expect(fields.map((f) => f.label)).toEqual([
             "Action",
             "Created at",
             "Created by",
@@ -75,26 +73,27 @@ describe("eventFieldsFromSchema", () => {
             "Title",
             "URL",
         ])
-        expect(groups[0].cards[5]).toEqual({
+        expect(fields[5]).toEqual({
             key: "title",
             selector: "$.event.attributes.title",
             label: "Title",
             description: "The pull request title",
         })
-        expect(groups[0].cards[6].description).toBeNull()
+        expect(fields[6].description).toBeNull()
     })
 
-    it("makes a nested object a group; deeper objects and arrays are one card each", () => {
-        const groups = eventFieldsFromSchema(LINEAR_SCHEMA)
-        expect(groups.map((g) => g.label)).toEqual([null, "Data", null])
-        expect(groups[1].cards.map((c) => [c.label, c.selector])).toEqual([
+    it("gives one field per child of a nested object; deeper objects and arrays are one field", () => {
+        const fields = eventFieldsFromSchema(LINEAR_SCHEMA)
+        expect(fields.map((f) => [f.label, f.selector])).toEqual([
+            ["Action", "$.event.attributes.action"],
             ["Data title", "$.event.attributes.data.title"],
             ["Data assignee", "$.event.attributes.data.assignee"],
             ["Data labels", "$.event.attributes.data.labels"],
+            ["URL", "$.event.attributes.url"],
         ])
     })
 
-    it("gives no cards without a schema or properties", () => {
+    it("gives no fields without a schema or properties", () => {
         expect(eventFieldsFromSchema(null)).toEqual([])
         expect(eventFieldsFromSchema({type: "object", properties: {}})).toEqual([])
     })
@@ -113,7 +112,7 @@ describe("labels and selectors", () => {
         expect(eventFieldSelector(["title"])).toBe("$.event.attributes.title")
     })
 
-    it("labels a pill from the cards, else from its path", () => {
+    it("labels a pill from the fields, else from its path", () => {
         const labels = eventFieldLabels(eventFieldsFromSchema(GITHUB_PULL_REQUEST_SCHEMA))
         expect(selectorLabel("$.event.attributes.title", labels)).toBe("Title")
         expect(selectorLabel("$.event.attributes.headRef", labels)).toBe("Head ref")

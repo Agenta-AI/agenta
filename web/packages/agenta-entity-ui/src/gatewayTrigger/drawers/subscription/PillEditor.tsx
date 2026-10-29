@@ -1,5 +1,5 @@
 /** The token composer's contenteditable surface: `{{selector}}` segments render as chips. */
-import {useCallback, useEffect, useRef, useState} from "react"
+import {useCallback, useEffect, useRef, useState, type ReactNode} from "react"
 
 import {splitTemplate} from "@agenta/entities/gatewayTrigger"
 
@@ -13,6 +13,7 @@ export function PillEditor({
     insertApi,
     labelFor,
     disabled,
+    footer,
 }: {
     value: string
     onChange: (next: string) => void
@@ -22,6 +23,8 @@ export function PillEditor({
     /** The label a pill shows for its selector. */
     labelFor: (selector: string) => string
     disabled?: boolean
+    /** Shown inside the box, under the text, so the two read as one control. */
+    footer?: ReactNode
 }) {
     const ref = useRef<HTMLDivElement>(null)
     const lastSerialized = useRef<string>("")
@@ -185,25 +188,28 @@ export function PillEditor({
     }
 
     return (
-        <div className="relative">
-            <div
-                ref={ref}
-                contentEditable={!disabled}
-                suppressContentEditableWarning
-                role="textbox"
-                aria-multiline="true"
-                aria-disabled={disabled}
-                onInput={commit}
-                onPaste={onPaste}
-                onKeyDown={onKeyDown}
-                onClick={onClick}
-                className="box-border max-h-[280px] min-h-[88px] w-full overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-solid border-[var(--ag-colorBorder)] bg-[var(--ag-colorBgContainer)] px-3 py-2 text-base leading-relaxed text-foreground outline-none focus:border-[var(--ag-colorPrimary)] aria-disabled:cursor-not-allowed aria-disabled:opacity-60 md:text-sm"
-            />
-            {empty && placeholder && (
-                <div className="pointer-events-none absolute left-3 top-2 text-base text-[var(--ag-colorTextPlaceholder)] md:text-sm">
-                    {placeholder}
-                </div>
-            )}
+        <div className="box-border w-full rounded-lg border border-solid border-[var(--ag-colorBorder)] bg-[var(--ag-colorBgContainer)] focus-within:border-[var(--ag-colorPrimary)]">
+            <div className="relative">
+                <div
+                    ref={ref}
+                    contentEditable={!disabled}
+                    suppressContentEditableWarning
+                    role="textbox"
+                    aria-multiline="true"
+                    aria-disabled={disabled}
+                    onInput={commit}
+                    onPaste={onPaste}
+                    onKeyDown={onKeyDown}
+                    onClick={onClick}
+                    className="box-border max-h-[280px] min-h-[88px] w-full overflow-y-auto whitespace-pre-wrap break-words px-3 py-2 text-base leading-relaxed text-foreground outline-none aria-disabled:cursor-not-allowed aria-disabled:opacity-60 md:text-sm"
+                />
+                {empty && placeholder && (
+                    <div className="pointer-events-none absolute left-3 top-2 text-base text-[var(--ag-colorTextPlaceholder)] md:text-sm">
+                        {placeholder}
+                    </div>
+                )}
+            </div>
+            {footer ? <div className="px-3 pb-2">{footer}</div> : null}
         </div>
     )
 }

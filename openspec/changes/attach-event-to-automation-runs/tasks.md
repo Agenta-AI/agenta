@@ -92,21 +92,21 @@ Composio key from the local-only EE env file and a GitHub account connected in t
 
 ### 7. Pure helpers in `@agenta/entities/gatewayTrigger/core` (parallel with 8)
 
-- [x] 7.1 `eventFields.ts`: `eventFieldsFromSchema(payloadSchema)` returns groups and cards (key,
-  selector, label, description) per design decision 7. `fieldLabel(path)` splits camelCase and
+- [x] 7.1 `eventFields.ts`: `eventFieldsFromSchema(payloadSchema)` returns one flat list of fields
+  (key, selector, label, description) per design decision 7. `fieldLabel(path)` splits camelCase and
   calls `humanizeActionKey`.
 - [x] 7.2 `eventMessageTemplate.ts`: `parseMessageTemplate` ignores keys other than the message
   key and returns `string | null`, where `null` means the composer cannot show the mapping
   (design decisions 8 and 10). `compileMessageTemplate` takes the stored `inputsText`, replaces
   only the message key and keeps the rest. For the `messages` key, a template with a pill is
   always stored as text parts, even a single pill alone (design decision 10). Add
-  `templateSelectors(template)` for the used-card check.
+  `templateSelectors(template)` for the used-tag check.
 - [x] 7.3 `eventMessageTemplate.ts`: `remapMessageTemplate(inputsText, prev, next)`
   moves a template to the new input shape with `parseMessageTemplate` and
   `compileMessageTemplate`, removes the old key, keeps sibling keys, and returns a mapping it
   cannot show unchanged (design decision 10).
 - [x] 7.4 `eventPreview.ts`: `renderMessagePreview(template, event, labels, includeEvent)`
-  returns the whole text the agent gets. `labels` maps a selector to its card label. It fills
+  returns the whole text the agent gets. `labels` maps a selector to its tag label. It fills
   pills from `{event}` with `resolveSelectorPreview` and the text rule of design decision 5
   (`null` or `undefined` gives `""`), else `[Label]`. When `includeEvent` is on and `event` has
   attributes, it adds `formatEventText(event.event_type, event.attributes)`, which mirrors the
@@ -118,7 +118,8 @@ Composio key from the local-only EE env file and a GitHub account connected in t
   rows newest first, so it sorts them itself.
 - [x] 7.7 Export the new functions from `web/packages/agenta-entities/src/gatewayTrigger/index.ts`.
 - [x] 7.8 Vitest tests in `web/packages/agenta-entities/tests/unit/`: the GitHub pull request
-  schema gives seven cards with the right labels; a Linear-style nested `data` gives a group;
+  schema gives seven fields with the right labels; a Linear-style nested `data` gives one field
+  per child, labelled with the object's name first;
   bracket selectors and a quoted key with a dot; sibling keys kept on write; text plus a pill
   moved from a completion shape to a chat shape by `remapMessageTemplate`; `latestDeliveryEvent`
   on unsorted rows; preview with and
@@ -133,8 +134,9 @@ Composio key from the local-only EE env file and a GitHub account connected in t
 - [x] 8.2 `EventMessageComposer.tsx`: the pill editor over `inputsText`, using
   `parseMessageTemplate` and `compileMessageTemplate`; keeps the warning line that
   `MessageComposer` shows for a mapping it cannot represent.
-- [x] 8.3 `EventFieldCards.tsx`: the card grid with groups, the description line, the check on
-  used cards, and a click handler that inserts a pill.
+- [x] 8.3 `EventFieldTags.tsx`: a wrapping row of small tags inside the instruction box, the
+  description in a tooltip on hover and focus, the check on used tags, and a click handler that
+  inserts a pill.
 - [x] 8.4 Export both from `web/packages/agenta-entity-ui/src/gatewayTrigger/index.ts`.
 
 ### 9. Wiring in `@agenta/automation-ui`
@@ -143,7 +145,7 @@ Composio key from the local-only EE env file and a GitHub account connected in t
   `includeEvent`, `onChangeIncludeEvent`, `automation` (null on the create screen). It calls
   `useAutomationRuns(automation)` and `latestDeliveryEvent(runs)` to find the newest event.
   For `kind === "event"`, the shape effect calls `remapMessageTemplate` instead of
-  `remapMessageShape`, and the field renders `EventMessageComposer`, `EventFieldCards`, the checkbox, and the preview. Resolve
+  `remapMessageShape`, and the field renders `EventMessageComposer`, `EventFieldTags`, the checkbox, and the preview. Resolve
   `integration_key` from `useTriggerConnectionsQuery()` by `connectionId`, then
   `useTriggerEvent(integrationKey, eventKey)`. Schedules render `MessageComposer` as today.
 - [x] 9.2 `useAutomationCreate.ts` and `useAutomationDraft.ts`: add `includeEvent` to the
@@ -171,15 +173,15 @@ Composio key from the local-only EE env file and a GitHub account connected in t
   `@agenta/entity-ui`, `@agenta/automation-ui` and `web/mobile`.
 - [x] 11.2 Run the package unit tests for `@agenta/entities` and `@agenta/automation-ui`.
 - [ ] 11.3 Local stack, `/m`, create flow: new event automation on the GitHub pull request
-  event. The seven cards show with descriptions. Click "Title": a pill appears, the card shows a
-  check. The checkbox is checked. Create. `GET` the subscription: the stored content has the
+  event. The seven tags show; hovering one shows its description. Click "Title": a pill appears,
+  the tag shows a check. The checkbox is checked. Create. `GET` the subscription: the stored content has the
   `$.event.attributes.title` part and `data.include_event` is `true`.
 - [x] 11.4 Local stack, `/m`, detail flow: open an automation created before this change. The
   checkbox is checked. Uncheck, Save, reload: unchecked. Discard brings back the saved value.
 - [ ] 11.5 Local stack, `/m`, session workspace: the automation drawer shows the same field.
 - [ ] 11.6 Local stack: after the event from 5.4, the preview shows the real title in the pill
   and the event JSON. Run now opens a chat whose first message has the title.
-- [x] 11.7 Phone width (390 px): the card grid wraps to one column and the page has no
+- [x] 11.7 Phone width (390 px): the tag row wraps and the page has no
   sideways scroll.
 
 ## 12. QA evidence

@@ -56,7 +56,7 @@ Non-Goals:
 - An escape syntax for typed text that starts with `$` or `/` (a known limit, see Risks).
 - Adding `include_event` to the builder agent's `create_subscription` tool schema. Agents get
   the default.
-- Field cards from delivered keys. Cards come from the schema only.
+- Field tags from delivered keys. Tags come from the schema only.
 
 ## Decisions
 
@@ -178,7 +178,7 @@ The preview needs real values. A delivery stores only resolved inputs.
 Set on subscription deliveries only (real runs, refusals that have the event, and test
 captures). Schedules have a synthetic event; they keep `event` absent.
 
-### 7. Where the field cards come from
+### 7. Where the field tags come from
 
 | Option | Trade-off |
 | --- | --- |
@@ -186,21 +186,25 @@ captures). Schedules have a synthetic event; they keep `event` absent.
 | Keys of the newest delivery | Real keys, but empty until the first event, and no descriptions. |
 | Both, merged | Handles a schema mismatch, but adds merge rules before we know a mismatch happens. |
 
-Card rules:
+Tag rules:
 
-- One card per property of `payload.properties`, in schema order.
-- A property of type `object` with its own `properties` is a group: the group shows its
-  humanized name and one card per child property. Deeper objects are one card each.
-- An array is one card.
+- The tags are one row of small tags that wraps, inside the instruction box under the text.
+  A tag looks like the pill it adds. The helper text sits under the box.
+- One tag per property of `payload.properties`, in schema order.
+- A property of type `object` with its own `properties` gives one tag per child property.
+  The child's label starts with the object's name (see Label). Deeper objects are one tag each.
+- An array is one tag.
 - Label: split camelCase into words, then `humanizeActionKey` from `@agenta/shared/utils`
   (`web/packages/agenta-shared/src/utils/toolSlug.ts:67-81`). `createdBy` reads "Created by",
   `htmlUrl` reads "Html URL". A child label is the parent and child words together:
   `data.title` reads "Data title". No hand-written label map.
-- Description: the property's `description`, as the provider wrote it. No description: no line.
+- Description: the property's `description`, as the provider wrote it, in a tooltip on hover
+  and on keyboard focus. The tag's screen-reader label is the label and the description. No
+  description: no tooltip. Touch screens have no hover, so there a tap only adds the pill.
 - Selector: `$.event.attributes.<key>`, or `$.event.attributes["<key>"]` when the key is not
   letters, digits and underscores.
-- A card shows a check when the template already has its selector.
-- No schema, or an empty `properties`: no cards. The checkbox and the preview still show.
+- A tag shows a check when the template already has its selector.
+- No schema, or an empty `properties`: no tags. The checkbox and the preview still show.
 
 ### 8. Run now
 
@@ -242,7 +246,7 @@ Two limits on Run now:
   not start, logs the error and stays enabled, so the user can press it again. This adds no new
   UI text.
 
-This is a contract for the selectors the cards make, not a general JSON Path engine. Both
+This is a contract for the selectors the tags make, not a general JSON Path engine. Both
 sides have tests with the same fixtures: the event text example of decision 3, a string, a
 number, a boolean, an object, an array, an absent key, and a quoted key.
 
@@ -250,8 +254,8 @@ number, a boolean, an object, an array, an absent key, and a quoted key.
 
 | Part | Package | Why |
 | --- | --- | --- |
-| zod fields, schema-to-cards, labels, used-field check, preview text, event text | `@agenta/entities/gatewayTrigger/core` | Pure functions next to `eventMessageTemplate.ts`. Unit tests with vitest. |
-| `EventMessageComposer` (pill editor), `EventFieldCards` | `@agenta/entity-ui/gatewayTrigger/drawers/subscription/` | Reusable UI in the folder where the old `PillEditor.tsx` lived; it comes back from `89c2d80c39^`. `MessageComposer` stays in `drawers/schedule/`. |
+| zod fields, schema-to-tags, labels, used-field check, preview text, event text | `@agenta/entities/gatewayTrigger/core` | Pure functions next to `eventMessageTemplate.ts`. Unit tests with vitest. |
+| `EventMessageComposer` (pill editor), `EventFieldTags` | `@agenta/entity-ui/gatewayTrigger/drawers/subscription/` | Reusable UI in the folder where the old `PillEditor.tsx` lived; it comes back from `89c2d80c39^`. `MessageComposer` stays in `drawers/schedule/`. |
 | Instruction field wiring, drafts, request body builders | `@agenta/automation-ui` | The feature that owns the automation screens. |
 | Run now | `web/mobile/src/features/automations/` | The button is a `/m` app component today. |
 

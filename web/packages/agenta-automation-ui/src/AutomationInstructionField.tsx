@@ -11,12 +11,12 @@ import {
     templateSelectors,
     useTriggerConnectionsQuery,
     useTriggerEvent,
-    type EventFieldCard,
+    type EventField,
 } from "@agenta/entities/gatewayTrigger"
 import {extractInputPortsFromSchema} from "@agenta/entities/runnable"
 import {workflowLatestRevisionQueryAtomFamily} from "@agenta/entities/workflow"
 import {
-    EventFieldCards,
+    EventFieldTags,
     EventMessageComposer,
     MessageComposer,
 } from "@agenta/entity-ui/gatewayTrigger"
@@ -41,7 +41,7 @@ import {useAutomationRuns} from "./useAutomationRuns"
  * write a chat agent's instruction under "message", which the runner never reads. The field does
  * not wait for the revision — it lets the reader type and migrates the key when the shape lands.
  *
- * An event automation gets the pill composer, the event's field cards, the include-event
+ * An event automation gets the pill composer, the event's field tags, the include-event
  * checkbox and a preview of what the agent gets, filled from the newest recorded event.
  */
 export const AutomationInstructionField = ({
@@ -186,11 +186,11 @@ function EventInstruction({
     const integrationKey =
         connections.find((connection) => connection.id === connectionId)?.integration_key ?? ""
     const {event: catalogEvent} = useTriggerEvent(integrationKey, eventKey ?? "")
-    const groups = useMemo(
+    const fields = useMemo(
         () => eventFieldsFromSchema(catalogEvent?.payload ?? null),
         [catalogEvent?.payload],
     )
-    const labels = useMemo(() => eventFieldLabels(groups), [groups])
+    const labels = useMemo(() => eventFieldLabels(fields), [fields])
 
     const {runs} = useAutomationRuns(automation)
     const lastEvent = useMemo(() => latestDeliveryEvent(runs), [runs])
@@ -201,8 +201,8 @@ function EventInstruction({
         template === null ? null : renderMessagePreview(template, lastEvent, labels, includeEvent)
 
     const insertApi = useRef<{insert: (selector: string) => void} | null>(null)
-    const onInsert = useCallback((card: EventFieldCard) => {
-        insertApi.current?.insert(card.selector)
+    const onInsert = useCallback((field: EventField) => {
+        insertApi.current?.insert(field.selector)
     }, [])
 
     return (
@@ -215,8 +215,8 @@ function EventInstruction({
                     primaryKey={primaryKey}
                     labels={labels}
                     insertApi={insertApi}
+                    fields={<EventFieldTags fields={fields} used={used} onInsert={onInsert} />}
                 />
-                <EventFieldCards groups={groups} used={used} onInsert={onInsert} />
                 <label className="flex cursor-pointer items-center gap-2 text-[13px] text-foreground">
                     <Checkbox
                         checked={includeEvent}

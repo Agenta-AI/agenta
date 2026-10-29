@@ -1,27 +1,27 @@
 ## ADDED Requirements
 
-### Requirement: Field cards for event automations
+### Requirement: Field tags for event automations
 
-For an event automation, the Instruction field SHALL show a grid of field cards under the instruction box, built from the catalog payload schema of the automation's event. Schedules SHALL keep today's composer.
+For an event automation, the Instruction field SHALL show a wrapping row of small field tags inside the instruction box, under the text, built from the catalog payload schema of the automation's event. A tag SHALL show the field's label only; the schema's `description` SHALL show in a tooltip on hover and on keyboard focus. Schedules SHALL keep today's composer.
 
 #### Scenario: Flat schema
 
 - **WHEN** the event is the GitHub pull request event, whose schema has `action`, `createdAt`, `createdBy`, `description`, `number`, `title` and `url`
-- **THEN** seven cards show, in schema order, each with its humanized name and the schema's `description`
+- **THEN** seven tags show, in schema order, each with its humanized name, and hovering a tag shows the schema's `description`
 
 #### Scenario: Nested object
 
 - **WHEN** a property is an object with its own `properties`, such as Linear's `data`
-- **THEN** the object shows as a group named for it, with one card per child property, and deeper objects show as one card each
+- **THEN** one tag shows per child property, its label starting with the object's name, and deeper objects show as one tag each
 
 #### Scenario: No schema
 
 - **WHEN** the catalog returns no payload schema, or the query fails
-- **THEN** no cards show and the instruction box, the checkbox and the preview still work
+- **THEN** no tags show and the instruction box, the checkbox and the preview still work
 
-### Requirement: Card labels come from the key
+### Requirement: Tag labels come from the key
 
-A card label SHALL be the property key split at camelCase and underscores, in sentence case, with known acronyms in capitals, through `humanizeActionKey`. A child label SHALL join the parent and child words. No hand-written label map SHALL exist.
+A tag label SHALL be the property key split at camelCase and underscores, in sentence case, with known acronyms in capitals, through `humanizeActionKey`. A child label SHALL join the parent and child words. No hand-written label map SHALL exist.
 
 #### Scenario: camelCase key
 
@@ -35,11 +35,11 @@ A card label SHALL be the property key split at camelCase and underscores, in se
 
 ### Requirement: Pills
 
-A click on a card SHALL insert a pill for that field at the cursor. The pill SHALL show the card label. The mapping SHALL store the field as the selector `$.event.attributes.<key>`. A pill SHALL be removable like one character.
+A click or a tap on a tag SHALL insert a pill for that field at the cursor. The pill SHALL show the tag label. The mapping SHALL store the field as the selector `$.event.attributes.<key>`. A pill SHALL be removable like one character.
 
 #### Scenario: Insert
 
-- **WHEN** the user types "Review " and clicks the "Title" card
+- **WHEN** the user types "Review " and clicks the "Title" tag
 - **THEN** the box shows "Review " and a "Title" pill, and the stored content is `[{"type":"text","text":"Review "},{"type":"text","text":"$.event.attributes.title"}]`
 
 #### Scenario: One pill alone
@@ -47,15 +47,15 @@ A click on a card SHALL insert a pill for that field at the cursor. The pill SHA
 - **WHEN** the instruction is only a "Labels" pill
 - **THEN** the stored content is `[{"type":"text","text":"$.event.attributes.labels"}]`, a text part and not a bare selector, so an array value reaches the agent as JSON text
 
-#### Scenario: Used card
+#### Scenario: Used tag
 
 - **WHEN** the instruction already has a "Title" pill
-- **THEN** the "Title" card shows a check
+- **THEN** the "Title" tag shows a check
 
 #### Scenario: Remove
 
 - **WHEN** the user deletes the pill with Backspace
-- **THEN** the selector leaves the stored content and the card loses its check
+- **THEN** the selector leaves the stored content and the tag loses its check
 
 #### Scenario: Key with special characters
 

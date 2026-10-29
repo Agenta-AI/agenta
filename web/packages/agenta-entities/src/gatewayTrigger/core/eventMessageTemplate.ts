@@ -64,7 +64,7 @@ function segmentsToContent(
     return nonEmpty.map((s) => ({type: "text" as const, text: s.selector ?? s.literal ?? ""}))
 }
 
-/** The selectors a template uses, in order; the field cards mark these as used. */
+/** The selectors a template uses, in order; the field tags mark these as used. */
 export function templateSelectors(template: string): string[] {
     return splitTemplate(template).flatMap((s) => (s.selector ? [s.selector] : []))
 }

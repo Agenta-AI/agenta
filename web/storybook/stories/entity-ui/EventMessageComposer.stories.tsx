@@ -6,10 +6,10 @@ import {
     parseMessageTemplate,
     templateSelectors,
 } from "@agenta/entities/gatewayTrigger"
-import {EventFieldCards, EventMessageComposer} from "@agenta/entity-ui/gatewayTrigger"
+import {EventFieldTags, EventMessageComposer} from "@agenta/entity-ui/gatewayTrigger"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
-// EventMessageComposer + EventFieldCards — an event automation's instruction. A card click adds
+// EventMessageComposer + EventFieldTags: an event automation's instruction. A tag click adds
 // the field as a pill, stored as a `$.event.attributes.<key>` text part.
 const meta = {
     title: "@agenta/entity-ui/GatewayTrigger/EventMessageComposer",
@@ -50,8 +50,8 @@ const RICH_MAPPING = JSON.stringify({
 
 const Row = ({label, initial, schema}: {label: string; initial: string; schema?: unknown}) => {
     const [inputsText, setInputsText] = useState(initial)
-    const groups = useMemo(() => eventFieldsFromSchema(schema ?? null), [schema])
-    const labels = useMemo(() => eventFieldLabels(groups), [groups])
+    const fields = useMemo(() => eventFieldsFromSchema(schema ?? null), [schema])
+    const labels = useMemo(() => eventFieldLabels(fields), [fields])
     const used = useMemo(
         () => new Set(templateSelectors(parseMessageTemplate(inputsText, true, "messages") ?? "")),
         [inputsText],
@@ -68,11 +68,13 @@ const Row = ({label, initial, schema}: {label: string; initial: string; schema?:
                     primaryKey="messages"
                     labels={labels}
                     insertApi={insertApi}
-                />
-                <EventFieldCards
-                    groups={groups}
-                    used={used}
-                    onInsert={(card) => insertApi.current?.insert(card.selector)}
+                    fields={
+                        <EventFieldTags
+                            fields={fields}
+                            used={used}
+                            onInsert={(field) => insertApi.current?.insert(field.selector)}
+                        />
+                    }
                 />
             </div>
         </div>
