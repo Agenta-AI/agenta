@@ -25,6 +25,7 @@ const ACTION_TIMEOUT_MS = 10_000;
 const NAVIGATION_TIMEOUT_MS = 30_000;
 // A wait ends before the runner's 30-minute tool-call limit, so the agent always gets an answer.
 const MAX_WAIT_MS = 25 * 60_000;
+const MAX_VIEWER_BUFFER_BYTES = 2 * 1024 * 1024;
 
 let browser;
 let context;
@@ -41,6 +42,12 @@ const fail = (code, message, extra) =>
 
 function agentError(code, message, { next_step } = {}) {
   return { ok: false, error: { code, message, ...(next_step ? { next_step } : {}) } };
+}
+
+// The message only: the agent reads it, and a stack trace would leak internals.
+function errorText(e) {
+  const message = e instanceof Error ? e.message : typeof e === "string" ? e : "";
+  return (message || "Unexpected error.").split("\n")[0].slice(0, 300);
 }
 
 // ---- browser ----
@@ -328,7 +335,7 @@ async function resolveTarget(page, { ref, role, name }) {
     name ? { name: String(name) } : {},
   );
   const count = await locator.count().catch((e) => {
-    throw fail("invalid_arguments", String(e.message || e).split("\n")[0]);
+    throw fail("invalid_arguments", errorText(e));
   });
   if (count === 1) {
     // Pin the checked element: a role locator re-resolves, and a click can open look-alikes.
@@ -688,12 +695,16 @@ async function restartScreencast() {
   screencast = { session, page };
   session.on("Page.screencastFrame", ({ data, metadata, sessionId }) => {
     session.send("Page.screencastFrameAck", { sessionId }).catch(() => {});
-    broadcast({
+    const text = JSON.stringify({
       type: "frame",
       data,
       width: metadata.deviceWidth,
       height: metadata.deviceHeight,
     });
+    // A slow viewer skips frames instead of growing its send buffer without limit.
+    viewers.forEach(
+      (ws) => ws.readyState === 1 && ws.bufferedAmount < MAX_VIEWER_BUFFER_BYTES && ws.send(text),
+    );
   });
   await session.send("Page.startScreencast", {
     format: "jpeg",
@@ -863,7 +874,7 @@ function opError(e) {
       next_step: "Run `agenta-browser read` again and use a ref from the new result.",
     });
   if (e.code === "invalid_arguments") return agentError("invalid_arguments", e.message);
-  return agentError("browser_error", String(e.message || e).split("\n")[0].slice(0, 300));
+  return agentError("browser_error", errorText(e));
 }
 
 async function runOp(op, args) {
@@ -897,7 +908,9 @@ function controlChanged(previous, next) {
   }
 }
 
-async function waitForPerson(reason, timeoutMs) {
+async function waitForPerson(reason, requestedMs) {
+  let timeoutMs = Number(requestedMs);
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0 || timeoutMs > MAX_WAIT_MS) timeoutMs = MAX_WAIT_MS;
   waitingReason = String(reason || "The agent needs your help in the browser.").slice(0, 300);
   broadcastStatus();
   const outcome = await new Promise((resolve) => {
@@ -969,7 +982,7 @@ async function route(req, res) {
   if (url.pathname === "/op")
     return reply(res, 200, await serially(() => runOp(String(body.op || ""), body.args)));
   if (url.pathname === "/wait")
-    return reply(res, 200, await waitForPerson(body.reason, Math.min(Number(body.timeoutMs) || MAX_WAIT_MS, MAX_WAIT_MS)));
+    return reply(res, 200, await waitForPerson(body.reason, body.timeoutMs));
   if (url.pathname === "/save")
     return reply(res, 200, { ok: true, text: (await serially(saveState)) ? `Saved to ${STATE_FILE}.` : "Nothing changed." });
   if (url.pathname === "/stop") {
@@ -985,7 +998,7 @@ async function serve() {
   accessToken = crypto.randomBytes(32).toString("hex");
   await launch();
   const server = http.createServer((req, res) => {
-    route(req, res).catch((e) => reply(res, 500, agentError("browser_error", String(e.message || e).slice(0, 300))));
+    route(req, res).catch((e) => reply(res, 500, agentError("browser_error", errorText(e))));
   });
   const { wsServer: WebSocketServer } = require("playwright-core/lib/utilsBundle");
   const wss = new WebSocketServer({ noServer: true, maxPayload: 1024 * 1024 });
@@ -1066,14 +1079,37 @@ function request(command, { positional: p, flags: f }) {
   }
 }
 
+// node:http, not fetch: undici's 5-minute header timeout would cut a 25-minute `wait` short.
 function call(pathname, body, timeoutMs = 60_000) {
   const token = fs.existsSync(TOKEN_FILE) ? fs.readFileSync(TOKEN_FILE, "utf8") : "";
-  return fetch(`http://127.0.0.1:${PORT}${pathname}`, {
-    method: body ? "POST" : "GET",
-    headers: { "content-type": "application/json", "x-agenta-browser-token": token },
-    body: body ? JSON.stringify(body) : undefined,
-    signal: AbortSignal.timeout(timeoutMs),
-  }).then((r) => r.json());
+  const payload = body ? JSON.stringify(body) : undefined;
+  return new Promise((resolve, reject) => {
+    const req = http.request(
+      {
+        host: "127.0.0.1",
+        port: PORT,
+        path: pathname,
+        method: body ? "POST" : "GET",
+        headers: { "content-type": "application/json", "x-agenta-browser-token": token },
+        timeout: timeoutMs,
+      },
+      (res) => {
+        const chunks = [];
+        res.on("data", (chunk) => chunks.push(chunk));
+        res.on("end", () => {
+          try {
+            resolve(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+          } catch (e) {
+            reject(e);
+          }
+        });
+        res.on("error", reject);
+      },
+    );
+    req.on("timeout", () => req.destroy(new Error("The browser did not answer in time.")));
+    req.on("error", reject);
+    req.end(payload);
+  });
 }
 
 const running = () => call("/health", null, 3_000).then((r) => r.ok === true, () => false);
