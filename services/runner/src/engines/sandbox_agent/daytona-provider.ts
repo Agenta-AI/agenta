@@ -5,7 +5,11 @@ import {
   DEFAULT_DAYTONA_SNAPSHOT,
   type RunnerDaytonaConfig,
 } from "../../config/runner-config.ts";
-import { markSandboxCreated, rawSandboxId } from "./created-sandboxes.ts";
+import {
+  markSandboxCreated,
+  rawSandboxId,
+  recordSandboxSnapshot,
+} from "./created-sandboxes.ts";
 
 type DaytonaClient = Pick<Daytona, "get">;
 type DaytonaCreateObjectWithSnapshot = {
@@ -236,6 +240,8 @@ export function daytonaWithLifecycle(
         // so this is where the process learns which sandboxes it may reconnect to and delete.
         const sandboxId = await baseProvider.create();
         markSandboxCreated(sandboxId);
+        // A fresh create is built from the configured snapshot (undefined for an image build).
+        recordSandboxSnapshot(sandboxId, getConfiguredSnapshot(options.create));
         return sandboxId;
       } catch (error) {
         if (!isNotFound(error)) throw error;
@@ -303,6 +309,9 @@ export function daytonaWithLifecycle(
         }
         throw error;
       }
+      // A parked sandbox may come from an older snapshot than the configured one; record the one
+      // Daytona reports, which this `get` already returned.
+      recordSandboxSnapshot(sandboxId, sandbox.snapshot);
       const state = await waitForStableState(sandbox, sandboxId, "reconnect");
       if (RUNNING_STATES.has(state)) {
         await syncNetworkPolicy(sandbox, sandboxId);
