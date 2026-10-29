@@ -275,8 +275,11 @@ function applyToSavedEntry(
     const policy = asRecord(saved.policy) ?? {}
     // The account is either the project connection's slug or each person's own: one of the two
     // fields, never both (contract section 5.1).
-    const {slug: _slug, account_source: _source, ...savedConnection} =
-        asRecord(saved.connection) ?? {}
+    const {
+        slug: _slug,
+        account_source: _source,
+        ...savedConnection
+    } = asRecord(saved.connection) ?? {}
     return {
         ...saved,
         type: "gateway_connection",
@@ -284,9 +287,7 @@ function applyToSavedEntry(
             ...savedConnection,
             provider: view.provider,
             integration: view.integration,
-            ...(view.accountSource === "user"
-                ? {account_source: "user"}
-                : {slug: view.connection}),
+            ...(view.accountSource === "user" ? {account_source: "user"} : {slug: view.connection}),
         },
         policy: {
             ...policy,

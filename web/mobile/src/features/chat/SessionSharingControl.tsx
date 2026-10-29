@@ -31,9 +31,7 @@ export const SessionSharingControl = ({
         return (
             <SessionShareButton
                 sharing={sharing}
-                onClick={() =>
-                    openShare({sessionId, sessionName, workspaceId, projectId, agentId})
-                }
+                onClick={() => openShare({sessionId, sessionName, workspaceId, projectId, agentId})}
             />
         )
     }

@@ -371,8 +371,12 @@ export function AgentSecretAttachmentModal({
                                 <SelectValue />
                             </SelectTrigger>
                             <SelectContent container={container} style={{zIndex: popupZIndex}}>
-                                <SelectItem value="user">{ACCOUNT_COPY.eachPersonSecret}</SelectItem>
-                                <SelectItem value="project">{ACCOUNT_COPY.projectSecret}</SelectItem>
+                                <SelectItem value="user">
+                                    {ACCOUNT_COPY.eachPersonSecret}
+                                </SelectItem>
+                                <SelectItem value="project">
+                                    {ACCOUNT_COPY.projectSecret}
+                                </SelectItem>
                             </SelectContent>
                         </Select>
                         {personal ? (

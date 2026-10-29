@@ -5,8 +5,8 @@
  */
 import type {ReactNode} from "react"
 
-import clsx from "clsx"
 import {X} from "@phosphor-icons/react"
+import clsx from "clsx"
 
 export interface SetupCardBadge {
     text: string

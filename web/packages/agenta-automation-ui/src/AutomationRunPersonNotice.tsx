@@ -48,7 +48,10 @@ export const AutomationRunPersonNotice = ({
     const principal = (automation.raw as {principal?: PrincipalRefLike | null}).principal
     const changes = dirty && saveChangesRunPerson(principal, viewer?.id)
     const refsKey = useMemo(
-        () => (changes ? workflowRevisionRefsKey(automationRevisionRefs(automation, draftAgentId)) : ""),
+        () =>
+            changes
+                ? workflowRevisionRefsKey(automationRevisionRefs(automation, draftAgentId))
+                : "",
         [automation, changes, draftAgentId],
     )
     const revision = useAtomValue(resolvedWorkflowRevisionQueryAtomFamily(refsKey)).data ?? null
@@ -59,7 +62,9 @@ export const AutomationRunPersonNotice = ({
         viewerId: viewer?.id,
         agentHasUserItems,
     })
-    const requirements = useAtomValue(agentRequirementsAtomFamily(shown ? (revision?.id ?? "") : ""))
+    const requirements = useAtomValue(
+        agentRequirementsAtomFamily(shown ? (revision?.id ?? "") : ""),
+    )
     const items = useMemo(() => personalSetupItems(requirements), [requirements])
     const pendingKeys = useMemo(() => new Set(items.map((item) => item.key)), [items])
     const workflowId = revision?.workflowId ?? ""

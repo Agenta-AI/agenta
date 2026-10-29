@@ -70,8 +70,8 @@ describe("automationRevisionRefs", () => {
     })
 
     it("resolves the newest revision of the agent an unsaved rebind names", () => {
-        expect(
-            automationRevisionRefs(automation({workflow: {id: "agent-1"}}), "agent-2"),
-        ).toEqual({workflowId: "agent-2"})
+        expect(automationRevisionRefs(automation({workflow: {id: "agent-1"}}), "agent-2")).toEqual({
+            workflowId: "agent-2",
+        })
     })
 })

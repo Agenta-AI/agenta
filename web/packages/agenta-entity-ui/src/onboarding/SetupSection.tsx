@@ -73,9 +73,7 @@ export const SetupSection = ({
                     )}
                 />
             )}
-            <span className="truncate text-xs font-medium text-[var(--ag-colorText)]">
-                {title}
-            </span>
+            <span className="truncate text-xs font-medium text-[var(--ag-colorText)]">{title}</span>
             {titleExtra ? (
                 <span className="shrink-0 truncate text-[11px] text-[var(--ag-colorTextSecondary)]">
                     {titleExtra}

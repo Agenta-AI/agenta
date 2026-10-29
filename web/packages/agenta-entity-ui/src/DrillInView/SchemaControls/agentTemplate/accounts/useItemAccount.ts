@@ -18,6 +18,8 @@ import {useAtomValue} from "jotai"
 /** Where an item's drawer is: the saved revision on screen and the agent template it edits. */
 export interface ItemAccountContext {
     revisionId: string | null
+    /** The agent, when the host already knows it; otherwise read from the revision. */
+    workflowId?: string
     /** The agent template on screen (`parameters.agent`), saved or not. */
     agent: Record<string, unknown>
 }
@@ -35,8 +37,12 @@ export const useItemAccount = (
     context: ItemAccountContext | undefined,
     itemKey: string,
 ): ItemAccountState => {
-    const workflowId =
-        useAtomValue(workflowMolecule.selectors.workflowId(context?.revisionId ?? "")) ?? ""
+    const fromRevision = useAtomValue(
+        workflowMolecule.selectors.workflowId(
+            context?.workflowId ? "" : (context?.revisionId ?? ""),
+        ),
+    )
+    const workflowId = context?.workflowId || fromRevision || ""
     const key = useMemo(
         () => (context ? draftItemAccountsKey(workflowId, context.agent) : ""),
         [context, workflowId],

@@ -1,5 +1,6 @@
 import {useCallback, useMemo, useState} from "react"
 
+import {hasUserItems} from "@agenta/entities/accountChoice"
 import {
     restrictSessionToOwnerAtom,
     revokeSessionGrantAtom,
@@ -11,7 +12,6 @@ import {
     type SessionRole,
     type Visibility,
 } from "@agenta/entities/sharing"
-import {hasUserItems} from "@agenta/entities/accountChoice"
 import {workflowLatestRevisionQueryAtomFamily} from "@agenta/entities/workflow"
 import {sessionRoutePath, shareUrl} from "@agenta/sessions/link"
 import {

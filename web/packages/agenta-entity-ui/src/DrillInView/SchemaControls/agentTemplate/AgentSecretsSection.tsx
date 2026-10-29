@@ -33,7 +33,6 @@ import {AgentSecretAttachmentModal, agentSecretBinding} from "../../../secret"
 import {useSectionDrawerPanel} from "../sectionDrawerPanel"
 
 import {ACCOUNT_COPY} from "./accounts/copy"
-
 import {NeedsSetupTag} from "./NeedsSetupTag"
 
 export interface AgentSecretsSectionProps {

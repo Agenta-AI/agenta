@@ -14,8 +14,7 @@ export interface PersonalSetupItem {
     candidates: number
 }
 
-const text = (value: unknown): string | null =>
-    typeof value === "string" && value ? value : null
+const text = (value: unknown): string | null => (typeof value === "string" && value ? value : null)
 
 /**
  * The "user" requirements a person can set up here, in the server's order. A "user" model login

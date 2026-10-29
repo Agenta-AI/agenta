@@ -4,8 +4,8 @@
  */
 import type {ToolConnection} from "@agenta/entities/gatewayTool"
 
-import type {PermissionPolicyOption} from "../PermissionPolicySelect"
 import type {GatewayConnectionAccount, ParsedGatewayConnection} from "../../toolUtils"
+import type {PermissionPolicyOption} from "../PermissionPolicySelect"
 
 import {ACCOUNT_COPY} from "./copy"
 
