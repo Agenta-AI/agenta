@@ -441,14 +441,17 @@ describe("agent tools bin cache (local provider)", () => {
     assert.equal(statSync(cache.root).mode & 0o777, 0o700);
     assert.equal(statSync(agentDir).mode & 0o777, 0o700);
     assert.equal(entries(agentDir).length, 1);
-    // Unreadable in agent-files but the same name, size and mtime: only a cache hit can stage it.
-    chmodSync(join(mount, ".tools", "bin", "hello"), 0o000);
+    // Different bytes in agent-files with the same name, size and mtime: only a cache hit stages
+    // the original bytes.
+    const durable = join(mount, ".tools", "bin", "hello");
+    const { mtimeMs } = statSync(durable);
+    writeFileSync(durable, "#!/bin/sh\necho HI\n");
+    utimesSync(durable, mtimeMs / 1000, mtimeMs / 1000);
     const second = await runAgentToolsSetup(
       { mountPath: mount, cwd, localDir: join(root, "s2"), runSetup: true, cache },
       localAgentToolsExec,
       { log: SILENT },
     );
-    chmodSync(join(mount, ".tools", "bin", "hello"), 0o644);
     assert.equal(second.status, "ok");
     assert.equal(
       readFileSync(join(root, "s2", "bin", "hello"), "utf8"),
@@ -555,6 +558,34 @@ describe("agent tools bin cache (local provider)", () => {
       { log: SILENT },
     );
     assert.equal(entries(agentDir).length, 2);
+  });
+
+  it("stages from agent-files when the cache entry goes away during the copy", async () => {
+    const { mount, cwd, root, cache, agentDir } = cached({ bin: { hello: "hi\n" } });
+    await runAgentToolsSetup(
+      { mountPath: mount, cwd, localDir: join(root, "s1"), runSetup: true, cache },
+      localAgentToolsExec,
+      { log: SILENT },
+    );
+    const scripts: string[] = [];
+    const pruning: typeof localAgentToolsExec = {
+      run: (opts) => {
+        scripts.push(opts.script);
+        // Another session prunes the entry this one is about to copy from.
+        if (scripts.length === 1)
+          for (const name of entries(agentDir))
+            rmSync(join(agentDir, name), { recursive: true, force: true });
+        return localAgentToolsExec.run(opts);
+      },
+    };
+    const r = await runAgentToolsSetup(
+      { mountPath: mount, cwd, localDir: join(root, "s2"), runSetup: true, cache },
+      pruning,
+      { log: SILENT },
+    );
+    assert.equal(r.status, "ok");
+    assert.equal(scripts.length, 2);
+    assert.equal(readFileSync(join(root, "s2", "bin", "hello"), "utf8"), "hi\n");
   });
 
   it("publishes nothing when the fill did not complete", async () => {

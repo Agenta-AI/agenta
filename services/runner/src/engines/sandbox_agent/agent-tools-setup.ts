@@ -52,6 +52,7 @@ import {
   AGENT_TOOLS_CACHE_COMPLETE,
   planToolsCache,
   type AgentToolsCache,
+  type AgentToolsCachePlan,
 } from "./agent-tools-cache.ts";
 import { shellQuote, type SandboxExec } from "./mount.ts";
 
@@ -59,6 +60,8 @@ export const AGENT_TOOLS_DIR_NAME = ".tools";
 export const AGENT_TOOLS_SETUP_NAME = "setup.sh";
 /** The restore runs before the session, so a slow script delays the first turn. Cap it. */
 export const AGENT_TOOLS_SETUP_TIMEOUT_MS = 120_000;
+/** Each cache step outside the script (the durable folder stat, the publish) gives up after this. */
+const AGENT_TOOLS_CACHE_STEP_TIMEOUT_MS = 10_000;
 /** After SIGTERM to the process group, how long before SIGKILL. */
 export const AGENT_TOOLS_KILL_GRACE_MS = 5_000;
 
@@ -161,10 +164,11 @@ export function agentToolsSetupScript(
   ];
   const source = opts.binSource ? shellQuote(opts.binSource) : `${tools}/bin`;
   const copy = `for f in ${source}/*; do [ -f "$f" ] || continue; { cp -f "$f" ${local}/bin/ && chmod +x ${local}/bin/"$(basename "$f")"; } || exit ${AGENT_TOOLS_EXIT_COPY_FAILED}; done`;
-  // A durable folder may have no `bin/`; a cache entry always has one.
+  // A durable folder may have no `bin/`; a cache entry always has one, and must still be there
+  // after the copy (an entry removed mid-copy would otherwise skip files without an error).
   lines.push(
     opts.binSource
-      ? `[ -d ${source} ] || exit ${AGENT_TOOLS_EXIT_COPY_FAILED}; ${copy}`
+      ? `[ -d ${source} ] || exit ${AGENT_TOOLS_EXIT_COPY_FAILED}; ${copy}; [ -d ${source} ] || exit ${AGENT_TOOLS_EXIT_COPY_FAILED}`
       : `if [ -d ${source} ]; then ${copy}; fi`,
   );
   if (opts.fillDir) {
@@ -269,6 +273,18 @@ export function remoteAgentToolsExec(
   };
 }
 
+/** `work`, or `fallback` once `ms` pass. The work itself keeps running; nothing waits on it. */
+function withDeadline<T>(work: Promise<T>, ms: number, fallback: T): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  return Promise.race([
+    work,
+    new Promise<T>((resolve) => {
+      timer = setTimeout(() => resolve(fallback), ms);
+      timer.unref?.();
+    }),
+  ]).finally(() => clearTimeout(timer));
+}
+
 function describeExit(exitCode: number | undefined): string | undefined {
   switch (exitCode) {
     case AGENT_TOOLS_EXIT_OCCUPIED:
@@ -309,33 +325,56 @@ export async function runAgentToolsSetup(
     // mount and here) is an `error` result like any other, never an exception out of acquire.
     if (deps.hasToolsDir && !(await deps.hasToolsDir()))
       return { status: "absent" };
-    const cachePlan = input.cache
-      ? await planToolsCache(
-          join(input.mountPath, AGENT_TOOLS_DIR_NAME),
-          input.cache,
-          log,
+    // The cache steps stat the durable folder outside the script, so each has its own deadline:
+    // a mount that stalls here means "no cache", never a restore that ignores its timeout.
+    const cachePlan: AgentToolsCachePlan = input.cache
+      ? await withDeadline(
+          planToolsCache(
+            join(input.mountPath, AGENT_TOOLS_DIR_NAME),
+            input.cache,
+            log,
+          ),
+          AGENT_TOOLS_CACHE_STEP_TIMEOUT_MS,
+          { kind: "none" },
         )
-      : { kind: "none" as const };
-    let exitCode: number | undefined;
-    try {
-      ({ exitCode } = await exec.run({
+      : { kind: "none" };
+    const run = (plan: AgentToolsCachePlan) =>
+      exec.run({
         script: agentToolsSetupScript(
           input.mountPath,
           input.cwd,
           input.localDir,
           {
             runSetup: input.runSetup,
-            ...(cachePlan.kind === "hit" ? { binSource: cachePlan.binDir } : {}),
-            ...(cachePlan.kind === "miss" ? { fillDir: cachePlan.fillDir } : {}),
+            ...(plan.kind === "hit" ? { binSource: plan.binDir } : {}),
+            ...(plan.kind === "miss" ? { fillDir: plan.fillDir } : {}),
           },
         ),
         cwd: input.cwd,
         env: agentToolsSetupEnv(input.mountPath, input.localDir, deps.hostEnv),
         timeoutMs: deps.timeoutMs ?? AGENT_TOOLS_SETUP_TIMEOUT_MS,
         signal: deps.signal,
-      }));
+      });
+    let exitCode: number | undefined;
+    try {
+      ({ exitCode } = await run(cachePlan));
     } finally {
-      if (cachePlan.kind === "miss") await cachePlan.commit();
+      if (cachePlan.kind === "miss" && !deps.signal?.aborted)
+        await withDeadline(
+          cachePlan.commit(),
+          AGENT_TOOLS_CACHE_STEP_TIMEOUT_MS,
+          undefined,
+        );
+    }
+    // A cache entry removed while this session copied from it fails the copy before the owner's
+    // script runs, so staging again from the durable folder repeats nothing.
+    if (
+      cachePlan.kind === "hit" &&
+      exitCode === AGENT_TOOLS_EXIT_COPY_FAILED &&
+      !deps.signal?.aborted
+    ) {
+      log(`agent tools bin cache entry went away; staging from agent-files`);
+      ({ exitCode } = await run({ kind: "none" }));
     }
     const durationMs = Date.now() - started;
     if (exitCode === 0) {

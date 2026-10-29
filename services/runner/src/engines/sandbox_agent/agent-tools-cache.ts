@@ -46,7 +46,7 @@ import { join } from "node:path";
 /** An entry (or a leftover temp dir) unused for this long is removed when another is published. */
 export const AGENT_TOOLS_CACHE_ENTRY_GRACE_MS = 30 * 60 * 1000;
 /** An agent dir unused for this long is removed when another agent publishes an entry. */
-export const AGENT_TOOLS_CACHE_MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000;
+const AGENT_TOOLS_CACHE_MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000;
 /** The file the restore script writes into a temp dir once the fill is complete. */
 export const AGENT_TOOLS_CACHE_COMPLETE = "complete";
 
@@ -77,7 +77,7 @@ export function agentToolsCacheFor(
  * Stat-only fingerprint of a durable `bin/`: the regular files the restore loop would copy (the
  * shell glob `bin/*` skips dot files), by name, size and mtime. Undefined when `bin/` is absent.
  */
-export async function fingerprintToolsBin(
+async function fingerprintToolsBin(
   binDir: string,
 ): Promise<string | undefined> {
   let names: string[];
@@ -132,7 +132,7 @@ async function removeUnused(
  * Remove the agent's other entries and temp dirs nobody used within the grace, and other agents'
  * dirs nobody used for `AGENT_TOOLS_CACHE_MAX_AGE_MS`.
  */
-export async function pruneAgentToolsCache(
+async function pruneAgentToolsCache(
   cache: AgentToolsCache,
   keep: string,
   now: number = Date.now(),
