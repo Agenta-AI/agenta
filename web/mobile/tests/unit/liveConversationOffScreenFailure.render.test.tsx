@@ -76,6 +76,7 @@ vi.mock("@agenta/chat/hooks", () => ({
         }
     },
     useAgentModelKeyStatus: () => ({gateActive: false, loading: false}),
+    useAgentModelSetup: () => ({blocked: false, requirement: null, canFix: false}),
     useElicitationDock: () => ({
         open: false,
         settlingIds: new Set(),
@@ -245,6 +246,8 @@ vi.mock("@/features/chat/states/PendingTaskError", () => ({
     ),
 }))
 vi.mock("@/features/chat/ConnectModelStrip", () => ({ConnectModelStrip: () => null}))
+vi.mock("@/features/chat/ModelSetupStrip", () => ({ModelSetupStrip: () => null}))
+vi.mock("@/features/chat/setupFailureRefresh", () => ({refreshOnSetupFailure: () => undefined}))
 vi.mock("@/features/chat/Composer", () => ({
     Composer: ({disabled}: {disabled: boolean}) => (
         <div data-testid="composer" data-disabled={disabled ? "true" : "false"} />

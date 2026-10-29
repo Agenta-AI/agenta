@@ -151,6 +151,8 @@ export function readableEventKey(eventKey: string): string {
     return sentence.charAt(0).toUpperCase() + sentence.slice(1)
 }
 
+export const SKIPPED_NEEDS_SETUP_LABEL = "Skipped: agent needs setup"
+
 /** Dot colour, from `deliveryOutcome` — never `status.type`, which the backend never sets. */
 export function runDotClass(delivery: TriggerDelivery): string {
     switch (deliveryOutcome(delivery)) {
@@ -158,6 +160,8 @@ export function runDotClass(delivery: TriggerDelivery): string {
             return "bg-success"
         case "bad":
             return "bg-destructive"
+        case "skipped":
+            return "bg-colorWarning"
         default:
             return "bg-muted-foreground/50"
     }
@@ -170,6 +174,9 @@ export function runOutcomeLabel(delivery: TriggerDelivery): string {
             return "Succeeded"
         case "bad":
             return "Failed"
+        // The dispatcher skips a fire only when the agent's model needs setup.
+        case "skipped":
+            return SKIPPED_NEEDS_SETUP_LABEL
         default:
             // "Running", not "Pending": a delivery that is neither succeeded nor failed has
             // been handed to the runner, which has it in flight rather than queued.

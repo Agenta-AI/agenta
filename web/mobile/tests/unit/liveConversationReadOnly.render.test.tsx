@@ -70,6 +70,7 @@ vi.mock("@agenta/chat/hooks", () => ({
         retryHistory: vi.fn(),
     }),
     useAgentModelKeyStatus: () => ({gateActive: false, loading: false}),
+    useAgentModelSetup: () => ({blocked: false, requirement: null, canFix: false}),
     // The docks open only when the screen enables them, as the real hooks do.
     useElicitationDock: ({enabled}: {enabled: boolean}) => ({
         open: enabled,
@@ -244,6 +245,7 @@ vi.mock("@/features/chat/states/PendingTaskError", () => ({
     ),
 }))
 vi.mock("@/features/chat/ConnectModelStrip", () => ({ConnectModelStrip: () => null}))
+vi.mock("@/features/chat/ModelSetupStrip", () => ({ModelSetupStrip: () => null}))
 vi.mock("@/features/chat/Composer", () => ({
     Composer: ({disabled}: {disabled: boolean}) => (
         <div data-testid="composer" data-disabled={disabled ? "true" : "false"} />

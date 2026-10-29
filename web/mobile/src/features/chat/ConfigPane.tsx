@@ -13,6 +13,7 @@ import {Sidebar} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
 import {DrillInBridgeProvider} from "./DrillInBridgeProvider"
+import {ModelSetupNotice} from "./ModelSetupNotice"
 
 /**
  * Build's left pane: the SHARED config panel under the SHARED "Configuration" header, with the
@@ -53,6 +54,7 @@ export const ConfigPane = ({
                 <AgentBuildPanel
                     revisionId={entityId}
                     stickyHeaderTop={48}
+                    banner={<ModelSetupNotice revisionId={entityId} />}
                     storage={
                         <StorageSection
                             revisionId={entityId}
