@@ -248,13 +248,13 @@ export const BehaviorSaveFails: Story = {
     },
 }
 
-/** Only two Telegram accounts may talk to the bot. */
-export const AllowedUsers: Story = {
+/** The agent answers only two Telegram accounts. */
+export const Audience: Story = {
     render: () => (
         <ManageHost
             connection={telegramHere}
             options={{
-                allowedUsers: {
+                audience: {
                     "cx-telegram": [
                         {id: "123456789", name: null, email: null},
                         {id: "987654321", name: null, email: null},

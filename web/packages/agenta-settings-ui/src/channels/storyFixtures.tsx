@@ -317,7 +317,7 @@ export interface ChannelStoryActionsOptions {
     /** The switches each connection starts with, keyed by connection id. Default: both on. */
     behavior?: Record<string, ChannelBehaviorState>
     /** The people each agent answers, keyed by connection id. Default: everyone. */
-    allowedUsers?: Record<string, ChannelAudiencePerson[]>
+    audience?: Record<string, ChannelAudiencePerson[]>
     /** What the people picker finds, keyed by connection id. */
     people?: Record<string, ChannelPerson[]>
     /** The channel tool settings, keyed by connection id. Default: the defaults. */
@@ -327,7 +327,7 @@ export interface ChannelStoryActionsOptions {
     discoverError?: string
     addSpaceError?: string
     behaviorError?: string
-    allowedUsersError?: string
+    audienceError?: string
     credentialsError?: string
     /** Called with the fixture after every change, so a host component can re-render. */
     onChange?: (connections: ChannelConnections) => void
@@ -361,7 +361,7 @@ export const createChannelStoryActions = (
         discoverError,
         addSpaceError,
         behaviorError,
-        allowedUsersError,
+        audienceError,
         credentialsError,
         toolSettingsError,
         onChange,
@@ -375,7 +375,7 @@ export const createChannelStoryActions = (
         ...options.candidates,
     }
     const behavior: Record<string, ChannelBehaviorState> = {...options.behavior}
-    const allowedUsers: Record<string, ChannelAudiencePerson[]> = {...options.allowedUsers}
+    const audience: Record<string, ChannelAudiencePerson[]> = {...options.audience}
     const people: Record<string, ChannelPerson[]> = {...options.people}
     const toolSettings: Record<string, ChannelToolSettings> = {...options.toolSettings}
     let nextSpaceId = 0
@@ -504,12 +504,12 @@ export const createChannelStoryActions = (
         },
         readAudience: async (connectionId) => {
             await delay(latencyMs)
-            return allowedUsers[connectionId] ?? []
+            return audience[connectionId] ?? []
         },
         writeAudience: async (connectionId, next) => {
             await delay(latencyMs)
-            if (allowedUsersError) throw new Error(allowedUsersError)
-            allowedUsers[connectionId] = next
+            if (audienceError) throw new Error(audienceError)
+            audience[connectionId] = next
         },
         queryPeople: async (connectionId, text) => {
             await delay(latencyMs)
