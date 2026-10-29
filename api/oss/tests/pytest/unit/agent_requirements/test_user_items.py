@@ -22,6 +22,11 @@ from .test_agent_requirements_service import (
 
 pytestmark = pytest.mark.asyncio
 
+
+@pytest.fixture(autouse=True)
+def _personal_accounts_on(monkeypatch):
+    monkeypatch.setattr(service_module, "personal_accounts_enabled", lambda: True)
+
 GMAIL = "app_connection:user/gmail"
 LINEAR = "mcp_server:user/linear"
 TOKEN = "secret:user/GITHUB_TOKEN"
