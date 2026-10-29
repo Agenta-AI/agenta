@@ -1,0 +1,28 @@
+Background (from the session that started this one):
+From the v0.127.1 release (run notes in `~/agenta-release-01271/`). An out-of-memory investigation on the GKE oss stage (local sandbox; agent processes run inside the runner pod) found that PID 1 in the runner container is `tsx`, which does not reap exited processes, so `[pi] <defunct>` zombies stay in the pod. They use no memory. Evidence: `~/agenta-release-01271/qa/oom/REPORT.md` and `LOG.md`. Mahmoud commented on the release console: "good idea, create session to discuss before implementing". The repo uses GitButler in `~/code/agenta`; work in this session's own worktree and do not commit until he decides.
+
+Task:
+Discuss with Mahmoud, before implementing anything, whether and how to run the Agenta runner (`services/runner`) under an init process such as `tini`, so that exited child processes (`pi`, `pi-acp`, `sandbox-agent`, geesefs, `npm view`) are reaped instead of staying as zombie (`<defunct>`) processes in the runner pod.
+
+Research first (no code changes, no PRs):
+1. How the runner container starts today: `services/runner/Dockerfile` (and other runner image Dockerfiles), entrypoint and CMD (PID 1 is `tsx` today), `hosting/docker-compose/` files, and the Helm chart for the runner. Check whether `shareProcessNamespace` or docker `--init` is used anywhere.
+2. How the runner spawns and waits for children in `services/runner/src/` (local sandbox and in-process engines), and why zombies appear.
+3. The effect today: zombies use no memory but take PIDs; pod PID limits on GKE Autopilot and in docker compose; whether SIGTERM on pod stop reaches the children cleanly.
+4. Options with cost and risk: `tini` as ENTRYPOINT; compose `init: true` plus Helm `shareProcessNamespace`; reaping in the Node process; `dumb-init`. Cover signal forwarding (graceful drain), image size, self-hosted users.
+5. Present this to Mahmoud in plain words and wait for his decision. Implement only after he agrees.
+
+Write plainly: short sentences, no jargon without explanation, no dashes. Load `~/.claude/skills/plain-writing/SKILL.md` before writing.
+
+---
+
+Yes, add tini
+
+---
+
+<task-notification>
+<task-id>bv15rnl7u</task-id>
+<tool-use-id>toolu_01DQjj8xensLUC7UcVpDVnPp</tool-use-id>
+<output-file>/tmp/claude-1000/-home-mahmoud-code-agenta--claude-worktrees-vigorous-albattani-84e9d3/4be3b9ff-ae17-4c94-bddd-3c9474e516e5/tasks/bv15rnl7u.output</output-file>
+<status>completed</status>
+<summary>Background command "Build the production runner image with tini" completed (exit code 0)</summary>
+</task-notification>
