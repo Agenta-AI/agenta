@@ -27,6 +27,7 @@ pytestmark = pytest.mark.asyncio
 def _personal_accounts_on(monkeypatch):
     monkeypatch.setattr(service_module, "personal_accounts_enabled", lambda: True)
 
+
 GMAIL = "app_connection:user/gmail"
 LINEAR = "mcp_server:user/linear"
 TOKEN = "secret:user/GITHUB_TOKEN"
