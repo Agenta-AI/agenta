@@ -8,7 +8,10 @@ export const deriveMobileRemoteTurnPresentation = deriveRemoteTurnPresentation
 export const showTrailingWorkingPulse = (streaming: boolean, turns: {isUser: boolean}[]): boolean =>
     streaming && (turns.length === 0 || turns[turns.length - 1].isUser)
 
-type RunTurn = {isUser: boolean; message: {id: string; metadata?: unknown}}
+interface RunTurn {
+    isUser: boolean
+    message: {id: string; metadata?: unknown}
+}
 
 /** The user message that opened the run of the turn at `index` (the placeholder is index = length). */
 const openingUserTurn = (turns: RunTurn[], index: number): RunTurn | undefined => {

@@ -87,6 +87,7 @@ import {
 import {createUserStoppedState, reduceUserStoppedState} from "../model/userStop"
 import {expandedKeysForMessages, pruneExpandedAtom} from "../state/expandState"
 import {stampMessagesCreatedAtAtom} from "../state/messageStamps"
+import {clearPendingSendEchoes} from "../state/pendingSendEchoStore"
 import {
     dropSessionChat,
     hasSessionChat,
@@ -110,7 +111,6 @@ import {
     setSessionStatusAtom,
     holdSessionStatusAtom,
 } from "../state/sessionMessages"
-import {clearPendingSendEchoes} from "../state/pendingSendEchoStore"
 import {clearTurnClockAtom, startTurnClockAtom} from "../state/turnClock"
 
 import {useAgentChatQueue, type QueuedMessage} from "./useAgentChatQueue"
