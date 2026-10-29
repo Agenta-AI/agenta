@@ -566,8 +566,8 @@ you want the agent to receive.
 On a provider event:
 
 - `event.event_type` — the provider trigger slug.
-- `event.attributes` — the provider's event payload (the GitHub issue, the Slack message). This
-  is the part you map into the run.
+- `event.attributes` — the provider's event payload (the GitHub issue, the Slack message). The
+  platform adds it to the message; map one field only to put it inside your instruction.
 
 ## The canonical pattern
 
@@ -583,8 +583,7 @@ A schedule that runs a fixed job every fire:
 
 Your agent reads only `messages`; any other input key never reaches it. On a subscription, the
 platform adds the event to the last user message by default: a header with `event.event_type`,
-then the JSON of `event.attributes`. This is the subscription's `include_event` option (default
-`true`). Set `"include_event": false` in `data` to send the instruction alone.
+then the JSON of `event.attributes`.
 
 A subscription with a fixed instruction (the event is added after it):
 

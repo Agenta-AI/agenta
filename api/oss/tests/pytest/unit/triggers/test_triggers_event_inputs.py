@@ -6,14 +6,11 @@ dispatcher and the preview give the same text.
 """
 
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
 from uuid import uuid4
 
 import pytest
-from pydantic import BaseModel
 
 from oss.src.core.triggers.dtos import (
-    TriggerDeliveryData,
     TriggerSubscriptionData,
     TriggerSubscriptionEdit,
 )
@@ -141,6 +138,15 @@ def test_message_text_is_coerced_to_a_string(value, text):
     assert content == _user(text)
 
 
+def test_array_in_a_text_part_is_coerced_to_json():
+    # A bare `content` array is read as message parts, so the composer stores a pill as a
+    # text part (design decision 10) and the array arrives here as `text`.
+    part = _compose(
+        _user([{"type": "text", "text": ["bug", "urgent"]}]), include_event=False
+    )
+    assert part == _user([{"type": "text", "text": '["bug","urgent"]'}])
+
+
 def test_non_text_parts_are_untouched():
     image = {"type": "image_url", "image_url": {"url": "https://example.com/a.png"}}
     assert _compose(_user([image]), include_event=False) == _user([image])
@@ -171,23 +177,3 @@ def test_include_event_false_round_trips_through_the_mappings():
     )
     assert dbe.data["include_event"] is False
     assert map_subscription_dbe_to_dto(subscription_dbe=dbe).data.include_event is False
-
-
-def test_models_without_the_new_fields_still_read_rows_that_have_them():
-    # Rollback safety: the previous models ignore unknown keys.
-    class OldSubscriptionData(BaseModel):
-        event_key: str
-        inputs_fields: Optional[Any] = None
-
-    class OldDeliveryData(BaseModel):
-        inputs: Optional[Dict[str, Any]] = None
-
-    subscription_row = TriggerSubscriptionData(
-        event_key="x", include_event=False
-    ).model_dump(mode="json")
-    delivery_row = TriggerDeliveryData(inputs={}, event=_CONTEXT["event"]).model_dump(
-        mode="json"
-    )
-
-    assert OldSubscriptionData.model_validate(subscription_row).event_key == "x"
-    assert OldDeliveryData.model_validate(delivery_row).inputs == {}

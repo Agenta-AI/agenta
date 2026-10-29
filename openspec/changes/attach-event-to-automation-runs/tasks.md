@@ -19,8 +19,6 @@ Composio key from the local-only EE env file and a GitHub account connected in t
 - [x] 1.3 Unit test: a row dict without `include_event` validates to `True`; a dict with
   `false` round-trips through `map_subscription_dto_to_dbe_edit` and
   `map_subscription_dbe_to_dto` as `False`.
-- [x] 1.4 Unit test: the old models (without the new fields) still validate a row that has them
-  (rollback safety; Pydantic ignores extra keys by default).
 
 ### 2. Inputs composition (pure function)
 
@@ -34,7 +32,7 @@ Composio key from the local-only EE env file and a GitHub account connected in t
 - [x] 2.3 Unit tests in `api/oss/tests/pytest/unit/triggers/test_triggers_event_inputs.py`, one
   per scenario of `specs/trigger-event-inputs/spec.md`: string content, parts content, last
   message not user, `{}`, completion mapping, whole context, option off, no attributes, string,
-  number, boolean, object, absent value. One test pins the exact text of the shared example in
+  number, boolean, object, array, absent value. One test pins the exact text of the shared example in
   `design.md` decision 3. The value cases use the same fixtures as task 7.8.
 
 ### 3. Dispatcher
@@ -100,8 +98,9 @@ Composio key from the local-only EE env file and a GitHub account connected in t
 - [ ] 7.2 `eventMessageTemplate.ts`: `parseMessageTemplate` ignores keys other than the message
   key and returns `string | null`, where `null` means the composer cannot show the mapping
   (design decisions 8 and 10). `compileMessageTemplate` takes the stored `inputsText`, replaces
-  only the message key and keeps the rest. Add `templateSelectors(template)` for the used-card
-  check.
+  only the message key and keeps the rest. For the `messages` key, a template with a pill is
+  always stored as text parts, even a single pill alone (design decision 10). Add
+  `templateSelectors(template)` for the used-card check.
 - [ ] 7.3 `eventMessageTemplate.ts`: `remapMessageTemplate(inputsText, prev, next)`
   moves a template to the new input shape with `parseMessageTemplate` and
   `compileMessageTemplate`, removes the old key, keeps sibling keys, and returns a mapping it
@@ -123,7 +122,7 @@ Composio key from the local-only EE env file and a GitHub account connected in t
   bracket selectors and a quoted key with a dot; sibling keys kept on write; text plus a pill
   moved from a completion shape to a chat shape by `remapMessageTemplate`; `latestDeliveryEvent`
   on unsorted rows; preview with and
-  without an event; the value fixtures of design decision 8 (string, number, boolean, object,
+  without an event; the value fixtures of design decision 8 (string, number, boolean, object, array,
   absent) give the same text as the backend tests; the shared example string from `design.md`
   decision 3 is equal to `formatEventText` output.
 

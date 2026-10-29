@@ -55,7 +55,7 @@ None. No spec in `openspec/specs/` covers triggers or automations yet.
 - SDK: the reference text in `sdks/python/agenta/sdk/agents/adapters/agenta_builtins.py`.
 - Web: `@agenta/entities/gatewayTrigger` (types and pure helpers),
   `@agenta/entity-ui/gatewayTrigger` (pill composer, field cards),
-  `@agenta/automation-ui` (Instruction field, drafts, payload builders), `web/mobile` (Run now).
+  `@agenta/automation-ui` (Instruction field, drafts, request body builders), `web/mobile` (Run now).
 - Generated client: two Fern type files, regenerated from an EE spec.
 - Data: no migration. `data` is a JSON column on both tables. Old rows read the defaults.
 - Behavior change for old automations: their agents start to get the event text in the

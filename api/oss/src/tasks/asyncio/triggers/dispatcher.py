@@ -380,7 +380,7 @@ class TriggersDispatcher:
                 event_id=event_id,
                 reason="agent_deleted",
                 error=_agent_deleted_error(),
-                event=delivery_data.event,
+                recorded_event=delivery_data.event,
             )
             return
 
@@ -418,7 +418,7 @@ class TriggersDispatcher:
                         principal_kind=entity.principal.kind,
                         project_id=project_id,
                     ),
-                    event=delivery_data.event,
+                    recorded_event=delivery_data.event,
                 )
                 return
 
@@ -575,7 +575,7 @@ class TriggersDispatcher:
         event_id: str,
         reason: str,
         error: AgentError,
-        event: Optional[Dict[str, Any]] = None,
+        recorded_event: Optional[Dict[str, Any]] = None,
     ) -> None:
         """A refused delivery (status failed, `error` the message, `error_details` the
         envelope) and the trigger paused, in one DAO transaction. A repeated event
@@ -596,7 +596,7 @@ class TriggersDispatcher:
                     references=entity.data.references,
                     error=error.message,
                     error_details=error,
-                    event=event,
+                    event=recorded_event,
                 ),
             ),
             reason=reason,

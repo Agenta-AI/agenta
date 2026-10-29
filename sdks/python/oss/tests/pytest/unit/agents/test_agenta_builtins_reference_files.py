@@ -237,7 +237,9 @@ def test_config_schema_states_the_shipped_mcp_new_tool_rule():
 def test_trigger_inputs_reference_says_the_event_is_in_the_message():
     content = " ".join(_file("references/trigger-inputs.md").content.split())
     assert "Your agent reads only `messages`" in content
-    assert "`include_event` option (default `true`)" in content
+    assert "platform adds the event to the last user message by default" in content
+    # The create_subscription tool schema has no `include_event`, so the text must not ask for it.
+    assert '"include_event": false' not in content
     assert '"event": "$.event.attributes"' not in content
 
 

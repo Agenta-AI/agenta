@@ -235,14 +235,15 @@ Two limits on Run now:
   newest delivery that has `data.event`. The preview calls the same function on the rows of
   `useAutomationRuns`, so the rule lives in one place. Both entry points (the detail button and the
   list menu) do this, so neither starts a run while the deliveries are still loading, and the
-  list does not run one deliveries query per row. Labels in square brackets are used only when
+  run uses the newest event at the moment of the press, not the rows cached when the screen
+  loaded. Labels in square brackets are used only when
   the call succeeds and finds no delivery with `data.event`. When the call fails, Run now does
   not start, logs the error and stays enabled, so the user can press it again. This adds no new
   UI text.
 
 This is a contract for the selectors the cards make, not a general JSON Path engine. Both
 sides have tests with the same fixtures: the event text example of decision 3, a string, a
-number, a boolean, an object, an absent key, and a quoted key.
+number, a boolean, an object, an array, an absent key, and a quoted key.
 
 ### 9. Where the frontend code lives
 
@@ -250,6 +251,8 @@ number, a boolean, an object, an absent key, and a quoted key.
 | --- | --- | --- |
 | zod fields, schema-to-cards, labels, used-field check, preview text, event text | `@agenta/entities/gatewayTrigger/core` | Pure functions next to `eventMessageTemplate.ts`. Unit tests with vitest. |
 | `EventMessageComposer` (pill editor), `EventFieldCards` | `@agenta/entity-ui/gatewayTrigger/drawers/subscription/` | Reusable UI in the folder where the old `PillEditor.tsx` lived; it comes back from `89c2d80c39^`. `MessageComposer` stays in `drawers/schedule/`. |
+| Instruction field wiring, drafts, request body builders | `@agenta/automation-ui` | The feature that owns the automation screens. |
+| Run now | `web/mobile/src/features/automations/` | The button is a `/m` app component today. |
 
 Why a restored `PillEditor.tsx` and two new components, not a larger `MessageComposer`:
 `MessageComposer` is a plain text area. Today it serves every automation kind; after this change it serves schedules only. A pill is one unit that the cursor skips
@@ -257,8 +260,6 @@ and Backspace removes whole, which a text area cannot do. Putting pills into `Me
 would add an event mode to the schedule editor. `PillEditor.tsx` already did this job before
 `89c2d80c39`, so restoring it is less new code than writing an editor. The parent keeps the
 draft; the components only show it and report changes.
-| Instruction field wiring, drafts, payload builders | `@agenta/automation-ui` | The feature that owns the automation screens. |
-| Run now | `web/mobile/src/features/automations/` | The button is a `/m` app component today. |
 
 ### 10. Reading and writing the mapping
 
@@ -272,7 +273,11 @@ Decision: `parseMessageTemplate` reads the message and ignores other keys. It re
 no caller today, so it changes in place instead of getting a second writer next to it: it takes
 the stored `inputsText`, replaces only the message key and keeps the rest, the same rule
 `setScheduleMessage` follows (`messageInputs.ts:100-118`). One function writes a template into
-a mapping. A mapping the composer cannot show (several messages, a non-user message, a non-text
+a mapping. For the `messages` key, a template with a pill is always stored as text parts, even
+when the template is one pill alone. Today a single pill becomes a bare `content` selector. When
+that field holds an array, the resolver makes `content` the array itself, and the agent reads it
+as message parts instead of text. In a text part, the array goes through the text rule of
+decision 5 and becomes JSON, the same text the preview shows. A mapping the composer cannot show (several messages, a non-user message, a non-text
 part) keeps today's warning line and is replaced only when the user types.
 
 The Instruction field also moves the message when the agent's input shape resolves late
@@ -319,4 +324,4 @@ keeps sibling keys, and leaves a mapping it cannot show untouched. Schedules kee
 - Old deliveries have no `event`. The preview falls back to field labels for them.
 - Rollback: revert the API image. Rows written with `include_event` or `event` still read on
   the old code, because `TriggerSubscriptionData` and `TriggerDeliveryData` ignore unknown keys
-  (Pydantic default). Check this in the backend tasks.
+  (Pydantic default). No test pins this: a test would only check that Pydantic default.

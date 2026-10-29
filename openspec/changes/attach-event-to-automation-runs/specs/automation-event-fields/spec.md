@@ -83,7 +83,7 @@ The Instruction field SHALL show a checkbox labeled "Also attach the full event,
 #### Scenario: New automation
 
 - **WHEN** the user creates an event automation and does not touch the checkbox
-- **THEN** the create payload has `data.include_event` equal to `true`
+- **THEN** the create request body has `data.include_event` equal to `true`
 
 #### Scenario: Unsaved change
 
