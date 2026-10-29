@@ -1432,71 +1432,6 @@ _TEST_RUN_INPUT_SCHEMA: Dict[str, Any] = {
     "required": ["target", "inputs"],
 }
 
-_RENAME_SESSION_DESCRIPTION = """Name and describe the session you are running in, so a person scanning a long list of sessions can tell what this one is. Name the session once, as soon as you understand what it is about, which is usually after the first exchange. After that, do not rename it. Rename it again only when the person asks you to.
-
-`name` is the general subject: what this session is about, as a short label a person can scan in a list. A few words. Not the latest step, and not a sentence.
-
-`description` is the current state: a short recap of what has happened and what is open, one to one and a half sentences, short enough to read inside a table cell.
-
-If a person named the session themselves, this tool refuses and gives you their name. Adopt that name and move on. Only when the person asks you for a different name, call it again with `replacing_name` and `replacing_revision` copied from that refusal. Those spend the request on one particular state of the session, so a rename the person has since overtaken or undone cannot take effect later.
-
-This renames the session you are in and no other one. It works only inside a session."""
-
-_RENAME_SESSION_INPUT_SCHEMA: Dict[str, Any] = {
-    "type": "object",
-    "additionalProperties": False,
-    "properties": {
-        "name": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 120,
-            "pattern": r"\S",
-        },
-        "description": {
-            "type": "string",
-            "maxLength": 300,
-        },
-        "replacing_name": {
-            "type": "string",
-            "maxLength": 400,
-        },
-        "replacing_revision": {
-            "type": "integer",
-            # 0 is a real revision, not a missing one: a session whose title was filled from
-            # its first message and then kept by the person has a name nobody counted.
-            # Rejecting 0 here would make that one session impossible to rename on request.
-            "minimum": 0,
-        },
-    },
-    "required": ["name"],
-}
-
-_RENAME_AGENT_DESCRIPTION = """Name and describe yourself, so a person browsing the list of agents can tell what you are for. Rename yourself only while your name is still a placeholder such as "New agent" or "Untitled". Do it once you understand your own purpose, which is usually right after your first task. Once you have a real name, keep it. Rename yourself again only when the person asks you to.
-
-`name` is what you are for, as a short label a person can scan in a list. A few words.
-
-`description` is what you do and where you currently stand, one to one and a half sentences, short enough to read inside a table cell.
-
-This renames the agent you are running as and no other one. It changes only your name and your description, never your configuration."""
-
-_RENAME_AGENT_INPUT_SCHEMA: Dict[str, Any] = {
-    "type": "object",
-    "additionalProperties": False,
-    "properties": {
-        "name": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 120,
-            "pattern": r"\S",
-        },
-        "description": {
-            "type": "string",
-            "maxLength": 300,
-        },
-    },
-    "required": ["name"],
-}
-
 # Template validation (read): check one template zip in this session's files with the loader's own
 # source resolution and parser. The source is fixed to `session_file` and its session is bound from
 # run context, so the model names only a path in its own session and cannot read another session.
@@ -1923,33 +1858,6 @@ PLATFORM_OPS: Dict[str, PlatformOp] = {
             static_body={"source": {"kind": "session_file"}},
             context_bindings={"source.session_id": "$ctx.session.id"},
             read_only=True,
-        ),
-        PlatformOp(
-            op="rename_session",
-            description=_RENAME_SESSION_DESCRIPTION,
-            method="POST",
-            # `name_source=automatic` is fixed here, in code, and the model fills only the
-            # body, so an agent cannot claim a person chose the name. The endpoint refuses an
-            # automatic rename over a name a person controls, which is what stops a call the
-            # agent decided before the person renamed from replacing their name when it
-            # finally runs.
-            path="/api/sessions/streams/header?session_id={session_id}&name_source=automatic",
-            input_schema=_RENAME_SESSION_INPUT_SCHEMA,
-            context_bindings={"session_id": "$ctx.session.id"},
-            read_only=False,
-        ),
-        PlatformOp(
-            op="rename_agent",
-            description=_RENAME_AGENT_DESCRIPTION,
-            method="PUT",
-            path="/api/workflows/{workflow_id}",
-            input_schema=_RENAME_AGENT_INPUT_SCHEMA,
-            args_into="workflow",
-            context_bindings={
-                "workflow_id": "$ctx.workflow.artifact.id",
-                "workflow.id": "$ctx.workflow.artifact.id",
-            },
-            read_only=False,
         ),
         PlatformOp(
             op="test_run",

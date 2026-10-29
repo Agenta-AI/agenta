@@ -17,8 +17,6 @@ def test_the_build_kit_keeps_every_tool_it_has_today():
         "commit_revision",
         "test_run",
         "get_current_session",
-        "rename_session",
-        "rename_agent",
         "discover_triggers",
         "create_schedule",
         "create_subscription",
@@ -43,7 +41,8 @@ def test_the_agenta_tools_are_served_with_their_read_only_flag():
         }
     }
     assert revision.data.parameters["op_access"]["get_current_session"] == "read"
-    assert revision.data.parameters["op_access"]["rename_session"] == "write"
+    assert revision.data.parameters["op_access"]["create_schedule"] == "write"
+    assert "rename_session" not in revision.data.parameters["op_access"]
 
 
 def test_every_agenta_tool_is_also_a_build_kit_tool():

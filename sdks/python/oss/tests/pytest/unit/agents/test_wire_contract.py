@@ -616,7 +616,7 @@ async def test_default_template_carries_no_tool_entries_and_still_names_every_bu
     assert build_agent_v0_default()["tools"] == [
         {
             "type": "agenta_tools",
-            "tools": {"get_current_session": "allow", "rename_session": "allow"},
+            "tools": {"get_current_session": "allow"},
         }
     ]
 

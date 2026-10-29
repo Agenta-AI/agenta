@@ -19,6 +19,7 @@ from .test_session_context_resolution import sdk_singleton  # noqa: F401
 
 _SERVICE_DEFAULT_TEMPLATE = app._default_agent_template
 
+# The entry agents saved before the rename tools were retired.
 DEFAULT_ENTRY = {
     "type": "agenta_tools",
     "tools": {"get_current_session": "allow", "rename_session": "allow"},
@@ -97,8 +98,8 @@ def _run(backend, tools: list | None) -> set:
     return {spec.name for spec in backend.created_configs[-1].tool_specs}
 
 
-def test_an_agent_with_the_entry_gets_both_session_tools(backend):
-    assert _run(backend, [DEFAULT_ENTRY]) == {"get_current_session", "rename_session"}
+def test_an_old_entry_gets_the_session_tool_and_not_the_retired_rename(backend):
+    assert _run(backend, [DEFAULT_ENTRY]) == {"get_current_session"}
 
 
 def test_an_agent_without_the_entry_gets_neither(backend):

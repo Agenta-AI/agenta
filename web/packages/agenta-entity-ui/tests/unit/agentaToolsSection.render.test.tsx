@@ -33,7 +33,7 @@ let host: HTMLDivElement
 let root: ReturnType<typeof createRoot>
 let saved: AgentaToolsMap
 const access = {
-    rename_session: "write",
+    remove_schedule: "write",
     create_schedule: "write",
     get_current_session: "read",
     list_schedules: "read",
@@ -71,16 +71,16 @@ async function choose(select: HTMLSelectElement, value: string) {
         select.dispatchEvent(new Event("change", {bubbles: true}))
     })
 }
-const defaults: AgentaToolsMap = {get_current_session: "allow", rename_session: "allow"}
+const defaults: AgentaToolsMap = {get_current_session: "allow", remove_schedule: "allow"}
 
 describe("Agenta tools section", () => {
     it("shows every tool, the defaults on and the rest deactivated", async () => {
         await act(async () => root.render(<Harness initial={defaults} />))
         expect(host.textContent).toContain("Get the link to this chat")
-        expect(host.textContent).toContain("Rename this chat")
+        expect(host.textContent).toContain("Remove a schedule")
         expect(host.textContent).toContain("wherever it runs")
         expect(row("get_current_session").value).toBe("allow")
-        expect(row("rename_session").value).toBe("allow")
+        expect(row("remove_schedule").value).toBe("allow")
         expect(row("create_schedule").value).toBe("deny")
         expect(row("list_schedules").value).toBe("deny")
         expect(preset().value).toBe("custom")
@@ -95,16 +95,16 @@ describe("Agenta tools section", () => {
         await act(async () => root.render(<Harness initial={defaults} />))
         await choose(row("create_schedule"), "ask")
         expect(saved).toEqual({...defaults, create_schedule: "ask"})
-        await choose(row("rename_session"), "deny")
+        await choose(row("remove_schedule"), "deny")
         expect(saved).toEqual({get_current_session: "allow", create_schedule: "ask"})
-        expect(row("rename_session").value).toBe("deny")
+        expect(row("remove_schedule").value).toBe("deny")
     })
 
     it("applies the presets, and Deactivate leaves an empty map", async () => {
         await act(async () => root.render(<Harness initial={defaults} />))
         await choose(preset(), "ask_writes")
         expect(saved).toEqual({
-            rename_session: "ask",
+            remove_schedule: "ask",
             create_schedule: "ask",
             get_current_session: "allow",
             list_schedules: "allow",
@@ -120,8 +120,6 @@ describe("Agenta tools section", () => {
     it("names every Agenta tool with its own copy", async () => {
         const ops = [
             "get_current_session",
-            "rename_session",
-            "rename_agent",
             "create_schedule",
             "create_subscription",
             "remove_schedule",
