@@ -21,7 +21,7 @@ Read [`specs-wp20.md`](specs-wp20.md) first. Branch from WP17 (`feat/gateways-wp
 - [ ] Add the path (both `/gateways/...` and `/api/gateways/...` forms) to
       `middlewares/auth.py`'s `_PUBLIC_ENDPOINTS`.
 - [ ] Unit: `TestClient` against a bare app carrying only this router — serves the
-      document, no `client_id` field inside it, `redirect_uris` matches
+      document, `client_id` equals the document URL, `redirect_uris` matches
       `callback_redirect_uri()`.
 - [ ] Commit: "gateways(mcp): serve the oauth client identity document".
 
