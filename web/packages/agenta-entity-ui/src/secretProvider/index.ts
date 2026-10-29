@@ -26,6 +26,7 @@ export {
     default as ProviderConnectionCard,
     type ProviderCardSaveState,
     type ProviderConnectionCardProps,
+    type ProviderOwnerChoice,
 } from "./ProviderConnectionCard"
 export {default as ActiveModelsSection, type ActiveModelsSectionProps} from "./ActiveModelsSection"
 export {

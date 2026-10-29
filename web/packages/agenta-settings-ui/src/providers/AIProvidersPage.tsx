@@ -1,4 +1,4 @@
-import {type ReactNode, useMemo, useState} from "react"
+import {type ReactNode, useCallback, useMemo} from "react"
 
 import {
     activeModelsSummary,
@@ -11,12 +11,19 @@ import {
     type ProviderConnection,
 } from "@agenta/entities/secret"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
-import {type OrganizationProjectChoice} from "@agenta/entity-ui/secretProvider"
-import {Tabs, TabsContent, TabsList, TabsTrigger} from "@agenta/ui/ui"
+import {
+    type OrganizationProjectChoice,
+    type ProviderOwnerChoice,
+} from "@agenta/entity-ui/secretProvider"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {OrganizationProvidersPanel} from "./OrganizationProvidersPanel"
-import {ProvidersPanel, type ProviderRemovalState, type ProvidersSource} from "./ProvidersPanel"
+import {
+    ProvidersPanel,
+    type ProviderRemovalState,
+    type ProvidersGroup,
+    type ProvidersSource,
+} from "./ProvidersPanel"
+import {useOrganizationProvidersGroup} from "./useOrganizationProvidersGroup"
 
 export type {ProviderRemovalState}
 
@@ -25,11 +32,14 @@ const HARNESS_CATALOG_KEY = "agenta:settings:ai-providers"
 
 export const SUBSCRIPTION_DOCS_URL = "https://docs.agenta.ai/self-host/quick-start"
 
-/** What the Project and Organization tabs need from the host. */
+/** The deployment kinds the LLM gateway does not serve, so they cannot belong to the organization. */
+const NOT_SHAREABLE_KINDS = new Set(["bedrock"])
+
+/** What the organization's group and the drawer's "Who can use it" need from the host. */
 export interface AIProvidersOrganization {
-    /** The current project's name, for "Project · {project}". */
+    /** The current project's name, for "Everyone in {project}". */
     projectName: string
-    /** The organization's name, for "Organization · {org}" and the drawer's copy. */
+    /** The organization's name, for "{org} organization" and the drawer's copy. */
     name: string
     /** `choose` (EE with RBAC), `plan` (EE without it), `all` (OSS). */
     projectChoice: OrganizationProjectChoice
@@ -42,49 +52,20 @@ export interface AIProvidersPageProps {
     renderRemoveDialog?: (state: ProviderRemovalState) => ReactNode
     /** Where "configured in the deployment" points. */
     subscriptionDocsUrl?: string
-    /** Turns on the Project and Organization tabs. Absent keeps the project page alone. */
+    /** Adds the organization's group. Absent keeps the project's connections alone. */
     organization?: AIProvidersOrganization
+    /** The project group's heading: the project switch. Absent, it reads "Connected". */
+    projectSwitch?: ReactNode
 }
 
-/** Settings → AI providers, with one tab per owner when the host names the organization. */
-export const AIProvidersPage = ({organization, ...props}: AIProvidersPageProps) => {
-    const [tab, setTab] = useState<"project" | "organization">("project")
-    if (!organization) return <ProjectProvidersPanel {...props} />
-    return (
-        <Tabs value={tab} onValueChange={(next) => setTab(next as typeof tab)}>
-            <TabsList variant="line" className="mb-5">
-                <TabsTrigger value="project">Project · {organization.projectName}</TabsTrigger>
-                <TabsTrigger value="organization">Organization · {organization.name}</TabsTrigger>
-            </TabsList>
-            <TabsContent value="project">
-                <ProjectProvidersPanel {...props} />
-            </TabsContent>
-            <TabsContent value="organization">
-                <OrganizationProvidersPanel
-                    scope={{
-                        name: organization.name,
-                        projectChoice: organization.projectChoice,
-                        plansHref: organization.plansHref,
-                    }}
-                    renderRemoveDialog={props.renderRemoveDialog}
-                    subscriptionDocsUrl={props.subscriptionDocsUrl ?? SUBSCRIPTION_DOCS_URL}
-                />
-            </TabsContent>
-        </Tabs>
-    )
-}
-
-/** The project's own AI providers: one row per connection, and every provider stays connectable. */
-const ProjectProvidersPanel = ({
-    renderRemoveDialog,
-    subscriptionDocsUrl = SUBSCRIPTION_DOCS_URL,
-}: Omit<AIProvidersPageProps, "organization">) => {
+/** The project's own connections: one row per connection, every provider stays connectable. */
+const useProjectProvidersSource = (): ProvidersSource & {all: ProviderConnection[]} => {
     const {loading, mutate} = useVaultSecret()
     const connections = useAtomValue(providerConnectionsAtom)
     const capabilities = useAtomValue(harnessCapabilitiesAtomFamily(HARNESS_CATALOG_KEY))
     const deleteSecret = useSetAtom(deleteSecretAtom)
 
-    const source = useMemo<ProvidersSource>(() => {
+    return useMemo(() => {
         // Manager-only rows 409 on edit; the drawer still gets every connection so none look
         // keyless.
         const rows = connections.filter(
@@ -93,6 +74,7 @@ const ProjectProvidersPanel = ({
                 !isSubscriptionConnection(connection),
         )
         return {
+            all: connections,
             connections,
             rows,
             loading: loading && rows.length === 0,
@@ -111,15 +93,59 @@ const ProjectProvidersPanel = ({
             },
             removeFailed: (_failure: unknown, connection: ProviderConnection) =>
                 `Agenta could not remove ${connection.name}. Try again.`,
-            catalog: {},
-            subscriptions: connections,
             onSaved: mutate,
         }
     }, [connections, loading, capabilities, deleteSecret, mutate])
+}
+
+/**
+ * Settings → AI providers: the subscription cards, the project's connections under the project
+ * switch, the organization's connections, then the catalog. A new connection belongs to the
+ * project; someone who may manage the organization's connections chooses in the drawer.
+ */
+export const AIProvidersPage = ({
+    renderRemoveDialog,
+    subscriptionDocsUrl = SUBSCRIPTION_DOCS_URL,
+    organization,
+    projectSwitch,
+}: AIProvidersPageProps) => {
+    const project = useProjectProvidersSource()
+    const scope = useMemo(
+        () =>
+            organization
+                ? {
+                      name: organization.name,
+                      projectChoice: organization.projectChoice,
+                      plansHref: organization.plansHref,
+                  }
+                : null,
+        [organization],
+    )
+    const {group: organizationGroup, manageScope} = useOrganizationProvidersGroup(scope)
+
+    const groups = useMemo<ProvidersGroup[]>(
+        () => [
+            {key: "project", label: projectSwitch ?? "Connected", source: project},
+            ...(organizationGroup ? [organizationGroup] : []),
+        ],
+        [projectSwitch, project, organizationGroup],
+    )
+
+    const ownerChoiceFor = useCallback(
+        (kind: string): ProviderOwnerChoice | undefined =>
+            organization && manageScope && !NOT_SHAREABLE_KINDS.has(kind)
+                ? {projectName: organization.projectName, organization: manageScope}
+                : undefined,
+        [organization, manageScope],
+    )
 
     return (
         <ProvidersPanel
-            source={source}
+            groups={groups}
+            catalog={{}}
+            subscriptions={project.all}
+            ownerChoiceFor={ownerChoiceFor}
+            loading={project.loading}
             renderRemoveDialog={renderRemoveDialog}
             subscriptionDocsUrl={subscriptionDocsUrl}
         />
