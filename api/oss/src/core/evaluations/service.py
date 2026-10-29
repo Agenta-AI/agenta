@@ -3337,14 +3337,11 @@ class SimpleEvaluationsService:
         )
         if not run or not run.data:
             return None
-        if not steps:
-            return run
 
+        # A save that adds nothing still writes the editor as the principal.
         existing = list(run.data.steps or [])
         existing_keys = {step.key for step in existing}
         fresh = [step for step in steps if step.key not in existing_keys]
-        if not fresh:
-            return run
 
         new_data = run.data.model_copy(update={"steps": existing + fresh})
         return await self._edit_run_data(
@@ -3377,13 +3374,10 @@ class SimpleEvaluationsService:
         )
         if not run or not run.data:
             return None
-        if not step_keys:
-            return run
 
+        # A save that removes nothing still writes the editor as the principal.
         drop = set(step_keys)
         kept = [step for step in (run.data.steps or []) if step.key not in drop]
-        if len(kept) == len(run.data.steps or []):
-            return run
 
         new_data = run.data.model_copy(update={"steps": kept})
         return await self._edit_run_data(

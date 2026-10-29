@@ -15,6 +15,7 @@ from oss.src.core.access.principals import (
     missing_principal_error,
 )
 from oss.src.core.access.types import AccessDenied, MissingPrincipal
+from oss.src.core.tools.dtos import AgentError
 from oss.src.utils.exceptions import intercept_exceptions
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.caching import get_cache, set_cache
@@ -138,8 +139,6 @@ def _editor_principal(request: Request) -> PrincipalRef:
 
     principal = _request_principal(request)
     if principal.kind == PrincipalKind.INSTALLATION:
-        from oss.src.core.tools.dtos import AgentError  # noqa: PLC0415 (import cycle)
-
         raise HTTPException(
             status_code=403,
             detail=AgentError(
@@ -169,7 +168,7 @@ def _resume_refused(refusal, *, project_id) -> HTTPException:
     return HTTPException(
         status_code=409,
         detail=missing_principal_error(
-            next_step="Create the trigger again."
+            next_step="Save the trigger again, then start it."
         ).model_dump(exclude_none=True),
     )
 

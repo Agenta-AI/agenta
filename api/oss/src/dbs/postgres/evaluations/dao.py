@@ -95,6 +95,10 @@ def _set_run_principal(run_dbe, *, principal: PrincipalRef, user_id: UUID) -> No
     run_dbe.principal_kind = principal.kind.value
     run_dbe.principal_id = principal.id
     run_dbe.principal_user_id = user_id
+    # The edit reads the row without a lock. Always write the three columns, so a
+    # concurrent save cannot leave this save's configuration with another principal.
+    for column in ("principal_kind", "principal_id", "principal_user_id"):
+        flag_modified(run_dbe, column)
 
 
 class EvaluationsDAO(EvaluationsDAOInterface):
