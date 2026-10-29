@@ -1378,6 +1378,12 @@ async function acquireEnvironmentOnce(
     if (isSubscriptionCodexRun(plan))
       await symlinkCodexSubscriptionAuthFile(plan, logger);
 
+    // Every drive above was mounted by this acquire, seconds ago, so the first turn skips the
+    // refresh of their views (see `refreshDriveViewsAtTurnStart`). A Daytona mount always detaches
+    // and mounts again. A local mount is reused only when an earlier environment failed to unmount
+    // it. With no mount, the refresh has nothing to do anyway. A mid-run remount never sets this.
+    environment.driveViewsFresh = true;
+
     // Pi native transcripts belong to the conversation workspace, not the temporary agent
     // directory that holds credentials, settings, extensions, skills, and system prompts.
     // The cwd mount is already active here on local and Daytona before Pi starts.
