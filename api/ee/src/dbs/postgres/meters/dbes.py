@@ -36,7 +36,7 @@ class MeterDBE(Base, MeterDBA):
         ),
         # Org-rollup scan path used by /billing/usage (filter on org only) and
         # entitlements soft-check fallback (filter on the full prefix).
-        # Finer scope dimensions (workspace/project/user) are sparse and always
+        # Finer scope dimensions (project/user) are sparse and always
         # filtered alongside `organization_id`, so PG handles them in-memory
         # against the rows this index narrows down.
         Index(

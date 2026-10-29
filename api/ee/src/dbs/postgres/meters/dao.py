@@ -336,9 +336,6 @@ class MetersDAO(MetersDAOInterface):
                 )
             ):
                 stmt = stmt.filter_by(organization_id=scope.organization_id)
-                # A row with a workspace is legacy (a step-1 pod wrote it during the
-                # rollout): never the current row; the next fold merges it.
-                stmt = stmt.filter(MeterDBE.workspace_id.is_(None))
                 stmt = stmt.filter_by(project_id=scope.project_id)
                 stmt = stmt.filter_by(user_id=scope.user_id)
 

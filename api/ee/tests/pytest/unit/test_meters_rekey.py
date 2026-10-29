@@ -228,7 +228,8 @@ def _sql(statement) -> str:
     ).lower()
 
 
-async def test_fetch_ignores_a_row_with_a_workspace():
+async def test_fetch_names_no_workspace_column():
+    # Step 2b: ee0000000008 folded every row with a workspace; reads name none.
     session = _Session()
     dao = MetersDAO(engine=_Engine(session))
     await dao.fetch(
@@ -236,7 +237,7 @@ async def test_fetch_ignores_a_row_with_a_workspace():
         key=Meters.TRACES_RETRIEVED,
         period=DAY,
     )
-    assert "meters.workspace_id is null" in _sql(session.statements[0])
+    assert "workspace_id" not in _sql(session.statements[0])
 
 
 def _row(**overrides):

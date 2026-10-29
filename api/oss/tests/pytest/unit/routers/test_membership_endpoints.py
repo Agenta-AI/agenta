@@ -61,7 +61,9 @@ async def test_member_writes_refuse_a_key_outside_the_default_project(
 
     monkeypatch.setattr(workspace_router, "check_action_access", _Recorder(True))
     monkeypatch.setattr(
-        workspace_router, "get_project_by_workspace", _get_project_by_workspace
+        workspace_router.db_manager,
+        "get_project_by_workspace",
+        _get_project_by_workspace,
     )
     monkeypatch.setattr(workspace_router, "is_ee", lambda: False)
 
@@ -85,7 +87,9 @@ async def test_remove_user_by_a_non_admin_answers_403(monkeypatch, project):
 
     monkeypatch.setattr(workspace_router, "check_action_access", access)
     monkeypatch.setattr(
-        workspace_router, "get_project_by_workspace", _get_project_by_workspace
+        workspace_router.db_manager,
+        "get_project_by_workspace",
+        _get_project_by_workspace,
     )
     monkeypatch.setattr(workspace_router, "is_ee", lambda: False)
 
@@ -146,7 +150,9 @@ def wired(monkeypatch, project):
             return target if email == target.email else None
 
         monkeypatch.setattr(
-            workspace_router, "get_project_by_workspace", _get_project_by_workspace
+            workspace_router.db_manager,
+            "get_project_by_workspace",
+            _get_project_by_workspace,
         )
         monkeypatch.setattr(
             workspace_router.db_manager, "get_user_with_email", _get_user_with_email
@@ -442,9 +448,6 @@ def invitation(monkeypatch):
     async def _project(project_id):
         return project
 
-    async def _workspace(workspace_id):
-        return SimpleNamespace(id=project.workspace_id)
-
     async def _update(invitation_id, values_to_update):
         updates.append(values_to_update)
 
@@ -457,14 +460,6 @@ def invitation(monkeypatch):
         db, "get_project_invitation_by_organization_token_and_email", _invite
     )
     monkeypatch.setattr(db, "get_project_by_id", _project)
-
-    async def _scoped(*, project_id):
-        return db.ProjectWithWorkspaceOrganization(
-            project=project, workspace_organization_id=project.organization_id
-        )
-
-    monkeypatch.setattr(db, "fetch_project_with_workspace_organization", _scoped)
-    monkeypatch.setattr(db, "get_workspace", _workspace)
     monkeypatch.setattr(db, "update_invitation", _update)
     monkeypatch.setattr(organization_service, "notify_org_admin_invitation", _notify)
     return SimpleNamespace(user=user, project=project, updates=updates)

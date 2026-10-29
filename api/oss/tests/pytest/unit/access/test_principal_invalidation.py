@@ -460,7 +460,6 @@ async def test_invalidation_failure_does_not_fail_the_writer(monkeypatch):
     "method, kwargs, getter",
     [
         ("delete_organization", "organization_id", "_db_get_org_by_id"),
-        ("delete_workspace", "workspace_id", "_db_get_workspace_by_id"),
         ("delete_project", "project_id", "_db_get_project_by_id"),
     ],
 )
@@ -480,7 +479,6 @@ async def test_admin_scope_deletion_invalidates_its_projects(
 
     deleter = {
         "delete_organization": "_db_delete_organization",
-        "delete_workspace": "_db_delete_workspace",
         "delete_project": "_db_delete_project",
     }[method]
 
@@ -508,6 +506,32 @@ async def test_admin_scope_deletion_invalidates_its_projects(
         "delete",
         ("invalidate_scope", scope),
     ]
+
+
+@pytest.mark.parametrize("is_organization", [True, False])
+async def test_admin_workspace_deletion_deletes_nothing(is_organization, monkeypatch):
+    # Workspaces were removed: an organization id is refused, any other id is unknown;
+    # neither reads nor invalidates a scope.
+    read_scope = AsyncMock()
+    monkeypatch.setattr(
+        accounts_module,
+        "_db_get_org_by_id",
+        AsyncMock(return_value=SimpleNamespace() if is_organization else None),
+    )
+    monkeypatch.setattr(
+        accounts_module, "read_scope_principals_before_delete", read_scope
+    )
+    service = accounts_module.PlatformAdminAccountsService.__new__(
+        accounts_module.PlatformAdminAccountsService
+    )
+    expected = (
+        accounts_module.AdminWorkspaceIsOrganizationError
+        if is_organization
+        else accounts_module.AdminWorkspaceNotFoundError
+    )
+    with pytest.raises(expected):
+        await service.delete_workspace(workspace_id=str(uuid4()))
+    read_scope.assert_not_called()
 
 
 async def test_invalidate_scope_clears_keys_bindings_and_members_project_wide(

@@ -37,7 +37,6 @@ from oss.src.core.access.permissions.types import Permission
 from oss.src.core.organizations.exceptions import (
     OrganizationCreationNotAllowedError,
 )
-from oss.src.services.db_manager import get_user_org_and_workspace_id
 from oss.src.core.memberships.service import get_memberships_service
 from oss.src.core.memberships.types import MemberNotFound, OrganizationNotFound
 
@@ -75,17 +74,9 @@ async def list_organizations(
         HTTPException: If there is an error retrieving the organizations from the database.
     """
 
-    if is_ee():
-        user_org_workspace_data: dict = await get_user_org_and_workspace_id(
-            request.state.user_id
-        )
-        organizations_db = await db_manager.get_organizations_by_list_ids(
-            user_org_workspace_data["organization_ids"]
-        )
-    else:
-        organizations_db = await db_manager.get_user_organizations(
-            request.state.user_id
-        )
+    organizations_db = await db_manager.get_user_organizations(request.state.user_id)
+    # A user can hold two membership rows in one organization: one item each.
+    organizations_db = list({o.id: o for o in organizations_db}.values())
 
     response = [
         Organization(
@@ -171,7 +162,7 @@ async def invite_user_to_organization(
                 content={"detail": "Only one user can be invited at a time."},
             )
 
-        project = await db_manager.get_project_by_workspace(workspace_id)
+        project = await organization_service.get_project_of_workspace_ref(workspace_id)
         if str(project.organization_id) != str(organization_id):
             return JSONResponse(
                 status_code=404,
@@ -250,7 +241,7 @@ async def resend_user_invitation_to_organization(
         JSONResponse: Resent invitation to user; status_code: 200
     """
 
-    project = await db_manager.get_project_by_workspace(workspace_id)
+    project = await organization_service.get_project_of_workspace_ref(workspace_id)
     if str(project.organization_id) != str(organization_id):
         return JSONResponse(
             status_code=404,

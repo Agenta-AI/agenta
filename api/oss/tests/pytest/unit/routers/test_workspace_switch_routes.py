@@ -75,7 +75,7 @@ async def test_workspace_create_returns_410(monkeypatch):
     async def _no_call(*args, **kwargs):
         raise AssertionError("no read and no write")
 
-    for name in ("get_workspace", "get_project_by_workspace", "get_organization"):
+    for name in ("get_project_by_workspace", "get_organization"):
         monkeypatch.setattr(db_manager, name, _no_call)
     monkeypatch.setattr(organization_router, "_check_org_owner", _no_call)
 
@@ -94,7 +94,7 @@ async def test_workspace_rename_returns_410_and_keeps_the_name(monkeypatch):
     async def _no_call(*args, **kwargs):
         raise AssertionError("no read and no write")
 
-    for name in ("get_workspace", "get_project_by_workspace"):
+    for name in ("get_project_by_workspace",):
         monkeypatch.setattr(db_manager, name, _no_call)
 
     with pytest.raises(HTTPException) as error:
@@ -189,28 +189,15 @@ async def test_organizations_list_answers_the_organization_in_both_editions(
         reads.append("get_user_organizations")
         return [_organization(organization_id)]
 
-    async def _ids(user_id):
-        reads.append("get_user_org_and_workspace_id")
-        return {"organization_ids": [str(organization_id)]}
-
-    async def _by_ids(ids):
-        reads.append("get_organizations_by_list_ids")
-        return [_organization(organization_id)]
-
     monkeypatch.setattr(organization_router, "is_ee", lambda: edition == "ee")
     monkeypatch.setattr(db_manager, "get_user_organizations", _user_orgs)
-    monkeypatch.setattr(db_manager, "get_organizations_by_list_ids", _by_ids)
-    monkeypatch.setattr(organization_router, "get_user_org_and_workspace_id", _ids)
     response = await organization_router.list_organizations(
         request=SimpleNamespace(state=SimpleNamespace(user_id=str(uuid4())))
     )
     assert response[0]["workspaces"] == [str(organization_id)]
-    # OSS: one read fewer than step 1 (no workspace item read).
-    assert reads == (
-        ["get_user_organizations"]
-        if edition == "oss"
-        else ["get_user_org_and_workspace_id", "get_organizations_by_list_ids"]
-    )
+    # Step 2b: one read in both editions (EE read the user, its organization rows,
+    # its workspace rows and the organizations before).
+    assert reads == ["get_user_organizations"]
 
 
 async def test_workspaces_list_has_one_item_per_organization(monkeypatch):

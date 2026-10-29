@@ -30,8 +30,8 @@ The cascade from `projects.workspace_id` goes first.
 | --- | --- | --- |
 | 1. Accept | Drop `projects_workspace_id_fkey`; `projects.workspace_id` nullable; the M4b mount step (organization layout, trigger drop). | Accept organization ids and legacy workspace ids (mapped through `workspaces`). Responses unchanged. |
 | 2. Switch | Repair projects whose workspace belongs to another organization (`workspace_id` NULL); one default project per organization (workspace-removal spec); EE meter re-key (D7). Data only. | Responses per D6. Stop writing `workspaces`, `workspace_members`, `projects.workspace_id`, including the legacy mirror in M1's `add_member`, `set_member_role` and `remove_member`. Tokens carry `workspace_id = organization_id`. `AuthScope` drops `workspace_id`. |
-| 2b. Stop reading | Rerun the step-2 repair, consolidation and meter fold. Data only. | Remove every read and write of `workspaces`, `workspace_members`, `projects.workspace_id` and `meters.workspace_id`, including the mapping of legacy workspace ids. |
-| 3. Contract | Drop `projects.workspace_id`, `workspace_members`, `workspaces`, `WorkspaceScopeDBA`, `meters.workspace_id`. | None: step 2b removed every reader. Readers ignore the token claim; signers keep it while `/w` lives. |
+| 2b. Stop reading | Rerun the step-2 repair, consolidation and meter fold. Data only. | Remove every read and write of `workspaces`, `workspace_members`, `projects.workspace_id` and `meters.workspace_id`, including the mapping of legacy workspace ids, and the ORM mappings of these objects (`WorkspaceDB`, `WorkspaceMemberDB`, `WorkspaceScopeDBA`, `ProjectDB.workspace_id`, `ScopeDBA.workspace_id`): an ORM select names every mapped column. Migrations that need them use frozen models. |
+| 3. Contract | Drop `projects.workspace_id`, `workspace_members`, `workspaces`, `meters.workspace_id`. | None: step 2b removed every reader and mapping. Readers ignore the token claim; signers keep it while `/w` lives. |
 
 ### D6. Classic compatibility adapter
 
@@ -64,7 +64,7 @@ The re-key walks the rows that have a workspace once, in `meter_id` order. For e
 
 ## Data structures
 
-The schema per step is in D5. `mounts.storage_prefix VARCHAR NOT NULL` (M4a) is the only new column. Everything is `core_oss` except `meters`, which is `core_ee` only (CONTRACT.md section 12). Step 3 turns `ScopeDBA` into a mixin without workspace.
+The schema per step is in D5. `mounts.storage_prefix VARCHAR NOT NULL` (M4a) is the only new column. Everything is `core_oss` except `meters`, which is `core_ee` only (CONTRACT.md section 12). Step 2b turns `ScopeDBA` into a mixin without workspace.
 
 ## Interfaces
 

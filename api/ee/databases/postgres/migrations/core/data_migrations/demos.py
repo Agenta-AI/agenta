@@ -13,13 +13,17 @@ from sqlalchemy import Connection, delete, insert
 from sqlalchemy.future import select
 
 from oss.src.models.db_models import (
-    ProjectDB,
     UserDB,
 )
 from oss.src.models.db_models import (
     OrganizationMemberDB,
-    WorkspaceMemberDB,
     ProjectMemberDB,
+)
+
+# Frozen legacy schema: the runtime models no longer map workspaces.
+from ee.databases.postgres.migrations.core.deprecated_models import (
+    DeprecatedProjectDB as ProjectDB,
+    DeprecatedWorkspaceMemberDB as WorkspaceMemberDB,
 )
 
 

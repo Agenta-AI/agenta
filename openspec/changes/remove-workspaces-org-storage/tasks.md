@@ -51,14 +51,14 @@ The releases of design.md D4 and D5; each ships after the previous one runs on e
 
 - [ ] 2b.1 `core_oss` revision (label): rerun the 2.0 repair and the 2.1 consolidation.
 - [ ] 2b.2 `core_ee` revision (label): rerun the 2.2 fold under the usage-report lock (MS "re-keying").
-- [ ] 2b.3 Remove every read and write of `workspaces`, `workspace_members`, `projects.workspace_id` and `meters.workspace_id`, including the legacy-id mapping, the no-parameter selection by workspace membership and the legacy deletes (WR "safe with old pods").
+- [ ] 2b.3 Remove every read and write of `workspaces`, `workspace_members`, `projects.workspace_id` and `meters.workspace_id`, including the legacy-id mapping, the no-parameter selection by workspace membership and the legacy deletes, and their ORM mappings; legacy migrations that import them switch to frozen models (WR "safe with old pods").
 - [ ] 2b.4 Docs: upgrade note (links with only a legacy workspace id stop working in `/w`).
 
 ## 3. Step 3: contract
 
 - [ ] 3.1 Dump `workspaces`, `workspace_members`, `projects` and `meters`.
 - [ ] 3.2 `core_ee` revision: drop `meters.workspace_id` (MS "re-keying").
-- [ ] 3.3 `core_oss` revision (label): drop the column and tables and their models (WR "organization only").
+- [ ] 3.3 `core_oss` revision (label): drop the column and tables (their models went in 2b.3) (WR "organization only").
 - [ ] 3.4 Check that no code reads the dropped objects (2b.3 removed every reader).
 
 ## 4. QA matrix

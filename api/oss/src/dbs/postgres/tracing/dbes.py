@@ -4,7 +4,7 @@ from oss.src.dbs.postgres.shared.base import Base
 from oss.src.dbs.postgres.tracing.dbas import SpanDBA
 from oss.src.dbs.postgres.shared.dbas import ProjectScopeDBA, LifecycleDBA
 
-# TODO: Add OrganizationScopeDBA, WorkspaceScopeDBA, and UserScopeDBA
+# TODO: Add OrganizationScopeDBA and UserScopeDBA
 
 
 class SpanDBE(

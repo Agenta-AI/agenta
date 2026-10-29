@@ -379,14 +379,12 @@ class AccessService:
         self,
         *,
         organization_ids: Sequence[UUID] = (),
-        workspace_ids: Sequence[UUID] = (),
         project_ids: Sequence[UUID] = (),
     ) -> ScopePrincipals:
-        """Read before deleting organizations, workspaces or projects."""
+        """Read before deleting organizations or projects."""
 
         return await self._principals.list_scope_principals(
             organization_ids=organization_ids,
-            workspace_ids=workspace_ids,
             project_ids=project_ids,
         )
 
@@ -781,18 +779,16 @@ async def invalidate_user_after_delete(
 async def read_scope_principals_before_delete(
     *,
     organization_ids: Sequence[UUID] = (),
-    workspace_ids: Sequence[UUID] = (),
     project_ids: Sequence[UUID] = (),
 ) -> Optional[ScopePrincipals]:
     """Read what a cascade delete of these scopes must invalidate, before the delete.
     `None` (logged) when the read fails; the deletion goes on."""
 
-    if not (organization_ids or workspace_ids or project_ids):
+    if not (organization_ids or project_ids):
         return None
     try:
         return await get_access_service().read_scope_principals(
             organization_ids=organization_ids,
-            workspace_ids=workspace_ids,
             project_ids=project_ids,
         )
     except Exception:  # pylint: disable=broad-exception-caught

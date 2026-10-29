@@ -5,13 +5,13 @@ from contextlib import asynccontextmanager
 import json
 from pathlib import Path
 from datetime import datetime, timezone
-from typing import Any, Dict, List, NamedTuple, Optional, Set, Union
+from typing import Any, Dict, List, NamedTuple, Optional, Set
 
 from fastapi import HTTPException
 from sqlalchemy.future import select
 from sqlalchemy import delete, func, or_, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload, load_only
+from sqlalchemy.orm import joinedload
 from sqlalchemy.exc import NoResultFound, MultipleResultsFound
 
 from oss.src.utils.logging import get_module_logger
@@ -37,7 +37,6 @@ from oss.src.dbs.postgres.workflows.dbes import (
 )
 
 from oss.src.models.db_models import (
-    WorkspaceDB,
     ProjectDB,
 )
 
@@ -47,7 +46,6 @@ from oss.src.models.db_models import (
     InvitationDB,
     OrganizationDB,
     OrganizationMemberDB,
-    WorkspaceMemberDB,
     ProjectMemberDB,
 )
 from oss.src.dbs.postgres.webhooks.dbes import WebhookSubscriptionDBE
@@ -110,65 +108,38 @@ async def fetch_projects_by_organization(
         return result.scalars().all()
 
 
-# Maps a workspace id or an organization id inside the statement: a workspace resolves to
-# itself and its organization, an organization id to the organization (no workspace).
-_WORKSPACE_REF_CTE = """
-WITH ref AS (
-    SELECT w.id AS workspace_id, w.organization_id, 0 AS rank
-    FROM workspaces w WHERE w.id = CAST(:ref AS uuid)
-    UNION ALL
-    SELECT NULL::uuid, o.id, 1 FROM organizations o WHERE o.id = CAST(:ref AS uuid)
-    ORDER BY rank
-    LIMIT 1
+# The organization's default project: an organization has one (oss000000053 and its
+# step 2b rerun keep one per organization); `created_at, id` breaks a tie the same way
+# every time. Without a default, the organization's first project by the same order.
+_ORGANIZATION_PROJECT_ORDER = "p.created_at ASC NULLS LAST, p.id ASC"
+
+# The columns `ProjectDB` maps, named one by one: a wildcard would also read the legacy
+# workspace column, which no code reads since workspace removal step 2b.
+_PROJECT_COLUMNS = (
+    "id, project_name, is_default, organization_id, created_at, updated_at, "
+    "deleted_at, created_by_id, updated_by_id, deleted_by_id"
 )
-"""
+_P_PROJECT_COLUMNS = ", ".join(f"p.{c}" for c in _PROJECT_COLUMNS.split(", "))
 
-# The organization's default project (D-11 order): the project in the `default`-type
-# workspace, else in the oldest workspace, else the oldest project. Only a workspace of the
-# project's own organization counts (`pw` joins on both ids). A NULL workspace type is not
-# `default` and sorts with the other workspaces by age.
-_ORGANIZATION_DEFAULT_ORDER = """
-(pw.type IS NOT DISTINCT FROM 'default') DESC,
-pw.created_at ASC NULLS LAST, pw.id ASC NULLS LAST,
-p.created_at ASC NULLS LAST, p.id ASC
-"""
-
-_PROJECT_WORKSPACE_JOIN = """
-LEFT JOIN workspaces pw ON pw.id = p.workspace_id AND pw.organization_id = p.organization_id
-"""
-
-# One rule for every reader: a workspace id or an organization id names the organization
-# (the reference's own organization, never another one); the answer is the organization's
-# default project, else its first project by the same order.
-_PROJECT_BY_WORKSPACE_SQL = f"""
-{_WORKSPACE_REF_CTE}
-SELECT p.* FROM ref
-JOIN projects p ON p.organization_id = ref.organization_id
-{_PROJECT_WORKSPACE_JOIN}
-ORDER BY (p.is_default IS TRUE) DESC,
-         {_ORGANIZATION_DEFAULT_ORDER}
+_PROJECT_BY_ORGANIZATION_SQL = f"""
+SELECT {_P_PROJECT_COLUMNS} FROM projects p
+WHERE p.organization_id = CAST(:organization_id AS uuid)
+ORDER BY (p.is_default IS TRUE) DESC, {_ORGANIZATION_PROJECT_ORDER}
 LIMIT 1
 """
 
-_FIRST_PROJECT_BY_WORKSPACE_SQL = f"""
-{_WORKSPACE_REF_CTE}
-SELECT p.* FROM ref
-JOIN projects p ON p.organization_id = ref.organization_id
-ORDER BY (p.workspace_id = ref.workspace_id) DESC NULLS LAST,
-         p.created_at ASC NULLS LAST, p.id ASC
+_FIRST_PROJECT_BY_ORGANIZATION_SQL = f"""
+SELECT {_P_PROJECT_COLUMNS} FROM projects p
+WHERE p.organization_id = CAST(:organization_id AS uuid)
+ORDER BY {_ORGANIZATION_PROJECT_ORDER}
 LIMIT 1
 """
 
-# The default project of the organization a workspace id or an organization id names.
 _DEFAULT_PROJECT_SQL = f"""
-{_WORKSPACE_REF_CTE}
-SELECT p.id AS project_id, p.organization_id AS project_organization_id,
-       p.workspace_id AS project_workspace_id, ref.workspace_id AS ref_workspace_id,
-       ref.organization_id AS ref_organization_id
-FROM ref
-JOIN projects p ON p.is_default IS TRUE AND p.organization_id = ref.organization_id
-{_PROJECT_WORKSPACE_JOIN}
-ORDER BY {_ORGANIZATION_DEFAULT_ORDER}
+SELECT p.id AS project_id, p.organization_id AS project_organization_id
+FROM projects p
+WHERE p.is_default IS TRUE AND p.organization_id = CAST(:organization_id AS uuid)
+ORDER BY {_ORGANIZATION_PROJECT_ORDER}
 LIMIT 1
 """
 
@@ -176,43 +147,36 @@ LIMIT 1
 class DefaultProjectRef(NamedTuple):
     project_id: uuid.UUID
     project_organization_id: uuid.UUID
-    project_workspace_id: Optional[uuid.UUID]
-    # The workspace the reference names (None for an organization id) and its organization.
-    ref_workspace_id: Optional[uuid.UUID]
-    ref_organization_id: uuid.UUID
 
 
 async def fetch_default_project(
     *,
-    workspace_or_organization_id: str,
+    organization_id: str,
 ) -> Optional[DefaultProjectRef]:
-    """The default project of a workspace or an organization, in one statement."""
+    """The default project of an organization, in one statement. Any other id (a legacy
+    workspace id) names no organization: None."""
 
-    ref = uuid.UUID(str(workspace_or_organization_id))
+    ref = uuid.UUID(str(organization_id))
     engine = get_transactions_engine()
     async with engine.session() as session:
-        row = (await session.execute(text(_DEFAULT_PROJECT_SQL), {"ref": ref})).first()
+        row = (
+            await session.execute(text(_DEFAULT_PROJECT_SQL), {"organization_id": ref})
+        ).first()
     if row is None:
         return None
     return DefaultProjectRef(
         project_id=row.project_id,
         project_organization_id=row.project_organization_id,
-        project_workspace_id=row.project_workspace_id,
-        ref_workspace_id=row.ref_workspace_id,
-        ref_organization_id=row.ref_organization_id,
     )
 
 
 # Among projects the caller may open, the one a request without `project_id` lands on when
-# the organization's default project is not one of them: the project of the referenced
-# workspace first (the step 1 answer), then the default, then the organization order.
+# the organization's default project is not one of them: the default first, then the
+# organization order.
 _MEMBER_FALLBACK_PROJECT_SQL = f"""
 SELECT p.id FROM projects p
-{_PROJECT_WORKSPACE_JOIN}
 WHERE p.id = ANY(CAST(:project_ids AS uuid[]))
-ORDER BY (p.workspace_id = CAST(:ref_workspace_id AS uuid)) DESC NULLS LAST,
-         (p.is_default IS TRUE) DESC,
-         {_ORGANIZATION_DEFAULT_ORDER}
+ORDER BY (p.is_default IS TRUE) DESC, {_ORGANIZATION_PROJECT_ORDER}
 LIMIT 1
 """
 
@@ -220,7 +184,6 @@ LIMIT 1
 async def pick_fallback_project(
     *,
     project_ids: List[uuid.UUID],
-    ref_workspace_id: Optional[uuid.UUID],
 ) -> Optional[uuid.UUID]:
     """The project of `project_ids` a request without `project_id` lands on."""
 
@@ -231,12 +194,7 @@ async def pick_fallback_project(
         row = (
             await session.execute(
                 text(_MEMBER_FALLBACK_PROJECT_SQL),
-                {
-                    "project_ids": [str(project_id) for project_id in project_ids],
-                    "ref_workspace_id": (
-                        str(ref_workspace_id) if ref_workspace_id else None
-                    ),
-                },
+                {"project_ids": [str(project_id) for project_id in project_ids]},
             )
         ).first()
     return row.id if row else None
@@ -247,7 +205,8 @@ async def get_project_by_workspace(
     *,
     use_default: bool = True,
 ) -> ProjectDB:
-    """Get the (default) project for a workspace, or for an organization id."""
+    """The (default) project of the organization that `workspace_id` names: the classic
+    app sends the organization id where a workspace id was (design D6)."""
 
     if workspace_id is None:
         raise ValueError("Workspace ID is required to retrieve project")
@@ -256,13 +215,13 @@ async def get_project_by_workspace(
 
     async with engine.session() as session:
         statement = (
-            _PROJECT_BY_WORKSPACE_SQL
+            _PROJECT_BY_ORGANIZATION_SQL
             if use_default
-            else _FIRST_PROJECT_BY_WORKSPACE_SQL
+            else _FIRST_PROJECT_BY_ORGANIZATION_SQL
         )
         result = await session.execute(
             select(ProjectDB).from_statement(text(statement)),
-            {"ref": ref},
+            {"organization_id": ref},
         )
         project = result.scalars().first()
         if project is None:
@@ -505,47 +464,6 @@ async def get_user(user_uid: str) -> UserDB:
         return user
 
 
-async def get_default_workspace_id(user_id: str) -> str:
-    """
-    Retrieve the default workspace ID for a user: their oldest membership.
-    Owner-role is NOT preferred — under multi-org an invitee owns their own
-    empty personal workspace, so preferring it would strand them there instead
-    of the workspace they actually joined.
-    """
-
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        result = await session.execute(
-            select(WorkspaceMemberDB)
-            .filter_by(user_id=uuid.UUID(user_id))
-            .options(  # type: ignore
-                load_only(
-                    WorkspaceMemberDB.workspace_id,
-                    WorkspaceMemberDB.role,
-                    WorkspaceMemberDB.created_at,
-                )
-            )
-        )
-        memberships = list(result.scalars().all())
-
-        if not memberships:
-            raise NoResultFound(f"No workspace membership found for user {user_id}")
-
-        memberships.sort(
-            key=lambda membership: (
-                membership.created_at or datetime.min.replace(tzinfo=timezone.utc),
-                str(membership.workspace_id),
-            )
-        )
-
-        return str(memberships[0].workspace_id)
-
-
-# The user's workspaces (today's rows), plus one organization-id item for every
-# organization where the user has no workspace membership row.
-
-
 async def create_organization(
     name: str,
     owner_id: Optional[uuid.UUID] = None,
@@ -775,31 +693,10 @@ async def delete_organization(organization_id: str) -> bool:
             raise NoResultFound(f"Organization with id {organization_id} not found")
 
         await session.execute(
-            text(_DELETE_ORGANIZATION_SQL), {"organization_id": organization.id}
+            delete(OrganizationDB).where(OrganizationDB.id == organization.id)
         )
         await session.commit()
         return True
-
-
-async def get_workspace(workspace_id: str) -> WorkspaceDB:
-    """
-    Retrieve a workspace.
-
-    Args:
-        workspace_id (str): The workspace id.
-
-    Returns:
-        Workspace: The retrieved workspace.
-    """
-
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        query = select(WorkspaceDB).filter_by(id=uuid.UUID(workspace_id))
-
-        result = await session.execute(query)
-        workspace = result.scalars().first()
-        return workspace
 
 
 async def get_user_with_id(user_id: str) -> UserDB:
@@ -923,7 +820,6 @@ async def create_user_invitation_to_organization(
         log.info(
             "[scopes] invitation created",
             organization_id=project.organization_id,
-            workspace_id=project.workspace_id,
             project_id=project_id,
             user_id=user_id,
             invitation_id=invitation.id,
@@ -958,44 +854,16 @@ async def get_project_by_id(project_id: str) -> ProjectDB:
         return project
 
 
-class ProjectWithWorkspaceOrganization(NamedTuple):
-    project: ProjectDB
-    # The organization of the project's workspace (None without a workspace). It differs
-    # from the project's organization only for the legacy cross-organization shape.
-    workspace_organization_id: Optional[uuid.UUID]
-
-
-async def fetch_project_with_workspace_organization(
-    *,
-    project_id: str,
-) -> Optional[ProjectWithWorkspaceOrganization]:
-    """A project and its workspace's organization, in one statement."""
-
-    engine = get_transactions_engine()
-    async with engine.session() as session:
-        row = (
-            await session.execute(
-                select(ProjectDB, WorkspaceDB.organization_id)
-                .outerjoin(WorkspaceDB, WorkspaceDB.id == ProjectDB.workspace_id)
-                .where(ProjectDB.id == uuid.UUID(str(project_id)))
-            )
-        ).first()
-    if row is None:
-        return None
-    return ProjectWithWorkspaceOrganization(
-        project=row[0], workspace_organization_id=row[1]
-    )
-
-
 async def get_default_project_id_from_workspace(
     workspace_id: str,
 ):
-    """The default project id of a workspace, or of an organization id (one statement).
+    """The default project id of the organization that `workspace_id` names (one
+    statement).
 
     Raises `NoResultFound` when there is none.
     """
 
-    ref = await fetch_default_project(workspace_or_organization_id=workspace_id)
+    ref = await fetch_default_project(organization_id=workspace_id)
     if ref is None:
         raise NoResultFound(
             f"No default project for the provided workspace_id {workspace_id} found"
@@ -1028,7 +896,6 @@ async def delete_project(project_id: str) -> None:
         log.info(
             "[scopes] project deleted",
             organization_id=str(project.organization_id),
-            workspace_id=str(project.workspace_id),
             project_id=project_id,
         )
 
@@ -1049,13 +916,13 @@ SELECT pg_advisory_xact_lock(
 FROM projects p WHERE p.id = :id
 """
 
-_SET_DEFAULT_PROJECT_SQL = """
+_SET_DEFAULT_PROJECT_SQL = f"""
 WITH cleared AS (
     UPDATE projects SET is_default = false
     WHERE organization_id = :organization_id AND is_default IS TRUE AND id <> :id
 )
 UPDATE projects SET is_default = true WHERE id = :id
-RETURNING *
+RETURNING {_PROJECT_COLUMNS}
 """
 
 
@@ -1119,7 +986,6 @@ async def update_project_name(project_id: str, *, project_name: str) -> ProjectD
         log.info(
             "[scopes] project renamed",
             organization_id=str(project.organization_id),
-            workspace_id=str(project.workspace_id),
             project_id=project_id,
             project_name=project.project_name,
         )
@@ -1279,7 +1145,6 @@ async def delete_invitation(invitation_id: str) -> bool:
         log.info(
             "[scopes] invitation deleted",
             organization_id=project.organization_id,
-            workspace_id=project.workspace_id,
             project_id=invitation.project_id,
             user_id=invitation.user_id,
             invitation_id=invitation.id,
@@ -1422,14 +1287,6 @@ async def admin_get_org_by_slug(slug: str) -> Optional[OrganizationDB]:
         return result.scalars().first()
 
 
-async def admin_get_workspace_by_id(ws_id: uuid.UUID) -> Optional[WorkspaceDB]:
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        result = await session.execute(select(WorkspaceDB).filter_by(id=ws_id))
-        return result.scalars().first()
-
-
 async def admin_get_project_by_id(proj_id: uuid.UUID) -> Optional[ProjectDB]:
     engine = get_transactions_engine()
 
@@ -1468,18 +1325,6 @@ async def admin_get_orgs_owned_by_user(user_id: uuid.UUID) -> List[OrganizationD
             )
         )
         return list(result.scalars().all())
-
-
-async def admin_get_workspace_ids_for_orgs(
-    org_ids: List[uuid.UUID],
-) -> List[uuid.UUID]:
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        result = await session.execute(
-            select(WorkspaceDB.id).where(WorkspaceDB.organization_id.in_(org_ids))
-        )
-        return [row[0] for row in result]
 
 
 async def admin_get_project_ids_for_orgs(
@@ -1539,16 +1384,16 @@ async def admin_create_organization(
         return org_db
 
 
-_ADMIN_INSERT_PROJECT_SQL = """
+_ADMIN_INSERT_PROJECT_SQL = f"""
 WITH cleared AS (
     UPDATE projects SET is_default = false
     WHERE organization_id = :organization_id AND is_default IS TRUE
       AND CAST(:is_default AS boolean)
 )
-INSERT INTO projects (id, project_name, is_default, organization_id, workspace_id,
+INSERT INTO projects (id, project_name, is_default, organization_id,
                       created_at, updated_at)
-VALUES (:id, :name, :is_default, :organization_id, NULL, now(), now())
-RETURNING *
+VALUES (:id, :name, :is_default, :organization_id, now(), now())
+RETURNING {_PROJECT_COLUMNS}
 """
 
 
@@ -1558,7 +1403,7 @@ async def admin_create_project(
     *,
     is_default: bool = False,
 ) -> ProjectDB:
-    """Create a project without a workspace; `is_default` clears the organization's
+    """Create a project of the organization; `is_default` clears the organization's
     other defaults, under the organization lock."""
 
     engine = get_transactions_engine()
@@ -1590,45 +1435,11 @@ async def admin_delete_user(user_id: uuid.UUID) -> None:
         await session.commit()
 
 
-# One statement each, as before workspace removal step 1: the workspace cascade that
-# deleted these projects is gone, so a data-modifying CTE deletes them explicitly.
-# A workspace's projects go with it.
-_DELETE_WORKSPACE_SQL = """
-WITH projects_of_workspace AS (
-    DELETE FROM projects WHERE workspace_id = CAST(:workspace_id AS uuid)
-)
-DELETE FROM workspaces WHERE id = CAST(:workspace_id AS uuid)
-"""
-
-# An organization's own projects go through their organization cascade; a legacy project
-# of another organization that sits in one of its workspaces goes explicitly.
-_DELETE_ORGANIZATION_SQL = """
-WITH foreign_projects AS (
-    DELETE FROM projects
-    WHERE organization_id <> CAST(:organization_id AS uuid)
-      AND workspace_id IN (
-          SELECT id FROM workspaces WHERE organization_id = CAST(:organization_id AS uuid)
-      )
-)
-DELETE FROM organizations WHERE id = CAST(:organization_id AS uuid)
-"""
-
-
 async def admin_delete_organization(org_id: uuid.UUID) -> None:
     engine = get_transactions_engine()
 
     async with engine.session() as session:
-        await session.execute(
-            text(_DELETE_ORGANIZATION_SQL), {"organization_id": org_id}
-        )
-        await session.commit()
-
-
-async def admin_delete_workspace(ws_id: uuid.UUID) -> None:
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        await session.execute(text(_DELETE_WORKSPACE_SQL), {"workspace_id": ws_id})
+        await session.execute(delete(OrganizationDB).where(OrganizationDB.id == org_id))
         await session.commit()
 
 
@@ -1677,7 +1488,6 @@ async def _admin_detach_user_references(
 async def admin_delete_accounts_batch(
     *,
     org_ids: List[uuid.UUID],
-    workspace_ids: List[uuid.UUID],
     project_ids: List[uuid.UUID],
     user_ids: List[uuid.UUID],
 ) -> None:
@@ -1687,11 +1497,9 @@ async def admin_delete_accounts_batch(
     async with engine.session() as session:
         for proj_id in project_ids:
             await session.execute(delete(ProjectDB).where(ProjectDB.id == proj_id))
-        for ws_id in workspace_ids:
-            await session.execute(text(_DELETE_WORKSPACE_SQL), {"workspace_id": ws_id})
         for org_id in org_ids:
             await session.execute(
-                text(_DELETE_ORGANIZATION_SQL), {"organization_id": org_id}
+                delete(OrganizationDB).where(OrganizationDB.id == org_id)
             )
         await _admin_detach_user_references(session, user_ids)
         for uid in user_ids:
@@ -1708,7 +1516,6 @@ async def admin_delete_user_with_cascade(user_id: uuid.UUID) -> List[uuid.UUID]:
     org_ids = [org.id for org in orgs]
     await admin_delete_accounts_batch(
         org_ids=org_ids,
-        workspace_ids=[],
         project_ids=[],
         user_ids=[user_id],
     )
@@ -1787,47 +1594,6 @@ async def get_project_members(project_id: str):
         return project_members
 
 
-async def get_user_org_and_workspace_id(
-    user_uid,
-) -> Dict[str, Union[str, List[str]]]:
-    """Return the user's id/uid plus the org and workspace IDs they belong to."""
-
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        user_result = await session.execute(
-            select(UserDB).filter_by(id=uuid.UUID(str(user_uid)))
-        )
-        user = user_result.scalars().first()
-        if not user:
-            raise NoResultFound(f"User with uid {user_uid} not found")
-
-        user_org_result = await session.execute(
-            select(OrganizationMemberDB)
-            .filter_by(user_id=user.id)
-            .options(load_only(OrganizationMemberDB.organization_id))  # type: ignore
-        )
-        orgs = user_org_result.scalars().all()
-        organization_ids = [str(user_org.organization_id) for user_org in orgs]
-
-        member_in_workspaces_result = await session.execute(
-            select(WorkspaceMemberDB)
-            .filter_by(user_id=user.id)
-            .options(load_only(WorkspaceMemberDB.workspace_id))  # type: ignore
-        )
-        workspaces_ids = [
-            str(user_workspace.workspace_id)
-            for user_workspace in member_in_workspaces_result.scalars().all()
-        ]
-
-        return {
-            "id": str(user.id),
-            "uid": str(user.uid),
-            "workspace_ids": workspaces_ids,
-            "organization_ids": organization_ids,
-        }
-
-
 # ---------------------------------------------------------------------------
 # Organization / workspace helpers (moved from ee/services/db_manager_ee.py)
 # ---------------------------------------------------------------------------
@@ -1862,30 +1628,9 @@ async def count_organization_members(organization_id: str) -> int:
         return result.scalar() or 0
 
 
-# The project whose members `GET /organizations/{id}` lists: step 1's exact choice for
-# existing data. The organization's workspace (the `default`-type one, else the oldest),
-# then that workspace's own projects in today's order (`is_default DESC`, NULLs first,
-# then `created_at`); a workspace without projects, or an organization without workspace
-# rows, answers the organization's default by the reader rule. One statement.
-_ORG_DETAILS_PROJECT_SQL = f"""
-WITH ws AS (
-    SELECT w.id FROM workspaces w
-    WHERE w.organization_id = :organization_id
-    ORDER BY (w.type IS NOT DISTINCT FROM 'default') DESC,
-             w.created_at ASC NULLS LAST, w.id ASC
-    LIMIT 1
-)
-SELECT p.* FROM projects p
-LEFT JOIN ws ON ws.id = p.workspace_id
-{_PROJECT_WORKSPACE_JOIN}
-WHERE p.organization_id = :organization_id
-ORDER BY (ws.id IS NOT NULL) DESC,
-         CASE WHEN ws.id IS NOT NULL THEN p.is_default END DESC,
-         CASE WHEN ws.id IS NOT NULL THEN p.created_at END ASC,
-         (p.is_default IS TRUE) DESC,
-         {_ORGANIZATION_DEFAULT_ORDER}
-LIMIT 1
-"""
+# The project whose members `GET /organizations/{id}` lists: the organization's default
+# project, else its first project (the reader rule). One statement.
+_ORG_DETAILS_PROJECT_SQL = _PROJECT_BY_ORGANIZATION_SQL
 
 # The project's members with their organization role (the oldest organization row), and
 # their user, in one statement.
@@ -1910,7 +1655,7 @@ async def fetch_org_details_project(organization_id: str) -> Optional[ProjectDB]
     async with engine.session() as session:
         result = await session.execute(
             select(ProjectDB).from_statement(text(_ORG_DETAILS_PROJECT_SQL)),
-            {"organization_id": uuid.UUID(str(organization_id))},
+            {"organization_id": str(uuid.UUID(str(organization_id)))},
         )
         return result.scalars().first()
 
@@ -2075,22 +1820,6 @@ async def admin_delete_org_membership(membership_id: uuid.UUID) -> bool:
     async with engine.session() as session:
         result = await session.execute(
             select(OrganizationMemberDB).filter_by(id=membership_id)
-        )
-        membership = result.scalars().first()
-        if not membership:
-            return False
-        await session.delete(membership)
-        await session.commit()
-        return True
-
-
-async def admin_delete_workspace_membership(membership_id: uuid.UUID) -> bool:
-    """Delete a workspace membership by ID. Returns False if not found."""
-    engine = get_transactions_engine()
-
-    async with engine.session() as session:
-        result = await session.execute(
-            select(WorkspaceMemberDB).filter_by(id=membership_id)
         )
         membership = result.scalars().first()
         if not membership:
@@ -2383,15 +2112,12 @@ async def admin_transfer_ownership(
 
 
 async def admin_delete_user_memberships(user_id: uuid.UUID) -> None:
-    """Delete all org/workspace/project memberships for a user."""
+    """Delete all organization and project memberships for a user."""
     engine = get_transactions_engine()
 
     async with engine.session() as session:
         await session.execute(
             delete(OrganizationMemberDB).where(OrganizationMemberDB.user_id == user_id)
-        )
-        await session.execute(
-            delete(WorkspaceMemberDB).where(WorkspaceMemberDB.user_id == user_id)
         )
         await session.execute(
             delete(ProjectMemberDB).where(ProjectMemberDB.user_id == user_id)

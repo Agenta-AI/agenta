@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import quote
 
 from fastapi import HTTPException
+from sqlalchemy.exc import NoResultFound
 
 from oss.src.utils.env import env
 from oss.src.utils.common import is_ee
@@ -370,30 +371,28 @@ async def resend_user_organization_invite(
     return send_email
 
 
-async def _check_invitation_scope(
+async def get_project_of_workspace_ref(workspace_id: str):
+    """The default project of the organization that a `{workspace_id}` route segment
+    names (design D6). Any other id, a legacy workspace id included, is a 404."""
+
+    try:
+        return await db_manager.get_project_by_workspace(workspace_id)
+    except (NoResultFound, ValueError) as exc:
+        raise HTTPException(
+            status_code=404, detail="Workspace not found for organization."
+        ) from exc
+
+
+def _check_invitation_scope(
     *,
     organization_id: str,
     workspace_id: str,
-    scoped,
+    project,
 ) -> None:
-    """The `{ws}` of an accept link must name the organization or one of its workspaces.
+    """The `{ws}` of an accept link must be the organization id (design D6): any other
+    id, a legacy workspace id included, is an unknown invitation."""
 
-    The organization id and the invited project's own workspace need no read; any other
-    id costs one workspace read (no link that the server builds contains one).
-    """
-
-    project = scoped.project
-    if str(workspace_id) == str(organization_id) == str(project.organization_id):
-        return
-    if str(workspace_id) == str(project.workspace_id) and str(
-        scoped.workspace_organization_id
-    ) == str(organization_id):
-        return
-    try:
-        workspace = await db_manager.get_workspace(workspace_id=str(workspace_id))
-    except ValueError:
-        workspace = None
-    if workspace is None or str(workspace.organization_id) != str(organization_id):
+    if not (str(workspace_id) == str(organization_id) == str(project.organization_id)):
         raise InviteNotFoundError()
 
 
@@ -445,15 +444,14 @@ async def accept_organization_invitation(
             invited_email=invitation.email,
         )
 
-    scoped = await db_manager.fetch_project_with_workspace_organization(
+    project_pre = await db_manager.get_project_by_id(
         project_id=str(invitation.project_id),
     )
-    project_pre = scoped.project if scoped is not None else None
-    if scoped is not None and workspace_id is not None:
-        await _check_invitation_scope(
+    if project_pre is not None and workspace_id is not None:
+        _check_invitation_scope(
             organization_id=organization_id,
             workspace_id=workspace_id,
-            scoped=scoped,
+            project=project_pre,
         )
     if (
         project_pre

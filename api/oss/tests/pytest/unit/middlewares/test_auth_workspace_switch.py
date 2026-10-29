@@ -1,12 +1,12 @@
-"""Workspace removal step 2: the auth context, cached states and run credentials carry
-the organization id where a workspace id was.
+"""Workspace removal steps 2 and 2b: the auth context, cached states and run credentials
+carry the organization id where a workspace id was.
 
 `request.state.workspace_id` always equals `request.state.organization_id`, which is the
 project's organization in every branch. Cached states keep a `workspace_id` field (equal
-to the organization id) for step-1 pods; a step-2 pod reads the cached
-`organization_id`. The branches whose step-1 cached successes step 2 must not serve use
-`"v": "m4b2"` keys. The access decision refuses a request whose organization is not its
-project's.
+to the organization id); a pod reads the cached `organization_id`. The branches whose
+older cached successes step 2b must not serve (step-1 states, and step-2 states that
+accepted a legacy workspace id) use `"v": "m4b2b"` keys. The access decision refuses a
+request whose organization is not its project's.
 """
 
 from types import SimpleNamespace
@@ -16,13 +16,11 @@ import jwt
 import pytest
 from fastapi import HTTPException
 
-import oss.src.services.db_manager as db_manager_module
 from oss.src.middlewares import auth
 from oss.src.utils.context import AuthScope
 from oss.src.utils.exceptions import UnauthorizedException
 from oss.tests.pytest.unit.middlewares.test_auth_workspace_accept import (
     _bearer,
-    _denied,
     _request,
 )
 
@@ -34,19 +32,8 @@ world = _accept.world
 
 @pytest.fixture
 def switch_world(world, monkeypatch):
-    """`world` plus the joined project read of the project + workspace branch."""
-
-    async def _fetch_project_with_workspace_organization(*, project_id):
-        world.reads.append("fetch_project_with_workspace_organization")
-        project = world.projects_by_id.get(str(project_id))
-        if project is None:
-            return None
-        return db_manager_module.ProjectWithWorkspaceOrganization(
-            project=project,
-            workspace_organization_id=world.workspace_organizations.get(
-                str(project.workspace_id)
-            ),
-        )
+    """`world` with its own project reads (the project + workspace branch reads the
+    project once)."""
 
     projects = {}
 
@@ -54,64 +41,30 @@ def switch_world(world, monkeypatch):
         world.reads.append("get_project_by_id")
         return projects.get(str(project_id))
 
-    for summary, workspace_id in (
-        (world.project, world.workspace_a),
-        (world.no_workspace, None),
-    ):
+    for summary in (world.project, world.no_workspace):
         projects[str(summary.project_id)] = SimpleNamespace(
             id=summary.project_id,
-            workspace_id=workspace_id,
             organization_id=world.organization_id,
             organization=SimpleNamespace(name="Organization"),
         )
     world.projects_by_id = projects
-    world.workspace_organizations = {
-        str(world.workspace_a): world.organization_id,
-        str(world.workspace_b): world.organization_id,
-        str(world.foreign_workspace): world.other_organization_id,
-    }
     monkeypatch.setattr(auth.db_manager, "get_project_by_id", _get_project_by_id)
-    monkeypatch.setattr(
-        auth.db_manager,
-        "fetch_project_with_workspace_organization",
-        _fetch_project_with_workspace_organization,
-    )
     return world
-
-
-def _cross_organization(world):
-    """Project P of O1 in workspace W of O2 (the shape 053 repairs, written again after
-    it by a step-1 admin call)."""
-
-    world.projects_by_id[
-        str(world.project.project_id)
-    ].workspace_id = world.foreign_workspace
-    world.defaults[str(world.foreign_workspace)] = db_manager_module.DefaultProjectRef(
-        project_id=uuid4(),  # O2's own default project, never P
-        project_organization_id=world.other_organization_id,
-        project_workspace_id=world.foreign_workspace,
-        ref_workspace_id=world.foreign_workspace,
-        ref_organization_id=world.other_organization_id,
-    )
 
 
 def test_auth_scope_has_no_workspace():
     assert "workspace_id" not in AuthScope.model_fields
 
 
-@pytest.mark.parametrize("branch", ["p", "p+w", "p+org", "w", "org", "none"])
+@pytest.mark.parametrize("branch", ["p", "p+org", "org", "none"])
 async def test_every_bearer_branch_answers_the_organization_id(switch_world, branch):
     world = switch_world
     world.member()
     params = {
         "p": dict(project_id=world.project.project_id),
-        "p+w": dict(
-            project_id=world.project.project_id, workspace_id=world.workspace_a
-        ),
         "p+org": dict(
             project_id=world.project.project_id, workspace_id=world.organization_id
         ),
-        "w": dict(workspace_id=world.workspace_a),
         "org": dict(workspace_id=world.organization_id),
         "none": {},
     }[branch]
@@ -120,37 +73,14 @@ async def test_every_bearer_branch_answers_the_organization_id(switch_world, bra
     assert world.signed[-1]["organization_id"] == str(world.organization_id)
 
 
-async def test_bearer_never_takes_the_workspace_organization(switch_world):
-    world = switch_world
-    world.member()
-    _cross_organization(world)
-    # ?workspace_id=W alone: O2's default, never P.
-    try:
-        state = await _bearer(world, workspace_id=world.foreign_workspace)
-        assert state.project_id != str(world.project.project_id)
-    except HTTPException:
-        pass  # not a member of O2's project: refused, still never P
-    # ?project_id=P&workspace_id=W: the workspace's organization is not P's.
-    world.reads.clear()
-    with pytest.raises(UnauthorizedException):
-        await _bearer(
-            world,
-            project_id=world.project.project_id,
-            workspace_id=world.foreign_workspace,
-        )
-    assert world.reads == ["fetch_project_with_workspace_organization"]
-    assert _denied(world)
-
-
-async def test_bearer_project_and_own_workspace_needs_one_read(switch_world):
+async def test_bearer_project_and_organization_needs_one_project_read(switch_world):
     world = switch_world
     world.member()
     await _bearer(
-        world, project_id=world.project.project_id, workspace_id=world.workspace_a
+        world, project_id=world.project.project_id, workspace_id=world.organization_id
     )
-    assert world.reads[0] == "fetch_project_with_workspace_organization"
-    assert "get_workspace" not in world.reads
-    assert "get_project_by_id" not in world.reads[:1]
+    # The project read; the second one is the organization-name lookup, as today.
+    assert world.reads == ["get_project_by_id", "get_project_by_id"]
 
 
 def _old_key(world, *, project_id=None, workspace_id=None):
@@ -190,58 +120,36 @@ async def test_bearer_state_cached_by_step1_answers_the_organization_id(switch_w
         world,
         _old_key(world, project_id=world.project.project_id),
         project_id=world.project.project_id,
-        value=_step1_state(world, workspace_id=world.workspace_a),
+        value=_step1_state(world, workspace_id=world.legacy_workspace),
     )
     state = await _bearer(world, project_id=world.project.project_id)
     assert state.workspace_id == str(world.organization_id)
     assert world.reads == []
 
 
-async def test_no_project_bearer_ignores_step1_states(switch_world):
+async def test_no_project_bearer_ignores_step1_and_step2_states(switch_world):
     world = switch_world
-    for workspace_id in (None, world.workspace_a):
-        key = {**_old_key(world, workspace_id=workspace_id), "v": "m4b1"}
-        await _put(
-            world,
-            key,
-            project_id=None,
-            value=_step1_state(world, workspace_id=world.workspace_a),
-        )
-    # Not a member: a step-1 entry would have let the request in.
-    for params in ({}, {"workspace_id": world.workspace_a}):
+    for version in ("m4b1", "m4b2"):
+        for workspace_id in (None, world.organization_id, world.legacy_workspace):
+            key = {**_old_key(world, workspace_id=workspace_id), "v": version}
+            await _put(
+                world,
+                key,
+                project_id=None,
+                value=_step1_state(world, workspace_id=world.legacy_workspace),
+            )
+    # Not a member: an older entry would have let the request in.
+    for params in ({}, {"workspace_id": world.organization_id}):
         with pytest.raises(HTTPException) as error:
             await _bearer(world, **params)
         assert error.value.status_code == 401
+    # A legacy workspace id is unknown, also when a step-2 pod cached a success for it.
+    with pytest.raises(UnauthorizedException):
+        await _bearer(world, workspace_id=world.legacy_workspace)
     world.member()
     await _bearer(world)
     written = [k for k in world.cache.store if "verify_bearer_token" in k]
-    assert any("v:m4b2" in k for k in written)
-
-
-async def test_step1_cached_success_for_the_repaired_project_is_not_served(
-    switch_world,
-):
-    world = switch_world
-    world.member()
-    _cross_organization(world)
-    # Step 1 cached ?project_id=P&workspace_id=W (W of O2) with no version and no
-    # organization check, before 053.
-    await _put(
-        world,
-        _old_key(
-            world,
-            project_id=world.project.project_id,
-            workspace_id=world.foreign_workspace,
-        ),
-        project_id=world.project.project_id,
-        value=_step1_state(world, workspace_id=world.foreign_workspace),
-    )
-    with pytest.raises(UnauthorizedException):
-        await _bearer(
-            world,
-            project_id=world.project.project_id,
-            workspace_id=world.foreign_workspace,
-        )
+    assert any("v:m4b2b" in k for k in written)
 
 
 async def test_project_only_and_apikey_keys_are_unchanged(switch_world):
@@ -300,7 +208,7 @@ async def test_apikey_state_cached_by_step1_answers_the_organization_id(
 ):
     world = switch_world
     cached = {
-        **_step1_state(world, workspace_id=world.workspace_a),
+        **_step1_state(world, workspace_id=world.legacy_workspace),
         "api_key_id": str(uuid4()),
         "principal": {"kind": "api_key", "id": str(uuid4())},
     }

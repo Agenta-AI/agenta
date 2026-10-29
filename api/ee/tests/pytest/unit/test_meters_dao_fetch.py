@@ -114,7 +114,7 @@ class TestFetchScopeFilters:
 
         assert len(session.executed_statements) == 1
         sql = _where_sql(session.executed_statements[0]).lower()
-        assert "workspace_id is null" in sql
+        assert "workspace_id" not in sql
         assert "project_id is null" in sql
         assert "user_id is null" in sql
 
@@ -134,9 +134,8 @@ class TestFetchScopeFilters:
 
     @pytest.mark.asyncio
     async def test_user_scope_binds_every_dim(self):
-        """fully-bound user scope → every dim bound to a concrete value; only the
-        legacy workspace column stays `IS NULL` (a row with a workspace is never
-        the current one)."""
+        """fully-bound user scope → every dim bound to a concrete value; no
+        workspace column (step 2b reads none)."""
         session = _Session()
 
         dao = _dao_with_session(session)
@@ -149,8 +148,8 @@ class TestFetchScopeFilters:
         )
 
         sql = _where_sql(session.executed_statements[0]).lower()
-        assert "workspace_id is null" in sql
-        assert "is null" not in sql.replace("workspace_id is null", "")
+        assert "workspace_id" not in sql
+        assert "is null" not in sql
 
     @pytest.mark.asyncio
     async def test_scope_none_applies_no_filter(self):

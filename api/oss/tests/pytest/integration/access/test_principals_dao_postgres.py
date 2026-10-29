@@ -293,7 +293,6 @@ async def test_list_scope_principals_reads_projects_keys_and_bindings(
 
     for kwargs in (
         {"organization_ids": [seeded.organization_id]},
-        {"workspace_ids": seeded.workspace_ids},
         {"project_ids": [project_id]},
     ):
         with count_statements(get_transactions_engine()) as statements:
