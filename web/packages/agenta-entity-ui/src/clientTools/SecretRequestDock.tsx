@@ -7,7 +7,7 @@ import {Button} from "@agenta/ui/ui"
 import {Key} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {AgentSecretAttachmentModal} from "../secret"
+import {AgentSecretAttachmentModal, agentSecretBinding} from "../secret"
 
 interface SecretRequestDockProps {
     meta: ClientToolMeta
@@ -80,9 +80,14 @@ export const SecretRequestDock = ({
             () => setSettling(false),
         )
     }
-    const configured = (slug: string, envVar: string, nextRevisionId: string) => {
+    /** A "user" secret reports `{account_source: "user"}` in place of a slug. */
+    const configured = (
+        secret: AgentSecretBinding["secret"],
+        envVar: string,
+        nextRevisionId: string,
+    ) => {
         onAdoptRevision(nextRevisionId)
-        settle({status: "configured", secret: {slug}, env_var: envVar, revision_id: nextRevisionId})
+        settle({status: "configured", secret, env_var: envVar, revision_id: nextRevisionId})
     }
     return (
         <>
@@ -131,11 +136,7 @@ export const SecretRequestDock = ({
                                 size="sm"
                                 disabled={settling || dirty}
                                 onClick={() =>
-                                    configured(
-                                        existing.secret.slug,
-                                        existing.binding.name,
-                                        targetId,
-                                    )
+                                    configured(existing.secret, existing.binding.name, targetId)
                                 }
                             >
                                 Continue
@@ -168,11 +169,14 @@ export const SecretRequestDock = ({
                 dirty={dirty}
                 disabled={!entity || !canEditSecrets}
                 canCreateSecret={canEditSecrets}
-                commitBinding={async ({baseRevisionId, secretSlug, envVar, editIndex}) => {
-                    const binding = {
-                        secret: {slug: secretSlug},
-                        binding: {type: "env" as const, name: envVar},
-                    }
+                commitBinding={async ({
+                    baseRevisionId,
+                    secretSlug,
+                    accountSource,
+                    envVar,
+                    editIndex,
+                }) => {
+                    const binding = agentSecretBinding({secretSlug, accountSource, envVar})
                     const nextBindings =
                         editIndex === undefined
                             ? [...bindings, binding]
@@ -184,8 +188,12 @@ export const SecretRequestDock = ({
                     setTargetId(result.revisionId)
                     return result
                 }}
-                onAttached={({secretSlug, envVar, revisionId: next}) =>
-                    configured(secretSlug, envVar, next)
+                onAttached={({secretSlug, accountSource, envVar, revisionId: next}) =>
+                    configured(
+                        agentSecretBinding({secretSlug, accountSource, envVar}).secret,
+                        envVar,
+                        next,
+                    )
                 }
             />
         </>

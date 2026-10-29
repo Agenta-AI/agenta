@@ -1,6 +1,11 @@
 import {useMemo, useState} from "react"
 
-import {CustomSecretFormat, useVaultSecret, type AgentSecretBinding} from "@agenta/entities/secret"
+import {
+    CustomSecretFormat,
+    isUserSecretBinding,
+    useVaultSecret,
+    type AgentSecretBinding,
+} from "@agenta/entities/secret"
 import {
     agentRequirementsAtomFamily,
     commitAgentCredentialsAtom,
@@ -24,8 +29,10 @@ import {Key, PencilSimple, Plus, Trash} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 import {createPortal} from "react-dom"
 
-import {AgentSecretAttachmentModal} from "../../../secret"
+import {AgentSecretAttachmentModal, agentSecretBinding} from "../../../secret"
 import {useSectionDrawerPanel} from "../sectionDrawerPanel"
+
+import {ACCOUNT_COPY} from "./accounts/copy"
 
 import {NeedsSetupTag} from "./NeedsSetupTag"
 
@@ -90,12 +97,9 @@ export function AgentSecretsSection({
 
     const commitBinding: React.ComponentProps<
         typeof AgentSecretAttachmentModal
-    >["commitBinding"] = async ({secretSlug, envVar, editIndex}) => {
+    >["commitBinding"] = async ({secretSlug, accountSource, envVar, editIndex}) => {
         const next = [...bindings]
-        const value: AgentSecretBinding = {
-            secret: {slug: secretSlug},
-            binding: {type: "env", name: envVar},
-        }
+        const value = agentSecretBinding({secretSlug, accountSource, envVar})
         if (editIndex === undefined) next.push(value)
         else next[editIndex] = value
         return saveBindings(next)
@@ -165,7 +169,10 @@ export function AgentSecretsSection({
                 // -mx/px: the hover fill bleeds 4px, within the panel's scroll clip.
                 <div className="-mx-1 flex flex-col gap-0.5">
                     {bindings.map((binding, index) => {
-                        const secretName = namesBySlug.get(binding.secret.slug)
+                        const personal = isUserSecretBinding(binding)
+                        const secretName = personal
+                            ? ACCOUNT_COPY.userSecretRow
+                            : namesBySlug.get(binding.secret.slug ?? "")
                         const requirement = requirements
                             ? requirementForItem(requirements, {
                                   kinds: ["secret"],
@@ -174,7 +181,7 @@ export function AgentSecretsSection({
                             : undefined
                         return (
                             <div
-                                key={`${binding.secret.slug}-${binding.binding.name}`}
+                                key={`${binding.secret.slug ?? "user"}-${binding.binding.name}`}
                                 className="flex items-center gap-2.5 rounded-md px-1 py-1.5 transition-colors hover:bg-accent"
                             >
                                 <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-colorFillSecondary text-muted-foreground">

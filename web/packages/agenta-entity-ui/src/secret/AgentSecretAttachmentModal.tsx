@@ -2,6 +2,8 @@ import {useEffect, useMemo, useRef, useState} from "react"
 
 import {
     CustomSecretFormat,
+    isUserSecretBinding,
+    personalAccountsAccessAtom,
     useVaultSecret,
     type AgentSecretBinding,
     type NamedSecretRow,
@@ -18,8 +20,12 @@ import {
     SelectValue,
     Textarea,
 } from "@agenta/ui/ui"
+import {useAtomValue} from "jotai"
+
+import {ACCOUNT_COPY} from "../DrillInView/SchemaControls/agentTemplate/accounts/copy"
 
 import {useSecretForm, type SavedSecret} from "./SecretForm"
+import {YourSecretLine} from "./YourSecretLine"
 
 export interface AgentSecretAttachmentTarget {
     revisionId: string
@@ -32,8 +38,13 @@ export interface AgentSecretRequestSeed {
     reason?: string
 }
 
+/** Whose secret the variable receives: each person's own, or a project secret. */
+export type AgentSecretSource = "user" | "project"
+
 export interface AgentSecretAttachmentResult {
+    /** Empty for each person's own secret. */
     secretSlug: string
+    accountSource?: "user"
     envVar: string
     revisionId: string
 }
@@ -52,7 +63,9 @@ export interface AgentSecretAttachmentModalProps {
     canCreateSecret?: boolean
     commitBinding: (input: {
         baseRevisionId: string
+        /** Empty for each person's own secret. */
         secretSlug: string
+        accountSource?: "user"
         envVar: string
         editIndex?: number
     }) => Promise<{revisionId: string}>
@@ -67,6 +80,7 @@ const SECRET_FIELD_ID = "agent-secret-attach-secret"
 const ENV_FIELD_ID = "agent-secret-attach-env"
 const NAME_FIELD_ID = "agent-secret-attach-name"
 const VALUE_FIELD_ID = "agent-secret-attach-value"
+const ACCOUNT_FIELD_ID = "agent-secret-attach-account"
 /** The picker option that swaps in the inline create fields. */
 const NEW_SECRET = "__new__"
 
@@ -137,6 +151,8 @@ export function AgentSecretAttachmentModal({
         () => namedSecrets.filter((secret) => secret.format === CustomSecretFormat.Text),
         [namedSecrets],
     )
+    const access = useAtomValue(personalAccountsAccessAtom)
+    const [source, setSource] = useState<AgentSecretSource>("project")
     const [selectedSlug, setSelectedSlug] = useState("")
     const [createdSecret, setCreatedSecret] = useState<SavedSecret | null>(null)
     const [envVar, setEnvVar] = useState("")
@@ -187,6 +203,7 @@ export function AgentSecretAttachmentModal({
     useEffect(() => {
         if (!open) return
         const original = editingBinding?.value
+        setSource(original && isUserSecretBinding(original) ? "user" : "project")
         const initialSlug = original?.secret.slug ?? ""
         const initialSecret = textSecrets.find((secret) => secret.slug === initialSlug)
         const startNew = canCreateSecret && !original && initialMode === "create"
@@ -235,7 +252,8 @@ export function AgentSecretAttachmentModal({
         else choiceMade.current = true
     }, [open, loading, vaultFresh, textSecrets])
 
-    const creating = selectedSlug === NEW_SECRET
+    const personal = source === "user"
+    const creating = !personal && selectedSlug === NEW_SECRET
 
     const duplicate = bindings.some(
         (candidate, index) =>
@@ -245,17 +263,25 @@ export function AgentSecretAttachmentModal({
     const envOk = !!envVar.trim() && !envError && !duplicate
 
     const attach = async (slug: string, saved?: SavedSecret) => {
-        if (disabled || dirty || !slug || !envOk || attaching) return
+        if (disabled || dirty || (!slug && !personal) || !envOk || attaching) return
         setAttaching(true)
         setError(null)
+        const accountSource = personal ? ("user" as const) : undefined
+        const secretSlug = personal ? "" : slug
         try {
             const result = await commitBinding({
                 baseRevisionId,
-                secretSlug: slug,
+                secretSlug,
+                accountSource,
                 envVar: envVar.trim(),
                 editIndex: editingBinding?.index,
             })
-            onAttached?.({secretSlug: slug, envVar: envVar.trim(), revisionId: result.revisionId})
+            onAttached?.({
+                secretSlug,
+                accountSource,
+                envVar: envVar.trim(),
+                revisionId: result.revisionId,
+            })
             onClose()
         } catch (cause) {
             setError(
@@ -287,11 +313,12 @@ export function AgentSecretAttachmentModal({
         !disabled &&
         !dirty &&
         envOk &&
-        (creating
-            ? !!createController.name.trim() &&
-              !!createController.textValue.trim() &&
-              !createController.okDisabled
-            : !!selectedSlug)
+        (personal ||
+            (creating
+                ? !!createController.name.trim() &&
+                  !!createController.textValue.trim() &&
+                  !createController.okDisabled
+                : !!selectedSlug))
 
     const submit = () => (creating ? createController.submit() : attach(selectedSlug))
 
@@ -328,7 +355,45 @@ export function AgentSecretAttachmentModal({
                     </p>
                 ) : null}
 
-                <div className="flex flex-col gap-1">
+                {access === "on" || personal ? (
+                    <div className="flex flex-col gap-1">
+                        <label htmlFor={ACCOUNT_FIELD_ID} className="font-medium text-colorText">
+                            {ACCOUNT_COPY.label}
+                        </label>
+                        <Select
+                            value={source}
+                            onValueChange={(value) => {
+                                setSource(value as AgentSecretSource)
+                                setError(null)
+                            }}
+                        >
+                            <SelectTrigger id={ACCOUNT_FIELD_ID}>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent container={container} style={{zIndex: popupZIndex}}>
+                                <SelectItem value="user">{ACCOUNT_COPY.eachPersonSecret}</SelectItem>
+                                <SelectItem value="project">{ACCOUNT_COPY.projectSecret}</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        {personal ? (
+                            editingBinding && isUserSecretBinding(editingBinding.value) ? (
+                                <YourSecretLine
+                                    revisionId={target.revisionId}
+                                    bindings={bindings}
+                                    envVar={editingBinding.value.binding.name}
+                                    container={container}
+                                    zIndex={popupZIndex}
+                                />
+                            ) : (
+                                <span className="text-xs text-colorTextSecondary">
+                                    {ACCOUNT_COPY.secretValueLine}
+                                </span>
+                            )
+                        ) : null}
+                    </div>
+                ) : null}
+
+                <div className={personal ? "hidden" : "flex flex-col gap-1"}>
                     <label htmlFor={SECRET_FIELD_ID} className="font-medium text-colorText">
                         Secret
                     </label>
