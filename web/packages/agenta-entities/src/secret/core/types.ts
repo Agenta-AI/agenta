@@ -228,3 +228,6 @@ export interface VaultMigrationStatus {
  * explicitly; omitted, it means the project's connection.
  */
 export type SecretOwnerScope = "project" | "organization"
+
+/** Who owns a named secret: also the caller (`user`), whose secrets work in every project. */
+export type NamedSecretOwner = SecretOwnerScope | "user"

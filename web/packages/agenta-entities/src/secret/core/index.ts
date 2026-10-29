@@ -41,6 +41,7 @@ export type {
     ProviderVaultRow,
     SecretDto,
     SecretOwnerScope,
+    NamedSecretOwner,
     SecretResponseDto,
     StandardProviderDto,
     StandardProviderSettingsDto,

@@ -71,10 +71,10 @@ export interface LlmProvider {
     /** Present only on a `subscription_provider` row: how usable its stored sign-in is. */
     subscription?: SubscriptionLoginFacts
     /**
-     * Whose row this is. `organization` marks an organization connection the project may use;
-     * absent is the project's own row.
+     * Whose row this is. `organization` marks an organization connection the project may use,
+     * `user` one of the caller's own secrets; absent is the project's own row.
      */
-    ownerKind?: "organization"
+    ownerKind?: "organization" | "user"
     /** An organization row read by its admin: every project of the organization, or selected ones. */
     availability?: "all_projects" | "selected_projects"
     /** An organization row read by its admin, limited to selected projects: their ids. */

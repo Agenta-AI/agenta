@@ -22,9 +22,16 @@ import type {
     MCPEndpointEdit,
     MCPEndpointResponse,
     MCPEndpointsResponse,
+    MCPOwnerKind,
 } from "../core/types"
 
 const BASE = "/gateways/mcps/endpoints"
+
+/** `owner_kind=user` signs the caller in (or out); omitted, the project's sign-in as before. */
+const connectParams = (projectId?: string, ownerKind?: MCPOwnerKind) => ({
+    ...(projectId ? {project_id: projectId} : {}),
+    ...(ownerKind === "user" ? {owner_kind: ownerKind} : {}),
+})
 
 export const listMcpEndpoints = async (projectId?: string): Promise<MCPEndpointsResponse> => {
     const response = await axios.get(`${getAgentaApiUrl()}${BASE}/`, {
@@ -124,9 +131,10 @@ export const probeMcpUrl = async (
 export const disconnectMcpEndpoint = async (
     endpointId: string,
     projectId?: string,
+    ownerKind?: MCPOwnerKind,
 ): Promise<MCPEndpointResponse> => {
     const response = await axios.delete(`${getAgentaApiUrl()}${BASE}/${endpointId}/connect`, {
-        params: projectId ? {project_id: projectId} : undefined,
+        params: connectParams(projectId, ownerKind),
     })
     return response.data
 }
@@ -149,11 +157,26 @@ export const beginMcpConnect = async (
     endpointId: string,
     scopes: string[],
     projectId?: string,
+    ownerKind?: MCPOwnerKind,
 ): Promise<MCPConnectResponse> => {
     const response = await axios.post(
         `${getAgentaApiUrl()}${BASE}/${endpointId}/connect`,
         {scopes},
-        {params: projectId ? {project_id: projectId} : undefined},
+        {params: connectParams(projectId, ownerKind)},
+    )
+    return response.data
+}
+
+/** The caller signs in to a token server with their own token. Nothing redirects. */
+export const signInMcpWithToken = async (
+    endpointId: string,
+    token: string,
+    projectId?: string,
+): Promise<MCPConnectResponse> => {
+    const response = await axios.post(
+        `${getAgentaApiUrl()}${BASE}/${endpointId}/connect`,
+        {token},
+        {params: connectParams(projectId, "user")},
     )
     return response.data
 }

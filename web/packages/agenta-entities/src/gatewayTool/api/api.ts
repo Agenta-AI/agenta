@@ -7,7 +7,7 @@
  * parallel set of DTOs.
  */
 
-import {getAgentaApiUrl} from "@agenta/shared/api"
+import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import {getDefaultStore} from "jotai"
 
@@ -23,6 +23,7 @@ import type {
     ToolCatalogIntegrationsResponse,
     ToolCatalogProvidersResponse,
     ToolConnectionCreatePayload,
+    ToolConnectionOwner,
     ToolConnectionResponse,
     ToolConnectionsResponse,
 } from "../core/types"
@@ -155,10 +156,18 @@ export const fetchToolActionDetail = async (
 
 // --- Connections ---
 
+/** The project scope plus `scope=user` for the caller's own connections. */
+const ownerScopedRequest = (owner?: ToolConnectionOwner) => {
+    const scope = projectScopedRequest()
+    return owner === "user" ? {queryParams: {...(scope?.queryParams ?? {}), scope: owner}} : scope
+}
+
 export const queryToolConnections = async (params?: {
     provider_key?: string
     integration_key?: string
     lowPriority?: boolean
+    /** Whose connections: the project's (default) or the caller's own. */
+    owner?: ToolConnectionOwner
 }): Promise<ToolConnectionsResponse> => {
     const client = params?.lowPriority ? getLowPriorityToolsClient() : getToolsClient()
     return client.queryToolConnections(
@@ -166,7 +175,7 @@ export const queryToolConnections = async (params?: {
             provider_key: params?.provider_key,
             integration_key: params?.integration_key,
         },
-        projectScopedRequest(),
+        ownerScopedRequest(params?.owner),
     )
 }
 
@@ -181,11 +190,27 @@ export const fetchToolConnection = async (
 
 export const createToolConnection = async (
     payload: ToolConnectionCreatePayload,
+    owner?: ToolConnectionOwner,
 ): Promise<ToolConnectionResponse> => {
     return getToolsClient().createToolConnection(
         payload as Parameters<ReturnType<typeof getToolsClient>["createToolConnection"]>[0],
-        projectScopedRequest(),
+        ownerScopedRequest(owner),
     )
+}
+
+/**
+ * Make one of the caller's own connections their default for its integration. Not in the
+ * generated client yet; it moves there when the client is regenerated.
+ */
+export const makeDefaultToolConnection = async (
+    connectionId: string,
+): Promise<ToolConnectionResponse> => {
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/tools/connections/${encodeURIComponent(connectionId)}/make-default`,
+        null,
+        {params: projectScopedRequest()?.queryParams},
+    )
+    return response.data
 }
 
 export const deleteToolConnection = async (connectionId: string): Promise<void> => {

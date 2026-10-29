@@ -65,6 +65,8 @@ export type ToolCatalogCategoriesResponse = z.infer<typeof toolCatalogCategories
 // ---------------------------------------------------------------------------
 
 export type ToolConnection = AgentaApi.ToolConnection
+/** Whose connection: the project's, or the caller's own (`scope=user`). */
+export type ToolConnectionOwner = "project" | "user"
 export type ToolConnectionCreate = AgentaApi.ToolConnectionCreate
 export type ToolConnectionCreateData = AgentaApi.ToolConnectionCreateData
 export type ToolConnectionResponse = AgentaApi.ToolConnectionResponse
@@ -126,4 +128,9 @@ export function isConnectionActive(connection: ToolConnection | null | undefined
 
 export function isConnectionValid(connection: ToolConnection | null | undefined): boolean {
     return readConnectionFlag(connection, "is_valid") ?? false
+}
+
+/** The caller's default for its integration. Not in the generated type until it is regenerated. */
+export function isDefaultConnection(connection: ToolConnection | null | undefined): boolean {
+    return (connection as {is_default?: unknown} | null | undefined)?.is_default === true
 }
