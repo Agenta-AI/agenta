@@ -39,5 +39,39 @@
       "provider_token": 0,
       "shell_stdin": 0
     }
-  }
+  },
+  "skill_events_version": 1,
+  "skill_events": [
+    {
+      "id": "claude-skill-toolu_01SDqMATZqQnZW7w7Qqfqznq",
+      "event_type": "tool_invocation",
+      "skill": {
+        "name": "write-pr-description"
+      },
+      "source": {
+        "agent": "claude-code",
+        "signal": "skill_tool_use",
+        "confidence": "explicit"
+      },
+      "turn_id": "137e2caf3cb4",
+      "transcript_anchor": {
+        "unit": "line",
+        "start": 203,
+        "end": 204,
+        "entry_ids": [
+          "5c9ab139-5709-44e3-87b0-c8f775f28036"
+        ],
+        "tool_use_id": "toolu_01SDqMATZqQnZW7w7Qqfqznq"
+      },
+      "native": {
+        "tool_name": "Skill",
+        "tool_use_id": "toolu_01SDqMATZqQnZW7w7Qqfqznq"
+      },
+      "collapse": {
+        "target": "tool_pair",
+        "label": "Skill: write-pr-description",
+        "default_collapsed": true
+      }
+    }
+  ]
 }
