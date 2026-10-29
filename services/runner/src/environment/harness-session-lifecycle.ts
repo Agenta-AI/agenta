@@ -172,8 +172,8 @@ export function resetCapabilityProbeCache(): void {
 /**
  * The reuse key for a probe, or undefined when the answer cannot be reused safely.
  *
- * - `local`: the daemon is the `binaryPath` binary and its adapters come from this runner's own
- *   `node_modules`, so every local daemon this process starts is the same build.
+ * - `local`: the daemon is the `binaryPath` binary, and the capability flags it reports for a
+ *   harness are part of that binary, so every local daemon this process starts answers the same.
  * - `daytona`: the daemon and adapters come from the sandbox's snapshot. The key uses the
  *   snapshot THIS sandbox was built from (`sandboxSnapshot`, see `sandboxSnapshotOf`), not the
  *   configured one, so a parked sandbox from an older snapshot misses the cache. Without a known
