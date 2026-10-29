@@ -3244,6 +3244,26 @@ class SimpleEvaluationsService:
             ),
         )
 
+    async def _set_editor(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        run: EvaluationRun,
+        principal: PrincipalRef,
+    ) -> EvaluationRun:
+        """A save that changes no step still makes the editor the run's executing
+        principal. Only the principal is written, never the fetched snapshot, so a
+        concurrent save's steps stay."""
+        await self.evaluations_service.set_run_principal(
+            project_id=project_id,
+            run_id=run.id,
+            principal=principal,
+            user_id=user_id,
+        )
+        return run.model_copy(update={"principal": principal})
+
     async def add_scenarios(
         self,
         *,
@@ -3338,10 +3358,13 @@ class SimpleEvaluationsService:
         if not run or not run.data:
             return None
 
-        # A save that adds nothing still writes the editor as the principal.
         existing = list(run.data.steps or [])
         existing_keys = {step.key for step in existing}
         fresh = [step for step in steps if step.key not in existing_keys]
+        if not fresh:
+            return await self._set_editor(
+                project_id=project_id, user_id=user_id, run=run, principal=principal
+            )
 
         new_data = run.data.model_copy(update={"steps": existing + fresh})
         return await self._edit_run_data(
@@ -3375,9 +3398,12 @@ class SimpleEvaluationsService:
         if not run or not run.data:
             return None
 
-        # A save that removes nothing still writes the editor as the principal.
         drop = set(step_keys)
         kept = [step for step in (run.data.steps or []) if step.key not in drop]
+        if len(kept) == len(run.data.steps or []):
+            return await self._set_editor(
+                project_id=project_id, user_id=user_id, run=run, principal=principal
+            )
 
         new_data = run.data.model_copy(update={"steps": kept})
         return await self._edit_run_data(
