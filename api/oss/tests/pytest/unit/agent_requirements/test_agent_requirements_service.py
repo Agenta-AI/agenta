@@ -704,3 +704,43 @@ async def test_an_organization_secret_is_checked_against_the_organization():
     assert missing.key == "secret:organization/shared"
     assert missing.reason.value == "not_found"
     assert missing.fix.candidates == 1
+    # A project admin cannot add an organization secret: the organization does.
+    assert missing.fix.can_connect is False
+    assert missing.fix.ask.role == "organization_admin"
+
+
+@pytest.mark.asyncio
+async def test_an_organization_secret_that_is_not_shared_is_fixed_by_its_manager():
+    parameters = _agent(
+        sandbox={
+            "credentials": [
+                {
+                    "secret": {"slug": "gh", "namespace": "organization"},
+                    "binding": {"type": "env", "name": "ORG_GH"},
+                }
+            ]
+        }
+    )
+    vault = _Vault(organization_all=[_text_secret("gh")])
+    asked: List[bool] = []
+
+    async def _manages() -> bool:
+        asked.append(True)
+        return True
+
+    result = await _service(vault=vault).check(
+        scope=_scope(),
+        parameters=parameters,
+        artifact_id=None,
+        run_person_id=None,
+        can_edit_agent=_yes,
+        allowed=_Allowed(allowed=False),
+        may_run_agent=_yes,
+        manages_organization=_manages,
+    )
+    [missing] = result.requirements
+    assert missing.reason.value == "not_shared"
+    assert missing.fix.can_connect is True
+    assert missing.fix.ask.role == "organization_admin"
+    # Asked once, for the reason and the fix together.
+    assert asked == [True]

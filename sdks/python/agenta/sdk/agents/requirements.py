@@ -518,8 +518,7 @@ def model_requirement_from_error(
             return requirement(
                 llm.model_item(), reason=REASON_NOT_AVAILABLE, code=unsupported_code
             )
-    login = llm.user_login_item()
-    if login is not None:
+    if llm.account_source == "user":
         # A login each person brings: no account for the run person. The run never
         # falls back to the agent's or the operator's login.
         missing = (isinstance(code, str) and code in _CONNECTION_REASONS) or any(
@@ -527,11 +526,12 @@ def model_requirement_from_error(
         )
         if not missing:
             return None
-        return requirement(
-            login,
-            reason=REASON_NEEDS_PERSONAL_ACCOUNT,
-            code=code if isinstance(code, str) else None,
-        )
+        code = code if isinstance(code, str) else None
+        login = llm.user_login_item()
+        if login is None:
+            # No login kind serves this provider: the model is what needs changing.
+            return requirement(llm.model_item(), reason=REASON_NOT_AVAILABLE, code=code)
+        return requirement(login, reason=REASON_NEEDS_PERSONAL_ACCOUNT, code=code)
     item = llm.connection_item()
     if item is None:
         return None

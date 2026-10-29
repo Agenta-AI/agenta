@@ -532,3 +532,15 @@ def test_an_organization_secret_is_its_own_item():
         ("secret:organization/gh", {"slug": "gh", "namespace": "organization"}),
         ("secret:gh", {"slug": "gh"}),
     ]
+
+
+def test_a_user_login_for_a_provider_with_no_login_kind_is_a_model_to_change():
+    llm = _user_login()
+    llm.provider = "openai"
+    llm.model = "gpt-5.5"
+    needs = model_requirement_from_error(
+        SubscriptionConnectionMissingError(slug="openai"), llm
+    )
+    assert needs["kind"] == "model"
+    assert needs["reason"] == "not_available"
+    assert needs["blocks_run"] is True

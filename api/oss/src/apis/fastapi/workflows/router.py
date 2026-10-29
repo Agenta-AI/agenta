@@ -1588,7 +1588,13 @@ class WorkflowsRouter:
                 #
                 workflow_revision_ref=body.workflow_revision_ref,
             )
-            artifact_id = artifact_id_of(revision) if revision else None
+            revision_artifact_id = artifact_id_of(revision) if revision else None
+            if (
+                body.workflow_id is not None
+                and body.workflow_id != revision_artifact_id
+            ):
+                revision = None
+            artifact_id = revision_artifact_id
             if revision is None or not await allow_agent(
                 request,
                 action=Permission.VIEW_WORKFLOWS,

@@ -8,7 +8,8 @@ left out of the runs, as it is for a chat.
 Runs inside the turn-on request, never on a run path. Checked in the request's project
 scope, for the person the automation runs as (`run_person_id`): a model login that each
 person brings (`account_source: "user"`) depends on that person. An automation with no
-run person (an API key, a channel) has no such login, so it is refused.
+run person (an API key, a channel) has no such login, so an agent whose model needs one
+is refused; every other agent turns on as before.
 """
 
 from typing import Any, Dict, List, Optional

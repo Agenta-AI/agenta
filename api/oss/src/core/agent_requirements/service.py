@@ -131,6 +131,15 @@ class _Found:
     def is_user(self) -> bool:
         return self.item.account_source == "user"
 
+    @property
+    def is_organization(self) -> bool:
+        """An organization item shared with the project: the organization fixes it."""
+        reference = self.item.reference
+        return (
+            reference.get("scope") == "organization"
+            or reference.get("namespace") == "organization"
+        )
+
 
 class AgentRequirementsService:
     def __init__(
@@ -164,6 +173,7 @@ class AgentRequirementsService:
         """The requirements of one agent configuration, with what the caller can do.
         `run_person_id` is the person who asks, whose accounts the `"user"` items use.
         The caller's permissions are read only when something needs setup."""
+        manages_organization = _once(manages_organization)
         references = read_agent_references(parameters)
         found = await self._find(
             scope=scope,
@@ -191,18 +201,21 @@ class AgentRequirementsService:
                 and permission not in permissions
             ):
                 permissions[permission] = await allowed(permission)
-        runs = any(entry.is_user and entry.fixable for entry in found) and bool(
+        may_run = any(entry.is_user and entry.fixable for entry in found) and bool(
             await may_run_agent()
         )
+        manages = any(
+            entry.is_organization and not entry.is_user for entry in found
+        ) and bool(await manages_organization())
 
         return AgentRequirements.of(
             [
-                (
-                    self._user_requirement(entry, can_edit_agent=edits, runs=runs)
-                    if entry.is_user
-                    else self._requirement(
-                        entry, can_edit_agent=edits, permissions=permissions
-                    )
+                self._requirement_of(
+                    entry,
+                    can_edit_agent=edits,
+                    permissions=permissions,
+                    may_run=may_run,
+                    manages_organization=manages,
                 )
                 for entry in found
             ]
@@ -238,10 +251,12 @@ class AgentRequirementsService:
             )
         )
         return [
-            (
-                self._user_requirement(entry, can_edit_agent=False, runs=False)
-                if entry.is_user
-                else self._requirement(entry, can_edit_agent=False, permissions={})
+            self._requirement_of(
+                entry,
+                can_edit_agent=False,
+                permissions={},
+                may_run=False,
+                manages_organization=False,
             )
             for entry in found
         ]
@@ -282,10 +297,12 @@ class AgentRequirementsService:
             )
         if references.secrets:
             found.extend(
-                self._secrets(
+                await self._secrets(
+                    scope=scope,
                     items=references.secrets,
                     project_rows=project_rows,
                     organization_rows=organization_rows,
+                    manages_organization=manages_organization,
                 )
             )
         if references.app_connections:
@@ -310,7 +327,9 @@ class AgentRequirementsService:
             return []
         person = run_person_id if personal_accounts_enabled() else None
         accounts = {}
-        if person is not None and artifact_id is not None:
+        if person is not None:
+            # Without an agent (a draft with no `workflow_id`) the resolver reads no
+            # choices; defaults and sign-ins still apply.
             resolved = await self.account_choices_service.resolve(
                 organization_id=scope.organization_id,
                 project_id=scope.project_id,
@@ -545,12 +564,14 @@ class AgentRequirementsService:
                 )
         return found
 
-    @staticmethod
-    def _secrets(
+    async def _secrets(
+        self,
         *,
+        scope: AuthScope,
         items: Sequence[ItemReference],
         project_rows: Sequence[SecretResponseDTO],
         organization_rows: Sequence[SecretResponseDTO],
+        manages_organization: Decision,
     ) -> List[_Found]:
         """A project reference reads the project's secrets; an organization reference
         (`namespace: "organization"`) reads the organization's secrets shared with it."""
@@ -562,11 +583,17 @@ class AgentRequirementsService:
         }
         found: List[_Found] = []
         for item in items:
-            slugs = present.get(item.reference.get("namespace"), set())
-            if item.reference.get("slug") not in slugs:
-                found.append(
-                    _Found(item, reason=_REASON.NOT_FOUND, candidates=len(slugs))
-                )
+            namespace = item.reference.get("namespace")
+            slug = item.reference.get("slug")
+            slugs = present.get(namespace, set())
+            if slug in slugs:
+                continue
+            reason = _REASON.NOT_FOUND
+            if namespace == "organization" and await self._not_shared(
+                scope=scope, slug=slug, manages_organization=manages_organization
+            ):
+                reason = _REASON.NOT_SHARED
+            found.append(_Found(item, reason=reason, candidates=len(slugs)))
         return found
 
     async def _app_connections(
@@ -612,20 +639,48 @@ class AgentRequirementsService:
 
     # -- the caller's fix ----------------------------------------------------------------
 
+    @classmethod
+    def _requirement_of(
+        cls,
+        entry: _Found,
+        *,
+        can_edit_agent: bool,
+        permissions: Dict[Permission, bool],
+        may_run: bool,
+        manages_organization: bool,
+    ) -> AgentRequirement:
+        if entry.is_user:
+            return cls._user_requirement(
+                entry, can_edit_agent=can_edit_agent, may_run=may_run
+            )
+        return cls._requirement(
+            entry,
+            can_edit_agent=can_edit_agent,
+            permissions=permissions,
+            manages_organization=manages_organization,
+        )
+
     @staticmethod
     def _requirement(
         entry: _Found,
         *,
         can_edit_agent: bool,
         permissions: Dict[Permission, bool],
+        manages_organization: bool,
     ) -> AgentRequirement:
-        permission = _MANAGE_PERMISSION[entry.kind]
-        manages = bool(permission is not None and permissions.get(permission))
+        if entry.is_organization:
+            # Only who manages the organization's connections adds or shares one.
+            manages = manages_organization
+        else:
+            permission = _MANAGE_PERMISSION[entry.kind]
+            manages = bool(permission is not None and permissions.get(permission))
         sign_in = entry.reason == _REASON.NEEDS_SIGN_IN
         can_sign_in = sign_in and manages
         can_connect = not sign_in and entry.kind != _KIND.MODEL and manages
         ask: Optional[AgentRequirementAsk] = None
-        if entry.reason == _REASON.NOT_SHARED:
+        if entry.reason == _REASON.NOT_SHARED or (
+            entry.is_organization and not manages and not sign_in
+        ):
             ask = AgentRequirementAsk(role="organization_admin")
         elif sign_in and not can_sign_in:
             ask = AgentRequirementAsk(role="project_admin")
@@ -647,7 +702,7 @@ class AgentRequirementsService:
 
     @staticmethod
     def _user_requirement(
-        entry: _Found, *, can_edit_agent: bool, runs: bool
+        entry: _Found, *, can_edit_agent: bool, may_run: bool
     ) -> AgentRequirement:
         """A person sets up only their own account, so anyone who may run the agent
         gets the fix. Nobody else can do it for them, so there is no `ask`."""
@@ -663,8 +718,8 @@ class AgentRequirementsService:
             **shape,
             fix=AgentRequirementFix(
                 can_edit_agent=can_edit_agent,
-                can_connect=runs and not sign_in,
-                can_sign_in=runs and sign_in,
+                can_connect=may_run and not sign_in,
+                can_sign_in=may_run and sign_in,
                 candidates=entry.candidates,
             ),
         )
@@ -672,6 +727,18 @@ class AgentRequirementsService:
 
 async def _never() -> bool:
     return False
+
+
+def _once(decision: Decision) -> Decision:
+    """The decision, asked at most once per check."""
+    answers: List[bool] = []
+
+    async def ask() -> bool:
+        if not answers:
+            answers.append(bool(await decision()))
+        return answers[0]
+
+    return ask
 
 
 def _harness_allows(harness: Optional[str], provider: str) -> bool:

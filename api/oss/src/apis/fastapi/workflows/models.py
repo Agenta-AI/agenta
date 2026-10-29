@@ -258,8 +258,6 @@ class WorkflowRevisionRequirementsQueryRequest(BaseModel):
     def _one_source(self) -> "WorkflowRevisionRequirementsQueryRequest":
         if (self.workflow_revision_ref is None) == (self.parameters is None):
             raise ValueError("send either workflow_revision_ref or parameters")
-        if self.workflow_id is not None and self.parameters is None:
-            raise ValueError("workflow_id goes with parameters")
         return self
 
 
