@@ -41,11 +41,7 @@ def client_metadata_url(*, api_url: str) -> str:
 def identity_document_client_info(
     *, api_url: str, redirect_uri: str
 ) -> OAuthClientInformationFull:
-    """Build the deployment-wide client identity document, served as-is at its URL.
-
-    The authorization server requires `client_id` to equal the URL it fetched the
-    document from, so the served document and the client the flow presents are one value.
-    """
+    """Served as-is at its URL; `client_id` must equal that URL (CIMD §4.1)."""
     return OAuthClientInformationFull(
         client_id=client_metadata_url(api_url=api_url),
         redirect_uris=[redirect_uri],
