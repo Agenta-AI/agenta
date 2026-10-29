@@ -24,20 +24,16 @@ import {
     SelectValue,
     touchTargetExpansion,
 } from "@agenta/ui/ui"
-import {CaretDown, CaretRight} from "@phosphor-icons/react"
+import {CaretDown, CaretRight, Copy} from "@phosphor-icons/react"
 
 import {HintedField} from "./HintedField"
 
 export const OWN_OAUTH_APP_NOTICE =
-    "This server needs an OAuth app you register yourself. Paste its client ID and secret."
+    "This server needs an OAuth app you register yourself. Add the callback URL to it, then paste its client ID and secret."
 
-const CLIENT_HELP =
-    "Only for servers that do not register clients on their own. Most do, and these stay blank."
+const CLIENT_HELP = "Only needed when the server does not register clients on its own. Most do."
 
-const SCOPES_HELP =
-    "All scopes the server offers are checked. Uncheck one to ask for less. Servers that offer no scopes show nothing here."
-
-const CALLBACK_HELP = "Register this callback URL in your OAuth app."
+const SCOPES_HELP = "Uncheck a scope to ask for less."
 
 const COPY_BY_HAND = "Select the URL and copy it."
 
@@ -114,41 +110,48 @@ export const OAuthAdvancedFields = ({
                 Advanced
             </Button>
             {open ? (
-                <div className="flex flex-col gap-3">
-                    {needsOwnApp ? (
-                        <p className="m-0 text-xs leading-normal text-colorText">
-                            {OWN_OAUTH_APP_NOTICE}
-                        </p>
-                    ) : null}
+                <div className="flex flex-col gap-4 rounded-lg border border-solid border-colorBorderSecondary bg-colorFillQuaternary p-3">
+                    <p className="m-0 text-xs leading-normal text-colorTextSecondary">
+                        {needsOwnApp ? OWN_OAUTH_APP_NOTICE : CLIENT_HELP}
+                    </p>
                     {redirectUri ? (
                         <div className="flex flex-col gap-1.5">
                             <span className="text-field-md text-colorText">Callback URL</span>
-                            <div className="flex items-center gap-2">
+                            <div className="flex h-8 items-center gap-2 rounded-lg border border-solid border-colorBorderSecondary bg-colorBgContainer pl-3 pr-1">
                                 <code
                                     ref={callbackRef}
-                                    className="min-w-0 flex-1 truncate font-mono text-[13px] text-colorText"
+                                    className="min-w-0 flex-1 truncate font-mono text-xs text-colorTextSecondary"
+                                    title={redirectUri}
                                 >
                                     {redirectUri}
                                 </code>
-                                <Button variant="outline" size="xs" onClick={copyCallback}>
+                                <Button variant="ghost" size="xs" onClick={copyCallback}>
+                                    <Copy data-icon="inline-start" />
                                     Copy
                                 </Button>
                             </div>
-                            <p className="m-0 text-xs leading-normal text-colorTextTertiary">
-                                {copyFailed ? `${CALLBACK_HELP} ${COPY_BY_HAND}` : CALLBACK_HELP}
-                            </p>
+                            {copyFailed ? (
+                                <p className="m-0 text-xs leading-normal text-colorTextTertiary">
+                                    {COPY_BY_HAND}
+                                </p>
+                            ) : null}
                         </div>
                     ) : null}
-                    <HintedField label="Client ID">
-                        <Input
-                            className="font-mono text-[13px]"
-                            placeholder="Optional"
-                            value={clientId}
-                            disabled={disabled}
-                            aria-label="Client ID"
-                            onChange={(event) => onClientIdChange(event.target.value)}
-                        />
-                    </HintedField>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                        <HintedField label="Client ID">
+                            <Input
+                                className="font-mono text-[13px]"
+                                placeholder={needsOwnApp ? undefined : "Optional"}
+                                value={clientId}
+                                disabled={disabled}
+                                aria-label="Client ID"
+                                onChange={(event) => onClientIdChange(event.target.value)}
+                            />
+                        </HintedField>
+                        {hasClient && authMethod === "none" ? null : (
+                            <HintedField label="Client secret">{clientSecret}</HintedField>
+                        )}
+                    </div>
                     {hasClient ? (
                         <div className="flex flex-col gap-1.5">
                             <span className="text-field-md text-colorText">
@@ -177,32 +180,26 @@ export const OAuthAdvancedFields = ({
                             </Select>
                         </div>
                     ) : null}
-                    {hasClient && authMethod === "none" ? null : (
-                        <HintedField label="Client secret" hint={CLIENT_HELP}>
-                            {clientSecret}
-                        </HintedField>
-                    )}
                     {scopesOffered.length > 0 ? (
                         <fieldset className="m-0 flex flex-col gap-1.5 border-0 p-0">
                             <legend className="mb-1.5 p-0 text-field-md text-colorText">
                                 Scopes
                             </legend>
-                            {scopesOffered.map((scope) => (
-                                <label
-                                    key={scope}
-                                    className="flex cursor-pointer items-center gap-2 text-xs"
-                                >
-                                    <Checkbox
-                                        checked={scopesSelected.includes(scope)}
-                                        disabled={disabled}
-                                        onCheckedChange={() => onToggleScope(scope)}
-                                    />
-                                    <span className="font-mono text-colorText">{scope}</span>{" "}
-                                    <span className="text-colorTextTertiary">
-                                        offered by the server
-                                    </span>
-                                </label>
-                            ))}
+                            <div className="flex flex-wrap gap-x-4 gap-y-2">
+                                {scopesOffered.map((scope) => (
+                                    <label
+                                        key={scope}
+                                        className="flex cursor-pointer items-center gap-2 font-mono text-xs text-colorText"
+                                    >
+                                        <Checkbox
+                                            checked={scopesSelected.includes(scope)}
+                                            disabled={disabled}
+                                            onCheckedChange={() => onToggleScope(scope)}
+                                        />
+                                        {scope}
+                                    </label>
+                                ))}
+                            </div>
                             <p className="m-0 text-xs leading-normal text-colorTextTertiary">
                                 {SCOPES_HELP}
                             </p>

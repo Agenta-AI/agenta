@@ -543,17 +543,14 @@ describe("the OAuth screen's Advanced section", () => {
         expect(control("Client ID")?.getAttribute("placeholder")).toBe("Optional")
         expect(control("Client secret")).not.toBeNull()
         expect(text()).toContain(
-            "Only for servers that do not register clients on their own. Most do, and these stay blank.",
+            "Only needed when the server does not register clients on its own. Most do.",
         )
-        expect(text()).toContain("read offered by the server")
         expect(checkboxes().map((box) => box.getAttribute("aria-checked"))).toEqual([
             "true",
             "true",
             "true",
         ])
-        expect(text()).toContain(
-            "All scopes the server offers are checked. Uncheck one to ask for less. Servers that offer no scopes show nothing here.",
-        )
+        expect(text()).toContain("Uncheck a scope to ask for less.")
     })
 
     it("asks for less when a scope is unchecked", async () => {
@@ -645,7 +642,6 @@ describe("the OAuth screen's Advanced section", () => {
         await press(button("Advanced"))
 
         expect(text()).toContain(redirect)
-        expect(text()).toContain("Register this callback URL in your OAuth app.")
         await press(button("Copy"))
         expect(writeText).toHaveBeenCalledWith(redirect)
     })
