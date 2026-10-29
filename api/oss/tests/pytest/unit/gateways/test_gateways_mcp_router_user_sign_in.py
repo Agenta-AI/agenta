@@ -180,7 +180,7 @@ def session_user(monkeypatch):
 
 def _require_person_answers(monkeypatch, answer):
     """Stand in for both person checks: `require_person` raises the refusal, and
-    `person_or_none` answers None for it."""
+    `signed_in_person` plus the switch answer the same for the sign-in list."""
 
     def _require_person(_request):
         if isinstance(answer, HTTPException):
@@ -191,8 +191,16 @@ def _require_person_answers(monkeypatch, answer):
         "oss.src.apis.fastapi.gateways.mcps.router.require_person", _require_person
     )
     monkeypatch.setattr(
-        "oss.src.apis.fastapi.gateways.mcps.router.person_or_none",
+        "oss.src.apis.fastapi.gateways.mcps.router.signed_in_person",
         lambda _request: None if isinstance(answer, HTTPException) else answer,
+    )
+    switch_on = not (
+        isinstance(answer, HTTPException)
+        and answer.detail["code"] == "personal_accounts_disabled"
+    )
+    monkeypatch.setattr(
+        "oss.src.apis.fastapi.gateways.mcps.router.personal_accounts_enabled",
+        lambda: switch_on,
     )
 
 

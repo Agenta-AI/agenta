@@ -27,7 +27,7 @@ from oss.src.apis.fastapi.gateways.mcps.models import (
     MCPEndpointsResponse,
 )
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
-from oss.src.apis.fastapi.shared.personal import person_or_none, require_person
+from oss.src.apis.fastapi.shared.personal import require_person, signed_in_person
 from oss.src.core.account_choices.policy import personal_accounts_enabled
 from oss.src.apis.fastapi.vault.router import SecretSafeRoute
 from oss.src.core.access.permissions.service import check_action_access
@@ -285,7 +285,7 @@ class MCPGatewayRouter:
     ) -> Optional[Dict[UUID, bool]]:
         """The caller's own sign-ins to these servers, or None when the caller is no
         person or personal accounts are off. One read for the whole list."""
-        person = person_or_none(request)
+        person = signed_in_person(request) if personal_accounts_enabled() else None
         if person is None:
             return None
         organization_id, user_id = person
