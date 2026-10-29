@@ -248,7 +248,9 @@ export const ChannelManagePanel = ({
 
     // --- the two behavior switches --------------------------------------------- //
     const [behavior, setBehavior] = useState<ChannelBehaviorState | null>(null)
-    const [behaviorSaving, setBehaviorSaving] = useState<"dm" | "group" | null>(null)
+    // One save of where it answers at a time: the switches and the Advanced row write the
+    // same rule set, so each control is off while any of them saves.
+    const [behaviorSaving, setBehaviorSaving] = useState<"dm" | "group" | "channels" | null>(null)
     const [behaviorError, setBehaviorError] = useState<string | null>(null)
 
     const loadBehavior = useCallback(async () => {
@@ -263,7 +265,7 @@ export const ChannelManagePanel = ({
     }, [actions, connectionId, connection.platform])
 
     const toggleBehavior = async (key: "dm" | "group", value: boolean) => {
-        if (!connectionId || !behavior) return
+        if (!connectionId || !behavior || behaviorSaving !== null) return
         const next = {...behavior, [key]: value}
         setBehavior(next)
         setBehaviorSaving(key)
@@ -283,15 +285,18 @@ export const ChannelManagePanel = ({
 
     /** The Advanced "Channels it answers in" row: the switches and the row write one rule set. */
     const saveChannels = async (channels: string[] | null) => {
-        if (!connectionId || !behavior) return
+        if (!connectionId || !behavior || behaviorSaving !== null) return
         const next = {...behavior, spaceIds: channels}
+        setBehaviorSaving("channels")
         let writeError: unknown = null
         try {
             await actions.writeBehavior(connection.platform, connectionId, next)
         } catch (e) {
             writeError = e
+        } finally {
+            await loadBehavior()
+            setBehaviorSaving(null)
         }
-        await loadBehavior()
         if (writeError) throw writeError
     }
 
@@ -1016,6 +1021,7 @@ export const ChannelManagePanel = ({
                                       (space) => space.kind !== "private",
                                   ),
                                   onSave: saveChannels,
+                                  busy: behaviorSaving !== null,
                               }
                     }
                 />

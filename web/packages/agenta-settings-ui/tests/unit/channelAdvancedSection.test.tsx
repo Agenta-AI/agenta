@@ -254,3 +254,24 @@ it("shows the stored channels again when a save fails", async () => {
     expect(container.textContent).toContain("Could not save this setting.")
     expect(byId("channels-advanced-answers-only").dataset.checked).toBe("true")
 })
+
+it("keeps the checklist off while a switch saves", async () => {
+    await act(async () =>
+        root.render(
+            <ChannelAdvancedSection
+                platform="slack"
+                connectionId="connection"
+                actions={NOOP_ACTIONS}
+                answersIn={{
+                    behavior: {dm: true, group: true, spaceIds: ["s1"]},
+                    channels: PLACES,
+                    onSave: vi.fn(),
+                    busy: true,
+                }}
+            />,
+        ),
+    )
+    await click("channels-advanced-toggle")
+    expect((byId("channels-advanced-answers-save") as HTMLButtonElement).disabled).toBe(true)
+    expect((byId("channels-advanced-answers-channel-s1") as HTMLButtonElement).disabled).toBe(true)
+})

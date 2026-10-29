@@ -27,6 +27,8 @@ export interface ChannelAnswersInProps {
     channels: ChannelSpace[]
     /** Save "Channels it answers in": null for every channel, else the chosen space ids. */
     onSave: (channels: string[] | null) => Promise<void>
+    /** True while any save of where it answers runs (this row or a switch). */
+    busy?: boolean
 }
 
 export interface ChannelAdvancedSectionProps {
@@ -55,12 +57,13 @@ const AnswersInRow = ({
     isSlack: boolean
     answersIn: ChannelAnswersInProps
 }) => {
-    const {behavior, channels, onSave} = answersIn
+    const {behavior, channels, onSave, busy = false} = answersIn
     const noun = isSlack ? "channel" : "group"
     const stored = behavior?.spaceIds ?? null
     const [choice, setChoice] = useState<Choice>(stored === null ? "all" : "only")
     const [draft, setDraft] = useState<string[]>(stored ?? [])
-    const [saving, setSaving] = useState(false)
+    const [ownSave, setSaving] = useState(false)
+    const saving = ownSave || busy
     const [error, setError] = useState<string | null>(null)
 
     // Follow what the backend holds after every save or switch change.
