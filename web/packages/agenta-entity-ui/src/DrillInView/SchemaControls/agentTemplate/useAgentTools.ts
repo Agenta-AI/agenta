@@ -14,8 +14,10 @@ import {
     findGatewayConnectionIndex,
     parseGatewayConnection,
     removeIntegrationRow,
+    setGatewayConnectionAccount,
     setGatewayConnectionPermissions,
     upsertGatewayConnection,
+    type GatewayConnectionAccount,
     type GatewayConnectionPermissions,
     type GatewayConnectionTarget,
     type GatewayPermission,
@@ -110,6 +112,13 @@ export function useAgentTools({
         [tools, setTools],
     )
 
+    /** The drawer's "Account" select: a project connection, or each person's own account. */
+    const setIntegrationAccount = useCallback(
+        (target: GatewayConnectionTarget, account: GatewayConnectionAccount) =>
+            setTools(setGatewayConnectionAccount(tools, target, account)),
+        [tools, setTools],
+    )
+
     const setIntegrationPermissions = useCallback(
         (target: GatewayConnectionTarget, permissions: GatewayConnectionPermissions) =>
             setTools(setGatewayConnectionPermissions(tools, target, permissions)),
@@ -153,6 +162,7 @@ export function useAgentTools({
         handleRemoveReferenceBySlug,
         integrationRows,
         setIntegrationConnection,
+        setIntegrationAccount,
         setIntegrationPermissions,
         setIntegrationToolPermission,
         removeIntegration,

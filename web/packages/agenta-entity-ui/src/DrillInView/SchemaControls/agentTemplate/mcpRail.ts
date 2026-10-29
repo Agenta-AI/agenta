@@ -52,3 +52,30 @@ export const buildMcpAgentItem = (option: {
     connection: buildMcpConnectionRef(option.slug),
     policy: {tools: {mode: "all"}},
 })
+
+/** Whose sign-in an MCP item uses: each person's own (`"user"`), or the project's. */
+export const readMcpAccountSource = (item: Record<string, unknown> | null | undefined) => {
+    const connection = item?.connection
+    return connection &&
+        typeof connection === "object" &&
+        (connection as Record<string, unknown>).account_source === "user"
+        ? ("user" as const)
+        : ("project" as const)
+}
+
+/**
+ * The item with the MCP drawer's "Account" choice written on its connection. A `"user"` item keeps
+ * its slug, because the slug names the project's server and the account is the person's sign-in
+ * to it; the project's sign-in drops `account_source` (contract section 5.1). Only a `custom`
+ * server takes `"user"`, so any other item comes back unchanged.
+ */
+export const withMcpAccountSource = (
+    item: Record<string, unknown>,
+    source: "user" | "project",
+): Record<string, unknown> => {
+    const connection = item.connection
+    if (!connection || typeof connection !== "object") return item
+    const {account_source: _previous, ...rest} = connection as Record<string, unknown>
+    if (source === "user" && rest.namespace !== "custom") return item
+    return {...item, connection: source === "user" ? {...rest, account_source: "user"} : rest}
+}

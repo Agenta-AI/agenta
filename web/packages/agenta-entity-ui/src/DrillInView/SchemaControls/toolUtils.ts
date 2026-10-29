@@ -125,8 +125,13 @@ export interface GatewayConnectionPermissions {
 export interface ParsedGatewayConnection {
     provider: string
     integration: string
-    /** The project connection slug the integration runs under. */
+    /** The project connection slug the integration runs under. Empty for a "user" entry. */
     connection: string
+    /**
+     * `"user"`: each person who runs the agent uses their own account, and the entry names no
+     * slug (accounts package contract, section 5.1). Absent: the project connection `connection`.
+     */
+    accountSource?: "user"
     permissions: GatewayConnectionPermissions
 }
 
@@ -144,7 +149,8 @@ export interface GatewayConnectionTarget {
  * The three routing fields are REQUIRED, exactly as contracts section 1 fixes them. An entry
  * missing one is not repaired into a different entry: it fails to parse, renders as a raw row, and
  * is edited as JSON. The SDK refuses that same shape, so inventing a provider here would only hide
- * the problem until the agent runs.
+ * the problem until the agent runs. The one exception is the SDK's own: a `"user"` entry has no
+ * slug, because each person who runs the agent brings their own account.
  */
 export function parseGatewayConnection(tool: unknown): ParsedGatewayConnection | null {
     const entry = asRecord(tool)
@@ -154,7 +160,8 @@ export function parseGatewayConnection(tool: unknown): ParsedGatewayConnection |
     const provider = typeof connection.provider === "string" ? connection.provider : ""
     const integration = typeof connection.integration === "string" ? connection.integration : ""
     const slug = typeof connection.slug === "string" ? connection.slug : ""
-    if (!provider || !integration || !slug) return null
+    const user = connection.account_source === "user"
+    if (!provider || !integration || (!slug && !user)) return null
     const permissions = asRecord(asRecord(entry.policy)?.permissions)
     const tools: Record<string, GatewayPermission> = {}
     const savedTools = asRecord(permissions?.tools)
@@ -166,7 +173,8 @@ export function parseGatewayConnection(tool: unknown): ParsedGatewayConnection |
     return {
         provider,
         integration,
-        connection: slug,
+        connection: user ? "" : slug,
+        ...(user ? {accountSource: "user" as const} : {}),
         permissions: {
             default: isGatewayPermission(permissions?.default) ? permissions.default : "inherit",
             tools,
@@ -182,11 +190,15 @@ export function buildGatewayConnectionEntry(
     return {
         // The discriminator the SDK parses on. Fern models the union arm without it.
         type: "gateway_connection",
-        connection: {
-            provider: view.provider as GatewayConnectionToolConfig["connection"]["provider"],
-            integration: view.integration,
-            slug: view.connection,
-        },
+        // A "user" entry names no slug; the SDK refuses one next to `account_source: "user"`.
+        // `account_source` is not in the generated type until the client is regenerated.
+        connection: (view.accountSource === "user"
+            ? {provider: view.provider, integration: view.integration, account_source: "user"}
+            : {
+                  provider: view.provider,
+                  integration: view.integration,
+                  slug: view.connection,
+              }) as GatewayConnectionToolConfig["connection"],
         policy: {
             permissions: {
                 default: view.permissions.default,
@@ -261,14 +273,20 @@ function applyToSavedEntry(
     view: ParsedGatewayConnection,
 ): Record<string, unknown> {
     const policy = asRecord(saved.policy) ?? {}
+    // The account is either the project connection's slug or each person's own: one of the two
+    // fields, never both (contract section 5.1).
+    const {slug: _slug, account_source: _source, ...savedConnection} =
+        asRecord(saved.connection) ?? {}
     return {
         ...saved,
         type: "gateway_connection",
         connection: {
-            ...(asRecord(saved.connection) ?? {}),
+            ...savedConnection,
             provider: view.provider,
             integration: view.integration,
-            slug: view.connection,
+            ...(view.accountSource === "user"
+                ? {account_source: "user"}
+                : {slug: view.connection}),
         },
         policy: {
             ...policy,
@@ -385,6 +403,32 @@ export function findIntegrationRow(
 export function integrationRowConnection(row: IntegrationRow): string | undefined {
     if (row.entry) return row.entry.connection
     return row.legacyConnections.length === 1 ? row.legacyConnections[0] : undefined
+}
+
+/** Whose account an integration entry runs under: a project connection, or each person's own. */
+export type GatewayConnectionAccount = {kind: "user"} | {kind: "project"; slug: string}
+
+/**
+ * Point the entry for `target` at a project connection (writes its slug, drops `account_source`)
+ * or at each person's own account (writes `account_source: "user"`, drops the slug). The policy
+ * stays. Returns `tools` when there is no entry.
+ */
+export function setGatewayConnectionAccount(
+    tools: unknown[],
+    target: GatewayConnectionTarget,
+    account: GatewayConnectionAccount,
+): unknown[] {
+    const index = findGatewayConnectionIndex(tools, target)
+    if (index < 0) return tools
+    const view = parseGatewayConnection(tools[index])
+    if (!view) return tools
+    const next = tools.slice()
+    next[index] = applyToSavedEntry(asRecord(tools[index]) ?? {}, {
+        ...view,
+        connection: account.kind === "project" ? account.slug : "",
+        accountSource: account.kind === "user" ? "user" : undefined,
+    })
+    return next
 }
 
 /** Replace the permission object of the entry for `target`. Returns `tools` when there is none. */
