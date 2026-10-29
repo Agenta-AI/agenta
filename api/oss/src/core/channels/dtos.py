@@ -466,6 +466,18 @@ class ChannelAgentAudience(BaseModel):
         return sender_id is not None and str(sender_id) in self.senders
 
 
+# the most people a create or an edit may send; stored lists are not capped, so a
+# list copied by the migration stays readable
+MAX_AUDIENCE_SENDERS = 1000
+
+
+def _check_audience_size(audience: Optional[ChannelAgentAudience]) -> None:
+    if audience is not None and len(audience.senders) > MAX_AUDIENCE_SENDERS:
+        raise ValueError(
+            f"audience.senders holds at most {MAX_AUDIENCE_SENDERS} people"
+        )
+
+
 class ChannelAgentData(BaseModel):
     references: Dict[str, Reference]  # the bound workflow/variant/revision
     policy: Optional[ChannelPolicy] = None
@@ -1243,9 +1255,22 @@ class ChannelSetupResponse(BaseModel):
 class ChannelAgentRequest(BaseModel):
     agent: ChannelAgentCreate
 
+    @model_validator(mode="after")
+    def _audience_size(self) -> "ChannelAgentRequest":
+        # the request only: a stored list longer than this stays readable
+        _check_audience_size(self.agent.data.audience)
+        return self
+
 
 class ChannelAgentEditRequest(BaseModel):
     agent: ChannelAgentEdit
+
+    @model_validator(mode="after")
+    def _audience_size(self) -> "ChannelAgentEditRequest":
+        # the request only: a stored list longer than this stays readable
+        if self.agent.data is not None:
+            _check_audience_size(self.agent.data.audience)
+        return self
 
 
 class ChannelAgentQueryRequest(BaseModel):

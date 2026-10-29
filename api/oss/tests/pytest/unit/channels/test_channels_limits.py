@@ -942,3 +942,56 @@ async def test_a_people_list_change_is_also_written_to_the_installation():
         agent=ChannelAgentEdit(id=agent.id, name="renamed"),
     )
     assert "installation_senders" not in dao.edit_agent.await_args.kwargs
+
+
+def test_a_request_may_send_at_most_1000_people_but_a_stored_list_stays_readable():
+    from oss.src.core.channels.dtos import (
+        ChannelAgentEditRequest,
+        ChannelAgentRequest,
+        MAX_AUDIENCE_SENDERS,
+    )
+
+    many = [f"U{i}" for i in range(MAX_AUDIENCE_SENDERS + 1)]
+    references = {"workflow_revision": {"id": str(uuid4())}}
+
+    with pytest.raises(ValueError):
+        ChannelAgentEditRequest(
+            agent={"id": str(uuid4()), "data": {"audience": {"senders": many}}}
+        )
+    with pytest.raises(ValueError):
+        ChannelAgentRequest(
+            agent={
+                "connection_id": str(uuid4()),
+                "slug": "x",
+                "data": {"references": references, "audience": {"senders": many}},
+            }
+        )
+    # a list already stored (the migration copies without a cap) loads, and an edit
+    # that does not send the list goes through
+    stored = ChannelAgentData.model_validate(
+        {"references": references, "audience": {"senders": many}}
+    )
+    assert len(stored.audience.senders) == MAX_AUDIENCE_SENDERS + 1
+    ChannelAgentEditRequest(agent={"id": str(uuid4()), "name": "renamed"})
+
+
+async def test_no_note_to_a_person_who_opted_out_or_for_an_opt_out_word():
+    adapter = _NoteAdapter()
+    dispatcher, store = _dispatcher(adapter)
+    opted_out = _refusal(
+        reason=ChannelRefusalReason.SENDER_NOT_LISTED, kind=ChannelSpaceKind.PRIVATE
+    )
+    opted_out.space.flags.is_opted_out = True
+
+    await _note(dispatcher, opted_out)
+    await _note(
+        dispatcher,
+        _refusal(
+            reason=ChannelRefusalReason.SENDER_NOT_LISTED,
+            kind=ChannelSpaceKind.PRIVATE,
+        ),
+        event=_event(text="STOP", sender="BEN", space_kind=ChannelSpaceKind.PRIVATE),
+    )
+
+    adapter.post_message.assert_not_awaited()
+    assert store.rows == {}

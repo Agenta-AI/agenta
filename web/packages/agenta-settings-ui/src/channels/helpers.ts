@@ -57,6 +57,22 @@ export const formatConnectedOn = (iso: string | null | undefined): string | null
     return date.toLocaleDateString(undefined, {day: "numeric", month: "short", year: "numeric"})
 }
 
+/**
+ * Where a connection's agent answers, for the summary lines: whether it answers DMs, and in
+ * how many channels (or groups). Without the agent's rules read, every place it is in counts.
+ */
+export const answeringPlaces = (connection: ChannelConnection): {dm: boolean; groups: number} => {
+    const behavior = connection.behavior
+    const inPlaces = connection.chats.filter((chat) => chat.type !== "dm").length
+    if (!behavior) return {dm: true, groups: inPlaces}
+    const groups = !behavior.group
+        ? 0
+        : behavior.spaceIds !== null
+          ? behavior.spaceIds.length
+          : inPlaces
+    return {dm: behavior.dm, groups}
+}
+
 /** A connection's line in a list: its name, then how it was installed and where it answers. */
 export const connectionRowText = (
     connection: ChannelConnection,
@@ -77,17 +93,10 @@ export const connectionRowText = (
               : "Bot token revoked"
         return {title, detail}
     }
-    const behavior = connection.behavior
-    const nonDm = !behavior
-        ? connection.chats.filter((chat) => chat.type !== "dm").length
-        : !behavior.group
-          ? 0
-          : behavior.spaceIds !== null
-            ? behavior.spaceIds.length
-            : connection.chats.filter((chat) => chat.type !== "dm").length
+    const {dm, groups: nonDm} = answeringPlaces(connection)
     const noun = slack ? "channel" : "group"
     const places = [
-        ...(behavior && !behavior.dm ? [] : ["DMs"]),
+        ...(dm ? ["DMs"] : []),
         ...(nonDm ? [`${nonDm} ${noun}${nonDm > 1 ? "s" : ""}`] : []),
     ]
     const where = places.length ? places.join(" and ") : "Answers nowhere"
@@ -279,9 +288,17 @@ export const summarizeConnection = (
         }
     }
 
-    const nonDm = connection.chats.filter((chat) => chat.type !== "dm").length
+    const {dm, groups: nonDm} = answeringPlaces(connection)
     const noun = platform === "slack" ? "channel" : "group"
-    const where = nonDm ? `${nonDm} ${noun}${nonDm > 1 ? "s" : ""} + DMs` : "Direct messages"
+    const groupsText = `${nonDm} ${noun}${nonDm > 1 ? "s" : ""}`
+    const where =
+        nonDm && dm
+            ? `${groupsText} + DMs`
+            : nonDm
+              ? groupsText
+              : dm
+                ? "Direct messages"
+                : "Answers nowhere"
     return {
         sub: `${botHandle(connection)} · ${where}`,
         subClass: "text-colorTextTertiary",

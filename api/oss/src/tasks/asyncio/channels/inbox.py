@@ -831,6 +831,10 @@ class InboxDispatcher:
 
         try:
             space = refusal.space
+            # never write to a person who opted out, and never answer an opt-out
+            # or opt-in word with a refusal (WhatsApp consent)
+            if space.flags.is_opted_out or _consent_keyword(event) is not None:
+                return
             day = datetime.now(timezone.utc).date().isoformat()
             key = uuid5(
                 _REFUSAL_NOTE_NAMESPACE,

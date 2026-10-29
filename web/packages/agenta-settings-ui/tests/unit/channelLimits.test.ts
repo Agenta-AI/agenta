@@ -184,3 +184,26 @@ describe("Who the agent answers", () => {
         })
     })
 })
+
+describe("Channel summaries", () => {
+    it("count the chosen channels, not every channel the bot is in", async () => {
+        const {summarizeConnection, connectionRowText} = await import("../../src/channels/helpers")
+        const connection = {
+            connectionId: "c",
+            platform: "slack" as const,
+            kind: "custom" as const,
+            status: "connected" as const,
+            dm: "allow" as const,
+            group: "allow" as const,
+            agent: {id: "agent", name: "QA"},
+            chats: [
+                {name: "#support", type: "channel" as const},
+                {name: "#random", type: "channel" as const},
+            ],
+            behavior: {dm: false, group: true, spaceIds: ["s1"]},
+        }
+        expect(summarizeConnection("slack", connection, "agent").sub).toContain("1 channel")
+        expect(summarizeConnection("slack", connection, "agent").sub).not.toContain("DMs")
+        expect(connectionRowText(connection).detail).toContain("1 channel")
+    })
+})
