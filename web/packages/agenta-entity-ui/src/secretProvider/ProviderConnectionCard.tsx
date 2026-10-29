@@ -33,6 +33,7 @@ import {
     initialEndpointProtocol,
     manualModelPlaceholderForKind,
     modelDisplayOrder,
+    nextConnectionName,
     probeProviderMutationAtom,
     probeFailureMessage,
     probeRequestFor,
@@ -45,11 +46,13 @@ import {
     storedCredentialFields,
     type CredentialValues,
     type LlmEndpointProtocol,
+    type OrganizationSecretProjects,
     type ProbeProviderResponse,
     type ProviderConnection,
 } from "@agenta/entities/secret"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
 import {projectIdAtom} from "@agenta/shared/state"
+import {message} from "@agenta/ui/app-message"
 import {
     InputAffix,
     LoadingButton,
@@ -68,6 +71,14 @@ import {harnessMetaFor, selectableHarnesses} from "../DrillInView/SchemaControls
 
 import ActiveModelsSection from "./ActiveModelsSection"
 import HarnessesSection, {type HarnessChoice} from "./HarnessesSection"
+import OrganizationProjectsSection, {
+    type OrganizationConnectionScope,
+} from "./OrganizationProjectsSection"
+import {
+    organizationSavedToast,
+    organizationSaveError,
+    sameProjects,
+} from "./useOrganizationProjectsDraft"
 import {DEFAULT_KEY_HARNESS as DEFAULT_HARNESS} from "./useSaveProviderKey"
 
 /** The capability map is global; the key only records which surface asked for it. */
@@ -116,7 +127,24 @@ export interface ProviderConnectionCardProps {
      * Cancel is the drawer's own — it is the step that opened the card that gets undone.
      */
     onSaveStateChange?: (state: ProviderCardSaveState) => void
+    /**
+     * Set for an organization connection: it saves to the organization, names itself
+     * "{provider} (Organization)", and ends with "Projects that can use it". Read-only for a
+     * member, who can still Test it.
+     */
+    organization?: OrganizationConnectionScope
 }
+
+/** Who a saved organization connection reaches, or null for a project connection. */
+const savedProjectsOf = (
+    connection: ProviderConnection | null | undefined,
+): OrganizationSecretProjects | null =>
+    connection?.availability
+        ? {
+              availability: connection.availability,
+              projectIds: connection.selectedProjectIds ?? [],
+          }
+        : null
 
 const ProviderConnectionCard = ({
     kind,
@@ -124,7 +152,9 @@ const ProviderConnectionCard = ({
     connections,
     onSaved,
     onSaveStateChange,
+    organization,
 }: ProviderConnectionCardProps) => {
+    const readOnly = !!organization?.readOnly
     const projectId = useAtomValue(projectIdAtom)
     const capabilities = useAtomValue(harnessCapabilitiesAtomFamily(HARNESS_CATALOG_KEY))
     const probeMutation = useAtomValue(probeProviderMutationAtom)
@@ -165,6 +195,11 @@ const ProviderConnectionCard = ({
     const [protocol, setProtocol] = useState<LlmEndpointProtocol | null>(
         initialEndpointProtocol(connection),
     )
+    // A new organization connection starts with every project.
+    const savedProjects = useMemo(() => savedProjectsOf(connection), [connection])
+    const [projects, setProjects] = useState<OrganizationSecretProjects>(
+        savedProjects ?? {availability: "all_projects", projectIds: []},
+    )
 
     // The card is remounted per provider by its key in the drawer, but a Settings row click can
     // swap the connection under a mounted card; reseed rather than show the previous one's state.
@@ -182,6 +217,7 @@ const ProviderConnectionCard = ({
         setCheckedModels(connection?.models ?? null)
         setHarnesses(connection?.harnesses ?? null)
         setProtocol(initialEndpointProtocol(connection))
+        setProjects(savedProjectsOf(connection) ?? {availability: "all_projects", projectIds: []})
     }, [connection, storedCredential])
 
     // A saved write-only record returns no values, so its secret fields arrive empty every time.
@@ -307,22 +343,45 @@ const ProviderConnectionCard = ({
 
     // What an empty name would become. A connection being edited keeps its own name out of the
     // count, so clearing the field previews the name it already has rather than the next one.
-    const namePreview = defaultNamePreview(
-        kind,
-        connections.filter((candidate) => candidate.id !== connection?.id),
+    const otherConnections = connections.filter((candidate) => candidate.id !== connection?.id)
+    // An organization connection's default name says it is the organization's, as the API's does.
+    const namePreview = organization
+        ? nextConnectionName(
+              `${title} (Organization)`,
+              otherConnections.map((candidate) => candidate.name),
+          )
+        : defaultNamePreview(kind, otherConnections)
+
+    // A member tests the organization connection exactly as saved: any field sent would be an
+    // edit, which only an owner or admin may make.
+    const probeRequest = useMemo(
+        () =>
+            readOnly && connection
+                ? {kind: undefined, provider: {}, secret_id: connection.id}
+                : probeRequestFor(kind, credential, connection),
+        [readOnly, connection, kind, credential],
     )
+    // A member's probe of the stored organization row runs through the current project, so only
+    // where the project may use it. An owner or admin reads the row from any project, and a
+    // typed key is tested on its own.
+    const readsOrganizationSecret = !!organization && !!probeRequest.secret_id
+    const testableHere =
+        !readsOrganizationSecret ||
+        !readOnly ||
+        connection?.availability !== "selected_projects" ||
+        (!!projectId && (connection.selectedProjectIds ?? []).includes(projectId))
 
     const runProbe = useCallback(async () => {
         if (!projectId) return
         setProbeFailure(null)
         setSaveError(null)
-        const request = probeRequestFor(kind, credential, connection)
         try {
             const result = await probeMutation.mutateAsync({
                 projectId,
-                kind: request.kind,
-                provider: request.provider,
-                secretId: request.secret_id,
+                kind: probeRequest.kind,
+                provider: probeRequest.provider,
+                secretId: probeRequest.secret_id,
+                ...(readsOrganizationSecret ? {secretScope: "organization" as const} : {}),
             })
             setProbe(result)
             if (!result) setProbeFailure(`Agenta could not read ${title}'s answer.`)
@@ -330,7 +389,7 @@ const ProviderConnectionCard = ({
             setProbe(null)
             setProbeFailure(probeFailureMessage(error, title))
         }
-    }, [projectId, probeMutation, kind, credential, connection, title])
+    }, [projectId, probeMutation, probeRequest, readsOrganizationSecret, title])
 
     const setField = (key: string, value: string) => {
         setCredential((previous) => ({...previous, [key]: value}))
@@ -362,36 +421,51 @@ const ProviderConnectionCard = ({
     const onSave = async () => {
         setSaving(true)
         setSaveError(null)
+        const draft = {
+            kind,
+            name,
+            credential,
+            // Omitted for a record that declares no protocol, which keeps it undeclared:
+            // sending the control's displayed default would narrow a gateway nobody
+            // described, and an Anthropic-compatible one would lose every Claude Code row.
+            ...(protocolField && protocol ? {protocol} : {}),
+            modelNames: Object.fromEntries(
+                modelOptions.flatMap((option) =>
+                    option.checked && option.name ? [[option.id, option.name]] : [],
+                ),
+            ),
+            ...connectionPolicyForSave({
+                checkedModels,
+                modelIds: modelOptions
+                    .filter((option) => option.checked)
+                    .map((option) => option.id),
+                harnesses,
+                defaultHarness,
+            }),
+        }
+        const savedName = name.trim() || connection?.name || namePreview
         try {
             const savedConnectionId = await saveConnection({
-                draft: {
-                    kind,
-                    name,
-                    credential,
-                    // Omitted for a record that declares no protocol, which keeps it undeclared:
-                    // sending the control's displayed default would narrow a gateway nobody
-                    // described, and an Anthropic-compatible one would lose every Claude Code row.
-                    ...(protocolField && protocol ? {protocol} : {}),
-                    modelNames: Object.fromEntries(
-                        modelOptions.flatMap((option) =>
-                            option.checked && option.name ? [[option.id, option.name]] : [],
-                        ),
-                    ),
-                    ...connectionPolicyForSave({
-                        checkedModels,
-                        modelIds: modelOptions
-                            .filter((option) => option.checked)
-                            .map((option) => option.id),
-                        harnesses,
-                        defaultHarness,
-                    }),
-                },
+                draft,
                 fallbackName: namePreview,
                 connectionId: connection?.id,
+                ...(organization
+                    ? {
+                          organization: {
+                              projects,
+                              projectsChanged:
+                                  !savedProjects || !sameProjects(savedProjects, projects),
+                          },
+                      }
+                    : {}),
             })
+            if (organization) message.success(organizationSavedToast(savedName, projects))
             onSaved(savedConnectionId ?? undefined)
-        } catch {
-            setSaveError(`Agenta could not save this ${title} connection. Try again.`)
+        } catch (error) {
+            setSaveError(
+                (organization && organizationSaveError(error, organization.name, savedName)) ||
+                    `Agenta could not save this ${title} connection. Try again.`,
+            )
         } finally {
             setSaving(false)
         }
@@ -428,7 +502,7 @@ const ProviderConnectionCard = ({
                         <LoadingButton
                             variant="outline"
                             loading={probeMutation.isPending}
-                            disabled={!credentialFilled || !projectId}
+                            disabled={!credentialFilled || !projectId || !testableHere}
                             onClick={() => void runProbe()}
                         >
                             {credentialFailed ? "Retry" : "Test"}
@@ -487,6 +561,7 @@ const ProviderConnectionCard = ({
                                 <div className="min-w-0 flex-1">
                                     {block ? (
                                         <Textarea
+                                            disabled={readOnly}
                                             placeholder={field.placeholder}
                                             rows={block.rows ?? 8}
                                             className="font-mono !text-xs"
@@ -500,6 +575,7 @@ const ProviderConnectionCard = ({
                                         />
                                     ) : secret ? (
                                         <PasswordInput
+                                            disabled={readOnly}
                                             autoFocus={!connection && index === 0}
                                             placeholder={field.placeholder}
                                             className={FIELD_TYPE_SCALE}
@@ -510,6 +586,7 @@ const ProviderConnectionCard = ({
                                         />
                                     ) : (
                                         <InputAffix
+                                            disabled={readOnly}
                                             autoFocus={!connection && index === 0}
                                             placeholder={field.placeholder}
                                             className={FIELD_TYPE_SCALE}
@@ -536,6 +613,7 @@ const ProviderConnectionCard = ({
                         <span className="font-medium text-colorText">{protocolField.label}</span>
                         <Segmented
                             size="sm"
+                            disabled={readOnly}
                             options={protocolField.options}
                             // An undeclared record shows the default without having declared it;
                             // pressing an option is what makes the statement.
@@ -577,27 +655,31 @@ const ProviderConnectionCard = ({
 
                 {/* Why the footer's Done is disabled (or what saving now would mean), stated where
                     the credential that decides it is. */}
-                {done.note ? (
+                {done.note && !readOnly ? (
                     <span className="text-[11px] text-colorTextTertiary">{done.note}</span>
                 ) : null}
             </section>
 
-            <div className="flex shrink-0 flex-col gap-1">
-                <span className="font-medium text-colorText">
-                    Name <span className="font-normal text-colorTextTertiary">— optional</span>
-                </span>
-                <InputAffix
-                    placeholder={namePreview}
-                    className={FIELD_TYPE_SCALE}
-                    autoComplete="off"
-                    {...PASSWORD_MANAGER_OPT_OUT}
-                    value={name}
-                    onValueChange={setName}
-                />
-            </div>
+            {/* A member cannot rename an organization connection, so the field is not offered. */}
+            {readOnly ? null : (
+                <div className="flex shrink-0 flex-col gap-1">
+                    <span className="font-medium text-colorText">
+                        Name <span className="font-normal text-colorTextTertiary">— optional</span>
+                    </span>
+                    <InputAffix
+                        placeholder={namePreview}
+                        className={FIELD_TYPE_SCALE}
+                        autoComplete="off"
+                        {...PASSWORD_MANAGER_OPT_OUT}
+                        value={name}
+                        onValueChange={setName}
+                    />
+                </div>
+            )}
 
             {showModels ? (
                 <ActiveModelsSection
+                    readOnly={readOnly}
                     options={modelOptions}
                     manualPlaceholder={manualModelPlaceholderForKind(kind)}
                     onToggle={toggleModel}
@@ -624,18 +706,29 @@ const ProviderConnectionCard = ({
                 </section>
             )}
 
-            <HarnessesSection
-                choices={harnessChoices}
-                selected={effectiveHarnesses}
-                unrestricted={!harnesses && !defaultHarness}
-                onToggle={(id, checked) =>
-                    setHarnesses(
-                        checked
-                            ? [...effectiveHarnesses.filter((harness) => harness !== id), id]
-                            : effectiveHarnesses.filter((harness) => harness !== id),
-                    )
-                }
-            />
+            {readOnly ? null : (
+                <HarnessesSection
+                    choices={harnessChoices}
+                    selected={effectiveHarnesses}
+                    unrestricted={!harnesses && !defaultHarness}
+                    onToggle={(id, checked) =>
+                        setHarnesses(
+                            checked
+                                ? [...effectiveHarnesses.filter((harness) => harness !== id), id]
+                                : effectiveHarnesses.filter((harness) => harness !== id),
+                        )
+                    }
+                />
+            )}
+
+            {organization && !readOnly ? (
+                <OrganizationProjectsSection
+                    scope={organization}
+                    value={projects}
+                    onChange={setProjects}
+                    saved={savedProjects}
+                />
+            ) : null}
         </div>
     )
 }

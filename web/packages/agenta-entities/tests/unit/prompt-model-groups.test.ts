@@ -1005,6 +1005,11 @@ describe("selectedOptionLabel", () => {
                     provider: "openrouter",
                     label: "DeepSeek: DeepSeek V4 Flash",
                 },
+                {
+                    id: "openrouter/moonshotai/kimi-k3.1-pro",
+                    provider: "openrouter",
+                    label: "Kimi K3.1 Pro",
+                },
             ],
         },
     }
@@ -1034,6 +1039,54 @@ describe("selectedOptionLabel", () => {
         expect(selectedOptionLabel({groups, model: "openrouter/deepseek/deepseek-v4-flash"})).toBe(
             "DeepSeek: DeepSeek V4 Flash",
         )
+    })
+
+    it("labels Kimi K3.1 Pro without changing its runnable OpenRouter id", () => {
+        const groups = buildConnectionModelGroups({
+            connections: [
+                standard({
+                    id: "or",
+                    slug: "openrouter",
+                    kind: "openrouter",
+                    models: ["moonshotai/kimi-k3.1-pro"],
+                }),
+            ],
+            capabilities: caps,
+        })
+
+        expect(groups[0].options).toMatchObject([
+            {
+                label: "Kimi K3.1 Pro",
+                value: "openrouter/moonshotai/kimi-k3.1-pro",
+            },
+        ])
+        expect(selectedOptionLabel({groups, model: "openrouter/moonshotai/kimi-k3.1-pro"})).toBe(
+            "Kimi K3.1 Pro",
+        )
+    })
+
+    it("keeps an uncatalogued OpenRouter model id as its fallback label", () => {
+        const groups = buildConnectionModelGroups({
+            connections: [
+                standard({
+                    id: "or",
+                    slug: "openrouter",
+                    kind: "openrouter",
+                    models: ["moonshotai/uncatalogued-model"],
+                }),
+            ],
+            capabilities: caps,
+        })
+
+        expect(groups[0].options).toMatchObject([
+            {
+                label: "moonshotai/uncatalogued-model",
+                value: "openrouter/moonshotai/uncatalogued-model",
+            },
+        ])
+        expect(
+            selectedOptionLabel({groups, model: "openrouter/moonshotai/uncatalogued-model"}),
+        ).toBe("moonshotai/uncatalogued-model")
     })
 
     it("gives a manually added id back exactly as typed", () => {

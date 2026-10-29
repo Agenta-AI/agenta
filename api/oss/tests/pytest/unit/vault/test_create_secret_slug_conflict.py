@@ -25,6 +25,7 @@ from oss.src.core.secrets.claude_token import ClaudeTokenClient
 from oss.src.core.secrets.subscription_login import SubscriptionLoginRunnerClient
 from oss.src.core.secrets.subscription_service import SubscriptionLoginService
 from oss.src.core.secrets.types import SecretSlugConflict
+from oss.tests.pytest.utils.organization_secrets import owner_scope
 
 
 PROJECT_ID = str(uuid4())
@@ -35,7 +36,14 @@ class _UniqueSlugSecretsDAO:
     def __init__(self):
         self.records: dict = {}
 
-    async def create(self, project_id, organization_id, create_secret_dto):
+    async def create(
+        self,
+        *,
+        owner,
+        create_secret_dto,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         key = (project_id, create_secret_dto.slug)
         if key in self.records:
             raise SecretSlugConflict(slug=create_secret_dto.slug)

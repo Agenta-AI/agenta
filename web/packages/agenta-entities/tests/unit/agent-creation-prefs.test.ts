@@ -207,3 +207,19 @@ describe("ensureEnabledSandbox", () => {
         expect(ensureEnabledSandbox(config, [])).toBe(config)
     })
 })
+
+describe("an organization subscription pick", () => {
+    it("keeps the organization namespace when restored", () => {
+        expect(
+            selectionFromAgentCreationPrefs({
+                version: 1,
+                harness: "pi_core",
+                model: "gpt-5.5",
+                provider: "openai-codex",
+                connectionMode: "self_managed",
+                connectionSlug: "chatgpt",
+                connectionNamespace: "organization",
+            })?.namespace,
+        ).toBe("organization")
+    })
+})

@@ -1095,6 +1095,8 @@ class HarnessAgentTemplate(BaseModel):
         wire: Dict[str, Any] = {"mode": connection.mode}
         if connection.slug is not None:
             wire["slug"] = connection.slug
+        if connection.is_organization:
+            wire["scope"] = connection.scope
         return {"connection": wire}
 
     def wire_model_connection(self) -> Dict[str, Any]:

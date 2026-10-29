@@ -498,6 +498,13 @@ class AccessService:
         )
         if membership is None:
             return None, DecisionReason.NOT_MEMBER, role_user_id
+        # A credential names its organization; the project must be in it (a run
+        # credential minted for a legacy cross-organization project names another one).
+        if (
+            authority is not None
+            and authority.organization_id != membership.organization_id
+        ):
+            return None, DecisionReason.NOT_MEMBER, role_user_id
         return membership, None, role_user_id
 
     # -- reads: one Redis round trip per request on warm caches -------------------------

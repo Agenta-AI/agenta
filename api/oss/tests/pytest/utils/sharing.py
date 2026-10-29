@@ -106,6 +106,7 @@ class InMemorySharingDAO(SharingDAOInterface):
         session_id: Optional[str] = None,
         stream_id: Optional[UUID] = None,
         is_channel: bool = False,
+        channel_binding_id: Optional[UUID] = None,
         references_agent: bool = True,
         legacy: bool = False,
     ) -> SessionPolicyState:
@@ -113,7 +114,7 @@ class InMemorySharingDAO(SharingDAOInterface):
             stream_id=stream_id or uuid4(),
             session_id=session_id or f"s-{uuid4().hex}",
             policy=policy,
-            is_channel=is_channel,
+            channel_binding_id=channel_binding_id or (uuid4() if is_channel else None),
             references_agent=references_agent,
         )
         target = self.legacy_sessions if legacy else self.sessions
@@ -484,7 +485,6 @@ def sign_run_credential(*, envelope, user_id, workspace_id) -> str:
         return await sign_secret_token(
             user_id=str(user_id),
             project_id=str(envelope.authority.project_id),
-            workspace_id=str(workspace_id),
             organization_id=str(envelope.authority.organization_id),
             envelope=envelope,
         )

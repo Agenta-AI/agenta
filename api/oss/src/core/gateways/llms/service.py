@@ -41,13 +41,18 @@ from oss.src.core.gateways.llms.interfaces import (
     LLMRelayResult,
     LLMUpstreamInterface,
 )
+from oss.src.core.gateways.llms.registrar import map_custom_provider_secret_to_endpoint
 from oss.src.core.gateways.llms.registry import LLMUpstreamRegistry, select_upstream
+from oss.src.core.secrets.enums import ORGANIZATION_GATEWAY_KINDS, SecretKind
 from oss.src.core.gateways.llms.types import (
+    LLM_GATEWAY_SERVED_DEPLOYMENT_KINDS,
     LLMCapabilityNotAllowedError,
     LLMConnectionProviderRequiredError,
     LLMEndpointNotFoundError,
     LLMEndpointProviderMissingError,
     LLMModelNotAllowedError,
+    LLMNamedConnectionNotFoundError,
+    LLMOrganizationConnectionSlugRequiredError,
     LLMRoutingFieldNotAllowedError,
     LLMUpstreamTimeoutError,
 )
@@ -62,6 +67,7 @@ from oss.src.core.gateways.policy.dtos import (
     ProviderKeyRef,
     ResolvedSecret,
     SecretOrigin,
+    SecretOwnerKind,
 )
 from oss.src.core.gateways.policy.interfaces import SecretsResolverInterface
 from oss.src.core.gateways.policy.service import GatewayPolicyService
@@ -163,6 +169,20 @@ class _ResolvedLlmTarget:
     endpoint_id: Optional[UUID] = None
     secret_id: Optional[UUID] = None
     is_active: bool = True
+    # Whose row `secret_id` names (M5). An organization row is pinned as an organization
+    # reference, so it is answered only while it is available to the project.
+    secret_owner_kind: SecretOwnerKind = SecretOwnerKind.PROJECT
+    # An organization target carries the row it was built from (read from the project's
+    # one cache entry), so the relay reads nothing more. In process only.
+    resolved_secret: Optional[ResolvedSecret] = None
+    # The namespace whose model rules the target follows, when it differs from its own: an
+    # organization `provider_key` follows `standard`, an organization `custom_provider`
+    # follows `custom`.
+    rules_namespace: Optional[GatewayEndpointNamespace] = None
+
+    @property
+    def model_rules(self) -> GatewayEndpointNamespace:
+        return self.rules_namespace or self.namespace
 
     def target_path(self) -> str:
         return f"{self.namespace.value}/{self.name}"
@@ -183,7 +203,9 @@ class _ResolvedLlmTarget:
         # and the whole point of naming it is that the scan — first match for the
         # provider family — is not what the caller asked for.
         if self.secret_id is not None:
-            return BoundSecretRef(secret_id=self.secret_id)
+            return BoundSecretRef(
+                secret_id=self.secret_id, owner_kind=self.secret_owner_kind
+            )
         if self.namespace == GatewayEndpointNamespace.STANDARD:
             return ProviderKeyRef(provider_key=self.provider_key)
         # Custom endpoints without a secret require no secret resolution.
@@ -203,7 +225,7 @@ class _ResolvedLlmTarget:
         unchanged.
         """
         if (
-            self.namespace != GatewayEndpointNamespace.CUSTOM
+            self.model_rules != GatewayEndpointNamespace.CUSTOM
             or not self.models.allowlist
         ):
             return model
@@ -722,6 +744,7 @@ class LLMGatewayService:
         provider_key: Optional[str],
         connection_slug: Optional[str],
         connection_namespace: Optional[GatewayEndpointNamespace] = None,
+        connection_scope: SecretOwnerKind = SecretOwnerKind.PROJECT,
     ) -> LLMGatewayConnectionResolution:
         """Resolve an agent connection to public gateway route metadata.
 
@@ -730,11 +753,25 @@ class LLMGatewayService:
         with nothing to act on. `LLMGatewayConnectionResolution.provider_key` stays a required
         field, so the invariant no construction path can dodge is still enforced underneath.
         """
-        if connection_slug and connection_namespace:
+        if (
+            connection_scope == SecretOwnerKind.ORGANIZATION
+            or connection_namespace == GatewayEndpointNamespace.ORGANIZATION
+        ):
+            # An organization connection is used only when the agent named it (M5).
+            if connection_scope != SecretOwnerKind.ORGANIZATION or not connection_slug:
+                raise LLMOrganizationConnectionSlugRequiredError()
+            if connection_namespace not in (
+                None,
+                GatewayEndpointNamespace.ORGANIZATION,
+            ):
+                raise LLMOrganizationConnectionSlugRequiredError()
+            namespace = GatewayEndpointNamespace.ORGANIZATION
+            name = connection_slug
+        elif connection_slug and connection_namespace:
             namespace = connection_namespace
             name = connection_slug
         elif connection_slug:
-            namespace = await self._namespace_of_slug(scope=scope, slug=connection_slug)
+            namespace = None
             name = connection_slug
         elif provider_key:
             namespace = GatewayEndpointNamespace.STANDARD
@@ -743,9 +780,14 @@ class LLMGatewayService:
             raise LLMConnectionProviderRequiredError()
 
         try:
-            target = await self._resolve_target(
-                scope=scope, namespace=namespace, name=name
-            )
+            if namespace is None:
+                # A bare slug: one pass over the namespaces in today's order.
+                namespace = GatewayEndpointNamespace.CUSTOM
+                target = await self._resolve_slug_target(scope=scope, slug=name)
+            else:
+                target = await self._resolve_target(
+                    scope=scope, namespace=namespace, name=name
+                )
         except LLMEndpointNotFoundError:
             builtin_model = _retired_starter_credits_model(
                 namespace=namespace, name=name, model=model
@@ -817,6 +859,12 @@ class LLMGatewayService:
             # upstream, so it must be the upstream's own name for the model.
             model=target.upstream_model(model),
             protocol=protocol,
+            custom_provider=(
+                target.resolved_secret.secret.kind == SecretKind.CUSTOM_PROVIDER
+                if target.namespace == GatewayEndpointNamespace.ORGANIZATION
+                and target.resolved_secret is not None
+                else None
+            ),
         )
 
     # Data plane
@@ -961,6 +1009,9 @@ class LLMGatewayService:
         # from the project's vault.
         if target.namespace == GatewayEndpointNamespace.BUILTIN:
             secret = builtin_llm_secret(provider_key=target.name)
+        elif target.resolved_secret is not None:
+            # An organization connection: the target lookup already read the row.
+            secret = target.resolved_secret
         else:
             ref = target.secret_ref()
             secret = (
@@ -1121,31 +1172,127 @@ class LLMGatewayService:
             )
             await asyncio.sleep(delay)
 
-    async def _namespace_of_slug(
+    async def _resolve_slug_target(
         self, *, scope: AuthScope, slug: str
-    ) -> GatewayEndpointNamespace:
-        """Which of the three namespaces a `connection_slug` names (OR53).
+    ) -> _ResolvedLlmTarget:
+        """The target a bare project `connection_slug` names (OR53), in one pass, in
+        today's order.
 
-        The two stored namespaces are asked first, in the order that keeps today's answers:
-        a custom endpoint row owns its slug, then a builtin provider. A standard connection
-        is reached last, and it is reached: `standard` is not only the provider families —
-        a project may hold several keys for one family, and the slug of the one the caller
-        chose names it. Anything else stays a custom miss, so an unknown slug still fails as
-        `custom/<slug>`, which is the message the operator already knows.
+        1. The project's custom endpoint row with that slug (one statement).
+        2. A builtin provider of that name (no read).
+        3. A provider family (`openai`), which leaves the credential to the provider scan
+           (no read).
+        4. A project `provider_key` connection with that slug (one read of the project's
+           rows), pinned to it.
+        5. Else a custom miss, `custom/<slug>`, the message the operator already knows.
+
+        An organization connection is never reached from here: an agent names one with
+        scope `organization`, which resolves in its own namespace.
         """
-        custom = await self.llm_endpoints_dao.fetch_endpoint_by_slug(
+        row = await self.llm_endpoints_dao.fetch_endpoint_by_slug(
             project_id=scope.project_id, slug=slug
         )
-        if custom is not None:
-            return GatewayEndpointNamespace.CUSTOM
+        if row is not None:
+            return self._custom_target(name=slug, row=row)
 
         if builtin_llm_endpoint(provider_key=slug) is not None:
-            return GatewayEndpointNamespace.BUILTIN
+            return await self._resolve_target(
+                scope=scope, namespace=GatewayEndpointNamespace.BUILTIN, name=slug
+            )
 
-        if await self._standard_connection(scope=scope, name=slug) is not None:
-            return GatewayEndpointNamespace.STANDARD
+        standard = await self._standard_connection(scope=scope, name=slug)
+        if standard is not None:
+            return self._standard_target(name=slug, standard=standard)
 
-        return GatewayEndpointNamespace.CUSTOM
+        raise LLMEndpointNotFoundError(
+            namespace=GatewayEndpointNamespace.CUSTOM, name=slug
+        )
+
+    @staticmethod
+    def _custom_target(*, name: str, row: LLMEndpoint) -> _ResolvedLlmTarget:
+        return _ResolvedLlmTarget(
+            namespace=GatewayEndpointNamespace.CUSTOM,
+            name=row.slug or name,
+            provider_key=row.provider_key,
+            deployment_kind=row.deployment_kind,
+            models=row.data.models,
+            route_data=row.data.route,
+            settings=row.data.settings,
+            endpoint_id=row.id,
+            secret_id=row.secret_id,
+            is_active=row.flags.is_active,
+        )
+
+    async def _organization_target(
+        self, *, scope: AuthScope, slug: str
+    ) -> _ResolvedLlmTarget:
+        """The target of the organization connection an agent named by slug (M5).
+
+        Read from the project's one cache entry (the request memo makes a second read
+        free): the organization row with that slug that is available to the project. A
+        `provider_key` routes like a standard endpoint of its family; a `custom_provider`
+        builds its target from the row, with no endpoint row. Either way the target is
+        pinned to that row, and the relay uses the row it carries."""
+        secret = await self.resolver.organization_connection(scope=scope, slug=slug)
+        # A subscription login is not a gateway connection: it is named with mode
+        # `self_managed`, and the gateway never routes it.
+        if (
+            secret is None
+            or secret.id is None
+            or secret.kind not in ORGANIZATION_GATEWAY_KINDS
+        ):
+            raise LLMNamedConnectionNotFoundError(
+                scope=SecretOwnerKind.ORGANIZATION, slug=slug
+            )
+        resolved = ResolvedSecret(
+            secret=secret, owner=secret.owner, origin=SecretOrigin.VAULT
+        )
+
+        if secret.kind == SecretKind.PROVIDER_KEY:
+            family = getattr(secret.data, "kind", None)
+            family = getattr(family, "value", family)
+            endpoint = (
+                standard_llm_endpoint(provider_key=str(family)) if family else None
+            )
+            rules = GatewayEndpointNamespace.STANDARD
+        else:
+            endpoint = map_custom_provider_secret_to_endpoint(secret)
+            rules = GatewayEndpointNamespace.CUSTOM
+        if endpoint is None:
+            raise LLMNamedConnectionNotFoundError(
+                scope=SecretOwnerKind.ORGANIZATION, slug=slug
+            )
+        if endpoint.deployment_kind not in LLM_GATEWAY_SERVED_DEPLOYMENT_KINDS:
+            raise LLMGatewayConnectionNotServedError()
+        return _ResolvedLlmTarget(
+            namespace=GatewayEndpointNamespace.ORGANIZATION,
+            name=slug,
+            provider_key=endpoint.provider_key,
+            deployment_kind=endpoint.deployment_kind,
+            models=endpoint.data.models,
+            route_data=endpoint.data.route,
+            settings=endpoint.data.settings,
+            secret_id=secret.id,
+            secret_owner_kind=SecretOwnerKind.ORGANIZATION,
+            resolved_secret=resolved,
+            rules_namespace=rules,
+        )
+
+    @staticmethod
+    def _standard_target(
+        *, name: str, standard: Tuple[LLMEndpoint, Optional[UUID]]
+    ) -> _ResolvedLlmTarget:
+        endpoint, pinned = standard
+        return _ResolvedLlmTarget(
+            namespace=GatewayEndpointNamespace.STANDARD,
+            name=name,
+            provider_key=endpoint.provider_key,
+            deployment_kind=endpoint.deployment_kind,
+            models=endpoint.data.models,
+            route_data=endpoint.data.route,
+            settings=endpoint.data.settings,
+            secret_id=pinned,
+        )
 
     async def _standard_connection(
         self, *, scope: AuthScope, name: str
@@ -1179,42 +1326,22 @@ class LLMGatewayService:
     async def _resolve_target(
         self, *, scope: AuthScope, namespace: GatewayEndpointNamespace, name: str
     ) -> _ResolvedLlmTarget:
-        project_id = scope.project_id
-
         if namespace == GatewayEndpointNamespace.STANDARD:
             standard = await self._standard_connection(scope=scope, name=name)
             if standard is None:
                 raise LLMEndpointNotFoundError(namespace=namespace, name=name)
-            endpoint, pinned = standard
-            return _ResolvedLlmTarget(
-                namespace=GatewayEndpointNamespace.STANDARD,
-                name=name,
-                provider_key=endpoint.provider_key,
-                deployment_kind=endpoint.deployment_kind,
-                models=endpoint.data.models,
-                route_data=endpoint.data.route,
-                settings=endpoint.data.settings,
-                secret_id=pinned,
-            )
+            return self._standard_target(name=name, standard=standard)
 
         if namespace == GatewayEndpointNamespace.CUSTOM:
             row = await self.llm_endpoints_dao.fetch_endpoint_by_slug(
-                project_id=project_id, slug=name
+                project_id=scope.project_id, slug=name
             )
             if row is None:
                 raise LLMEndpointNotFoundError(namespace=namespace, name=name)
-            return _ResolvedLlmTarget(
-                namespace=GatewayEndpointNamespace.CUSTOM,
-                name=row.slug or name,
-                provider_key=row.provider_key,
-                deployment_kind=row.deployment_kind,
-                models=row.data.models,
-                route_data=row.data.route,
-                settings=row.data.settings,
-                endpoint_id=row.id,
-                secret_id=row.secret_id,
-                is_active=row.flags.is_active,
-            )
+            return self._custom_target(name=name, row=row)
+
+        if namespace == GatewayEndpointNamespace.ORGANIZATION:
+            return await self._organization_target(scope=scope, slug=name)
 
         if namespace == GatewayEndpointNamespace.BUILTIN:
             endpoint = builtin_llm_endpoint(provider_key=name)
@@ -1265,7 +1392,7 @@ class LLMGatewayService:
                     field=field, namespace=target.namespace, name=target.name
                 )
 
-        if target.namespace == GatewayEndpointNamespace.STANDARD:
+        if target.model_rules == GatewayEndpointNamespace.STANDARD:
             return
 
         if not target.models.allows(context.model):

@@ -319,6 +319,7 @@ async def _configure_agent_for_connection(
     agent = await service.create_agent(
         project_id=project_id,
         user_id=user_id,
+        guard_user_id=None,
         agent=ChannelAgentCreate(
             connection_id=connection_id,
             slug=f"agent-{connection_id}",

@@ -36,7 +36,8 @@ from agenta.sdk.agents.connections import (
 )
 from agenta.sdk.agents.tools import PlatformToolConfig, ResolvedToolSet
 from agenta.sdk.agents.adapters import SandboxAgentBackend, make_harness
-from agenta.sdk.agents.errors import SandboxNotAllowedError
+from agenta.sdk.agents.errors import AgentRunFailed, SandboxNotAllowedError
+from agenta.sdk.agents.utils.wire import sanitize_runner_error
 from agenta.sdk.agents.sandbox_providers import sandbox_provider_enabled
 from agenta.sdk.agents.mcp import ResolvedMCPServer
 from agenta.sdk.agents.sandbox_credentials import (
@@ -693,9 +694,12 @@ async def agent_event_stream(
     """Run one streaming turn, yielding the live `{type, data}` agenta event wire."""
     await harness.setup()
     run = await harness.stream(session_config, msgs)
+    error_streamed = False
     try:
         event_stop_reason: Optional[str] = None
         async for event in run:
+            if event.type == "error":
+                error_streamed = True
             if event.type == "done":
                 event_stop_reason = (event.data or {}).get("stopReason")
             yield get_active_redactor().redact_json(
@@ -715,6 +719,20 @@ async def agent_event_stream(
             and terminal_stop_reason != event_stop_reason
         ):
             yield {"type": "done", "data": {"stopReason": terminal_stop_reason}}
+    except AgentRunFailed as exc:
+        log.error("agent_event_stream: run failed", exc_info=True)
+        span = otel_trace.get_current_span()
+        if span.is_recording():
+            span.set_status(otel_trace.Status(otel_trace.StatusCode.ERROR, exc.message))
+        if not error_streamed:
+            yield {
+                "type": "error",
+                "data": {
+                    "message": sanitize_runner_error(exc),
+                    "code": exc.failure_code,
+                    "detail": exc.error_detail,
+                },
+            }
     finally:
         try:
             result = run.result()
