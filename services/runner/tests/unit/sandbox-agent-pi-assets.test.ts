@@ -212,6 +212,7 @@ describe("buildPiExtensionEnv", () => {
         acpAgent: "pi",
         isPi: true,
         isDaytona,
+        driveOnRunner: !isDaytona,
         sandboxId: isDaytona ? "daytona" : "local",
         workspace: {
           cwd: "/workspace",
@@ -1049,7 +1050,7 @@ describe("Pi skill snapshots", () => {
   function localSnapshot(skill: string, cwd = "/work/session") {
     const snapshot = resolvePiSkillSnapshot({
       isPi: true,
-      isDaytona: false,
+      driveOnRunner: true,
       workspace: { cwd, skillDirs: [{ name: "release-notes", dir: skill }] },
     });
     assert.ok(snapshot);
@@ -1080,7 +1081,7 @@ describe("Pi skill snapshots", () => {
     isolatedSnapshotRoot();
     const snapshot = resolvePiSkillSnapshot({
       isPi: true,
-      isDaytona: true,
+      driveOnRunner: false,
       workspace: {
         cwd: "/workspace",
         skillDirs: [{ name: "release-notes", dir: oneSkill() }],
@@ -1088,6 +1089,23 @@ describe("Pi skill snapshots", () => {
     });
     assert.ok(snapshot);
     assert.equal(snapshot.dir, `/workspace/agents/skills/${snapshot.digest}`);
+  });
+
+  it("keeps an inprocess snapshot under the cwd, which it publishes to the drive", () => {
+    isolatedSnapshotRoot();
+    const snapshot = resolvePiSkillSnapshot({
+      isPi: true,
+      driveOnRunner: false,
+      workspace: {
+        cwd: "/var/lib/agenta/inprocess/s",
+        skillDirs: [{ name: "release-notes", dir: oneSkill() }],
+      },
+    });
+    assert.ok(snapshot);
+    assert.equal(
+      snapshot.dir,
+      `/var/lib/agenta/inprocess/s/agents/skills/${snapshot.digest}`,
+    );
   });
 
   it("publishes a new digest owner-only and reuses it on a hit", () => {
@@ -1162,10 +1180,12 @@ describe("Pi skill snapshots", () => {
       readFileSync(join(snapshot.dir, PI_SKILL_SNAPSHOT_MARKER), "utf-8"),
       snapshot.marker,
     );
-    assert.deepEqual(
-      readdirSync(dirname(snapshot.dir)).filter((name) => name.startsWith(".")),
-      [],
+    // Each damaged copy is moved aside for the sweep, never deleted under a reader.
+    const leftovers = readdirSync(dirname(snapshot.dir)).filter((name) =>
+      name.startsWith("."),
     );
+    assert.equal(leftovers.length, 3);
+    for (const name of leftovers) assert.match(name, /\.replaced-/);
   });
 
   it("removes snapshots and staging dirs unused past their TTL when it publishes", () => {
@@ -1248,7 +1268,7 @@ describe("Pi skill snapshots", () => {
     assert.equal(
       resolvePiSkillSnapshot({
         isPi: false,
-        isDaytona: false,
+        driveOnRunner: true,
         workspace: { cwd: "/work", skillDirs: [] },
       }),
       undefined,
@@ -1256,7 +1276,7 @@ describe("Pi skill snapshots", () => {
     assert.equal(
       resolvePiSkillSnapshot({
         isPi: true,
-        isDaytona: false,
+        driveOnRunner: true,
         workspace: { cwd: "/work", skillDirs: [] },
       }),
       undefined,
@@ -1732,7 +1752,7 @@ describe("sandbox uploads", () => {
     writeFileSync(join(skill, "SKILL.md"), "skill", "utf-8");
     const snapshot = resolvePiSkillSnapshot({
       isPi: true,
-      isDaytona: true,
+      driveOnRunner: false,
       workspace: {
         cwd: "/workspace",
         skillDirs: [{ name: "release-notes", dir: skill }],

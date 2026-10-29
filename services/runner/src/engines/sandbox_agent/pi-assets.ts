@@ -167,11 +167,13 @@ const LOCAL_PI_SKILL_STAGING_TTL_MS = 60 * 60 * 1000;
 const SNAPSHOT_DIGEST_NAME = /^[a-f0-9]{64}$/;
 
 /**
- * Resolve the immutable snapshot selected for this Pi run. A local run shares one copy per digest
- * under `localPiSkillSnapshotRoot()`; a Daytona run keeps it under the sandbox cwd.
+ * Resolve the immutable snapshot selected for this Pi run. A `local` run, whose cwd is a geesefs
+ * mount on the runner, shares one copy per digest under `localPiSkillSnapshotRoot()`. Daytona and
+ * `inprocess` keep it under the cwd: the Daytona sandbox has its own disk, and `inprocess`
+ * publishes the snapshot from its cwd to the drive so its command sandbox can read it.
  */
 export function resolvePiSkillSnapshot(
-  plan: Pick<RunPlan, "isPi" | "isDaytona"> & {
+  plan: Pick<RunPlan, "isPi" | "driveOnRunner"> & {
     workspace: Pick<RunPlanWorkspace, "cwd" | "skillDirs">;
   },
 ): PiSkillSnapshot | undefined {
@@ -188,9 +190,9 @@ export function resolvePiSkillSnapshot(
   })}\n`;
   return {
     digest,
-    dir: plan.isDaytona
-      ? join(plan.workspace.cwd, "agents", "skills", digest)
-      : join(localPiSkillSnapshotRoot(), digest),
+    dir: plan.driveOnRunner
+      ? join(localPiSkillSnapshotRoot(), digest)
+      : join(plan.workspace.cwd, "agents", "skills", digest),
     marker,
     skills,
   };
@@ -226,6 +228,16 @@ function isIntactLocalPiSkillSnapshot(snapshot: PiSkillSnapshot): boolean {
     return skillSetDigest(copied) === snapshot.digest;
   } catch {
     return false;
+  }
+}
+
+/** Mark the snapshot used now, for the sweep. A concurrent repair may have moved it away. */
+function touchSnapshot(dir: string): void {
+  const now = new Date();
+  try {
+    utimesSync(dir, now, now);
+  } catch {
+    // The next run checks the snapshot again.
   }
 }
 
@@ -279,20 +291,31 @@ export function materializeLocalPiSkillSnapshot(
   snapshot: PiSkillSnapshot,
   log: Log = () => {},
 ): void {
-  const now = new Date();
   if (isIntactLocalPiSkillSnapshot(snapshot)) {
-    utimesSync(snapshot.dir, now, now);
+    touchSnapshot(snapshot.dir);
     return;
   }
 
   const root = dirname(snapshot.dir);
   ensureLocalPiSkillSnapshotRoot(root);
   if (existsSync(snapshot.dir)) {
-    // Move the damaged copy aside first: a rename is atomic, a recursive delete is not.
-    const replaced = join(root, `.${snapshot.digest}.replaced-${randomUUID()}`);
-    renameSync(snapshot.dir, replaced);
-    rmSync(replaced, { recursive: true, force: true });
-    log(`pi skill snapshot replaced path=${snapshot.dir}`);
+    // Another session may have published this digest since the check above.
+    if (isIntactLocalPiSkillSnapshot(snapshot)) {
+      touchSnapshot(snapshot.dir);
+      return;
+    }
+    // Move the damaged copy aside, never delete it here: a session that opened it still reads
+    // its files. The sweep removes it after the staging TTL. A concurrent repair may have moved
+    // it already.
+    try {
+      renameSync(
+        snapshot.dir,
+        join(root, `.${snapshot.digest}.replaced-${randomUUID()}`),
+      );
+      log(`pi skill snapshot replaced path=${snapshot.dir}`);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+    }
   }
   const staging = mkdtempSync(join(root, `.${snapshot.digest}.tmp-`));
   try {
