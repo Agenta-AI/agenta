@@ -1,8 +1,9 @@
 """A save through an evaluation edit route makes the editor the executing principal.
 
 Spec section 3.8, rules 1 and 2: `PATCH /evaluations/runs/{run_id}`,
-`PATCH /evaluations/runs/` and `PATCH /simple/evaluations/{evaluation_id}` write the
-editor as the run's principal in the edit's own UPDATE. Worker writes and the restart of
+`PATCH /evaluations/runs/`, `PATCH /simple/evaluations/{evaluation_id}` and the simple
+evaluation step and repeat routes write the editor as the run's principal in the edit's
+own UPDATE. Worker writes and the restart of
 an active simple evaluation pass no principal and keep it.
 """
 
@@ -15,8 +16,11 @@ import pytest
 import oss.src.apis.fastapi.evaluations.router as router_module
 import oss.src.core.evaluations.service as service_module
 from oss.src.apis.fastapi.evaluations.models import (
+    AddStepsRequest,
     EvaluationRunEditRequest,
     EvaluationRunsEditRequest,
+    RemoveStepsRequest,
+    SetRepeatsRequest,
     SimpleEvaluationEditRequest,
 )
 from oss.src.apis.fastapi.evaluations.router import (
@@ -29,6 +33,9 @@ from oss.src.core.evaluations.service import (
     SimpleEvaluationsService,
 )
 from oss.src.core.evaluations.types import (
+    EvaluationRun,
+    EvaluationRunData,
+    EvaluationRunDataStep,
     EvaluationRunEdit,
     SimpleEvaluationData,
     SimpleEvaluationEdit,
@@ -149,3 +156,62 @@ async def test_simple_edit_writes_the_editor_and_the_restart_keeps_it(
     assert evaluations.edit_run.await_args.kwargs["principal"] == _EDITOR
     if was_active:
         assert "principal" not in service.start.await_args.kwargs
+
+
+async def test_step_and_repeat_routes_pass_the_request_principal(_allowed):
+    service = SimpleNamespace(
+        add_steps=AsyncMock(return_value=None),
+        remove_steps=AsyncMock(return_value=None),
+        set_repeats=AsyncMock(return_value=None),
+    )
+    router = SimpleEvaluationsRouter(simple_evaluations_service=service)
+    evaluation_id = uuid4()
+
+    await router.add_evaluation_steps(
+        _request(_EDITOR),
+        evaluation_id=evaluation_id,
+        add_request=AddStepsRequest(steps=[_step("judge")]),
+    )
+    await router.remove_evaluation_steps(
+        _request(_EDITOR),
+        evaluation_id=evaluation_id,
+        remove_request=RemoveStepsRequest(step_keys=["judge"]),
+    )
+    await router.set_evaluation_repeats(
+        _request(_EDITOR),
+        evaluation_id=evaluation_id,
+        repeats_request=SetRepeatsRequest(repeats=2),
+    )
+
+    for call in (service.add_steps, service.remove_steps, service.set_repeats):
+        assert call.await_args.kwargs["principal"] == _EDITOR
+
+
+def _step(key):
+    return EvaluationRunDataStep(
+        key=key, type="annotation", origin="auto", references={}
+    )
+
+
+async def test_step_and_repeat_edits_write_the_editor():
+    run = EvaluationRun(
+        id=uuid4(),
+        name="r",
+        data=EvaluationRunData(steps=[_step("input")], repeats=1),
+    )
+    evaluations = SimpleNamespace(
+        fetch_run=AsyncMock(return_value=run),
+        edit_run=AsyncMock(return_value=run),
+    )
+    service = SimpleEvaluationsService.__new__(SimpleEvaluationsService)
+    service.evaluations_service = evaluations
+    scope = {"project_id": uuid4(), "user_id": _EDITOR.id, "run_id": run.id}
+
+    await service.add_steps(**scope, steps=[_step("judge")], principal=_EDITOR)
+    assert evaluations.edit_run.await_args.kwargs["principal"] == _EDITOR
+    evaluations.edit_run.reset_mock()
+    await service.remove_steps(**scope, step_keys=["input"], principal=_EDITOR)
+    assert evaluations.edit_run.await_args.kwargs["principal"] == _EDITOR
+    evaluations.edit_run.reset_mock()
+    await service.set_repeats(**scope, repeats=3, principal=_EDITOR)
+    assert evaluations.edit_run.await_args.kwargs["principal"] == _EDITOR

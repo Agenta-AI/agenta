@@ -2569,6 +2569,7 @@ class SimpleEvaluationsRouter:
             user_id=UUID(request.state.user_id),
             #
             run_id=evaluation_id,
+            principal=_caller(request),
             steps=add_request.steps,
         )
 
@@ -2599,6 +2600,7 @@ class SimpleEvaluationsRouter:
             user_id=UUID(request.state.user_id),
             #
             run_id=evaluation_id,
+            principal=_caller(request),
             step_keys=remove_request.step_keys,
         )
 
@@ -2629,6 +2631,7 @@ class SimpleEvaluationsRouter:
             user_id=UUID(request.state.user_id),
             #
             run_id=evaluation_id,
+            principal=_caller(request),
             repeats=repeats_request.repeats,
         )
 
