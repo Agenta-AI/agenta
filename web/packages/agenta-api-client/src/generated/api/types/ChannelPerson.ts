@@ -18,9 +18,9 @@ export interface ChannelPerson {
 
 export namespace ChannelPerson {
     export const Source = {
-        Messaged: "messaged",
+        RecentSenders: "recent_senders",
         Directory: "directory",
-        Email: "email",
+        EmailLookup: "email_lookup",
     } as const;
     export type Source = (typeof Source)[keyof typeof Source];
 }

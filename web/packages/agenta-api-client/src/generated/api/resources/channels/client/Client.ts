@@ -1896,14 +1896,14 @@ export class ChannelsClient {
     public refreshChannelPeople(
         request: AgentaApi.RefreshChannelPeopleRequest,
         requestOptions?: ChannelsClient.RequestOptions,
-    ): core.HttpResponsePromise<AgentaApi.ChannelPeopleResponse> {
+    ): core.HttpResponsePromise<AgentaApi.ChannelPeopleDirectoryResponse> {
         return core.HttpResponsePromise.fromPromise(this.__refreshChannelPeople(request, requestOptions));
     }
 
     private async __refreshChannelPeople(
         request: AgentaApi.RefreshChannelPeopleRequest,
         requestOptions?: ChannelsClient.RequestOptions,
-    ): Promise<core.WithRawResponse<AgentaApi.ChannelPeopleResponse>> {
+    ): Promise<core.WithRawResponse<AgentaApi.ChannelPeopleDirectoryResponse>> {
         const { connection_id: connectionId } = request;
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
@@ -1929,7 +1929,10 @@ export class ChannelsClient {
             logging: this._options.logging,
         });
         if (_response.ok) {
-            return { data: _response.body as AgentaApi.ChannelPeopleResponse, rawResponse: _response.rawResponse };
+            return {
+                data: _response.body as AgentaApi.ChannelPeopleDirectoryResponse,
+                rawResponse: _response.rawResponse,
+            };
         }
 
         if (_response.error.reason === "status-code") {
