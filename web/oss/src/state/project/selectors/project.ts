@@ -222,6 +222,9 @@ export const routeContextAtom = atom<RouteContext>((get) => {
         projectInWorkspace: rows.some(
             (row) => row.project_id === projectId && projectMatchesWorkspace(row, workspaceId),
         ),
+        projectOrganizationId: projectId
+            ? (rows.find((row) => row.project_id === projectId)?.organization_id ?? null)
+            : null,
     })
 })
 

@@ -15,8 +15,6 @@ from oss.src.models.db_models import (
     ProjectDB,
     ProjectMemberDB,
     UserDB,
-    WorkspaceDB,
-    WorkspaceMemberDB,
 )
 from oss.src.core.auth.helper import is_auth_info_blocked, parse_auth_info
 from oss.src.core.organizations.exceptions import (
@@ -48,8 +46,8 @@ async def create_organization(
     name: Optional[str] = None,
     description: Optional[str] = None,
 ) -> OrganizationDB:
-    """Create an organization with its owner membership, default workspace,
-    default project, and seeded defaults.
+    """Create an organization with its owner membership, default project (no
+    workspace: workspace removal step 2), and seeded defaults.
 
     This is the shared creation core: OSS uses it directly; EE wraps it with
     subscription/entitlement setup.
@@ -99,34 +97,18 @@ async def create_organization(
             membership_id=organization_member.id,
         )
 
-        workspace_db = WorkspaceDB(
-            name="Default",
-            type="default",
-            description="",
-            organization_id=organization_db.id,
-        )
-        session.add(workspace_db)
-        await session.commit()
+        # The default-project writers' organization lock (task 2.1d), before the default
+        # project is written.
+        from sqlalchemy import text  # noqa: PLC0415
 
-        log.info(
-            "[scopes] workspace created",
-            organization_id=organization_db.id,
-            workspace_id=workspace_db.id,
+        await session.execute(
+            text(db_manager._PROJECT_DEFAULT_LOCK_SQL),
+            {"organization_id": str(organization_db.id)},
         )
-
-        workspace_member = WorkspaceMemberDB(
-            user_id=user.id,
-            workspace_id=workspace_db.id,
-            role="owner",
-        )
-        session.add(workspace_member)
-        await session.commit()
-
         project_db = ProjectDB(
             project_name="Default",
             is_default=True,
             organization_id=organization_db.id,
-            workspace_id=workspace_db.id,
         )
         session.add(project_db)
         await session.commit()
@@ -134,7 +116,6 @@ async def create_organization(
         log.info(
             "[scopes] project created",
             organization_id=organization_db.id,
-            workspace_id=workspace_db.id,
             project_id=project_db.id,
         )
 

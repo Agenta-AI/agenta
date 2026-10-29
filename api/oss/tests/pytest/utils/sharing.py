@@ -485,7 +485,6 @@ def sign_run_credential(*, envelope, user_id, workspace_id) -> str:
         return await sign_secret_token(
             user_id=str(user_id),
             project_id=str(envelope.authority.project_id),
-            workspace_id=str(workspace_id),
             organization_id=str(envelope.authority.organization_id),
             envelope=envelope,
         )

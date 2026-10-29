@@ -97,7 +97,7 @@ Used by `counters` and `gauges` map values.
 | `limit` | integer \| null | `null` | Hard cap; `null` = unlimited. |
 | `strict` | boolean \| null | `null` | If `true`, the request that would cross the limit is itself rejected (no "one free overshoot"). `null` is treated as `false`. |
 | `retention` | integer \| null | `null` | Retention window in **minutes**. Must be one of the canonical `Retention` enum values: `0` (ephemeral), `60` (hourly), `1440` (daily), `44640` (monthly ≈ 31d), `131040` (quarterly ≈ 91d), `525600` (yearly ≈ 365d). Used by `traces_ingested` and `events_ingested` for retention flush. |
-| `scope` | string \| null | `null` | Granularity of the meter row: `"organization"` (default when `null`), `"workspace"`, `"project"`, or `"user"`. |
+| `scope` | string \| null | `null` | Granularity of the meter row: `"organization"` (default when `null`), `"project"`, or `"user"`. `"workspace"` is read as `"organization"`. |
 | `period` | string \| null | `null` | Metering bucket: `"daily"`, `"monthly"`, `"yearly"`. `null` means non-periodic (used for gauges). Replaces the pre-reshape `monthly: true` boolean. |
 
 ### Flag keys {#flag-keys}
@@ -203,7 +203,7 @@ shape obvious in a diff and survives future changes to the base plan:
 
 What it means at runtime:
 
-- The meters DAO persists one row per `(organization_id, workspace_id, project_id, user_id, year, month, day, key)` tuple. Different users get different rows; the same user on different days gets different rows.
+- The meters DAO persists one row per `(organization_id, project_id, user_id, year, month, day, key)` tuple. Different users get different rows; the same user on different days gets different rows.
 - Every trace/span fetch or query handler runs `check_entitlements(key=Counter.TRACES_RETRIEVED, delta=<distinct traces returned>)` in hard-adjust mode. The first request that would push that user's daily counter past 1000 gets `HTTP 429 Too Many Requests` and the meter is not bumped — because `strict=true` makes the DAO predicate `greatest(value + delta, 0) <= limit`, the request that crosses the line is itself rejected (no "one free overshoot").
 - The usage rollup sums every matching row for today across users, so the UI can reflect total org-wide daily retrievals. The per-user cap is enforced; the org-wide display is informational.
 - The counter is tracked and surfaced internally for enforcement and usage display.

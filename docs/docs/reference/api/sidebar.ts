@@ -2274,15 +2274,15 @@ const sidebar: SidebarsConfig = {
       items: [
         {
           type: "doc",
-          id: "reference/api/list-secrets",
-          label: "List Secrets",
-          className: "api-method get",
-        },
-        {
-          type: "doc",
           id: "reference/api/create-secret",
           label: "Create Secret",
           className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/list-secrets",
+          label: "List Secrets",
+          className: "api-method get",
         },
         {
           type: "doc",
@@ -2301,6 +2301,12 @@ const sidebar: SidebarsConfig = {
           id: "reference/api/delete-secret",
           label: "Delete Secret",
           className: "api-method delete",
+        },
+        {
+          type: "doc",
+          id: "reference/api/set-secret-projects",
+          label: "Set Secret Projects",
+          className: "api-method put",
         },
         {
           type: "doc",
