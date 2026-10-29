@@ -129,7 +129,13 @@ async def _run_accounts_params(request: Request) -> Dict[str, Any]:
     """The agent and the "user" item keys of the configuration a turn runs, read from the
     request body (`data.parameters`, and the agent from `references`). Empty when the
     configuration has no "user" items, or the body is not a turn."""
-    if getattr(request, "method", None) != "POST":
+    # Only a turn (`.../invoke`) with a JSON body carries an agent configuration.
+    url = getattr(request, "url", None)
+    if getattr(request, "method", None) != "POST" or not str(
+        getattr(url, "path", "")
+    ).endswith("/invoke"):
+        return {}
+    if "json" not in (request.headers.get("content-type") or ""):
         return {}
     try:
         body = await request.json()

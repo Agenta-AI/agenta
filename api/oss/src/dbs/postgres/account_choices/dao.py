@@ -15,11 +15,12 @@ from oss.src.core.account_choices.dtos import (
     AccountChoiceQuery,
     AccountChoiceUpsert,
     AccountMatch,
-    ChoiceAccount,
+    ChosenAccount,
     ItemAccount,
 )
 from oss.src.core.account_choices.interfaces import AccountChoicesDAOInterface
 from oss.src.core.secrets.context import get_data_encryption_key
+from oss.src.core.secrets.enums import SecretKind
 from oss.src.core.shared.dtos import Windowing
 from oss.src.dbs.postgres.account_choices.dbes import AccountChoiceDBE
 from oss.src.dbs.postgres.account_choices.mappings import map_account_choice_dbe_to_dto
@@ -263,14 +264,14 @@ class AccountChoicesDAO(AccountChoicesDAOInterface):
             await session.commit()
             return (result.rowcount or 0) > 0
 
-    async def fetch_choice_account(
+    async def fetch_chosen_account(
         self,
         *,
         organization_id: UUID,
         user_id: UUID,
         secret_id: Optional[UUID],
         gateway_connection_id: Optional[UUID],
-    ) -> Optional[ChoiceAccount]:
+    ) -> Optional[ChosenAccount]:
         async with self.engine.session() as session:
             result = await session.execute(
                 text(_CHOICE_ACCOUNT_SQL),
@@ -282,14 +283,21 @@ class AccountChoicesDAO(AccountChoicesDAOInterface):
                 },
             )
             row = result.mappings().first()
-            return ChoiceAccount(**row) if row is not None else None
+        if row is None:
+            return None
+        # Postgres stores the enum member NAME (`CUSTOM_SECRET`).
+        return ChosenAccount(
+            secret_kind=SecretKind[row["secret_kind"]] if row["secret_kind"] else None,
+            provider_key=row["provider_key"],
+            integration_key=row["integration_key"],
+        )
 
     async def resolve(
         self,
         *,
         organization_id: UUID,
         project_id: UUID,
-        artifact_id: UUID,
+        artifact_id: Optional[UUID],
         user_id: UUID,
         items: Sequence[UserItem],
     ) -> List[ItemAccount]:

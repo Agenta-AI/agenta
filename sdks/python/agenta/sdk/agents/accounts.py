@@ -14,13 +14,15 @@ item models import ``AccountSource`` from here.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, get_args
 
 from pydantic import BaseModel, ConfigDict
 
 AccountSource = Literal["agent", "user"]
 UserItemKind = Literal["app_connection", "mcp_server", "secret", "subscription"]
-_KINDS = ("app_connection", "mcp_server", "secret", "subscription")
+_KINDS = get_args(UserItemKind)
+# The shape of a "user" item key, for a route model that checks it.
+USER_ITEM_KEY_PATTERN = rf"^({'|'.join(_KINDS)}):user/\S+$"
 
 # The model provider of a self-managed model, mapped to the stored login kind. The only
 # place that turns a provider name into a login kind.

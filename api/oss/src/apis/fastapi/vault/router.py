@@ -73,6 +73,8 @@ from oss.src.apis.fastapi.vault.models import (
 from oss.src.apis.fastapi.shared.runner_auth import assert_runner_token
 from oss.src.apis.fastapi.shared.personal import require_person
 from oss.src.core.access.dtos import RequestCredentialKind
+from agenta.sdk.agents.accounts import user_item_from_key
+
 from oss.src.core.account_choices.claims import run_account
 from oss.src.core.account_choices.items import run_person_id
 
@@ -94,8 +96,6 @@ ORGANIZATION_DENIED_MESSAGE = (
 # Whose rows a route acts on. `user` is the caller's own rows in the request's
 # organization. A subscription login route takes only `LoginScope`.
 Scope = Literal["project", "organization", "user"]
-
-_USER_SECRET_PREFIX = "secret:user/"
 LoginScope = Literal["project", "organization"]
 
 _UNPROCESSABLE = (
@@ -762,30 +762,36 @@ class VaultRouter:
         ):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only a run reads its own secrets here.",
+                detail={
+                    "code": "run_credential_required",
+                    "message": "Only a run reads its own secrets here.",
+                },
             )
+        # The run's principal must still be allowed to read secrets in the project, as
+        # on every other vault read.
+        await self._require(request, Permission.VIEW_SECRET)
         person_id = run_person_id(access.envelope)
-        wanted = {
-            account.secret_id: account.item_key
-            for account in (
-                run_account(access, key)
-                for key in dict.fromkeys(body.item_keys)
-                if key.startswith(_USER_SECRET_PREFIX)
+        # Each requested key with its account: two items may choose one secret.
+        wanted = {}
+        for key in dict.fromkeys(body.item_keys):
+            item = user_item_from_key(key)
+            account = (
+                run_account(access, key) if item and item.kind == "secret" else None
             )
-            if account is not None and account.secret_id is not None
-        }
+            if account is not None and account.secret_id is not None:
+                wanted[key] = account.secret_id
         if person_id is None or not wanted:
             return SecretsResolveResponse()
         secrets = await self.service.list_personal_secrets_by_ids(
             organization_id=access.authority.organization_id,
             user_id=person_id,
-            secret_ids=list(wanted),
+            secret_ids=list(set(wanted.values())),
         )
+        by_id = {secret.id: self._for_caller(request, secret) for secret in secrets}
         item_secrets = [
-            ItemSecret(
-                item_key=wanted[secret.id], secret=self._for_caller(request, secret)
-            )
-            for secret in secrets
+            ItemSecret(item_key=key, secret=by_id[secret_id])
+            for key, secret_id in wanted.items()
+            if secret_id in by_id
         ]
         return SecretsResolveResponse(
             count=len(item_secrets), item_secrets=item_secrets

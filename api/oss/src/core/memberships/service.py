@@ -13,7 +13,7 @@ fails, or a read that started before the mutation committed refills the old entr
 the invalidation.
 """
 
-from typing import Any, Awaitable, Callable, List, Optional, Sequence
+from typing import Any, List, Optional, Protocol, Sequence
 from uuid import UUID
 
 from oss.src.core.memberships.dtos import (
@@ -141,8 +141,10 @@ async def invalidate_access_caches(
         await _invalidate_user(user_id=str(user_id), project_ids=project_ids)
 
 
-# Called with `organization_id` and `user_id` after a member is removed.
-MemberRemovedHook = Callable[..., Awaitable[Any]]
+class MemberRemovedHook(Protocol):
+    """Called after a member is removed from an organization."""
+
+    async def __call__(self, *, organization_id: UUID, user_id: UUID) -> Any: ...
 
 
 class MembershipsService:
@@ -435,9 +437,20 @@ class MembershipsService:
                 organization_id=organization_id, user_ids=[result.user_id]
             )
             if self._member_removed_hook is not None:
-                await self._member_removed_hook(
-                    organization_id=organization_id, user_id=result.user_id
-                )
+                # The removal is committed. A failure here must not answer the caller
+                # with an error for it; it is logged, and the person's accounts stay
+                # until the next removal attempt or a cleanup.
+                try:
+                    await self._member_removed_hook(
+                        organization_id=organization_id, user_id=result.user_id
+                    )
+                except Exception:  # pylint: disable=broad-except
+                    log.error(
+                        "[memberships] a removed member's own accounts were not deleted",
+                        organization_id=str(organization_id),
+                        user_id=str(result.user_id),
+                        exc_info=True,
+                    )
 
         log.info(
             "[memberships] member removed",

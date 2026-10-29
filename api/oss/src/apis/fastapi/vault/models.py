@@ -5,6 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from oss.src.core.account_choices.dtos import MAX_RUN_ITEM_KEYS
 from oss.src.core.secrets.dtos import PublicSecretResponseDTO
 from oss.src.core.secrets.enums import SecretAvailability
 
@@ -125,7 +126,7 @@ class SecretsResolveRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    item_keys: List[str] = Field(default_factory=list, max_length=100)
+    item_keys: List[str] = Field(default_factory=list, max_length=MAX_RUN_ITEM_KEYS)
 
 
 class ItemSecret(BaseModel):

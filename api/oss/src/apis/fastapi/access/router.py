@@ -21,6 +21,7 @@ from agenta.sdk.agents.accounts import user_item_from_key
 from oss.src.core.access.dtos import RequestCredentialKind, RunEnvelope
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.account_choices.claims import sign_run_accounts
+from oss.src.core.account_choices.dtos import MAX_RUN_ITEM_KEYS
 from oss.src.core.gateways.run_claims import run_accounts
 from oss.src.core.access.context import get_request_access
 from oss.src.core.access.principals import access_denied_error
@@ -155,10 +156,6 @@ def _run_credential_grants(request: Request, *, action: Optional[str]) -> List[s
     ]
 
 
-# A turn names at most this many "user" items; more are ignored.
-_MAX_ITEM_KEYS = 100
-
-
 async def _run_accounts_of_exchange(
     request: Request,
     *,
@@ -183,7 +180,7 @@ async def _run_accounts_of_exchange(
     items = [
         item
         for item in (
-            user_item_from_key(key) for key in (item_keys or ())[:_MAX_ITEM_KEYS]
+            user_item_from_key(key) for key in (item_keys or ())[:MAX_RUN_ITEM_KEYS]
         )
         if item is not None
     ]
@@ -326,8 +323,9 @@ class AccessRouter:
             run_accounts=await _run_accounts_of_exchange(
                 request,
                 envelope=envelope,
-                workflow_id=workflow_id,
-                item_keys=item_keys,
+                # Typed only when FastAPI parsed the query; a direct call passes defaults.
+                workflow_id=workflow_id if isinstance(workflow_id, UUID) else None,
+                item_keys=item_keys if isinstance(item_keys, list) else None,
             ),
             user_id=user_id,
             user_email=getattr(request.state, "user_email", None),

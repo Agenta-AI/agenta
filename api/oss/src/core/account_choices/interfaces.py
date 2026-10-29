@@ -7,7 +7,7 @@ from oss.src.core.account_choices.dtos import (
     AccountChoice,
     AccountChoiceQuery,
     AccountChoiceUpsert,
-    ChoiceAccount,
+    ChosenAccount,
     ItemAccount,
 )
 from oss.src.core.shared.dtos import Windowing
@@ -46,14 +46,14 @@ class AccountChoicesDAOInterface:
     ) -> bool:
         raise NotImplementedError
 
-    async def fetch_choice_account(
+    async def fetch_chosen_account(
         self,
         *,
         organization_id: UUID,
         user_id: UUID,
         secret_id: Optional[UUID],
         gateway_connection_id: Optional[UUID],
-    ) -> Optional[ChoiceAccount]:
+    ) -> Optional[ChosenAccount]:
         """The account an upsert names, only when the person owns it in the
         organization."""
         raise NotImplementedError
@@ -63,7 +63,7 @@ class AccountChoicesDAOInterface:
         *,
         organization_id: UUID,
         project_id: UUID,
-        artifact_id: UUID,
+        artifact_id: Optional[UUID],
         user_id: UUID,
         items: Sequence[UserItem],
     ) -> List[ItemAccount]:

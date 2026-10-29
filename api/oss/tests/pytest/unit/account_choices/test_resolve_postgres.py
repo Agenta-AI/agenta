@@ -420,3 +420,45 @@ async def test_upsert_refuses_other_peoples_and_unfit_accounts(world):
         )
         is None
     )
+
+
+async def test_the_vault_reads_a_persons_secrets_by_id_and_deletes_them_all(world):
+    vault = VaultService(SecretsDAO())
+    mine = await vault.create_personal_secret(
+        organization_id=world["organization_id"],
+        user_id=world["alice"],
+        create_secret_dto=_secret(
+            "github", "custom_secret", {"secret": {"format": "text", "content": "v"}}
+        ),
+    )
+    await vault.put_personal_secret(
+        organization_id=world["organization_id"],
+        user_id=world["alice"],
+        create_secret_dto=_secret(
+            token_slug(world["token_server"]),
+            "mcp_token",
+            {"secret": {"format": "text", "content": "t"}},
+        ),
+    )
+    read = await vault.list_personal_secrets_by_ids(
+        organization_id=world["organization_id"],
+        user_id=world["alice"],
+        secret_ids=[mine.id, uuid.uuid4()],
+    )
+    assert [secret.id for secret in read] == [mine.id]
+    assert read[0].data.secret.content == "v"
+    # Bob never reads Alice's secret by its id.
+    assert (
+        await vault.list_personal_secrets_by_ids(
+            organization_id=world["organization_id"],
+            user_id=world["bob"],
+            secret_ids=[mine.id],
+        )
+        == []
+    )
+    assert (
+        await vault.delete_personal_secrets(
+            organization_id=world["organization_id"], user_id=world["alice"]
+        )
+        == 2
+    )

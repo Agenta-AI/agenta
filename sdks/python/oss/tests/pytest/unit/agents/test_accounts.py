@@ -18,6 +18,7 @@ from agenta.sdk.agents.connections.models import Connection
 from agenta.sdk.agents.dtos import SandboxCredentialConfig, SandboxSecretReference
 from agenta.sdk.agents.mcp import MCPGatewayConnection
 from agenta.sdk.agents.platform import connections as platform_connections
+from agenta.sdk.agents import sandbox_credentials
 from agenta.sdk.agents.sandbox_credentials import resolve_sandbox_credentials
 from agenta.sdk.agents.tools.models import GatewayConnectionRef
 from agenta.sdk.middlewares.routing import auth as auth_module
@@ -145,10 +146,24 @@ def _credential(secret: Dict[str, Any], name: str) -> SandboxCredentialConfig:
     )
 
 
-async def test_sandbox_credentials_read_each_kind_once_and_leave_a_missing_user_secret_out():
-    project = AsyncMock(return_value={"jira": "j"})
+@pytest.fixture
+def readers(monkeypatch):
     organization = AsyncMock(return_value={"shared": "s"})
     user = AsyncMock(return_value={"secret:user/GITHUB_TOKEN": "g"})
+
+    async def named(slugs, *, scope=None, **_):
+        assert scope == "organization"
+        return await organization(slugs)
+
+    monkeypatch.setattr(sandbox_credentials, "resolve_named_secrets", named)
+    monkeypatch.setattr(sandbox_credentials, "resolve_user_secrets", user)
+    return SimpleNamespace(organization=organization, user=user)
+
+
+async def test_sandbox_credentials_read_each_kind_once_and_leave_a_missing_user_secret_out(
+    readers,
+):
+    project = AsyncMock(return_value={"jira": "j"})
     resolved = await resolve_sandbox_credentials(
         [
             _credential({"slug": "jira"}, "JIRA"),
@@ -157,8 +172,6 @@ async def test_sandbox_credentials_read_each_kind_once_and_leave_a_missing_user_
             _credential({"account_source": "user"}, "NOT_SET_UP"),
         ],
         resolver=project,
-        organization_resolver=organization,
-        user_resolver=user,
     )
     assert {c.binding.name: c.value for c in resolved} == {
         "JIRA": "j",
@@ -166,23 +179,19 @@ async def test_sandbox_credentials_read_each_kind_once_and_leave_a_missing_user_
         "GITHUB_TOKEN": "g",
     }
     project.assert_awaited_once_with(["jira"])
-    organization.assert_awaited_once_with(["shared"])
-    user.assert_awaited_once_with(
+    readers.organization.assert_awaited_once_with(["shared"])
+    readers.user.assert_awaited_once_with(
         ["secret:user/GITHUB_TOKEN", "secret:user/NOT_SET_UP"]
     )
 
 
-async def test_an_agent_without_user_secrets_makes_no_user_call():
-    user = AsyncMock()
-    organization = AsyncMock()
+async def test_an_agent_without_user_secrets_sends_no_user_key(readers):
     await resolve_sandbox_credentials(
         [_credential({"slug": "jira"}, "JIRA")],
         resolver=AsyncMock(return_value={"jira": "j"}),
-        organization_resolver=organization,
-        user_resolver=user,
     )
-    user.assert_not_awaited()
-    organization.assert_not_awaited()
+    # The reader gets an empty list, for which it makes no call (see its own test).
+    readers.user.assert_awaited_once_with([])
 
 
 def test_a_user_subscription_login_is_a_missing_model():
@@ -200,8 +209,12 @@ def test_a_user_subscription_login_is_a_missing_model():
 class _BodyRequest:
     def __init__(self, body: Any) -> None:
         self.method = "POST"
+        self.url = SimpleNamespace(path="/services/agent/v0/invoke")
         self._body = body
-        self.headers = {"authorization": "ApiKey caller-key"}
+        self.headers = {
+            "authorization": "ApiKey caller-key",
+            "content-type": "application/json",
+        }
         self.cookies: Dict[str, str] = {}
         self.state = SimpleNamespace(otel={"baggage": {"project_id": "project-1"}})
         self.query_params: Dict[str, str] = {}

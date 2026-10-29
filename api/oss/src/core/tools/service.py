@@ -133,8 +133,15 @@ _CATALOG_CACHE_NAMESPACE = "tools:catalog:all"
 _MAX_TOOL_KEY_SUGGESTIONS = 5
 
 
-def _usable(connection: ToolConnection, *, label: str) -> ToolConnection:
-    """The connection, if a tool can run through it now; otherwise the refusal."""
+def _usable(
+    connection: ToolConnection,
+    *,
+    connection_slug: Optional[str] = None,
+    item_key: Optional[str] = None,
+) -> ToolConnection:
+    """The connection, if a tool can run through it now; otherwise the refusal. A
+    project connection is named by its slug, a person's own by the run's item key."""
+    label = connection_slug or item_key or ""
     if not connection.is_active:
         raise ConnectionInactiveError(connection_id=label)
     if not connection.is_valid:
@@ -148,7 +155,8 @@ def _usable(connection: ToolConnection, *, label: str) -> ToolConnection:
         raise ConnectionNotFoundError(
             provider_key=connection.provider_key.value,
             integration_key=connection.integration_key,
-            connection_id=label,
+            connection_slug=connection_slug,
+            connection_id=item_key,
         )
     return connection
 
@@ -156,12 +164,11 @@ def _usable(connection: ToolConnection, *, label: str) -> ToolConnection:
 def composio_user_of(connection: ToolConnection) -> Optional[str]:
     """The Composio user a stored connection was made for: the person's entity for a
     person's own connection, else the project it was initiated under."""
-    user_id = getattr(connection, "user_id", None)
-    organization_id = getattr(connection, "organization_id", None)
-    if user_id is not None and organization_id is not None:
+    if connection.user_id is not None and connection.organization_id is not None:
         return entity_for(
             owner=SecretOwner.for_user(
-                organization_id=organization_id, user_id=user_id
+                organization_id=connection.organization_id,
+                user_id=connection.user_id,
             ),
             project_id=None,
         )
@@ -718,7 +725,7 @@ class ToolsService:
                 connection_slug=connection_slug,
             )
 
-        return _usable(connection, label=connection_slug)
+        return _usable(connection, connection_slug=connection_slug)
 
     async def resolve_run_person_connection(
         self, *, provider_key: str, integration_key: str
@@ -756,7 +763,7 @@ class ToolsService:
                 integration_key=integration_key,
                 connection_id=item_key,
             )
-        return _usable(connection, label=item_key)
+        return _usable(connection, item_key=item_key)
 
     async def _gateway_connection(
         self,

@@ -106,11 +106,6 @@ def validate_sandbox_credential_bindings(
 
 
 ResolveNamedSecrets = Callable[[Sequence[str]], Awaitable[Dict[str, str]]]
-ResolveUserSecrets = Callable[[Sequence[str]], Awaitable[Dict[str, str]]]
-
-
-async def _resolve_organization_secrets(slugs: Sequence[str]) -> Dict[str, str]:
-    return await resolve_named_secrets(slugs, scope="organization")
 
 
 def _address(credential: SandboxCredentialConfig) -> Tuple[Optional[str], str]:
@@ -122,18 +117,12 @@ def _user_key(credential: SandboxCredentialConfig) -> str:
     return user_item_key(kind="secret", match_text=credential.binding.name)
 
 
-async def _nothing(_: Sequence[str]) -> Dict[str, str]:
-    return {}
-
-
 async def resolve_sandbox_credentials(
     credentials: Sequence[SandboxCredentialConfig],
     *,
     resolved_connection: Optional[ResolvedConnection] = None,
     mcp_servers: Sequence[ResolvedMCPServer] = (),
     resolver: Optional[ResolveNamedSecrets] = None,
-    organization_resolver: Optional[ResolveNamedSecrets] = None,
-    user_resolver: Optional[ResolveUserSecrets] = None,
 ) -> List[ResolvedSandboxCredential]:
     validate_sandbox_credential_bindings(
         credentials,
@@ -155,18 +144,15 @@ async def resolve_sandbox_credentials(
     )
     user_keys = list(dict.fromkeys(_user_key(c) for c in user_items))
 
-    # The three reads do not depend on each other, so they share the wait. A list with
-    # nothing in it makes no call.
+    # The three reads do not depend on each other, so they share the wait. Each reader
+    # makes no call for an empty list.
     project_values, organization_values, user_values = await asyncio.gather(
+        # The project reader may be injected, so an empty list never reaches it.
         (resolver or resolve_named_secrets)(project_slugs)
         if project_slugs
-        else _nothing(()),
-        (organization_resolver or _resolve_organization_secrets)(organization_slugs)
-        if organization_slugs
-        else _nothing(()),
-        (user_resolver or resolve_user_secrets)(user_keys)
-        if user_keys
-        else _nothing(()),
+        else asyncio.sleep(0, result={}),
+        resolve_named_secrets(organization_slugs, scope="organization"),
+        resolve_user_secrets(user_keys),
     )
     values: Dict[Tuple[Optional[str], str], str] = {
         **{(None, slug): value for slug, value in project_values.items()},

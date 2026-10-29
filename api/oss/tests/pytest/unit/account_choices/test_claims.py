@@ -17,6 +17,7 @@ from oss.src.core.account_choices.claims import (
 )
 from oss.src.core.account_choices.dtos import AccountMatch, ItemAccount
 from oss.src.core.account_choices.items import run_person_id, user_items_of_revision
+from oss.src.core.workflows.dtos import WorkflowRevisionData
 from oss.tests.pytest.utils.principals import make_envelope, make_request_access
 
 GMAIL = "app_connection:user/gmail"
@@ -133,7 +134,8 @@ def test_a_malformed_claim_is_refused(value):
 
 
 def test_the_item_reader_reads_the_revision_parameters():
-    keys = [item.item_key for item in user_items_of_revision({"parameters": AGENT})]
+    revision = WorkflowRevisionData(parameters=AGENT)
+    keys = [item.item_key for item in user_items_of_revision(revision)]
     assert keys == [GMAIL, TOKEN]
     assert user_items_of_revision(None) == []
 

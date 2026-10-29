@@ -4,7 +4,7 @@
 from typing import List, Optional, Sequence
 from uuid import UUID
 
-from agenta.sdk.agents.accounts import UserItem
+from agenta.sdk.agents.accounts import UserItem, user_item_from_key
 
 from oss.src.core.account_choices.dtos import (
     AccountChoice,
@@ -19,20 +19,13 @@ from oss.src.core.account_choices.exceptions import (
 )
 from oss.src.core.account_choices.interfaces import AccountChoicesDAOInterface
 from oss.src.core.secrets.context import set_data_encryption_key
+from oss.src.core.secrets.enums import SecretKind
 from oss.src.core.shared.dtos import Windowing
 from oss.src.utils.env import env
 
 # A choice is stored only for these kinds. An MCP server uses the person's sign-in, and
 # no flow creates a person's subscription login yet.
 _CHOICE_KINDS = ("app_connection", "secret")
-
-
-def _kind_of(item_key: str) -> str:
-    return item_key.split(":", 1)[0]
-
-
-def _match_text_of(item_key: str) -> str:
-    return item_key.split(":user/", 1)[1]
 
 
 class AccountChoicesService:
@@ -44,7 +37,7 @@ class AccountChoicesService:
         *,
         organization_id: UUID,
         project_id: UUID,
-        artifact_id: UUID,
+        artifact_id: Optional[UUID],
         user_id: Optional[UUID],
         items: Sequence[UserItem],
     ) -> List[ItemAccount]:
@@ -76,10 +69,10 @@ class AccountChoicesService:
     ) -> AccountChoice:
         """Store the choice, or replace the account of the person's choice for the same
         agent and item. The caller has checked that the person may run the agent."""
-        kind = _kind_of(choice.item_key)
-        if kind not in _CHOICE_KINDS:
+        item = user_item_from_key(choice.item_key)
+        if item is None or item.kind not in _CHOICE_KINDS:
             raise ChoiceNotSupported()
-        account = await self.account_choices_dao.fetch_choice_account(
+        account = await self.account_choices_dao.fetch_chosen_account(
             organization_id=organization_id,
             user_id=user_id,
             secret_id=choice.secret_id,
@@ -88,10 +81,10 @@ class AccountChoicesService:
         if account is None:
             raise AccountNotYours()
         fits = (
-            account.secret_kind == "CUSTOM_SECRET"
-            if kind == "secret"
+            account.secret_kind == SecretKind.CUSTOM_SECRET
+            if item.kind == "secret"
             else account.provider_key == "composio"
-            and account.integration_key == _match_text_of(choice.item_key)
+            and account.integration_key == item.match_text
         )
         if not fits:
             raise AccountNotForItem()

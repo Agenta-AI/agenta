@@ -20,6 +20,9 @@ from oss.src.core.access.types import InvalidRunClaims
 from oss.src.core.account_choices.dtos import ItemAccount, RunAccount
 from oss.src.core.account_choices.items import run_person_id
 from oss.src.core.account_choices.policy import personal_accounts_enabled
+from oss.src.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
 
 
 def run_accounts_claim(item_accounts: Sequence[ItemAccount]) -> List[dict]:
@@ -66,11 +69,14 @@ async def sign_run_accounts(
 ) -> Optional[List[dict]]:
     """The one function that resolves the accounts of a new run.
 
-    None, with no read at all, when the run has no "user" items, no agent, or the
-    deployment switch is off. Otherwise one SQL statement, for the run person (none for
-    an API key, an installation or a child run: then every item is left out)."""
-    if not items or artifact_id is None or not personal_accounts_enabled():
+    None, with no read at all, when the run has no "user" items or the deployment switch
+    is off. Otherwise one SQL statement, for the run person (none for an API key, an
+    installation or a child run: then every item is left out). A run whose agent is not
+    known by id reads no account choices; defaults and sign-ins still apply."""
+    if not items or not personal_accounts_enabled():
         return None
+    if artifact_id is None:
+        log.info("[accounts] a run with user items names no agent id; no choices read")
     from oss.src.core.account_choices.service import (  # noqa: PLC0415
         get_account_choices_service,
     )

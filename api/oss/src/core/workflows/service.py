@@ -404,19 +404,23 @@ _AGENT_REFERENCE_ORDER = (
 
 
 def _artifact_id_of_references(references: Optional[dict]) -> Optional[UUID]:
-    """The agent (artifact) a run's references name, for its account choices."""
-    for family in ("workflow", "application", "evaluator"):
-        reference = (references or {}).get(family)
+    """The agent a run's references name by artifact id, for its account choices, when
+    the request already carried its revision (so nothing was resolved here). No read: an
+    agent named only by revision, variant or slug gets no account choices, and its
+    "user" items fall back to defaults and sign-ins."""
+    for key, level in _AGENT_REFERENCE_ORDER:
+        if level != "artifact":
+            continue
+        reference = (references or {}).get(key)
         reference_id = (
             reference.get("id")
             if isinstance(reference, dict)
             else getattr(reference, "id", None)
         )
-        if reference_id:
-            try:
-                return UUID(str(reference_id))
-            except ValueError:
-                return None
+        try:
+            return UUID(str(reference_id)) if reference_id else None
+        except ValueError:
+            continue
     return None
 
 
@@ -3634,7 +3638,7 @@ class WorkflowsService:
 
         request.meta = {**(request.meta or {}), "gateway_run_id": gateway_run_id}
 
-        await self._ensure_request_revision(
+        resolved_revision = await self._ensure_request_revision(
             project_id=project_id,
             request=request,
         )
@@ -3680,8 +3684,12 @@ class WorkflowsService:
             run_accounts=await sign_run_accounts(
                 envelope=envelope,
                 items=user_items_of_revision(revision_data),
-                artifact_id=_artifact_id_of_references(
-                    getattr(request, "references", None)
+                artifact_id=(
+                    resolved_revision.workflow_id
+                    if resolved_revision is not None
+                    else _artifact_id_of_references(
+                        getattr(request, "references", None)
+                    )
                 ),
             ),
         )

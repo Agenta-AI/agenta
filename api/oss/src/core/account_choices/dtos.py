@@ -13,9 +13,18 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-# The text of a "user" item key: `<kind>:user/<match text>`. The SDK builds it
-# (`agenta.sdk.agents.accounts.user_item_key`); this pattern only checks its shape.
-ITEM_KEY_PATTERN = r"^(app_connection|mcp_server|secret|subscription):user/\S+$"
+from oss.src.core.secrets.enums import SecretKind
+
+from agenta.sdk.agents.accounts import USER_ITEM_KEY_PATTERN
+
+# The text of a "user" item key: `<kind>:user/<match text>`. The SDK builds it and owns
+# its shape (`agenta.sdk.agents.accounts`).
+ITEM_KEY_PATTERN = USER_ITEM_KEY_PATTERN
+
+
+# The most "user" items one run names. A route refuses a longer list; the credential
+# exchange, which must never fail a turn for it, reads only the first ones.
+MAX_RUN_ITEM_KEYS = 100
 
 
 class AccountMatch(str, Enum):
@@ -89,10 +98,10 @@ class RunAccount(BaseModel):
         return self
 
 
-class ChoiceAccount(BaseModel):
+class ChosenAccount(BaseModel):
     """The account an upsert names, read only when the person owns it in the agent's
     organization: what the upsert checks against the item."""
 
-    secret_kind: Optional[str] = None  # the stored kind name, e.g. `CUSTOM_SECRET`
+    secret_kind: Optional[SecretKind] = None
     provider_key: Optional[str] = None
     integration_key: Optional[str] = None

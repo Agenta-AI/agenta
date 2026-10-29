@@ -443,20 +443,18 @@ class SecretsDAO(SecretsDAOInterface):
         except DBAPIError as error:
             raise _conflict_from(error) from None
 
-    # -- MCP sign-ins ------------------------------------------------------------------
-
     async def delete_by_owner(self, *, owner: SecretOwner) -> int:
+        """Every row of a person owner, in one statement (they left the organization)."""
         if owner.kind != SecretOwnerKind.USER:
             raise ValueError("only a person's rows are deleted by owner")
-        try:
-            async with self.engine.session() as session:
-                result = await session.execute(
-                    delete(SecretsDBE).where(*_owner_filter(owner))
-                )
-                await session.commit()
-                return result.rowcount or 0
-        except DBAPIError as error:
-            raise _conflict_from(error) from None
+        async with self.engine.session() as session:
+            result = await session.execute(
+                delete(SecretsDBE).where(*_owner_filter(owner))
+            )
+            await session.commit()
+            return result.rowcount or 0
+
+    # -- MCP sign-ins ------------------------------------------------------------------
 
     async def list_by_ids(
         self, *, owner: SecretOwner, secret_ids: Sequence[UUID]
