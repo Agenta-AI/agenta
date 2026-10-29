@@ -852,6 +852,7 @@ class EvaluationsService:
         user_id: UUID,
         #
         runs: List[EvaluationRunEdit],
+        principal: Optional[PrincipalRef] = None,
     ) -> List[EvaluationRun]:
         for run in runs:
             run.version = CURRENT_VERSION
@@ -869,6 +870,7 @@ class EvaluationsService:
             user_id=user_id,
             #
             runs=runs,
+            principal=principal,
         )
         return [
             await self._reconcile_run(
@@ -2475,7 +2477,10 @@ class SimpleEvaluationsService:
         user_id: UUID,
         #
         evaluation: SimpleEvaluationEdit,
+        principal: PrincipalRef,
     ) -> Optional[SimpleEvaluation]:
+        """The editor (`principal`) becomes the run's executing principal in the
+        same write; the restart of an active run keeps it."""
         evaluation.flags = evaluation.flags or SimpleEvaluationFlags(
             is_closed=False,
             is_live=False,
@@ -2594,6 +2599,7 @@ class SimpleEvaluationsService:
                 user_id=user_id,
                 #
                 run=run_edit,
+                principal=principal,
             )
 
             if not run:

@@ -56,9 +56,13 @@ from oss.src.dbs.postgres.triggers.upsert_utils import (
 log = get_module_logger(__name__)
 
 
-def _set_principal_and_target(dbe, *, principal: PrincipalRef, artifact_id) -> None:
+def _set_principal(dbe, *, principal: PrincipalRef) -> None:
     dbe.principal_kind = principal.kind.value
     dbe.principal_id = principal.id
+
+
+def _set_principal_and_target(dbe, *, principal: PrincipalRef, artifact_id) -> None:
+    _set_principal(dbe, principal=principal)
     dbe.artifact_id = artifact_id
 
 
@@ -205,6 +209,7 @@ class TriggersDAO(TriggersDAOInterface):
         #
         artifact_id: Any = KEEP_ARTIFACT_ID,
         trigger_id: Optional[str] = None,
+        principal: Optional[PrincipalRef] = None,
     ) -> Optional[TriggerSubscription]:
         async with self.engine.session() as session:
             stmt = (
@@ -231,7 +236,10 @@ class TriggersDAO(TriggersDAOInterface):
                 #
                 subscription=subscription,
             )
-            # The principal never changes on an edit; the target follows the refs.
+            # An edit route's save makes its caller the executing principal, in
+            # this same write; lifecycle writes pass none and keep it.
+            if principal is not None:
+                _set_principal(subscription_dbe, principal=principal)
             if artifact_id is not KEEP_ARTIFACT_ID:
                 subscription_dbe.artifact_id = artifact_id
             if trigger_id is not None:
@@ -977,6 +985,7 @@ class TriggersDAO(TriggersDAOInterface):
         schedule: TriggerScheduleEdit,
         #
         artifact_id: Any = KEEP_ARTIFACT_ID,
+        principal: Optional[PrincipalRef] = None,
     ) -> Optional[TriggerSchedule]:
         async with self.engine.session() as session:
             stmt = (
@@ -1003,7 +1012,10 @@ class TriggersDAO(TriggersDAOInterface):
                 #
                 schedule=schedule,
             )
-            # The principal never changes on an edit; the target follows the refs.
+            # An edit route's save makes its caller the executing principal, in
+            # this same write; lifecycle writes pass none and keep it.
+            if principal is not None:
+                _set_principal(schedule_dbe, principal=principal)
             if artifact_id is not KEEP_ARTIFACT_ID:
                 schedule_dbe.artifact_id = artifact_id
 

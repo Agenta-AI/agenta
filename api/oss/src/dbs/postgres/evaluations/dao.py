@@ -398,7 +398,8 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             if run.data:
                 run_dbe.data = run.data.model_dump(mode="json")  # type: ignore
 
-            # An explicit start sets the principal in this same UPDATE.
+            # An explicit start or an edit route's save sets the principal in
+            # this same UPDATE.
             if principal is not None:
                 run_dbe.principal_kind = principal.kind.value
                 run_dbe.principal_id = principal.id
@@ -421,6 +422,7 @@ class EvaluationsDAO(EvaluationsDAOInterface):
         user_id: UUID,
         #
         runs: List[EvaluationRunEdit],
+        principal: Optional[PrincipalRef] = None,
     ) -> List[EvaluationRun]:
         run_ids = [run.id for run in runs]
 
@@ -477,6 +479,12 @@ class EvaluationsDAO(EvaluationsDAOInterface):
 
                 if run.data:
                     run_dbe.data = run.data.model_dump(mode="json")  # type: ignore
+
+                # An edit route's save sets the principal in this same UPDATE.
+                if principal is not None:
+                    run_dbe.principal_kind = principal.kind.value
+                    run_dbe.principal_id = principal.id
+                    run_dbe.principal_user_id = user_id
 
             await session.commit()
 
