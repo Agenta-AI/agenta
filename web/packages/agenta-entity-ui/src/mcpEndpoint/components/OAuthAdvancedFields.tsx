@@ -7,7 +7,7 @@
  * server that registers no clients and takes no client ID metadata document opens it, and
  * says why: without an app of the person's own there is nothing to sign in as.
  */
-import {useRef, useState, type ReactElement} from "react"
+import {cloneElement, useId, useRef, useState, type ReactElement} from "react"
 
 import type {MCPTokenEndpointAuthMethod} from "@agenta/entities/mcpEndpoint"
 import {copyToClipboard} from "@agenta/ui"
@@ -22,6 +22,7 @@ import {
     SelectItem,
     SelectTrigger,
     SelectValue,
+    touchTargetExpansion,
 } from "@agenta/ui/ui"
 import {CaretDown, Copy, SlidersHorizontal} from "@phosphor-icons/react"
 
@@ -77,6 +78,7 @@ export const OAuthAdvancedFields = ({
     const open = toggled ?? needsOwnApp
     const hasClient = !!clientId.trim()
     const callbackRef = useRef<HTMLElement>(null)
+    const introId = useId()
     const [copyFailed, setCopyFailed] = useState(false)
 
     const copyCallback = async () => {
@@ -97,7 +99,10 @@ export const OAuthAdvancedFields = ({
             <Button
                 variant="ghost"
                 size="sm"
-                className="w-full justify-start px-2 text-xs text-colorTextSecondary"
+                className={cn(
+                    "w-full justify-start px-2 text-xs text-colorTextSecondary",
+                    touchTargetExpansion(28),
+                )}
                 aria-expanded={open}
                 onClick={() => setToggled(!open)}
             >
@@ -111,7 +116,7 @@ export const OAuthAdvancedFields = ({
             </Button>
             {open ? (
                 <div className="flex flex-col gap-4">
-                    <p className="m-0 text-xs leading-normal text-colorTextSecondary">
+                    <p id={introId} className="m-0 text-xs leading-normal text-colorTextSecondary">
                         {needsOwnApp ? OWN_OAUTH_APP_NOTICE : CLIENT_HELP}
                     </p>
                     {redirectUri ? (
@@ -137,21 +142,22 @@ export const OAuthAdvancedFields = ({
                             ) : null}
                         </div>
                     ) : null}
-                    <div className="flex flex-col gap-4">
-                        <HintedField label="Client ID">
-                            <Input
-                                className="font-mono text-[13px]"
-                                placeholder={needsOwnApp ? undefined : "Optional"}
-                                value={clientId}
-                                disabled={disabled}
-                                aria-label="Client ID"
-                                onChange={(event) => onClientIdChange(event.target.value)}
-                            />
+                    <HintedField label="Client ID">
+                        <Input
+                            className="font-mono text-[13px]"
+                            placeholder={needsOwnApp ? undefined : "Optional"}
+                            value={clientId}
+                            disabled={disabled}
+                            aria-label="Client ID"
+                            aria-describedby={introId}
+                            onChange={(event) => onClientIdChange(event.target.value)}
+                        />
+                    </HintedField>
+                    {hasClient && authMethod === "none" ? null : (
+                        <HintedField label="Client secret">
+                            {cloneElement(clientSecret, {"aria-describedby": introId})}
                         </HintedField>
-                        {hasClient && authMethod === "none" ? null : (
-                            <HintedField label="Client secret">{clientSecret}</HintedField>
-                        )}
-                    </div>
+                    )}
                     {hasClient ? (
                         <div className="flex flex-col gap-1.5">
                             <span className="text-field-md text-colorText">

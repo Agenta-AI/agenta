@@ -1159,8 +1159,8 @@ export function useMcpConnectJourney({
                 // row is inert, so a refused cleanup is not worth blocking the person on.
             }
         }
-        // A failed attempt can leave a kept row the list never fetched, so refresh on every close.
-        await refreshEndpoints()
+        // A failed attempt can keep a row the list never fetched.
+        if (endpoint) await refreshEndpoints()
     }, [abandonAttempt, projectId, refreshEndpoints, state])
 
     /**

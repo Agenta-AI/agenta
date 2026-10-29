@@ -10,7 +10,6 @@
  */
 import {
     credentialBindingPreview,
-    MCP_DEFAULT_CREDENTIAL_BINDING,
     mcpChallengeScheme,
     type MCPCredentialBinding,
     type MCPServerProbe,

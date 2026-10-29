@@ -1,8 +1,9 @@
 /**
  * The key screen's binding fields: Send as, Prefix, the preview line, and the Basic helper.
  *
- * Each case sets the fields and reads the fields and the preview back. The Basic helper must hand the create drawer one value, base64 of
- * `username:password`, and keep neither half; the drawer is stubbed to see what it was given.
+ * Each case sets the fields and reads the fields and the preview back. The Basic helper
+ * must hand the create drawer one value, base64 of `username:password`, and keep neither
+ * half; the drawer is stubbed to see what it was given.
  */
 import {act, createElement} from "react"
 

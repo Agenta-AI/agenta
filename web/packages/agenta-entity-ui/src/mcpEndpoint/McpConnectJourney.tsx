@@ -797,7 +797,7 @@ export function McpConnectSheet({
                     </>
                 )
             }
-            classNames={{footer: "border-t-0"}}
+            classNames={{footer: "flex-row justify-end border-t-0"}}
             width={480}
             destroyOnClose
             getContainer={container ?? false}
