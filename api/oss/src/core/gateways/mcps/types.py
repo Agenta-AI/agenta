@@ -162,6 +162,7 @@ class MCPSignInMissingError(GatewaysError):
     person's own account. The runner then does not register the server for the run.
     """
 
-    def __init__(self, *, target: str):
+    def __init__(self, *, target: str, server_name: Optional[str] = None):
         self.target = target
-        super().__init__(f"You are not signed in to {target}.")
+        # The person reads this, so it names the server, never the gateway path.
+        super().__init__(f"Sign in to {server_name or 'this server'} to use it.")

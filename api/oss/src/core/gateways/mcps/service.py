@@ -1173,14 +1173,14 @@ class MCPGatewayService:
             name=target.name,
         )
         if target.namespace != GatewayEndpointNamespace.CUSTOM:
-            raise MCPSignInMissingError(target=path)
+            raise MCPSignInMissingError(target=path, server_name=target.endpoint.name)
         access = get_request_access()
         person_id = run_person_id(access.envelope if access is not None else None)
         entry = run_account(
             access, user_item_key(kind="mcp_server", match_text=target.name)
         )
         if person_id is None or entry is None or entry.secret_id is None:
-            raise MCPSignInMissingError(target=path)
+            raise MCPSignInMissingError(target=path, server_name=target.endpoint.name)
         return BoundSecretRef(
             secret_id=entry.secret_id,
             owner_kind=SecretOwnerKind.USER,
@@ -1204,11 +1204,13 @@ class MCPGatewayService:
             )
         except SecretNotFoundError as e:
             # Deleted since the run started (a sign-out, or the server changed mode).
-            raise MCPSignInMissingError(target=path) from e
+            raise MCPSignInMissingError(
+                target=path, server_name=target.endpoint.name
+            ) from e
         # The claim names a row by id; it answers only for this server in its current
         # mode, so a token is never sent to an OAuth server or to another server.
         if not is_sign_in_of(endpoint, secret.secret):
-            raise MCPSignInMissingError(target=path)
+            raise MCPSignInMissingError(target=path, server_name=target.endpoint.name)
         if endpoint.auth_mode == MCPAuthScheme.OAUTH:
             secret = await self._renewed(
                 scope=scope,

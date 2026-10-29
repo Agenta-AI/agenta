@@ -468,3 +468,12 @@ async def test_a_scope_challenge_on_a_person_grant_is_the_persons_to_answer():
             await _relay(service, _scope())
 
     assert excinfo.value.for_person is True
+
+
+def test_the_missing_sign_in_message_names_the_server_not_the_gateway_path():
+    error = MCPSignInMissingError(
+        target="custom/acme-notion", server_name="Acme Notion"
+    )
+
+    assert error.message == "Sign in to Acme Notion to use it."
+    assert error.target == "custom/acme-notion"
