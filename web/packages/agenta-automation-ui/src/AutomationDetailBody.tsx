@@ -6,6 +6,7 @@ import {AutomationInstructionField} from "./AutomationInstructionField"
 import {AutomationMetaRow} from "./AutomationMetaRow"
 import type {Automation} from "./automationModel"
 import {AutomationRunHistoryCard} from "./AutomationRunHistoryCard"
+import {AutomationRunPersonNotice} from "./AutomationRunPersonNotice"
 import {AutomationRunsWhenField} from "./AutomationRunsWhenField"
 import {AutomationSaveBar} from "./AutomationSaveBar"
 import {AutomationTitle} from "./AutomationTitle"
@@ -127,6 +128,13 @@ export const AutomationDetailBody = ({
         {onOpenRunHistory ? (
             <AutomationRunHistoryCard onOpen={onOpenRunHistory} caption={runHistoryCaption} />
         ) : null}
+        {/* Next to the save it is about: right above the bar, or last in a drawer whose
+            footer holds the bar. */}
+        <AutomationRunPersonNotice
+            automation={automation}
+            draftAgentId={preview.agentId}
+            dirty={dirty}
+        />
         {/* Last on the page: the bar commits the whole screen, so it reads as the end of the
             form rather than a divider halfway down it. */}
         {hideSaveBar ? null : (
