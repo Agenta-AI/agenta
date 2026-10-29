@@ -49,7 +49,7 @@ binding: caller_account | project_default
 | `caller_account` | Each person's own account | The run uses the credential of the human behind the run principal (D4). |
 | `project_default` | The project's shared account | The run uses the M5 named reference: the connection with that scope and slug, from the project or from the organization, exactly as the builder picked it. Without a slug, the M5 default for the service. It never selects a user-owned row. |
 
-- The `specific` binding of CONTRACT.md section 8 ("One fixed account") is not in the first step. The server refuses a revision that sets it.
+- The `specific` binding of CONTRACT.md section 8 ("One fixed account") is not in the first step. Saving a revision with it is not refused (CONTRACT.md section 15). `_prepare_invoke` refuses the run at run start. It refuses an unsupported combination of binding and connection kind (the table below) the same way.
 - A stored revision without `binding` reads as `project_default` with its stored named reference, which is its M5 meaning. No revision is rewritten or reclassified.
 - MCP references also carry the M5 scope. With scope `project`, `caller_account` means the project's server with each person's own sign-in. With scope `user`, the reference names a personal MCP server by slug, and only `caller_account` is valid: each person's own server with that slug.
 

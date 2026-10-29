@@ -1,19 +1,19 @@
 ## ADDED Requirements
 
 ### Requirement: Explicit binding on every agent connection
-Every model, Composio tool, and MCP gateway connection reference SHALL have a binding: `caller_account` ("Each person's own account") or `project_default` ("The project's shared account"). A stored revision without a binding SHALL be read as `project_default` with its stored named reference, which keeps its M5 meaning. The system SHALL refuse a revision with an unsupported combination of binding and connection kind, and SHALL refuse the `specific` binding in the first step.
+Every model, Composio tool, and MCP gateway connection reference SHALL have a binding: `caller_account` ("Each person's own account") or `project_default` ("The project's shared account"). A stored revision without a binding SHALL be read as `project_default` with its stored named reference, which keeps its M5 meaning. Saving a revision SHALL NOT check its bindings. At run start, the system SHALL refuse a run whose revision has an unsupported combination of binding and connection kind, or the `specific` binding, which is not in the first step.
 
 #### Scenario: Old revision keeps its M5 meaning
 - **WHEN** a revision saved before M7 names the slug `openai-main` with no scope, and the project has a key with that slug
 - **THEN** the system SHALL resolve the project key, as under M5, and SHALL NOT read an organization key with the same slug
 
 #### Scenario: Unsupported combination
-- **WHEN** an author saves `project_default` on an MCP reference with scope `user`
-- **THEN** the system SHALL refuse the revision with a validation error that names the connection
+- **WHEN** an author saves `project_default` on an MCP reference with scope `user`, and then runs the agent
+- **THEN** the system SHALL save the revision, and SHALL refuse the run at run start with an error that names the connection
 
 #### Scenario: One fixed account is not offered
-- **WHEN** an author saves the `specific` binding on a Composio connection
-- **THEN** the system SHALL refuse the revision with a validation error that names the connection
+- **WHEN** an author saves the `specific` binding on a Composio connection, and then runs the agent
+- **THEN** the system SHALL save the revision, and SHALL refuse the run at run start with an error that names the connection
 
 ### Requirement: The project's shared account is the picked connection
 For `project_default`, the system SHALL use the connection that the M5 named reference names (its scope and slug), from the project or from the organization. It SHALL NOT select a user-owned credential. When the named connection is gone or unavailable, the system SHALL refuse the call and SHALL NOT use another credential.

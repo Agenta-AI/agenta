@@ -40,7 +40,7 @@ Prerequisites, from CONTRACT.md section 14 (the contract wins): the code of M3 a
 | Test | Boundary |
 | --- | --- |
 | Every fixture from 1.2 resolves the same credential after release A | M5 meaning kept |
-| A revision with `specific` is refused | first step scope |
+| A revision with `specific` or an unsupported binding saves; its run is refused at run start | first step scope |
 | Every token mint carries `gateway_bindings`, including `inspect_workflow` and cached gateway credentials; a pre-M7 credential resolves as `project_default` | claims |
 | Sandbox asks gateway and vault for a personal key on a `project_default` connection | claims |
 | Concurrent invite and first personal use: exactly one wins | D6 lock |
