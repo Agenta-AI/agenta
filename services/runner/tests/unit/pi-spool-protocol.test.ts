@@ -4,6 +4,7 @@ import { describe, it } from "vitest";
 import {
   isPiTraceSpoolFileName,
   parsePiTurnTraceControl,
+  piTraceDoneFileName,
   piTraceFileName,
 } from "../../src/tracing/pi-spool-protocol.ts";
 
@@ -70,6 +71,8 @@ describe("Pi trace spool protocol", () => {
     assert.equal(isPiTraceSpoolFileName("current.control.json"), true);
     assert.equal(isPiTraceSpoolFileName(final), true);
     assert.equal(isPiTraceSpoolFileName(`${final}.tmp.nonce`), true);
+    assert.equal(isPiTraceSpoolFileName(piTraceDoneFileName(CHANNEL)), true);
+    assert.equal(isPiTraceSpoolFileName(`${CHANNEL}.done.x`), false);
     assert.equal(isPiTraceSpoolFileName("unrelated.txt"), false);
     assert.equal(isPiTraceSpoolFileName("../escape.0.otlp.pb"), false);
   });
