@@ -1426,7 +1426,13 @@ class ChannelsService:
             references=agent.data.references,
             is_active=agent.flags.is_active,
         )
-        return await self.channels_dao.create_agent(
+        if guard_artifact_id is None and agent.data.audience.senders:
+            # a binding created off but with a people list is still a limits
+            # write: only the agent's owner sets it
+            guard_artifact_id = await self._limits_guard(
+                project_id=project_id, agent=agent
+            )
+        created = await self.channels_dao.create_agent(
             project_id=project_id,
             user_id=user_id,
             #
@@ -1434,6 +1440,29 @@ class ChannelsService:
             #
             guard_artifact_id=guard_artifact_id,
             guard_user_id=guard_user_id,
+        )
+        if agent.data.audience.senders:
+            await self._mirror_installation_senders(
+                project_id=project_id,
+                connection_id=agent.connection_id,
+                senders=list(agent.data.audience.senders),
+            )
+        return created
+
+    async def _mirror_installation_senders(
+        self, *, project_id: UUID, connection_id: UUID, senders: List[str]
+    ) -> None:
+        """Rollout only: an API pod of the previous release reads the people list
+        from the installation (`allowed_senders`), so each change of a binding's
+        list is written there too until every pod reads the binding. Remove in
+        the release after this one, with the old field. On an installation with
+        several bindings the last list written applies to all of them on an old
+        pod, which is how the old pods always behaved."""
+
+        await self.channels_dao.write_installation_senders(
+            project_id=project_id,
+            connection_id=connection_id,
+            senders=senders,
         )
 
     async def fetch_agent(
@@ -1501,6 +1530,12 @@ class ChannelsService:
         await self._invalidate_bindings(
             binding_ids=[existing.id], source="channels.edit_agent"
         )
+        if edited is not None and merged.data.audience != existing.data.audience:
+            await self._mirror_installation_senders(
+                project_id=project_id,
+                connection_id=existing.connection_id,
+                senders=list(merged.data.audience.senders),
+            )
         return edited
 
     async def delete_agent(
@@ -1734,7 +1769,7 @@ class ChannelsService:
         self,
         *,
         project_id: UUID,
-        agent: ChannelAgent,
+        agent: ChannelAgent | ChannelAgentCreate,
     ) -> Optional[UUID]:
         """The agent a limits write must guard: only its owner changes a private
         agent's limits (its rules and its people list), active binding or not.

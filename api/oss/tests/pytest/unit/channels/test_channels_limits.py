@@ -12,7 +12,9 @@ import pytest
 from oss.src.core.channels.dtos import (
     ChannelAgent,
     ChannelAgentAudience,
+    ChannelAgentCreate,
     ChannelAgentData,
+    ChannelAgentFlags,
     ChannelAgentDataEdit,
     ChannelAgentEdit,
     ChannelConnection,
@@ -399,6 +401,19 @@ def _guarded_service(dao, *, refuse):
     dao.create_grant = AsyncMock(
         side_effect=_sync_guarded(refuse, lambda kw: MagicMock())
     )
+    dao.create_agent = AsyncMock(
+        side_effect=_sync_guarded(
+            refuse,
+            lambda kw: ChannelAgent(
+                id=uuid4(),
+                slug=kw["agent"].slug,
+                connection_id=kw["agent"].connection_id,
+                data=kw["agent"].data,
+                flags=kw["agent"].flags,
+            ),
+        )
+    )
+    dao.write_installation_senders = AsyncMock()
     dao.edit_grant = AsyncMock(
         side_effect=_sync_guarded(refuse, lambda kw: MagicMock())
     )
@@ -850,3 +865,82 @@ async def test_pointing_an_off_binding_at_someone_elses_private_agent_is_refused
     assert list(dao.edit_agent.await_args.kwargs["limits_artifact_ids"]) == [
         destination_artifact
     ]
+
+
+async def test_someone_else_cannot_create_an_off_binding_with_a_people_list():
+    """The owner rule covers creating a binding too, on or off."""
+
+    agent = _agent()
+    dao = _dao(agent=agent)
+    dao.fetch_connection = AsyncMock(return_value=_connection())
+    service = _guarded_service(dao, refuse=True)
+
+    with pytest.raises(SharedItemNotFound):
+        await service.create_agent(
+            project_id=uuid4(),
+            user_id=uuid4(),
+            guard_user_id=uuid4(),
+            agent=ChannelAgentCreate(
+                connection_id=uuid4(),
+                slug="off",
+                data=ChannelAgentData(
+                    references={"workflow_revision": {"id": str(uuid4())}},
+                    audience=ChannelAgentAudience(senders=["U-BEN"]),
+                ),
+                flags=ChannelAgentFlags(is_active=False),
+            ),
+        )
+    dao.write_installation_senders.assert_not_awaited()
+
+
+async def test_an_off_binding_without_a_people_list_is_created_as_before():
+    agent = _agent()
+    dao = _dao(agent=agent)
+    dao.fetch_connection = AsyncMock(return_value=_connection())
+    service = _guarded_service(dao, refuse=True)
+
+    await service.create_agent(
+        project_id=uuid4(),
+        user_id=uuid4(),
+        guard_user_id=uuid4(),
+        agent=ChannelAgentCreate(
+            connection_id=uuid4(),
+            slug="off",
+            data=ChannelAgentData(
+                references={"workflow_revision": {"id": str(uuid4())}}
+            ),
+            flags=ChannelAgentFlags(is_active=False),
+        ),
+    )
+    assert dao.create_agent.await_args.kwargs["guard_artifact_id"] is None
+
+
+async def test_a_people_list_change_is_also_written_to_the_installation():
+    """Rollout: pods of the previous release read the installation's list."""
+
+    agent = _agent(senders=["ANA"])
+    agent.flags.is_active = False
+    dao = _dao(agent=agent)
+    service = _guarded_service(dao, refuse=False)
+    project_id = uuid4()
+
+    await service.edit_agent(
+        project_id=project_id,
+        user_id=uuid4(),
+        guard_user_id=uuid4(),
+        agent=ChannelAgentEdit(
+            id=agent.id, data=ChannelAgentDataEdit(audience={"senders": ["BEN"]})
+        ),
+    )
+    dao.write_installation_senders.assert_awaited_once_with(
+        project_id=project_id, connection_id=agent.connection_id, senders=["BEN"]
+    )
+
+    dao.write_installation_senders.reset_mock()
+    await service.edit_agent(
+        project_id=project_id,
+        user_id=uuid4(),
+        guard_user_id=uuid4(),
+        agent=ChannelAgentEdit(id=agent.id, name="renamed"),
+    )
+    dao.write_installation_senders.assert_not_awaited()

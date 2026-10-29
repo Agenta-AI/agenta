@@ -459,6 +459,17 @@ class ChannelsDAOInterface(ABC):
         windowing: Optional[Windowing] = None,
     ) -> List[ChannelGrant]: ...
 
+    async def write_installation_senders(
+        self,
+        *,
+        project_id: UUID,
+        connection_id: UUID,
+        senders: List[str],
+    ) -> None:
+        """Rollout only: set `allowed_senders` on the installation, the field
+        the previous release reads. Remove with that field."""
+        raise NotImplementedError
+
     async def query_recent_senders(
         self,
         *,

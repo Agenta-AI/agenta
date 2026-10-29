@@ -1327,6 +1327,30 @@ class ChannelsDAO(ChannelsDAOInterface):
 
             return len(result.scalars().all())
 
+    async def write_installation_senders(
+        self,
+        *,
+        project_id: UUID,
+        connection_id: UUID,
+        senders: List[str],
+    ) -> None:
+        async with self.engine.session() as session:
+            await session.execute(
+                text(
+                    "UPDATE channel_connections "
+                    "SET data = jsonb_set("
+                    "COALESCE(data::jsonb, '{}'::jsonb), '{allowed_senders}', "
+                    "CAST(:senders AS jsonb))::json "
+                    "WHERE project_id = :project_id AND id = :connection_id"
+                ),
+                {
+                    "senders": json.dumps(senders),
+                    "project_id": project_id,
+                    "connection_id": connection_id,
+                },
+            )
+            await session.commit()
+
     async def query_recent_senders(
         self,
         *,
