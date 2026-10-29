@@ -309,7 +309,10 @@ export function materializeLocalPiSkillSnapshot(
     // its files. The sweep removes it after the staging TTL. A concurrent repair may have moved
     // it already.
     try {
-      const replaced = join(root, `.${snapshot.digest}.replaced-${randomUUID()}`);
+      const replaced = join(
+        root,
+        `.${snapshot.digest}.replaced-${randomUUID()}`,
+      );
       renameSync(snapshot.dir, replaced);
       // The staging TTL counts from now, not from when the copy was made.
       touchSnapshot(replaced);
@@ -928,43 +931,58 @@ export async function uploadPiExtensionToSandbox(
 export const GATEWAY_PI_RETRY = { maxRetries: 1 };
 const PI_SETTINGS_FILENAME = "settings.json";
 
-/** A Pi `settings.json` with the gateway retry merged over whatever the file already holds. */
-export function withGatewayPiRetry(existing: string | undefined): string {
+/**
+ * A Pi `settings.json` with the runner's settings merged over whatever the file already holds.
+ * `quietStartup` stops pi-acp from building its startup banner, which runs `pi --version` before
+ * it answers `session/new` (about 0.6 s on a runner pod) and which the runner strips anyway (see
+ * `isBannerLine` in tracing/otel.ts). A run through the gateway also gets `GATEWAY_PI_RETRY`.
+ */
+export function withRunnerPiSettings(
+  existing: string | undefined,
+  throughGateway: boolean | undefined,
+): string {
   let settings: Record<string, unknown> = {};
   try {
     const parsed: unknown = existing ? JSON.parse(existing) : {};
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed))
       settings = parsed as Record<string, unknown>;
   } catch {
-    // An unreadable file configures nothing Pi could use; the gateway retry replaces it.
+    // An unreadable file configures nothing Pi could use; the runner's settings replace it.
   }
-  const retry =
-    settings.retry && typeof settings.retry === "object" ? settings.retry : {};
-  return JSON.stringify(
-    { ...settings, retry: { ...retry, ...GATEWAY_PI_RETRY } },
-    null,
-    2,
-  );
+  settings = { ...settings, quietStartup: true };
+  if (throughGateway) {
+    const retry =
+      settings.retry && typeof settings.retry === "object"
+        ? settings.retry
+        : {};
+    settings.retry = { ...retry, ...GATEWAY_PI_RETRY };
+  }
+  return JSON.stringify(settings, null, 2);
 }
 
 /**
- * Best-effort, like the Daytona upload below: a run whose write failed keeps Pi's default retries,
- * which is how every run behaved before, so it is not stopped for it.
+ * Best-effort, like the Daytona upload below: a run whose write failed keeps Pi's default retries
+ * and pi-acp's banner, which is how every run behaved before, so it is not stopped for it.
  */
-function writeGatewayPiRetryLocal(agentDir: string, log: Log): void {
+function writeRunnerPiSettingsLocal(
+  agentDir: string,
+  throughGateway: boolean | undefined,
+  log: Log,
+): void {
   const file = join(agentDir, PI_SETTINGS_FILENAME);
   try {
     const existing = existsSync(file) ? readFileSync(file, "utf-8") : undefined;
-    writeFileSync(file, withGatewayPiRetry(existing));
+    writeFileSync(file, withRunnerPiSettings(existing, throughGateway));
   } catch (err) {
     log(`pi settings.json write skipped: ${(err as Error).message}`);
   }
 }
 
-/** Merge the gateway retry into the `settings.json` of a Daytona sandbox's Pi agent dir. */
-export async function uploadGatewayPiRetryToSandbox(
+/** Merge the runner's settings into the `settings.json` of a Daytona sandbox's Pi agent dir. */
+export async function uploadRunnerPiSettingsToSandbox(
   sandbox: any,
   agentDir: string,
+  throughGateway: boolean | undefined,
   log: Log = () => {},
 ): Promise<void> {
   const path = `${agentDir}/${PI_SETTINGS_FILENAME}`;
@@ -976,7 +994,10 @@ export async function uploadGatewayPiRetryToSandbox(
   }
   try {
     // The extension upload before this one created the agent dir.
-    await sandbox.writeFsFile({ path }, withGatewayPiRetry(existing));
+    await sandbox.writeFsFile(
+      { path },
+      withRunnerPiSettings(existing, throughGateway),
+    );
   } catch (err) {
     log(`pi settings.json upload skipped: ${(err as Error).message}`);
   }
@@ -1234,7 +1255,7 @@ export function prepareLocalPiAssets({
       log,
     );
   }
-  if (plan.credentials.throughGateway) writeGatewayPiRetryLocal(runAgentDir, log);
+  writeRunnerPiSettingsLocal(runAgentDir, plan.credentials.throughGateway, log);
   let modelConfigWritten = true;
   if (piModelConfig) {
     try {
