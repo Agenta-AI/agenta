@@ -2,12 +2,12 @@
 
 import html as html_lib
 import json
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Literal, Optional, Tuple
 from urllib.parse import urlsplit
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 
 from oss.src.apis.fastapi.gateways.exceptions import handle_gateway_exceptions
 from oss.src.apis.fastapi.gateways.flags import MCP_GATEWAY_ENABLED
@@ -27,6 +27,8 @@ from oss.src.apis.fastapi.gateways.mcps.models import (
     MCPEndpointsResponse,
 )
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
+from oss.src.apis.fastapi.shared.personal import require_person
+from oss.src.core.account_choices.policy import personal_accounts_enabled
 from oss.src.apis.fastapi.vault.router import SecretSafeRoute
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.core.access.permissions.types import Permission
@@ -35,9 +37,11 @@ from oss.src.core.gateways.dtos import GatewayAuthScheme, GatewayEndpointNamespa
 from oss.src.core.gateways.egress import validate_egress_url_format
 from oss.src.core.gateways.mcps.dtos import (
     MCPCredentialBinding,
+    MCPEndpoint,
     MCPOAuthData,
     check_url_secret_placeholder,
 )
+from oss.src.core.gateways.mcps.oauth.sign_ins import sign_in_slug
 from oss.src.core.gateways.mcps.oauth.dtos import (
     MCPOAuthAttemptStatus,
 )
@@ -45,7 +49,8 @@ from oss.src.core.gateways.mcps.providers.agenta.entitlement import (
     entitled_agenta_tools,
 )
 from oss.src.core.gateways.mcps.types import MCPEndpointNotFoundError
-from oss.src.core.gateways.run_claims import gateway_run_id, gateway_tools
+from oss.src.core.gateways.run_claims import gateway_run_id, gateway_tools, run_accounts
+from oss.src.core.secrets.enums import SecretOwnerKind
 from oss.src.core.gateways.types import GatewaysError
 from oss.src.utils.context import AuthScope, get_auth_scope
 from oss.src.middlewares.auth import (
@@ -87,6 +92,32 @@ def _guard_custom_endpoint_url(*, url: Optional[str], probe: bool = False) -> No
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e) if probe else f"endpoint.data.route.base_url is invalid: {e}",
         ) from e
+
+
+OwnerKind = Literal["project", "user"]
+
+
+def _refusal(status_code: int, code: str, message: str) -> HTTPException:
+    return HTTPException(
+        status_code=status_code, detail={"code": code, "message": message}
+    )
+
+
+def _endpoint_json(
+    endpoint: MCPEndpoint, sign_ins: Optional[Dict[UUID, bool]]
+) -> Dict[str, Any]:
+    """One endpoint as the routes answer it, with the caller's own sign-in.
+
+    `user_sign_in` is `{"is_ready": bool}`, or `null` when the caller has no sign-in row
+    for the server. It is left out when `sign_ins` is None (the caller is no person, or
+    the switch is off) and for a server that takes no sign-in. Built here because the
+    routes drop every other null field, and this one's null means something.
+    """
+    data = endpoint.model_dump(mode="json", exclude_none=True)
+    if sign_ins is not None and sign_in_slug(endpoint) is not None:
+        is_ready = sign_ins.get(endpoint.id)
+        data["user_sign_in"] = None if is_ready is None else {"is_ready": is_ready}
+    return data
 
 
 class MCPGatewayRouter:
@@ -249,6 +280,59 @@ class MCPGatewayRouter:
             operation_id="sweep_mcp_oauth_attempts",
         )
 
+    async def _person(self, request: Request) -> Tuple[UUID, UUID]:
+        """The organization and person a sign-in route acts for: the caller, signed in
+        to the app, with personal accounts on (CONTRACT section 7, Person and Switch)."""
+        organization_id, user_id = await require_person(request)
+        if not personal_accounts_enabled():
+            raise _refusal(
+                status.HTTP_403_FORBIDDEN,
+                "personal_accounts_disabled",
+                "Personal accounts are turned off.",
+            )
+        return organization_id, user_id
+
+    async def _sign_ins(
+        self, request: Request, endpoints: List[MCPEndpoint]
+    ) -> Optional[Dict[UUID, bool]]:
+        """The caller's own sign-ins to these servers, or None when the caller is no
+        person or personal accounts are off. One read for the whole list."""
+        try:
+            organization_id, user_id = await self._person(request)
+        except HTTPException:
+            return None
+        return await self.oauth_connect_service.sign_ins(
+            organization_id=organization_id, user_id=user_id, endpoints=endpoints
+        )
+
+    async def _check_attempt_access(
+        self,
+        request: Request,
+        *,
+        scope: AuthScope,
+        endpoint_id: UUID,
+        attempt_id: UUID,
+    ) -> None:
+        """A project admin may follow any attempt of the project. A person who may only
+        run agents may follow their own sign-in attempt, and no other."""
+        if await check_action_access(
+            user_uid=str(scope.user_id),
+            project_id=str(scope.project_id),
+            permission=Permission.EDIT_MCP_ENDPOINTS,
+        ):
+            return
+        attempt = await self.oauth_connect_service.fetch_attempt(
+            project_id=scope.project_id, endpoint_id=endpoint_id, attempt_id=attempt_id
+        )
+        if (
+            attempt is None
+            or attempt.owner_kind != SecretOwnerKind.USER
+            or attempt.user_id != scope.user_id
+        ):
+            raise FORBIDDEN_EXCEPTION
+        await self._person(request)
+        await self._check(scope, Permission.RUN_SESSIONS)
+
     async def _check(self, scope: AuthScope, permission: Permission) -> None:
         has_permission = await check_action_access(
             user_uid=str(scope.user_id),
@@ -316,6 +400,7 @@ class MCPGatewayRouter:
             gateway_run_id=run_id,
             gateway_tools=tools,
             audience=GATEWAY_TOKEN_AUDIENCE,
+            run_accounts=run_accounts(request),
             envelope=envelope,
         )
         return MCPAgentaCredentialResponse(credentials=f"Secret {token}")
@@ -360,8 +445,14 @@ class MCPGatewayRouter:
         await self._check(scope, Permission.VIEW_MCP_ENDPOINTS)
 
         endpoints = await self.service.list_endpoints(scope=scope)
+        sign_ins = await self._sign_ins(request, endpoints)
 
-        return MCPEndpointsResponse(count=len(endpoints), endpoints=endpoints)
+        return JSONResponse(
+            {
+                "count": len(endpoints),
+                "endpoints": [_endpoint_json(e, sign_ins) for e in endpoints],
+            }
+        )
 
     @intercept_exceptions()
     @handle_gateway_exceptions()
@@ -381,8 +472,14 @@ class MCPGatewayRouter:
             #
             windowing=body.windowing,
         )
+        sign_ins = await self._sign_ins(request, endpoints)
 
-        return MCPEndpointsResponse(count=len(endpoints), endpoints=endpoints)
+        return JSONResponse(
+            {
+                "count": len(endpoints),
+                "endpoints": [_endpoint_json(e, sign_ins) for e in endpoints],
+            }
+        )
 
     @intercept_exceptions()
     @handle_gateway_exceptions()
@@ -405,8 +502,11 @@ class MCPGatewayRouter:
                 namespace=GatewayEndpointNamespace.CUSTOM,
                 name=str(endpoint_id),
             )
+        sign_ins = await self._sign_ins(request, [endpoint])
 
-        return MCPEndpointResponse(count=1, endpoint=endpoint)
+        return JSONResponse(
+            {"count": 1, "endpoint": _endpoint_json(endpoint, sign_ins)}
+        )
 
     @intercept_exceptions()
     @handle_gateway_exceptions()
@@ -537,12 +637,25 @@ class MCPGatewayRouter:
         *,
         endpoint_id: UUID,
         body: MCPConnectRequest,
+        owner_kind: OwnerKind = Query(default="project"),
     ) -> MCPConnectResponse:
         """One route, two steps. `body.scopes is None` -> discover and cache the
         checklist onto the row; a list (possibly empty) -> begin and return the
-        authorization redirect."""
+        authorization redirect.
+
+        `owner_kind=user` is a person's own sign-in instead (`_connect_person`)."""
         scope = get_auth_scope()
+        if owner_kind == "user":
+            return await self._connect_person(
+                request, scope=scope, endpoint_id=endpoint_id, body=body
+            )
         await self._check(scope, Permission.EDIT_MCP_ENDPOINTS)
+        if body.token is not None:
+            raise _refusal(
+                status.HTTP_400_BAD_REQUEST,
+                "token_not_expected",
+                "This server does not take a token.",
+            )
 
         endpoint = await self.service.fetch_endpoint(
             project_id=scope.project_id,
@@ -603,6 +716,89 @@ class MCPGatewayRouter:
             expires_in=start.expires_in,
         )
 
+    async def _connect_person(
+        self,
+        request: Request,
+        *,
+        scope: AuthScope,
+        endpoint_id: UUID,
+        body: MCPConnectRequest,
+    ) -> MCPConnectResponse:
+        """A person signs in to a project server with their own account or token.
+
+        The permission is "may run an agent in the project", because one sign-in serves
+        every agent of the project. The server row is never written: an OAuth sign-in
+        uses the discovery a project admin's connect stored, and the attempt it starts
+        writes the person's own grant at the callback.
+        """
+        organization_id, user_id = await self._person(request)
+        await self._check(scope, Permission.RUN_SESSIONS)
+
+        endpoint = await self.service.fetch_endpoint(
+            project_id=scope.project_id, endpoint_id=endpoint_id
+        )
+        if not endpoint:
+            raise MCPEndpointNotFoundError(
+                namespace=GatewayEndpointNamespace.CUSTOM, name=str(endpoint_id)
+            )
+        if (
+            endpoint.namespace != GatewayEndpointNamespace.CUSTOM
+            or sign_in_slug(endpoint) is None
+        ):
+            raise _refusal(
+                status.HTTP_400_BAD_REQUEST,
+                "sign_in_not_supported",
+                "This server takes no sign-in.",
+            )
+
+        if endpoint.auth_mode == GatewayAuthScheme.API_KEY:
+            if not body.token:
+                raise _refusal(
+                    status.HTTP_400_BAD_REQUEST,
+                    "token_required",
+                    "Enter your token for this server.",
+                )
+            await self.oauth_connect_service.sign_in_with_token(
+                organization_id=organization_id,
+                user_id=user_id,
+                endpoint=endpoint,
+                token=body.token,
+            )
+            return MCPConnectResponse(count=1)
+
+        if body.token is not None:
+            raise _refusal(
+                status.HTTP_400_BAD_REQUEST,
+                "token_not_expected",
+                "This server does not take a token.",
+            )
+        discovery = endpoint.data.oauth
+        server_url = endpoint.data.route.base_url
+        if discovery is None or not server_url:
+            raise _refusal(
+                status.HTTP_409_CONFLICT,
+                "server_not_discovered",
+                "A project admin must connect this server once first.",
+            )
+        if body.scopes is None:
+            return MCPConnectResponse(count=1, scopes_offered=discovery.scopes_offered)
+
+        start = await self.oauth_connect_service.begin(
+            project_id=scope.project_id,
+            user_id=user_id,
+            endpoint_id=endpoint_id,
+            server_url=server_url,
+            scopes=body.scopes,
+            oauth_config=endpoint.data.oauth_config,
+            owner_kind=SecretOwnerKind.USER,
+        )
+        return MCPConnectResponse(
+            count=1,
+            redirect_url=start.authorization_url,
+            attempt_id=str(start.attempt_id),
+            expires_in=start.expires_in,
+        )
+
     @intercept_exceptions()
     @handle_gateway_exceptions()
     async def disconnect_endpoint(
@@ -610,6 +806,7 @@ class MCPGatewayRouter:
         request: Request,
         *,
         endpoint_id: UUID,
+        owner_kind: OwnerKind = Query(default="project"),
     ) -> MCPEndpointResponse:
         """Drop one connection's authorization and keep the connection itself.
 
@@ -622,8 +819,25 @@ class MCPGatewayRouter:
 
         Idempotent: disconnecting something already disconnected returns the endpoint
         and changes nothing, so a repeated click or a retried request is not an error.
+
+        `owner_kind=user` deletes only the caller's own sign-in, at the slug the server's
+        mode selects, and leaves the project's alone.
         """
         scope = get_auth_scope()
+        if owner_kind == "user":
+            organization_id, user_id = await self._person(request)
+            await self._check(scope, Permission.RUN_SESSIONS)
+            endpoint = await self.service.fetch_endpoint(
+                project_id=scope.project_id, endpoint_id=endpoint_id
+            )
+            if not endpoint:
+                raise MCPEndpointNotFoundError(
+                    namespace=GatewayEndpointNamespace.CUSTOM, name=str(endpoint_id)
+                )
+            await self.oauth_connect_service.sign_out(
+                organization_id=organization_id, user_id=user_id, endpoint=endpoint
+            )
+            return JSONResponse({"count": 1, "endpoint": _endpoint_json(endpoint, {})})
         await self._check(scope, Permission.EDIT_MCP_ENDPOINTS)
 
         # Decided by the service on the connection as it stands under its OAuth lock, so a
@@ -667,7 +881,9 @@ class MCPGatewayRouter:
         an origin the app is not on, still reaches the person.
         """
         scope = get_auth_scope()
-        await self._check(scope, Permission.EDIT_MCP_ENDPOINTS)
+        await self._check_attempt_access(
+            request, scope=scope, endpoint_id=endpoint_id, attempt_id=attempt_id
+        )
 
         outcome = await self.oauth_connect_service.outcome(
             project_id=scope.project_id,
@@ -729,7 +945,9 @@ class MCPGatewayRouter:
         Idempotent: an attempt already settled, cancelled or swept is left as it is.
         """
         scope = get_auth_scope()
-        await self._check(scope, Permission.EDIT_MCP_ENDPOINTS)
+        await self._check_attempt_access(
+            request, scope=scope, endpoint_id=endpoint_id, attempt_id=attempt_id
+        )
 
         await self.oauth_connect_service.cancel(
             project_id=scope.project_id,
@@ -812,22 +1030,38 @@ class MCPGatewayRouter:
         # is spent, as any presented handle is, so the person reconnects from Agenta.
         # The callback runs without the auth middleware, so there is no request
         # principal: check the attempt's user explicitly.
-        decision = await get_access_service().check_human(
+        # A person's own sign-in needs only the run permission, as its connect did, and
+        # writes that person's grant in the project's organization.
+        for_person = attempt.owner_kind == SecretOwnerKind.USER
+        access_service = get_access_service()
+        decision = await access_service.check_human(
             user_id=UUID(str(attempt.user_id)),
             project_id=UUID(str(attempt.project_id)),
-            action=Permission.EDIT_MCP_ENDPOINTS,
+            action=(
+                Permission.RUN_SESSIONS if for_person else Permission.EDIT_MCP_ENDPOINTS
+            ),
         )
-        if not decision.allowed:
+        if not decision.allowed or (for_person and not personal_accounts_enabled()):
             return await fail(
                 403,
-                "You are no longer allowed to edit MCP endpoints in this project. "
+                "You can no longer use this server in this project. "
+                "Nothing was connected; start again from Agenta if this is wrong."
+                if for_person
+                else "You are no longer allowed to edit MCP endpoints in this project. "
                 "Nothing was connected; start again from Agenta if this is wrong.",
             )
+        organization_id = (
+            await access_service.project_organization_id(project_id=attempt.project_id)
+            if for_person
+            else None
+        )
 
         # The service owns the rest: the exchange, and the check, write, bind and
         # outcome that follow it under the attempt's lock. It records its own refusals.
         try:
-            await self.oauth_connect_service.complete(attempt=attempt, code=code)
+            await self.oauth_connect_service.complete(
+                attempt=attempt, code=code, organization_id=organization_id
+            )
         except GatewaysError as e:
             return page(400, error=e.message)
 

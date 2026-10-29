@@ -424,6 +424,14 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
             project_id=project_id, endpoint_id=endpoint_id
         )
 
+    async def fetch_attempt(
+        self, *, project_id: UUID, endpoint_id: UUID, attempt_id: UUID
+    ) -> Optional[MCPOAuthAttempt]:
+        """One attempt as the browser names it, to check who may follow it."""
+        return await self.attempts_dao.fetch_attempt_by_id(
+            project_id=project_id, endpoint_id=endpoint_id, attempt_id=attempt_id
+        )
+
     async def outcome(
         self,
         *,
@@ -451,8 +459,12 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         *,
         attempt: MCPOAuthAttempt,
         code: str,
+        organization_id: Optional[UUID] = None,
     ) -> MCPOAuthCompletion:
         """Exchange the code, then write and bind the grant, or write nothing at all.
+
+        An attempt for a person (`owner_kind` user) writes that person's own grant in
+        `organization_id`, the project's organization, and binds nothing to the server.
 
         Takes the attempt `claim()` returned rather than the `state` handle: everything
         here writes, so the caller has already authorised itself against that record.

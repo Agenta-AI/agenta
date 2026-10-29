@@ -238,6 +238,10 @@ class MockMCPOAuthConnectService:
         self.cancelled.append((endpoint_id, attempt_id))
         return 1
 
+    async def fetch_attempt(self, *, project_id, endpoint_id, attempt_id):
+        # No attempt of the caller's own, so only the edit permission lets them in.
+        return None
+
     async def outcome(self, *, project_id, endpoint_id, attempt_id):
         return self.outcome_return
 
@@ -261,7 +265,7 @@ class MockMCPOAuthConnectService:
             return _oauth_endpoint(endpoint_id, secret_id=None)
         return self.disconnect_return
 
-    async def complete(self, *, attempt, code):
+    async def complete(self, *, attempt, code, organization_id=None):
         self.calls.append(("complete", code, attempt.state))
         if self.complete_raises is not None:
             raise self.complete_raises
