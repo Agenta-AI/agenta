@@ -105,12 +105,24 @@ from oss.src.core.sharing.types import SharedItemNotFound
 from oss.src.dbs.postgres.sharing.dao import guard_agent_activation
 
 
+# Rollout only (remove next release): the people list on the installation, the
+# field the previous release reads. Run first in the write, so the connection
+# row is locked before the agent's artifact, the order a connection restore uses.
 _INSTALLATION_SENDERS_SQL = text(
     "UPDATE channel_connections "
     "SET data = jsonb_set("
     "COALESCE(data::jsonb, '{}'::jsonb), '{allowed_senders}', "
     "CAST(:senders AS jsonb))::json "
     "WHERE project_id = :project_id AND id = :connection_id"
+)
+_INSTALLATION_SENDERS_OF_AGENT_SQL = text(
+    "UPDATE channel_connections "
+    "SET data = jsonb_set("
+    "COALESCE(data::jsonb, '{}'::jsonb), '{allowed_senders}', "
+    "CAST(:senders AS jsonb))::json "
+    "WHERE project_id = :project_id AND id = ("
+    "SELECT connection_id FROM channel_agents "
+    "WHERE project_id = :project_id AND id = :agent_id)"
 )
 
 
@@ -450,16 +462,6 @@ class ChannelsDAO(ChannelsDAOInterface):
         )
 
         async with self.engine.session() as session:
-            if guard_artifact_id is not None:
-                await guard_agent_activation(
-                    session,
-                    project_id=project_id,
-                    artifact_id=guard_artifact_id,
-                    user_id=guard_user_id,
-                )
-
-            session.add(agent_dbe)
-
             if installation_senders is not None:
                 await session.execute(
                     _INSTALLATION_SENDERS_SQL,
@@ -469,6 +471,16 @@ class ChannelsDAO(ChannelsDAOInterface):
                         "connection_id": agent.connection_id,
                     },
                 )
+
+            if guard_artifact_id is not None:
+                await guard_agent_activation(
+                    session,
+                    project_id=project_id,
+                    artifact_id=guard_artifact_id,
+                    user_id=guard_user_id,
+                )
+
+            session.add(agent_dbe)
 
             await session.commit()
 
@@ -562,6 +574,16 @@ class ChannelsDAO(ChannelsDAOInterface):
         installation_senders: Optional[List[str]] = None,
     ) -> Optional[ChannelAgent]:
         async with self.engine.session() as session:
+            if installation_senders is not None:
+                await session.execute(
+                    _INSTALLATION_SENDERS_OF_AGENT_SQL,
+                    {
+                        "senders": json.dumps(installation_senders),
+                        "project_id": project_id,
+                        "agent_id": agent.id,
+                    },
+                )
+
             # Before the binding row: the artifact locks come first, in a fixed
             # order. `limits_artifact_ids`: the agents whose channel limits this
             # write changes, checked the same way, active binding or not.
@@ -595,16 +617,6 @@ class ChannelsDAO(ChannelsDAOInterface):
                 #
                 agent=agent,
             )
-
-            if installation_senders is not None:
-                await session.execute(
-                    _INSTALLATION_SENDERS_SQL,
-                    {
-                        "senders": json.dumps(installation_senders),
-                        "project_id": project_id,
-                        "connection_id": agent_dbe.connection_id,
-                    },
-                )
 
             await session.commit()
 
