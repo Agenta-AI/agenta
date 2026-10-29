@@ -387,7 +387,8 @@ export const ActivityTimeline = ({
 
     // A failure shows only once the run is over: a live line still narrates the work.
     const failed = !live && failure ? failure : null
-    if (!steps.length && !live && !failed) return null
+    // A run parked on the reader still says so, even with no step to fold.
+    if (!steps.length && !live && !failed && !awaiting) return null
 
     const count = steps.length
     const detail = failed?.detail || null
