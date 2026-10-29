@@ -437,7 +437,7 @@ class ChannelAgentAudience(BaseModel):
     """Whom this agent answers on its connection. Empty `senders` is everyone.
     Platform user ids (a Slack member id, a Telegram user id), as strings."""
 
-    senders: List[str] = Field(default_factory=list, max_length=1000)
+    senders: List[str] = Field(default_factory=list)
     labels: Dict[str, ChannelAudienceLabel] = Field(default_factory=dict)
 
     @field_validator("senders", mode="before")
