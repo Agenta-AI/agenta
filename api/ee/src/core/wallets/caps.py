@@ -1,7 +1,7 @@
 """Plan caps on agent turns, and the lines the person reads when a turn meets a limit.
 
 Only turns that run on the platform's own sandboxes are capped, and only while the
-organization's wallet is on (`wallets-rollout` is `shadow` or `enforce`). The numbers live
+deployment's wallet is on (`AGENTA_WALLETS_ENABLED`). The numbers live
 with the plan entitlements (`AGENT_TURN_CAPS`). The runner shows each line as it is, beside
 a stable code the chat maps to its own title and button, so every line is one line of plain
 text written for the person in the chat.

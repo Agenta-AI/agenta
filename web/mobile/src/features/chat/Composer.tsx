@@ -17,7 +17,6 @@ import {
     type ComposerAttachment,
     type useComposerAttachments,
 } from "@agenta/chat/hooks"
-import {refusedSendRejections} from "@agenta/chat/model"
 import {dismissSoftKeyboardAfterSend} from "@agenta/ui/hooks"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
 import {HarnessTooltip, SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
@@ -27,6 +26,7 @@ import {AnimatePresence, motion} from "motion/react"
 import {ContentRail} from "@/components/ContentRail"
 import {useMotionPresets} from "@/lib/motion/presets"
 
+import {sendRefusalRejections} from "./sessionReadOnly"
 import {useComposerPrefill} from "./useComposerPrefill"
 
 /**
@@ -55,6 +55,7 @@ export const Composer = ({
     inputBusy = streaming,
     inputRef,
     placeholder,
+    hasTurns,
     onNewSession,
 }: {
     /** The agent revision the `/` palette reads and writes (model, permissions, skills). */
@@ -89,6 +90,8 @@ export const Composer = ({
     inputRef?: MutableRefObject<RichChatInputHandle | null>
     /** Full placeholder override — used when the composer is gated (no model key). */
     placeholder?: string
+    /** The session already has turns: the key hints move from chips into the placeholder. */
+    hasTurns?: boolean
     /** Starts a fresh session — the palette offers no /new row without it. */
     onNewSession?: () => void
 }) => {
@@ -226,7 +229,7 @@ export const Composer = ({
             // composer's own inline channel. `outbound`, not `staged`: a voice take never sat in
             // the tray, and restoring it there is what makes it retryable. Idempotent: a throw
             // before the clear leaves the tray as it was.
-            attachments.setRejections(refusedSendRejections(error))
+            attachments.setRejections(sendRefusalRejections(error))
             // Never over a draft typed while this send was pending: the host keeps it instead.
             if (cleared && !canRestoreRefusedSend(richInputRef.current)) {
                 onRefusedOverDraft?.({text, parts})
@@ -371,6 +374,7 @@ export const Composer = ({
                             dictating={dictating}
                             dictationAnalyserRef={voice.dictationAnalyserRef}
                             placeholder={placeholder}
+                            hasTurns={hasTurns}
                             waitingOnUser={waitingOnUser}
                             streaming={stoppable}
                             stopping={stopping}

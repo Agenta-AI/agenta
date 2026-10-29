@@ -42,10 +42,9 @@ export const getPendingElicitationInteractions = (messages: UIMessage[]): Client
 }
 
 /**
- * Whether an earlier part of this turn already auto-settled as a degradation. The dock must not
- * settle a second malformed payload — that is the settle→resume→re-emit loop the degradation cap
- * exists to break. Derived here rather than threaded down from the host, because the dock already
- * scans exactly these parts.
+ * Whether an earlier part of this turn already auto-settled as a degradation. The dock then settles
+ * a repeat malformed payload as a cancel that moves the question to chat, not as another error.
+ * Derived here rather than threaded down from the host, because the dock already scans these parts.
  */
 export const hasEarlierElicitationDegradation = (messages: UIMessage[]): boolean =>
     hasPriorElicitationDegradation(

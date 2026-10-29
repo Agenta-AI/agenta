@@ -9,6 +9,8 @@
  */
 import {z} from "zod"
 
+import {sessionSharingStateSchema, visibilitySchema} from "../../sharing/core/schema"
+
 /**
  * One durable, append-only record event row. Validates the wire shape (backend renamed the
  * envelope: `record_id`/`record_index`/`record_source`/`record_type`/`attributes`) and maps
@@ -189,6 +191,13 @@ export const sessionStreamSchema = z.object({
     origin: sessionOriginSchema.nullish().catch(undefined),
     trigger: sessionTriggerSchema.nullish().catch(undefined),
     delivery: sessionDeliverySchema.nullish().catch(undefined),
+    // Sharing (M3): who may see the session. `owner_user_id` is null for an ownerless session
+    // (channel, API key, trigger). An unknown visibility degrades to undefined, as above.
+    visibility: visibilitySchema.nullish().catch(undefined),
+    owner_user_id: z.string().nullish(),
+    // The reader's sharing state, on the one-session stream read only (the chat screen reads
+    // it there, with no sharing request of its own). A bad value degrades to undefined.
+    sharing: sessionSharingStateSchema.nullish().catch(undefined),
     // `/sessions/query` only (WP0-R3): the session's latest turn's workflow/agent references —
     // absent for a session with no turns yet, and for a plain stream fetch (not query'd).
     references: z.array(sessionReferenceSchema).nullish(),
@@ -357,6 +366,8 @@ export const mountFileSchema = z.object({
     is_folder: z.boolean().nullish(),
     /** Object-store LastModified as epoch ms — the recency source for "newest first" ordering. */
     mtime: z.number().nullish(),
+    /** The object's store ETag; changes on every overwrite. */
+    etag: z.string().nullish(),
     /** Direct-child count — set only on a folder entry the recency view rolled a freshly-written
      * directory up into (so the row can read "N items" instead of a size). */
     item_count: z.number().nullish(),

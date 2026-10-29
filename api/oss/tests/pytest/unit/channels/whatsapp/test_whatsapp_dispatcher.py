@@ -42,6 +42,7 @@ from oss.src.tasks.asyncio.channels.inbox import InboxDispatcher
 from . import payloads as p
 from .fake_graph import FakeGraph
 from .test_whatsapp_outbox import WhatsAppDAO
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 PROJECT_ID = uuid4()
 
@@ -143,6 +144,7 @@ async def _dispatch(world, event, *, attachments=None):
     )
     invoke = AsyncMock()
     dispatcher = InboxDispatcher(
+        run_admission=NoopRunAdmission(),
         channels_service=world.service,
         invoke_fn=invoke,
         attachments_service=attachments,

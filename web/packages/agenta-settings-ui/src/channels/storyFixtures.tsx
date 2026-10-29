@@ -443,6 +443,20 @@ export const createChannelStoryActions = (
             if (disconnectError) throw new Error(disconnectError)
             write({...store, [platform]: null})
         },
+        turnOn: async (platform, connectionId) => {
+            await delay(latencyMs)
+            const on = (c: ChannelConnection | null) =>
+                c && c.connectionId === connectionId ? {...c, agentOff: false} : c
+            write({
+                ...store,
+                [platform]: on(store[platform]),
+                agentConnections: store.agentConnections && {
+                    ...store.agentConnections,
+                    [platform]: store.agentConnections[platform].map((c) => on(c) ?? c),
+                },
+                allConnections: store.allConnections?.map((c) => on(c) ?? c),
+            })
+        },
         listSpaces: async (connectionId) => {
             await delay(latencyMs)
             if (spacesError) throw new Error(spacesError)

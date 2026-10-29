@@ -5,6 +5,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from oss.src.core.tools.dtos import AgentError
+from oss.src.core.access.dtos import PrincipalRef
 from oss.src.core.gateway.catalog.dtos import (
     CatalogIntegration,
     CatalogProvider,
@@ -276,6 +278,11 @@ class TriggerSubscription(Identifier, Lifecycle, Header, Metadata):
     data: TriggerSubscriptionData
     #
     flags: TriggerSubscriptionFlags = Field(default_factory=TriggerSubscriptionFlags)
+    #
+    # Server-set, read-only: the principal the subscription runs as, and its direct
+    # target agent (NULL for an environment reference).
+    principal: Optional[PrincipalRef] = None
+    artifact_id: Optional[UUID] = None
 
 
 class TriggerSubscriptionCreate(Header, Metadata):
@@ -337,6 +344,11 @@ class TriggerSchedule(Identifier, Lifecycle, Header, Metadata):
     data: TriggerScheduleData
     #
     flags: TriggerScheduleFlags = Field(default_factory=TriggerScheduleFlags)
+    #
+    # Server-set, read-only: the principal the schedule runs as, and its direct target
+    # agent (NULL for an environment reference).
+    principal: Optional[PrincipalRef] = None
+    artifact_id: Optional[UUID] = None
 
 
 class TriggerScheduleCreate(Header, Metadata):
@@ -375,7 +387,10 @@ class TriggerDeliveryData(BaseModel):
     inputs: Optional[Dict[str, Any]] = None
     #
     result: Optional[Dict[str, Any]] = None
+    # The failure message (old readers keep reading a string); `error_details` holds
+    # the agent-visible envelope of a refused delivery.
     error: Optional[str] = None
+    error_details: Optional[AgentError] = None
     #
     # Self-describing test marker: a capture-and-skip delivery from an is_test
     # subscription, so the playground can filter without loading the subscription.

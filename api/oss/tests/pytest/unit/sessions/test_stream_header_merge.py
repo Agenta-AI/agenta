@@ -33,6 +33,9 @@ from oss.src.dbs.postgres.sessions.streams.mappings import (
 )
 
 from unit.sessions.test_project_scoped_locks import _FakeRedis
+from oss.tests.pytest.utils.principals import make_envelope
+from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 _PROJECT = uuid4()
@@ -251,12 +254,18 @@ async def test_rename_survives_a_heartbeat_flag_mirror(lock_engine):
         user_id=None,
         session_id=_SESSION,
         header=SessionStreamHeaderEdit(name="Keep Me", description="stays put"),
+        access=OWNERLESS_PROJECT_POLICY,
     )
     assert dao.row.name == "Keep Me"
 
     # A heartbeat comes in and mirrors flags/turn_id -- it must not touch the header.
     result = await svc.heartbeat(
-        project_id=_PROJECT, request=_beat("replica-a", "turn-a")
+        project_id=_PROJECT,
+        request=_beat("replica-a", "turn-a"),
+        envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     assert result.stream.name == "Keep Me"
@@ -271,7 +280,12 @@ async def test_heartbeat_still_mirrors_the_nest_flags(lock_engine):
     svc = _service(lock_engine, dao)
 
     result = await svc.heartbeat(
-        project_id=_PROJECT, request=_beat("replica-a", "turn-a")
+        project_id=_PROJECT,
+        request=_beat("replica-a", "turn-a"),
+        envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
     )
 
     assert result.stream.flags.is_alive is True
@@ -289,8 +303,16 @@ async def test_detach_flag_mirror_does_not_touch_header(lock_engine):
         user_id=None,
         session_id=_SESSION,
         header=SessionStreamHeaderEdit(name="Named Before Detach"),
+        access=OWNERLESS_PROJECT_POLICY,
     )
-    await svc.heartbeat(project_id=_PROJECT, request=_beat("replica-a", "turn-a"))
+    await svc.heartbeat(
+        project_id=_PROJECT,
+        request=_beat("replica-a", "turn-a"),
+        envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
+    )
 
     await svc.detach(
         project_id=_PROJECT, user_id=None, session_id=_SESSION, watcher_id="w-1"
@@ -309,8 +331,16 @@ async def test_kill_flag_mirror_does_not_touch_header(lock_engine):
         user_id=None,
         session_id=_SESSION,
         header=SessionStreamHeaderEdit(name="Named Before Kill"),
+        access=OWNERLESS_PROJECT_POLICY,
     )
-    await svc.heartbeat(project_id=_PROJECT, request=_beat("replica-a", "turn-a"))
+    await svc.heartbeat(
+        project_id=_PROJECT,
+        request=_beat("replica-a", "turn-a"),
+        envelope=make_envelope(),
+        access=OWNERLESS_PROJECT_POLICY,
+        run_admission=NoopRunAdmission(),
+        admission_envelope=make_envelope(),
+    )
 
     await svc.kill(project_id=_PROJECT, user_id=None, session_id=_SESSION)
 
@@ -331,6 +361,7 @@ async def test_set_header_never_calls_the_flags_update_path(lock_engine):
         user_id=None,
         session_id=_SESSION,
         header=SessionStreamHeaderEdit(name="Y"),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     assert dao.header_updates == 1
@@ -351,6 +382,7 @@ async def test_rename_before_any_turn_creates_the_row(lock_engine):
         user_id=None,
         session_id=_SESSION,
         header=SessionStreamHeaderEdit(name="Named Pre-Turn"),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     assert stream.name == "Named Pre-Turn"
@@ -386,6 +418,7 @@ async def test_rename_race_falls_back_to_header_update_on_concurrent_create(
         user_id=None,
         session_id=_SESSION,
         header=SessionStreamHeaderEdit(name="Won The Retry"),
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
     assert stream.name == "Won The Retry"
@@ -412,8 +445,15 @@ def test_empty_name_stays_the_explicit_clear():
     assert SessionStreamHeaderEdit(name="").name == ""
 
 
-def test_omitted_and_none_name_still_mean_no_change():
-    assert SessionStreamHeaderEdit().name is None
+def test_empty_header_edit_names_no_header_field():
+    # The header route refuses it unless the call only creates the session with a
+    # requested visibility (acceptance: test_header_precreate.py).
+    assert SessionStreamHeaderEdit().has_header_field is False
+    assert SessionStreamHeaderEdit(name=None).has_header_field is True
+    assert SessionStreamHeaderEdit(description="d").has_header_field is True
+
+
+def test_explicit_none_name_still_means_no_change():
     assert SessionStreamHeaderEdit(name=None).name is None
 
 

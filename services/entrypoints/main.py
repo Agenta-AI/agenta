@@ -28,6 +28,11 @@ from agenta.sdk.models.workflows import WorkflowInvokeRequest, WorkflowInspectRe
 from agenta.sdk.contexts.routing import RoutingContext, routing_context_manager
 from agenta.sdk.engines.tracing.server import instrument_fastapi, setup_server_tracing
 from agenta.sdk.litellm.mocks import MOCKS
+from agenta.sdk.middlewares.running.vault import (
+    drop_host_aws_credentials,
+    env_provider_keys_enabled,
+    hold_env_provider_keys,
+)
 from oss.src.managed import (
     builtin_auto_ai_critique_app,
     builtin_auto_contains_all_app,
@@ -74,6 +79,27 @@ if AGENTA_LOG_FORMAT == "json":
         for handler in logging.getLogger(name).handlers:
             handler.setFormatter(JsonFormatter(GOOGLE_CLOUD_PROJECT))
     capture_warnings_as_json(GOOGLE_CLOUD_PROJECT)
+
+# A call that carries no provider key of its own must not pick one up from this process's
+# environment. The keys stay available to requests only where the vault allows them.
+_held_env_provider_keys = hold_env_provider_keys()
+if _held_env_provider_keys and not env_provider_keys_enabled():
+    log.warning(
+        "Provider keys in the services environment are not used: requests run on the "
+        "project's own keys. Set AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED=true to let "
+        "every project use them.",
+        names=_held_env_provider_keys,
+    )
+
+_dropped_host_aws_credentials = drop_host_aws_credentials()
+if _dropped_host_aws_credentials:
+    log.warning(
+        "AWS credentials in the services environment are not used: Bedrock and "
+        "SageMaker calls run on the connection's own credentials. Set "
+        "AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED=true to let connections without "
+        "keys use them.",
+        names=_dropped_host_aws_credentials,
+    )
 
 
 # ---------------------------------------------------------------------------

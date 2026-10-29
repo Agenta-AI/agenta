@@ -22,6 +22,7 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStreamCommandResponse,
 )
 from oss.src.core.sessions.streams.service import SessionStreamsService
+from oss.src.core.sharing.dtos import OWNERLESS_PROJECT_POLICY
 
 # The grammar's fixed vocabulary. Whether a given channel actually offers one
 # of these is a runtime fact (`capabilities.commands`), never assumed here.
@@ -182,6 +183,8 @@ async def dispatch_stop(
         project_id=project_id,
         user_id=user_id,
         request=SessionStreamCommandRequest(session_id=thread.session_id),
+        # A channel session is always ownerless.
+        access=OWNERLESS_PROJECT_POLICY,
     )
 
 
@@ -196,10 +199,9 @@ async def resolve_use_target(
     candidate list is exactly `!sessions`'s own scoping, so an id
     outside it is refused rather than silently ignored.
 
-    Returns the validated target row. Switching the thread to point at it has
-    no counterpart on `ChannelsService`, which exposes only `query_threads` and
-    `close_thread` for threads — no method creates a thread row pointing at
-    another session's `session_id`. That half of `!use` is unimplemented.
+    Returns the validated target row and changes nothing. The inbox
+    dispatcher's acknowledgment does the switch: it closes the old row, then
+    creates a new current row that reuses the target's `session_id`.
     """
 
     candidates = await dispatch_sessions(

@@ -10,6 +10,7 @@
 import type {LlmProvider} from "@agenta/shared/types"
 
 import {transformSecret} from "../core/transforms"
+import type {SecretOwnerScope} from "../core/types"
 
 import {getSecretsClient, projectScopedRequest} from "./client"
 
@@ -24,14 +25,22 @@ type UpdateSecretResponse = Awaited<ReturnType<SecretsClient["updateSecret"]>>
 type DeleteSecretResponse = Awaited<ReturnType<SecretsClient["deleteSecret"]>>
 
 /** Payload portion of an update — `secret_id` is supplied alongside. */
-type UpdateSecretPayload = Omit<UpdateSecretRequest, "secret_id">
+type UpdateSecretPayload = Omit<UpdateSecretRequest, "secret_id" | "scope">
+
+/** The owner a by-id route acts for; omitted, the project's row as before. */
+const ownerScope = (scope?: SecretOwnerScope | null) => (scope === "organization" ? {scope} : {})
 
 export const fetchVaultSecret = async ({
     projectId,
 }: {
     projectId: string
 }): Promise<LlmProvider[]> => {
-    const result = await getSecretsClient().listSecrets(projectScopedRequest(projectId))
+    // The organization connections this project may use ride along (no values, no previews):
+    // agent surfaces name them, and every other reader keeps the project's rows only.
+    const result = await getSecretsClient().listSecrets(
+        {include_organization: true},
+        projectScopedRequest(projectId),
+    )
     return transformSecret(result)
 }
 
@@ -49,21 +58,45 @@ export const updateVaultSecret = async ({
     projectId,
     secret_id,
     payload,
+    scope,
 }: {
     projectId: string
     secret_id: string
     payload: UpdateSecretPayload
+    scope?: SecretOwnerScope | null
 }): Promise<UpdateSecretResponse> => {
-    return getSecretsClient().updateSecret({secret_id, ...payload}, projectScopedRequest(projectId))
+    return getSecretsClient().updateSecret(
+        {secret_id, ...payload, ...ownerScope(scope)},
+        projectScopedRequest(projectId),
+    )
 }
 
 export const deleteVaultSecret = async ({
     projectId,
     secret_id,
+    scope,
 }: {
     projectId: string
     secret_id: string
+    scope?: SecretOwnerScope | null
 }): Promise<DeleteSecretResponse> => {
-    const request: DeleteSecretRequest = {secret_id}
+    const request: DeleteSecretRequest = {secret_id, ...ownerScope(scope)}
     return getSecretsClient().deleteSecret(request, projectScopedRequest(projectId))
 }
+
+/** Check a pasted subscription token with its provider and store it on the connection. */
+export const setSubscriptionToken = async ({
+    projectId,
+    secretId,
+    token,
+    scope,
+}: {
+    projectId: string
+    secretId: string
+    token: string
+    scope?: SecretOwnerScope | null
+}) =>
+    getSecretsClient().setSubscriptionToken(
+        {secret_id: secretId, token, ...ownerScope(scope)},
+        projectScopedRequest(projectId),
+    )

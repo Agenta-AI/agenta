@@ -9,8 +9,8 @@ import type {StagedUpload as UploadFile} from "../model"
 import AttachmentCard from "./AttachmentCard"
 import AttachmentCardGrid from "./AttachmentCardGrid"
 
-/** Three rows of cards plus a sliver of the fourth, which is what says "keep scrolling". */
-const TRAY_MAX_HEIGHT = 140
+/** Two rows of tiles plus a sliver of the third, which is what says "keep scrolling". */
+const TRAY_MAX_HEIGHT = 196
 
 /** Cards scale in on add and out on remove; `layout` slides the survivors into place. */
 const ITEM_VARIANTS = {
@@ -30,10 +30,7 @@ interface ComposerAttachmentsProps {
     canRetry?: (uid: string) => boolean
 }
 
-/**
- * The composer's staged attachments, as equal-height cards that wrap. Picking, dropping and the
- * rejection strip are owned by the parent — this only draws what is actually staged.
- */
+/** The composer's staged attachments, as square tiles that wrap; the parent owns picking. */
 const ComposerAttachments = ({
     files,
     onRemove,
@@ -118,7 +115,6 @@ const ComposerAttachments = ({
                                     initial="initial"
                                     animate="animate"
                                     exit="exit"
-                                    className="min-w-0"
                                 >
                                     <AttachmentCard
                                         name={f.name}

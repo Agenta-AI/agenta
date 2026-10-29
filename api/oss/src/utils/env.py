@@ -173,6 +173,26 @@ class AccessConfig(BaseModel):
         "AGENTA_ACCESS_BLOCKED_EMAILS",
         "AGENTA_BLOCKED_EMAILS",
     )
+    # Seconds the PostHog-backed blocklists are cached. Lower means a new entry blocks sign-ups sooner.
+    blocklist_cache_ttl: int = (
+        _parse_optional_positive_int_env("AGENTA_ACCESS_BLOCKLIST_CACHE_TTL") or 60
+    )
+    # Unset means no limit. Counts the organizations a user owns now, so deleting one frees a slot.
+    max_owned_organizations: int | None = _parse_optional_positive_int_env(
+        "AGENTA_ACCESS_MAX_OWNED_ORGANIZATIONS"
+    )
+
+    # How many proxies in front of the API append to X-Forwarded-For. Set to N, the client IP
+    # is the Nth entry from the right, so entries a client sends itself are ignored. Unset
+    # keeps the first entry, which a client can set. Read by the sign-in rate limit,
+    # Turnstile and the auth log.
+    trusted_proxy_hops: int | None = _parse_optional_positive_int_env(
+        "AGENTA_ACCESS_TRUSTED_PROXY_HOPS"
+    )
+    # Read CF-Connecting-IP only when Cloudflare proxies the API. Otherwise a client can set it.
+    trust_cloudflare_ip: bool = _parse_bool_env(
+        "AGENTA_ACCESS_TRUST_CLOUDFLARE_IP", False
+    )
 
     default_plan: str | None = (
         os.getenv("AGENTA_ACCESS_DEFAULT_PLAN")
@@ -244,6 +264,25 @@ class BillingConfig(BaseModel):
         "AGENTA_BILLING_PRICING",
         "AGENTA_PRICING",
         "STRIPE_PRICING",
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
+# ---------------------------------------------------------------------------
+# agenta.accounts — self-service account lifecycle.
+# ---------------------------------------------------------------------------
+
+
+class AccountsConfig(BaseModel):
+    """Self-service account deletion (EE).
+
+    A deletion leaves a tombstone keyed by the email hash. An email that signs up
+    again inside `tombstone_days` of its deletion gets no free credits.
+    """
+
+    tombstone_days: int = (
+        _parse_optional_positive_int_env("AGENTA_ACCOUNT_TOMBSTONE_DAYS") or 365
     )
 
     model_config = ConfigDict(extra="ignore")
@@ -330,19 +369,6 @@ class ApiConfig(BaseModel):
     skills_import: SkillsImportConfig = SkillsImportConfig()
     throttling: ApiThrottlingConfig = ApiThrottlingConfig()
     tracing: ApiTracingConfig = ApiTracingConfig()
-
-    model_config = ConfigDict(extra="ignore")
-
-
-# ---------------------------------------------------------------------------
-# agenta.extras
-# ---------------------------------------------------------------------------
-
-
-class ExtrasConfig(BaseModel):
-    """Extras and feature toggles (demos, etc.)."""
-
-    demos: str = os.getenv("AGENTA_EXTRAS_DEMOS") or os.getenv("AGENTA_DEMOS") or ""
 
     model_config = ConfigDict(extra="ignore")
 
@@ -806,6 +832,24 @@ def _services_internal_key_from_environment() -> str | None:
     return runtime_key
 
 
+class AuthCodeRateLimitConfig(BaseModel):
+    """Exact per-client-IP limit on the sign-in code and sign-up endpoints.
+
+    The edge rate limit counts per front-end server and approximately, so a slow bot
+    creating one account every 30 seconds passed it. One Redis counter per IP is exact.
+    """
+
+    enabled: bool = _parse_bool_env("AGENTA_AUTH_CODE_RATE_LIMIT_ENABLED", True)
+    requests_per_window: int = (
+        _parse_optional_positive_int_env("AGENTA_AUTH_CODE_REQUESTS_PER_WINDOW") or 5
+    )
+    window_seconds: int = (
+        _parse_optional_positive_int_env("AGENTA_AUTH_CODE_WINDOW_SECONDS") or 600
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
 class AgentaConfig(BaseModel):
     """Agenta core configuration"""
 
@@ -839,10 +883,11 @@ class AgentaConfig(BaseModel):
     services_internal_key: str | None = _services_internal_key_from_environment()
 
     access: AccessConfig = AccessConfig()
+    accounts: AccountsConfig = AccountsConfig()
     ai_services: AIServicesConfig = AIServicesConfig()
     api: ApiConfig = ApiConfig()
+    auth_code_rate_limit: AuthCodeRateLimitConfig = AuthCodeRateLimitConfig()
     billing: BillingConfig = BillingConfig()
-    extras: ExtrasConfig = ExtrasConfig()
     logging: LoggingConfig = LoggingConfig()
     otlp: OTLPConfig = OTLPConfig()
     redaction: RedactionConfig = RedactionConfig()
@@ -939,10 +984,80 @@ class ChannelsWhatsAppConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
 
+# ---------------------------------------------------------------------------
+# channels.embed — the public chat widget. Its ingress has no Agenta login,
+# so it limits itself: per embed, per visitor key, and per request size.
+# ---------------------------------------------------------------------------
+
+
+class ChannelsEmbedConfig(BaseModel):
+    requests_per_minute_per_embed: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env(
+                "AGENTA_CHANNELS_EMBED_REQUESTS_PER_MINUTE_PER_EMBED"
+            )
+            or 600
+        )
+    )
+    requests_per_minute_per_key: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env(
+                "AGENTA_CHANNELS_EMBED_REQUESTS_PER_MINUTE_PER_KEY"
+            )
+            or 30
+        )
+    )
+    # The four visitor read routes. Larger than the ingress buckets: the
+    # widget polls the list after a first message and reconnects the stream.
+    read_requests_per_minute_per_embed: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env(
+                "AGENTA_CHANNELS_EMBED_READ_REQUESTS_PER_MINUTE_PER_EMBED"
+            )
+            or 6000
+        )
+    )
+    read_requests_per_minute_per_key: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env(
+                "AGENTA_CHANNELS_EMBED_READ_REQUESTS_PER_MINUTE_PER_KEY"
+            )
+            or 240
+        )
+    )
+    # Open live streams per embed in one API process (each holds a Redis
+    # connection). Over the cap the widget gets a 429 and retries.
+    max_live_streams_per_embed: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env(
+                "AGENTA_CHANNELS_EMBED_MAX_LIVE_STREAMS_PER_EMBED"
+            )
+            or 200
+        )
+    )
+    # Applies to the message text and to the serialized host context.
+    max_message_chars: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env("AGENTA_CHANNELS_EMBED_MAX_MESSAGE_CHARS")
+            or 10000
+        )
+    )
+    # Uploads ride in the request body as base64 and stay in the inbox row.
+    max_file_bytes: int = Field(
+        default_factory=lambda: (
+            _parse_optional_positive_int_env("AGENTA_CHANNELS_EMBED_MAX_FILE_BYTES")
+            or 5 * 1024 * 1024
+        )
+    )
+
+    model_config = ConfigDict(extra="ignore")
+
+
 class ChannelsConfig(BaseModel):
     slack: ChannelsSlackConfig = ChannelsSlackConfig()
     telegram: ChannelsTelegramConfig = ChannelsTelegramConfig()
     whatsapp: ChannelsWhatsAppConfig = ChannelsWhatsAppConfig()
+    embed: ChannelsEmbedConfig = ChannelsEmbedConfig()
 
     model_config = ConfigDict(extra="ignore")
 
@@ -1168,21 +1283,23 @@ class LLMGatewayConfig(BaseModel):
     The API is the authority. The SDK carries no matching flag of its own: it learns the
     plane is off from the refusal this flag produces (`llm_gateway_disabled`), so one
     deployment cannot end up with a runtime routing through a gateway the API has closed.
-
-    With it and `AGENTA_ROLLOUT_FLAGS_ENABLED` on, the `llm-gateway-rollout` PostHog flag
-    narrows it to listed organizations (`core/rollout/switches.py`).
     """
 
     enabled: bool = _parse_bool_env("AGENTA_LLM_GATEWAY_ENABLED", default=False)
 
     # The platform's own Vertex AI account, which the `builtin/agenta` endpoint serves its
     # models from. The endpoint exists only when the service-account document and the project
-    # are both set. Gateway names rather than the starter-credits proxy's `LITELLM_VERTEX_*`
-    # inputs: the API does not run LiteLLM's proxy, and the cloud sets both from one secret.
+    # are both set.
     vertex_sa_json_b64: str | None = (
         os.getenv("AGENTA_LLM_GATEWAY_VERTEX_SA_JSON_B64") or None
     )
     vertex_project: str | None = os.getenv("AGENTA_LLM_GATEWAY_VERTEX_PROJECT") or None
+    # Send `builtin/agenta` calls on Vertex's Priority PayGo tier instead of Standard. Google
+    # bills Priority above Standard and the wallet still charges Standard rates, so the
+    # platform pays the difference. On staging it cut stalls by about two thirds, not to zero.
+    vertex_priority: bool = _parse_bool_env(
+        "AGENTA_LLM_GATEWAY_VERTEX_PRIORITY", default=False
+    )
 
     model_config = ConfigDict(extra="ignore")
 
@@ -1920,6 +2037,26 @@ class PostHogConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# typesafe
+# ---------------------------------------------------------------------------
+
+
+class TypeSafeConfig(BaseModel):
+    """TypeSafe judgment model (Jev), used by the EE fraud check at signup and at
+    API key creation. Without a key the check is skipped and every signup is allowed."""
+
+    api_url: str = os.getenv("TYPESAFE_API_URL") or "https://api.typesafe.ai"
+    api_key: str | None = os.getenv("TYPESAFE_API_KEY") or None
+    model: str = os.getenv("TYPESAFE_MODEL") or "jev-latest"
+
+    model_config = ConfigDict(extra="ignore")
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.api_key)
+
+
+# ---------------------------------------------------------------------------
 # redis
 # ---------------------------------------------------------------------------
 
@@ -2094,82 +2231,34 @@ class SendgridConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# starter_credits_bridge — starter-credit seeding at signup (EE, temporary bridge).
+# signup_grant_policy — who gets the wallet signup grant (EE).
 # ---------------------------------------------------------------------------
 
 
-class StarterCreditsBridgeConfig(BaseModel):
-    """Starter-credits bridge (EE): mint a budget-capped proxy key at signup and
-    seed it into the new organization's vault as a ready-to-use connection.
+class SignupGrantPolicyConfig(BaseModel):
+    """Signup grant policy (EE): the velocity caps and email rules that decide whether a
+    new organization gets the wallet signup grant.
 
-    Inert unless `enabled` is true AND `proxy_admin_url` + `proxy_public_url` +
-    `master_key` + `team_id` are present (the team's budget ceiling is the
-    program's total-exposure bound, so seeding refuses to run without it). The
-    redeploy-free runtime switch is the PostHog policy payload: clearing or
-    emptying it leaves the policy unresolved, and seeding fails closed.
+    The policy itself ships as the payload of a PostHog flag, so no real value lives in
+    source. Without a resolvable payload the policy is unresolved and the signup grant
+    fails closed. Only the flag's NAME is configurable here. A deployment with NO PostHog
+    of its own runs on the built-in development policy in `wallets/signup_policy.py`.
+
+    The variable names come from the retired starter-credits program. They are kept so
+    deployments that set them need no change.
     """
 
-    enabled: bool = _parse_bool_env("AGENTA_STARTER_CREDITS_BRIDGE_ENABLED", False)
-
-    # Two base URLs for the same proxy, because it is reachable two ways. The
-    # public one is what the SEEDED CONNECTION stores, so a sandboxed run can
-    # reach the proxy's inference paths from outside; only those paths are
-    # publicly routed. The admin routes (/key/generate, /key/block, /team/info)
-    # are not, so the master-keyed admin client dials the proxy's internal
-    # address instead — and the master key never leaves the private network.
-    proxy_public_url: str | None = (
-        os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_PROXY_PUBLIC_URL") or None
-    )
-    proxy_admin_url: str | None = (
-        os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_PROXY_ADMIN_URL") or None
-    )
-    master_key: str | None = (
-        os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_MASTER_KEY") or None
-    )
-    # Every minted key joins this team; its max_budget is the program ceiling.
-    team_id: str | None = os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_TEAM_ID") or None
-
-    model_id: str = (
-        os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_MODEL_ID")
-        or "vertex_ai/gemini-3.7-flash"
-    )
-
-    # The mint policy (velocity caps, domain classification, eligibility rules,
-    # grant size, per-key limits) ships via the PostHog policy flag's payload:
-    # the payload is the only source, so no real value lives in source and no
-    # money value can be changed one field at a time on a single deployment.
-    # Without a resolvable payload the policy is unresolved and seeding fails
-    # closed. Only the flag's NAME is configurable here.
-    #
-    # One exception, for developer convenience: a deployment with NO PostHog
-    # configured at all (local dev, a QA stack) runs on the built-in development
-    # policy in `starter_credits_bridge/types.py` instead of being blocked, since
-    # it has no way to publish a payload. Cloud always has PostHog, so it always
-    # takes the payload path and still fails closed on a missing or bad one.
     policy_flag: str = (
         os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_POLICY_FLAG")
         or "starter-credits-bridge-policy"
     )
-    # Optional operator webhook ({"text": ...} POST) for refusals and failures.
+    # Optional operator webhook ({"text": ...} POST), called when the live payload is
+    # malformed.
     alert_webhook: str | None = (
         os.getenv("AGENTA_STARTER_CREDITS_BRIDGE_ALERT_WEBHOOK") or None
     )
 
     model_config = ConfigDict(extra="ignore")
-
-    @property
-    def armed(self) -> bool:
-        """True when the deployment opted in and holds both proxy addresses and
-        the proxy credentials, plus the program team whose ceiling bounds total
-        exposure. Without the admin address every mint would dial a route that is
-        not publicly served, so a missing one keeps the bridge inert."""
-        return bool(
-            self.enabled
-            and self.proxy_public_url
-            and self.proxy_admin_url
-            and self.master_key
-            and self.team_id
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -2281,28 +2370,9 @@ class WalletsConfig(BaseModel):
     Organizations created while it was off get their balance row lazily on
     first use; their missed signup grant comes only from the one-off
     `entrypoints.backfill_wallet_signup_grants` job, run before turning it on.
-
-    With it and `AGENTA_ROLLOUT_FLAGS_ENABLED` on, the `wallets-rollout` PostHog flag sets
-    each organization's mode: `off`, `shadow` or `enforce` (`core/rollout/switches.py`).
     """
 
     enabled: bool = _parse_bool_env("AGENTA_WALLETS_ENABLED", default=False)
-
-    model_config = ConfigDict(extra="ignore")
-
-
-class RolloutConfig(BaseModel):
-    """Whether this deployment narrows the gateway and wallet switches per organization.
-
-    On, the `llm-gateway-rollout` and `wallets-rollout` PostHog flags decide which
-    organizations get the LLM gateway and which wallet mode each one runs in
-    (`core/rollout/switches.py`). Off, the default, the master switches apply to every
-    organization. An explicit switch rather than "a PostHog key is set": the example env
-    files ship a shared PostHog key, so a self-hosted deployment would otherwise read Agenta's
-    own payload and lose the gateway for every organization.
-    """
-
-    enabled: bool = _parse_bool_env("AGENTA_ROLLOUT_FLAGS_ENABLED", default=False)
 
     model_config = ConfigDict(extra="ignore")
 
@@ -2396,13 +2466,13 @@ class EnvironSettings(BaseModel):
     sessions: SessionsRedisConfig = SessionsRedisConfig()
     smtp: SmtpConfig = SmtpConfig()
     sendgrid: SendgridConfig = SendgridConfig()
-    starter_credits_bridge: StarterCreditsBridgeConfig = StarterCreditsBridgeConfig()
+    signup_grant_policy: SignupGrantPolicyConfig = SignupGrantPolicyConfig()
     store: StoreConfig = StoreConfig()
     stripe: StripeConfig = StripeConfig()
     supertokens: SuperTokensConfig = SuperTokensConfig()
     triggers: TriggersConfig = TriggersConfig()
+    typesafe: TypeSafeConfig = TypeSafeConfig()
     wallets: WalletsConfig = WalletsConfig()
-    rollout: RolloutConfig = RolloutConfig()
 
     model_config = ConfigDict(extra="ignore")
 

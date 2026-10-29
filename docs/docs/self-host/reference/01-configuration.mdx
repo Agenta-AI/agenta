@@ -100,12 +100,23 @@ for how they behave. The plan and role variables are Enterprise-only; see
 | `AGENTA_ACCESS_ALLOWED_OWNER_EMAILS` | `agenta.access.allowed_owner_emails` | `agenta.access.allowedOwnerEmails` |
 | `AGENTA_ACCESS_BLOCKED_DOMAINS` | `agenta.access.blocked_domains` | `agenta.access.blockedDomains` |
 | `AGENTA_ACCESS_BLOCKED_EMAILS` | `agenta.access.blocked_emails` | `agenta.access.blockedEmails` |
+| `AGENTA_ACCESS_MAX_OWNED_ORGANIZATIONS` | `agenta.access.max_owned_organizations` | `agenta.access.maxOwnedOrganizations` |
+| `AGENTA_ACCESS_TRUSTED_PROXY_HOPS` | `agenta.access.trusted_proxy_hops` | `agenta.access.trustedProxyHops` |
+| `AGENTA_ACCESS_TRUST_CLOUDFLARE_IP` | `agenta.access.trust_cloudflare_ip` | `agenta.access.trustCloudflareIp` |
 | `AGENTA_ACCESS_DEFAULT_PLAN` | `agenta.access.default_plan` | `agenta.access.defaultPlan` |
 | `AGENTA_ACCESS_DEFAULT_PLAN_OVERLAY` | `agenta.access.default_plan_overlay` | `agenta.access.defaultPlanOverlay` |
 | `AGENTA_ACCESS_EMAIL_DISABLED` | `agenta.access.email_disabled` | `agenta.access.emailDisabled` |
 | `AGENTA_ACCESS_PLANS` | `agenta.access.plans` | `agenta.access.plans` |
 | `AGENTA_ACCESS_ROLES` | `agenta.access.roles` | `agenta.access.roles` |
 | `AGENTA_ACCESS_ROLES_OVERLAY` | `agenta.access.roles_overlay` | `agenta.access.rolesOverlay` |
+
+The API limits sign-in code and sign-up requests per client IP, and sends the client IP to
+Turnstile. Set `AGENTA_ACCESS_TRUSTED_PROXY_HOPS` to the number of proxies in front of the API
+that append to `X-Forwarded-For`, so the API reads the IP those proxies saw and ignores entries a
+client adds itself. The bundled Traefik and nginx setups need `1`. When it is unset, the API
+uses the first `X-Forwarded-For` entry, which a client can set. The API reads `CF-Connecting-IP`
+only when `AGENTA_ACCESS_TRUST_CLOUDFLARE_IP` is `true`. Turn it on only when Cloudflare proxies
+every request to the API.
 
 ## Agenta AI services
 
@@ -150,12 +161,6 @@ The two tracing variables bound one page of a span or trace list query: `POST /a
 `windowing` object; send it back as `windowing` to read the next page. A query that filters only on
 `trace_id` returns whole traces and has no limit. A higher maximum lets one request use more API
 memory: agent run spans can be hundreds of KB each.
-
-## Agenta extras
-
-| Env var | env.py path | values.yaml path |
-|---|---|---|
-| `AGENTA_EXTRAS_DEMOS` | `agenta.extras.demos` | `agenta.extras.demos` |
 
 ## Agenta logging
 
@@ -236,6 +241,7 @@ people can reach.
 | `AGENTA_SERVICES_CODE_SANDBOX_RUNNER` | `agenta.services.code.sandbox_runner` | `agenta.services.code.sandboxRunner` |
 | `AGENTA_SERVICES_CODE_SANDBOX_TIMEOUT` | n/a (SDK-side) | n/a |
 | `AGENTA_SERVICES_CODE_SANDBOX_WAIT_TIMEOUT` | n/a (SDK-side) | n/a |
+| `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED` | n/a (SDK-side) | `services.env.AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED` |
 | `AGENTA_SERVICES_MIDDLEWARE_AUTH_ENABLED` | n/a (SDK-side) | `agenta.services.middleware.authEnabled` |
 | `AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED` | `agenta.services.middleware.caching_enabled` | `agenta.services.middleware.cachingEnabled` |
 | `AGENTA_SERVICES_PATH_PREFIX` | n/a (read by the services entrypoint) | `services.env.AGENTA_SERVICES_PATH_PREFIX` |
@@ -450,14 +456,14 @@ Read by the `runner` service. Required only when `daytona` is enabled.
 | `AGENTA_RUNNER_DAYTONA_API_KEY` | Provisioning credential | Unset | yes | `agentRunner.providers.daytona.apiKeySecretRef` |
 | `AGENTA_RUNNER_DAYTONA_API_URL` | Daytona API locator | Unset | no | `...daytona.apiUrl` |
 | `AGENTA_RUNNER_DAYTONA_TARGET` | Region or target | Unset | no | `...daytona.target` |
-| `AGENTA_RUNNER_DAYTONA_SNAPSHOT` | Snapshot to start from | Runner's pinned `agenta-agent-sandbox-v3` | no | `...daytona.snapshot` |
+| `AGENTA_RUNNER_DAYTONA_SNAPSHOT` | Snapshot to start from | Runner's pinned `agenta-agent-sandbox-v4` | no | `...daytona.snapshot` |
 | `AGENTA_RUNNER_DAYTONA_IMAGE` | Image to start from | Unset | no | `...daytona.image` |
 | `AGENTA_RUNNER_DAYTONA_AUTOSTOP_MINUTES` | Idle minutes before stop | `15` | no | `...daytona.autostopMinutes` |
 | `AGENTA_RUNNER_DAYTONA_AUTODELETE_MINUTES` | Idle minutes before delete | `30` | no | `...daytona.autodeleteMinutes` |
 | `AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS` | Set to `off` to stop hiding API keys from the sandbox | Unset (hiding is on) | no | `...daytona.opaqueSecrets` |
 
 When neither `AGENTA_RUNNER_DAYTONA_SNAPSHOT` nor `AGENTA_RUNNER_DAYTONA_IMAGE` is set, the runner
-starts from its pinned default snapshot `agenta-agent-sandbox-v3`. The two variables are mutually
+starts from its pinned default snapshot `agenta-agent-sandbox-v4`. The two variables are mutually
 exclusive. The autostop and autodelete values must be positive integers. See
 [Run agents in a cloud sandbox (Daytona)](/self-host/agent-execution/daytona) for the setup flow,
 and [Customize the agent runtime](/self-host/agent-execution/customize-the-agent-runtime) for the
@@ -474,6 +480,13 @@ other host carry only the placeholder.
 This matters because an agent writes and runs its own code. Without it, a prompt injection that
 persuades the agent to print its own environment prints your keys.
 
+The credential a run uses to call the Agenta model gateway is hidden the same way, restricted to
+the gateway's hostname. Two cases keep it a plain environment variable, as in earlier versions: a
+gateway URL that cannot carry a single public hostname restriction (for example plain HTTP, an IP
+address, a port other than the default, or an internal hostname such as `localhost` or one ending in
+`.internal` or `.local`), and a Daytona API key without
+the Secrets permission on a run that has no other key to hide. The runner logs the second case.
+
 :::warning Upgrading from a version before v0.108.1 requires a key change
 The permission this needs is new, and enabling it is not optional.
 
@@ -485,7 +498,7 @@ Grant the key in `AGENTA_RUNNER_DAYTONA_API_KEY` permission to manage Secrets, o
 that permission, before upgrading. The failure names this variable and the permission, so it is
 recognizable, but the runs still fail until the key is fixed.
 
-The runner never falls back to sending keys as plaintext on its own, because silently doing the
+The runner never falls back to sending model or MCP keys as plaintext on its own, because silently doing the
 unprotected thing is worse than stopping. If you would rather not grant the permission, set
 `AGENTA_RUNNER_DAYTONA_OPAQUE_SECRETS=off` and keys go to the sandbox as plain environment
 variables, exactly as they did before v0.108.1.
@@ -663,6 +676,33 @@ An invalid value (not a number, or negative) falls back to the default for that 
 the runner's own deadlines and are unrelated to `AGENTA_RUNNER_TIMEOUT_SECONDS`, which is the
 caller's idle timeout on the streaming transport.
 
+### Harness startup
+
+Before a run sends its first message, the runner opens a session with the harness. One deadline
+bounds that step.
+
+| Variable | Role | Default | Secret | Helm |
+|---|---|---|---|---|
+| `AGENTA_RUNNER_ACP_INIT_TIMEOUT_MS` | Longest wait for the harness to answer when a run opens its session | `120000` (2 minutes) | no | `agentRunner.env.AGENTA_RUNNER_ACP_INIT_TIMEOUT_MS` |
+
+When the deadline passes, the run fails with the code `harness_init_timeout` and the message
+`The <harness> harness did not start within 2 minutes`, and the runner releases its sandbox. This
+deadline covers only the step before the first message. The run limits above cover everything
+after it. An invalid value falls back to the default.
+
+The runner image ships a pinned Codex adapter. At startup, the runner copies it into the data
+directory that the harness daemon reads (`$XDG_DATA_HOME`, or `$HOME/.local/share`). A container
+started with a different `HOME`, as in [Use your own subscription](/self-host/use-your-own-subscription),
+then uses the pinned adapter and does not download one on its first Codex run. The runner logs one
+line for what it did:
+
+```text
+[adapter-seed] seeded the pinned Codex adapter into the daemon data dir: /home/node/.local/share/sandbox-agent/bin/agent_processes -> /tmp/.local/share/sandbox-agent (950ms)
+[adapter-seed] skipped: the daemon data dir is the baked pin (/home/node/.local/share/sandbox-agent)
+```
+
+The runner never overwrites an adapter that is already in the data directory.
+
 ### Callback API
 
 Set both on the `runner` service. The runner calls the API back for session heartbeats,
@@ -737,15 +777,15 @@ logged.
 
 ```text
 runner providers enabled=[local,daytona,inprocess] default=local
-runner daytona target=eu artifact=snapshot:agenta-agent-sandbox-v3
-runner inprocess sandbox_start=on-first-tool-call artifact=snapshot:agenta-agent-sandbox-v3 max_running_sandboxes=40 max_sessions=200
+runner daytona target=eu artifact=snapshot:agenta-agent-sandbox-v4
+runner inprocess sandbox_start=on-first-tool-call artifact=snapshot:agenta-agent-sandbox-v4 max_running_sandboxes=40 max_sessions=200
 ```
 
 The first line always prints and shows the effective list: `local,daytona` in the variable prints as
 `local,daytona,inprocess`. The second line appears only when `daytona` is enabled. The third
 line appears only when `inprocess` is enabled. `target`
 reads `default` when `AGENTA_RUNNER_DAYTONA_TARGET` is unset, and `artifact` reads
-`snapshot:agenta-agent-sandbox-v3` (the pinned default), `snapshot:<name>`, or `image:<name>`
+`snapshot:agenta-agent-sandbox-v4` (the pinned default), `snapshot:<name>`, or `image:<name>`
 depending on what is set.
 
 ### Troubleshooting
@@ -818,6 +858,15 @@ not point at it.
 
 **Solution:** See [Use your own subscription](/self-host/use-your-own-subscription).
 
+#### A run fails with `The <harness> harness did not start within 2 minutes`
+
+**Cause:** The harness did not answer while the run was opening its session. If the runner cannot
+copy its pinned Codex adapter at startup, the daemon installs an adapter at first use and can stop
+there. The runner logs `[adapter-seed] WARNING` at startup when that is the case.
+
+**Solution:** Read the `[adapter-seed]` line in the runner log and fix what it names. Run the turn
+again. To allow a longer startup, raise `AGENTA_RUNNER_ACP_INIT_TIMEOUT_MS`.
+
 #### A self-managed run that requested Daytona fails
 
 **Cause:** Personal subscriptions are local-only.
@@ -879,8 +928,10 @@ S3-compatible store. This toggle mirrors `postgresql.enabled`.
 
 :::note `AGENTA_STORE_NAMESPACE`: sharing one bucket across environments
 The key layout treats the store as a small database: the **bucket** is the cluster, an optional
-**namespace** is the database, the entity prefix (`mounts/`) is the table, and `<project>/<mount>`
-is the row, so a full key is `<bucket>/[<namespace>/]mounts/<project_id>/<mount_id>/...`.
+**namespace** is the database, and the **row** is the mount's stored prefix:
+`mounts/<organization_id>/<mount_id>` for mounts created by version 0.125.0 or later,
+`mounts/<project_id>/<mount_id>` for mounts created by earlier versions. Each mount records its
+prefix when it is created, so a full key is `<bucket>/[<namespace>/]<stored prefix>/...`.
 
 Leave `NAMESPACE` unset for a dedicated bucket; the key layout is then identical to a single-tenant
 store (no empty leading segment). Set it (typically to a deployment or environment id) when
@@ -1190,7 +1241,7 @@ it, so set it in the env file the services and runner containers load, and recre
 
 ## Channels
 
-Channels connect an agent to Slack, Telegram, or WhatsApp. They need no environment variable: users can connect their own Slack app or Telegram bot. The variables below are optional and turn on the hosted integrations, where one app or bot owned by the deployment serves every project. Each hosted integration stays off until all three of its variables are set.
+Channels connect an agent to Slack, Telegram, WhatsApp, or a chat widget embedded in a website. They need no environment variable: users can connect their own Slack app or Telegram bot. The variables below are optional and turn on the hosted integrations, where one app or bot owned by the deployment serves every project. Each hosted integration stays off until all three of its variables are set.
 
 Set them on the `api`, `worker-queues` and `worker-streams` containers. The Helm chart has no keys for them; add them with `api.extraEnv`, `workerQueues.extraEnv` and `workerStreams.extraEnv`.
 
@@ -1212,6 +1263,24 @@ WhatsApp has no hosted integration. Each connection brings its own Meta app, so 
 | `WHATSAPP_GRAPH_API_URL` | `channels.whatsapp.graph_api_url` | _(not mapped)_   | `https://graph.facebook.com/v24.0` |
 
 Change it only to route the calls through a proxy or to a test double. For the setup, see [Connect a WhatsApp number to an agent](/guides/connect-whatsapp).
+
+The embedded chat widget needs no variable to work. The optional variables below change its limits. Its routes need no Agenta login, so they limit their own request rate per embed and per visitor key. Set them on the `api` container. For the rest of the widget setup, see [Embed the chat widget](/self-host/channels/embed-widget).
+
+| Env var                                                    | env.py path                                               | values.yaml path | Default            |
+| ---------------------------------------------------------- | --------------------------------------------------------- | ---------------- | ------------------ |
+| `AGENTA_CHANNELS_EMBED_REQUESTS_PER_MINUTE_PER_EMBED`      | `channels.embed.requests_per_minute_per_embed`            | _(not mapped)_   | `600`              |
+| `AGENTA_CHANNELS_EMBED_REQUESTS_PER_MINUTE_PER_KEY`        | `channels.embed.requests_per_minute_per_key`              | _(not mapped)_   | `30`               |
+| `AGENTA_CHANNELS_EMBED_READ_REQUESTS_PER_MINUTE_PER_EMBED` | `channels.embed.read_requests_per_minute_per_embed`       | _(not mapped)_   | `6000`             |
+| `AGENTA_CHANNELS_EMBED_READ_REQUESTS_PER_MINUTE_PER_KEY`   | `channels.embed.read_requests_per_minute_per_key`         | _(not mapped)_   | `240`              |
+| `AGENTA_CHANNELS_EMBED_MAX_LIVE_STREAMS_PER_EMBED`         | `channels.embed.max_live_streams_per_embed`               | _(not mapped)_   | `200`              |
+| `AGENTA_CHANNELS_EMBED_MAX_MESSAGE_CHARS`                  | `channels.embed.max_message_chars`                        | _(not mapped)_   | `10000`            |
+| `AGENTA_CHANNELS_EMBED_MAX_FILE_BYTES`                     | `channels.embed.max_file_bytes`                           | _(not mapped)_   | `5242880` (5 MB)   |
+
+- The `REQUESTS` limits count posts to the embed's events route: messages, approval answers and commands. The `READ_REQUESTS` limits count the routes that list conversations, read one, follow its live stream and download a file.
+- `MAX_LIVE_STREAMS_PER_EMBED` caps the live streams that one `api` process keeps open for one embed. Each open conversation in a widget holds one stream. Over the cap the widget gets a 429 and tries again.
+- `MAX_MESSAGE_CHARS` applies to the message text and, separately, to the page context serialized as JSON.
+- `MAX_FILE_BYTES` applies to all the files of one message together. One message carries at most 10 files.
+- `MAX_FILE_BYTES` also applies when the `worker-queues` container stores each uploaded file. Set it to the same value on `api` and `worker-queues`.
 
 :::warning One replica for channel replies
 The `sessions` loop of `worker-streams` sends channel replies. Run it in exactly one replica. With two or more, a progress update can overwrite a final reply, and a Telegram reply can arrive twice. With the default `AGENTA_WORKER_STREAMS` (empty, which runs every loop), that means one `worker-streams` replica. On Helm, a rolling update briefly runs two pods; set `workerStreams.strategy.type: Recreate` to avoid the overlap.
@@ -1326,6 +1395,21 @@ own `AGENTA_RUNNER_DAYTONA_SNAPSHOT`; see the [runner Daytona section](#daytona)
 | `PERPLEXITYAI_API_KEY` | `llm.perplexityai` | `llm.perplexityai` |
 | `TOGETHERAI_API_KEY` | `llm.togetherai` | `llm.togetherai` |
 | `XAI_API_KEY` | `llm.xai` | `llm.xai` |
+
+A prompt or an evaluator runs on the provider keys saved in its project. The keys above, set on
+the services container, are used only when a project has no key of its own for that provider,
+and only when `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED` allows it. It defaults to `true` in the
+OSS edition and to `false` in the EE edition. With it off, a project without a saved key gets the
+error "No API key found for model". A custom provider always uses its own key and never one of
+these.
+
+The same setting covers AWS. A Bedrock or SageMaker connection can omit its access keys and run on
+the AWS credentials of the host (the environment, an attached role, or instance metadata) only when
+`AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED` allows it. With it off, such a call stops with the same
+error, and the services container removes the AWS credential variables (such as
+`AWS_ACCESS_KEY_ID`, `AWS_SESSION_TOKEN` and `AWS_PROFILE`) from its environment at start. The
+region variables stay. The Bedrock bearer tokens `AWS_BEARER_TOKEN_BEDROCK` and `BEDROCK_MANTLE_API_KEY` are never
+read from the services environment.
 
 ## loops
 
@@ -1469,7 +1553,6 @@ future major release.
 | `STRIPE_PRICING` | `AGENTA_BILLING_PRICING` |
 | `AGENTA_CACHE_ENABLED` | `AGENTA_API_CACHING_ENABLED` |
 | `AGENTA_CACHING_ENABLED` | `AGENTA_API_CACHING_ENABLED` |
-| `AGENTA_DEMOS` | `AGENTA_EXTRAS_DEMOS` |
 | `AGENTA_LOG_CONSOLE_ENABLED` | `AGENTA_LOGGING_CONSOLE_ENABLED` |
 | `AGENTA_LOG_CONSOLE_LEVEL` | `AGENTA_LOGGING_CONSOLE_LEVEL` |
 | `AGENTA_LOG_FILE_ENABLED` | `AGENTA_LOGGING_FILE_ENABLED` |

@@ -1,3 +1,4 @@
+import type {Visibility} from "@agenta/entities/sharing"
 import type {EnhancedModalProps as ModalProps} from "@agenta/ui"
 import type {EnhancedButtonProps as ButtonProps} from "@agenta/ui/components/presentational"
 
@@ -15,6 +16,11 @@ export interface CommitHostAdapter {
     onAfterCommit?: () => void
     /** Analytics/onboarding hook — the desktop records a widget event here. */
     onCommitted?: () => void
+    /**
+     * The visibility a create from an ephemeral entity asks for. Omitted: the server default
+     * (private for an agent that has an owner). A host without sharing controls passes "project".
+     */
+    createVisibility?: Visibility
 }
 
 export interface CommitVariantChangesModalProps extends ModalProps, CommitHostAdapter {

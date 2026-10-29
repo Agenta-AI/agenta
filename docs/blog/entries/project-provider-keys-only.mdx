@@ -1,0 +1,35 @@
+---
+title: "Projects use only their own provider keys"
+slug: project-provider-keys-only
+date: 2026-10-25
+tags: [v0.124.1]
+description: "Prompts and evaluators run on the provider keys saved in the project. Self-hosted deployments can opt in to shared keys, and custom providers need their own key."
+---
+
+<Summary>
+
+Prompts and evaluators now run on the provider keys saved in the project. A project without a key for a provider gets the error "No API key found for model". Add the key in **Settings > Providers & Models**.
+
+Custom providers need their own API key, except Bedrock, SageMaker and Vertex. Self-hosted Enterprise deployments can opt in to keys set on the services container.
+
+</Summary>
+
+{/* truncate */}
+
+## What changes
+
+A prompt or an evaluator runs on the provider keys saved in its project.
+
+- If a project has no key for a provider, the run fails with "No API key found for model". Add the key in **Settings > Providers & Models**.
+- A custom provider that signs in with a key needs its own non-empty API key. Bedrock, SageMaker and Vertex use their own credentials. Without a key, the run stops with a `400` configuration error before it calls the provider.
+
+## Self-hosting
+
+Provider keys set on the services container (for example `OPENAI_API_KEY`) serve projects that have no key of their own only when `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED` is `true`.
+
+| Edition | Default |
+| --- | --- |
+| Open source | `true` (unchanged) |
+| Enterprise | `false` |
+
+To keep shared keys in an Enterprise deployment, set `AGENTA_SERVICES_ENV_PROVIDER_KEYS_ENABLED=true`. A custom provider always uses its own key. See the [configuration reference](/self-host/configuration) for details.

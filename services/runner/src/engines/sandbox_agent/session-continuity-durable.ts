@@ -10,6 +10,7 @@
  */
 import { fetchControlPlane } from "../../sessions/control-plane-fetch.ts";
 import { apiBase } from "../../apiBase.ts";
+import { runnerTokenHeader } from "../../sessions/auth.ts";
 import type { ReferenceKey } from "../../sessions/interactions.ts";
 import type { SessionContinuityStore } from "./session-continuity.ts";
 
@@ -246,6 +247,8 @@ function postLedgerWrite(
         headers: {
           "content-type": "application/json",
           authorization: deps.authorization,
+          // The API keeps a turn's agent_session_id and sandbox_id only from the runner.
+          ...runnerTokenHeader(base),
         },
       }),
     { maxAttempts: 1, signal: deps.signal },

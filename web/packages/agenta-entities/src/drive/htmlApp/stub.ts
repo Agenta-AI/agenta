@@ -13,6 +13,8 @@
  * syntax a downlevel pass would rewrite into a shared helper (no spread, no `??`/`?.`).
  */
 
+import {installPreviewPicker} from "@agenta/shared/previewPicker"
+
 // Old-style loops on purpose: the body below is shipped as a string into a foreign document.
 /* eslint-disable no-var, @typescript-eslint/prefer-for-of */
 
@@ -55,7 +57,7 @@ interface StubError extends Error {
  * keep it that way (see the module comment). The `agenta` object it installs is documented in
  * `docs/design/agent-html-apps/contracts.md` ("Stub globals").
  */
-function bridgeStub(): void {
+function bridgeStub(installPicker: typeof installPreviewPicker): void {
     var VERSION = 1
     var STYLE_ID = "agenta-tokens"
     var MAX_BUFFERED_ERRORS = 20
@@ -234,6 +236,15 @@ function bridgeStub(): void {
         } else if (data.type === "access") {
             agenta.canWrite = data.canWrite === true
             emit("access", {canWrite: agenta.canWrite})
+        } else if (
+            data.type === "pick-start" ||
+            data.type === "pick-stop" ||
+            data.type === "pins"
+        ) {
+            var inbound = data as Record<string, unknown>
+            var stripped: Record<string, unknown> = {}
+            for (var key in inbound) if (key !== "v") stripped[key] = inbound[key]
+            pickerHandle(stripped)
         }
     }
 
@@ -367,6 +378,15 @@ function bridgeStub(): void {
 
     ;(window as unknown as {agenta: unknown}).agenta = agenta
 
+    // Picker messages only matter after hello, so they are dropped rather than queued.
+    var pickerHandle = installPicker(function (message) {
+        if (!port) return
+        var out: Record<string, unknown> = {v: VERSION}
+        var fields = message as unknown as Record<string, unknown>
+        for (var key in fields) out[key] = fields[key]
+        port.postMessage(out)
+    })
+
     window.addEventListener("message", onWindowMessage)
 
     window.addEventListener("error", function (event) {
@@ -411,7 +431,7 @@ function bridgeStub(): void {
 
 /** The script to inline into the app document, ahead of its own scripts. */
 export function buildBridgeStub(): string {
-    return `(${bridgeStub.toString()})()`
+    return `(${bridgeStub.toString()})(${installPreviewPicker.toString()})`
 }
 
 export const BRIDGE_STUB: string = buildBridgeStub()

@@ -62,9 +62,13 @@ export type AttemptOutcomeState =
   /** The provider's own 15 minute device-code window ran out. */
   | "expired";
 
-/** The connection an attempt signs in, as the API names it. Not a secret. */
+/**
+ * The connection an attempt signs in, as the API names it. Not a secret. Exactly one of
+ * `projectId` (a project's login) and `organizationId` (an organization's login, M5) is set.
+ */
 export interface AttemptOwner {
-  projectId: string;
+  projectId?: string;
+  organizationId?: string;
   secretId: string;
 }
 
@@ -188,7 +192,9 @@ export async function reportAttemptOutcome(
   const delays = deps.retryDelaysMs ?? OUTCOME_REPORT_RETRY_DELAYS_MS;
   const url = `${base}/secrets/subscription-login/attempts/${encodeURIComponent(outcome.attemptId)}/outcome`;
   const body = JSON.stringify({
-    project_id: outcome.projectId,
+    ...(outcome.organizationId
+      ? { organization_id: outcome.organizationId }
+      : { project_id: outcome.projectId }),
     secret_id: outcome.secretId,
     state: outcome.state,
     ...(outcome.login ? { login: outcome.login } : {}),
@@ -380,8 +386,7 @@ export class SubscriptionLoginAttempts {
           this.report(
             {
               attemptId: attempt.id,
-              projectId: attempt.owner.projectId,
-              secretId: attempt.owner.secretId,
+              ...attempt.owner,
               state: "failed",
               error: ABANDONED_ATTEMPT_REASON,
             },
@@ -419,8 +424,7 @@ export class SubscriptionLoginAttempts {
       try {
         await this.report({
           attemptId: attempt.id,
-          projectId: attempt.owner.projectId,
-          secretId: attempt.owner.secretId,
+          ...attempt.owner,
           ...result,
         });
       } catch {

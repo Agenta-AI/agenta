@@ -1,3 +1,4 @@
+import { acpToolName } from "../../acp-tool-name.ts";
 import type {
   AgentEvent,
   ResolvedToolSpec,
@@ -900,7 +901,7 @@ export function buildGateDescriptor(
     codexMcpApproval ? recorded?.name : undefined,
     codexCommand,
     recorded?.name,
-    toolCall?.name,
+    acpToolName(toolCall),
     toolCall?.title,
     toolCall?.kind,
   ]);

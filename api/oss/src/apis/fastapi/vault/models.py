@@ -1,9 +1,28 @@
-"""Request and response shapes for the subscription login routes."""
+"""Request and response shapes of the secrets routes that take more than a secret."""
 
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from oss.src.core.secrets.enums import SecretAvailability
+
+
+class SecretProjectsRequest(BaseModel):
+    """Which projects may use an organization connection."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    availability: SecretAvailability
+    project_ids: List[UUID] = Field(default_factory=list)
+
+
+class SubscriptionTokenRequest(BaseModel):
+    """A token pasted from `claude setup-token`."""
+
+    model_config = ConfigDict(extra="forbid", hide_input_in_errors=True)
+
+    token: str = Field(min_length=1)
 
 
 class SubscriptionLoginAttemptResponse(BaseModel):
@@ -27,13 +46,21 @@ class SubscriptionLoginOutcomeRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    project_id: UUID
+    # Exactly one owner: the project's row, or the organization's (M5).
+    project_id: Optional[UUID] = None
+    organization_id: Optional[UUID] = None
     secret_id: UUID
     state: Literal["succeeded", "failed", "expired"]
     # The credential, on `succeeded` only.
     login: Optional[Dict[str, Any]] = None
     # The runner's short reason word, on `failed` and `expired`. The service clips it.
     error: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _one_owner(self) -> "SubscriptionLoginOutcomeRequest":
+        if (self.project_id is None) == (self.organization_id is None):
+            raise ValueError("name exactly one of project_id and organization_id")
+        return self
 
 
 class SubscriptionLoginPushRequest(BaseModel):

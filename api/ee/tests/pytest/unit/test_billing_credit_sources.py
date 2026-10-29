@@ -16,7 +16,6 @@ from ee.src.core.access.entitlements.types import DefaultPlan
 from ee.src.core.subscriptions import service as subscriptions_service_module
 from ee.src.core.subscriptions.service import SubscriptionsService
 from ee.src.core.subscriptions.types import Event
-from oss.src.core.rollout.switches import WalletMode
 
 PRO = DefaultPlan.CLOUD_V0_PRO.value
 BUSINESS = DefaultPlan.CLOUD_V0_BUSINESS.value
@@ -546,11 +545,6 @@ def top_up_ready(monkeypatch):
     monkeypatch.setattr(billing_router_module.env.wallets, "enabled", True)
     monkeypatch.setattr(billing_router_module.env.stripe, "webhook_secret", "whsec_x")
     monkeypatch.setattr(billing_router_module, "get_free_plan", lambda: HOBBY)
-    monkeypatch.setattr(
-        billing_router_module,
-        "wallet_mode_for",
-        AsyncMock(return_value=WalletMode.ENFORCE),
-    )
     stripe = _stripe_for_checkout()
     monkeypatch.setattr(billing_router_module, "_load_stripe", lambda: stripe)
     return stripe
@@ -689,31 +683,6 @@ async def test_top_up_checkout_returns_to_the_cancel_url(top_up_ready):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize("mode", [WalletMode.OFF, WalletMode.SHADOW])
-async def test_top_up_checkout_is_absent_where_the_wallet_is_not_enforced(
-    top_up_ready, monkeypatch, mode
-):
-    monkeypatch.setattr(
-        billing_router_module, "wallet_mode_for", AsyncMock(return_value=mode)
-    )
-    router = _router(
-        subscription_service=SimpleNamespace(
-            read=AsyncMock(return_value=_subscription(PRO))
-        )
-    )
-
-    with pytest.raises(HTTPException) as error:
-        await router.create_top_up_checkout(
-            organization_id=ORGANIZATION_ID,
-            pack="credits_1000",
-            success_url="https://app.example/billing",
-        )
-
-    assert error.value.status_code == 404
-    top_up_ready.checkout.Session.create.assert_not_called()
-
-
-@pytest.mark.asyncio
 async def test_top_up_packs_list_every_pack_with_its_price(top_up_ready):
     router = _router(
         subscription_service=SimpleNamespace(
@@ -759,7 +728,7 @@ async def test_top_up_packs_ask_for_a_paid_plan(top_up_ready, subscription):
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
     "setting",
-    ["wallet_off", "no_webhook_secret", "no_stripe", "shadow", "off_for_organization"],
+    ["wallet_off", "no_webhook_secret", "no_stripe"],
 )
 async def test_top_up_packs_are_unavailable_until_a_purchase_can_be_credited(
     top_up_ready, monkeypatch, setting
@@ -768,13 +737,8 @@ async def test_top_up_packs_are_unavailable_until_a_purchase_can_be_credited(
         monkeypatch.setattr(billing_router_module.env.wallets, "enabled", False)
     elif setting == "no_webhook_secret":
         monkeypatch.setattr(billing_router_module.env.stripe, "webhook_secret", None)
-    elif setting == "no_stripe":
-        monkeypatch.setattr(billing_router_module, "_load_stripe", lambda: None)
     else:
-        mode = WalletMode.SHADOW if setting == "shadow" else WalletMode.OFF
-        monkeypatch.setattr(
-            billing_router_module, "wallet_mode_for", AsyncMock(return_value=mode)
-        )
+        monkeypatch.setattr(billing_router_module, "_load_stripe", lambda: None)
     read = AsyncMock(return_value=_subscription(PRO))
     router = _router(subscription_service=SimpleNamespace(read=read))
 

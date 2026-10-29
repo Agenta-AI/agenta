@@ -18,7 +18,7 @@ import {Button} from "@agenta/ui/ui"
 import {XCircle} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {SESSION_TURN_IN_USE_CODE} from "../model/error"
+import {SESSION_ADMISSION_REJECTED_CODE, SESSION_TURN_IN_USE_CODE} from "../model/error"
 import {expandedValueAtomFamily, setExpandedAtom} from "../state/expandState"
 
 /** Failure classes the reader can clear themselves by adding their own provider key. */
@@ -34,9 +34,8 @@ export const STARTER_CREDIT_CODES = new Set([
 export const OWN_KEY_CODES = new Set([...STARTER_CREDIT_CODES, "builtin_models_not_enabled"])
 
 /**
- * Failure classes cleared by signing in again, not by a key. The subscription's stored sign-in is
- * dead and no newer one exists, so the fix is a new device login on the AI providers page — which
- * is where the provider drawer opens.
+ * Failure classes cleared on the AI providers page, not by a key: the subscription's stored sign-in
+ * or token was refused, and the message above the button names the fix there.
  */
 export const SUBSCRIPTION_LOGIN_CODES = new Set(["subscription_login_required"])
 
@@ -44,6 +43,8 @@ export const SUBSCRIPTION_LOGIN_CODES = new Set(["subscription_login_required"])
 export const RETRYABLE_CODES = new Set([
     "continuation_resumed",
     "credential_delivery_failed",
+    // The harness did not answer while the run opened its session; nothing ran.
+    "harness_init_timeout",
     "starter_credits_unavailable",
     "rate_limited",
     // The run never produced an outcome of its own and was closed for it — by the runner when
@@ -94,7 +95,7 @@ export const refusalTitle = (code?: string | null): string | null =>
     planLimitTitle(code) ?? ((code && REFUSAL_TITLES[code]) || null)
 
 /** An admission refusal means the message was not sent, not that an agent run failed. */
-export const NOT_SENT_CODES = new Set([SESSION_TURN_IN_USE_CODE])
+export const NOT_SENT_CODES = new Set([SESSION_TURN_IN_USE_CODE, SESSION_ADMISSION_REJECTED_CODE])
 
 /** The ONE rule driving both the clamp and the toggle — they can't disagree and hide text (#5350). */
 export const isBigError = (text: string) => text.length > 240 || text.split("\n").length > 4
@@ -182,7 +183,7 @@ export const RunFailureCallout = ({
                 )}
                 {offerSignIn && (
                     <Button size="sm" variant="outline" className="mt-1" onClick={onSignIn}>
-                        Sign in again
+                        Open AI providers
                     </Button>
                 )}
                 {offerBuyCredits && (

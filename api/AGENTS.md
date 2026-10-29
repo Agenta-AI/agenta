@@ -44,14 +44,114 @@ RBAC / access enforcement:
 - RBAC enforcement is an OSS feature and is always-on in both editions. The
   permission vocabulary, default role catalog, and enforcement service live in
   `api/oss/src/core/access/`. Handlers call `check_action_access(...)`
-  unconditionally; there is no edition gate around the check itself.
+  unconditionally; it decides for the request's principal (the `RequestAccess` the auth
+  middleware sets), and there is no edition gate around the check itself.
 - The only edition difference is the EE plan gate: in EE, `check_entitlements(Flag.RBAC)`
-  can grant allow-all when a plan is not RBAC-entitled. This is layered into the OSS
-  enforcement service via a function-local `is_ee()`-guarded import — OSS never imports
+  can grant allow-all to members when a plan is not RBAC-entitled. It enters through
+  `RbacEnforcementInterface` (`oss/src/core/access/interfaces.py`); `entrypoints/access.py`
+  wires `EntitlementsRbacEnforcement` (EE) or `AlwaysEnforcedRbac` (OSS). OSS never imports
   `ee.*` at module top.
 - Custom roles are an EE feature: `AGENTA_ACCESS_ROLES` / `AGENTA_ACCESS_ROLES_OVERLAY`
   are parsed/applied in `api/ee/src/core/access/permissions/role_overrides.py` and
   ignored in OSS (which enforces the code-default catalog).
+
+Project membership and access:
+
+- Membership is decided only by `MembershipsService.resolve` (`oss/src/core/memberships/`) and its uncached form `read_membership` (same policy and DAO read; use it only where another cache keeps the outcome, today the Bearer workspace-only and no-parameter branches). No other membership reader or policy.
+  OSS: every organization member is a member of every project, with the organization role.
+  EE: a member needs an organization row and a `project_members` row; the project row's
+  role applies. The edition policy is picked only in `entrypoints/access.py`.
+- Membership writes go only through the four `MembershipsService` writers:
+  `set_member_role`, `remove_member`, `create_project` (seeds every organization member in
+  the same transaction) and `transfer_ownership`. Each writer clears the access caches with
+  `invalidate_access_caches` after the commit. An admin tool that writes membership rows
+  directly must call `invalidate_access_caches` too.
+- `check_action_access` delegates to `AccessService.check_request`. Every process that
+  checks access calls `bootstrap_access()` at startup (the API and both workers do).
+- No new code reads `workspace_members` or `project_members` to decide access.
+- A hot-path membership read is one SQL statement (`fetch_membership_row`,
+  `list_membership_rows`). `integration/memberships/test_hot_path_query_counts_postgres.py`
+  pins the counts.
+- Revocation takes effect at the next decision. It can take up to `AGENTA_CACHE_TTL`
+  (300 s) in two known cases: the Redis invalidation fails, or a read that started before
+  the mutation committed refills the old entry after the invalidation.
+
+Access layer invariants (run principal):
+
+- Every run has an explicit `RunEnvelope` (principal, authority, run context, sender,
+  approver). Routers get it from `request_run_envelope(request)`; durable work builds it
+  with `stored_work_envelope`, `child_envelope` or `resumed_envelope`. No code builds a
+  human principal from a bare user id.
+- There is no implicit human fallback. `check_action_access` needs request access and
+  raises without it (`RequestAccessMissing`) or for another user
+  (`RequestAccessMismatch`). Code that checks another human, or runs without request
+  access (callbacks exempt from the auth middleware, workers), calls
+  `AccessService.check_human` or `decide` explicitly.
+- `AccessService.decide` runs on every call. Nothing caches a decision. Only the
+  principal record (`fetch_principal`), the membership (`resolve_membership`) and the
+  project's organization are cached, and their writers invalidate them.
+- Cached access DTOs give every `Optional` field a `None` default: the cache drops
+  `None` fields when it serializes.
+- Durable work (queued inputs, continuations, interactions, schedules, subscriptions,
+  evaluation runs, channel turns, child runs) stores its envelope or principal and
+  rechecks it with `require` (or `decide`) before it runs. A refusal is a terminal
+  settlement (failed delivery and paused trigger, failed evaluation run, obsolete
+  command, cancelled interaction), never a retry.
+- Mint a run credential (`sign_secret_token`) only after the decision allows. The minted
+  envelope copies the caller's; it never upgrades a principal.
+- New agent-visible failures use `AgentError` (`access_denied`, `missing_principal`,
+  `missing_envelope`).
+- Access logs carry ids and kinds only, never a token, a header, raw claims or an
+  envelope.
+- `integration/access/test_run_principal_query_counts_postgres.py` pins the hot paths at
+  zero access-decision statements on warm caches.
+
+Access layer invariants (agent and session sharing):
+
+- Every agent or session access calls `AccessService.decide` with a `ResourceRef`, and
+  lists pass a read scope in SQL. List queries take a required read scope; there is no
+  unrestricted scope.
+- Every point where a run starts or resumes calls `RunAdmission` (`admit`, `admit_turn` or
+  `admit_request`) with the stored or request envelope.
+- `AccessService` requires a resource policy; every composition root passes
+  `SharingService`.
+- Never treat a null owner as "not migrated".
+- Audit events carry identifiers, never credential values.
+
+Organization-scoped decisions and organization credentials (M5):
+- An organization subscription login (`subscription_provider` in `ORGANIZATION_SECRET_KINDS`,
+  never in `ORGANIZATION_GATEWAY_KINDS`) is the one organization value that leaves the API:
+  only to the run credential, from `GET /secrets/{slug}?scope=organization`, through
+  `organization_subscription_for_runtime`. The runner uses it like a project login.
+
+- Organization-scoped actions are decided only by `decide_organization`
+  (`oss/src/core/access/organizations.py`). It allows a browser-session human acting as
+  itself, with no run envelope, whose organization role is `owner` or `admin`. It reads
+  the member row uncached and nothing else, so project RBAC shortcuts (the EE no-RBAC
+  bypass, the organization-owner shortcut) never apply.
+- An agent names its connection by scope and slug (`project`, the default, or
+  `organization`). Nothing is inherited or overridden: a project slug reads project rows
+  only, no connection means the project default, and an organization connection resolves
+  only by `VaultService.get_organization_connection` (or `get_available_organization_secret_by_id`
+  for a bound reference), in the gateway namespace `organization`. `SecretsResolver` is built
+  per plane; only the LLM plane answers an organization connection. The `/secrets/` routes
+  serve both owners. The caller states the owner (`scope`, default `project`); with
+  `organization` the route runs `decide_organization`, otherwise it is the project route as
+  before. `PUT /secrets/{id}/projects` addresses organization rows only. `GET /secrets/?include_organization=true` adds the organization
+  rows available to the project without values (also for the `secret-resolve` grant).
+- A project's vault lives in ONE cache entry (`effective_secrets`, keyed on the full
+  project id), filled by one statement (`SecretsDAO.load_effective`), with the project's
+  rows and the available organization rows. Do not add a second cache read for
+  organization rows. Project writes invalidate it with the project-wide invalidation;
+  organization writes delete each project's entry after the commit.
+- Project and organization rows are two slug spaces; no write checks one against the
+  other. Secrets DAO errors are raised `from None` as domain errors: the SQL parameters of
+  a secrets write hold the plaintext value.
+- `integration/secrets/test_organization_secrets_query_counts_postgres.py` pins the vault
+  and gateway hot paths in five cache modes (warm, cold leader, cold follower, cache
+  disabled, Redis failing). It needs a reachable Redis: run it with a throwaway one
+  (`REDIS_URI_VOLATILE=redis://127.0.0.1:<port>/0`), because the stack's Redis is not
+  published.
 
 Primary references:
 - `api/entrypoints/routers.py`

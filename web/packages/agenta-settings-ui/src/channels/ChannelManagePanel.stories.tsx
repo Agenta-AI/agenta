@@ -122,6 +122,9 @@ const ManageHost = ({
                 onDisconnect={async () => {
                     await actions.disconnect(connection.platform, connection.connectionId ?? "")
                 }}
+                onTurnOn={async () => {
+                    await actions.turnOn(connection.platform, connection.connectionId ?? "")
+                }}
             />
             {sentTo ? (
                 <p
@@ -133,6 +136,20 @@ const ManageHost = ({
             ) : null}
         </InlinePanel>
     )
+}
+
+const slackOff: ChannelConnection = {...slackHere, workspaceName: WORKSPACE_NAME, agentOff: true}
+
+/** The binding is off, and the connection stays off until turned on. */
+export const OffUntilTurnedOn: Story = {
+    render: () => <ManageHost connection={slackOff} />,
+    parameters: {
+        docs: {
+            description: {
+                story: "The connection row lists its channels. Turn on is enabled; press it.",
+            },
+        },
+    },
 }
 
 /** Connected here, on the Agenta-hosted Telegram bot. */

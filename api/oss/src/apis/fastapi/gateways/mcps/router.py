@@ -30,6 +30,7 @@ from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 from oss.src.apis.fastapi.vault.router import SecretSafeRoute
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.service import get_access_service
 from oss.src.core.gateways.dtos import GatewayAuthScheme, GatewayEndpointNamespace
 from oss.src.core.gateways.egress import validate_egress_url_format
 from oss.src.core.gateways.mcps.dtos import (
@@ -50,6 +51,7 @@ from oss.src.utils.context import AuthScope, get_auth_scope
 from oss.src.middlewares.auth import (
     GATEWAY_TOKEN_AUDIENCE,
     resolve_session_user_id,
+    request_run_envelope,
     sign_secret_token,
 )
 from oss.src.utils.env import env
@@ -174,6 +176,12 @@ class MCPGatewayRouter:
             methods=["DELETE"],
             operation_id="delete_mcp_endpoint",
             status_code=status.HTTP_204_NO_CONTENT,
+            responses={
+                status.HTTP_409_CONFLICT: {
+                    "description": "The row no longer matches `pending_auth_mode`, "
+                    "has a credential bound, or has a sign-in in flight."
+                }
+            },
         )
         self.router.add_api_route(
             "/endpoints/{endpoint_id}/check",
@@ -206,6 +214,9 @@ class MCPGatewayRouter:
             operation_id="fetch_mcp_connect_attempt",
             response_model=MCPConnectAttemptResponse,
             response_model_exclude_none=True,
+            responses={
+                status.HTTP_404_NOT_FOUND: {"description": "The attempt is not found."}
+            },
         )
         self.router.add_api_route(
             "/endpoints/{endpoint_id}/connect/attempts/{attempt_id}",
@@ -287,6 +298,13 @@ class MCPGatewayRouter:
         scope = get_auth_scope()
         await self._check(scope, Permission.USE_MCP_ENDPOINTS)
 
+        envelope = request_run_envelope(request)
+        if envelope is None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Agenta MCP credentials require an invocation credential",
+            )
+
         tools = entitled_agenta_tools(
             requested=[tool.model_dump(mode="json") for tool in body.tools],
             carried=gateway_tools(request),
@@ -299,6 +317,7 @@ class MCPGatewayRouter:
             gateway_run_id=run_id,
             gateway_tools=tools,
             audience=GATEWAY_TOKEN_AUDIENCE,
+            envelope=envelope,
         )
         return MCPAgentaCredentialResponse(credentials=f"Secret {token}")
 
@@ -438,8 +457,10 @@ class MCPGatewayRouter:
         A connect sheet abandoning the row it made sends `pending_auth_mode`, the mode it
         made the row in, after it cancelled its own sign-in. The row is then deleted only
         while it is still in that mode with no credential bound and no sign-in in flight,
-        decided under the connection's lock. A row that another tab took over since, or is
-        signing in on, is kept, and the answer is 409.
+        decided under the connection's lock. The answer is 409 only when the row's
+        `auth_mode` no longer matches `pending_auth_mode`, a credential is bound, or a
+        sign-in is in flight. A change to another field, such as the name or URL, does not
+        by itself keep the row.
         """
         scope = get_auth_scope()
         await self._check(scope, Permission.EDIT_MCP_ENDPOINTS)
@@ -669,9 +690,11 @@ class MCPGatewayRouter:
         endpoint_id: UUID,
         body: MCPEndpointCheckRequest,
     ) -> MCPEndpointResponse:
-        """Record the result of a check the connect sheet ran, so the connection's row can
-        say when it was last checked and how that went. The check itself is the sheet's
-        handshake through the relay; agent calls never write this."""
+        """Record the result of a check the connect sheet ran.
+
+        The connection's row can then say when it was last checked and how that went. The
+        check itself is the sheet's handshake through the relay; agent calls never write
+        this."""
         scope = get_auth_scope()
         await self._check(scope, Permission.EDIT_MCP_ENDPOINTS)
 
@@ -786,12 +809,14 @@ class MCPGatewayRouter:
         # in the attempt's project, which they can have lost while consenting. Nothing
         # has been exchanged or written at this point, and nothing will be: the attempt
         # is spent, as any presented handle is, so the person reconnects from Agenta.
-        allowed = await check_action_access(
-            user_uid=str(attempt.user_id),
-            project_id=str(attempt.project_id),
-            permission=Permission.EDIT_MCP_ENDPOINTS,
+        # The callback runs without the auth middleware, so there is no request
+        # principal: check the attempt's user explicitly.
+        decision = await get_access_service().check_human(
+            user_id=UUID(str(attempt.user_id)),
+            project_id=UUID(str(attempt.project_id)),
+            action=Permission.EDIT_MCP_ENDPOINTS,
         )
-        if not allowed:
+        if not decision.allowed:
             return await fail(
                 403,
                 "You are no longer allowed to edit MCP endpoints in this project. "

@@ -1,21 +1,23 @@
 """Protocol-shaped LLM gateway proxy responses."""
 
 import json
+import re
 from typing import TYPE_CHECKING, Any, AsyncIterator, Callable, Dict, List, Optional
 
 import httpx
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 
+from oss.src.utils.env import env
 from oss.src.utils.logging import get_module_logger
 from oss.src.apis.fastapi.gateways.exceptions import log_plane_disabled
 from oss.src.apis.fastapi.gateways.llms.utils import (
+    parse_gemini_call_context,
     LLMRequestBodyError,
     parse_llm_call_context,
     parse_messages_call_context,
     parse_responses_call_context,
 )
-from oss.src.apis.fastapi.gateways.flags import llm_gateway_serves_caller
 from oss.src.apis.fastapi.gateways.utils import response_headers
 from oss.src.core.gateways.dtos import (
     GatewayEndpointNamespace,
@@ -25,7 +27,11 @@ from oss.src.core.gateways.dtos import (
 from oss.src.core.gateways.cleanup import run_shielded
 from oss.src.core.gateways.egress import classify_transport_error
 from oss.src.core.gateways.llms.dtos import LLMCallContext, LLMProtocol
-from oss.src.core.gateways.llms.errors import UPSTREAM_ERROR, connection_lost_message
+from oss.src.core.gateways.llms.errors import (
+    UPSTREAM_ERROR,
+    connection_lost_message,
+    google_error,
+)
 from oss.src.core.gateways.types import (
     GatewayEndpointInactiveError,
     GatewayPlaneDisabledError,
@@ -36,6 +42,7 @@ from oss.src.core.gateways.llms.types import (
     LLMEndpointNotFoundError,
     LLMModelIdentifierInvalidError,
     LLMModelNotAllowedError,
+    LLMNamedConnectionNotFoundError,
     LLMRoutingFieldNotAllowedError,
     LLMCapabilityNotAllowedError,
     LLMUpstreamError,
@@ -49,7 +56,12 @@ from oss.src.core.gateways.policy.types import (
     PolicyDeniedError,
     SpendRefusedError,
 )
-from oss.src.core.gateways.run_claims import gateway_run_id, gateway_run_labels
+from oss.src.core.gateways.run_claims import (
+    gateway_platform_run,
+    gateway_run_id,
+    gateway_run_labels,
+)
+from oss.src.middlewares.auth import GATEWAY_TOKEN_AUDIENCE, request_audience
 from oss.src.utils.context import get_auth_scope
 
 if TYPE_CHECKING:
@@ -75,6 +87,7 @@ _DOMAIN_EXCEPTIONS = (
     SecretNotFoundError,
     SecretInvalidError,
     LLMEndpointNotFoundError,
+    LLMNamedConnectionNotFoundError,
     LLMUpstreamError,
 )
 
@@ -104,6 +117,80 @@ def _openai_error(
 # SDKs retry by default, so Claude Code retried one for four minutes and the person saw only
 # "no first response"; both SDKs read this header before the status.
 _NOT_RETRYABLE = {"x-should-retry": "false"}
+
+
+BUILTIN_REQUIRES_AGENT_RUN = "builtin_requires_agent_run"
+
+
+def _refuse_builtin_outside_agent_run(
+    request: Optional[Request],
+) -> Optional[JSONResponse]:
+    """Built-in models are platform-funded, so only the platform's agent runs may call them.
+
+    Only a gateway token the exchange marked for the platform runtime passes. An API key,
+    a session, a general Secret token and every other gateway token are refused here,
+    before the body is read, so a refused call is never parsed, relayed or charged.
+    """
+    audience = request_audience(request) if request is not None else None
+    if audience == GATEWAY_TOKEN_AUDIENCE and gateway_platform_run(request):
+        return None
+
+    log.info(
+        "[gateways] built-in model call refused outside a platform agent run",
+        organization_id=str(get_auth_scope().organization_id),
+        audience=audience,
+    )
+    return _openai_error(
+        status_code=403,
+        message="Built-in models are only available to agent runs started by the platform.",
+        error_type="permission_error",
+        code=BUILTIN_REQUIRES_AGENT_RUN,
+        headers=_NOT_RETRYABLE,
+    )
+
+
+# A bare Gemini model id, safe in a URL path: no slash, no dot segment, no escape.
+_BARE_GEMINI_MODEL = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
+
+
+def _google_error_response(*, status_code: int, message: str) -> JSONResponse:
+    return JSONResponse(
+        status_code=status_code,
+        content=google_error(status=status_code, message=message),
+    )
+
+
+def _as_google_error(response: Response) -> Response:
+    """A refusal the gateway answered in OpenAI's shape, in Google's shape instead, with the
+    same status and the same (marked) message."""
+    try:
+        payload = json.loads(response.body)
+    except (AttributeError, ValueError):
+        payload = None
+    error = payload.get("error") if isinstance(payload, dict) else None
+    message = error.get("message") if isinstance(error, dict) else None
+    status_code = response.status_code
+    if isinstance(error, dict) and error.get("code") == "upstream_timeout":
+        # The gateway gave up waiting. Google's client drops the string code, so the native
+        # caller gets what a timeout mid-stream says: 504 and the marked upstream sentence,
+        # which Pi retries and the runner reads as an upstream error.
+        status_code = 504
+        message = with_code_marker(
+            "The model provider did not answer in time.", UPSTREAM_ERROR
+        )
+    headers = {
+        key: value
+        for key, value in response.headers.items()
+        if key.lower() not in ("content-length", "content-type")
+    }
+    return JSONResponse(
+        status_code=status_code,
+        content=google_error(
+            status=status_code,
+            message=message if isinstance(message, str) else "request refused",
+        ),
+        headers=headers,
+    )
 
 
 def _request_body_detail(exc: ValueError) -> str:
@@ -232,6 +319,13 @@ def _map_domain_exception(exc: Exception) -> JSONResponse:
             error_type="invalid_request_error",
             code="endpoint_not_found",
         )
+    if isinstance(exc, LLMNamedConnectionNotFoundError):
+        return _openai_error(
+            status_code=404,
+            message=exc.message,
+            error_type="invalid_request_error",
+            code="connection_not_found",
+        )
     if isinstance(exc, LLMUpstreamTimeoutError):
         # 408, as LiteLLM answers its own timeout: the gateway gave up waiting, which is
         # not the same as a provider answering 504.
@@ -272,6 +366,11 @@ def _stream_error_frame(protocol: LLMProtocol, exc: Exception) -> bytes:
     else:
         code = UPSTREAM_ERROR
         message = connection_lost_message()
+
+    if protocol == LLMProtocol.GEMINI:
+        status = 504 if isinstance(exc, LLMUpstreamTimeoutError) else 502
+        error = google_error(status=status, message=message)
+        return b"\n\ndata: " + json.dumps(error, ensure_ascii=False).encode() + b"\n\n"
 
     if protocol == LLMProtocol.MESSAGES:
         event = b"error"
@@ -357,6 +456,12 @@ class LLMGatewayProxy:
             operation_id="llm_gateway_chat_completions_custom",
         )
         self.router.add_api_route(
+            "/organization/{slug}/v1/chat/completions",
+            self.chat_completions_organization,
+            methods=["POST"],
+            operation_id="llm_gateway_chat_completions_organization",
+        )
+        self.router.add_api_route(
             "/builtin/{provider}/v1/responses",
             self.responses_builtin,
             methods=["POST"],
@@ -373,6 +478,12 @@ class LLMGatewayProxy:
             self.responses_custom,
             methods=["POST"],
             operation_id="llm_gateway_responses_custom",
+        )
+        self.router.add_api_route(
+            "/organization/{slug}/v1/responses",
+            self.responses_organization,
+            methods=["POST"],
+            operation_id="llm_gateway_responses_organization",
         )
         self.router.add_api_route(
             "/builtin/{provider}/v1/messages",
@@ -393,6 +504,18 @@ class LLMGatewayProxy:
             operation_id="llm_gateway_messages_custom",
         )
         self.router.add_api_route(
+            "/builtin/{provider}/v1beta/models/{model}:streamGenerateContent",
+            self.gemini_stream_builtin,
+            methods=["POST"],
+            operation_id="llm_gateway_gemini_stream_builtin",
+        )
+        self.router.add_api_route(
+            "/organization/{slug}/v1/messages",
+            self.messages_organization,
+            methods=["POST"],
+            operation_id="llm_gateway_messages_organization",
+        )
+        self.router.add_api_route(
             "/builtin/{provider}/v1/models",
             self.list_models_builtin,
             methods=["GET"],
@@ -409,6 +532,12 @@ class LLMGatewayProxy:
             self.list_models_custom,
             methods=["GET"],
             operation_id="llm_gateway_list_models_custom",
+        )
+        self.router.add_api_route(
+            "/organization/{slug}/v1/models",
+            self.list_models_organization,
+            methods=["GET"],
+            operation_id="llm_gateway_list_models_organization",
         )
 
     # --- chat completions ---------------------------------------------------- #
@@ -444,6 +573,17 @@ class LLMGatewayProxy:
             protocol=LLMProtocol.CHAT_COMPLETIONS,
         )
 
+    async def chat_completions_organization(
+        self, request: Request, slug: str
+    ) -> Response:
+        return await self._relay(
+            request,
+            namespace=GatewayEndpointNamespace.ORGANIZATION,
+            name=slug,
+            parser=parse_llm_call_context,
+            protocol=LLMProtocol.CHAT_COMPLETIONS,
+        )
+
     # --- responses -------------------------------------------------------------- #
 
     async def responses_builtin(self, request: Request, provider: str) -> Response:
@@ -468,6 +608,15 @@ class LLMGatewayProxy:
         return await self._relay(
             request,
             namespace=GatewayEndpointNamespace.CUSTOM,
+            name=slug,
+            parser=parse_responses_call_context,
+            protocol=LLMProtocol.RESPONSES,
+        )
+
+    async def responses_organization(self, request: Request, slug: str) -> Response:
+        return await self._relay(
+            request,
+            namespace=GatewayEndpointNamespace.ORGANIZATION,
             name=slug,
             parser=parse_responses_call_context,
             protocol=LLMProtocol.RESPONSES,
@@ -502,6 +651,39 @@ class LLMGatewayProxy:
             protocol=LLMProtocol.MESSAGES,
         )
 
+    # --- gemini (native) ---------------------------------------------------------- #
+
+    async def gemini_stream_builtin(
+        self, request: Request, provider: str, model: str
+    ) -> Response:
+        """Google's native `streamGenerateContent`, for the built-in Gemini models only.
+
+        Pi's Google client calls this with the bare model id in the path
+        (`docs/design/gemini-native-door`). The model is named `google/<model>` so the
+        allowlist and the rate card read it as they read the chat door's. Query parameters
+        (`alt`, `key`) are not forwarded: the upstream URL sets `alt=sse` itself.
+        """
+        if not _BARE_GEMINI_MODEL.fullmatch(model):
+            return _google_error_response(
+                status_code=400, message="The model must be a bare Gemini model id."
+            )
+        return await self._relay(
+            request,
+            namespace=GatewayEndpointNamespace.BUILTIN,
+            name=provider,
+            parser=lambda body: parse_gemini_call_context(body=body, model=model),
+            protocol=LLMProtocol.GEMINI,
+        )
+
+    async def messages_organization(self, request: Request, slug: str) -> Response:
+        return await self._relay(
+            request,
+            namespace=GatewayEndpointNamespace.ORGANIZATION,
+            name=slug,
+            parser=parse_messages_call_context,
+            protocol=LLMProtocol.MESSAGES,
+        )
+
     # Shared relay
 
     async def _relay(
@@ -513,10 +695,32 @@ class LLMGatewayProxy:
         parser: Callable[..., LLMCallContext],
         protocol: LLMProtocol,
     ) -> Response:
+        response = await self._relay_protocol(
+            request, namespace=namespace, name=name, parser=parser, protocol=protocol
+        )
+        # A native Gemini caller reads only Google's error shape.
+        if protocol == LLMProtocol.GEMINI and response.status_code >= 400:
+            return _as_google_error(response)
+        return response
+
+    async def _relay_protocol(
+        self,
+        request: Request,
+        *,
+        namespace: GatewayEndpointNamespace,
+        name: str,
+        parser: Callable[..., LLMCallContext],
+        protocol: LLMProtocol,
+    ) -> Response:
         # Checked before the body is read: with the plane off there is nothing to relay to,
         # and a harness that pointed at this base URL needs the refusal, not a parse error.
-        if not await llm_gateway_serves_caller():
+        if not env.llm_gateway.enabled:
             return _map_domain_exception(LLMGatewayDisabledError())
+
+        if namespace == GatewayEndpointNamespace.BUILTIN:
+            refusal = _refuse_builtin_outside_agent_run(request)
+            if refusal is not None:
+                return refusal
 
         scope = get_auth_scope()
 
@@ -544,6 +748,9 @@ class LLMGatewayProxy:
                 protocol=protocol,
                 run_id=gateway_run_id(request),
                 run_labels=gateway_run_labels(request),
+                # The native door's model is in its URL, so it hands over the context it
+                # built; every other door's is read from the body by the service.
+                **({"context": context} if protocol == LLMProtocol.GEMINI else {}),
             )
 
             if context.stream and result.status_code < 400:
@@ -567,9 +774,9 @@ class LLMGatewayProxy:
 
     # --- models ---------------------------------------------------------------- #
 
-    async def list_models_builtin(self, provider: str) -> Any:
+    async def list_models_builtin(self, request: Request, provider: str) -> Any:
         return await self._list_models(
-            namespace=GatewayEndpointNamespace.BUILTIN, name=provider
+            namespace=GatewayEndpointNamespace.BUILTIN, name=provider, request=request
         )
 
     async def list_models_standard(self, provider: str) -> Any:
@@ -582,14 +789,28 @@ class LLMGatewayProxy:
             namespace=GatewayEndpointNamespace.CUSTOM, name=slug
         )
 
+    async def list_models_organization(self, slug: str) -> Any:
+        return await self._list_models(
+            namespace=GatewayEndpointNamespace.ORGANIZATION, name=slug
+        )
+
     async def _list_models(
-        self, *, namespace: GatewayEndpointNamespace, name: str
+        self,
+        *,
+        namespace: GatewayEndpointNamespace,
+        name: str,
+        request: Optional[Request] = None,
     ) -> Any:
         # Any, not Dict[str, Any]: the success path returns the OpenAI list body,
         # the denial path returns a JSONResponse — FastAPI passes a Response
         # instance through unprocessed either way.
-        if not await llm_gateway_serves_caller():
+        if not env.llm_gateway.enabled:
             return _map_domain_exception(LLMGatewayDisabledError())
+
+        if namespace == GatewayEndpointNamespace.BUILTIN:
+            refusal = _refuse_builtin_outside_agent_run(request)
+            if refusal is not None:
+                return refusal
 
         scope = get_auth_scope()
 

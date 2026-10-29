@@ -101,7 +101,13 @@ describe("connectionUtils: connectionFromConfig", () => {
                 provider: "openai",
                 connection: {mode: "agenta", slug: "openai-prod"},
             }),
-        ).toEqual({provider: "openai", mode: "agenta", slug: "openai-prod", namespace: null})
+        ).toEqual({
+            provider: "openai",
+            mode: "agenta",
+            slug: "openai-prod",
+            namespace: null,
+            scope: null,
+        })
     })
 
     it("defaults the mode to agenta when the connection block is absent or unknown", () => {
@@ -120,11 +126,37 @@ describe("connectionUtils: connectionFromConfig", () => {
             mode: "agenta",
             slug: null,
             namespace: null,
+            scope: null,
         })
     })
 })
 
 describe("connectionUtils: composeModelValue (always a ModelRef)", () => {
+    it("round-trips an organization subscription login with its scope", () => {
+        const stored = {
+            provider: "openai-codex",
+            model: "gpt-5.5",
+            connection: {
+                mode: "self_managed",
+                slug: "chatgpt",
+                scope: "organization",
+                namespace: "organization",
+            },
+        }
+        const fields = connectionFromConfig(stored)
+        expect(
+            composeModelValue({
+                modelId: "gpt-5.5",
+                provider: fields.provider,
+                mode: fields.mode,
+                slug: fields.slug,
+                namespace: fields.namespace,
+                scope: fields.scope,
+                existing: stored,
+            }),
+        ).toEqual(stored)
+    })
+
     it("writes a built-in pick's namespace beside its slug, and only there", () => {
         const compose = (mode: "agenta" | "self_managed", slug: string | null) =>
             composeModelValue({
@@ -150,6 +182,23 @@ describe("connectionUtils: composeModelValue (always a ModelRef)", () => {
         expect(
             composeModelValue({modelId: "gpt-5.5", provider: "openai", mode: "agenta", slug: null}),
         ).toEqual({model: "gpt-5.5", provider: "openai"})
+    })
+
+    it("writes an organization pick with its scope and the organization namespace", () => {
+        expect(
+            composeModelValue({
+                modelId: "gpt-5.5",
+                provider: "openai",
+                mode: "agenta",
+                slug: "openai-company",
+                scope: "organization",
+            }).connection,
+        ).toEqual({
+            mode: "agenta",
+            slug: "openai-company",
+            scope: "organization",
+            namespace: "organization",
+        })
     })
 
     it("includes the agenta connection with its slug", () => {

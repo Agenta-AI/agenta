@@ -7,7 +7,9 @@ import type * as AgentaApi from "../../../../index.js";
  *     {
  *         project_id: "project_id",
  *         source: {
- *             key: "key"
+ *             kind: "internal",
+ *             key: "key",
+ *             kind: "internal"
  *         },
  *         base_revision: {},
  *         initial_message: "initial_message"
@@ -15,7 +17,7 @@ import type * as AgentaApi from "../../../../index.js";
  */
 export interface TemplateLoadRequest {
     project_id: string;
-    source: AgentaApi.InternalTemplateSource;
+    source: AgentaApi.TemplateLoadRequestSource;
     base_revision: AgentaApi.WorkflowRevisionDataInput;
     ui_build_kit_enabled?: boolean;
     ui_disabled_ops?: string[];
@@ -24,6 +26,7 @@ export interface TemplateLoadRequest {
     attachment_ids?: string[];
     initial_message: string;
     connection_choices?: AgentaApi.TemplateLoadRequestConnectionChoicesItem[];
+    visibility?: AgentaApi.Visibility | null;
 }
 
 export namespace TemplateLoadRequest {

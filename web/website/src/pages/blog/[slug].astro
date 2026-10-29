@@ -119,6 +119,11 @@ const faqJsonLd = faq?.length
   ogImage={ogPath}
 >
   <Fragment slot="head">
+    <meta property="article:published_time" content={date.toISOString()} />
+    <meta
+      property="article:modified_time"
+      content={(updated ?? date).toISOString()}
+    />
     <script
       type="application/ld+json"
       is:inline
@@ -175,7 +180,12 @@ const faqJsonLd = faq?.length
       <div
         style="display:flex;align-items:center;justify-content:center;gap:9px;margin-top:-8px;font:var(--text-caption);letter-spacing:0.03em;color:var(--th-text-mut);"
       >
-        <span>{dateLabel}</span>
+        <span>
+          {dateLabel}
+          {updated && updated.getTime() > date.getTime()
+            ? ` · Updated ${formatDate(updated)}`
+            : ""}
+        </span>
         {readingTime && (
           <>
             <span style="width:3px;height:3px;border-radius:50%;background:var(--bp-dot);" />

@@ -3,8 +3,9 @@ from enum import Enum
 from uuid import UUID
 from datetime import datetime
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
+from oss.src.core.access.dtos import PrincipalRef
 from oss.src.core.tracing.dtos import (
     MetricSpec,
     TracingQuery,
@@ -304,6 +305,11 @@ class EvaluationRun(Version, Identifier, Lifecycle, Header, Metadata):
     status: Optional[EvaluationStatus] = EvaluationStatus.PENDING
 
     data: Optional[EvaluationRunData] = None
+
+    # Server-set, read-only: the principal the run executes as.
+    principal: Optional[PrincipalRef] = None
+    # Server-set, internal: the acting user of the request that set the principal.
+    principal_user_id: Optional[UUID] = Field(default=None, exclude=True)
 
 
 class EvaluationRunCreate(Header, Metadata):

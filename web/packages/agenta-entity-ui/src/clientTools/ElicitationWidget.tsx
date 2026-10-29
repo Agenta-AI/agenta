@@ -176,7 +176,7 @@ const ElicitationWidget = ({meta, degradedEarlierInTurn}: ClientToolHandlerProps
 
     // Pending but unrenderable: either the payload is still arriving, or the dock's degradation
     // settle is in flight. Hold the row rather than returning null — a zero-height frame here shoved
-    // the transcript, and this is the branch the retry cap parks on.
+    // the transcript.
     if (!parsed.ok) {
         if (degradedEarlierInTurn) return <DegradedChip reason={parsed.reason} />
         return (

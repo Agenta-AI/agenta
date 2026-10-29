@@ -165,6 +165,9 @@ async def live_event_stream(
         finally:
             try:
                 await pubsub.unsubscribe(channel)
+            except asyncio.CancelledError:
+                # The reader's own cleanup cancels this task; the connection must still close.
+                pass
             except Exception:
                 log.warning("[SESSION-LIVE] pubsub unsubscribe failed", channel=channel)
             try:

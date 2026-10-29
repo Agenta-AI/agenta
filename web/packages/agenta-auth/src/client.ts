@@ -11,6 +11,7 @@ import ThirdParty from "supertokens-web-js/recipe/thirdparty"
 
 import {describeCreateCode, describeResendCode} from "./otpMachine"
 import {authApiUrl, authEnv} from "./runtime"
+import {readAuthRejection} from "./turnstile"
 
 /**
  * Headless SuperTokens client (supertokens-web-js — same 0.16.x the desktop's
@@ -90,19 +91,23 @@ export async function requestEmailCode(
         const outcome = describeCreateCode(await Passwordless.createCode({email}))
         if (outcome.kind === "ok") await tagAttemptWithHost()
         return outcome
-    } catch {
+    } catch (error) {
+        const rejection = await readAuthRejection(error)
+        if (rejection) return {kind: "failed", message: rejection}
         return describeCreateCode(null)
     }
 }
 
-/** Re-send the code for the open attempt. */
+/** Re-send the code for the open attempt. A rejection (too many requests) keeps the attempt open. */
 export async function resendEmailCode(): Promise<
-    {kind: "ok"} | {kind: "restart"; message: string}
+    {kind: "ok"} | {kind: "failed"; message: string} | {kind: "restart"; message: string}
 > {
     ensureAuthInit()
     try {
         return describeResendCode(await Passwordless.resendCode())
-    } catch {
+    } catch (error) {
+        const rejection = await readAuthRejection(error)
+        if (rejection) return {kind: "failed", message: rejection}
         return describeResendCode(null)
     }
 }
@@ -189,8 +194,9 @@ export async function completeOidcSignIn(): Promise<OidcCallbackOutcome> {
             kind: "failed",
             message: "That provider did not share an email. Try another sign-in method.",
         }
-    } catch {
-        return {kind: "failed", message: "Sign-in could not be completed. Try again."}
+    } catch (error) {
+        const rejection = await readAuthRejection(error)
+        return {kind: "failed", message: rejection ?? "Sign-in could not be completed. Try again."}
     }
 }
 
@@ -202,10 +208,9 @@ export async function completeOidcSignIn(): Promise<OidcCallbackOutcome> {
 /**
  * The signed-in session's access token, or `null` when there is no session.
  *
- * Callers that need to send an explicit `Authorization` header rather than rely on the cookie —
- * the playground's run requests are the case that matters, because the backend only honours the
- * `project_id` query param alongside an Authorization header, and without it a run resolves
- * against the caller's DEFAULT project instead of the one it belongs to.
+ * For callers that send an explicit `Authorization` header rather than rely on the cookie (the
+ * playground's run requests). The project rides the `project_id` query param either way: the API
+ * honours it for a cookie session too.
  */
 export async function getAccessToken(): Promise<string | null> {
     if (typeof window === "undefined") return null
@@ -281,7 +286,9 @@ export async function signInDetailed(
             kind: "not-allowed",
             message: "You need to be invited by the organization owner to gain access.",
         }
-    } catch {
+    } catch (error) {
+        const rejection = await readAuthRejection(error)
+        if (rejection) return {kind: "not-allowed", message: rejection}
         return {kind: "error"}
     }
 }
@@ -309,7 +316,9 @@ export async function signUpDetailed(
             kind: "not-allowed",
             message: "You need to be invited by the organization owner to gain access.",
         }
-    } catch {
+    } catch (error) {
+        const rejection = await readAuthRejection(error)
+        if (rejection) return {kind: "not-allowed", message: rejection}
         return {kind: "error"}
     }
 }

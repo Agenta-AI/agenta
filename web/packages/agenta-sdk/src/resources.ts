@@ -19,6 +19,7 @@ import {MountsClient} from "@agentaai/api-client/resources/mounts"
 import {ProjectsClient} from "@agentaai/api-client/resources/projects"
 import {SecretsClient} from "@agentaai/api-client/resources/secrets"
 import {SessionsClient} from "@agentaai/api-client/resources/sessions"
+import {SharingClient} from "@agentaai/api-client/resources/sharing"
 import {SkillsClient} from "@agentaai/api-client/resources/skills"
 import {TestsetsClient} from "@agentaai/api-client/resources/testsets"
 import {ToolsClient} from "@agentaai/api-client/resources/tools"
@@ -161,4 +162,9 @@ export function getChannelsClient(): ChannelsClient {
 let _browser: BrowserClient | undefined
 export function getBrowserClient(): BrowserClient {
     return (_browser ??= new BrowserClient(buildClientOptions()))
+}
+
+let _sharing: SharingClient | undefined
+export function getSharingClient(): SharingClient {
+    return (_sharing ??= new SharingClient(buildClientOptions()))
 }

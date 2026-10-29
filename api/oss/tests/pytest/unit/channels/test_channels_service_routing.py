@@ -1168,6 +1168,7 @@ class TestConnectionReadsStayOnChannelConnections:
             await service.create_agent(
                 project_id=uuid4(),
                 user_id=uuid4(),
+                guard_user_id=None,
                 agent=ChannelAgentCreate(
                     slug="triage",
                     connection_id=connection_id,
@@ -2140,17 +2141,25 @@ def test_attribution_names_the_sender_by_name_username_or_id():
     assert _attribution_part(
         {"id": 1000001, "name": "Test User", "username": "testuser"},
         channel="telegram_hosted",
-    ) == {"type": "text", "text": "From Test User (@testuser, Telegram id 1000001):"}
+    ) == {
+        "type": "text",
+        "text": "From Test User (@testuser, Telegram id 1000001):\n\n",
+    }
     assert _attribution_part(
         {"id": 42, "username": "testuser"}, channel="telegram"
     ) == {
         "type": "text",
-        "text": "From @testuser (Telegram id 42):",
+        "text": "From @testuser (Telegram id 42):\n\n",
     }
     assert _attribution_part({"id": "U1"}, channel="slack") == {
         "type": "text",
-        "text": "From user U1 (Slack id U1):",
+        "text": "From user U1 (Slack id U1):\n\n",
     }
+    # an adapter that names the source itself wins over the channel label
+    assert _attribution_part(
+        {"id": "ab12", "name": "Ana", "platform": "Support widget"},
+        channel="embed",
+    ) == {"type": "text", "text": "From Ana (Support widget id ab12):\n\n"}
     assert _attribution_part({}, channel="slack") is None
     assert _attribution_part({"id": ""}, channel="agenta") is None
 

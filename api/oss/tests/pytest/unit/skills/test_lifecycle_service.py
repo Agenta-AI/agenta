@@ -7,6 +7,7 @@ from uuid import uuid4
 
 import pytest
 
+from oss.src.core.sharing.dtos import AgentReadScope
 from oss.src.core.skills.dtos import SkillCommitted, SkillCreated
 from oss.src.core.skills.exceptions import (
     SkillContentInvalidError,
@@ -48,7 +49,8 @@ class _StubWorkflowsService:
             warnings=[],
         )
 
-    async def query_workflow_revisions(self, *, project_id, workflow_refs):
+    async def query_workflow_revisions(self, *, project_id, read_scope, workflow_refs):
+        assert read_scope == AgentReadScope(owner_user_id=None)
         return self.revisions
 
 

@@ -37,7 +37,7 @@ import {SelectedMark} from "./DriveMenuMark"
 
 /** The chrome's icon button: the kit's ghost icon-sm, muted until hover. */
 export const ROW_ICON_BTN = "text-colorTextTertiary hover:text-colorText"
-const ROW_ICON_BTN_ON = "bg-accent text-colorText"
+export const ROW_ICON_BTN_ON = "bg-accent text-colorText"
 
 export const DriveHeader = ({
     selectedPath,

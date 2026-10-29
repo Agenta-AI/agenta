@@ -307,6 +307,10 @@ function configShape(request: AgentRunRequest) {
           provider: request.modelConnection.provider,
           deployment: request.modelConnection.deployment,
           endpoint: request.modelConnection.endpoint ?? null,
+          // Only when present, so every connection without it keeps the identity it had.
+          ...(request.modelConnection.protocol
+            ? { protocol: request.modelConnection.protocol }
+            : {}),
           credentialMode: request.modelConnection.credentialMode,
           environment: request.modelConnection.environment ?? null,
           credentials: (request.modelConnection.credentials ?? []).map(
@@ -327,12 +331,17 @@ function configShape(request: AgentRunRequest) {
           // exactly the case warm reuse is for; hashing it would cold-start a session for a token
           // rotation the harness handled itself. And the login is a credential — it does not enter
           // a digest input any more than it enters a log line.
-          subscription: request.modelConnection.subscription
-            ? {
-                id: request.modelConnection.subscription.id,
-                generation: request.modelConnection.subscription.generation,
-              }
-            : null,
+          subscription:
+            (request.modelConnection.organizationSubscription ??
+            request.modelConnection.subscription)
+              ? {
+                  id: (request.modelConnection.organizationSubscription ??
+                    request.modelConnection.subscription)!.id,
+                  generation: (request.modelConnection
+                    .organizationSubscription ??
+                    request.modelConnection.subscription)!.generation,
+                }
+              : null,
         }
       : null,
     sandboxCredentials:

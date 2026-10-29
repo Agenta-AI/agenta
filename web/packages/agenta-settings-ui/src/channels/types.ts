@@ -119,6 +119,9 @@ export interface ChannelConnection {
     chats: ChannelChat[]
     /** Which agent answers on this connection. Undefined when the host has not resolved it. */
     agent?: ChannelAnsweringAgent | null
+    /** True when the binding that answers on this connection is turned off. The connection
+     *  itself stays connected. */
+    agentOff?: boolean
     /** When the connection was made, ISO 8601. */
     connectedAt?: string | null
     /** The bot/app handle this connection uses, e.g. "@newagentabot"; null when unknown. */
@@ -223,6 +226,8 @@ export interface ChannelsActions {
     connectHere: (platform: ChannelPlatform, connectionId: string) => Promise<void>
     /** Disconnect (archive) a connection. */
     disconnect: (platform: ChannelPlatform, connectionId: string) => Promise<void>
+    /** Turn the binding that answers on this connection back on. */
+    turnOn: (platform: ChannelPlatform, connectionId: string) => Promise<void>
     /** The places this connection already answers in. */
     listSpaces: (connectionId: string) => Promise<ChannelSpace[]>
     /** The places the connected app can see, for the "Add channel" picker. */

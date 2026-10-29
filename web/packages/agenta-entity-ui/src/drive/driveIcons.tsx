@@ -8,9 +8,12 @@ import {
     BracketsCurly,
     File,
     FileCode,
+    FileDoc,
     FileHtml,
     FilePdf,
+    FilePpt,
     FileText,
+    FileXls,
     ImageSquare,
     MusicNotes,
     Table,
@@ -54,6 +57,12 @@ export const driveFileIcon = (path: string, size = 14, colorClassName?: string) 
             return <MusicNotes size={size} className={className} />
         case "video":
             return <VideoCamera size={size} className={className} />
+        case "spreadsheet":
+            return <FileXls size={size} className={className} />
+        case "document":
+            return <FileDoc size={size} className={className} />
+        case "presentation":
+            return <FilePpt size={size} className={className} />
         default:
             return <File size={size} className={colorClassName ?? "text-colorTextTertiary"} />
     }

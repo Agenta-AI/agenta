@@ -9,6 +9,8 @@ import {useHydrateAtoms} from "jotai/react/utils"
 import {queryClientAtom} from "jotai-tanstack-query"
 
 import {Analytics} from "@/features/analytics/Analytics"
+import {SessionShareHost} from "@/features/chat/SessionShareHost"
+import {isEmbedPath} from "@/features/embed/embedRoute"
 import {ensureAuthInit, tryRefreshSession} from "@/lib/auth"
 import {getApiUrl} from "@/lib/env"
 import {queryClient} from "@/lib/queryClient"
@@ -24,7 +26,8 @@ configureAgentaSdk({host: getApiUrl()})
 // Install the SuperTokens fetch interceptor before any API call — it is what
 // transparently refreshes an expired access token on 401 (desktop parity);
 // without it only fetchProjects' explicit retry path could heal a 401.
-ensureAuthInit()
+// Not on the embed widget: it has no login, and its 401s must not refresh a session.
+if (typeof window === "undefined" || !isEmbedPath(window.location.pathname)) ensureAuthInit()
 
 const HydrateAtoms = ({children}: PropsWithChildren) => {
     useHydrateAtoms([[queryClientAtom, queryClient]])
@@ -47,6 +50,8 @@ export const AppProviders = ({children}: PropsWithChildren) => (
                     until something dispatches, so nothing renders differently today. */}
                 <EntityModalsProvider>{children}</EntityModalsProvider>
                 <PostAuthLoader />
+                {/* The chat Share dialog: the tab strip and every session row menu open it. */}
+                <SessionShareHost />
             </HydrateAtoms>
         </Provider>
     </QueryClientProvider>

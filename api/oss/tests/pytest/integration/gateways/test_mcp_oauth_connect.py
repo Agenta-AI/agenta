@@ -12,6 +12,8 @@ from urllib.parse import parse_qs, urlparse
 from uuid import uuid4
 
 import pytest
+
+from oss.tests.pytest.utils.principals import HumanCheckFromWrapper
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -133,6 +135,10 @@ def test_dashboard_connect_callback_and_scope_step_up_share_one_grant_handle(
         return True
 
     monkeypatch.setattr(router_module, "check_action_access", _allow)
+    # The callback checks the attempt's user with `check_human`.
+    monkeypatch.setattr(
+        router_module, "get_access_service", lambda: HumanCheckFromWrapper(_allow)
+    )
 
     # The callback is exempt from the auth middleware and resolves its own principal,
     # so the browser's session stands in here. It is the user that pressed connect —

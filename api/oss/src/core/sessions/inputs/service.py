@@ -5,6 +5,7 @@ import json
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 from uuid import UUID
 
+from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.sessions.inputs.dtos import (
     PendingInput,
     PendingInputAdmission,
@@ -177,6 +178,7 @@ class SessionInputsService:
         content: Dict[str, Any],
         policy: str,
         idempotency_key: Optional[str],
+        envelope: RunEnvelope,
     ) -> PendingInputAdmission:
         fingerprint = input_fingerprint(content=content, policy=policy)
         if idempotency_key:
@@ -307,6 +309,7 @@ class SessionInputsService:
                         policy=policy,
                         idempotency_key=idempotency_key,
                         request_fingerprint=fingerprint,
+                        run_envelope=envelope,
                     ),
                     prioritize=policy == "steer",
                     transaction=transaction,
@@ -323,6 +326,7 @@ class SessionInputsService:
                 content=content,
                 policy=policy,
                 idempotency_key=idempotency_key,
+                envelope=envelope,
             )
         return PendingInputAdmission(
             action="pending",
@@ -372,6 +376,7 @@ class SessionInputsService:
         execution_id: str,
         content: Dict[str, Any],
         idempotency_key: str,
+        envelope: RunEnvelope,
     ) -> PendingInput:
         """Create and promote one exact input without exposing it to the queue."""
         fingerprint = input_fingerprint(content=content, policy="queue")
@@ -385,6 +390,7 @@ class SessionInputsService:
                     policy="queue",
                     idempotency_key=idempotency_key,
                     request_fingerprint=fingerprint,
+                    run_envelope=envelope,
                 ),
                 transaction=transaction,
             )

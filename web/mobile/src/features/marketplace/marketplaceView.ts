@@ -74,6 +74,13 @@ export const howStepKicker = (step: HowStep): string =>
               .filter(Boolean)
               .join(" · ")
 
+/** A step's sentence. Catalog roles mostly omit the closing period; some already end in one. */
+export const howStepText = (step: HowStep): string => {
+    if (step.kind === "trigger") return step.text
+    const role = step.role.trim()
+    return /[.!?]$/.test(role) ? role : `${role}.`
+}
+
 export interface TemplateToolRow {
     name: string
     description: string

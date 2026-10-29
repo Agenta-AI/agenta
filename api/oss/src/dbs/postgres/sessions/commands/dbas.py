@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String, TIMESTAMP
+from sqlalchemy.dialects.postgresql import JSONB
 
 from oss.src.dbs.postgres.shared.dbas import (
     DataDBA,
@@ -50,3 +51,6 @@ class SessionCommandDBA(
     outcome = Column(String, nullable=True)
     idempotency_key = Column(String, nullable=True)
     settled_at = Column(TIMESTAMP(timezone=True), nullable=True)
+
+    # The run envelope of a continue_input / continue_interaction command (M2).
+    run_envelope = Column(JSONB(none_as_null=True), nullable=True)

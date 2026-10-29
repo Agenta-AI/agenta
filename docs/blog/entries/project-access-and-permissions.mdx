@@ -1,0 +1,62 @@
+---
+title: "Project access, permissions and runs that act as their creator"
+slug: project-access-and-permissions
+date: 2026-10-25
+tags: [v0.124.0]
+description: "Project membership is resolved in one place, project actions follow roles, API keys act only in their own project, and removing access takes effect at the next request."
+---
+
+<Summary>
+
+Agenta now decides project access in one place. Creating, renaming and deleting a project follows organization roles. An API key acts only in its own project for management actions. When you remove a member or delete a key, the change takes effect at the next request.
+
+Automations, evaluations and approvals run as the user or key that created them. If that identity loses access, the run stops and tells you why. 
+
+</Summary>
+
+{/* truncate */}
+
+## Projects and members
+
+- Creating or renaming a project needs the owner or admin role. Deleting a project needs the owner role. Other members get a `403` with a message that points them to the organization owner. Organizations on a plan without RBAC keep today's behavior, and every member can do these actions.
+- A new project adds every organization member with their organization role.
+- On an ownership transfer, the two users swap their organization, workspace and project roles. The owner role moves only through a transfer. Changing a role or removing a member never grants, changes or removes an owner.
+- Demo projects are removed. New sign-ups no longer join one, and `GET /projects` no longer returns `is_demo`.
+- In an organization with more than one workspace, the workspace no longer limits project access. Some members now see projects from the other workspaces.
+- In the open source edition, every organization member is a member of every project with their organization role.
+
+Read more about roles in [Role-Based Access Control](/administration/access-control/rbac).
+
+## API keys
+
+An API key now acts only in its own project.
+
+- `PATCH` and `DELETE /projects/{id}` with a key from another project return `403`. Before, the key used its creator's role in that project.
+- Workspace and organization management with an API key (invite, role change, member removal, workspace update) needs a key from the workspace's default project.
+- A deleted key stops working within about five seconds.
+
+Browser sessions do not change.
+
+## Removal takes effect at the next request
+
+When you remove a member, change a role or delete a key, the API refuses the next request. A run that started just before the change ends at its first checked call with `403 access_denied`. A removed member who calls an agent gets this error instead of a generic failure.
+
+## Automations, evaluations and approvals
+
+- Schedules and subscriptions run as the user or key that created them. When that identity can no longer run them, the automation pauses. The Automations list shows **Paused**, and the delivery says why and what to do (set it up again under an active user or API key).
+- Schedules and subscriptions with no creator are paused by the upgrade.
+- Archiving an agent pauses its schedules and subscriptions. Unarchiving does not resume them.
+- An evaluation runs as the person or key that started it. A rerun by someone else runs as that person. If that identity loses access, the run fails, and a live evaluation closes with the reason in `meta.closed_reason`.
+- An approval keeps the identity of the run that asked for it, and Agenta records who approved.
+
+## One-time effects of the upgrade
+
+- Messages that were queued and approvals that were waiting during the upgrade are cancelled once. Send the message or answer the approval again.
+- Runs that started before the upgrade fail once.
+
+## Fixes
+
+- Cache locks now expire after their time to live in seconds.
+- Creating a workspace finds the caller by user id.
+- The membership repair migration stays fast on large databases.
+- Mounts store their storage prefix. Files, attachments and agent mounts keep the same keys.

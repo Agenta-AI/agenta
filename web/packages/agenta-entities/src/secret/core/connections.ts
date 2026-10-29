@@ -38,6 +38,7 @@ import {
     type CreateSecretDto,
     type ProviderVaultRow,
     type SecretManagementPolicy,
+    type SecretOwnerScope,
 } from "./types"
 
 // ---------------------------------------------------------------------------
@@ -80,13 +81,46 @@ export interface ProviderConnection {
      * absence is what tells every other surface this is an ordinary key connection.
      */
     subscription?: SubscriptionLoginFacts
+    /**
+     * Whose connection this is. `organization` is an organization connection: an agent names it
+     * by scope and slug, and only an organization owner or admin may change it. Absent is the
+     * project's own connection.
+     */
+    scope?: SecretOwnerScope
+    /** An organization connection read by its admin: who may use it. */
+    availability?: "all_projects" | "selected_projects"
+    /** An organization connection limited to selected projects: their ids. */
+    selectedProjectIds?: string[]
     /** The row this was derived from — the mutations round-trip it. */
     source: LlmProvider
 }
 
+/** Whether a connection belongs to the organization rather than to the project. */
+export const isOrganizationConnection = (connection: ProviderConnection): boolean =>
+    connection.scope === "organization"
+
+/** The owner facts a connection carries over from its row. */
+const ownerFacts = (row: ProviderVaultRow) =>
+    row.ownerKind === "organization"
+        ? {
+              scope: "organization" as const,
+              ...(row.availability ? {availability: row.availability} : {}),
+              ...(row.selectedProjectIds ? {selectedProjectIds: row.selectedProjectIds} : {}),
+          }
+        : {}
+
 /** Whether a connection is a hosted subscription rather than a stored key. */
 export const isSubscriptionConnection = (connection: ProviderConnection): boolean =>
     !!connection.subscription
+
+/**
+ * The provider families (`openai`, `anthropic`) the project holds a hosted subscription for, in
+ * any login state. A mounted subscription of one of these families needs its long name.
+ */
+export const hostedSubscriptionFamilies = (
+    connections: readonly ProviderConnection[],
+): Set<string> =>
+    new Set(connections.filter(isSubscriptionConnection).map((connection) => connection.kind))
 
 /**
  * The MCP plane keeps its project credentials in the same vault, under the same `provider_key`
@@ -128,6 +162,7 @@ export const toProviderConnections = (rows: ProviderVaultRow[]): ProviderConnect
                 hasStoredCredential: row.subscription.loginState !== "pending_login",
                 managementPolicy: row.managementPolicy as SecretManagementPolicy | undefined,
                 subscription: row.subscription,
+                ...ownerFacts(row),
                 source: row,
             })
             return acc
@@ -167,6 +202,7 @@ export const toProviderConnections = (rows: ProviderVaultRow[]): ProviderConnect
                 row.hasKey ?? SECRET_VALUE_FIELDS.some((field) => !!(row[field] ?? "").trim()),
             keyPreview: row.keyPreview,
             managementPolicy: row.managementPolicy as SecretManagementPolicy | undefined,
+            ...ownerFacts(row),
             source: row,
         })
         return acc
@@ -285,7 +321,7 @@ export const probeRequestFor = (
 }
 
 /** The HTTP status of a failed request, when it carried one. */
-const statusOf = (error: unknown): number | null => {
+export const httpStatusOf = (error: unknown): number | null => {
     const statusCode = (error as {statusCode?: unknown})?.statusCode
     if (typeof statusCode === "number") return statusCode
 
@@ -311,7 +347,7 @@ const bodyOf = (error: unknown): unknown => {
  */
 // TODO(copy: owner)
 export const probeFailureMessage = (error: unknown, title: string): string => {
-    const status = statusOf(error)
+    const status = httpStatusOf(error)
     if (status === 404) return "This connection no longer exists. Reload and try again."
     if (status && status >= 400 && status < 500) {
         const message = extractApiErrorMessage(bodyOf(error) ?? error)

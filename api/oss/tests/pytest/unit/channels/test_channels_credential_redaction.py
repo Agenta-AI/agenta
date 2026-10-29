@@ -28,6 +28,16 @@ def test_inbox_sender_redacts_a_credential_field_name():
     assert processed.sender["id"] == "U1"
 
 
+def test_inbox_context_redacts_a_credential_field_name():
+    processed = ChannelInboxEventProcessed(
+        content=[{"type": "text", "text": "hi"}],
+        sender={"id": "U1"},
+        context={"page": "/a", "bot_token": "x"},
+    )
+
+    assert processed.context == {"page": "/a", "bot_token": "[REDACTED]"}
+
+
 def test_outbox_processed_redacts_a_credential_field_name_at_any_depth():
     data = ChannelOutboxEventData(
         processed={"headers": {"webhook_secret": "leak"}, "body": "ok"}

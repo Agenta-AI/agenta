@@ -1140,7 +1140,6 @@ failureThreshold: 3
 {{- $aiServices := default dict $agenta.aiServices -}}
 {{- $agentaApi := default dict $agenta.api -}}
 {{- $apiCaching := default dict $agentaApi.caching -}}
-{{- $extras := default dict $agenta.extras -}}
 {{- $logging := default dict $agenta.logging -}}
 {{- $otlp := default dict $agenta.otlp -}}
 {{- $agentaServices := default dict $agenta.services -}}
@@ -1336,6 +1335,18 @@ failureThreshold: 3
 - name: AGENTA_ACCESS_BLOCKED_EMAILS
   value: {{ $access.blockedEmails | quote }}
 {{- end }}
+{{- if $access.maxOwnedOrganizations }}
+- name: AGENTA_ACCESS_MAX_OWNED_ORGANIZATIONS
+  value: {{ $access.maxOwnedOrganizations | quote }}
+{{- end }}
+{{- if $access.trustedProxyHops }}
+- name: AGENTA_ACCESS_TRUSTED_PROXY_HOPS
+  value: {{ $access.trustedProxyHops | quote }}
+{{- end }}
+{{- if $access.trustCloudflareIp }}
+- name: AGENTA_ACCESS_TRUST_CLOUDFLARE_IP
+  value: {{ $access.trustCloudflareIp | quote }}
+{{- end }}
 {{- if $access.allowedOwnerEmails }}
 - name: AGENTA_ACCESS_ALLOWED_OWNER_EMAILS
   value: {{ $access.allowedOwnerEmails | quote }}
@@ -1500,13 +1511,6 @@ failureThreshold: 3
 {{- if hasKey $svcMiddleware "cachingEnabled" }}
 - name: AGENTA_SERVICES_MIDDLEWARE_CACHING_ENABLED
   value: {{ $svcMiddleware.cachingEnabled | quote }}
-{{- end }}
-{{- /* agenta.extras.demos — EE reads AGENTA_DEMOS for demo workspace seeding */}}
-{{- if $extras.demos }}
-- name: AGENTA_DEMOS
-  value: {{ $extras.demos | quote }}
-- name: AGENTA_EXTRAS_DEMOS
-  value: {{ $extras.demos | quote }}
 {{- end }}
 {{- /* crisp — surfaced as NEXT_PUBLIC_CRISP_WEBSITE_ID to the web container */}}
 {{- if $crisp.websiteId }}

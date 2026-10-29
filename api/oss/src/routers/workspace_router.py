@@ -1,4 +1,5 @@
-from typing import List, Dict
+from typing import List, Dict, Optional
+from uuid import UUID
 
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -10,14 +11,17 @@ from oss.src.models.api.workspace_models import Workspace, UserRole
 
 from oss.src.core.access.permissions.service import (
     check_action_access,
-    check_rbac_permission,
+    check_organization_write,
 )
-from oss.src.core.access.permissions.types import Permission, RequiredRole
+from oss.src.core.access.permissions.types import (
+    DefaultRole,
+    Permission,
+    RequiredRole,
+)
+from oss.src.core.memberships.service import get_memberships_service
+from oss.src.core.memberships.types import MemberNotFound, OrganizationOwnerProtected
 from oss.src.core.access.controls import get_role, get_roles
-from oss.src.services.db_manager import (
-    get_user_org_and_workspace_id,
-    get_project_by_workspace,
-)
+from oss.src.services.db_manager import get_project_by_workspace
 
 if is_ee():
     from ee.src.core.access.entitlements.service import (
@@ -30,6 +34,63 @@ if is_ee():
 router = APIRouter()
 
 log = get_module_logger(__name__)
+
+_PERMISSION_DENIED = (
+    "You do not have permission to perform this action. "
+    "Please contact your Organization Owner"
+)
+
+
+def _owner_protected() -> HTTPException:
+    # Today's owner-protection body shape, which the classic /w app reads.
+    return HTTPException(status_code=403, detail={"message": _PERMISSION_DENIED})
+
+
+async def _organization_write(request: Request, project) -> bool:
+    # Role changes and removals change the member across the whole organization, so
+    # an API key or a run credential must also be of the organization's default
+    # project, not only of this workspace's.
+    return await check_organization_write(
+        user_uid=request.state.user_id,
+        organization_id=str(project.organization_id),
+        permission=Permission.MODIFY_USER_ROLES,
+    )
+
+
+def _actor(request: Request) -> Optional[UUID]:
+    user_id = getattr(request.state, "user_id", None)
+    return UUID(str(user_id)) if user_id else None
+
+
+async def _set_member_role(
+    *,
+    organization_id,
+    user_id,
+    role: str,
+    actor_user_id,
+) -> None:
+    # Ownership moves only through the transfer endpoint. As before M1, this endpoint
+    # neither grants `owner` nor changes a member who holds it (the owner role passes
+    # every check, including deleting the workspace).
+    if role == "owner":
+        raise _owner_protected()
+    member = await get_memberships_service().fetch_organization_member(
+        organization_id=UUID(str(organization_id)), user_id=UUID(str(user_id))
+    )
+    if member is not None and member.role == "owner":
+        raise _owner_protected()
+    try:
+        await get_memberships_service().set_member_role(
+            organization_id=UUID(str(organization_id)),
+            user_id=UUID(str(user_id)),
+            role=role,
+            must_exist=True,
+            actor_user_id=UUID(str(actor_user_id)) if actor_user_id else None,
+        )
+    except OrganizationOwnerProtected as exc:
+        raise _owner_protected() from exc
+    except MemberNotFound as exc:
+        raise HTTPException(status_code=404, detail="User not found.") from exc
 
 
 @router.get("/", operation_id="get_workspace", response_model=List[Workspace])
@@ -46,7 +107,9 @@ async def get_workspace(request: Request):
         HTTPException: If the user does not have permission to perform this action.
     """
 
-    workspaces_db = await db_manager.get_user_workspaces(request.state.user_id)
+    workspaces_db = await db_manager.fetch_user_workspace_items(
+        user_id=request.state.user_id
+    )
     return [
         Workspace(
             id=str(workspace_db.id),
@@ -133,7 +196,7 @@ async def assign_role_to_user(
             user_uid=request.state.user_id,
             project_id=str(project.id),
             permission=Permission.MODIFY_USER_ROLES,
-        )
+        ) and await _organization_write(request, project)
         if not has_permission:
             return JSONResponse(
                 status_code=403,
@@ -147,7 +210,17 @@ async def assign_role_to_user(
                 status_code=400, content={"detail": "Workspace role is invalid."}
             )
 
-        return await db_manager.update_user_roles(workspace_id, payload)
+        user = await db_manager.get_user_with_email(payload.email)
+        if user is None:
+            raise HTTPException(status_code=404, detail="User not found.")
+
+        await _set_member_role(
+            organization_id=project.organization_id,
+            user_id=user.id,
+            role=payload.role,
+            actor_user_id=request.state.user_id,
+        )
+        return True
     except HTTPException as ex:
         raise ex
     except Exception:
@@ -187,7 +260,7 @@ async def unassign_role_from_user(
             user_uid=request.state.user_id,
             project_id=str(project.id),
             permission=Permission.MODIFY_USER_ROLES,
-        )
+        ) and await _organization_write(request, project)
         if not has_permission:
             return JSONResponse(
                 status_code=403,
@@ -201,13 +274,27 @@ async def unassign_role_from_user(
                 status_code=400, content={"detail": "Workspace role is invalid."}
             )
 
-        payload = UserRole(
-            email=email,
-            organization_id=organization_id,
-            role=role,
-        )
+        user = await db_manager.get_user_with_email(email)
+        if user is None:
+            raise HTTPException(status_code=404, detail="User not found.")
 
-        return await db_manager.update_user_roles(workspace_id, payload, delete=True)
+        member = await get_memberships_service().fetch_organization_member(
+            organization_id=project.organization_id,
+            user_id=user.id,
+        )
+        if member is None:
+            raise HTTPException(status_code=404, detail="User not found.")
+
+        # Removing the active role reverts the member to the default floor role;
+        # removing any other role changes nothing.
+        if member.role == role:
+            await _set_member_role(
+                organization_id=project.organization_id,
+                user_id=user.id,
+                role=DefaultRole.VIEWER.value,
+                actor_user_id=request.state.user_id,
+            )
+        return True
     except HTTPException as ex:
         raise ex
     except Exception:
@@ -232,13 +319,12 @@ async def remove_user_from_workspace(
         workspace_id (str): The ID of the workspace.
     """
 
-    user_org_workspace_data = await get_user_org_and_workspace_id(request.state.user_id)
     project = await get_project_by_workspace(workspace_id)
-    has_permission = await check_rbac_permission(
-        user_org_workspace_data=user_org_workspace_data,
+    has_permission = await check_action_access(
+        user_uid=request.state.user_id,
         project_id=str(project.id),
         role=RequiredRole.ADMIN,
-    )
+    ) and await _organization_write(request, project)
     if not has_permission:
         return JSONResponse(
             status_code=403,
@@ -246,6 +332,17 @@ async def remove_user_from_workspace(
                 "detail": "You do not have permission to perform this action. Please contact your Organization Owner"
             },
         )
+
+    # An owner-role member is not removed here (as before M1), and the refusal
+    # comes before the EE user gauge moves.
+    target = await db_manager.get_user_with_email(email)
+    if target is not None:
+        member = await get_memberships_service().fetch_organization_member(
+            organization_id=UUID(str(project.organization_id)),
+            user_id=UUID(str(target.id)),
+        )
+        if member is not None and member.role == "owner":
+            raise _owner_protected()
 
     if is_ee():
         # Decrement the user gauge in the *target* workspace's owning org
@@ -264,7 +361,13 @@ async def remove_user_from_workspace(
                 scope=scope_from(organization_id=project.organization_id),  # type: ignore
             )
 
-    return await db_manager.remove_user_from_workspace(
-        workspace_id=workspace_id,
-        email=email,
-    )
+    try:
+        await get_memberships_service().remove_member(
+            organization_id=project.organization_id,
+            email=email,
+            actor_user_id=_actor(request),
+        )
+    except OrganizationOwnerProtected as exc:
+        raise _owner_protected() from exc
+
+    return True

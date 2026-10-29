@@ -1032,7 +1032,11 @@ class PromptTemplate(AgSchemaMixin):
             kwargs["chat_template_kwargs"] = llm_config.chat_template_kwargs
 
         if llm_config.response_format:
-            kwargs["response_format"] = llm_config.response_format.dict(by_alias=True)
+            # Drop unset optional fields. Some providers (OpenRouter) ignore a
+            # json_schema response_format that carries "description": null.
+            kwargs["response_format"] = llm_config.response_format.model_dump(
+                by_alias=True, exclude_none=True
+            )
 
         if llm_config.tools:
             kwargs["tools"] = llm_config.tools
@@ -1194,12 +1198,24 @@ class _ConnectionSchema(BaseModel):
         title="Slug",
         description="The named vault connection (agenta mode only); omit for the project default.",
     )
-    namespace: Optional[Literal["standard", "custom", "builtin"]] = Field(
+    namespace: Optional[Literal["standard", "custom", "builtin", "organization"]] = (
+        Field(
+            default=None,
+            title="Namespace",
+            description=(
+                "The gateway namespace the slug was picked from (agenta mode with a slug only); "
+                "omit to let the gateway infer it. An organization connection uses "
+                "'organization'."
+            ),
+        )
+    )
+    scope: Optional[Literal["project", "organization"]] = Field(
         default=None,
-        title="Namespace",
+        title="Scope",
         description=(
-            "The gateway namespace the slug was picked from (agenta mode with a slug only); "
-            "omit to let the gateway infer it."
+            "Whose connection the slug names: the project's (the default) or the "
+            "organization's. An organization connection needs a slug and namespace "
+            "'organization'."
         ),
     )
 

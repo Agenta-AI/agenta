@@ -766,3 +766,61 @@ describe("two turns append cleanly (no RMW race)", () => {
     assert.equal(posts[1]["agent_session_id"], "agent-b");
   });
 });
+
+describe("turn ledger writes carry the runner token", () => {
+  async function headersFor(base: string): Promise<Headers[]> {
+    const seen: Headers[] = [];
+    const deps = {
+      apiBase: base,
+      authorization: "Secret caller",
+      fetchImpl: (async (_url: string, init?: RequestInit) => {
+        seen.push(new Headers(init?.headers));
+        return okResponse({ turn: {} });
+      }) as unknown as typeof fetch,
+      log: SILENT,
+    };
+    await appendSessionTurn(
+      "sess-1",
+      "claude",
+      0,
+      { streamId: "stream-1", sandboxId: "daytona/sbx-1", agentSessionId: "agent-1" },
+      deps,
+    );
+    await completeSessionTurn(
+      "sess-1",
+      0,
+      { agentSessionId: "agent-1", endTime: "2026-10-24T00:00:00Z" },
+      deps,
+    );
+    return seen;
+  }
+
+  it("sends the token to the trusted API base on append and complete", async () => {
+    vi.stubEnv("AGENTA_API_INTERNAL_URL", "http://api:8000");
+    vi.stubEnv("AGENTA_RUNNER_TOKEN", "runner-token");
+    try {
+      const seen = await headersFor("http://api:8000");
+      assert.equal(seen.length, 2);
+      for (const headers of seen) {
+        assert.equal(headers.get("x-agenta-runner-token"), "runner-token");
+        assert.equal(headers.get("authorization"), "Secret caller");
+      }
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("never sends the token to another base", async () => {
+    vi.stubEnv("AGENTA_API_INTERNAL_URL", "http://api:8000");
+    vi.stubEnv("AGENTA_RUNNER_TOKEN", "runner-token");
+    try {
+      const seen = await headersFor("https://elsewhere.test/api");
+      assert.equal(seen.length, 2);
+      for (const headers of seen) {
+        assert.equal(headers.get("x-agenta-runner-token"), null);
+      }
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+});

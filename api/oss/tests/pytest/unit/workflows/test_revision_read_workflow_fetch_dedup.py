@@ -24,6 +24,7 @@ from uuid import uuid4
 
 import pytest
 
+from oss.src.core.sharing.dtos import AgentReadScope
 from oss.src.core.git.dtos import Artifact, Revision
 from oss.src.core.workflows.service import WorkflowsService
 
@@ -55,7 +56,9 @@ async def test_query_workflow_revisions_fetches_workflow_once_per_distinct_id():
 
     service = WorkflowsService(workflows_dao=workflows_dao)
 
-    result = await service.query_workflow_revisions(project_id=project_id)
+    result = await service.query_workflow_revisions(
+        project_id=project_id, read_scope=AgentReadScope(owner_user_id=None)
+    )
 
     assert len(result) == 4
     # 4 revisions, 1 distinct workflow_id -> exactly one DB fetch, not four.
@@ -83,7 +86,9 @@ async def test_query_workflow_revisions_dedups_across_distinct_workflow_ids():
 
     service = WorkflowsService(workflows_dao=workflows_dao)
 
-    result = await service.query_workflow_revisions(project_id=project_id)
+    result = await service.query_workflow_revisions(
+        project_id=project_id, read_scope=AgentReadScope(owner_user_id=None)
+    )
 
     assert len(result) == 3
     # 3 revisions, 2 distinct workflow_ids -> exactly two DB fetches, not three.

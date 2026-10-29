@@ -114,6 +114,24 @@ helm upgrade agenta <chart> -f values.yaml \
 kubectl logs -f job/agenta-alembic
 ```
 
+### Membership after the switch
+
+OSS decides project membership from the organization row: every organization member is
+a member of every project, with the organization role. EE reads `project_members` rows.
+After `ee0000000002`, and before traffic reaches EE, materialize the OSS membership as
+rows (it also corrects stale project roles to the organization role):
+
+```bash
+cd api
+AGENTA_LICENSE=ee uv run --no-sync python -m entrypoints.memberships_check --materialize
+```
+
+A second run reports `inserted=0 updated=0`. It needs the unique index from
+`oss000000045` and exits 1 without it.
+
+EE to OSS needs no script: access expands to every project of each organization, with
+the organization role.
+
 ## Enforcement
 
 CI replays three flows from scratch and diffs schema dumps (the dump script in

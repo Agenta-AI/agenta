@@ -10,5 +10,17 @@ export {
     registerQuoteSubmit,
     removeQuote,
     restoreQuotes,
+    updateQuote,
     useStagedQuotes,
 } from "./store"
+export {
+    frameRectToRoot,
+    PreviewCommentLayer,
+    toPinQueries,
+    usePreviewComments,
+    type PreviewCommentLayerProps,
+    type PreviewCommentTarget,
+    type PreviewPick,
+    type PreviewPinRect,
+    type PreviewRect,
+} from "./PreviewCommentLayer"

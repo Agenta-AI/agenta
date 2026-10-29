@@ -17,6 +17,7 @@ from uuid import uuid4
 
 import pytest
 
+from oss.src.core.sharing.dtos import AgentReadScope
 from oss.src.core.embeds.exceptions import NonEmbeddableWorkflowReferenceError
 from oss.src.core.embeds.service import EmbedsService
 from oss.src.core.shared.dtos import Reference
@@ -914,6 +915,7 @@ async def test_query_does_not_filter_on_is_static():
 
     await service.query_workflows(
         project_id=uuid4(),
+        read_scope=AgentReadScope(owner_user_id=None),
         workflow_query=WorkflowQuery(
             flags=WorkflowArtifactQueryFlags(is_application=True),
         ),

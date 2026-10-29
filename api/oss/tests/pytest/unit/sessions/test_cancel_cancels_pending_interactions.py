@@ -21,6 +21,7 @@ from oss.src.core.sessions.streams.dtos import (
     SessionStreamCommandRequest,
     SessionStreamCommandResponse,
 )
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 _SESSION = "session_stop-gates"
@@ -77,7 +78,11 @@ async def _post(
     interactions = AsyncMock()
     interactions.cancel_session_pending.side_effect = cleanup_error
     interactions.cancel_session_pending.return_value = 1
-    router = SessionStreamsRouter(service=service, interactions_service=interactions)
+    router = SessionStreamsRouter(
+        service=service,
+        interactions_service=interactions,
+        run_admission=NoopRunAdmission(),
+    )
 
     project_id = uuid4()
     user_id = uuid4()

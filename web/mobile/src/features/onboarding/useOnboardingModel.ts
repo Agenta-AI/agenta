@@ -1,10 +1,12 @@
-import {useCallback, useEffect, useMemo, useRef, useState} from "react"
+import {useCallback, useEffect, useMemo, useRef} from "react"
 
 import {
     agentModelSelectionIsRunnable,
     firstAgentModelForConnection,
     providerConnectionsAtom,
     resolveAgentModelSelection,
+    isOrganizationConnection,
+    subscriptionConnectionFor,
     useVaultSecret,
     type AgentModelCandidate,
     type AgentModelSelection,
@@ -18,16 +20,17 @@ import {
     withHarnessKind,
     withModel,
 } from "@agenta/entity-ui/drill-in"
-import {message} from "@agenta/ui/app-message"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {useWalletSummary} from "../wallet/useWalletSummary"
 
 import {draftConfigurationAtom} from "./onboardingConfig"
 import {ONBOARDING_COPY} from "./onboardingCopy"
-
-/** Picks the candidate a pending switch is waiting for, once the candidate list has it. */
-type PendingSwitch = (candidates: readonly AgentModelCandidate[]) => AgentModelCandidate | undefined
+import {
+    useOnboardingSubscription,
+    type OnboardingSubscription,
+    type PendingSwitch,
+} from "./useOnboardingSubscription"
 
 /** The Vault slug of the budget-capped connection a new organization is seeded with. */
 const STARTER_CREDITS_SLUG = "starter-credits"
@@ -44,14 +47,8 @@ export interface OnboardingModel {
         /** Spendable wallet balance in micro-dollars; `null` where the wallet reports none. */
         balanceMusd: number | null
     } | null
-    chatgpt: {
-        available: boolean
-        connection: ProviderConnection | null
-        ready: boolean
-        inUse: boolean
-        dialogOpen: boolean
-        setDialogOpen: (open: boolean) => void
-    }
+    chatgpt: OnboardingSubscription
+    claude: OnboardingSubscription
     keys: {
         connections: ProviderConnection[]
         inUse: boolean
@@ -93,8 +90,6 @@ export const useOnboardingModel = (entityId: string | null, projectId: string): 
             (Boolean(creditsId) && item?.connectionKey === creditsId),
         [creditsId],
     )
-    const chatgptConnection = candidates.connections.find((item) => item.subscription) ?? null
-    const chatgptReady = chatgptConnection?.subscription?.loginState === "ready"
 
     // Latest config: a switch can land renders after the event that armed it.
     const configurationRef = useRef(configuration)
@@ -137,22 +132,28 @@ export const useOnboardingModel = (entityId: string | null, projectId: string): 
         select(pick)
     }, [candidates.candidates, select])
 
-    const [chatgptDialogOpen, setChatgptDialogOpen] = useState(false)
-    const dialogOpenRef = useRef(chatgptDialogOpen)
-    dialogOpenRef.current = chatgptDialogOpen
-    // Baseline taken once the candidates answer, so a sign-in that already existed never switches.
-    const wasChatgptReady = useRef<boolean | null>(null)
-    useEffect(() => {
-        if (candidates.status !== "ready") return
-        const was = wasChatgptReady.current
-        wasChatgptReady.current = chatgptReady
-        if (was === null || !chatgptReady || was) return
-        arm((list) => list.find((item) => item.harness === "codex"))
-        if (dialogOpenRef.current) {
-            setChatgptDialogOpen(false)
-            message.success(ONBOARDING_COPY.model.chatgptConnected)
-        }
-    }, [candidates.status, chatgptReady, arm])
+    // The project's own connections: onboarding signs in and saves keys for the project only.
+    const projectConnections = candidates.connections.filter(
+        (item) => !isOrganizationConnection(item),
+    )
+    const chatgptConnection = subscriptionConnectionFor(projectConnections, "chatgpt")
+    const chatgpt = useOnboardingSubscription({
+        connection: chatgptConnection,
+        available: Boolean(chatgptConnection || candidates.capabilities?.codex),
+        status: candidates.status,
+        selected,
+        arm,
+        connectedMessage: ONBOARDING_COPY.model.chatgptConnected,
+    })
+    const claudeConnection = subscriptionConnectionFor(projectConnections, "claude")
+    const claude = useOnboardingSubscription({
+        connection: claudeConnection,
+        available: Boolean(claudeConnection || candidates.capabilities?.claude),
+        status: candidates.status,
+        selected,
+        arm,
+        connectedMessage: ONBOARDING_COPY.model.claudeConnected,
+    })
 
     // A save lands before the vault refetch does, so it arms a switch the new list fires.
     const onSaved = useCallback(
@@ -164,7 +165,7 @@ export const useOnboardingModel = (entityId: string | null, projectId: string): 
         [arm, refreshVault],
     )
 
-    const keyConnections = candidates.connections.filter((item) => !item.subscription)
+    const keyConnections = projectConnections.filter((item) => !item.subscription)
     const walletBalance =
         wallet?.mode === "enforce" && wallet.spendable_musd !== null
             ? Math.max(0, wallet.spendable_musd)
@@ -179,16 +180,8 @@ export const useOnboardingModel = (entityId: string | null, projectId: string): 
         credits: hasCredits
             ? {inUse: isCredits(selected), runnable: creditsRunnable, balanceMusd: walletBalance}
             : null,
-        chatgpt: {
-            available: Boolean(chatgptConnection || candidates.capabilities?.codex),
-            connection: chatgptConnection,
-            ready: chatgptReady,
-            inUse:
-                selected?.source === "subscription" ||
-                (Boolean(chatgptConnection) && selected?.connectionKey === chatgptConnection?.id),
-            dialogOpen: chatgptDialogOpen,
-            setDialogOpen: setChatgptDialogOpen,
-        },
+        chatgpt,
+        claude,
         keys: {
             connections: keyConnections,
             inUse: keyConnections.some(

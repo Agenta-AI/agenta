@@ -70,6 +70,9 @@ const REFRESH_SECONDS = 30;
 export const VIEW_REFRESH_FAILED_MESSAGE =
   "The agent's files could not be refreshed in the command sandbox for this turn, so this call did not run (it could have seen an old version of a file). Try it again.";
 
+/** The signer of a parked workspace: no environment holds it, so nothing may sign for it. */
+const noTranscriptCredentials = async (): Promise<MountCredentials | null> => null;
+
 export class ConversationWorkspace {
   private readonly changes = new SerialQueue();
   private readonly preparation = new Map<number, PreparationState>();
@@ -80,6 +83,8 @@ export class ConversationWorkspace {
   private viewTurn = 0;
   /** The refresh in progress, for the turn it serves: concurrent tool calls share it. */
   private viewRefresh: { turn: number; done: Promise<void> } | undefined;
+  /** Holds and parks so far: a park's barrier removes the signer only when nothing came after it. */
+  private generation = 0;
 
   constructor(
     readonly sandbox: CommandSandbox,
@@ -90,6 +95,30 @@ export class ConversationWorkspace {
     public signTranscriptMount: () => Promise<MountCredentials | null>,
     private readonly log: Log,
   ) {}
+
+  /**
+   * No environment holds this workspace any more (it is parked). The transcript signer and the
+   * drive's credential functions are the last environment's closures, and they keep that run's
+   * whole scope on the heap (its request, plan and environment) for as long as the conversation
+   * stays parked. The drive keeps its current credentials instead, and the signer goes once the
+   * transcript saves in flight have ended, unless the workspace was held again meanwhile (that
+   * hold's saves are queued behind this barrier). The next hold sets both again.
+   */
+  detachEnvironment(): void {
+    this.drive.detachCredentials();
+    const park = ++this.generation;
+    void this.transcripts.settled().then(() => {
+      if (this.sandbox.holders === 0 && this.generation === park) this.signTranscriptMount = noTranscriptCredentials;
+    });
+  }
+
+  /**
+   * An environment holds this workspace. An earlier park's barrier then keeps the signer, also when
+   * this hold ends with a delete (no park follows) while its saves wait behind that barrier.
+   */
+  attachEnvironment(): void {
+    this.generation += 1;
+  }
 
   /**
    * Runner work that puts files on the drive (through the store, not a mount) and that every tool

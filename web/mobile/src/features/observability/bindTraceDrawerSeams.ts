@@ -6,6 +6,18 @@ import {
 import type {NextRouter} from "next/router"
 
 /**
+ * Route params from the router, the rest from the address bar: `replaceState` writes skip
+ * `router.query`. Route params win, so `?session_id=B` on `/sessions/A` cannot move the page.
+ */
+export const currentQuery = (router: NextRouter, search: string): NextRouter["query"] => {
+    const routeKeys = [...router.pathname.matchAll(/\[\.{0,3}([^\]]+)\]/g)].map((m) => m[1])
+    return {
+        ...Object.fromEntries(new URLSearchParams(search)),
+        ...Object.fromEntries(routeKeys.map((key) => [key, router.query[key]])),
+    }
+}
+
+/**
  * Points the packaged trace drawer at `/m`'s router.
  *
  * The drawer keeps its open trace in `?trace`/`?span` and links out to evaluators; both are the
@@ -23,14 +35,14 @@ export const bindTraceDrawerSeams = (router: NextRouter) => {
     })
 
     bindTraceDrawerSetQueryParam((name, value) => {
-        const query = {...router.query}
+        const query = currentQuery(router, window.location.search)
         if (value == null) delete query[name]
         else query[name] = value
         void router.push({pathname: router.pathname, query}, undefined, {shallow: true})
     })
 
     bindTraceDrawerClearParams(() => {
-        const query = {...router.query}
+        const query = currentQuery(router, window.location.search)
         delete query.trace
         delete query.span
         void router.push({pathname: router.pathname, query}, undefined, {shallow: true})

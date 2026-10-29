@@ -3,7 +3,6 @@ import asyncio
 import time
 from pathlib import Path
 from urllib.parse import urlsplit
-from uuid import UUID
 
 import agenta as ag
 from fastapi import FastAPI
@@ -14,6 +13,10 @@ from supertokens_python.framework.fastapi import (
     get_middleware as get_supertokens_middleware,
 )
 
+from oss.src.core.sessions.commands.delivery import (
+    deliver_continue_input,
+    deliver_continue_interaction,
+)
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.server_tracing import instrument_fastapi, setup_server_tracing
@@ -24,6 +27,11 @@ from oss.src.utils.helpers import (
 )
 
 # Engines
+from entrypoints.access import bootstrap_access
+from oss.src.core.access.service import get_access_service
+from oss.src.core.sharing.admission import RunAdmission
+from oss.src.core.sharing.service import get_sharing_service
+from oss.src.core.memberships.service import get_memberships_service
 from oss.src.dbs.postgres.shared.engine import (
     get_transactions_engine,
     get_analytics_engine,
@@ -44,6 +52,7 @@ from oss.databases.postgres.migrations.tracing.utils import (
 from oss.src.middlewares.auth import auth_middleware
 from oss.src.middlewares.analytics import analytics_middleware
 from oss.src.middlewares.prefix import ApiPrefixStripMiddleware
+from oss.src.middlewares.supertokens_errors import SuperTokensHTTPExceptionMiddleware
 
 from oss.src.core.auth.supertokens.config import init_supertokens
 
@@ -79,11 +88,14 @@ from oss.src.dbs.postgres.tracing.dao import TracingDAO
 from oss.src.dbs.postgres.events.dao import EventsDAO
 from oss.src.dbs.postgres.blobs.dao import BlobsDAO
 from oss.src.dbs.postgres.git.dao import GitDAO
+from oss.src.dbs.postgres.workflows.dao import WorkflowsDAO
 from oss.src.dbs.postgres.evaluations.dao import EvaluationsDAO
 from oss.src.dbs.postgres.folders.dao import FoldersDAO
 
 # Services
 from oss.src.core.secrets.services import VaultService
+from oss.src.core.secrets.limits import NoProjectLimits
+from oss.src.core.secrets.claude_token import ClaudeTokenClient
 from oss.src.core.secrets.subscription_login import SubscriptionLoginRunnerClient
 from oss.src.core.secrets.subscription_service import SubscriptionLoginService
 from oss.src.core.webhooks.service import WebhooksService
@@ -100,7 +112,6 @@ from oss.src.core.applications.service import SimpleApplicationsService
 from oss.src.core.folders.service import FoldersService
 from oss.src.core.workflows.service import WorkflowsService
 from oss.src.core.workflows.service import SimpleWorkflowsService
-from oss.src.core.workflows.dtos import WorkflowServiceRequest
 from oss.src.core.workflows.static_catalog import StaticWorkflowCatalog
 from oss.src.core.evaluators.service import EvaluatorsService
 from oss.src.core.evaluators.service import SimpleEvaluatorsService
@@ -147,6 +158,7 @@ from oss.src.apis.fastapi.evaluations.router import SimpleEvaluationsRouter
 from oss.src.apis.fastapi.evaluations.router import SimpleQueuesRouter
 from oss.src.apis.fastapi.traces.router import SimpleTracesRouter
 from oss.src.apis.fastapi.sessions.router import SessionsRouter
+from oss.src.apis.fastapi.sharing.router import SharingRouter
 from oss.src.apis.fastapi.annotations.router import AnnotationsRouter
 from oss.src.apis.fastapi.invocations.router import InvocationsRouter
 from oss.src.core.annotations.service import AnnotationsService
@@ -183,6 +195,7 @@ from oss.src.tasks.taskiq.shared.broker import ProducerOnlyRedisStreamBroker
 from oss.src.dbs.postgres.gateways.llms.dao import LLMEndpointsDAO
 from oss.src.dbs.postgres.gateways.mcps.dao import MCPEndpointsDAO
 from oss.src.dbs.postgres.gateways.mcps.oauth_dao import MCPOAuthAttemptsDAO
+from oss.src.core.gateways.policy.dtos import GatewayPlane
 from oss.src.core.gateways.policy.resolution import SecretsResolver
 from oss.src.core.gateways.policy.service import GatewayPolicyService
 from oss.src.core.gateways.llms.registrar import LLMEndpointRegistrar
@@ -301,7 +314,6 @@ from oss.src.routers import (
 from oss.src.apis.fastapi.access.router import AccessRouter
 
 from oss.src.utils.env import env
-from oss.src.core.rollout.switches import prefetch_rollout_flags
 from oss.src.core.evaluations.runtime.broker import (
     build_evaluations_broker,
     build_evaluations_worker,
@@ -372,8 +384,6 @@ async def lifespan(*args, **kwargs):
 
     await _triggers_broker.startup()
     await _channels_inbox_broker.startup()
-
-    prefetch_rollout_flags()
 
     # The store bucket is not lazily created; signed mounts need it to exist. Best-effort
     # so a store outage doesn't block API startup (mounts degrade, the rest runs).
@@ -636,6 +646,8 @@ app.middleware("http")(analytics_middleware)
 app.add_middleware(GZipMiddleware, minimum_size=1000, compresslevel=5)
 
 app.add_middleware(get_supertokens_middleware())
+# Added right after SuperTokens => wraps it, inside CORS, so rejections keep CORS headers.
+app.add_middleware(SuperTokensHTTPExceptionMiddleware)
 
 
 def _cors_origins(web_url: str) -> list[str]:
@@ -684,6 +696,9 @@ app.add_middleware(
         "Content-Type",
         "Idempotency-Key",
         "X-Agenta-App-Scope",
+        # The embed widget's credential. Only the web origin passes CORS, so a
+        # request from another site carrying it still fails the preflight.
+        "X-Agenta-Visitor-Key",
         "If-Match",
         "If-None-Match",
     ]
@@ -741,7 +756,7 @@ queries_dao = GitDAO(
     RevisionDBE=QueryRevisionDBE,
 )
 
-workflows_dao = GitDAO(
+workflows_dao = WorkflowsDAO(
     engine=_transactions_engine,
     ArtifactDBE=WorkflowArtifactDBE,
     VariantDBE=WorkflowVariantDBE,
@@ -778,16 +793,29 @@ _t_daos_done = time.perf_counter() - _t_daos
 _startup(f"[STARTUP] DAO initialization completed (+{_t_daos_done:.3f}s)")
 _t_services = time.perf_counter()
 
+# Membership and access first: every permission check goes through them.
+bootstrap_access()
+
+# The EE project limit of organization credentials reuses the RBAC entitlement (M5).
+if is_ee():
+    from ee.src.core.secrets.limits import EntitlementProjectLimits
+
+    _project_limits = EntitlementProjectLimits(rbac=get_access_service().rbac)
+else:
+    _project_limits = NoProjectLimits()
+
 vault_service = VaultService(
     secrets_dao=secrets_dao,
     llm_endpoint_registrar=LLMEndpointRegistrar(
         llm_endpoints_dao=llm_endpoints_dao,
     ),
+    project_limits=_project_limits,
 )
 
 subscription_login_service = SubscriptionLoginService(
     vault_service=vault_service,
     runner_client=SubscriptionLoginRunnerClient(),
+    claude_token_client=ClaudeTokenClient(),
 )
 
 provider_probe_service = ProviderProbeService()
@@ -859,6 +887,12 @@ workflows_service = WorkflowsService(
     workflows_dao=workflows_dao,
     static_catalog=StaticWorkflowCatalog(),
     watch_publisher=_sessions_watch_publisher,
+)
+
+# Every run start and resume (the heartbeat first) checks the session and the agent.
+run_admission = RunAdmission(
+    access_service=get_access_service(),
+    workflows_service=workflows_service,
 )
 
 environments_service = EnvironmentsService(
@@ -1022,6 +1056,8 @@ triggers_adapter_registry = TriggersGatewayRegistry(
 )
 
 triggers_dao = TriggersDAO(engine=_transactions_engine)
+# Archiving an agent pauses its triggers.
+workflows_service.set_triggers_dao(triggers_dao)
 
 interactions_dao = SessionInteractionsDAO(engine=_transactions_engine)
 
@@ -1042,11 +1078,14 @@ triggers_service = TriggersService(
 
 # Detached workflow start: hand the run to the runner and return on the started handshake
 # (no awaiting the run). Shared by both detached consumers (triggers + interaction continuations).
-async def _dispatch_detached_run(*, project_id, user_id, request, run_id=None) -> str:
+async def _dispatch_detached_run(
+    *, project_id, user_id, request, envelope, run_id=None
+) -> str:
     result = await workflows_service.invoke_workflow_detached(
         project_id=project_id,
         user_id=user_id,
         request=request,
+        envelope=envelope,
         run_id=run_id,
     )
     return result.run_id
@@ -1055,6 +1094,7 @@ async def _dispatch_detached_run(*, project_id, user_id, request, run_id=None) -
 _interactions_dispatcher = InteractionsDispatcher(
     workflows_service=workflows_service,
     interactions_service=interactions_service,
+    run_admission=run_admission,
     records_service=records_service,
     # Read-only: the resume's reference fallback, for a gate row whose own `data.references` is
     # empty. Without it the invoke has nothing to resolve a service URL from.
@@ -1077,6 +1117,7 @@ _triggers_dispatcher = TriggersDispatcher(
     triggers_dao=triggers_dao,
     session_claims_dao=session_streams_dao,
     workflows_service=workflows_service,
+    run_admission=run_admission,
     dispatch_fn=_dispatch_detached_run,
 )
 
@@ -1248,6 +1289,7 @@ simple_queues = SimpleQueuesRouter(
 
 tools = ToolsRouter(
     tools_service=tools_service,
+    run_admission=run_admission,
     workflows_service=workflows_service,
     tracing_service=tracing_service,
     mounts_service=mounts_service,
@@ -1266,6 +1308,9 @@ channels_service = ChannelsService(
     channels_dao=channels_dao,
     adapter_registry=channels_adapter_registry,
     vault_service=vault_service,
+    # Resolves the agent a binding runs, so an active binding never names a private
+    # agent.
+    workflows_service=workflows_service,
 )
 
 channels_identity_dao = ChannelIdentityDAO(engine=_transactions_engine)
@@ -1297,18 +1342,24 @@ _channels_inbox_broker = ProducerOnlyRedisStreamBroker(
 )
 
 
-async def _respond_channel_interaction(*, project_id, user_id, interaction_id, answer):
+async def _respond_channel_interaction(
+    *, project_id, user_id, interaction_id, answer, approved_by
+):
     """A channel's approval answer goes to the turn that parked, like a click
-    in the playground does; the continuation runs in the same session."""
-    await _interactions_dispatcher.respond_many(
+    in the playground does; the continuation runs in the same session, under the
+    asked run's envelope, with the installation as approver."""
+    await _interactions_dispatcher.respond(
         project_id=project_id,
         user_id=user_id,
-        interaction_answers=[(interaction_id, answer)],
+        interaction_id=interaction_id,
+        answer=answer,
+        approved_by=approved_by,
     )
 
 
 _channels_inbox_dispatcher = InboxDispatcher(
     channels_service=channels_service,
+    run_admission=run_admission,
     attachments_service=session_attachments_service,
     respond_interaction_fn=_respond_channel_interaction,
     workflows_service=workflows_service,
@@ -1334,6 +1385,8 @@ channels_ingress = ChannelsIngressRouter(
     adapter_registry=channels_adapter_registry,
     dispatch_task=_channels_inbox_worker.dispatch_inbox_event,
     telegram_binding_service=_telegram_binding_service,
+    records_service=records_service,
+    attachments_service=session_attachments_service,
 )
 
 channels = ChannelsRouter(
@@ -1354,8 +1407,16 @@ channel_tools = ChannelToolsRouter(
 # other DAOs, because the vault's endpoint registrar takes it.
 mcp_endpoints_dao = MCPEndpointsDAO(engine=_transactions_engine)
 
-secrets_resolver = SecretsResolver(
+# One resolver per plane: only the LLM gateway answers an organization connection an
+# agent names. Every other user of a resolver (the MCP gateway, the shared policy service)
+# gets the project-only plane.
+llm_secrets_resolver = SecretsResolver(
     vault_service=vault_service,
+    plane=GatewayPlane.LLM,
+)
+mcp_secrets_resolver = SecretsResolver(
+    vault_service=vault_service,
+    plane=GatewayPlane.MCP,
 )
 
 # The wallet's side of the gateway seam, bound only in EE with the wallet on. Otherwise the
@@ -1407,24 +1468,15 @@ if ee and is_ee() and env.wallets.enabled and env.mock_gateways.enabled:
     )
 
 gateway_policy_service = GatewayPolicyService(
-    resolver=secrets_resolver,
+    resolver=mcp_secrets_resolver,
     spend_admission=gateway_spend_admission,
     usage_sink=gateway_usage_sink,
 )
 
-# EE: the starter-credits connection seeded before the bridge registered gateway
-# endpoints gets its endpoint on its first gateway call.
-llm_missing_endpoint_repair = None
-if ee and is_ee():
-    from ee.src.core.starter_credits_bridge.service import (
-        repair_starter_credits_endpoint as llm_missing_endpoint_repair,
-    )
-
 llm_gateway_service = LLMGatewayService(
     llm_endpoints_dao=llm_endpoints_dao,
     policy=gateway_policy_service,
-    resolver=secrets_resolver,
-    missing_endpoint_repair=llm_missing_endpoint_repair,
+    resolver=llm_secrets_resolver,
     upstream_registry=LLMUpstreamRegistry(
         adapters={
             "relay": RelayLLMAdapter(),
@@ -1450,7 +1502,7 @@ mcp_oauth_connect_service = MCPOAuthConnectService(
 mcp_gateway_service = MCPGatewayService(
     mcp_endpoints_dao=mcp_endpoints_dao,
     policy=gateway_policy_service,
-    resolver=secrets_resolver,
+    resolver=mcp_secrets_resolver,
     connections_service=connections_service,
     agenta_tools_router=tools,
     upstream_registry=MCPUpstreamRegistry(
@@ -1566,22 +1618,14 @@ session_commands_service = SessionCommandsService(
     interactions_service=interactions_service,
     lock_engine=_lock_engine,
     delivery=DirectControlDelivery(
-        continue_interaction=lambda command: _interactions_dispatcher.respond_many(
-            project_id=command.project_id,
-            user_id=command.created_by_id,
-            interaction_answers=[
-                (UUID(item["interaction_id"]), item["answer"])
-                for item in command.data["answers"]
-            ],
-            control_command_id=command.id,
-            continuation_execution_id=command.target_turn_id,
+        continue_interaction=lambda command: deliver_continue_interaction(
+            command=command,
+            interactions_dispatcher=_interactions_dispatcher,
         ),
-        continue_input=lambda command: workflows_service.invoke_workflow_detached(
-            project_id=command.project_id,
-            user_id=command.created_by_id,
-            request=WorkflowServiceRequest.model_validate(command.data["request"]),
-            run_id=command.target_turn_id,
-            control_command_id=command.id,
+        continue_input=lambda command: deliver_continue_input(
+            command=command,
+            workflows_service=workflows_service,
+            run_admission=run_admission,
         ),
     ),
     executions_dao=session_executions_dao,
@@ -1596,6 +1640,7 @@ session_inputs_service = SessionInputsService(
 )
 session_starts_service = SessionStartsService(
     inputs_service=session_inputs_service,
+    run_admission=run_admission,
     executions_dao=session_executions_dao,
     streams_dao=session_streams_dao,
     workflows_service=workflows_service,
@@ -1664,7 +1709,15 @@ sessions = SessionsRouter(
     turns_service=session_turns_service,
     sessions_service=sessions_service,
     commands_service=session_commands_service,
+    run_admission=run_admission,
     inputs_service=session_inputs_service,
+)
+
+sharing = SharingRouter(
+    sharing_service=get_sharing_service(),
+    memberships_service=get_memberships_service(),
+    workflows_service=workflows_service,
+    streams_service=session_streams_service,
 )
 
 # PLATFORM ADMIN ---------------------------------------------------------------
@@ -2241,6 +2294,12 @@ app.include_router(
 app.include_router(
     router=sessions.control.router,
     tags=["Sessions"],
+)
+
+# No prefix: the routes sit beside /workflows/{workflow_id} and /sessions/{session_id}.
+app.include_router(
+    router=sharing.router,
+    tags=["Sharing"],
 )
 
 

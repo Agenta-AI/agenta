@@ -17,6 +17,8 @@ import {atom, useAtom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai-family"
 import dynamic from "next/dynamic"
 
+import {type DriveLinkItem} from "./driveLink"
+
 import {DriveExplorerSkeleton} from "./index"
 import {useDriveArtifactId} from "./index"
 import {useDriveGeneration} from "./index"
@@ -65,9 +67,12 @@ export function SessionFilesPane({
     closeControl = "collapse",
     expanded = false,
     onToggleExpand,
+    onSelectionChange,
 }: {
     scope: string
     sessionId: string
+    /** Every selection, for a host that mirrors it in the URL. */
+    onSelectionChange?: (item: DriveLinkItem) => void
     /** Who closes the pane: row 1's "»" (the desktop), the host's own session-bar toggle
      * (`"none"` — `/m`, where the panel icon shows the open state and flips it), or a leading
      * "»" (`"back"` — a phone, where the pane has the screen and that bar is off it). */
@@ -94,9 +99,9 @@ export function SessionFilesPane({
     const initialPath = useMemo(
         () =>
             quickLook
-                ? quickLook.path
+                ? quickLook.path && !quickLook.exact
                     ? resolveQuickLookPath(drive.recents, quickLook.path)
-                    : ""
+                    : quickLook.path
                 : null,
         [quickLook, drive.recents],
     )
@@ -127,6 +132,8 @@ export function SessionFilesPane({
                 scope="session"
                 initialPath={initialPath}
                 initialPathSeq={initialPathSeq}
+                folderHint={quickLook?.folder ? initialPath : null}
+                onSelectionChange={onSelectionChange}
                 chrome
                 onClose={closeControl === "none" && !expanded ? undefined : close}
                 expanded={expanded}

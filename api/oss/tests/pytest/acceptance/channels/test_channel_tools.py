@@ -1,8 +1,8 @@
 """Acceptance: the channel agent tool routes over HTTP, with real minted keys.
 
 Each project is seeded over the wire with a `mock` connection (no platform
-credentials, posts recorded in process), a bot binding that names an
-application id, and one group space. The tool routes are then called the way
+credentials, posts recorded in process), a bot binding that names a real
+project-visible agent, and one group space. The tool routes are then called the way
 the runner calls them: the run's own key, and the workflow artifact, session
 and tool call bound into the body.
 
@@ -18,6 +18,7 @@ from uuid import uuid4
 import pytest
 import requests
 
+from oss.tests.pytest.acceptance.channels.support import create_project_agent
 from oss.tests.pytest.utils.accounts import create_account
 from utils.constants import BASE_TIMEOUT
 
@@ -43,9 +44,9 @@ def _ok(resp, status=200):
 
 
 def _seed(api):
-    """A connected mock bot bound to a fresh artifact id, with one group."""
+    """A connected mock bot bound to a fresh project agent, with one group."""
 
-    artifact_id = str(uuid4())
+    artifact_id = create_project_agent(api)["id"]
     connection = _ok(
         api(
             "POST",

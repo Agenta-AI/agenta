@@ -10,6 +10,7 @@ from oss.src.apis.fastapi.sessions.utils import current_session_response
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.sessions.streams.dtos import SessionStream
 from oss.src.core.sessions.types import SessionReference
+from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
 @pytest.fixture
@@ -46,7 +47,11 @@ def setup(monkeypatch):
         return await call_next(request)
 
     app.include_router(
-        SessionStreamsRouter(service=service, interactions_service=AsyncMock()).router
+        SessionStreamsRouter(
+            service=service,
+            interactions_service=AsyncMock(),
+            run_admission=NoopRunAdmission(),
+        ).router
     )
     return SimpleNamespace(**locals())
 

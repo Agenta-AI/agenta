@@ -7,12 +7,24 @@ import {
     isFrameNavigated,
     type HtmlAppHost,
     type HtmlAppHostError,
+    type PickedPayload,
 } from "@agenta/entities/drive"
+import type {PickerRect} from "@agenta/shared/previewPicker"
+import {
+    frameRectToRoot,
+    PreviewCommentLayer,
+    toPinQueries,
+    usePreviewComments,
+    type PreviewPick,
+    type PreviewPinRect,
+    type PreviewRect,
+} from "@agenta/ui/quote-selection"
 import {Button, SimpleTooltip as Tooltip, Skeleton, cn} from "@agenta/ui/ui"
 import {ArrowsClockwise, CaretLeft, Copy, LockSimple, Warning} from "@phosphor-icons/react"
 import {createPortal} from "react-dom"
 
 import {ROW_ICON_BTN} from "../DriveHeader"
+import {previewTarget, usePreviewCommentMode, usePreviewCommentSession} from "../previewCommentMode"
 
 import {
     assembleRunDocument,
@@ -83,6 +95,8 @@ export interface RunViewProps {
     toDisplayPath?: (path: string) => string
     /** The host's toolbar slot the controls portal into; without one they sit above the app. */
     controlsContainer?: HTMLElement | null
+    /** Mount the app lives in; a preview comment records it. */
+    mountId?: string
     /** Set while the app is read only but needs to write: shows "Read only · Allow editing". */
     onAllowEditing?: () => void
     className?: string
@@ -93,6 +107,19 @@ const describeError = (e: HtmlAppHostError): string => {
     const where = [e.method, e.path].filter(Boolean).join(" ")
     return `${where ? `${where}: ` : ""}${e.message}`
 }
+
+const toPick = ({element, text, rect}: PickedPayload, at: PreviewRect): PreviewPick => ({
+    anchor: {
+        type: "element",
+        format: "html",
+        selector: element.selector,
+        tag: element.tag,
+        openTag: element.openTag,
+        point: element.point,
+    },
+    text,
+    rect: at,
+})
 
 export function RunView({
     host,
@@ -110,10 +137,12 @@ export function RunView({
     onNavigate,
     toDisplayPath = (p) => p,
     controlsContainer,
+    mountId,
     onAllowEditing,
     className,
 }: RunViewProps) {
     const frameRef = useRef<HTMLIFrameElement>(null)
+    const rootRef = useRef<HTMLDivElement>(null)
     const [currentPath, setCurrentPath] = useState(entryPath)
     const [backStack, setBackStack] = useState<string[]>([])
     const [doc, setDoc] = useState<string | null>(null)
@@ -237,6 +266,57 @@ export function RunView({
             }),
         [host, currentPath, dir, onNavigate, toDisplayPath],
     )
+
+    // Preview comments: the page on screen is the comment's target.
+    const sessionId = usePreviewCommentSession()
+    const {enabled: commenting, setEnabled: setCommenting} = usePreviewCommentMode()
+    const [pick, setPick] = useState<PreviewPick | null>(null)
+    const [pinRects, setPinRects] = useState<PreviewPinRect[]>([])
+    const displayPath = toDisplayPath(currentPath)
+    const target = useMemo(
+        () => previewTarget(currentPath, displayPath, mountId),
+        [currentPath, displayPath, mountId],
+    )
+    const comments = usePreviewComments(sessionId, target)
+    const pins = useMemo(() => toPinQueries(comments), [comments])
+
+    useEffect(() => host.setPins?.(pins), [host, pins])
+
+    useEffect(() => {
+        if (commenting) host.startPick?.()
+        else {
+            host.stopPick?.()
+            setPick(null)
+        }
+    }, [host, commenting])
+
+    useEffect(() => {
+        setPick(null)
+        setPinRects([])
+    }, [currentPath, frameKey])
+
+    const inRoot = useCallback((rect: PickerRect): PreviewRect | null => {
+        const frame = frameRef.current
+        const root = rootRef.current
+        return frame && root ? frameRectToRoot(rect, frame, root) : null
+    }, [])
+
+    useEffect(
+        () =>
+            host.onPicked?.((picked) => {
+                const at = inRoot(picked.rect)
+                if (at) setPick(toPick(picked, at))
+            }),
+        [host, inRoot],
+    )
+    useEffect(
+        () =>
+            host.onPinRects?.((rects) =>
+                setPinRects(rects.map(({id, rect}) => ({id, rect: rect ? inRoot(rect) : null}))),
+            ),
+        [host, inRoot],
+    )
+    useEffect(() => host.onPickCancel?.(() => setCommenting(false)), [host, setCommenting])
 
     const goBack = useCallback(() => {
         setBackStack((stack) => {
@@ -388,15 +468,25 @@ export function RunView({
                 // No allow-same-origin: the app is an opaque origin and reaches the drive only over
                 // the port the host hands it on load. The srcdoc is the wrapper from
                 // `buildRunFrame`, which holds the app in a nested frame that cannot navigate out.
-                <iframe
-                    key={`${frameKey}:${docVersion}`}
-                    ref={frameRef}
-                    srcDoc={frameDoc}
-                    sandbox={SANDBOX_FLAGS}
-                    onLoad={onFrameLoad}
-                    title="App"
-                    className="min-h-0 w-full flex-1 border-0 bg-colorBgContainer"
-                />
+                <div ref={rootRef} className="relative flex min-h-0 flex-1 flex-col">
+                    <iframe
+                        key={`${frameKey}:${docVersion}`}
+                        ref={frameRef}
+                        srcDoc={frameDoc}
+                        sandbox={SANDBOX_FLAGS}
+                        onLoad={onFrameLoad}
+                        title="App"
+                        className="min-h-0 w-full flex-1 border-0 bg-colorBgContainer"
+                    />
+                    <PreviewCommentLayer
+                        rootRef={rootRef}
+                        sessionId={sessionId}
+                        target={target}
+                        pick={pick}
+                        onPickConsumed={() => setPick(null)}
+                        pinRects={pinRects}
+                    />
+                </div>
             )}
         </div>
     )

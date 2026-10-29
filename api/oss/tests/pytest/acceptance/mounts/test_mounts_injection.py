@@ -5,8 +5,8 @@ Covers the API surface the runner calls to mount a durable cwd:
   - POST /mounts/{mount_id}/sign               → sign an existing mount
 
 Asserts the get-or-create upsert is idempotent (same session → same mount), the signed
-credentials are prefix-scoped (carry the mount's `<project_id>/<mount_id>` prefix, not the
-bucket root), and a durable file written through the mount's file API survives a re-bind
+credentials are prefix-scoped (carry the stored prefix, `mounts/<organization_id>/<mount_id>`
+for mounts created by 0.125.0 or later, not the bucket root), and a durable file written through the mount's file API survives a re-bind
 (the cross-turn persistence contract, exercised at the store level).
 
 Requires a configured object store with a working STS endpoint (AGENTA_STORE_* →
@@ -20,6 +20,12 @@ is a manual/live check on the dev stack; see docs/designs/sessions/mounts/extend
 from uuid import uuid4
 
 from oss.tests.pytest.utils.mounts import skip_if_mount_storage_unavailable
+
+
+def _organization_id(authed_api) -> str:
+    resp = authed_api("GET", "/projects/current")
+    assert resp.status_code == 200, resp.text
+    return resp.json()["organization_id"]
 
 
 def _sign_session(authed_api, session_id):
@@ -45,9 +51,11 @@ class TestSessionMountSign:
         assert mount["session_id"] == session_id
 
         # Credentials are prefix-scoped to THIS mount, never the bucket root.
-        # The key layout is [<namespace>/]mounts/<project_id>/<mount_id>; assert the
-        # mount-scoped tail without coupling to the deployment namespace prefix.
-        assert creds["prefix"].endswith(f"mounts/{mount['project_id']}/{mount['id']}")
+        # The key is [<namespace>/]<the stored prefix> (`mounts/<organization_id>/<mount_id>`
+        # for mounts created by 0.125.0 or later); assert the tail without coupling to the deployment
+        # namespace prefix.
+        organization_id = _organization_id(authed_api)
+        assert creds["prefix"].endswith(f"mounts/{organization_id}/{mount['id']}")
         assert creds["access_key"]
         assert creds["secret_key"]
         assert creds["bucket"]
@@ -103,7 +111,8 @@ class TestMountSign:
         assert resp.status_code == 200, resp.text
 
         creds = resp.json()["credentials"]
-        assert creds["prefix"].endswith(f"mounts/{mount['project_id']}/{mount['id']}")
+        organization_id = _organization_id(authed_api)
+        assert creds["prefix"].endswith(f"mounts/{organization_id}/{mount['id']}")
 
     def test_sign_missing_mount_returns_404(self, authed_api):
         resp = authed_api("POST", f"/mounts/{uuid4()}/sign")

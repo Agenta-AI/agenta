@@ -17,6 +17,10 @@ from oss.src.core.channels.adapters.interface import ChannelAdapterInterface
 from oss.src.core.channels.adapters.normalise import normalise_capabilities
 from oss.src.core.channels.adapters.registry import ChannelAdapterRegistry
 from oss.src.core.channels.dtos import (
+    ChannelAgent,
+    ChannelAgentData,
+    ChannelAgentFlags,
+    ChannelBindingRestore,
     ChannelConnection,
     ChannelConnectionCreate,
     ChannelConnectionFlags,
@@ -24,6 +28,8 @@ from oss.src.core.channels.dtos import (
 from oss.src.core.channels.service import ChannelsService
 from oss.src.core.channels.types import ChannelConnectionIdentityConflict
 from oss.src.core.channels.utils import ChannelKeyGrain, compose_external_key
+from oss.src.core.shared.dtos import Reference
+from oss.tests.pytest.utils.sharing import ProjectAgentResolver
 
 pytestmark = pytest.mark.asyncio
 
@@ -56,7 +62,7 @@ class _FakeAdapter(ChannelAdapterInterface):
     async def verify_signature(self, *, request, connection):
         raise NotImplementedError
 
-    async def parse_event(self, *, body, connection=None):
+    async def parse_event(self, *, body, connection=None, request=None):
         raise NotImplementedError
 
     async def post_message(self, *, connection, locator, content, idempotency_key):
@@ -178,7 +184,10 @@ async def test_install_creates_a_new_connection_when_no_identity_exists_yet():
     service = _service(dao=dao, adapter=adapter, vault=vault)
 
     result = await service.install_connection(
-        project_id=uuid4(), user_id=uuid4(), connection=_install_create()
+        project_id=uuid4(),
+        user_id=uuid4(),
+        guard_user_id=None,
+        connection=_install_create(),
     )
 
     dao.create_connection.assert_awaited_once()
@@ -215,7 +224,10 @@ async def test_reinstall_keeps_the_existing_row_id_not_just_the_row_count():
     service = _service(dao=dao, adapter=adapter, vault=vault)
 
     result = await service.install_connection(
-        project_id=project_id, user_id=uuid4(), connection=_install_create()
+        project_id=project_id,
+        user_id=uuid4(),
+        guard_user_id=None,
+        connection=_install_create(),
     )
 
     dao.edit_connection.assert_awaited_once()
@@ -238,40 +250,71 @@ async def test_reinstall_reactivates_a_connection_app_uninstalled_had_deactivate
     service = _service(dao=dao, adapter=adapter, vault=_FakeVaultService())
 
     result = await service.install_connection(
-        project_id=project_id, user_id=uuid4(), connection=_install_create()
+        project_id=project_id,
+        user_id=uuid4(),
+        guard_user_id=None,
+        connection=_install_create(),
     )
 
     assert result.flags.is_active is True
 
 
 async def test_reinstall_restores_an_archived_connection_and_its_agents():
-    project_id, user_id = uuid4(), uuid4()
+    """The owner reinstalls a disconnected Slack connection that has her private
+    agent's binding: the restore is guarded for that binding's agent with her as the
+    person (the callback reads her from the signed state), so the binding comes back
+    on (`guard_agent_activation` lets the owner through, see
+    `test_unarchive_restores_someone_else_s_private_agent_binding_off`)."""
+    project_id, alice = uuid4(), uuid4()
+    archived_at = datetime.now(timezone.utc)
     existing = ChannelConnection(
         id=uuid4(),
         slug="slack-hosted",
         channel="slack",
         external_key=uuid4(),
-        deleted_at=datetime.now(timezone.utc),
+        deleted_at=archived_at,
         data={"api_app_id": "A1", "enterprise_id": "", "team_id": "T1"},
         flags=ChannelConnectionFlags(is_hosted=True, is_verified=True),
     )
     dao = _fake_dao(existing=existing, existing_project_id=project_id)
     restored = existing.model_copy(update={"deleted_at": None})
     dao.unarchive_connection = AsyncMock(return_value=restored)
+    private_agent = uuid4()
+    binding = ChannelAgent(
+        id=uuid4(),
+        slug="default",
+        connection_id=existing.id,
+        data=ChannelAgentData(references={"workflow": Reference(id=private_agent)}),
+        flags=ChannelAgentFlags(is_active=True, is_default=True),
+        deleted_at=archived_at,
+    )
+    dao.query_agents = AsyncMock(return_value=[binding])
     service = _service(
         dao=dao,
         adapter=_FakeAdapter(discovered={"team_id": "T1"}),
         vault=_FakeVaultService(),
     )
+    service.workflows_service = ProjectAgentResolver(private_agent)
 
     result = await service.install_connection(
-        project_id=project_id, user_id=user_id, connection=_install_create()
+        project_id=project_id,
+        user_id=alice,
+        guard_user_id=alice,
+        connection=_install_create(),
     )
 
     assert result.deleted_at is None
     assert result.id == existing.id
     dao.unarchive_connection.assert_awaited_once_with(
-        project_id=project_id, user_id=user_id, connection_id=existing.id
+        project_id=project_id,
+        user_id=alice,
+        connection_id=existing.id,
+        guard_bindings={
+            binding.id: ChannelBindingRestore(
+                references=binding.data.references, artifact_id=private_agent
+            )
+        },
+        guard_user_id=alice,
     )
     dao.create_connection.assert_not_awaited()
 
@@ -300,7 +343,10 @@ async def test_reinstall_rotates_the_existing_secret_rather_than_creating_a_new_
     service = _service(dao=dao, adapter=adapter, vault=vault)
 
     await service.install_connection(
-        project_id=project_id, user_id=uuid4(), connection=_install_create()
+        project_id=project_id,
+        user_id=uuid4(),
+        guard_user_id=None,
+        connection=_install_create(),
     )
 
     assert len(vault.update_calls) == 1
@@ -327,7 +373,10 @@ async def test_install_refuses_when_the_identity_belongs_to_a_different_project(
 
     with pytest.raises(ChannelConnectionIdentityConflict):
         await service.install_connection(
-            project_id=project_id, user_id=uuid4(), connection=_install_create()
+            project_id=project_id,
+            user_id=uuid4(),
+            guard_user_id=None,
+            connection=_install_create(),
         )
 
     dao.create_connection.assert_not_awaited()

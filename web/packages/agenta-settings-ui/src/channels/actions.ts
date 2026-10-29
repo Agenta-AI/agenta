@@ -28,7 +28,7 @@ import type {
  * `@agenta/sdk/resources`.
  */
 
-type Scope = {queryParams: {project_id: string}} | undefined
+export type Scope = {queryParams: {project_id: string}} | undefined
 
 /**
  * The subset of the generated `ChannelsClient` this module calls.
@@ -70,13 +70,14 @@ export interface AgentChannelsActionsOptions {
     hostedSlackInstallUrl: (projectId: string) => string | null
 }
 
-type Row = Record<string, unknown>
+export type Row = Record<string, unknown>
 
-const asRecord = (value: unknown): Row => (value && typeof value === "object" ? (value as Row) : {})
+export const asRecord = (value: unknown): Row =>
+    value && typeof value === "object" ? (value as Row) : {}
 
-const asArray = (value: unknown): Row[] => (Array.isArray(value) ? value.map(asRecord) : [])
+export const asArray = (value: unknown): Row[] => (Array.isArray(value) ? value.map(asRecord) : [])
 
-const asString = (value: unknown): string | null =>
+export const asString = (value: unknown): string | null =>
     typeof value === "string" && value ? value : null
 
 /** The backend channel key for a platform and install mode. */
@@ -294,7 +295,58 @@ export const connectionsForAgent = (
     return out
 }
 
-const rethrow = (fallback: string) => (error: unknown) => {
+/**
+ * Make a connection answer as an app: create the default channel agent when the connection has
+ * none, retarget the answering one and turn it on otherwise, no-op when it already answers there.
+ */
+export const pointConnectionAt = async ({
+    client,
+    scope,
+    appId,
+    connectionId,
+}: {
+    client: Pick<
+        ChannelsClientLike,
+        "queryChannelAgents" | "createChannelAgent" | "editChannelAgent"
+    >
+    scope: Scope
+    appId: string
+    connectionId: string
+}): Promise<void> => {
+    const res = await client.queryChannelAgents({agent: {connection_id: connectionId}}, scope)
+    const answering = answeringAgentRow(asArray(asRecord(res).agents))
+    const references = {application: {id: appId}}
+    if (!answering) {
+        await client.createChannelAgent(
+            {
+                agent: {
+                    connection_id: connectionId,
+                    slug: "default",
+                    name: "Default agent",
+                    data: {references},
+                    flags: {is_default: true},
+                },
+            },
+            scope,
+        )
+        return
+    }
+    const flags = asRecord(answering.flags)
+    if (referencedAppId(answering) === appId && flags.is_active !== false) return
+    const agentId = asString(answering.id)
+    if (!agentId) throw new Error("The connection's agent has no id.")
+    // A restore can bring the binding back off (someone else's private agent): connecting
+    // turns it on. The edit writes the whole flags, so `is_default` stays as stored.
+    await client.editChannelAgent(
+        {
+            agent_id: agentId,
+            agent: {id: agentId, data: {references}, flags: {...flags, is_active: true}},
+        },
+        scope,
+    )
+}
+
+export const rethrow = (fallback: string) => (error: unknown) => {
     throw new Error(clientErrorMessage(error, fallback))
 }
 
@@ -317,34 +369,8 @@ export const buildAgentChannelsActions = ({
         return asArray(asRecord(res).agents)
     }
 
-    /** Make the connection answer as this page's agent: create the default agent when the
-     * connection has none, retarget the answering one otherwise, no-op when it already
-     * points here. */
-    const pointHere = async (connectionId: string): Promise<void> => {
-        const answering = answeringAgentRow(await agentsOf(connectionId))
-        if (!answering) {
-            await client.createChannelAgent(
-                {
-                    agent: {
-                        connection_id: connectionId,
-                        slug: "default",
-                        name: "Default agent",
-                        data: {references: references()},
-                        flags: {is_default: true},
-                    },
-                },
-                scope(),
-            )
-            return
-        }
-        if (referencedAppId(answering) === appId) return
-        const agentId = asString(answering.id)
-        if (!agentId) throw new Error("The connection's agent has no id.")
-        await client.editChannelAgent(
-            {agent_id: agentId, agent: {id: agentId, data: {references: references()}}},
-            scope(),
-        )
-    }
+    const pointHere = (connectionId: string) =>
+        pointConnectionAt({client, scope: scope(), appId, connectionId})
 
     /** The channel agent row that answers on this connection — the subject of every grant. */
     const channelAgentId = async (connectionId: string): Promise<string> => {
@@ -594,6 +620,10 @@ export const buildAgentChannelsActions = ({
                 )
                 const id = answering ? referencedAppId(answering) : null
                 connection.agent = id ? {id, name: resolveAgentName(id)} : null
+                // A binding can be off while its connection stays connected.
+                connection.agentOff = answering
+                    ? asRecord(answering.flags).is_active === false
+                    : false
                 // The row's copy counts the places it answers in ("1 group + DMs"). One call
                 // per connection, and a failure only costs the count, not the row.
                 try {
@@ -684,8 +714,30 @@ export const buildAgentChannelsActions = ({
         return mapConnectionRow(row)
     }
 
-    const connectHere = async (_platform: ChannelPlatform, connectionId: string) =>
+    const connectHere = async (platform: ChannelPlatform, connectionId: string) =>
         pointHere(connectionId).catch(rethrow("Could not connect this agent."))
+
+    /** Turn the answering binding back on. The edit carries its references, so the server
+     *  checks the agent under a lock and refuses a private agent of someone else. */
+    const turnOn = async (platform: ChannelPlatform, connectionId: string) => {
+        const answering = await answeringAgent(connectionId)
+        const agentId = asString(answering.id)
+        if (!agentId) throw new Error("This connection answers as no agent yet.")
+        await client
+            .editChannelAgent(
+                {
+                    agent_id: agentId,
+                    agent: {
+                        id: agentId,
+                        data: {references: asRecord(answering.data).references},
+                        // The edit writes the whole flags: keep `is_default` as stored.
+                        flags: {...asRecord(answering.flags), is_active: true},
+                    },
+                },
+                scope(),
+            )
+            .catch(rethrow(`Could not turn ${platformLabel(platform)} on.`))
+    }
 
     const disconnect = async (_platform: ChannelPlatform, connectionId: string) => {
         await client
@@ -708,6 +760,7 @@ export const buildAgentChannelsActions = ({
         connectCustom,
         connectHere,
         disconnect,
+        turnOn,
         listSpaces,
         discoverSpaces,
         addSpace,

@@ -3,6 +3,11 @@ from uuid import uuid4
 
 import pytest
 
+from oss.src.core.sharing.dtos import (
+    OWNERLESS_PROJECT_POLICY,
+    AccessPolicy,
+    Visibility,
+)
 from oss.src.core.shared.exceptions import (
     EntityCreationConflict,
     EntityCreationIdempotencyConflict,
@@ -56,6 +61,8 @@ class _MemoryWorkflows:
         self.heads = {}
         self.fail_stage = fail_stage
         self.failed = False
+        self.create_access = []
+        self.commit_owners = []
 
     def _maybe_fail(self, stage):
         if self.fail_stage == stage and not self.failed:
@@ -82,8 +89,10 @@ class _MemoryWorkflows:
         workflow_create,
         workflow_id=None,
         platform_meta=False,
+        access=None,
     ):
         await asyncio.sleep(0.005)
+        self.create_access.append(access)
         if workflow_id in self.artifacts:
             raise EntityCreationConflict("Workflow")
         workflow = Workflow(
@@ -98,7 +107,12 @@ class _MemoryWorkflows:
         )
         self.artifacts[workflow_id] = workflow
         self._maybe_fail("artifact")
-        return workflow
+        # Like WorkflowsService.create_workflow: the applied policy, an owner only for a
+        # declared agent.
+        owned = access is not None and access.owner_user_id is not None
+        if owned and workflow_create.flags and workflow_create.flags.is_agent:
+            return workflow.model_copy(update={"access": access})
+        return workflow.model_copy(update={"access": OWNERLESS_PROJECT_POLICY})
 
     async def fetch_workflow_variant(
         self,
@@ -176,8 +190,10 @@ class _MemoryWorkflows:
         user_id,
         workflow_revision_commit,
         platform_meta=False,
+        first_agent_owner_user_id=None,
     ):
         await asyncio.sleep(0.005)
+        self.commit_owners.append(first_agent_owner_user_id)
         variant_id = workflow_revision_commit.workflow_variant_id
         key = (variant_id, workflow_revision_commit.slug)
         if key in self.revisions:
@@ -371,3 +387,39 @@ class SimpleNamespaceCommit:
             parameters={"agent": {"edited": True}},
         )
         self.message = "User edit"
+
+
+@pytest.mark.asyncio
+async def test_create_idempotent_forwards_the_policy_and_skips_the_commit_owner():
+    """A declared agent with an owner gets its access row at create, so the two
+    commits pass no first-agent owner (no extra statement)."""
+
+    service, store = _service()
+    policy = AccessPolicy(visibility=Visibility.PRIVATE, owner_user_id=USER_ID)
+
+    created = await service.create_idempotent(
+        **_kwargs(), access=policy, first_agent_owner_user_id=USER_ID
+    )
+
+    assert store.create_access == [policy]
+    assert store.commit_owners == [None, None]
+    assert created.workflow.access == policy
+
+
+@pytest.mark.asyncio
+async def test_create_idempotent_passes_the_owner_when_the_create_wrote_no_row():
+    """Not declared an agent at create (the revision data makes it one): the commits
+    carry the owner, so the first agent revision writes the row."""
+
+    service, store = _service()
+    kwargs = _kwargs()
+    kwargs["simple_workflow_create"] = kwargs["simple_workflow_create"].model_copy(
+        update={"flags": SimpleWorkflowFlags(is_agent=False)}
+    )
+    policy = AccessPolicy(visibility=Visibility.PRIVATE, owner_user_id=USER_ID)
+
+    await service.create_idempotent(
+        **kwargs, access=policy, first_agent_owner_user_id=USER_ID
+    )
+
+    assert store.commit_owners == [USER_ID, USER_ID]

@@ -718,6 +718,34 @@ describe("teardown at the end of the shutdown", () => {
   });
 });
 
+describe("pending Secret cleanups at shutdown", () => {
+  it("runs them after the pool and in-flight sweeps", async () => {
+    const order: string[] = [];
+    await tearDownHeldSandboxes(
+      [],
+      async () => {
+        order.push("in-flight");
+      },
+      async () => {},
+      async () => {
+        order.push("secret-cleanups");
+      },
+    );
+    assert.deepEqual(order, ["in-flight", "secret-cleanups"]);
+  });
+
+  it("does not let a failed flush fail the teardown", async () => {
+    await tearDownHeldSandboxes(
+      [],
+      async () => {},
+      async () => {},
+      async () => {
+        throw new Error("daytona unavailable");
+      },
+    );
+  });
+});
+
 describe("device logins at shutdown", () => {
   /** A device-code provider whose approval the test resolves, and a store over it. */
   function loginStore() {

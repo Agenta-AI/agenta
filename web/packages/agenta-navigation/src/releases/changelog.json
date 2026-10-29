@@ -1,5 +1,47 @@
 [
     {
+        "id": "changelog-2026-10-07-agent-analytics",
+        "title": "Analytics",
+        "description": "See cost, runs, success rate and tokens for every agent, and the runs behind each number.",
+        "link": "https://agenta.ai/docs/changelog/agent-analytics"
+    },
+    {
+        "id": "changelog-2026-10-07-cleaner-settings-and-whats-new",
+        "title": "Settings, What's New, live chat",
+        "description": "A rebuilt Settings, a What's New window for releases, and live chat in the app.",
+        "link": "https://agenta.ai/docs/changelog/cleaner-settings-and-whats-new"
+    },
+    {
+        "id": "changelog-2026-10-07-more-reliable-agent-runs",
+        "title": "More reliable runs",
+        "description": "Stalled calls retry on their own, long runs hold up, and the queue responds instantly.",
+        "link": "https://agenta.ai/docs/changelog/more-reliable-agent-runs"
+    },
+    {
+        "id": "changelog-2026-10-06-expand-the-files-pane",
+        "title": "Expand the files pane",
+        "description": "Read and edit files in the whole window, then restore your layout in one click.",
+        "link": "https://agenta.ai/docs/changelog/expand-the-files-pane"
+    },
+    {
+        "id": "changelog-2026-10-05-reply-to-a-selection",
+        "title": "Reply to a selection",
+        "description": "Select part of an agent's reply or lines in a file, and reply to just that part.",
+        "link": "https://agenta.ai/docs/changelog/reply-to-a-selection"
+    },
+    {
+        "id": "changelog-2026-10-05-agent-marketplace",
+        "title": "Agent Marketplace",
+        "description": "See templates in action, filter by the apps you use, and start from one in a click.",
+        "link": "https://agenta.ai/docs/changelog/agent-marketplace"
+    },
+    {
+        "id": "changelog-2026-10-02-send-files-from-slack-telegram-whatsapp",
+        "title": "Files from your chat apps",
+        "description": "Send photos, documents and voice notes to your agent in Slack, Telegram and WhatsApp.",
+        "link": "https://agenta.ai/docs/changelog/send-files-from-slack-telegram-whatsapp"
+    },
+    {
         "id": "changelog-2026-09-30-new-models-and-cost-tracking",
         "title": "Grok, Opus 5.5, Sonnet 5.5",
         "description": "New models to choose from, and cost tracking that accounts for caching.",

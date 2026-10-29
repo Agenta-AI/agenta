@@ -1,21 +1,37 @@
-from typing import Any, Callable, Optional
+from typing import Any, Callable, List, Optional, Sequence, Tuple
 from uuid import UUID, uuid4
 
 from pydantic import ValidationError
 
 from oss.src.utils.env import env
-from oss.src.utils.caching import get_cache, invalidate_cache, set_cache
+from oss.src.core.access.context import clear_request_memo, get_request_memo
+from oss.src.utils.caching import (
+    get_cache,
+    invalidate_cache,
+    invalidate_cache_entries,
+    set_cache,
+)
 from oss.src.utils.helpers import get_slug_from_name_and_id
 from oss.src.utils.logging import get_module_logger
 from oss.src.core.secrets.enums import (
     STANDARD_PROVIDER_DISPLAY_NAMES,
     SUBSCRIPTION_PROVIDER_DISPLAY_NAMES,
+    ORGANIZATION_SECRET_KINDS,
+    LLMCustomProviderKind,
+    SecretAvailability,
     SecretKind,
+    SecretOwnerKind,
     StandardProviderKind,
     SubscriptionProviderKind,
 )
+from oss.src.core.events.types import EventType
+from oss.src.core.events.utils import _build_event, _safe_publish
+from oss.src.core.gateways.dtos import MIN_SCANNED_CREDENTIAL_LENGTH
+from oss.src.core.gateways.llms.registrar import custom_provider_deployment_kind
+from oss.src.core.gateways.llms.types import LLM_GATEWAY_SERVED_DEPLOYMENT_KINDS
 from oss.src.core.secrets.interfaces import (
     LLMEndpointRegistrarInterface,
+    ProjectLimitsInterface,
     SecretsDAOInterface,
 )
 from oss.src.core.secrets.context import set_data_encryption_key
@@ -25,11 +41,23 @@ from oss.src.core.secrets.redaction import (
     SECONDARY_CREDENTIAL_FIELDS,
 )
 from oss.src.core.secrets.types import (
+    OrganizationSecretKindNotShareable,
+    OrganizationSecretNotServed,
+    OrganizationSecretValueNotScannable,
+    OrganizationSecretValueTooShort,
+    ProjectLimitNotAllowed,
     ServerOwnedFieldNotWritable,
     SubscriptionProviderConflict,
 )
+from oss.src.core.secrets.scopes import (
+    available_organization_secrets,
+    is_llm_provider_family,
+    organization_matches,
+)
 from oss.src.core.secrets.dtos import (
+    CachedEffectiveSecrets,
     CreateSecretDTO,
+    SecretOwner,
     subscription_provider_slug,
     SecretResponseDTO,
     SecretDTO,
@@ -47,6 +75,39 @@ from oss.src.core.secrets.managed import (
 
 log = get_module_logger(__name__)
 
+# One cache entry per project: its rows, its row's organization, and the shareable
+# organization rows available to it. Keyed on the FULL project id (`_pack` keeps only 12
+# characters of the project slot), in the project slot so project-wide invalidation clears
+# it, from old pods too.
+_EFFECTIVE_NAMESPACE = "effective_secrets"
+
+# Printable ASCII without the characters JSON encoders escape (quote, backslash, and the
+# HTML-safe <, >, &) and without the space: what an organization credential that goes into
+# a header may hold. `/` stays allowed; its escaped spelling is scanned too.
+_SHAREABLE_CREDENTIAL_CHARACTERS = frozenset(
+    chr(code) for code in range(0x21, 0x7F) if chr(code) not in '"\\<>&'
+)
+# Credential extras that are documents, not header values.
+_STRUCTURED_CREDENTIAL_KEYS = frozenset({"vertex_ai_credentials"})
+_EFFECTIVE_MEMO = "secrets_effective"
+
+
+def _owner_from_ids(
+    *, project_id: Optional[UUID], organization_id: Optional[UUID]
+) -> SecretOwner:
+    """The owner the public (project_id, organization_id) pair names: exactly one."""
+    if bool(project_id) == bool(organization_id):
+        raise ValueError(
+            "Exactly one of project_id or organization_id must be provided."
+        )
+    if project_id:
+        return SecretOwner(kind=SecretOwnerKind.PROJECT, id=project_id)
+    return SecretOwner(kind=SecretOwnerKind.ORGANIZATION, id=organization_id)
+
+
+def _organization(organization_id: UUID) -> SecretOwner:
+    return SecretOwner(kind=SecretOwnerKind.ORGANIZATION, id=organization_id)
+
 
 _BLANK_CREDENTIAL_VALUE_MESSAGE = (
     "Credential values cannot be blank. Omit an unchanged credential field or provide a new "
@@ -58,13 +119,18 @@ def next_provider_key_name(
     *,
     kind: StandardProviderKind,
     taken_names: set[str],
+    owner_label: Optional[str] = None,
 ) -> str:
     """The first free display name for a new connection of ``kind``.
 
     The first connection of a provider family takes the plain display name ("OpenAI"), later
-    ones get a suffix ("OpenAI 2", "OpenAI 3"). The name is display only; the slug is identity.
+    ones get a suffix ("OpenAI 2", "OpenAI 3"). With an `owner_label` the name carries the
+    owner ("OpenAI (Organization)", then "OpenAI (Organization) 2"). The name is display
+    only; the slug is identity.
     """
     title = STANDARD_PROVIDER_DISPLAY_NAMES.get(kind, kind.value)
+    if owner_label:
+        title = f"{title} ({owner_label})"
 
     if title not in taken_names:
         return title
@@ -416,9 +482,13 @@ class VaultService:
         secrets_dao: SecretsDAOInterface,
         *,
         llm_endpoint_registrar: Optional[LLMEndpointRegistrarInterface] = None,
+        # Whether an organization may limit a credential to selected projects. None
+        # refuses every limit (workers and other roots that manage no credential).
+        project_limits: Optional[ProjectLimitsInterface] = None,
     ):
         self.secrets_dao = secrets_dao
         self.llm_endpoint_registrar = llm_endpoint_registrar
+        self.project_limits = project_limits
         self._data_encryption_key = env.agenta.crypt_key
 
     async def create_secret(
@@ -464,6 +534,7 @@ class VaultService:
         user_id: UUID | None = None,
     ):
         reject_server_owned_fields(secret=create_secret_dto.secret)
+        owner = _owner_from_ids(project_id=project_id, organization_id=organization_id)
 
         # custom_secret and custom_provider are addressed by slug; derive one from the name when
         # absent so the record keeps its identity when the display name later changes.
@@ -481,37 +552,27 @@ class VaultService:
 
         if create_secret_dto.secret.kind == SecretKind.PROVIDER_KEY:
             await self._name_and_slug_provider_key(
-                project_id=project_id,
-                organization_id=organization_id,
+                owner=owner,
                 create_secret_dto=create_secret_dto,
             )
 
         if create_secret_dto.secret.kind == SecretKind.SUBSCRIPTION_PROVIDER:
             await self._name_and_slug_subscription_provider(
-                project_id=project_id,
-                organization_id=organization_id,
+                owner=owner,
                 create_secret_dto=create_secret_dto,
             )
 
         with set_data_encryption_key(
             data_encryption_key=self._data_encryption_key,
         ):
-            if management is None:
-                secret_dto = await self.secrets_dao.create(
-                    project_id=project_id,
-                    organization_id=organization_id,
-                    create_secret_dto=create_secret_dto,
-                )
-            else:
-                secret_dto = await self.secrets_dao.create(
-                    project_id=project_id,
-                    organization_id=organization_id,
-                    create_secret_dto=create_secret_dto,
-                    management=management,
-                )
+            secret_dto = await self.secrets_dao.create(
+                owner=owner,
+                create_secret_dto=create_secret_dto,
+                management=management,
+            )
 
         if project_id is not None:
-            await invalidate_cache(project_id=str(project_id))
+            await self._invalidate_project(project_id)
 
         await self._register_llm_endpoint(
             project_id=project_id,
@@ -584,8 +645,7 @@ class VaultService:
     async def _name_and_slug_provider_key(
         self,
         *,
-        project_id: UUID | None,
-        organization_id: UUID | None,
+        owner: SecretOwner,
         create_secret_dto: CreateSecretDTO,
     ) -> None:
         """Give a new provider_key connection a display name and a stable slug.
@@ -601,13 +661,16 @@ class VaultService:
             with set_data_encryption_key(
                 data_encryption_key=self._data_encryption_key,
             ):
-                secrets_dtos = await self.secrets_dao.list(
-                    project_id=project_id,
-                    organization_id=organization_id,
-                )
+                secrets_dtos = await self.secrets_dao.list(owner=owner)
 
             header.name = next_provider_key_name(
                 kind=create_secret_dto.secret.data.kind,
+                # An organization connection's default name says it is the organization's.
+                owner_label=(
+                    "Organization"
+                    if owner.kind == SecretOwnerKind.ORGANIZATION
+                    else None
+                ),
                 taken_names={
                     secret_dto.header.name
                     for secret_dto in secrets_dtos or []
@@ -625,8 +688,7 @@ class VaultService:
     async def _name_and_slug_subscription_provider(
         self,
         *,
-        project_id: UUID | None,
-        organization_id: UUID | None,
+        owner: SecretOwner,
         create_secret_dto: CreateSecretDTO,
     ) -> None:
         """Name and slug a new subscription connection, and refuse a duplicate provider.
@@ -642,10 +704,7 @@ class VaultService:
         with set_data_encryption_key(
             data_encryption_key=self._data_encryption_key,
         ):
-            secrets_dtos = await self.secrets_dao.list(
-                project_id=project_id,
-                organization_id=organization_id,
-            )
+            secrets_dtos = await self.secrets_dao.list(owner=owner)
 
         for secret_dto in secrets_dtos or []:
             if secret_dto.kind != SecretKind.SUBSCRIPTION_PROVIDER:
@@ -655,11 +714,15 @@ class VaultService:
                 getattr(stored_provider, "value", stored_provider)
                 == provider_kind.value
             ):
-                raise SubscriptionProviderConflict(provider=provider_kind.value)
+                raise SubscriptionProviderConflict(
+                    provider=provider_kind.value, owner=owner.kind.value
+                )
 
         header = create_secret_dto.header
         if not header.name:
             header.name = SUBSCRIPTION_PROVIDER_DISPLAY_NAMES[provider_kind]
+            if owner.kind == SecretOwnerKind.ORGANIZATION:
+                header.name = f"{header.name} (Organization)"
 
         # This is the storage identity, not the editable display identity. Keeping it canonical
         # lets the database's (project_id, slug) unique index serialize concurrent creates.
@@ -680,8 +743,9 @@ class VaultService:
         ):
             secret_dto = await self.secrets_dao.get_by_id(
                 secret_id=secret_id,
-                project_id=project_id,
-                organization_id=organization_id,
+                owner=_owner_from_ids(
+                    project_id=project_id, organization_id=organization_id
+                ),
             )
             return secret_dto
 
@@ -696,8 +760,9 @@ class VaultService:
         ):
             return await self.secrets_dao.get_by_slug(
                 secret_slug=secret_slug,
-                project_id=project_id,
-                organization_id=organization_id,
+                owner=_owner_from_ids(
+                    project_id=project_id, organization_id=organization_id
+                ),
             )
 
     async def list_secrets(
@@ -705,30 +770,171 @@ class VaultService:
         project_id: UUID | None = None,
         organization_id: UUID | None = None,
     ):
+        """The project's own rows (project_id), or an organization's rows of any kind
+        (organization_id, uncached, EE SSO).
+
+        A project read is the `effective_secrets` entry's project rows: the same one cache
+        read, filled by the same one statement, as before M5. It never carries
+        organization rows, so every plaintext reader sees project rows only."""
         if project_id is not None:
-            secrets_dtos = await get_cache(
-                namespace="list_secrets",
-                project_id=str(project_id),
-                key={},
-                model=SecretResponseDTO,
-                is_list=True,
-            )
-            if secrets_dtos is not None:
-                return secrets_dtos
+            entry = await self._effective_entry(project_id=project_id)
+            return list(entry.secrets)
 
         with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
-            secrets_dtos = await self.secrets_dao.list(
-                project_id=project_id, organization_id=organization_id
+            return await self.secrets_dao.list(
+                owner=_owner_from_ids(
+                    project_id=project_id, organization_id=organization_id
+                )
             )
 
-        if project_id is not None:
-            await set_cache(
-                namespace="list_secrets",
+    # -- the effective set (M5) ---------------------------------------------------
+
+    async def _effective_entry(self, *, project_id: UUID) -> CachedEffectiveSecrets:
+        """The project's one cache entry, read through today's `get_cache` path.
+
+        Warm: one GET. Cold: the lock path and ONE `load_effective` statement. The entry
+        stays in the request memo for the rest of the request. A cached value whose
+        project id differs is a miss."""
+        memo = get_request_memo()
+        memo_key = (_EFFECTIVE_MEMO, project_id)
+        if memo is not None and memo_key in memo:
+            return memo[memo_key]
+
+        cache_key = {"p": str(project_id)}
+        entry = await get_cache(
+            namespace=_EFFECTIVE_NAMESPACE,
+            project_id=str(project_id),
+            key=cache_key,
+            model=CachedEffectiveSecrets,
+        )
+        if entry is not None and entry.project_id != project_id:
+            log.warning(
+                "[secrets] effective entry of another project ignored",
                 project_id=str(project_id),
-                key={},
-                value=secrets_dtos,
+                entry_project_id=str(entry.project_id),
             )
-        return secrets_dtos
+            entry = None
+
+        if entry is None:
+            with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
+                entry = await self.secrets_dao.load_effective(project_id=project_id)
+            await set_cache(
+                namespace=_EFFECTIVE_NAMESPACE,
+                project_id=str(project_id),
+                key=cache_key,
+                value=entry,
+            )
+
+        if memo is not None:
+            memo[memo_key] = entry
+        return entry
+
+    def _organization_rows(
+        self, *, entry: CachedEffectiveSecrets, organization_id: Optional[UUID]
+    ) -> List[SecretResponseDTO]:
+        if not organization_matches(entry=entry, organization_id=organization_id):
+            if entry.organization and entry.organization_id is not None:
+                log.warning(
+                    "[secrets] organization mismatch",
+                    project_id=str(entry.project_id),
+                    project_organization_id=str(entry.organization_id),
+                    request_organization_id=str(organization_id),
+                )
+            return []
+        return available_organization_secrets(
+            entry=entry, organization_id=organization_id
+        )
+
+    async def get_organization_connection(
+        self, *, organization_id: UUID, project_id: UUID, slug: str
+    ) -> Optional[SecretResponseDTO]:
+        """The organization row an agent of this project named by scope `organization`
+        and `slug`, when it is available to the project; else None. Never a project row.
+        In-process readers only (the LLM gateway); never an HTTP response."""
+        entry = await self._effective_entry(project_id=project_id)
+        return next(
+            (
+                secret
+                for secret in self._organization_rows(
+                    entry=entry, organization_id=organization_id
+                )
+                if secret.slug == slug
+            ),
+            None,
+        )
+
+    async def get_available_organization_secret_by_id(
+        self,
+        *,
+        organization_id: UUID,
+        project_id: UUID,
+        secret_id: UUID,
+    ) -> Optional[SecretResponseDTO]:
+        """The organization row with this id while it is available to the project;
+        never a project row."""
+        entry = await self._effective_entry(project_id=project_id)
+        return next(
+            (
+                secret
+                for secret in self._organization_rows(
+                    entry=entry, organization_id=organization_id
+                )
+                if secret.id == secret_id
+            ),
+            None,
+        )
+
+    async def list_project_and_organization_secrets(
+        self, *, organization_id: UUID, project_id: UUID
+    ) -> Tuple[List[SecretResponseDTO], List[SecretResponseDTO]]:
+        """The project's rows and the organization rows its agents may name, from ONE
+        entry read (`GET /secrets/?include_organization=true`)."""
+        entry = await self._effective_entry(project_id=project_id)
+        return list(entry.secrets), self._organization_rows(
+            entry=entry, organization_id=organization_id
+        )
+
+    async def _invalidate_project(self, project_id: UUID) -> None:
+        """Every cache entry of the project (old pods' namespaces included), then the
+        request memo, so a later read in this request sees the write."""
+        await invalidate_cache(project_id=str(project_id))
+        clear_request_memo()
+
+    async def _invalidate_organization(self, *, organization_id: UUID) -> List[UUID]:
+        """After an organization-credential write commits: the `effective_secrets` entry
+        of each project of the organization (exact keys, batched), then the memo. A
+        failure is logged and never fails the writer. Returns the projects read."""
+        project_ids: List[UUID] = []
+        try:
+            project_ids = await self.secrets_dao.list_organization_project_ids(
+                organization_id=organization_id
+            )
+        except Exception:  # noqa: BLE001 - see the docstring
+            log.warning(
+                "[secrets] cache invalidation failed",
+                organization_id=str(organization_id),
+            )
+            clear_request_memo()
+            return project_ids
+        try:
+            await invalidate_cache_entries(
+                [
+                    {
+                        "namespace": _EFFECTIVE_NAMESPACE,
+                        "project_id": str(project_id),
+                        "key": {"p": str(project_id)},
+                    }
+                    for project_id in project_ids
+                ]
+            )
+        except Exception:  # noqa: BLE001 - see the docstring
+            log.warning(
+                "[secrets] cache invalidation failed",
+                organization_id=str(organization_id),
+            )
+        finally:
+            clear_request_memo()
+        return project_ids
 
     async def update_secret(
         self,
@@ -759,14 +965,15 @@ class VaultService:
             secret_dto = await self.secrets_dao.update(
                 secret_id=secret_id,
                 update_secret_dto=update_secret_dto,
-                project_id=project_id,
-                organization_id=organization_id,
+                owner=_owner_from_ids(
+                    project_id=project_id, organization_id=organization_id
+                ),
                 user_id=user_id,
                 resolve_update=resolve_update,
             )
 
         if project_id is not None:
-            await invalidate_cache(project_id=str(project_id))
+            await self._invalidate_project(project_id)
 
         # An update that moves a row off `custom_provider` leaves the endpoint registered
         # for it behind, because registration returns early for every other kind and
@@ -802,6 +1009,7 @@ class VaultService:
         organization_id: UUID | None = None,
         user_id: UUID | None = None,
         resolve_update: Callable[[SecretResponseDTO], Optional[UpdateSecretDTO]],
+        stores_login: bool = False,
     ):
         """Apply an update computed from the stored row under the DAO's write lock.
 
@@ -812,6 +1020,10 @@ class VaultService:
         A resolver that returns None means the row already holds what the caller wanted.
         Nothing is written and the project cache keeps its entry, so a device login poll
         every two seconds does not evict every reader's view of the vault.
+
+        `stores_login` marks a write that stores or replaces an organization login (a
+        pasted token, a finished device login): it is audited like every other organization
+        write. Starting, polling or cancelling a sign-in and a run's refresh are not.
         """
         changed = False
 
@@ -827,14 +1039,30 @@ class VaultService:
             secret_dto = await self.secrets_dao.update(
                 secret_id=secret_id,
                 update_secret_dto=UpdateSecretDTO(),
-                project_id=project_id,
-                organization_id=organization_id,
+                owner=_owner_from_ids(
+                    project_id=project_id, organization_id=organization_id
+                ),
                 user_id=user_id,
                 resolve_update=resolve,
+                # An organization login is a connection: read with its selected projects.
+                shareable=organization_id is not None,
             )
 
         if changed and project_id is not None:
-            await invalidate_cache(project_id=str(project_id))
+            await self._invalidate_project(project_id)
+        elif changed and organization_id is not None and stores_login:
+            await self._organization_written(
+                organization_id=organization_id,
+                secret_id=secret_id,
+                kind=secret_dto.kind,
+                availability=secret_dto.availability or SecretAvailability.ALL_PROJECTS,
+                selected_count=len(secret_dto.selected_project_ids or []),
+                action="updated",
+                user_id=user_id,
+            )
+        elif changed and organization_id is not None:
+            # Every project entry of the organization holds the row.
+            await self._invalidate_organization(organization_id=organization_id)
         return secret_dto
 
     async def update_managed_secret(
@@ -857,13 +1085,14 @@ class VaultService:
             secret_dto = await self.secrets_dao.update(
                 secret_id=secret_id,
                 update_secret_dto=update_secret_dto,
-                project_id=project_id,
-                organization_id=organization_id,
+                owner=_owner_from_ids(
+                    project_id=project_id, organization_id=organization_id
+                ),
                 resolve_update=_resolve_managed_update(manager),
             )
 
         if project_id is not None:
-            await invalidate_cache(project_id=str(project_id))
+            await self._invalidate_project(project_id)
 
         # Keep the gateway endpoint in step, as `update_secret` does: a model the manager
         # re-pointed must reach the endpoint's allowlist too.
@@ -885,31 +1114,29 @@ class VaultService:
         """Delete a managed row on behalf of the manager that owns it, for a manager that
         retires what it seeded. Refuses any row another manager owns, and any unmanaged
         row."""
-        deleted: list[SecretResponseDTO] = []
 
         def authorize_delete(stored_secret_dto: SecretResponseDTO) -> None:
             management = stored_secret_dto.management
             if management is None or management.manager != manager:
                 raise ManagedSecretReadOnlyError()
-            deleted.append(stored_secret_dto)
 
         with set_data_encryption_key(
             data_encryption_key=self._data_encryption_key,
         ):
-            await self.secrets_dao.delete(
+            deleted = await self.secrets_dao.delete(
                 secret_id=secret_id,
-                project_id=project_id,
-                organization_id=organization_id,
+                owner=_owner_from_ids(
+                    project_id=project_id, organization_id=organization_id
+                ),
                 authorize_delete=authorize_delete,
             )
 
         if project_id is not None:
-            await invalidate_cache(project_id=str(project_id))
+            await self._invalidate_project(project_id)
 
-        for stored_secret_dto in deleted:
+        if deleted is not None:
             await self._deregister_llm_endpoint(
-                project_id=project_id,
-                secret_dto=stored_secret_dto,
+                project_id=project_id, secret_dto=deleted
             )
 
     async def invalidate_secrets_cache(self, project_id: UUID) -> None:
@@ -919,7 +1146,7 @@ class VaultService:
         reader that finds the cached list disagrees with the stored row needs the same door,
         rather than reaching for the cache helper itself.
         """
-        await invalidate_cache(project_id=str(project_id))
+        await self._invalidate_project(project_id)
 
     async def delete_secret(
         self,
@@ -927,29 +1154,327 @@ class VaultService:
         project_id: UUID | None = None,
         organization_id: UUID | None = None,
     ) -> None:
-        # The DAO hands the row to `authorize_delete` under its write lock; capturing it
-        # there is what tells us which endpoint slug to drop, without a second read.
-        deleted: list[SecretResponseDTO] = []
-
-        def authorize_delete(stored_secret_dto: SecretResponseDTO) -> None:
-            _authorize_delete(stored_secret_dto)
-            deleted.append(stored_secret_dto)
-
+        # The DAO returns the row it deleted, which names the endpoint slug to drop.
         with set_data_encryption_key(
             data_encryption_key=self._data_encryption_key,
         ):
-            await self.secrets_dao.delete(
+            deleted = await self.secrets_dao.delete(
                 secret_id=secret_id,
-                project_id=project_id,
-                organization_id=organization_id,
-                authorize_delete=authorize_delete,
+                owner=_owner_from_ids(
+                    project_id=project_id, organization_id=organization_id
+                ),
+                authorize_delete=_authorize_delete,
             )
 
         if project_id is not None:
-            await invalidate_cache(project_id=str(project_id))
+            await self._invalidate_project(project_id)
 
-        for stored_secret_dto in deleted:
+        if deleted is not None:
             await self._deregister_llm_endpoint(
-                project_id=project_id,
-                secret_dto=stored_secret_dto,
+                project_id=project_id, secret_dto=deleted
             )
+
+    # -- organization credentials (M5) --------------------------------------------
+
+    def _check_organization_secret(self, *, secret: Any) -> None:
+        """The product rules of a shareable credential, on the payload as it will be
+        stored: a shareable kind, an LLM family for a key, a deployment the gateway
+        serves, and values long enough for the gateway's echo scan. A subscription login
+        carries no value at create time (it signs in through the device login), so only
+        its kind is checked here.
+
+        Normalizes the credential values in place first (surrounding whitespace removed),
+        so the minimum applies to the value the gateway will send and scan."""
+        kind = secret.kind
+        if kind not in ORGANIZATION_SECRET_KINDS:
+            raise OrganizationSecretKindNotShareable(kind=str(kind.value))
+        if kind == SecretKind.SUBSCRIPTION_PROVIDER:
+            return
+        if kind == SecretKind.PROVIDER_KEY and not is_llm_provider_family(secret.data):
+            raise OrganizationSecretKindNotShareable(kind=str(kind.value))
+        if kind == SecretKind.CUSTOM_PROVIDER:
+            deployment = custom_provider_deployment_kind(
+                LLMCustomProviderKind(_provider_family(secret.data))
+            )
+            if deployment not in LLM_GATEWAY_SERVED_DEPLOYMENT_KINDS:
+                raise OrganizationSecretNotServed(deployment_kind=deployment.value)
+
+        provider = getattr(secret.data, "provider", None)
+        if provider is None:
+            return
+        values = []
+        scanned_text = []
+        key = getattr(provider, "key", None)
+        if isinstance(key, str):
+            provider.key = key.strip()
+            values.append(provider.key)
+            scanned_text.append(("key", provider.key))
+        extras = getattr(provider, "extras", None)
+        if isinstance(extras, dict):
+            for extras_key in CREDENTIAL_EXTRAS_KEYS:
+                value = extras.get(extras_key)
+                if value is None:
+                    continue
+                if not isinstance(value, str):
+                    # A number or a structure would be sent as its text form, which the
+                    # rule below never measured: refuse every non-text credential value.
+                    raise OrganizationSecretValueTooShort(
+                        min_length=MIN_SCANNED_CREDENTIAL_LENGTH
+                    )
+                extras[extras_key] = value.strip()
+                values.append(extras[extras_key])
+                scanned_text.append((extras_key, extras[extras_key]))
+        for value in values:
+            if len(value) < MIN_SCANNED_CREDENTIAL_LENGTH:
+                raise OrganizationSecretValueTooShort(
+                    min_length=MIN_SCANNED_CREDENTIAL_LENGTH
+                )
+        # A value the gateway injects into a header is limited to characters no JSON
+        # encoder escapes, so the echo scan's spellings cover every way an upstream can
+        # write it back. A structured document (a Vertex service-account JSON) is not sent
+        # as a header and keeps its own characters.
+        for name, value in scanned_text:
+            if name not in _STRUCTURED_CREDENTIAL_KEYS and any(
+                character not in _SHAREABLE_CREDENTIAL_CHARACTERS for character in value
+            ):
+                raise OrganizationSecretValueNotScannable()
+
+    async def _check_project_limit(
+        self, *, organization_id: UUID, availability: SecretAvailability
+    ) -> None:
+        if availability != SecretAvailability.SELECTED_PROJECTS:
+            return
+        if self.project_limits is None or not (
+            await self.project_limits.allows_selected_projects(
+                organization_id=organization_id
+            )
+        ):
+            raise ProjectLimitNotAllowed()
+
+    async def _organization_written(
+        self,
+        *,
+        organization_id: UUID,
+        secret_id: UUID,
+        kind: SecretKind,
+        availability: SecretAvailability,
+        selected_count: Optional[int],
+        action: str,
+        user_id: Optional[UUID],
+    ) -> None:
+        """After the commit: invalidate every project entry of the organization, then
+        publish one audit event (ids and kinds only). The event is published even when
+        the cache invalidation fails; it needs only the organization's project list, which
+        is also the event's home (the event store is keyed by project)."""
+        project_ids = await self._invalidate_organization(
+            organization_id=organization_id
+        )
+        if not project_ids:
+            log.warning(
+                "[secrets] organization credential event not published",
+                organization_id=str(organization_id),
+                reason="no project to record it on",
+            )
+            return
+        attributes = {
+            "organization_id": str(organization_id),
+            "secret_id": str(secret_id),
+            "kind": kind.value,
+            "action": action,
+            "availability": availability.value,
+            "project_count": (
+                selected_count or 0
+                if availability == SecretAvailability.SELECTED_PROJECTS
+                else len(project_ids)
+            ),
+            "user_id": str(user_id) if user_id else None,
+        }
+        try:
+            await _safe_publish(
+                organization_id=organization_id,
+                # The event store is keyed by project; the organization's event rides
+                # on its first project (the default one first), read for invalidation.
+                project_id=project_ids[0],
+                event=_build_event(
+                    event_type=EventType.ORGANIZATION_SECRETS_CHANGED,
+                    attributes={k: v for k, v in attributes.items() if v is not None},
+                ),
+            )
+        except Exception:  # noqa: BLE001 - audit must never fail the writer
+            log.warning(
+                "[secrets] organization credential event not published",
+                organization_id=str(organization_id),
+            )
+
+    async def list_organization_secrets(
+        self, *, organization_id: UUID
+    ) -> List[SecretResponseDTO]:
+        """Every connection of the organization, read from Postgres (management)."""
+        with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
+            return await self.secrets_dao.list(
+                owner=_organization(organization_id), shareable=True
+            )
+
+    async def fetch_organization_secret(
+        self, *, organization_id: UUID, secret_id: UUID
+    ) -> Optional[SecretResponseDTO]:
+        with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
+            return await self.secrets_dao.get_by_id(
+                owner=_organization(organization_id),
+                secret_id=secret_id,
+                shareable=True,
+            )
+
+    async def create_organization_secret(
+        self,
+        *,
+        organization_id: UUID,
+        create_secret_dto: CreateSecretDTO,
+        user_id: Optional[UUID],
+        availability: SecretAvailability = SecretAvailability.ALL_PROJECTS,
+        project_ids: Sequence[UUID] = (),
+    ) -> SecretResponseDTO:
+        reject_server_owned_fields(secret=create_secret_dto.secret)
+        self._check_organization_secret(secret=create_secret_dto.secret)
+        await self._check_project_limit(
+            organization_id=organization_id, availability=availability
+        )
+        # An organization credential is never readable back, whatever the caller asked.
+        create_secret_dto.write_only = True
+
+        owner = _organization(organization_id)
+        if create_secret_dto.secret.kind == SecretKind.PROVIDER_KEY:
+            await self._name_and_slug_provider_key(
+                owner=owner, create_secret_dto=create_secret_dto
+            )
+        elif create_secret_dto.secret.kind == SecretKind.SUBSCRIPTION_PROVIDER:
+            # One login per provider per organization; it signs in through the device
+            # login routes of the organization (or a Claude token), never with the create.
+            await self._name_and_slug_subscription_provider(
+                owner=owner, create_secret_dto=create_secret_dto
+            )
+        elif not create_secret_dto.slug and create_secret_dto.header.name:
+            create_secret_dto.slug = get_slug_from_name_and_id(
+                create_secret_dto.header.name,
+                uuid4(),
+            )
+
+        with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
+            secret_dto = await self.secrets_dao.create(
+                owner=owner,
+                create_secret_dto=create_secret_dto,
+                availability=availability,
+                project_ids=list(project_ids),
+                user_id=user_id,
+            )
+
+        await self._organization_written(
+            organization_id=organization_id,
+            secret_id=secret_dto.id,
+            kind=secret_dto.kind,
+            availability=secret_dto.availability or SecretAvailability.ALL_PROJECTS,
+            selected_count=len(secret_dto.selected_project_ids or []),
+            action="created",
+            user_id=user_id,
+        )
+        return secret_dto
+
+    async def update_organization_secret(
+        self,
+        *,
+        organization_id: UUID,
+        secret_id: UUID,
+        update_secret_dto: UpdateSecretDTO,
+        user_id: Optional[UUID],
+    ) -> Optional[SecretResponseDTO]:
+        reject_server_owned_fields(secret=update_secret_dto.secret)
+
+        def resolve_update(
+            stored_secret_dto: SecretResponseDTO,
+            requested_update: UpdateSecretDTO,
+        ) -> UpdateSecretDTO:
+            # Keep-on-omit under the row lock, then the rules on the merged payload.
+            merged = _merge_update(stored_secret_dto, requested_update)
+            if merged.secret is not None:
+                self._check_organization_secret(secret=merged.secret)
+            return merged
+
+        with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
+            secret_dto = await self.secrets_dao.update(
+                owner=_organization(organization_id),
+                secret_id=secret_id,
+                update_secret_dto=update_secret_dto,
+                user_id=user_id,
+                resolve_update=resolve_update,
+                shareable=True,
+            )
+
+        if secret_dto is not None:
+            await self._organization_written(
+                organization_id=organization_id,
+                secret_id=secret_id,
+                kind=secret_dto.kind,
+                availability=secret_dto.availability or SecretAvailability.ALL_PROJECTS,
+                selected_count=len(secret_dto.selected_project_ids or []),
+                action="updated",
+                user_id=user_id,
+            )
+        return secret_dto
+
+    async def delete_organization_secret(
+        self,
+        *,
+        organization_id: UUID,
+        secret_id: UUID,
+        user_id: Optional[UUID] = None,
+    ) -> bool:
+        with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
+            deleted = await self.secrets_dao.delete(
+                owner=_organization(organization_id),
+                secret_id=secret_id,
+                shareable=True,
+            )
+        if deleted is None:
+            return False
+        await self._organization_written(
+            organization_id=organization_id,
+            secret_id=secret_id,
+            kind=deleted.kind,
+            availability=deleted.availability or SecretAvailability.ALL_PROJECTS,
+            selected_count=len(deleted.selected_project_ids or []),
+            action="deleted",
+            user_id=user_id,
+        )
+        return True
+
+    async def set_organization_secret_availability(
+        self,
+        *,
+        organization_id: UUID,
+        secret_id: UUID,
+        availability: SecretAvailability,
+        project_ids: Sequence[UUID],
+        user_id: Optional[UUID],
+    ) -> Optional[SecretResponseDTO]:
+        await self._check_project_limit(
+            organization_id=organization_id, availability=availability
+        )
+        with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
+            secret_dto = await self.secrets_dao.set_availability(
+                owner=_organization(organization_id),
+                secret_id=secret_id,
+                availability=availability,
+                project_ids=list(project_ids),
+                user_id=user_id,
+            )
+        if secret_dto is not None:
+            await self._organization_written(
+                organization_id=organization_id,
+                secret_id=secret_id,
+                kind=secret_dto.kind,
+                availability=secret_dto.availability or SecretAvailability.ALL_PROJECTS,
+                selected_count=len(secret_dto.selected_project_ids or []),
+                action="availability_changed",
+                user_id=user_id,
+            )
+        return secret_dto

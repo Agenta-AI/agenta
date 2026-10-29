@@ -963,11 +963,22 @@ async function acquireEnvironmentOnce(
     // minus the endpoint: the race exists wherever a model key rides a Secret on a fresh sandbox,
     // but the preflight can only SEE it on a provider whose request shape it knows. Gemini is
     // not one of those, so on that path the classifier is still the only guard.
+    // The gateway credential counts here and not for the preflight: a refused gateway credential
+    // is the same delivery race, but the gateway has no auth-only endpoint for a probe to read.
     if (
       deliversModelSecretOnCreate({
         isDaytona: plan.isDaytona,
         sandboxMode: acquiredSandbox.mode,
-        hasModelSecretCandidate: Boolean(modelSecretCandidate),
+        // A gateway credential counts only when a Secret actually holds it: with no delivery
+        // port the allocation is empty and the credential stayed a plain value.
+        hasModelSecretCandidate:
+          Boolean(modelSecretCandidate) ||
+          (environment.credentialDelivery !== undefined &&
+            Boolean(
+              plan.credentials.daytonaSecretPlan?.candidates.some(
+                (candidate) => candidate.consumer.kind === "gateway",
+              ),
+            )),
       })
     ) {
       environment.modelSecretDeliveredAt = Date.now();
@@ -1692,7 +1703,11 @@ async function acquireEnvironmentOnce(
       err,
       plan.harness,
       request.modelConnection?.provider,
-      { authFault: () => describeCodexSubscriptionAuthFault(plan), unknownText: plan.unknownErrorText },
+      {
+        authFault: () => describeCodexSubscriptionAuthFault(plan),
+        modelConnection: request.modelConnection,
+        unknownText: plan.unknownErrorText,
+      },
     );
     // Same substitution as the turn path: a hosted subscription run must never be told to add a
     // vault key. Acquire itself makes no model call, but the harness starts here and a dead login

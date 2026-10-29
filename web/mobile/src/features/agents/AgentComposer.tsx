@@ -1,6 +1,7 @@
 import {useState} from "react"
 
 import {stagedFilesToOutbound, useComposerAttachments} from "@agenta/chat/hooks"
+import {markSessionFresh} from "@agenta/chat/state"
 import {HomeTaskComposer} from "@agenta/home-ui"
 import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
@@ -28,7 +29,13 @@ export const AgentComposer = ({
     const router = useRouter()
     const stash = useSetAtom(stashPendingTaskAtom)
     const dropPendingTask = useSetAtom(takePendingTaskAtom)
-    const [sessionId] = useState(() => newId())
+    const [sessionId] = useState(() => {
+        const id = newId()
+        // Same as Home's composer: a session minted here has no row yet, and it is the
+        // user's own (its first message must not wait for a sharing state).
+        markSessionFresh(id)
+        return id
+    })
     const attachments = useComposerAttachments({sessionId, largeFilesToDrive: true})
 
     const start = async ({text: typed}: {agentId: string; text: string}) => {

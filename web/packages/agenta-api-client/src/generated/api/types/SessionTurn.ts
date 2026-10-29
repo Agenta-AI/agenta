@@ -23,4 +23,8 @@ export interface SessionTurn {
     span_id?: (string | null) | undefined;
     start_time?: (string | null) | undefined;
     end_time?: (string | null) | undefined;
+    principal?: (AgentaApi.PrincipalRef | null) | undefined;
+    sender?: (AgentaApi.RunSender | null) | undefined;
+    context?: (AgentaApi.RunContext | null) | undefined;
+    approved_by?: (AgentaApi.RunApproval | null) | undefined;
 }
