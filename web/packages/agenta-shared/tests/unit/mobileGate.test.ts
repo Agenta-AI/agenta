@@ -335,9 +335,9 @@ describe("decideDesktopGate — classic mode", () => {
     it("passes when the cookie is absent — unknown is never treated as off", () => {
         // The preference is per-browser; someone who has not loaded either app since this
         // shipped has no cookie, and guessing would move users who never chose anything.
-        expect(decideDesktopGate(input({headers: docHeaders(DESKTOP_UA)}))).toEqual({
-            kind: "pass",
-        })
+        const i = input({headers: docHeaders(DESKTOP_UA)})
+        i.cookie = (name) => (name === "sFrontToken" ? "t" : undefined)
+        expect(decideDesktopGate(i)).toEqual({kind: "pass"})
     })
 
     it("honors the opt-out cookie", () => {
@@ -494,8 +494,10 @@ describe("decideDesktopGate", () => {
         i.cookie = (name) => (name === MOBILE_OPTOUT_COOKIE ? "1" : undefined)
         expect(decideDesktopGate(i)).toEqual({kind: "pass"})
     })
-    it("passes desktop devices through", () => {
-        expect(decideDesktopGate(input({headers: docHeaders(DESKTOP_UA)}))).toEqual({kind: "pass"})
+    it("passes signed-in desktop devices through", () => {
+        const i = input({headers: docHeaders(DESKTOP_UA)})
+        i.cookie = (name) => (name === "sAccessToken" ? "t" : undefined)
+        expect(decideDesktopGate(i)).toEqual({kind: "pass"})
     })
     it("sets the opt-out cookie and strips the reserved param on ?view=desktop", () => {
         expect(
@@ -515,6 +517,108 @@ describe("decideDesktopGate", () => {
             throw new Error("boom")
         }
         expect(decideDesktopGate(i)).toEqual({kind: "pass"})
+    })
+})
+
+describe("decideDesktopGate — signed-out desktop visitor", () => {
+    /** A desktop browser with the given cookies; none means signed out with no preference. */
+    const desktop = (
+        cookies: Record<string, string> = {},
+        overrides: Partial<GateInput> & {headers?: Record<string, string>} = {},
+    ) => {
+        const i = input({headers: docHeaders(DESKTOP_UA), ...overrides})
+        i.cookie = (name) => cookies[name]
+        return i
+    }
+
+    it("sends the entry points to the /m sign-in", () => {
+        // `/` redirects to bare /w, and the desktop app would send this visitor on to /auth.
+        for (const pathname of ["/w", "/w/", "/auth"]) {
+            expect(decideDesktopGate(desktop({}, {pathname}))).toEqual({
+                kind: "redirect",
+                location: "/m/auth",
+            })
+        }
+    })
+
+    it("treats either SuperTokens session cookie as signed in", () => {
+        for (const name of ["sAccessToken", "sFrontToken"]) {
+            for (const pathname of ["/w", "/auth"]) {
+                expect(decideDesktopGate(desktop({[name]: "t"}, {pathname}))).toEqual({
+                    kind: "pass",
+                })
+            }
+        }
+    })
+
+    it("leaves a Classic-mode-on browser on the desktop app", () => {
+        for (const pathname of ["/w", "/auth"]) {
+            expect(decideDesktopGate(desktop({[CLASSIC_MODE_COOKIE]: "1"}, {pathname}))).toEqual({
+                kind: "pass",
+            })
+        }
+    })
+
+    it("keeps the Classic-mode-off routing unchanged", () => {
+        expect(decideDesktopGate(desktop({[CLASSIC_MODE_COOKIE]: "0"}, {pathname: "/w"}))).toEqual({
+            kind: "redirect",
+            location: "/m/",
+        })
+        expect(
+            decideDesktopGate(desktop({[CLASSIC_MODE_COOKIE]: "0"}, {pathname: "/auth"})),
+        ).toEqual({kind: "redirect", location: "/m/auth"})
+    })
+
+    it("never moves the desktop-only links", () => {
+        for (const pathname of ["/auth/callback/github", "/post-signup", "/workspaces/accept"]) {
+            expect(decideDesktopGate(desktop({}, {pathname}))).toEqual({kind: "pass"})
+        }
+        for (const search of ["?token=abc123", "?auth_error=sso_denied"]) {
+            expect(decideDesktopGate(desktop({}, {pathname: "/auth", search}))).toEqual({
+                kind: "pass",
+            })
+        }
+    })
+
+    it("still hands a mobile-started OAuth callback to /m", () => {
+        const i = desktop(
+            {[MOBILE_AUTH_CALLBACK_COOKIE]: "1"},
+            {pathname: "/auth/callback/github", search: "?code=abc"},
+        )
+        expect(decideDesktopGate(i)).toEqual({
+            kind: "redirect",
+            location: "/m/auth/callback/github?code=abc",
+        })
+    })
+
+    it("lets ?view=desktop and the opt-out cookie win", () => {
+        expect(decideDesktopGate(desktop({}, {pathname: "/w", search: "?view=desktop"}))).toEqual({
+            kind: "set-cookie-redirect",
+            cookie: MOBILE_OPTOUT_COOKIE,
+            clearCookie: MOBILE_OPTIN_COOKIE,
+            location: "/w",
+        })
+        expect(decideDesktopGate(desktop({[MOBILE_OPTOUT_COOKIE]: "1"}, {pathname: "/w"}))).toEqual(
+            {kind: "pass"},
+        )
+    })
+
+    it("sends a website template link to the /m root, which keeps the key across sign-in", () => {
+        expect(
+            decideDesktopGate(desktop({}, {pathname: "/w", search: "?template=support-bot"})),
+        ).toEqual({kind: "redirect", location: "/m/?template=support-bot"})
+    })
+
+    it("leaves deep links on the desktop sign-in, which returns to them", () => {
+        // /m's sign-in always lands on its home screen, so it would lose where the link pointed.
+        for (const pathname of ["/w/ws1/p/pr1/agents", "/w/ws1/p/pr1/evaluations", "/w/ws1"]) {
+            expect(decideDesktopGate(desktop({}, {pathname}))).toEqual({kind: "pass"})
+        }
+        expect(
+            decideDesktopGate(
+                desktop({}, {pathname: "/auth", search: "?redirectToPath=%2Fw%2Fws1%2Fp%2Fpr1"}),
+            ),
+        ).toEqual({kind: "pass"})
     })
 })
 
