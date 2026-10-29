@@ -1086,9 +1086,16 @@ describe("runSandboxAgent orchestration", () => {
     assert.equal(result.ok, true);
     const selected = calls.workspacePiSkillSnapshot;
     assert.ok(selected);
+    // A local snapshot lives on the runner's disk, not on the (geesefs) session cwd, and the
+    // model is told that same path.
     assert.match(
       selected.dir,
-      new RegExp(`${cwd}/agents/skills/[a-f0-9]{64}$`),
+      new RegExp(`^${tmpdir()}/agenta-pi-skills/[a-f0-9]{64}$`),
+    );
+    assert.ok(
+      (calls.workspacePlan.prompt.agentsMd as string).includes(
+        `Your rendered skill files live at \`${selected.dir}\``,
+      ),
     );
     assert.equal(
       (calls.providerArgs[1] as Record<string, string>)
