@@ -10,15 +10,20 @@ import {
   rmSync,
   statSync,
   writeFileSync,
+  utimesSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { describe, it } from "vitest";
 
-import { agentToolsCacheFor } from "../../src/engines/sandbox_agent/agent-tools-cache.ts";
+import {
+  AGENT_TOOLS_CACHE_ENTRY_GRACE_MS,
+  agentToolsCacheFor,
+} from "../../src/engines/sandbox_agent/agent-tools-cache.ts";
 import {
   AGENT_TOOLS_ENV_ALLOWLIST,
+  AGENT_TOOLS_EXIT_COPY_FAILED,
   AGENT_TOOLS_EXIT_OCCUPIED,
   AGENT_TOOLS_SETUP_TIMEOUT_MS,
   agentToolsLinkScript,
@@ -359,6 +364,22 @@ describe("localAgentToolsExec (real shell)", () => {
     );
   });
 
+  it("a Stop that landed before the restore started never runs the owner's script", async () => {
+    const { mount, cwd, localDir } = fixture({
+      setup: 'sleep 1; echo ran > "$AGENT_TOOLS_DIR/ran"\n',
+    });
+    const controller = new AbortController();
+    controller.abort();
+    const r = await runAgentToolsSetup(
+      { mountPath: mount, cwd, localDir, runSetup: true },
+      localAgentToolsExec,
+      { log: SILENT, signal: controller.signal },
+    );
+    assert.equal(r.status, "failed");
+    await new Promise((res) => setTimeout(res, 1_500));
+    assert.ok(!existsSync(join(localDir, "ran")));
+  });
+
   it("relink recreates only the link and cleanup removes the local dir", async () => {
     const { mount, cwd, localDir } = fixture({
       bin: { hello: "#!/bin/sh\necho hi\n" },
@@ -436,7 +457,7 @@ describe("agent tools bin cache (local provider)", () => {
     assert.notEqual(statSync(join(root, "s2", "bin", "hello")).mode & 0o111, 0);
   });
 
-  it("a changed binary refreshes the cache and replaces the old entry", async () => {
+  it("a changed binary refreshes the cache and removes the old entry once unused past the grace", async () => {
     const { mount, cwd, root, cache, agentDir } = cached({
       bin: { tool: "v1\n" },
     });
@@ -446,6 +467,9 @@ describe("agent tools bin cache (local provider)", () => {
       { log: SILENT },
     );
     const [oldEntry] = entries(agentDir);
+    // A session may still copy from an entry used within the grace; this one was not.
+    const past = new Date(Date.now() - AGENT_TOOLS_CACHE_ENTRY_GRACE_MS - 60_000);
+    utimesSync(join(agentDir, oldEntry!), past, past);
     writeFileSync(join(mount, ".tools", "bin", "tool"), "version 2\n");
     const r = await runAgentToolsSetup(
       { mountPath: mount, cwd, localDir: join(root, "s2"), runSetup: true, cache },
@@ -517,19 +541,55 @@ describe("agent tools bin cache (local provider)", () => {
     );
   });
 
-  it("falls back to agent-files when the cache entry vanished before the copy", async () => {
+  it("keeps an entry used within the grace, so a session copying from it never loses it", async () => {
+    const { mount, cwd, root, cache, agentDir } = cached({ bin: { tool: "v1\n" } });
+    await runAgentToolsSetup(
+      { mountPath: mount, cwd, localDir: join(root, "s1"), runSetup: true, cache },
+      localAgentToolsExec,
+      { log: SILENT },
+    );
+    writeFileSync(join(mount, ".tools", "bin", "tool"), "version 2\n");
+    await runAgentToolsSetup(
+      { mountPath: mount, cwd, localDir: join(root, "s2"), runSetup: true, cache },
+      localAgentToolsExec,
+      { log: SILENT },
+    );
+    assert.equal(entries(agentDir).length, 2);
+  });
+
+  it("publishes nothing when the fill did not complete", async () => {
+    const { mount, cwd, root, cache, agentDir } = cached({ bin: { hello: "hi\n" } });
+    const failingFill: typeof localAgentToolsExec = {
+      run: (opts) =>
+        localAgentToolsExec.run({
+          ...opts,
+          // The fill's mkdir fails, so the completion marker is never written.
+          script: opts.script.replace(/\( mkdir /, "( false && mkdir "),
+        }),
+    };
+    const r = await runAgentToolsSetup(
+      { mountPath: mount, cwd, localDir: join(root, "s1"), runSetup: true, cache },
+      failingFill,
+      { log: SILENT },
+    );
+    assert.equal(r.status, "ok");
+    assert.equal(readFileSync(join(root, "s1", "bin", "hello"), "utf8"), "hi\n");
+    assert.deepEqual(entries(agentDir), []);
+    assert.deepEqual(readdirSync(agentDir), []);
+  });
+
+  it("a cache hit whose entry is missing fails the copy instead of staging nothing", async () => {
     const { mount, cwd, localDir } = fixture({ bin: { hello: "hi\n" } });
     const { exitCode } = await localAgentToolsExec.run({
       script: agentToolsSetupScript(mount, cwd, localDir, {
         runSetup: false,
-        binSource: join(localDir, "..", "pruned-entry", "bin"),
+        binSource: join(localDir, "..", "missing-entry", "bin"),
       }),
       cwd,
       env: { PATH: process.env.PATH ?? "/usr/bin:/bin" },
       timeoutMs: 10_000,
     });
-    assert.equal(exitCode, 0);
-    assert.equal(readFileSync(join(localDir, "bin", "hello"), "utf8"), "hi\n");
+    assert.equal(exitCode, AGENT_TOOLS_EXIT_COPY_FAILED);
   });
 
   it("without a cache (the Daytona path) the script copies from agent-files and writes no cache", async () => {

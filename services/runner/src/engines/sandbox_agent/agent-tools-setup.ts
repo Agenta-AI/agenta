@@ -34,8 +34,9 @@
  *
  * Local provider only: `bin/` is staged from a per-agent copy on local disk
  * (`agent-tools-cache.ts`) when a stat of the durable folder matches it, instead of re-reading
- * every binary from the mount. The session dir is still re-staged from scratch from that copy, so
- * the rule above holds. A Daytona sandbox is fresh every time and copies from the mount.
+ * every binary from the mount. On a miss the script fills that copy from the freshly staged
+ * session `bin/`. The session dir is still re-staged from scratch each time, so the rule above
+ * holds. A Daytona sandbox is fresh every time and copies from the mount.
  *
  * Nothing here can fail a turn. A missing `.tools/` is the normal case and costs one `test -d`.
  * A setup script that fails or times out is logged and the session still opens; the model sees
@@ -47,7 +48,11 @@ import { rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 
-import { cachedToolsBin, type AgentToolsCache } from "./agent-tools-cache.ts";
+import {
+  AGENT_TOOLS_CACHE_COMPLETE,
+  planToolsCache,
+  type AgentToolsCache,
+} from "./agent-tools-cache.ts";
 import { shellQuote, type SandboxExec } from "./mount.ts";
 
 export const AGENT_TOOLS_DIR_NAME = ".tools";
@@ -126,8 +131,10 @@ export function agentToolsLinkScript(cwd: string, localDir: string): string {
 
 /**
  * The restore script: link, then re-stage `bin/` from the durable folder (or from its local cache
- * entry, `opts.binSource`), then (optionally) run the owner's `setup.sh`. Every required step checks its own exit; only the setup script's own
- * exit code passes through unchanged.
+ * entry, `opts.binSource`), then fill a new cache entry (`opts.fillDir`), then (optionally) run
+ * the owner's `setup.sh`. Every required step checks its own exit; only the setup script's own
+ * exit code passes through unchanged. A failed fill only leaves the entry without its
+ * completion marker, so the runner does not publish it.
  */
 export function agentToolsSetupScript(
   mountPath: string,
@@ -137,6 +144,8 @@ export function agentToolsSetupScript(
     runSetup: boolean;
     /** Where to copy `bin/` from: a local cache entry, or (default) the durable folder. */
     binSource?: string;
+    /** A cache temp dir's `bin/` to fill from the staged session `bin/`, before `setup.sh`. */
+    fillDir?: string;
   } = { runSetup: true },
 ): string {
   const tools = shellQuote(join(mountPath, AGENT_TOOLS_DIR_NAME));
@@ -150,16 +159,22 @@ export function agentToolsSetupScript(
     // Fresh staging: a binary deleted from the durable folder must not survive here.
     `{ rm -rf ${local}/bin && mkdir -p ${local}/bin; } || exit ${AGENT_TOOLS_EXIT_COPY_FAILED}`,
   ];
-  const fromDurable = `if [ -d ${tools}/bin ]; then for f in ${tools}/bin/*; do [ -f "$f" ] || continue; { cp -f "$f" ${local}/bin/ && chmod +x ${local}/bin/"$(basename "$f")"; } || exit ${AGENT_TOOLS_EXIT_COPY_FAILED}; done; fi`;
-  if (opts.binSource) {
-    // From the local cache entry. If a concurrent session pruned it mid-copy, start the staging
-    // over from the durable folder. Both run before the owner's script, so nothing runs twice.
-    const cached = shellQuote(opts.binSource);
-    lines.push(
-      `if ! ( [ -d ${cached} ] && for f in ${cached}/*; do [ -f "$f" ] || continue; { cp -f "$f" ${local}/bin/ && chmod +x ${local}/bin/"$(basename "$f")"; } || exit 1; done ); then { rm -rf ${local}/bin && mkdir -p ${local}/bin; } || exit ${AGENT_TOOLS_EXIT_COPY_FAILED}; ${fromDurable}; fi`,
+  const source = opts.binSource ? shellQuote(opts.binSource) : `${tools}/bin`;
+  const copy = `for f in ${source}/*; do [ -f "$f" ] || continue; { cp -f "$f" ${local}/bin/ && chmod +x ${local}/bin/"$(basename "$f")"; } || exit ${AGENT_TOOLS_EXIT_COPY_FAILED}; done`;
+  // A durable folder may have no `bin/`; a cache entry always has one.
+  lines.push(
+    opts.binSource
+      ? `[ -d ${source} ] || exit ${AGENT_TOOLS_EXIT_COPY_FAILED}; ${copy}`
+      : `if [ -d ${source} ]; then ${copy}; fi`,
+  );
+  if (opts.fillDir) {
+    const fill = shellQuote(opts.fillDir);
+    const complete = shellQuote(
+      join(opts.fillDir, "..", AGENT_TOOLS_CACHE_COMPLETE),
     );
-  } else {
-    lines.push(fromDurable);
+    lines.push(
+      `( mkdir ${fill} && for f in ${local}/bin/*; do [ -f "$f" ] || continue; cp "$f" ${fill}/ || exit 1; done ) && : > ${complete}`,
+    );
   }
   if (opts.runSetup) {
     lines.push(`[ -f ${setup} ] || exit 0`, `exec sh ${setup}`);
@@ -219,6 +234,8 @@ export const localAgentToolsExec: AgentToolsSetupExec = {
       timer.unref?.();
       const onAbort = () => stop();
       signal?.addEventListener("abort", onAbort, { once: true });
+      // A Stop that landed before the spawn never fires the listener above.
+      if (signal?.aborted) stop();
       const finish = (fn: () => void) => {
         if (settled) return;
         settled = true;
@@ -292,25 +309,34 @@ export async function runAgentToolsSetup(
     // mount and here) is an `error` result like any other, never an exception out of acquire.
     if (deps.hasToolsDir && !(await deps.hasToolsDir()))
       return { status: "absent" };
-    const binSource = input.cache
-      ? await cachedToolsBin(
+    const cachePlan = input.cache
+      ? await planToolsCache(
           join(input.mountPath, AGENT_TOOLS_DIR_NAME),
           input.cache,
           log,
         )
-      : undefined;
-    const { exitCode } = await exec.run({
-      script: agentToolsSetupScript(
-        input.mountPath,
-        input.cwd,
-        input.localDir,
-        { runSetup: input.runSetup, binSource },
-      ),
-      cwd: input.cwd,
-      env: agentToolsSetupEnv(input.mountPath, input.localDir, deps.hostEnv),
-      timeoutMs: deps.timeoutMs ?? AGENT_TOOLS_SETUP_TIMEOUT_MS,
-      signal: deps.signal,
-    });
+      : { kind: "none" as const };
+    let exitCode: number | undefined;
+    try {
+      ({ exitCode } = await exec.run({
+        script: agentToolsSetupScript(
+          input.mountPath,
+          input.cwd,
+          input.localDir,
+          {
+            runSetup: input.runSetup,
+            ...(cachePlan.kind === "hit" ? { binSource: cachePlan.binDir } : {}),
+            ...(cachePlan.kind === "miss" ? { fillDir: cachePlan.fillDir } : {}),
+          },
+        ),
+        cwd: input.cwd,
+        env: agentToolsSetupEnv(input.mountPath, input.localDir, deps.hostEnv),
+        timeoutMs: deps.timeoutMs ?? AGENT_TOOLS_SETUP_TIMEOUT_MS,
+        signal: deps.signal,
+      }));
+    } finally {
+      if (cachePlan.kind === "miss") await cachePlan.commit();
+    }
     const durationMs = Date.now() - started;
     if (exitCode === 0) {
       log(

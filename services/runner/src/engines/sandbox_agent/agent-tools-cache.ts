@@ -3,21 +3,27 @@
  *
  * Without it, every cold start re-reads every binary from the geesefs mount (one real agent keeps
  * 103 MB there). With it, the restore stats the durable folder (name, size, mtime of each file; no
- * content read) and, when that fingerprint matches a cached entry, copies the binaries from local
- * disk instead. A changed fingerprint builds a new entry, so the rule in `agent-tools-setup.ts`
- * still holds: a binary removed from the durable folder never reaches a session.
+ * content read) and, when that fingerprint names a cached entry, the restore script copies the
+ * binaries from local disk instead. A changed fingerprint names a new entry, so the rule in
+ * `agent-tools-setup.ts` still holds: a binary removed from the durable folder never reaches a
+ * session.
  *
  * Layout, under the runner's tmpdir like `agentToolsLocalDir`:
  *
  *   agenta-tools-cache/                 0700, must be a real directory this uid owns
  *     <agent key>/                      0700, sha256(project id, agent artifact id)
  *       bin-<fingerprint>/bin/<file>    one complete entry, published by an atomic rename
- *       .tmp-XXXXXX/                    an entry being built; never read
+ *       .tmp-XXXXXX/                    an entry being filled; never read
  *
- * Concurrency: an entry is built in a private temp dir and renamed into place. Two sessions of the
- * same agent that miss at once both build; the first rename wins and the second discards its copy.
- * A reader never sees a partial entry. A reader whose entry is pruned mid-copy fails its copy and
- * the caller falls back to the durable folder.
+ * The runner itself copies no binary. On a miss, the restore script (which already has the
+ * restore's timeout and Stop handling) copies the freshly staged session `bin/` into a temp dir
+ * and writes a completion marker. The runner publishes that temp dir after the script, only when
+ * the marker is there and the durable folder did not change meanwhile.
+ *
+ * Concurrency: two sessions of the same agent that miss at once both fill; the first rename wins
+ * and the second discards its copy. An entry is removed only after nobody used it for
+ * `AGENT_TOOLS_CACHE_ENTRY_GRACE_MS`, much longer than a restore can run, so a session never
+ * loses the entry it copies from.
  *
  * Nothing here throws to the caller: any error means "no cache" and the restore runs as before.
  */
@@ -25,7 +31,6 @@
 import { createHash } from "node:crypto";
 import {
   chmod,
-  copyFile,
   lstat,
   mkdir,
   mkdtemp,
@@ -38,8 +43,12 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-/** An agent dir untouched for this long is removed when another entry is written. */
+/** An entry (or a leftover temp dir) unused for this long is removed when another is published. */
+export const AGENT_TOOLS_CACHE_ENTRY_GRACE_MS = 30 * 60 * 1000;
+/** An agent dir unused for this long is removed when another agent publishes an entry. */
 export const AGENT_TOOLS_CACHE_MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000;
+/** The file the restore script writes into a temp dir once the fill is complete. */
+export const AGENT_TOOLS_CACHE_COMPLETE = "complete";
 
 export interface AgentToolsCache {
   /** `<tmpdir>/agenta-tools-cache`. */
@@ -97,119 +106,114 @@ async function ensurePrivateDir(dir: string): Promise<void> {
   if ((st.mode & 0o777) !== 0o700) await chmod(dir, 0o700);
 }
 
-/** The agent's private cache dir, created and checked. */
-export async function agentCacheDir(cache: AgentToolsCache): Promise<string> {
-  await ensurePrivateDir(cache.root);
-  const dir = join(cache.root, cache.key);
-  await ensurePrivateDir(dir);
-  return dir;
+async function touch(path: string): Promise<void> {
+  const now = new Date();
+  await utimes(path, now, now).catch(() => {});
 }
 
-/** Remove the agent's other entries with this prefix, and agent dirs nobody used for a while. */
+/** Remove `dir`'s entries matching `pick` that nobody touched for `maxAgeMs`. */
+async function removeUnused(
+  dir: string,
+  pick: (name: string) => boolean,
+  maxAgeMs: number,
+  now: number,
+): Promise<void> {
+  for (const name of await readdir(dir).catch(() => [] as string[])) {
+    if (!pick(name)) continue;
+    const st = await lstat(join(dir, name)).catch(() => undefined);
+    if (st?.isDirectory() && now - st.mtimeMs > maxAgeMs)
+      await rm(join(dir, name), { recursive: true, force: true }).catch(
+        () => {},
+      );
+  }
+}
+
+/**
+ * Remove the agent's other entries and temp dirs nobody used within the grace, and other agents'
+ * dirs nobody used for `AGENT_TOOLS_CACHE_MAX_AGE_MS`.
+ */
 export async function pruneAgentToolsCache(
   cache: AgentToolsCache,
-  prefix: string,
   keep: string,
   now: number = Date.now(),
 ): Promise<void> {
-  const agentDir = join(cache.root, cache.key);
-  for (const name of await readdir(agentDir).catch(() => [] as string[])) {
-    if (name.startsWith(prefix) && name !== keep)
-      await rm(join(agentDir, name), { recursive: true, force: true }).catch(
-        () => {},
-      );
-  }
-  for (const name of await readdir(cache.root).catch(() => [] as string[])) {
-    if (name === cache.key) continue;
-    const st = await lstat(join(cache.root, name)).catch(() => undefined);
-    if (st?.isDirectory() && now - st.mtimeMs > AGENT_TOOLS_CACHE_MAX_AGE_MS)
-      await rm(join(cache.root, name), { recursive: true, force: true }).catch(
-        () => {},
-      );
-  }
+  await removeUnused(
+    join(cache.root, cache.key),
+    (name) => name !== keep,
+    AGENT_TOOLS_CACHE_ENTRY_GRACE_MS,
+    now,
+  );
+  await removeUnused(
+    cache.root,
+    (name) => name !== cache.key,
+    AGENT_TOOLS_CACHE_MAX_AGE_MS,
+    now,
+  );
 }
+
+/** What the restore script does with the cache for one session. */
+export type AgentToolsCachePlan =
+  | { kind: "none" }
+  /** Copy `bin/` from this local entry instead of the durable folder. */
+  | { kind: "hit"; binDir: string }
+  /** Copy from the durable folder, then fill `fillDir`; call `commit` after the script. */
+  | { kind: "miss"; fillDir: string; commit: () => Promise<void> };
 
 /**
- * Publish a fully built temp dir as `<agentDir>/<name>`. Returns false when another session
- * published the same entry first (its copy is equivalent; ours is discarded).
+ * Look up the cache entry for the durable `bin/` under `toolsDir`. A hit returns the entry to copy
+ * from. A miss returns a private temp dir for the restore script to fill, and a `commit` that
+ * publishes it (or throws it away when the fill did not complete or the folder changed).
  */
-export async function publishCacheEntry(
-  tmp: string,
-  agentDir: string,
-  name: string,
-): Promise<boolean> {
-  try {
-    await rename(tmp, join(agentDir, name));
-    return true;
-  } catch (err) {
-    await rm(tmp, { recursive: true, force: true }).catch(() => {});
-    const code = (err as NodeJS.ErrnoException).code;
-    if (code === "EEXIST" || code === "ENOTEMPTY") return false;
-    throw err;
-  }
-}
-
-/** A private temp dir inside the agent's cache dir, for building one entry. */
-export function makeCacheTemp(agentDir: string): Promise<string> {
-  return mkdtemp(join(agentDir, ".tmp-"));
-}
-
-async function touch(dir: string): Promise<void> {
-  const now = new Date();
-  await utimes(dir, now, now).catch(() => {});
-}
-
-/**
- * Return a local directory holding the current durable `bin/` files, building the cache entry on
- * a miss. Undefined means "copy from the durable folder as before": no `bin/`, a fingerprint that
- * moved while we copied (the owner is writing right now), or any error.
- */
-export async function cachedToolsBin(
+export async function planToolsCache(
   toolsDir: string,
   cache: AgentToolsCache,
   log: (msg: string) => void = () => {},
-): Promise<string | undefined> {
+): Promise<AgentToolsCachePlan> {
   const binDir = join(toolsDir, "bin");
   try {
     const fingerprint = await fingerprintToolsBin(binDir);
-    if (!fingerprint) return undefined;
-    const agentDir = await agentCacheDir(cache);
+    if (!fingerprint) return { kind: "none" };
+    await ensurePrivateDir(cache.root);
+    const agentDir = join(cache.root, cache.key);
+    await ensurePrivateDir(agentDir);
     const name = `bin-${fingerprint}`;
-    const entryBin = join(agentDir, name, "bin");
-    const hit = await stat(entryBin).catch(() => undefined);
-    if (hit?.isDirectory()) {
+    const entry = join(agentDir, name);
+    if ((await stat(join(entry, "bin")).catch(() => undefined))?.isDirectory()) {
+      await touch(entry);
       await touch(agentDir);
       log(`agent tools bin cache hit`);
-      return entryBin;
+      return { kind: "hit", binDir: join(entry, "bin") };
     }
-    const tmp = await makeCacheTemp(agentDir);
-    try {
-      await mkdir(join(tmp, "bin"), { mode: 0o700 });
-      for (const file of (await readdir(binDir)).sort()) {
-        if (file.startsWith(".")) continue;
-        const src = join(binDir, file);
-        if (!(await stat(src)).isFile()) continue;
-        await copyFile(src, join(tmp, "bin", file));
-        await chmod(join(tmp, "bin", file), 0o700);
+    const tmp = await mkdtemp(join(agentDir, ".tmp-"));
+    const commit = async () => {
+      try {
+        const complete = await stat(join(tmp, AGENT_TOOLS_CACHE_COMPLETE)).catch(
+          () => undefined,
+        );
+        // The owner may have written the folder during the restore; never publish a mix.
+        if (!complete || (await fingerprintToolsBin(binDir)) !== fingerprint) {
+          log(`agent tools bin cache not filled: copy incomplete or bin/ changed`);
+          return;
+        }
+        await rename(tmp, entry).catch((err: NodeJS.ErrnoException) => {
+          // Another session published the same entry first; its copy is equivalent.
+          if (err.code !== "EEXIST" && err.code !== "ENOTEMPTY") throw err;
+        });
+        await pruneAgentToolsCache(cache, name);
+        log(`agent tools bin cache filled`);
+      } catch (err) {
+        log(
+          `agent tools bin cache not filled: ${String(err instanceof Error ? err.message : err).slice(0, 200)}`,
+        );
+      } finally {
+        await rm(tmp, { recursive: true, force: true }).catch(() => {});
       }
-      // The owner may be writing the folder right now; never publish a mix under an old name.
-      if ((await fingerprintToolsBin(binDir)) !== fingerprint) {
-        await rm(tmp, { recursive: true, force: true });
-        log(`agent tools bin cache skipped: bin/ changed while copying`);
-        return undefined;
-      }
-    } catch (err) {
-      await rm(tmp, { recursive: true, force: true }).catch(() => {});
-      throw err;
-    }
-    await publishCacheEntry(tmp, agentDir, name);
-    await pruneAgentToolsCache(cache, "bin-", name);
-    log(`agent tools bin cache refreshed`);
-    return entryBin;
+    };
+    return { kind: "miss", fillDir: join(tmp, "bin"), commit };
   } catch (err) {
     log(
       `agent tools bin cache unavailable: ${String(err instanceof Error ? err.message : err).slice(0, 200)}`,
     );
-    return undefined;
+    return { kind: "none" };
   }
 }
