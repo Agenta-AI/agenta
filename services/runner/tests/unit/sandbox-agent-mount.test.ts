@@ -555,7 +555,7 @@ describe("mountStorage without FUSE", () => {
     assert.equal(await mountStorage("/work/cwd-agent", CREDS, deps), false);
     assert.ok(Date.now() - started < 1_000);
     assert.equal(checks, 0);
-    assert.ok(logs.filter((l) => l.includes("no /dev/fuse")).length <= 1);
+    assert.equal(logs.filter((l) => l.includes("no /dev/fuse")).length, 1);
   });
 });
 

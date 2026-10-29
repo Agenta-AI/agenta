@@ -362,6 +362,9 @@ export interface MountStorageDeps {
   signal?: AbortSignal;
 }
 
+/** Set once the missing FUSE device was reported, so the warning is logged once per process. */
+let fuseMissingLogged = false;
+
 /**
  * geesefs-mount the durable prefix at `cwd` on this host (LOCAL sandbox).
  *
@@ -371,8 +374,6 @@ export interface MountStorageDeps {
  * caller then proceeds on the plain (ephemeral) cwd. Throws when detach is mounted/inconclusive,
  * because recursive ephemeral cleanup must never target a possibly-live FUSE mount.
  */
-let fuseMissingLogged = false;
-
 export async function mountStorage(
   cwd: string,
   creds: MountCredentials,

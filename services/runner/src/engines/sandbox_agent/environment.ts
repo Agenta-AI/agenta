@@ -774,7 +774,7 @@ async function acquireEnvironmentOnce(
       cwdMount,
       agentMount,
     ]);
-    if (cwdMount || agentMount) timingLog("mounts", localMountsStartedAt);
+    if (cwdMount || agentMount) timingLog("local_mounts", localMountsStartedAt);
     if (cwdResult.status === "rejected") throw cwdResult.reason;
     if (agentResult.status === "rejected") throw agentResult.reason;
     if (cwdResult.value && piSessionDir) environment.nativeHistoryDurable = true;
