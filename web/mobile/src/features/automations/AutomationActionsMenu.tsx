@@ -77,7 +77,9 @@ export const AutomationActionsMenu = ({
             return
         }
         const text = await runNowText(automation)
-        if (text === null) return
+        // Null: the deliveries call failed. Empty: the pills resolved to nothing. Either way
+        // there is no message, so no session opens.
+        if (!text) return
         // Sent on landing, like the detail screen's Run now.
         void startTask(automation.agentId, text)
     }, [automation, startTask])

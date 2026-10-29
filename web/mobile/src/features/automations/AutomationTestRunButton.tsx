@@ -62,8 +62,9 @@ export const AutomationTestRunButton = ({
                     setStarting(true)
                     const text = await runNowText(automation)
                     setStarting(false)
-                    // Null: the deliveries call failed, so nothing starts.
-                    if (text !== null) void startTask(automation.agentId, text)
+                    // Null: the deliveries call failed. Empty: the pills resolved to nothing.
+                    // Either way there is no message, so no session opens.
+                    if (text) void startTask(automation.agentId, text)
                 }}
             >
                 <Play aria-hidden className="size-3" />
