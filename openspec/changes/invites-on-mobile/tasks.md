@@ -36,4 +36,4 @@
 ## 7. Docs and QA
 
 - [x] 7.1 Update `docs/design/onboarding-revamp/questions-and-survey-parity.md`.
-- [ ] 7.2 Run live QA on the local stack: a new user and an existing user join through `/m`, a mismatch, an old link, a reset link.
+- [x] 7.2 Run live QA on the local stack: a new user and an existing user join through `/m`, a mismatch, an old link, a reset link.
