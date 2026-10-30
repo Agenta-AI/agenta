@@ -401,9 +401,10 @@ export default function GatewayToolsSection({
             label: projectSwitch ?? "Connected",
             items: toItems(connections ?? [], false),
             // The project switch is the heading, so the group does not fold: two icons on one
-            // heading read as one control.
+            // heading read as one control. It stays with no accounts, or no project is reachable;
+            // a search with no match still hides it.
             ...(projectSwitch
-                ? {}
+                ? {keepWhenEmpty: !term}
                 : {
                       // A search always shows what it matched.
                       collapsed: !term && connectedCollapsed,

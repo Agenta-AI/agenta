@@ -18,6 +18,7 @@
  */
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {organizationLabel} from "@agenta/entities/organization"
 import {
     buildModelOptions,
     connectionPolicyForSave,
@@ -698,7 +699,7 @@ const ProviderConnectionCard = ({
                             },
                             {
                                 value: "organization",
-                                label: `The ${ownerChoice.organization.name} organization`,
+                                label: `The ${organizationLabel(ownerChoice.organization.name)}`,
                                 note: "Stored once. You choose which projects can use it.",
                             },
                         ]}

@@ -8,6 +8,7 @@
  */
 import {useMemo} from "react"
 
+import {organizationLabel} from "@agenta/entities/organization"
 import {
     deleteSecretAtom,
     isSubscriptionConnection,
@@ -196,7 +197,7 @@ export const useOrganizationProvidersGroup = (
     return useMemo(
         () => ({
             group: source
-                ? {key: "organization", label: `${scope?.name} organization`, source}
+                ? {key: "organization", label: organizationLabel(scope?.name ?? ""), source}
                 : null,
             manageScope: manage ? drawerScope : null,
         }),

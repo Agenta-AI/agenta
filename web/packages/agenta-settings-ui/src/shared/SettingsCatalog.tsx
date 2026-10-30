@@ -43,6 +43,8 @@ export interface SettingsCatalogGroup {
     /** With `onToggle`, the heading folds the rows away. */
     collapsed?: boolean
     onToggle?: () => void
+    /** Shown with no rows too, e.g. a heading that is also the project switch. */
+    keepWhenEmpty?: boolean
 }
 
 const FOCUS_RING =
@@ -196,7 +198,8 @@ export const SettingsCatalog = ({
     toolbar?: ReactNode
 }) => {
     const shown = groups.filter(
-        (group) => group.items.length > 0 || group.pendingRows || group.footer,
+        (group) =>
+            group.items.length > 0 || group.pendingRows || group.footer || group.keepWhenEmpty,
     )
     return (
         // The search sits close to what it filters; groups keep their wider gap between them.
