@@ -18,7 +18,8 @@ from oss.src.models.api.workspace_models import (
     ResendInviteRequest,
 )
 from oss.src.core.access.controls import get_role
-from oss.src.core.access.service import get_access_service
+from oss.src.core.access.service import ROLE_SCOPE, get_access_service
+from oss.src.core.access.types import RoleNotOffered
 from oss.src.core.access.permissions.types import Permission
 
 log = get_module_logger(__name__)
@@ -167,30 +168,32 @@ async def send_invitation_email(
 async def resolve_workspace_invite_role(
     payload: InviteRequest, *, organization_id: str
 ) -> str:
-    """Resolve the workspace role for an invite: the named role, or the plan's floor role.
+    """Resolve the role of an invite: the named role, or the plan's floor role.
 
-    Shared by OSS and EE invite paths. The role must be in the effective workspace
-    catalog (env-overridable via AGENTA_ACCESS_ROLES in EE) and offered by the
+    Shared by OSS and EE invite paths. The role must be in the effective catalog
+    (env-overridable via AGENTA_ACCESS_ROLES in EE) and offered by the
     organization's plan, which never offers `owner`.
     """
 
     raw = payload.roles[0] if payload.roles else None
     role = getattr(raw, "value", None) or (str(raw) if raw is not None else None)
-    offered = await get_access_service().offered_roles(
-        organization_id=UUID(str(organization_id))
-    )
-    role = role or offered.floor_role
+    access_service = get_access_service()
+    organization_uuid = UUID(str(organization_id))
+    if not role:
+        offered = await access_service.offered_roles(organization_id=organization_uuid)
+        role = offered.floor_role
 
-    if get_role("workspace", role) is None:
+    if get_role(ROLE_SCOPE, role) is None:
         raise HTTPException(
             status_code=400,
             detail=f"Workspace role '{role}' is invalid.",
         )
-    if role not in offered.roles:
-        raise HTTPException(
-            status_code=400,
-            detail="This role is not available on your plan.",
+    try:
+        await access_service.require_offered_role(
+            organization_id=organization_uuid, role=role
         )
+    except RoleNotOffered as exc:
+        raise HTTPException(status_code=400, detail=exc.message) from exc
 
     return role
 

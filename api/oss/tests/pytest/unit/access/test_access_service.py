@@ -34,7 +34,7 @@ class _World:
         self.rbac = RecordingRbac(entitled=entitled)
         self.service = AccessService(
             memberships=MembershipsService(memberships_dao=self.dao, policy=policy),
-            rbac=self.rbac,
+            rbac_entitlement=self.rbac,
             principals=HumanPrincipalsDAO(),
             resource_policy=AllowAllResourcePolicy(),
         )

@@ -55,7 +55,7 @@ async def test_preflight_reads_an_undecided_plan_as_none(monkeypatch, plan):
     organization_id = uuid4()
     _wire_subscriptions(monkeypatch, {str(organization_id): plan})
 
-    assert await memberships_check._rbac_enforced(organization_id) is None
+    assert await memberships_check._rbac_entitled(organization_id) is None
 
 
 @pytest.mark.asyncio

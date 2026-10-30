@@ -14,6 +14,7 @@ from oss.src.core.memberships.types import MemberNotFound, OrganizationOwnerProt
 import oss.src.routers.workspace_router as workspace_router
 from oss.src.core.access.permissions.types import RequiredRole
 from oss.src.core.access.service import AccessService
+from oss.src.core.access.types import RoleNotOffered
 from oss.tests.pytest.utils.memberships import RecordingRbac
 
 
@@ -144,11 +145,16 @@ class _OfferedRoles:
         self.calls.append(organization_id)
         service = AccessService(
             memberships=None,
-            rbac=RecordingRbac(entitled=self.entitled),
+            rbac_entitlement=RecordingRbac(entitled=self.entitled),
             principals=None,
             resource_policy=None,
         )
         return await service.offered_roles(organization_id=organization_id)
+
+    async def require_offered_role(self, *, organization_id, role):
+        offered = await self.offered_roles(organization_id=organization_id)
+        if role not in offered.roles:
+            raise RoleNotOffered()
 
 
 @pytest.fixture
@@ -436,10 +442,15 @@ async def test_owner_protected_errors_keep_todays_body_shape(wired, project):
 def auto_join(monkeypatch):
     organization_id = uuid4()
 
-    def _wire(*, already_member: bool):
+    def _wire(*, already_member: bool, entitled: bool = True):
         service = _MembershipsService()
         monkeypatch.setattr(memberships_module, "_memberships_service", service)
         monkeypatch.setattr(auth_service_module, "is_ee", lambda: True)
+        monkeypatch.setattr(
+            auth_service_module,
+            "get_access_service",
+            lambda: _OfferedRoles(entitled=entitled),
+        )
 
         class _Domains:
             async def get_verified_by_slug(self, *, slug):
@@ -474,9 +485,12 @@ async def test_auto_join_does_not_change_an_existing_member_role(auto_join):
     assert service.calls == []
 
 
-async def test_auto_join_adds_a_new_user_as_viewer_in_every_project(auto_join):
+@pytest.mark.parametrize("entitled, floor_role", [(True, "viewer"), (False, "member")])
+async def test_auto_join_adds_a_new_user_with_the_floor_role_in_every_project(
+    auto_join, entitled, floor_role
+):
     organization_id, wire = auto_join
-    auth, service = wire(already_member=False)
+    auth, service = wire(already_member=False, entitled=entitled)
     user = uuid4()
 
     await auth.enforce_domain_policies(email="new@corp.test", user_id=user)
@@ -487,7 +501,7 @@ async def test_auto_join_adds_a_new_user_as_viewer_in_every_project(auto_join):
             {
                 "organization_id": organization_id,
                 "user_id": user,
-                "role": "viewer",
+                "role": floor_role,
                 "join_all_projects": True,
                 "must_be_absent": True,
                 "actor_user_id": user,

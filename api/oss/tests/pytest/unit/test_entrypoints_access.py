@@ -26,4 +26,4 @@ def test_bootstrap_access_picks_the_policy_from_the_edition(
 
     assert get_access_service() is returned
     assert get_memberships_service().policy == policy
-    assert type(get_access_service().rbac).__name__ == rbac_type
+    assert type(get_access_service().rbac_entitlement).__name__ == rbac_type

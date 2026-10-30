@@ -280,7 +280,7 @@ async def _seed_agent(
     ]
 
 
-async def _assert_rbac_is_enforced(world: World) -> None:
+async def _assert_rbac_is_entitled(world: World) -> None:
     """EE: the plan's RBAC entitlement is read for real (not the fail-open answer of
     `check_entitlements`) and enforces roles: a viewer may not edit."""
 
@@ -336,7 +336,7 @@ async def world(redis_commands, monkeypatch) -> World:
     if is_ee():
         from ee.src.core.access.rbac import PlanRbacEntitlement
 
-        assert isinstance(access_service._rbac, PlanRbacEntitlement)
+        assert isinstance(access_service._rbac_entitlement, PlanRbacEntitlement)
 
     engine = get_transactions_engine()
     lock_engine = get_lock_engine()
@@ -401,7 +401,7 @@ async def world(redis_commands, monkeypatch) -> World:
             refs={shared_agent: shared_refs, private_agent: private_refs},
         )
         if is_ee():
-            await _assert_rbac_is_enforced(built)
+            await _assert_rbac_is_entitled(built)
         yield built
     finally:
         for table in (

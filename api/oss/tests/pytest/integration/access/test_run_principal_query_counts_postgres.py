@@ -109,7 +109,7 @@ def _service(edition: str) -> AccessService:
         memberships=MembershipsService(
             memberships_dao=MembershipsDAO(engine=engine), policy=policy
         ),
-        rbac=rbac,
+        rbac_entitlement=rbac,
         principals=PrincipalsDAO(engine=engine),
         resource_policy=AllowAllResourcePolicy(),
     )

@@ -507,7 +507,7 @@ class _DecideWorld:
         self.policy = _RecordingPolicy(self.world.service)
         self.service = AccessService(
             memberships=self.world.service._memberships,
-            rbac=RecordingRbac(),
+            rbac_entitlement=RecordingRbac(),
             principals=self.principals,
             resource_policy=self.policy,
         )

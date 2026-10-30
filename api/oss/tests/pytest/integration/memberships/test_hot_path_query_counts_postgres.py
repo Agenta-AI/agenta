@@ -178,7 +178,7 @@ def registered_access(monkeypatch):
             "_access_service",
             AccessService(
                 memberships=_service(policy),
-                rbac=NoRbacEntitlement(),
+                rbac_entitlement=NoRbacEntitlement(),
                 principals=HumanPrincipalsDAO(),
                 resource_policy=AllowAllResourcePolicy(),
             ),

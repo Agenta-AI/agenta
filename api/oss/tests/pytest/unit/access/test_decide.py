@@ -63,7 +63,7 @@ class _World:
                 memberships_dao=self.memberships_dao,
                 policy=MembershipPolicy.PROJECT_ROWS,
             ),
-            rbac=self.rbac,
+            rbac_entitlement=self.rbac,
             principals=self.principals,
             resource_policy=AllowAllResourcePolicy(),
         )

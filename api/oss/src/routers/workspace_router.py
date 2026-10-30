@@ -21,7 +21,8 @@ from oss.src.core.access.permissions.types import (
 from oss.src.core.memberships.service import get_memberships_service
 from oss.src.core.memberships.types import MemberNotFound, OrganizationOwnerProtected
 from oss.src.core.access.controls import get_role, get_roles
-from oss.src.core.access.service import get_access_service
+from oss.src.core.access.service import ROLE_SCOPE, get_access_service
+from oss.src.core.access.types import RoleNotOffered
 from oss.src.utils.context import get_auth_scope
 from oss.src.services.db_manager import get_project_by_workspace
 
@@ -41,9 +42,6 @@ _PERMISSION_DENIED = (
     "You do not have permission to perform this action. "
     "Please contact your Organization Owner"
 )
-
-
-_ROLE_NOT_OFFERED = "This role is not available on your plan."
 
 
 def _owner_protected() -> HTTPException:
@@ -133,8 +131,8 @@ async def get_workspace(request: Request):
 )
 async def get_all_workspace_roles(request: Request) -> List[Dict[str, str]]:
     """
-    Get the offered roles of the caller's organization: the workspace roles its
-    invites and role changes may set. The plan decides the list; `GET /access/roles`
+    Get the offered roles of the caller's organization: the roles its invites and
+    role changes may set. The plan decides the list; `GET /access/roles`
     also returns the full catalog.
     """
 
@@ -146,7 +144,7 @@ async def get_all_workspace_roles(request: Request) -> List[Dict[str, str]]:
             "role_name": role["role"],
             "role_description": role.get("description") or "",
         }
-        for role in get_roles("workspace")
+        for role in get_roles(ROLE_SCOPE)
         if role["role"] in offered.roles
     ]
 
@@ -206,19 +204,18 @@ async def assign_role_to_user(
                 },
             )
 
-        if not payload.role or get_role("workspace", payload.role) is None:
+        if not payload.role or get_role(ROLE_SCOPE, payload.role) is None:
             return JSONResponse(
                 status_code=400, content={"detail": "Workspace role is invalid."}
             )
         # `owner` is never offered; the owner check below keeps its 403.
         if payload.role != DefaultRole.OWNER.value:
-            offered = await get_access_service().offered_roles(
-                organization_id=project.organization_id
-            )
-            if payload.role not in offered.roles:
-                return JSONResponse(
-                    status_code=400, content={"detail": _ROLE_NOT_OFFERED}
+            try:
+                await get_access_service().require_offered_role(
+                    organization_id=project.organization_id, role=payload.role
                 )
+            except RoleNotOffered as exc:
+                return JSONResponse(status_code=400, content={"detail": exc.message})
 
         user = await db_manager.get_user_with_email(payload.email)
         if user is None:
@@ -279,7 +276,7 @@ async def unassign_role_from_user(
                 },
             )
 
-        if not role or get_role("workspace", role) is None:
+        if not role or get_role(ROLE_SCOPE, role) is None:
             return JSONResponse(
                 status_code=400, content={"detail": "Workspace role is invalid."}
             )

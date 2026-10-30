@@ -56,7 +56,7 @@ def bootstrap_access() -> AccessService:
 
     access_service = AccessService(
         memberships=memberships_service,
-        rbac=rbac,
+        rbac_entitlement=rbac,
         principals=principals_dao,
         resource_policy=sharing_service,
     )

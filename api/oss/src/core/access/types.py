@@ -16,6 +16,14 @@ class InvalidPermission(AccessError):
         super().__init__(message)
 
 
+class RoleNotOffered(AccessError):
+    """An invite or a role change names a role that the organization's plan does not
+    offer (`AccessService.offered_roles`). `owner` is never offered."""
+
+    def __init__(self, message: str = "This role is not available on your plan."):
+        super().__init__(message)
+
+
 class AccessServiceNotRegistered(RuntimeError):
     """A wiring error, not a domain error."""
 

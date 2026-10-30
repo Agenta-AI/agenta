@@ -17,6 +17,7 @@ import oss.src.services.organization_service as organization_service
 from oss.src.core.access.controls import get_role, get_role_permissions
 from oss.src.core.access.permissions.types import DefaultRole, Permission
 from oss.src.core.access.service import AccessService
+from oss.src.core.access.types import RoleNotOffered
 from oss.tests.pytest.utils.memberships import RecordingRbac
 
 _TRACE_CONTENT = {
@@ -32,7 +33,7 @@ _TRACE_CONTENT = {
 def _service(*, entitled: bool) -> AccessService:
     return AccessService(
         memberships=None,
-        rbac=RecordingRbac(entitled=entitled),
+        rbac_entitlement=RecordingRbac(entitled=entitled),
         principals=None,
         resource_policy=None,
     )
@@ -103,11 +104,24 @@ async def test_with_rbac_every_role_but_owner_is_offered():
     assert offered.floor_role == "viewer"
 
 
-async def test_the_decision_does_not_read_the_plan():
-    service = _service(entitled=False)
-    assert service.role_allows(role="viewer", action=Permission.VIEW_SPANS) is True
-    assert service.role_allows(role="member", action=Permission.VIEW_SPANS) is False
-    assert service._rbac.calls == []
+@pytest.mark.parametrize(
+    "entitled, role, offered",
+    [
+        (False, "member", True),
+        (False, "admin", True),
+        (False, "viewer", False),
+        (False, "owner", False),
+        (True, "viewer", True),
+        (True, "owner", False),
+    ],
+)
+async def test_require_offered_role(entitled, role, offered):
+    service = _service(entitled=entitled)
+    if offered:
+        await service.require_offered_role(organization_id=uuid4(), role=role)
+    else:
+        with pytest.raises(RoleNotOffered):
+            await service.require_offered_role(organization_id=uuid4(), role=role)
 
 
 # -- invite -----------------------------------------------------------------------------

@@ -53,7 +53,7 @@ def cache(monkeypatch):
                 memberships_dao=MembershipsDAO(engine=get_transactions_engine()),
                 policy=policy,
             ),
-            rbac=NoRbacEntitlement(),
+            rbac_entitlement=NoRbacEntitlement(),
             principals=HumanPrincipalsDAO(),
             resource_policy=AllowAllResourcePolicy(),
         ),

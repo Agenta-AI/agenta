@@ -70,7 +70,7 @@ async def test_bearer_list_and_capability_agree(policy):
         memberships = MembershipsService(memberships_dao=dao, policy=policy)
         access = AccessService(
             memberships=memberships,
-            rbac=RecordingRbac(entitled=True),
+            rbac_entitlement=RecordingRbac(entitled=True),
             principals=HumanPrincipalsDAO(),
             resource_policy=AllowAllResourcePolicy(),
         )
@@ -113,10 +113,10 @@ async def test_legacy_shapes_decide_as_expected(edition, monkeypatch):
     shapes = await seed_legacy_shapes()
     p2b_org = shapes["P2b"].organization_id
 
-    async def _rbac_enforced(organization_id):
+    async def _rbac_entitled(organization_id):
         return organization_id != p2b_org
 
-    monkeypatch.setattr(check_module, "_rbac_enforced", _rbac_enforced)
+    monkeypatch.setattr(check_module, "_rbac_entitled", _rbac_entitled)
     monkeypatch.setattr(check_module, "is_ee", lambda: edition == "ee")
 
     policy = (
@@ -162,7 +162,7 @@ async def test_legacy_shapes_decide_as_expected(edition, monkeypatch):
                     memberships_dao=MembershipsDAO(engine=ConnectionEngine(connection)),
                     policy=policy,
                 ),
-                rbac=NoRbacEntitlement(),
+                rbac_entitlement=NoRbacEntitlement(),
                 principals=HumanPrincipalsDAO(),
                 resource_policy=AllowAllResourcePolicy(),
             )

@@ -222,7 +222,7 @@ def access_service(monkeypatch) -> AccessService:
     principals = PrincipalsDAO(engine=engine)
     service = AccessService(
         memberships=memberships,
-        rbac=rbac,
+        rbac_entitlement=rbac,
         principals=principals,
         resource_policy=SharingService(
             sharing_dao=SharingDAO(engine=engine),
