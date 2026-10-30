@@ -2120,7 +2120,7 @@ export async function runTurn(
             endTime: turnEndedAt,
             // The tracer's settled usage of this turn; none when the turn resolved none (a Pi
             // approval resume reports its usage under the paused turn).
-            ...(usage ? { usage: run.usage() } : {}),
+            ...(usage ? { usage } : {}),
           },
           { authorization: credential(), log: logger },
         ).catch(() => {});
