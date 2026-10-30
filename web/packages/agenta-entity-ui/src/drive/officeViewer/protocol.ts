@@ -79,6 +79,8 @@ export function parseViewerMessage(
                 : null
         case "picked":
         case "pick-cancel":
+        case "pick-dismiss":
+        case "pick-toggle":
         case "pin-rects":
             return parsePickerMessage(data, frame)
         default:

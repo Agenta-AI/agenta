@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import React, {act} from "react"
+
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, expect, it, vi} from "vitest"
 
@@ -16,6 +17,22 @@ vi.mock("@agenta/ui/ui", () => {
             <button disabled={disabled} onClick={onClick} data-testid={props["data-testid"]}>
                 {children}
             </button>
+        ),
+        Checkbox: ({
+            checked,
+            onCheckedChange,
+            disabled,
+        }: {
+            checked?: boolean
+            onCheckedChange?: (value: boolean) => void
+            disabled?: boolean
+        }) => (
+            <input
+                type="checkbox"
+                checked={!!checked}
+                disabled={disabled}
+                onChange={(e) => onCheckedChange?.(e.target.checked)}
+            />
         ),
         Input: () => <input />,
         PasswordInput: () => <input />,
@@ -110,30 +127,30 @@ const render = async (overrides: Partial<ChannelsActions>, handle?: string | nul
     )
 }
 
-const candidateButton = (name: string) =>
-    [...container.querySelectorAll('[data-testid="channels-space-picker"] button')].find((b) =>
-        b.textContent?.includes(name),
-    ) as HTMLButtonElement
+const candidateRow = (name: string) =>
+    [...container.querySelectorAll('[data-testid="channels-space-candidate"]')].find((row) =>
+        row.textContent?.includes(name),
+    ) as HTMLElement
+
+const candidateBox = (name: string) => candidateRow(name).querySelector("input") as HTMLInputElement
 
 it("marks the channels the app is already in", async () => {
     await render({}, "@support-bot")
-    expect(candidateButton("general").textContent).toContain("In channel")
-    expect(candidateButton("random").textContent).not.toContain("In channel")
+    expect(candidateRow("general").textContent).toContain("In channel")
+    expect(candidateRow("random").textContent).not.toContain("In channel")
 })
 
 it("asks for an /invite by the bot's handle instead of adding a private channel", async () => {
     const addSpace = vi.fn(async () => {})
     await render({addSpace}, "@support-bot")
-    await act(async () => candidateButton("leadership").click())
+    expect(candidateRow("leadership").textContent).toContain("Run /invite first")
+    expect(candidateBox("leadership").disabled).toBe(true)
+    expect(container.textContent).toContain("run /invite @support-bot in it first")
     expect(addSpace).not.toHaveBeenCalled()
-    expect(container.textContent).toContain(
-        "#leadership is private. Run /invite @support-bot in it in Slack",
-    )
 })
 
 it("falls back to @Agenta when Slack reported no handle", async () => {
     await render({}, null)
-    await act(async () => candidateButton("leadership").click())
     expect(container.textContent).toContain("/invite @Agenta")
 })
 
@@ -142,7 +159,12 @@ it("adds a public channel and shows the join failure the backend returns", async
         throw new Error("The Slack app lacks the channels:join permission.")
     })
     await render({addSpace}, "@support-bot")
-    await act(async () => candidateButton("random").click())
+    await act(async () => candidateBox("random").click())
+    await act(async () =>
+        (
+            container.querySelector('[data-testid="channels-space-add"]') as HTMLButtonElement
+        ).click(),
+    )
     expect(addSpace).toHaveBeenCalledWith("connection", CANDIDATES[1])
     expect(container.textContent).toContain("lacks the channels:join permission")
 })

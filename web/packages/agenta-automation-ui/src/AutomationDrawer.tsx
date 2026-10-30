@@ -203,6 +203,8 @@ const AutomationEditDrawer = ({
                     onChangeCron={editor.setCron}
                     onSelectEvent={editor.setEvent}
                     onChangeInputs={editor.setInputs}
+                    includeEvent={editor.draft.includeEvent}
+                    onChangeIncludeEvent={editor.setIncludeEvent}
                     onToggle={editor.onToggle}
                     onDiscard={editor.discard}
                     onSave={() => void editor.save()}

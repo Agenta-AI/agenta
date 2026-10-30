@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import React, {act} from "react"
+
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, expect, it, vi} from "vitest"
 
@@ -9,7 +10,7 @@ vi.mock("@agenta/ui/ui", async () => {
         value: "",
         onValueChange: () => {},
     })
-    type Toggle = {
+    interface Toggle {
         onCheckedChange: (value: boolean) => void
         checked: boolean
         disabled?: boolean
@@ -179,4 +180,98 @@ it("keeps an unsaved channel checklist when the posting switch is saved", async 
     })
     expect(byId("channels-advanced-read-only").dataset.checked).toBe("true")
     expect(byId("channels-advanced-channel-k1").dataset.checked).toBe("true")
+})
+
+const PLACES = [
+    {id: "s1", kind: "topic" as const, name: "#support"},
+    {id: "s2", kind: "topic" as const, name: "#random"},
+]
+
+const openAnswersIn = async (
+    behavior: {dm: boolean; group: boolean; channels: string[] | null},
+    onSave: (channels: string[] | null) => Promise<void>,
+) => {
+    await act(async () =>
+        root.render(
+            <ChannelAdvancedSection
+                platform="slack"
+                connectionId="connection"
+                actions={NOOP_ACTIONS}
+                answersIn={{behavior, channels: PLACES, onSave}}
+            />,
+        ),
+    )
+    await click("channels-advanced-toggle")
+}
+
+it("limits the channels it answers in to the checked ones", async () => {
+    const onSave = vi.fn(async () => {})
+    await openAnswersIn({dm: true, group: true, spaceIds: null}, onSave)
+    expect(byId("channels-advanced-answers-all").dataset.checked).toBe("true")
+    await click("channels-advanced-answers-only")
+    expect(container.textContent).toContain(
+        "With no channel checked, the agent answers in no channel.",
+    )
+    await click("channels-advanced-answers-channel-s1")
+    expect(container.textContent).toContain(
+        "A channel the bot joins later stays off until you check it.",
+    )
+    await click("channels-advanced-answers-save")
+    expect(onSave).toHaveBeenCalledWith(["s1"])
+})
+
+it("saves Only these channels with nothing checked", async () => {
+    const onSave = vi.fn(async () => {})
+    await openAnswersIn({dm: true, group: true, spaceIds: null}, onSave)
+    await click("channels-advanced-answers-only")
+    await click("channels-advanced-answers-save")
+    expect(onSave).toHaveBeenCalledWith([])
+})
+
+it("reads chosen channels back as chosen and goes back to all", async () => {
+    const onSave = vi.fn(async () => {})
+    await openAnswersIn({dm: true, group: true, spaceIds: ["s2"]}, onSave)
+    expect(byId("channels-advanced-answers-only").dataset.checked).toBe("true")
+    expect(byId("channels-advanced-answers-channel-s2").dataset.checked).toBe("true")
+    await click("channels-advanced-answers-all")
+    expect(onSave).toHaveBeenCalledWith(null)
+})
+
+it("says channels answer in none while the Channels switch is off", async () => {
+    await openAnswersIn({dm: true, group: false, spaceIds: null}, vi.fn())
+    expect(byId("channels-advanced-answers-only")).toBeNull()
+    expect(container.textContent).toContain(
+        "Channels are switched off above, so it answers in none.",
+    )
+})
+
+it("shows the stored channels again when a save fails", async () => {
+    const onSave = vi.fn(async () => {
+        throw new Error("Could not save this setting.")
+    })
+    await openAnswersIn({dm: true, group: true, spaceIds: ["s2"]}, onSave)
+    await click("channels-advanced-answers-all")
+    expect(container.textContent).toContain("Could not save this setting.")
+    expect(byId("channels-advanced-answers-only").dataset.checked).toBe("true")
+})
+
+it("keeps the checklist off while a switch saves", async () => {
+    await act(async () =>
+        root.render(
+            <ChannelAdvancedSection
+                platform="slack"
+                connectionId="connection"
+                actions={NOOP_ACTIONS}
+                answersIn={{
+                    behavior: {dm: true, group: true, spaceIds: ["s1"]},
+                    channels: PLACES,
+                    onSave: vi.fn(),
+                    busy: true,
+                }}
+            />,
+        ),
+    )
+    await click("channels-advanced-toggle")
+    expect((byId("channels-advanced-answers-save") as HTMLButtonElement).disabled).toBe(true)
+    expect((byId("channels-advanced-answers-channel-s1") as HTMLButtonElement).disabled).toBe(true)
 })

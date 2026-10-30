@@ -53,25 +53,19 @@ describe("ComposerQuotes", () => {
         ).toEqual(["slide 3", "L34–L36"])
     })
 
-    it("edits a preview comment's note from its chip", () => {
-        const onEdit = vi.fn()
-        render(<ComposerQuotes quotes={[comment]} onRemove={vi.fn()} onEdit={onEdit} />)
-        fireEvent.click(screen.getByRole("button", {name: "Edit comment"}))
-        const input = screen.getByRole("textbox", {name: "Edit comment"})
-        expect((input as HTMLTextAreaElement).value).toBe("Say 41%.")
-        fireEvent.change(input, {target: {value: "Say 42%."}})
-        fireEvent.keyDown(input, {key: "Enter"})
-        expect(onEdit).toHaveBeenCalledWith("c1", "Say 42%.")
-        expect(screen.queryByRole("textbox", {name: "Edit comment"})).toBeNull()
+    it("shows a preview comment on its file from its chip", () => {
+        const onOpen = vi.fn()
+        render(<ComposerQuotes quotes={[comment]} onRemove={vi.fn()} onOpen={onOpen} />)
+        fireEvent.click(screen.getByRole("button", {name: "Show comment on the file"}))
+        expect(onOpen).toHaveBeenCalledWith("c1")
     })
 
-    it("opens no editor for a text quote's chip", () => {
-        const onEdit = vi.fn()
-        render(<ComposerQuotes quotes={[textQuote]} onRemove={vi.fn()} onEdit={onEdit} />)
-        expect(screen.queryByRole("button", {name: "Edit comment"})).toBeNull()
+    it("opens nothing from a text quote's chip", () => {
+        const onOpen = vi.fn()
+        render(<ComposerQuotes quotes={[textQuote]} onRemove={vi.fn()} onOpen={onOpen} />)
+        expect(screen.queryByRole("button", {name: "Show comment on the file"})).toBeNull()
         fireEvent.click(screen.getByText("A schedule runs one pinned revision."))
-        expect(screen.queryByRole("textbox")).toBeNull()
-        expect(onEdit).not.toHaveBeenCalled()
+        expect(onOpen).not.toHaveBeenCalled()
     })
 
     it("shows a reply quote's note on its chip, the excerpt on hover", () => {
@@ -101,11 +95,9 @@ describe("ComposerQuotes", () => {
         expect(document.querySelector("[data-quote-range]")?.textContent).toBe("L34–L36")
     })
 
-    it("labels preview chips with their pin numbers per document", () => {
-        const second = {...comment, id: "c2"}
-        render(<ComposerQuotes quotes={[comment, textQuote, second]} onRemove={vi.fn()} />)
-        expect(screen.getByLabelText("Comment 1").textContent).toBe("1")
-        expect(screen.getByLabelText("Comment 2").textContent).toBe("2")
-        expect(screen.queryByLabelText("Comment 3")).toBeNull()
+    it("names each tile's file", () => {
+        render(<ComposerQuotes quotes={[comment, textQuote]} onRemove={vi.fn()} />)
+        expect(screen.getByText("deck.pptx")).toBeTruthy()
+        expect(screen.getByText("schedule.mdx")).toBeTruthy()
     })
 })

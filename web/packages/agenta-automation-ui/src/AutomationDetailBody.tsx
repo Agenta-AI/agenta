@@ -40,6 +40,8 @@ export const AutomationDetailBody = ({
     onChangeCron,
     onSelectEvent,
     onChangeInputs,
+    includeEvent,
+    onChangeIncludeEvent,
     onToggle,
     onDiscard,
     onSave,
@@ -77,6 +79,9 @@ export const AutomationDetailBody = ({
     onChangeCron: (cron: string) => void
     onSelectEvent: (selection: EventSelection) => void
     onChangeInputs: (inputs: Record<string, unknown>) => void
+    /** Event automations only — the draft's include-event option. */
+    includeEvent: boolean
+    onChangeIncludeEvent: (next: boolean) => void
     onToggle: (next: boolean) => Promise<void>
     onDiscard: () => void
     onSave: () => void
@@ -122,6 +127,12 @@ export const AutomationDetailBody = ({
                 agentId={preview.agentId}
                 inputsFields={preview.raw.data?.inputs_fields}
                 onCommit={onChangeInputs}
+                kind={preview.kind}
+                connectionId={preview.connectionId}
+                eventKey={preview.eventKey}
+                includeEvent={includeEvent}
+                onChangeIncludeEvent={onChangeIncludeEvent}
+                automation={automation}
             />
         </div>
         {onOpenRunHistory ? (
