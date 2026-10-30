@@ -63,6 +63,9 @@ class ConnectionsDAO(ConnectionsDAOInterface):
                 self.ConnectionDBE.organization_id == owner.organization_id,
                 self.ConnectionDBE.user_id == owner.id,
             )
+        if project_id is None:
+            # `project_id IS NULL` would match every person's and organization's row.
+            raise ValueError("a connection read needs a project or a person owner")
         return (self.ConnectionDBE.project_id == project_id,)
 
     @suppress_exceptions(exclude=[EntityCreationConflict])

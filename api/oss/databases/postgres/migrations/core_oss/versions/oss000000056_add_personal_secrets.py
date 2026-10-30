@@ -104,7 +104,10 @@ _CONSTRAINT_DEF_SQL = (
     "WHERE conname = :name AND conrelid = pg_catalog.to_regclass('secrets')"
 )
 
-_DELETE_USER_ROWS_SQL = "DELETE FROM secrets WHERE user_id IS NOT NULL"
+# The person rows, and any MCP token (the older schema has no such kind in use).
+_DELETE_USER_ROWS_SQL = (
+    "DELETE FROM secrets WHERE user_id IS NOT NULL OR kind = 'MCP_TOKEN'"
+)
 
 
 def _constraint_def(name: str):
