@@ -609,8 +609,10 @@ async def test_add_steps_with_an_existing_key_keeps_the_steps():
 
     # all keys already present -> no configuration write; only the editor is written
     evaluations_service.edit_run.assert_not_awaited()
-    principal = evaluations_service.set_run_principal.await_args.kwargs["principal"]
-    assert result.principal == principal
+    assert evaluations_service.set_run_principal.await_args.kwargs["open_only"]
+    # The stored run is read again after the write.
+    assert result is run
+    assert evaluations_service.fetch_run.await_count == 2
 
 
 @pytest.mark.asyncio
@@ -666,8 +668,10 @@ async def test_remove_steps_with_an_unknown_key_keeps_the_steps():
 
     # nothing to remove -> no configuration write; only the editor is written
     evaluations_service.edit_run.assert_not_awaited()
-    principal = evaluations_service.set_run_principal.await_args.kwargs["principal"]
-    assert result.principal == principal
+    assert evaluations_service.set_run_principal.await_args.kwargs["open_only"]
+    # The stored run is read again after the write.
+    assert result is run
+    assert evaluations_service.fetch_run.await_count == 2
 
 
 @pytest.mark.asyncio

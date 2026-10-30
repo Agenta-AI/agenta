@@ -344,14 +344,17 @@ class EvaluationsDAO(EvaluationsDAOInterface):
             stmt = stmt.where(
                 EvaluationRunDBE.flags.contains({"is_closed": True}).isnot(True)
             )
+        values = {
+            "principal_kind": principal.kind.value,
+            "principal_id": principal.id,
+            "principal_user_id": user_id,
+        }
+        # A change of principal is a change of the run, as an edit is.
+        if user_id is not None:
+            values["updated_at"] = datetime.now(timezone.utc)
+            values["updated_by_id"] = user_id
         async with self.engine.session() as session:
-            result = await session.execute(
-                stmt.values(
-                    principal_kind=principal.kind.value,
-                    principal_id=principal.id,
-                    principal_user_id=user_id,
-                )
-            )
+            result = await session.execute(stmt.values(**values))
             await session.commit()
         return result.rowcount > 0
 
