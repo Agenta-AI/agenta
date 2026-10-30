@@ -96,6 +96,8 @@ def test_a_step_save_that_changes_nothing_writes_the_editor(admin_api, team):
     assert _principal(owner, run["id"]) == run["principal"]
 
     assert owner("POST", f"/evaluations/runs/{run['id']}/open").status_code == 200
+    before = owner("GET", f"/evaluations/runs/{run['id']}")
+    assert before.status_code == 200, before.text
     response = editor(
         "POST",
         f"/simple/evaluations/{run['id']}/steps/add",
@@ -105,4 +107,6 @@ def test_a_step_save_that_changes_nothing_writes_the_editor(admin_api, team):
     # The save is recorded as the editor's, and the response is the stored run.
     assert response.json()["run"]["principal"] == editor_principal
     assert response.json()["run"]["updated_by_id"] == team.user_ids["editor"]
+    assert response.json()["run"]["updated_at"] is not None
+    assert response.json()["run"]["updated_at"] != before.json()["run"]["updated_at"]
     assert _principal(owner, run["id"]) == editor_principal
