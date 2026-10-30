@@ -120,7 +120,8 @@ const DESKTOP_EXCEPTIONS = [AUTH_CALLBACK_RE, /^\/post-signup(\/|$)/, /^\/worksp
 /**
  * Routes that finish where they landed, whatever any gate would prefer: an OAuth callback, the
  * post-signup survey, an invite acceptance, and any `/auth` link carrying a one-time token or a
- * policy error. One list, so the middleware and the client-side redirect cannot disagree.
+ * policy error. The desktop gate forwards an invite link before this list. One list, so the
+ * middleware and the client-side redirect cannot disagree.
  */
 export function isDesktopOnlyLink(pathname: string, search: string): boolean {
     if (DESKTOP_EXCEPTIONS.some((re) => re.test(pathname))) return true

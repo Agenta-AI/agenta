@@ -4,8 +4,10 @@ import {acceptWorkspaceInvite} from "@agenta/entities/organization"
 import {fetchProfile} from "@agenta/entities/profile"
 import {message} from "@agenta/ui/app-message"
 import {useQuery} from "@tanstack/react-query"
+import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
+import {postAuthBootAtom} from "@/features/app/postAuthBoot"
 import {useLogout} from "@/features/auth/useLogout"
 import {isOnboardingPending, markOnboardingInvited} from "@/features/onboarding/onboardingPending"
 import {fetchProjects, projectHomeUrl, projectOnboardingUrl} from "@/lib/context"
@@ -18,6 +20,7 @@ import {forgetInvite, readPendingInvite, type PendingInvite} from "./pendingInvi
 export const useInviteAccept = () => {
     const router = useRouter()
     const logout = useLogout()
+    const setBoot = useSetAtom(postAuthBootAtom)
     const [failure, setFailure] = useState<InviteFailure | null>(null)
     const startedRef = useRef(false)
     // AuthGate moves a signed-out person to /auth; the invite waits in storage meanwhile.
@@ -79,11 +82,13 @@ export const useInviteAccept = () => {
                 return
             }
             if (!outcome.keepInvite) forgetInvite()
+            // /invite names no project, so the post-auth loader would hold the card until its timeout.
+            setBoot(null)
             setFailure(outcome)
             return
         }
         await openProject(invite, user, INVITE_JOINED_MESSAGE)
-    }, [router, openProject])
+    }, [router, openProject, setBoot])
 
     useEffect(() => {
         if (!signedIn || startedRef.current) return

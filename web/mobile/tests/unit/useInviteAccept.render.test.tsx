@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import {act, StrictMode} from "react"
 
+import {getDefaultStore} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
@@ -36,6 +37,7 @@ vi.mock("@/lib/context", () => ({
         `/w/${workspaceId}/p/${projectId}/apps`,
 }))
 
+import {postAuthBootAtom} from "@/features/app/postAuthBoot"
 import {InviteAcceptScreen} from "@/features/invite/InviteAcceptScreen"
 import {readPendingInvite, rememberInvite} from "@/features/invite/pendingInvite"
 import {isOnboardingInvited, markOnboardingPending} from "@/features/onboarding/onboardingPending"
@@ -138,8 +140,10 @@ describe("the invite accept screen", () => {
             })
         })
 
-        it("shows the message and no retry", async () => {
+        it("shows the message and no retry, with the post-auth loader out of the way", async () => {
+            getDefaultStore().set(postAuthBootAtom, {account: "returning", startedAt: 1})
             await mount()
+            expect(getDefaultStore().get(postAuthBootAtom)).toBeNull()
             expect(host.textContent).toContain(
                 "This invitation is not for you. Sign in with the invited account to accept it.",
             )

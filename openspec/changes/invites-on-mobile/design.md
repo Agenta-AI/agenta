@@ -91,6 +91,7 @@ The card strings come from the old page, and the Retry button uses the label `/m
 - A shared browser: a second person who signs in within the window reaches the accept screen, and the API answers with the mismatch code. They see the error card, and "Go back to your workspaces" clears the invite.
 - A Helm install with the old web app turned off has no page for an old `/auth` link (`hosting/kubernetes/helm/tests/test_web_mobile.py:157`). The API change fixes new links, and old links expire within 7 days.
 - A Classic mode person who reloads `/m/` while the invite is pending goes to the old app. The next visit to the link finishes it.
+- A new invited person with Classic mode on who reloads during the questions goes to the old app. They have already joined, and the questions return when they next open `/m`. A Classic mode cookie on a brand new account is rare, so no override handles this.
 
 ## Migration
 

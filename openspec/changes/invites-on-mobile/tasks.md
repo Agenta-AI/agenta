@@ -4,7 +4,7 @@
 
 ## 2. Gates (can run in parallel with 1)
 
-- [x] 2.1 Add `isInviteLink` in `mobileGate/index.ts`, and exclude it from `isTokenBearingAuthLink`.
+- [x] 2.1 Add `isInviteLink` in `mobileGate/index.ts`.
 - [x] 2.2 Forward invite links in `decideDesktopGate` before the opt-out and Classic mode checks, keeping the query.
 - [x] 2.3 Pass invite links and `/invite` in `decideMobileGate`.
 - [x] 2.4 Extend `mobileGate.test.ts` and `proxy.test.ts`, including the password reset link.
@@ -19,7 +19,7 @@
 
 - [x] 4.1 Add `pages/invite/index.tsx` and `features/invite/InviteAcceptScreen.tsx`, with the card in `states/`.
 - [x] 4.2 Add a pure outcome mapper for the API error codes and strings, with unit tests.
-- [x] 4.3 Refresh organizations and projects, write the last context, and open the project.
+- [x] 4.3 Refresh organizations and projects, and open the project.
 - [x] 4.4 Keep the invite on "Sign in with a different account", and clear it on "Go back to your workspaces".
 
 ## 5. Onboarding for invited people
