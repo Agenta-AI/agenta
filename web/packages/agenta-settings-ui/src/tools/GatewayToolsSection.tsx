@@ -27,7 +27,15 @@ import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {connectionDisplayName} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
 import {Button} from "@agenta/ui/ui"
-import {ArrowClockwise, MagnifyingGlass, Play, Star, Trash, XCircle} from "@phosphor-icons/react"
+import {
+    ArrowClockwise,
+    MagnifyingGlass,
+    Play,
+    Star,
+    Trash,
+    WarningCircle,
+    XCircle,
+} from "@phosphor-icons/react"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
@@ -156,6 +164,18 @@ const connectedCollapsedAtom = atomWithStorage(
 )
 
 /** Per viewer, like Connected: the person's own accounts fold away and stay folded. */
+const YoursLoadFailed = ({onRetry}: {onRetry: () => void}) => (
+    <div className="flex items-center gap-3 text-sm text-colorTextSecondary">
+        <span className="flex items-center gap-1.5">
+            <WarningCircle size={16} className="text-colorError" />
+            Couldn&apos;t load your connections.
+        </span>
+        <Button variant="outline" size="sm" onClick={onRetry}>
+            Try again
+        </Button>
+    </div>
+)
+
 const yoursCollapsedAtom = atomWithStorage("agenta:settings:integrations-yours-collapsed", false)
 
 export interface GatewayToolsSectionProps {
@@ -196,8 +216,12 @@ export default function GatewayToolsSection({
     )
     const {connections, isLoading, refetch} = useToolConnectionsQuery()
     const access = useAtomValue(personalAccountsAccessAtom)
-    const {connections: personalConnections} = usePersonalToolConnections()
-    const yours = showsYours(access) && personalConnections !== null
+    const {
+        connections: personalConnections,
+        error: personalError,
+        refetch: refetchPersonal,
+    } = usePersonalToolConnections()
+    const yours = showsYours(access) && (personalConnections !== null || !!personalError)
     // The dialog offers "Only me" only where "Yours" shows.
     const connectOwners = yours ? addAccountOwners(access, canEdit) : undefined
     const {handleDelete, handleRevoke} = useToolConnectionActions()
@@ -420,10 +444,11 @@ export default function GatewayToolsSection({
                 collapsed: !term && yoursCollapsed,
                 onToggle: term ? undefined : () => setYoursCollapsed((value) => !value),
                 // Empty, "Yours" says what it is for; a search with no match says nothing here.
-                footer:
-                    !term && yoursItems.length === 0 ? (
-                        <YoursEmpty projectCount={projectCount} />
-                    ) : undefined,
+                footer: personalError ? (
+                    <YoursLoadFailed onRetry={() => void refetchPersonal()} />
+                ) : !term && yoursItems.length === 0 ? (
+                    <YoursEmpty projectCount={projectCount} />
+                ) : undefined,
             },
             projectGroup,
         ]
@@ -436,6 +461,8 @@ export default function GatewayToolsSection({
         setYoursCollapsed,
         yours,
         personalConnections,
+        personalError,
+        refetchPersonal,
         projectSwitch,
         projectCount,
         makeDefault,

@@ -15,11 +15,7 @@ export interface SettingsProjectGroup {
     projectCount?: number
 }
 
-/**
- * What a Settings page needs to head its project group: the project switch (the sidebar's
- * project menu, which opens the same tab in the picked project) and the names its copy uses.
- * It reads the sidebar's own project query, so it costs no request.
- */
+/** A Settings page's project group heading (the project switch) and names, from the sidebar's query. */
 export const useSettingsProjectGroup = (
     workspaceId: string,
     projectId: string,

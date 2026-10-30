@@ -158,7 +158,7 @@ export const useOrganizationProvidersGroup = (
             removeFailed: (failure: unknown, connection: ProviderConnection) =>
                 organizationRefusal(failure, scope.name) ??
                 `Agenta could not remove ${connection.name}. Try again.`,
-            emptyFooter: failed ? (
+            failure: failed ? (
                 <LoadFailed
                     onRetry={() =>
                         void (memberVaultFailed
@@ -168,9 +168,8 @@ export const useOrganizationProvidersGroup = (
                               : query.refetch())
                     }
                 />
-            ) : manage ? (
-                <EmptyNote manage />
             ) : undefined,
+            emptyFooter: manage ? <EmptyNote manage /> : undefined,
             organization: drawerScope,
             // A manager signs the organization in to ChatGPT or Claude here.
             offersSubscriptions: manage,

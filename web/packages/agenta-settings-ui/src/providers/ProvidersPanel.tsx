@@ -54,6 +54,8 @@ export interface ProvidersSource {
     removeFailed: (failure: unknown, connection: ProviderConnection) => string
     /** Under an empty list; without it an empty group hides. */
     emptyFooter?: ReactNode
+    /** A load failure, shown under the group whether or not it has rows. */
+    failure?: ReactNode
     /** Set for the organization's connections: the drawer and the sign-in save to the organization. */
     organization?: OrganizationConnectionScope
     /** Offers the ChatGPT and Claude sign-ins this owner does not hold yet, as rows. */
@@ -321,9 +323,11 @@ export const ProvidersPanel = ({
                 count: held.length,
                 // A group still loading holds its place with one skeleton row.
                 pendingRows: source.loading && !held.length ? 1 : 0,
-                ...(source.emptyFooter && !source.loading && !source.connections.length
-                    ? {count: 0, footer: source.emptyFooter}
-                    : {}),
+                ...(source.failure
+                    ? {footer: source.failure}
+                    : source.emptyFooter && !source.loading && !source.connections.length
+                      ? {count: 0, footer: source.emptyFooter}
+                      : {}),
             }
         })
         const catalogRow = (entry: ProviderCatalogEntry): SettingsCatalogItem => ({

@@ -38,5 +38,6 @@ export const usePersonalToolConnections = () => {
         connections: query.data ?? null,
         isLoading: query.isPending,
         error: query.error,
+        refetch: query.refetch,
     }
 }

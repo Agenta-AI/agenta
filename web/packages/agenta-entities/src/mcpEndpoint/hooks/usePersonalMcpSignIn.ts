@@ -1,10 +1,4 @@
-/**
- * The caller's own sign-in to one of the project's MCP servers (`owner_kind=user`).
- *
- * An OAuth server opens the provider's consent in a popup, reusing the project's client
- * registration; a token server takes the person's token. Signing out deletes only the person's
- * own sign-in. Every outcome refreshes the server list, whose `user_sign_in` is the state.
- */
+/** Personal MCP sign-in and sign-out for the caller (`owner_kind=user`). */
 import {useCallback, useEffect, useRef, useState} from "react"
 
 import {getAgentaApiUrl, getHostQueryClient} from "@agenta/shared/api"
@@ -46,10 +40,7 @@ const refreshSignInReads = async () => {
 }
 
 export interface PersonalMcpSignIn {
-    /**
-     * The server whose sign-in or sign-out is in flight, if any. One runs at a time: a call
-     * while another runs does nothing.
-     */
+    /** The server with a sign-in or sign-out in flight; concurrent calls do nothing. */
     pendingId: string | null
     /** Why the last attempt did not finish, in words a person can read. */
     error: string | null

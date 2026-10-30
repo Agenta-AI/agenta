@@ -8,11 +8,7 @@ import type {SettingsTabProps} from "./settingsTabProps"
 import {useConfirmModal} from "./useConfirmModal"
 import {useSettingsProjectGroup} from "./useSettingsProjectGroup"
 
-/**
- * Settings > Integrations: the shared tools section with this app's confirm dialog, the project
- * switch as the project group's heading, and `edit_tools` deciding whether the connect dialog
- * asks "Who can use it".
- */
+/** Settings > Integrations; `edit_tools` decides whether connect asks "Who can use it". */
 export const IntegrationsTab = ({workspaceId, projectId}: SettingsTabProps) => {
     const {confirm, modal} = useConfirmModal()
     const {projectSwitch, projectName, projectCount} = useSettingsProjectGroup(

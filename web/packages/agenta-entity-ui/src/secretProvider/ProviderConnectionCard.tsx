@@ -150,6 +150,8 @@ export interface ProviderOwnerChoice {
     projectName: string
     /** The organization's scope, as the organization's own connections get it. */
     organization: OrganizationConnectionScope
+    /** The organization's connections, for the default-name preview. */
+    connections: ProviderConnection[]
 }
 
 type ProviderOwner = Exclude<OwnerKind, "user">
@@ -368,7 +370,9 @@ const ProviderConnectionCard = ({
 
     // What an empty name would become. A connection being edited keeps its own name out of the
     // count, so clearing the field previews the name it already has rather than the next one.
-    const otherConnections = connections.filter((candidate) => candidate.id !== connection?.id)
+    const previewPool =
+        ownerChoice && owner === "organization" ? ownerChoice.connections : connections
+    const otherConnections = previewPool.filter((candidate) => candidate.id !== connection?.id)
     // An organization connection's default name says it is the organization's, as the API's does.
     const namePreview = organization
         ? nextConnectionName(

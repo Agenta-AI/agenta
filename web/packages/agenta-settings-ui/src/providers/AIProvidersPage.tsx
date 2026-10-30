@@ -133,9 +133,13 @@ export const AIProvidersPage = ({
     const ownerChoiceFor = useCallback(
         (kind: string): ProviderOwnerChoice | undefined =>
             organization && manageScope && !NOT_SHAREABLE_KINDS.has(kind)
-                ? {projectName: organization.projectName, organization: manageScope}
+                ? {
+                      projectName: organization.projectName,
+                      organization: manageScope,
+                      connections: organizationGroup?.source.connections ?? [],
+                  }
                 : undefined,
-        [organization, manageScope],
+        [organization, manageScope, organizationGroup],
     )
 
     return (

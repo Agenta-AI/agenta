@@ -6,11 +6,7 @@ import {fetchProjects} from "@/lib/context"
 
 import {groupByOrganization, type OrganizationGroup} from "../context/workspaceGroups"
 
-/**
- * The project list grouped by organization, with the current organization and project picked
- * out. One query key and staleTime for every caller (the sidebar switcher, the Settings group
- * headers), so a screen with several of them sends one request.
- */
+/** Projects grouped by organization, with the current group and project; one shared query. */
 export const useOrganizationProjects = (workspaceId: string, projectId: string) => {
     const query = useQuery({
         queryKey: ["mobile", "projects"],
@@ -21,8 +17,7 @@ export const useOrganizationProjects = (workspaceId: string, projectId: string) 
         () => (query.data?.kind === "ok" ? groupByOrganization(query.data.projects) : []),
         [query.data],
     )
-    // Matched on the project: the route segment can be a legacy workspace id or the
-    // organization id for the same project (workspace removal step 2).
+    // Match on the project: the route segment may be a workspace id or an organization id.
     const currentGroup =
         groups.find((group) =>
             group.projects.some((project) => project.project_id === projectId),
