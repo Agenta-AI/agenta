@@ -510,3 +510,23 @@ async def test_with_personal_accounts_off_a_user_item_has_no_sign_in(monkeypatch
 
     assert resolver.refs == []
     assert adapter.relay_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_a_user_item_on_a_server_without_sign_in_uses_the_server_directly():
+    """Such a server has no per-person account, so there is nothing to miss: the call
+    goes through with no credential, with or without a claim entry."""
+    dao = MockMCPEndpointsDAO()
+    await _server(dao, auth_mode=MCPAuthScheme.NONE, project_secret=False)
+    resolver = _RecordingResolver()
+    adapter = MockUpstreamAdapter()
+    service = _relay_service(
+        mcp_endpoints_dao=dao, resolver=resolver, adapters={"http": adapter}
+    )
+
+    with _run(person=uuid4(), accounts=[]):
+        result = await _relay(service, _scope())
+
+    assert result.status_code == 200
+    assert resolver.refs == []
+    assert adapter.last_auth.secret is None

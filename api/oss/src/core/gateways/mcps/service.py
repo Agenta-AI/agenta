@@ -918,8 +918,13 @@ class MCPGatewayService:
 
         # Resolve the endpoint credentials. A "user" item names the run person's own
         # sign-in; it costs no read before the one the agent path makes.
+        # A server that takes no sign-in has no per-person account: a "user" item on it
+        # uses the server directly, as an "agent" item does (owner decision).
         sign_in_ref = (
-            self._sign_in_ref(target=target) if account_source == "user" else None
+            self._sign_in_ref(target=target)
+            if account_source == "user"
+            and target.endpoint.auth_mode != MCPAuthScheme.NONE
+            else None
         )
         auth = await self._resolve_auth(
             scope=scope, target=target, sign_in_ref=sign_in_ref
