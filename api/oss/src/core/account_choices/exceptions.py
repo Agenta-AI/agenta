@@ -10,6 +10,26 @@ class AccountChoicesError(Exception):
         super().__init__(message)
 
 
+class AccountDataUnreadable(AccountChoicesError):
+    """A stored account row the resolution cannot read (a grant that does not decrypt,
+    or not as JSON). The run leaves its "user" items out."""
+
+    code = "account_data_unreadable"
+
+    def __init__(self) -> None:
+        super().__init__("A stored account could not be read.")
+
+
+class AccountStorageError(AccountChoicesError):
+    """An unexpected database error in the resolution. Raised `from None`: the statement
+    binds the data encryption key, so the driver error must not travel."""
+
+    code = "account_storage_error"
+
+    def __init__(self) -> None:
+        super().__init__("The accounts could not be read.")
+
+
 class AccountNotYours(AccountChoicesError):
     code = "account_not_yours"
 

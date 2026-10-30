@@ -3,6 +3,7 @@ kind, and exactly ONE SQL statement for a run's "user" items. Skipped when Postg
 reachable."""
 
 import socket
+from types import SimpleNamespace
 import time
 import uuid
 from urllib.parse import urlparse
@@ -464,7 +465,7 @@ async def test_the_vault_reads_a_persons_secrets_by_id_and_deletes_them_all(worl
     )
 
 
-async def test_a_corrupt_grant_never_fails_the_run(world, monkeypatch):
+async def test_a_corrupt_grant_never_fails_the_run(world, monkeypatch, caplog):
     import oss.src.core.account_choices.policy as policy_module
     import oss.src.core.account_choices.service as service_module
     from oss.src.core.account_choices.claims import sign_run_accounts
@@ -504,3 +505,22 @@ async def test_a_corrupt_grant_never_fails_the_run(world, monkeypatch):
         )
         is None
     )
+    # The statement binds the data encryption key; no log line may carry it.
+    import oss.src.core.account_choices.claims as claims_module
+
+    lines = []
+    monkeypatch.setattr(
+        claims_module,
+        "log",
+        SimpleNamespace(
+            error=lambda *a, **k: lines.append((a, k)),
+            info=lambda *a, **k: lines.append((a, k)),
+        ),
+    )
+    await sign_run_accounts(
+        envelope=envelope,
+        items=[item("mcp_server", "linear")],
+        artifact_id=world["artifact_id"],
+    )
+    assert lines and env.agenta.crypt_key not in repr(lines)
+    assert all("exc_info" not in kwargs for _, kwargs in lines)

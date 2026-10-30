@@ -6,6 +6,7 @@ from typing import List, Optional, Sequence
 from uuid import UUID
 
 from sqlalchemy import delete, select, text
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.dialects.postgresql import insert
 
 from agenta.sdk.agents.accounts import UserItem
@@ -17,6 +18,10 @@ from oss.src.core.account_choices.dtos import (
     AccountMatch,
     ChosenAccount,
     ItemAccount,
+)
+from oss.src.core.account_choices.exceptions import (
+    AccountDataUnreadable,
+    AccountStorageError,
 )
 from oss.src.core.account_choices.interfaces import AccountChoicesDAOInterface
 from oss.src.core.secrets.context import get_data_encryption_key
@@ -159,6 +164,14 @@ WHERE g.id = CAST(:gateway_connection_id AS uuid)
   AND g.organization_id = CAST(:organization_id AS uuid)
   AND g.user_id = CAST(:user_id AS uuid)
 """
+
+
+def _sqlstate(error: DBAPIError) -> str:
+    orig = getattr(error, "orig", None)
+    sqlstate = getattr(orig, "sqlstate", None) or getattr(
+        getattr(orig, "__cause__", None), "sqlstate", None
+    )
+    return sqlstate if isinstance(sqlstate, str) else ""
 
 
 class AccountChoicesDAO(AccountChoicesDAOInterface):
@@ -320,9 +333,18 @@ class AccountChoicesDAO(AccountChoicesDAOInterface):
             "user_id": user_id,
             "key": get_data_encryption_key() or "",
         }
-        async with self.engine.session() as session:
-            result = await session.execute(text(RESOLVE_SQL), params)
-            rows = result.mappings().all()
+        try:
+            async with self.engine.session() as session:
+                result = await session.execute(text(RESOLVE_SQL), params)
+                rows = result.mappings().all()
+        except DBAPIError as error:
+            # The statement binds the data encryption key, and a failed cast can quote
+            # decrypted text, so the driver error never leaves this method.
+            raise (
+                AccountDataUnreadable()
+                if _sqlstate(error)[:2] in ("22", "39")
+                else AccountStorageError()
+            ) from None
         return [
             ItemAccount(
                 item_key=row["item_key"],
