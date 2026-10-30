@@ -245,7 +245,7 @@ def _connect(client, endpoint_id, body, owner_kind="user"):
 # --- connect, owner_kind=user ---------------------------------------------------- #
 
 
-def test_a_person_begins_an_oauth_sign_in_with_the_run_permission(
+def test_a_person_begins_an_oauth_sign_in_with_the_view_permission(
     client, service, oauth_service, allow, person
 ):
     server = _server(MCPAuthScheme.OAUTH)
@@ -256,7 +256,7 @@ def test_a_person_begins_an_oauth_sign_in_with_the_run_permission(
     assert response.status_code == 200
     assert response.json()["redirect_url"].startswith("https://auth.acme.example/")
     assert oauth_service.begun_owner_kinds == [SecretOwnerKind.USER]
-    assert _permissions(allow) == [Permission.RUN_SESSIONS]
+    assert _permissions(allow) == [Permission.VIEW_MCP_ENDPOINTS]
 
 
 def test_a_person_never_writes_the_server_row(
@@ -367,7 +367,7 @@ def test_the_switch_off_refuses_a_person_sign_in(
     assert response.json()["detail"]["code"] == "personal_accounts_disabled"
 
 
-def test_a_person_who_may_not_run_agents_cannot_sign_in(
+def test_a_person_who_may_not_see_the_servers_cannot_sign_in(
     client, service, oauth_service, deny, person
 ):
     server = _server(MCPAuthScheme.API_KEY)
@@ -424,7 +424,7 @@ def test_a_person_signs_out_of_their_own_sign_in(
     ]
     # The project's grant is not the person's to drop.
     assert oauth_service.disconnected == []
-    assert _permissions(allow) == [Permission.RUN_SESSIONS]
+    assert _permissions(allow) == [Permission.VIEW_MCP_ENDPOINTS]
 
 
 # --- attempts -------------------------------------------------------------------- #
@@ -447,7 +447,7 @@ def test_a_person_may_follow_their_own_sign_in_attempt(
     )
 
     async def check(*, user_uid, project_id, permission):
-        return permission == Permission.RUN_SESSIONS
+        return permission == Permission.VIEW_MCP_ENDPOINTS
 
     monkeypatch.setattr(
         "oss.src.apis.fastapi.gateways.mcps.router.check_action_access", check
@@ -469,7 +469,7 @@ def test_a_person_may_not_follow_someone_elses_attempt(
     oauth_service.attempt_by_id = attempt
 
     async def check(*, user_uid, project_id, permission):
-        return permission == Permission.RUN_SESSIONS
+        return permission == Permission.VIEW_MCP_ENDPOINTS
 
     monkeypatch.setattr(
         "oss.src.apis.fastapi.gateways.mcps.router.check_action_access", check
@@ -488,7 +488,7 @@ class _Access(HumanCheckFromWrapper):
         return FIXED_SCOPE.organization_id
 
 
-def test_a_person_callback_checks_the_run_permission_and_writes_their_grant(
+def test_a_person_callback_checks_the_view_permission_and_writes_their_grant(
     client, oauth_service, session_user, monkeypatch
 ):
     endpoint_id = uuid4()
@@ -502,7 +502,7 @@ def test_a_person_callback_checks_the_run_permission_and_writes_their_grant(
 
     async def check(*, user_uid, project_id, permission):
         seen.append(permission)
-        return permission == Permission.RUN_SESSIONS
+        return permission == Permission.VIEW_MCP_ENDPOINTS
 
     monkeypatch.setattr(
         "oss.src.apis.fastapi.gateways.mcps.router.get_access_service",
@@ -519,7 +519,7 @@ def test_a_person_callback_checks_the_run_permission_and_writes_their_grant(
 
     assert response.status_code == 200
     assert "mcp:oauth:connected" in response.text
-    assert seen == [Permission.RUN_SESSIONS]
+    assert seen == [Permission.VIEW_MCP_ENDPOINTS]
     assert oauth_service.completed_organizations == [FIXED_SCOPE.organization_id]
 
 
@@ -580,3 +580,90 @@ def test_the_switch_off_leaves_the_field_out(
 
     assert "user_sign_in" not in endpoints[0]
     assert not any(c[0] == "sign_ins" for c in oauth_service.calls)
+
+
+# --- every project member signs in for themselves ----------------------------------- #
+
+
+def _as_role(monkeypatch, role):
+    """Answer the permission checks with the default permissions of one project role."""
+    from oss.src.core.access.permissions.types import DefaultRole
+
+    granted = set(Permission.default_permissions(DefaultRole(role)))
+
+    async def check(*, user_uid, project_id, permission):
+        return permission in granted
+
+    monkeypatch.setattr(
+        "oss.src.apis.fastapi.gateways.mcps.router.check_action_access", check
+    )
+    monkeypatch.setattr(
+        "oss.src.apis.fastapi.gateways.mcps.router.get_access_service",
+        lambda: _Access(check),
+    )
+
+
+@pytest.mark.parametrize("role", ["viewer", "annotator"])
+def test_a_viewer_or_annotator_signs_in_and_out_with_their_own_token(
+    client, service, oauth_service, person, monkeypatch, role
+):
+    """A person's own sign-in is their own data, like their own secrets: any project
+    member may add and remove it, with no permission to edit the server."""
+    _as_role(monkeypatch, role)
+    server = _server(MCPAuthScheme.API_KEY)
+    service.fetch_return = server
+    oauth_service.sign_out_return = server
+
+    signed_in = _connect(client, server.id, {"token": "tk"})
+    signed_out = client.delete(
+        f"/endpoints/{server.id}/connect", params={"owner_kind": "user"}
+    )
+
+    assert signed_in.status_code == 200
+    assert signed_out.status_code == 200
+    assert oauth_service.tokens == [
+        (FIXED_SCOPE.organization_id, PERSON, server.id, "tk")
+    ]
+    assert oauth_service.signed_out == [
+        (FIXED_SCOPE.organization_id, PERSON, server.id)
+    ]
+
+
+@pytest.mark.parametrize("role", ["viewer", "annotator"])
+def test_a_viewer_or_annotator_finishes_their_own_oauth_sign_in(
+    client, oauth_service, session_user, person, monkeypatch, role
+):
+    _as_role(monkeypatch, role)
+    endpoint_id = uuid4()
+    attempt = _person_attempt(endpoint_id)
+    oauth_service.claim_return = attempt
+    oauth_service.complete_return = _completion(
+        project_id=attempt.project_id, user_id=PERSON, endpoint_id=endpoint_id
+    )
+    session_user(PERSON)
+    monkeypatch.setattr(
+        "oss.src.apis.fastapi.gateways.mcps.router.personal_accounts_enabled",
+        lambda: True,
+    )
+
+    response = client.get(
+        "/connect/callback", params={"code": "c", "state": attempt.state}
+    )
+
+    assert response.status_code == 200
+    assert "mcp:oauth:connected" in response.text
+
+
+@pytest.mark.parametrize("role", ["viewer", "annotator"])
+def test_a_viewer_or_annotator_still_cannot_connect_for_the_project(
+    client, service, oauth_service, person, monkeypatch, role
+):
+    """Signing in for oneself never changes the project's server."""
+    _as_role(monkeypatch, role)
+    server = _server(MCPAuthScheme.OAUTH)
+    service.fetch_return = server
+
+    response = _connect(client, server.id, {"scopes": ["read"]}, owner_kind="project")
+
+    assert response.status_code == 403
+    assert oauth_service.begun_owner_kinds == []

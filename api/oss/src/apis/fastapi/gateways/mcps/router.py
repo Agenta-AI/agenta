@@ -301,8 +301,8 @@ class MCPGatewayRouter:
         endpoint_id: UUID,
         attempt_id: UUID,
     ) -> None:
-        """A project admin may follow any attempt of the project. A person who may only
-        run agents may follow their own sign-in attempt, and no other."""
+        """A project admin may follow any attempt of the project. Any other project
+        member may follow their own sign-in attempt, and no other."""
         if await check_action_access(
             user_uid=str(scope.user_id),
             project_id=str(scope.project_id),
@@ -319,7 +319,7 @@ class MCPGatewayRouter:
         ):
             raise FORBIDDEN_EXCEPTION
         require_person(request)
-        await self._check(scope, Permission.RUN_SESSIONS)
+        await self._check(scope, Permission.VIEW_MCP_ENDPOINTS)
 
     async def _check(self, scope: AuthScope, permission: Permission) -> None:
         has_permission = await check_action_access(
@@ -715,14 +715,17 @@ class MCPGatewayRouter:
     ) -> MCPConnectResponse:
         """A person signs in to a project server with their own account or token.
 
-        The permission is "may run an agent in the project", because one sign-in serves
-        every agent of the project. The server row is never written: an OAuth sign-in
+        A person's own sign-in is their own data, like their own secrets, so any project
+        member who may see the project's servers may add it, a Viewer included. One
+        sign-in serves every agent of the project. The server row is never written: an
+        OAuth sign-in
         uses the discovery a project admin's connect stored, and the attempt it starts
         writes the person's own grant at the callback.
         """
-        # Person and Switch (CONTRACT section 7), then the run permission.
+        # Person and Switch (CONTRACT section 7), then the project membership that
+        # seeing the servers implies. No permission to edit the server is needed.
         organization_id, user_id = require_person(request)
-        await self._check(scope, Permission.RUN_SESSIONS)
+        await self._check(scope, Permission.VIEW_MCP_ENDPOINTS)
 
         endpoint = await self.service.fetch_endpoint(
             project_id=scope.project_id, endpoint_id=endpoint_id
@@ -826,7 +829,7 @@ class MCPGatewayRouter:
         scope = get_auth_scope()
         if owner_kind == "user":
             organization_id, user_id = require_person(request)
-            await self._check(scope, Permission.RUN_SESSIONS)
+            await self._check(scope, Permission.VIEW_MCP_ENDPOINTS)
             endpoint = await self.oauth_connect_service.sign_out(
                 organization_id=organization_id,
                 project_id=scope.project_id,
@@ -1030,15 +1033,17 @@ class MCPGatewayRouter:
         # is spent, as any presented handle is, so the person reconnects from Agenta.
         # The callback runs without the auth middleware, so there is no request
         # principal: check the attempt's user explicitly.
-        # A person's own sign-in needs only the run permission, as its connect did, and
-        # writes that person's grant in the project's organization.
+        # A person's own sign-in needs only to see the project's servers, as its connect
+        # did, and writes that person's grant in the project's organization.
         for_person = attempt.owner_kind == SecretOwnerKind.USER
         access_service = get_access_service()
         decision = await access_service.check_human(
             user_id=UUID(str(attempt.user_id)),
             project_id=UUID(str(attempt.project_id)),
             action=(
-                Permission.RUN_SESSIONS if for_person else Permission.EDIT_MCP_ENDPOINTS
+                Permission.VIEW_MCP_ENDPOINTS
+                if for_person
+                else Permission.EDIT_MCP_ENDPOINTS
             ),
         )
         if not decision.allowed or (for_person and not personal_accounts_enabled()):
