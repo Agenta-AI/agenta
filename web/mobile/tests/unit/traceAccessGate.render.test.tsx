@@ -20,7 +20,6 @@ vi.mock("@agenta/entities/access", async (original) => {
     const {atom} = await import("jotai")
     return {...(await original<object>()), canViewSpansAtom: atom(() => gate.allowed)}
 })
-
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 

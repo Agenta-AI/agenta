@@ -1,3 +1,5 @@
+// The fetcher lives in `@agenta/entities/access`, so the packages gate on the same answer.
+import {fetchProjectPermission} from "@agenta/entities/access"
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
 const checkPermissions = vi.fn()
@@ -5,9 +7,6 @@ const checkPermissions = vi.fn()
 vi.mock("@agenta/sdk/resources", () => ({
     getAccessClient: () => ({checkPermissions}),
 }))
-
-// The fetcher moved to `@agenta/entities/access`, so the packages gate on the same answer.
-import {fetchProjectPermission} from "@agenta/entities/access"
 
 describe("mobile project permissions", () => {
     beforeEach(() => checkPermissions.mockReset())
