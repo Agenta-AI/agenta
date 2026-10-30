@@ -13,6 +13,7 @@ export interface ApplicationRevisionQueryFlags {
     is_feedback?: (boolean | null) | undefined;
     is_agent?: (boolean | null) | undefined;
     is_skill?: (boolean | null) | undefined;
+    is_plugin?: (boolean | null) | undefined;
     is_chat?: (boolean | null) | undefined;
     has_url?: (boolean | null) | undefined;
     has_script?: (boolean | null) | undefined;
