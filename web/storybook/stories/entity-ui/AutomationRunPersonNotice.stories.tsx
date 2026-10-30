@@ -1,3 +1,4 @@
+import {resolvedWorkflowRevisionFamilyKey} from "@agenta/entities/workflow"
 import {userAtom} from "@agenta/shared/state"
 import type {Meta, StoryObj} from "@storybook/nextjs"
 
@@ -49,13 +50,13 @@ const seeded = (missing: boolean) => ({
         queries: (scope: StoryScope) =>
             [
                 ...integrationQueries(scope, {connections: []}),
-                [["tools", "connections", "user", scope.projectId], []],
+                [["tools", "connections", "user", VIEWER, scope.projectId], []],
                 [
                     [
                         "workflows",
                         "resolved-revision",
                         scope.projectId,
-                        JSON.stringify([AGENT, null, null]),
+                        resolvedWorkflowRevisionFamilyKey({workflowId: AGENT}),
                     ],
                     {
                         id: REVISION,

@@ -25,7 +25,7 @@ const projectEntry = {
 
 describe("Composio entry account", () => {
     it("each person: writes account_source user and drops the slug", () => {
-        const [entry] = setGatewayConnectionAccount([projectEntry], target, {kind: "user"}) as [
+        const [entry] = setGatewayConnectionAccount([projectEntry], target, {accountSource: "user"}) as [
             Record<string, Record<string, unknown>>,
         ]
         expect(entry.connection).toEqual({
@@ -38,9 +38,9 @@ describe("Composio entry account", () => {
     })
 
     it("a project connection: writes its slug and drops account_source", () => {
-        const user = setGatewayConnectionAccount([projectEntry], target, {kind: "user"})
+        const user = setGatewayConnectionAccount([projectEntry], target, {accountSource: "user"})
         const [entry] = setGatewayConnectionAccount(user, target, {
-            kind: "project",
+            accountSource: "agent",
             slug: "gmail-support",
         }) as [Record<string, Record<string, unknown>>]
         expect(entry.connection).toEqual({
@@ -51,7 +51,7 @@ describe("Composio entry account", () => {
     })
 
     it("parses a user entry with no slug, and keeps it user through a permission edit", () => {
-        const user = setGatewayConnectionAccount([projectEntry], target, {kind: "user"})
+        const user = setGatewayConnectionAccount([projectEntry], target, {accountSource: "user"})
         expect(parseGatewayConnection(user[0])).toMatchObject({
             connection: "",
             accountSource: "user",
@@ -113,9 +113,9 @@ describe("MCP item account", () => {
     })
 
     it("the project's sign-in: drops account_source", () => {
-        const back = withMcpAccountSource(withMcpAccountSource(item, "user"), "project")
+        const back = withMcpAccountSource(withMcpAccountSource(item, "user"), "agent")
         expect(back.connection).toEqual(item.connection)
-        expect(readMcpAccountSource(back)).toBe("project")
+        expect(readMcpAccountSource(back)).toBe("agent")
     })
 
     it("refuses user on a server outside the custom namespace", () => {

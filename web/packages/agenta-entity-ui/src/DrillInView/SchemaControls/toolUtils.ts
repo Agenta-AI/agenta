@@ -407,7 +407,9 @@ export function integrationRowConnection(row: IntegrationRow): string | undefine
 }
 
 /** Whose account an integration entry runs under: a project connection, or each person's own. */
-export type GatewayConnectionAccount = {kind: "user"} | {kind: "project"; slug: string}
+export type GatewayConnectionAccount =
+    | {accountSource: "user"}
+    | {accountSource: "agent"; slug: string}
 
 /**
  * Point the entry for `target` at a project connection (writes its slug, drops `account_source`)
@@ -426,8 +428,8 @@ export function setGatewayConnectionAccount(
     const next = tools.slice()
     next[index] = applyToSavedEntry(asRecord(tools[index]) ?? {}, {
         ...view,
-        connection: account.kind === "project" ? account.slug : "",
-        accountSource: account.kind === "user" ? "user" : undefined,
+        connection: account.accountSource === "agent" ? account.slug : "",
+        accountSource: account.accountSource === "user" ? "user" : undefined,
     })
     return next
 }

@@ -84,11 +84,12 @@ const seeded = ({
             ...(personal
                 ? ([
                       [["vault", "personal-secrets", USER_ID, scope.projectId], []],
-                      [["tools", "connections", "user", scope.projectId], yours],
+                      [["tools", "connections", "user", USER_ID, scope.projectId], yours],
                       [
                           [
                               "account-choices",
                               "resolve-draft",
+                              USER_ID,
                               scope.projectId,
                               draftItemAccountsFamilyKey(WORKFLOW_ID, agentWith(userEntry)),
                           ],
@@ -104,7 +105,7 @@ function DrawerHost({initial}: {initial: ParsedGatewayConnection}) {
     const [entry, setEntry] = useState(initial)
     const onChange = (account: GatewayConnectionAccount) =>
         setEntry((current) =>
-            account.kind === "user"
+            account.accountSource === "user"
                 ? {...current, connection: "", accountSource: "user"}
                 : {...current, connection: account.slug, accountSource: undefined},
         )
@@ -200,7 +201,7 @@ const endpoint = (over: Partial<MCPEndpoint>): MCPEndpoint =>
     }) as MCPEndpoint
 
 function McpHost({initial}: {initial: MCPEndpoint}) {
-    const [source, setSource] = useState<"user" | "project">("user")
+    const [source, setSource] = useState<"user" | "agent">("user")
     return (
         <div className="w-[480px]">
             <McpAccountBlock endpoint={initial} source={source} onChange={setSource} />

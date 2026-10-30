@@ -13,7 +13,7 @@ import {hasUserItems} from "@agenta/entities/accountChoice"
 import {
     agentRequirementsAtomFamily,
     resolvedWorkflowRevisionQueryAtomFamily,
-    workflowRevisionRefsKey,
+    resolvedWorkflowRevisionFamilyKey,
 } from "@agenta/entities/workflow"
 import {PersonalAccountsCard, personalSetupItems} from "@agenta/entity-ui/onboarding"
 import {userAtom} from "@agenta/shared/state"
@@ -22,7 +22,6 @@ import {useAtomValue} from "jotai"
 import type {Automation} from "./automationModel"
 import {
     automationRevisionRefs,
-    runPersonNoticeShown,
     saveChangesRunPerson,
     type PrincipalRefLike,
 } from "./runPersonNotice"
@@ -46,22 +45,20 @@ export const AutomationRunPersonNotice = ({
 }) => {
     const viewer = useAtomValue(userAtom)
     const principal = (automation.raw as {principal?: PrincipalRefLike | null}).principal
-    const changes = dirty && saveChangesRunPerson(principal, viewer?.id)
+    const changesRunPerson = dirty && saveChangesRunPerson(principal, viewer?.id)
     const refsKey = useMemo(
         () =>
-            changes
-                ? workflowRevisionRefsKey(automationRevisionRefs(automation, draftAgentId))
+            changesRunPerson
+                ? resolvedWorkflowRevisionFamilyKey(
+                      automationRevisionRefs(automation, draftAgentId),
+                  )
                 : "",
-        [automation, changes, draftAgentId],
+        [automation, changesRunPerson, draftAgentId],
     )
     const revision = useAtomValue(resolvedWorkflowRevisionQueryAtomFamily(refsKey)).data ?? null
     const agentHasUserItems = Boolean(revision && hasUserItems(revision.parameters?.agent))
-    const shown = runPersonNoticeShown({
-        dirty,
-        principal,
-        viewerId: viewer?.id,
-        agentHasUserItems,
-    })
+    // Shown only when the save changes the run person and the agent has "user" items.
+    const shown = changesRunPerson && agentHasUserItems
     const requirements = useAtomValue(
         agentRequirementsAtomFamily(shown ? (revision?.id ?? "") : ""),
     )

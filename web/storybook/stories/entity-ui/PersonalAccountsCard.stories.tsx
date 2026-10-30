@@ -32,25 +32,21 @@ const GITHUB: PersonalSetupItem = {
     key: "app_connection:user/github",
     kind: "app_connection",
     name: "github",
-    candidates: 2,
 }
 const SLACK: PersonalSetupItem = {
     key: "app_connection:user/slack",
     kind: "app_connection",
     name: "slack",
-    candidates: 0,
 }
 const LINEAR: PersonalSetupItem = {
     key: "mcp_sign_in:user/linear",
-    kind: "mcp",
+    kind: "mcp_server",
     name: "linear",
-    candidates: 0,
 }
 const TOKEN: PersonalSetupItem = {
     key: "secret:user/GITHUB_TOKEN",
     kind: "secret",
     name: "GITHUB_TOKEN",
-    candidates: 1,
 }
 
 const seeded = {
@@ -60,11 +56,11 @@ const seeded = {
             [
                 ...integrationQueries(scope, {connections: []}),
                 [
-                    ["tools", "connections", "user", scope.projectId],
+                    ["tools", "connections", "user", USER_ID, scope.projectId],
                     [MINE, MINE_HOME],
                 ],
                 [
-                    ["mcp-endpoints", scope.projectId],
+                    ["mcp-endpoints", USER_ID, scope.projectId],
                     [
                         {
                             id: "mcp-linear",

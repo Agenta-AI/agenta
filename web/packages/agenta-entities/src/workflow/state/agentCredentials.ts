@@ -4,6 +4,7 @@ import type {AgentaApi} from "@agentaai/api-client"
 import isEqual from "fast-deep-equal"
 import {atom} from "jotai"
 
+import {USER_ACCOUNT_SOURCE} from "../../accountChoice/items"
 import type {AgentSecretBinding} from "../../secret/core/types"
 import {safeParseWithLogging} from "../../shared/utils/zodSchema"
 import {withAgentaToolsEntry} from "../agentaTools"
@@ -39,6 +40,12 @@ const credentialsOf = (revision: Pick<Workflow, "data">): unknown => {
     return sandbox?.credentials ?? []
 }
 
+/** A "user" secret has no slug (contract section 5.1); a project secret names only its slug. */
+const credentialSecret = (secret: AgentSecretBinding["secret"]): Record<string, string> =>
+    secret.account_source === USER_ACCOUNT_SOURCE
+        ? {account_source: USER_ACCOUNT_SOURCE}
+        : {slug: secret.slug}
+
 /** The revision data with only the credentials replaced. Every other field rides along. */
 const withCredentials = (
     base: Pick<Workflow, "data">,
@@ -56,12 +63,8 @@ const withCredentials = (
                 ...agent,
                 sandbox: {
                     ...sandbox,
-                    // A "user" secret has no slug (contract section 5.1); a project secret
-                    // names only its slug.
                     credentials: bindings.map(({secret, binding}) => ({
-                        secret: (secret.account_source === "user"
-                            ? {account_source: "user"}
-                            : {slug: secret.slug ?? ""}) as Record<string, string>,
+                        secret: credentialSecret(secret),
                         binding: {type: binding.type, name: binding.name},
                     })),
                 },

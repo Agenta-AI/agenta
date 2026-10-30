@@ -44,9 +44,14 @@ describe("personalSetupItems", () => {
             }),
         ])
         expect(items).toEqual([
-            {key: "app_connection:user/gmail", kind: "app_connection", name: "gmail", candidates: 2},
-            {key: "mcp_sign_in:user/linear", kind: "mcp", name: "linear", candidates: 0},
-            {key: "secret:user/GITHUB_TOKEN", kind: "secret", name: "GITHUB_TOKEN", candidates: 0},
+            {
+                key: "app_connection:user/gmail",
+                kind: "app_connection",
+                name: "gmail",
+                provider: "composio",
+            },
+            {key: "mcp_sign_in:user/linear", kind: "mcp_server", name: "linear"},
+            {key: "secret:user/GITHUB_TOKEN", kind: "secret", name: "GITHUB_TOKEN"},
         ])
     })
 
@@ -59,7 +64,7 @@ describe("personalSetupItems", () => {
         ).toEqual([])
     })
 
-    it("leaves out a user model login, which blocks the run and has its own strip", () => {
+    it("leaves out a user model login, which blocks the run and has its own banner", () => {
         expect(
             personalSetupItems([
                 req({

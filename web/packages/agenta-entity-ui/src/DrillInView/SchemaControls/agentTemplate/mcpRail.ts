@@ -2,6 +2,7 @@
  * The two rules the agent rail's MCP rows follow. Pure, so both the panel and its tests run
  * the same code rather than two descriptions of it.
  */
+import {USER_ACCOUNT_SOURCE, type AccountSource} from "@agenta/entities/accountChoice"
 import {
     buildMcpConnectionRef,
     isLegacyMcpItem,
@@ -53,14 +54,16 @@ export const buildMcpAgentItem = (option: {
     policy: {tools: {mode: "all"}},
 })
 
-/** Whose sign-in an MCP item uses: each person's own (`"user"`), or the project's. */
-export const readMcpAccountSource = (item: Record<string, unknown> | null | undefined) => {
+/** Whose sign-in an MCP item uses: each person's own (`"user"`), or the project's (`"agent"`). */
+export const readMcpAccountSource = (
+    item: Record<string, unknown> | null | undefined,
+): AccountSource => {
     const connection = item?.connection
     return connection &&
         typeof connection === "object" &&
-        (connection as Record<string, unknown>).account_source === "user"
-        ? ("user" as const)
-        : ("project" as const)
+        (connection as Record<string, unknown>).account_source === USER_ACCOUNT_SOURCE
+        ? USER_ACCOUNT_SOURCE
+        : "agent"
 }
 
 /**
@@ -71,11 +74,12 @@ export const readMcpAccountSource = (item: Record<string, unknown> | null | unde
  */
 export const withMcpAccountSource = (
     item: Record<string, unknown>,
-    source: "user" | "project",
+    source: AccountSource,
 ): Record<string, unknown> => {
     const connection = item.connection
     if (!connection || typeof connection !== "object") return item
     const {account_source: _previous, ...rest} = connection as Record<string, unknown>
-    if (source === "user" && rest.namespace !== "custom") return item
-    return {...item, connection: source === "user" ? {...rest, account_source: "user"} : rest}
+    const user = source === USER_ACCOUNT_SOURCE
+    if (user && rest.namespace !== "custom") return item
+    return {...item, connection: user ? {...rest, account_source: USER_ACCOUNT_SOURCE} : rest}
 }

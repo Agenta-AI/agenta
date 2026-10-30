@@ -5,16 +5,10 @@
  * one stores an account choice for this agent and variable. It shows only the viewer's own
  * secret, never another person's.
  */
-import {useMemo, useState} from "react"
+import {useMemo} from "react"
 
-import {
-    invalidatePersonalAccountReads,
-    upsertAccountChoice,
-    userItemKey,
-} from "@agenta/entities/accountChoice"
-import {CustomSecretFormat, personalNamedSecretsAtom} from "@agenta/entities/secret"
-import type {AgentSecretBinding} from "@agenta/entities/secret"
-import {projectIdAtom} from "@agenta/shared/state"
+import {userItemKey} from "@agenta/entities/accountChoice"
+import {personalNamedSecretsAtom, type AgentSecretBinding} from "@agenta/entities/secret"
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -24,12 +18,11 @@ import {
 import {Check} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
-import {
-    AccountLine,
-    AccountLineAction,
-} from "../DrillInView/SchemaControls/agentTemplate/accounts/AccountBlock"
-import {ACCOUNT_COPY} from "../DrillInView/SchemaControls/agentTemplate/accounts/copy"
-import {useItemAccount} from "../DrillInView/SchemaControls/agentTemplate/accounts/useItemAccount"
+import {AccountLine, AccountLineAction} from "../accounts/AccountLine"
+import {ACCOUNT_COPY} from "../accounts/copy"
+import {personalTextSecrets} from "../accounts/personalAccounts"
+import {useAccountChoice} from "../accounts/useAccountChoice"
+import {useItemAccount} from "../accounts/useItemAccount"
 
 export function YourSecretLine({
     revisionId,
@@ -51,13 +44,9 @@ export function YourSecretLine({
     )
     const itemKey = userItemKey("secret", envVar)
     const {workflowId, account, loading, failed} = useItemAccount(context, itemKey)
-    const projectId = useAtomValue(projectIdAtom)
     const secrets = useAtomValue(personalNamedSecretsAtom)
-    const [failure, setFailure] = useState(false)
-    const textSecrets = useMemo(
-        () => secrets.filter((secret) => secret.format === CustomSecretFormat.Text && secret.id),
-        [secrets],
-    )
+    const textSecrets = useMemo(() => personalTextSecrets(secrets), [secrets])
+    const {choose: storeChoice, busy, failed: choiceFailed} = useAccountChoice(workflowId, itemKey)
 
     if (loading || failed) return null
 
@@ -67,15 +56,8 @@ export function YourSecretLine({
         return <AccountLine text={ACCOUNT_COPY.noSecretYet} />
     }
 
-    const choose = async (secretId: string) => {
-        if (!projectId || !workflowId || secretId === usedId) return
-        setFailure(false)
-        try {
-            await upsertAccountChoice({projectId, workflowId, itemKey, account: {secretId}})
-            await invalidatePersonalAccountReads()
-        } catch {
-            setFailure(true)
-        }
+    const choose = (secretId: string) => {
+        if (secretId !== usedId) void storeChoice({secretId})
     }
 
     return (
@@ -89,7 +71,7 @@ export function YourSecretLine({
             >
                 <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                        <AccountLineAction>
+                        <AccountLineAction disabled={busy}>
                             {account?.match ? ACCOUNT_COPY.change : ACCOUNT_COPY.choose}
                         </AccountLineAction>
                     </DropdownMenuTrigger>
@@ -102,7 +84,7 @@ export function YourSecretLine({
                         {textSecrets.map((secret) => (
                             <DropdownMenuItem
                                 key={secret.id}
-                                onSelect={() => void choose(secret.id as string)}
+                                onSelect={() => choose(secret.id as string)}
                             >
                                 <span className="flex size-3.5 shrink-0 items-center">
                                     {secret.id === usedId ? <Check size={14} /> : null}
@@ -113,7 +95,7 @@ export function YourSecretLine({
                     </DropdownMenuContent>
                 </DropdownMenu>
             </AccountLine>
-            {failure ? (
+            {choiceFailed ? (
                 <span className="text-xs text-error">{ACCOUNT_COPY.choiceFailed}</span>
             ) : null}
         </div>

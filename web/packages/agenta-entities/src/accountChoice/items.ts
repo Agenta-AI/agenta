@@ -10,6 +10,12 @@
 /** The `account_source` value of an item that uses each person's own account. */
 export const USER_ACCOUNT_SOURCE = "user" as const
 
+/**
+ * Whose account an item uses: the one the agent names (`"agent"`, the default, which the item
+ * writes by leaving `account_source` out) or each person's own (`"user"`).
+ */
+export type AccountSource = "agent" | typeof USER_ACCOUNT_SOURCE
+
 /** The item kinds a "user" item can be. */
 export type UserItemKind = "app_connection" | "mcp_server" | "secret" | "subscription"
 
@@ -50,15 +56,13 @@ export const readUserItems = (agent: unknown): AgentUserItems => {
 }
 
 /** Whether any item of the agent uses each person's own account. */
-export const hasUserItems = (agent: unknown): boolean => {
-    const items = readUserItems(agent)
-    return (
-        items.tools.length > 0 ||
-        items.mcps.length > 0 ||
-        items.credentials.length > 0 ||
-        items.llm !== null
-    )
-}
+export const hasUserItems = (agent: unknown): boolean => anyUserItem(readUserItems(agent))
+
+const anyUserItem = (items: AgentUserItems): boolean =>
+    items.tools.length > 0 ||
+    items.mcps.length > 0 ||
+    items.credentials.length > 0 ||
+    items.llm !== null
 
 /**
  * The smallest `parameters` that `resolve` reads the same "user" items from: only those items,
@@ -67,8 +71,8 @@ export const hasUserItems = (agent: unknown): boolean => {
  * ask again. Null when the agent has no "user" item.
  */
 export const userItemsParameters = (agent: unknown): {agent: Json} | null => {
-    if (!hasUserItems(agent)) return null
     const items = readUserItems(agent)
+    if (!anyUserItem(items)) return null
     return {
         agent: {
             ...(items.llm ? {llm: items.llm} : {}),

@@ -12,7 +12,7 @@ export const SetupChoiceCard = ({
     logo,
     label,
     sublabel,
-    inUse,
+    inUse = false,
     disabled,
     onClick,
 }: {
@@ -21,7 +21,8 @@ export const SetupChoiceCard = ({
     label: string
     /** A second line under the label, for example "Connected". */
     sublabel?: ReactNode
-    inUse: boolean
+    /** Ringed as the one in use. */
+    inUse?: boolean
     disabled?: boolean
     onClick: () => void
 }) => (

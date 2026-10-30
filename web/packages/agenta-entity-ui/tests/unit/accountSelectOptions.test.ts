@@ -66,10 +66,10 @@ describe("Composio Account select", () => {
 
     it("round-trips the value of each choice to the account it writes", () => {
         expect(integrationAccountValue({connection: "", accountSource: "user"})).toBe("user")
-        expect(integrationAccountFromValue("user")).toEqual({kind: "user"})
+        expect(integrationAccountFromValue("user")).toEqual({accountSource: "user"})
         expect(integrationAccountValue({connection: "gmail-main"})).toBe("project:gmail-main")
         expect(integrationAccountFromValue("project:gmail-main")).toEqual({
-            kind: "project",
+            accountSource: "agent",
             slug: "gmail-main",
         })
     })
@@ -78,7 +78,7 @@ describe("Composio Account select", () => {
 describe("MCP Account select", () => {
     it("offers each person's own sign-in for a server people can sign in to", () => {
         expect(
-            mcpAccountOptions({source: "project", personalAccounts: true, authMode: "oauth"}).map(
+            mcpAccountOptions({source: "agent", personalAccounts: true, authMode: "oauth"}).map(
                 (option) => option.title,
             ),
         ).toEqual(["Each person's own sign-in", "The project's sign-in"])
@@ -86,10 +86,10 @@ describe("MCP Account select", () => {
 
     it("offers only the project's sign-in for an open server or with personal accounts off", () => {
         expect(
-            mcpAccountOptions({source: "project", personalAccounts: true, authMode: "none"}),
+            mcpAccountOptions({source: "agent", personalAccounts: true, authMode: "none"}),
         ).toHaveLength(1)
         expect(
-            mcpAccountOptions({source: "project", personalAccounts: false, authMode: "oauth"}),
+            mcpAccountOptions({source: "agent", personalAccounts: false, authMode: "oauth"}),
         ).toHaveLength(1)
     })
 })

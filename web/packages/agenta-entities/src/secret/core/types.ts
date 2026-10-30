@@ -19,6 +19,8 @@
 import type {LlmProvider} from "@agenta/shared/types"
 import {AgentaApi} from "@agentaai/api-client"
 
+import {USER_ACCOUNT_SOURCE} from "../../accountChoice/items"
+
 // ---------------------------------------------------------------------------
 // Fern type aliases
 // ---------------------------------------------------------------------------
@@ -78,24 +80,18 @@ export type SecretManagementPolicy = AgentaApi.SecretManagementPolicy
 export type CustomSecretContent = CustomSecretSettingsDto["content"]
 
 /**
- * Table/form row for a user-named vault secret (`custom_secret`). Extends the
- * shared `LlmProvider` row (so it flows through the generic vault transforms)
- * with the two fields named secrets need: the `format` and a `content` that is
- * a text blob or a flat json object — wider than `LlmProvider.key` (string only).
- */
-/**
  * One `sandbox.credentials[]` entry: the secret, and the environment variable that receives it.
  * A project secret names its slug. A "user" secret (`account_source: "user"`) has no slug: each
  * person who runs the agent gives their own value.
  */
 export interface AgentSecretBinding {
-    secret: {slug?: string; account_source?: "user"}
+    secret: {slug: string; account_source?: never} | {account_source: "user"; slug?: never}
     binding: {type: "env"; name: string}
 }
 
 /** Whether the binding takes each person's own secret. */
 export const isUserSecretBinding = (binding: AgentSecretBinding): boolean =>
-    binding.secret.account_source === "user"
+    binding.secret.account_source === USER_ACCOUNT_SOURCE
 
 /**
  * A vault row carrying the custom-provider fields the generated client does not declare yet.
@@ -108,6 +104,12 @@ export interface ProviderVaultRow extends LlmProvider {
     protocol?: LlmEndpointProtocol
 }
 
+/**
+ * Table/form row for a user-named vault secret (`custom_secret`). Extends the
+ * shared `LlmProvider` row (so it flows through the generic vault transforms)
+ * with the two fields named secrets need: the `format` and a `content` that is
+ * a text blob or a flat json object — wider than `LlmProvider.key` (string only).
+ */
 export interface NamedSecretRow extends LlmProvider {
     slug?: string
     format: CustomSecretFormat

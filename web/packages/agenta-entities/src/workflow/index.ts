@@ -98,7 +98,7 @@ export {
 } from "./api/resolveRevision"
 export {
     resolvedWorkflowRevisionQueryAtomFamily,
-    workflowRevisionRefsKey,
+    resolvedWorkflowRevisionFamilyKey,
 } from "./state/resolvedRevision"
 export {
     AGENT_NEEDS_SETUP_CODE,

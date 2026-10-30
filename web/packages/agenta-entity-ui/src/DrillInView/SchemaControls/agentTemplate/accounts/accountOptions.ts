@@ -2,14 +2,12 @@
  * The "Account" select of a Composio item: its options and what a pick writes. Pure, so the
  * tests and the block run the same rule.
  */
+import {USER_ACCOUNT_SOURCE, type AccountSource} from "@agenta/entities/accountChoice"
 import type {ToolConnection} from "@agenta/entities/gatewayTool"
 
+import {ACCOUNT_COPY} from "../../../../accounts/copy"
 import type {GatewayConnectionAccount, ParsedGatewayConnection} from "../../toolUtils"
 import type {PermissionPolicyOption} from "../PermissionPolicySelect"
-
-import {ACCOUNT_COPY} from "./copy"
-
-export type McpAccountSource = "user" | "project"
 
 /** The MCP select. Each person's own sign-in is left out where a person cannot sign in. */
 export const mcpAccountOptions = ({
@@ -17,31 +15,31 @@ export const mcpAccountOptions = ({
     personalAccounts,
     authMode,
 }: {
-    source: McpAccountSource
+    source: AccountSource
     personalAccounts: boolean
     authMode: string | undefined
 }): PermissionPolicyOption[] => {
-    const offerUser = (personalAccounts && authMode !== "none") || source === "user"
+    const offerUser = (personalAccounts && authMode !== "none") || source === USER_ACCOUNT_SOURCE
     return [
-        ...(offerUser ? [{value: "user", title: ACCOUNT_COPY.eachPersonSignIn}] : []),
-        {value: "project", title: ACCOUNT_COPY.projectSignIn},
+        ...(offerUser ? [{value: USER_ACCOUNT_SOURCE, title: ACCOUNT_COPY.eachPersonSignIn}] : []),
+        {value: "agent", title: ACCOUNT_COPY.projectSignIn},
     ]
 }
 
-/** The select value of each person's own account. A project connection is `project:<slug>`. */
-export const USER_ACCOUNT_VALUE = "user"
-
+/** The select value of a project connection is `project:<slug>`; each person's own is `"user"`. */
 const PROJECT_PREFIX = "project:"
 
 export const integrationAccountValue = (
     entry: Pick<ParsedGatewayConnection, "accountSource" | "connection">,
 ): string =>
-    entry.accountSource === "user" ? USER_ACCOUNT_VALUE : `${PROJECT_PREFIX}${entry.connection}`
+    entry.accountSource === USER_ACCOUNT_SOURCE
+        ? USER_ACCOUNT_SOURCE
+        : `${PROJECT_PREFIX}${entry.connection}`
 
 export const integrationAccountFromValue = (value: string): GatewayConnectionAccount =>
-    value === USER_ACCOUNT_VALUE
-        ? {kind: "user"}
-        : {kind: "project", slug: value.slice(PROJECT_PREFIX.length)}
+    value === USER_ACCOUNT_SOURCE
+        ? {accountSource: USER_ACCOUNT_SOURCE}
+        : {accountSource: "agent", slug: value.slice(PROJECT_PREFIX.length)}
 
 /**
  * "Each person's default <name>" first, then each project connection of the integration. The
@@ -62,7 +60,7 @@ export const integrationAccountOptions = ({
     const options: PermissionPolicyOption[] = []
     if (personalAccounts || entry.accountSource === "user") {
         options.push({
-            value: USER_ACCOUNT_VALUE,
+            value: USER_ACCOUNT_SOURCE,
             title: ACCOUNT_COPY.eachPersonDefault(integrationName),
         })
     }

@@ -2,16 +2,17 @@
  * Which rows the chat's "Connect your accounts" card lists: only the viewer's own missing items.
  * Pure, so the card and its tests run the same rule.
  */
+import type {UserItemKind} from "@agenta/entities/accountChoice"
 import {isUserRequirement, type AgentRequirementItem} from "@agenta/entities/workflow"
 
 export interface PersonalSetupItem {
     /** The requirement key, which is the item key of the account choice. */
     key: string
-    kind: "app_connection" | "mcp" | "secret"
+    kind: Exclude<UserItemKind, "subscription">
     /** The Composio integration, the MCP server slug, or the environment variable name. */
     name: string
-    /** How many of the viewer's own accounts could fill it. */
-    candidates: number
+    /** The tool provider of a Composio item, when the requirement names it. */
+    provider?: string
 }
 
 const text = (value: unknown): string | null => (typeof value === "string" && value ? value : null)
@@ -27,16 +28,21 @@ export const personalSetupItems = (
     for (const req of requirements ?? []) {
         if (!isUserRequirement(req) || req.blocks_run) continue
         const ref = req.reference ?? {}
-        const candidates = req.fix?.candidates ?? 0
         if (req.kind === "app_connection") {
             const name = text(ref.integration) ?? req.label
-            items.push({key: req.key, kind: "app_connection", name, candidates})
+            const provider = text(ref.provider)
+            items.push({
+                key: req.key,
+                kind: "app_connection",
+                name,
+                ...(provider ? {provider} : {}),
+            })
         } else if (req.kind === "mcp_server" || req.kind === "mcp_sign_in") {
             const name = text(ref.slug) ?? req.label
-            items.push({key: req.key, kind: "mcp", name, candidates})
+            items.push({key: req.key, kind: "mcp_server", name})
         } else if (req.kind === "secret") {
             const name = text(ref.name) ?? req.label
-            items.push({key: req.key, kind: "secret", name, candidates})
+            items.push({key: req.key, kind: "secret", name})
         }
     }
     return items

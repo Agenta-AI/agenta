@@ -7,7 +7,6 @@ export {
     suggestedAgentSecretEnv,
     type AgentSecretAttachmentModalProps,
     type AgentSecretAttachmentResult,
-    type AgentSecretSource,
     type AgentSecretAttachmentTarget,
     type AgentSecretRequestSeed,
 } from "./AgentSecretAttachmentModal"

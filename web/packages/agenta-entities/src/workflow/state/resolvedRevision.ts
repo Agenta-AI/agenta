@@ -12,24 +12,23 @@ import {
 } from "../api/resolveRevision"
 
 /** The key of {@link resolvedWorkflowRevisionQueryAtomFamily}; empty means "nothing to resolve". */
-export const workflowRevisionRefsKey = (refs: WorkflowRevisionRefs | null): string =>
-    refs && (refs.workflowId || refs.variantId || refs.revisionId)
-        ? JSON.stringify([refs.workflowId ?? null, refs.variantId ?? null, refs.revisionId ?? null])
+export const resolvedWorkflowRevisionFamilyKey = (refs: WorkflowRevisionRefs | null): string =>
+    refs &&
+    (refs.workflowId ||
+        refs.variantId ||
+        refs.revisionId ||
+        refs.environment?.id ||
+        refs.environment?.slug)
+        ? JSON.stringify(refs)
         : ""
 
 export const resolvedWorkflowRevisionQueryAtomFamily = atomFamily((key: string) =>
     atomWithQuery<ResolvedWorkflowRevision | null>((get) => {
         const projectId = get(projectIdAtom)
-        const [workflowId = null, variantId = null, revisionId = null] = key
-            ? (JSON.parse(key) as (string | null)[])
-            : []
+        const refs: WorkflowRevisionRefs = key ? JSON.parse(key) : {}
         return {
             queryKey: ["workflows", "resolved-revision", projectId, key],
-            queryFn: () =>
-                resolveWorkflowRevisionRefs({
-                    projectId: projectId as string,
-                    refs: {workflowId, variantId, revisionId},
-                }),
+            queryFn: () => resolveWorkflowRevisionRefs({projectId: projectId as string, refs}),
             enabled: !!projectId && !!key,
             staleTime: 30_000,
         }

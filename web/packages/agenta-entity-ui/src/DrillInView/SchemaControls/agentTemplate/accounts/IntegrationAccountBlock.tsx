@@ -9,14 +9,9 @@
  */
 import {useMemo, useState} from "react"
 
-import {
-    invalidatePersonalAccountReads,
-    upsertAccountChoice,
-    userItemKey,
-} from "@agenta/entities/accountChoice"
+import {userItemKey} from "@agenta/entities/accountChoice"
 import {
     invalidateToolConnections,
-    isConnectionActive,
     isConnectionDefault,
     makeDefaultToolConnection,
     usePersonalToolConnections,
@@ -25,7 +20,6 @@ import {
     type ToolConnection,
 } from "@agenta/entities/gatewayTool"
 import {personalAccountsAccessAtom} from "@agenta/entities/secret"
-import {projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
 import {
     DropdownMenu,
@@ -37,6 +31,11 @@ import {
 import {Check, Plus} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
+import {AccountLine, AccountLineAction} from "../../../../accounts/AccountLine"
+import {ACCOUNT_COPY} from "../../../../accounts/copy"
+import {personalConnectionsFor} from "../../../../accounts/personalAccounts"
+import {useAccountChoice} from "../../../../accounts/useAccountChoice"
+import {useItemAccount, type ItemAccountContext} from "../../../../accounts/useItemAccount"
 import ConnectDrawer from "../../../../gatewayTool/drawers/ConnectDrawer"
 import type {
     GatewayConnectionAccount,
@@ -44,14 +43,12 @@ import type {
     ParsedGatewayConnection,
 } from "../../toolUtils"
 
-import {AccountBlock, AccountLine, AccountLineAction} from "./AccountBlock"
+import {AccountBlock} from "./AccountBlock"
 import {
     integrationAccountFromValue,
     integrationAccountOptions,
     integrationAccountValue,
 } from "./accountOptions"
-import {ACCOUNT_COPY} from "./copy"
-import {useItemAccount, type ItemAccountContext} from "./useItemAccount"
 
 export interface IntegrationAccountBlockProps {
     target: GatewayConnectionTarget
@@ -130,20 +127,15 @@ function YourAccountLine({
 }) {
     const itemKey = userItemKey("app_connection", target.integration)
     const {workflowId, account, loading, failed} = useItemAccount(context, itemKey)
-    const projectId = useAtomValue(projectIdAtom)
     const {connections: personal} = usePersonalToolConnections()
+    const {choose: storeChoice, busy: choosing} = useAccountChoice(workflowId, itemKey)
     const [connectOpen, setConnectOpen] = useState(false)
-    const [busy, setBusy] = useState(false)
+    const [defaulting, setDefaulting] = useState(false)
+    const busy = choosing || defaulting
 
     const yours = useMemo<ToolConnection[]>(
-        () =>
-            (personal ?? []).filter(
-                (connection) =>
-                    connection.provider_key === target.provider &&
-                    connection.integration_key === target.integration &&
-                    isConnectionActive(connection),
-            ),
-        [personal, target.integration, target.provider],
+        () => personalConnectionsFor(personal, target),
+        [personal, target],
     )
 
     if (loading || failed) return null
@@ -152,33 +144,21 @@ function YourAccountLine({
     const used = yours.find((connection) => connection.id === usedId)
 
     const choose = async (connection: ToolConnection) => {
-        if (!projectId || !workflowId || !connection.id || connection.id === usedId) return
-        setBusy(true)
-        try {
-            await upsertAccountChoice({
-                projectId,
-                workflowId,
-                itemKey,
-                account: {gatewayConnectionId: connection.id},
-            })
-            await invalidatePersonalAccountReads()
-        } catch {
-            message.error(ACCOUNT_COPY.choiceFailed)
-        } finally {
-            setBusy(false)
-        }
+        if (!connection.id || connection.id === usedId) return
+        const stored = await storeChoice({gatewayConnectionId: connection.id})
+        if (stored === false) message.error(ACCOUNT_COPY.choiceFailed)
     }
 
     const makeDefault = async () => {
         if (!usedId) return
-        setBusy(true)
+        setDefaulting(true)
         try {
             await makeDefaultToolConnection(usedId)
             invalidateToolConnections()
         } catch {
             message.error(ACCOUNT_COPY.defaultFailed)
         } finally {
-            setBusy(false)
+            setDefaulting(false)
         }
     }
 

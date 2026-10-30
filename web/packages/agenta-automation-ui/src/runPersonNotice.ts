@@ -19,27 +19,12 @@ export const saveChangesRunPerson = (
     viewerId: string | null | undefined,
 ): boolean => Boolean(viewerId) && !(principal?.kind === "human" && principal.id === viewerId)
 
-/**
- * Shown only when there is an edit to save, the save changes the run person, and the agent the
- * automation will run has "user" items. Never a reason to block the save.
- */
-export const runPersonNoticeShown = ({
-    dirty,
-    principal,
-    viewerId,
-    agentHasUserItems,
-}: {
-    dirty: boolean
-    principal: PrincipalRefLike | null | undefined
-    viewerId: string | null | undefined
-    agentHasUserItems: boolean
-}): boolean => dirty && agentHasUserItems && saveChangesRunPerson(principal, viewerId)
-
-type StoredRefs = Record<string, {id?: string | null} | null | undefined> | null | undefined
+type StoredRef = {id?: string | null; slug?: string | null} | null | undefined
+type StoredRefs = Record<string, StoredRef> | null | undefined
 
 /**
- * The references the next run resolves: the stored ones, or the newest revision of the agent the
- * draft rebinds to. An environment binding falls back to the agent's newest revision.
+ * The references the next run resolves: the stored ones (an environment binding included), or
+ * the newest revision of the agent the draft rebinds to.
  */
 export const automationRevisionRefs = (
     automation: Pick<Automation, "agentId" | "raw">,
@@ -47,10 +32,18 @@ export const automationRevisionRefs = (
 ): WorkflowRevisionRefs | null => {
     if (draftAgentId && draftAgentId !== automation.agentId) return {workflowId: draftAgentId}
     const stored = automation.raw.data?.references as StoredRefs
+    const artifact = stored?.workflow ?? stored?.application
+    const environment = stored?.environment
+    if (environment?.id || environment?.slug) {
+        return {
+            environment: {id: environment.id ?? null, slug: environment.slug ?? null},
+            workflowId: artifact?.id ?? automation.agentId,
+            workflowSlug: artifact?.slug ?? null,
+        }
+    }
     const revisionId = stored?.workflow_revision?.id ?? stored?.application_revision?.id
     const variantId = stored?.workflow_variant?.id ?? stored?.application_variant?.id
-    const workflowId =
-        stored?.workflow?.id ?? stored?.application?.id ?? automation.agentId ?? draftAgentId
+    const workflowId = artifact?.id ?? automation.agentId
     if (!revisionId && !variantId && !workflowId) return null
     return {workflowId, variantId, revisionId}
 }

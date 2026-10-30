@@ -1,13 +1,8 @@
 /**
  * The run person notice shows only when saving makes the viewer the automation's run person and
- * the agent has "user" items (spec 3.8 and 5.6).
+ * the agent has "user" items (spec 3.8 and 5.6). The notice checks the revision the next run uses.
  */
-import {
-    automationRevisionRefs,
-    runPersonNoticeShown,
-    saveChangesRunPerson,
-    type Automation,
-} from "@agenta/automation-ui"
+import {automationRevisionRefs, saveChangesRunPerson, type Automation} from "@agenta/automation-ui"
 import {describe, expect, it} from "vitest"
 
 const viewer = "user-viewer"
@@ -28,27 +23,8 @@ describe("saveChangesRunPerson", () => {
     })
 })
 
-describe("runPersonNoticeShown", () => {
-    const base = {
-        dirty: true,
-        principal: {kind: "human", id: "someone-else"},
-        viewerId: viewer,
-        agentHasUserItems: true,
-    }
-
-    it("shows when a save changes the run person of an agent with user items", () => {
-        expect(runPersonNoticeShown(base)).toBe(true)
-    })
-
-    it("hides without user items, without an edit, or for the run person", () => {
-        expect(runPersonNoticeShown({...base, agentHasUserItems: false})).toBe(false)
-        expect(runPersonNoticeShown({...base, dirty: false})).toBe(false)
-        expect(runPersonNoticeShown({...base, principal: {kind: "human", id: viewer}})).toBe(false)
-    })
-})
-
 describe("automationRevisionRefs", () => {
-    const automation = (references: Record<string, {id: string}>): Automation =>
+    const automation = (references: Record<string, {id?: string; slug?: string}>): Automation =>
         ({
             agentId: "agent-1",
             raw: {data: {references}},
@@ -72,6 +48,19 @@ describe("automationRevisionRefs", () => {
     it("resolves the newest revision of the agent an unsaved rebind names", () => {
         expect(automationRevisionRefs(automation({workflow: {id: "agent-1"}}), "agent-2")).toEqual({
             workflowId: "agent-2",
+        })
+    })
+
+    it("keeps an environment binding, with the agent's slug for the deployment's key", () => {
+        expect(
+            automationRevisionRefs(
+                automation({environment: {slug: "production"}, application: {slug: "support"}}),
+                null,
+            ),
+        ).toEqual({
+            environment: {id: null, slug: "production"},
+            workflowId: "agent-1",
+            workflowSlug: "support",
         })
     })
 })

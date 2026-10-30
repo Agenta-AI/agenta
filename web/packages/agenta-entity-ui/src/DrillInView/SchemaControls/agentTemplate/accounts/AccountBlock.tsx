@@ -3,13 +3,10 @@
  * under it. Styled exactly like the drawer's own "Default permission" block, because it is that
  * block's sibling (approved board `editor-gmail-permissions`).
  */
-import type {ComponentProps, ReactNode} from "react"
+import type {ReactNode} from "react"
 
-import {Button} from "@agenta/ui/ui"
-
+import {ACCOUNT_COPY} from "../../../../accounts/copy"
 import {PermissionPolicySelect, type PermissionPolicyOption} from "../PermissionPolicySelect"
-
-import {ACCOUNT_COPY} from "./copy"
 
 export function AccountBlock({
     value,
@@ -40,22 +37,4 @@ export function AccountBlock({
             {line}
         </div>
     )
-}
-
-/** "When you run it: …" with its actions, in the drawer's tertiary line style. */
-export function AccountLine({text, children}: {text: string; children?: ReactNode}) {
-    return (
-        <div className="flex min-w-0 flex-wrap items-center gap-x-1.5">
-            <span className="min-w-0 text-xs text-[var(--ag-colorTextTertiary)]">{text}</span>
-            {children}
-        </div>
-    )
-}
-
-/**
- * One link-style action on the line ("Change", "Sign out", "Sign in"). Every prop reaches the
- * button, so it can be a menu trigger.
- */
-export function AccountLineAction(props: ComponentProps<typeof Button>) {
-    return <Button type="button" variant="link" size="xs" className="p-0 text-xs" {...props} />
 }

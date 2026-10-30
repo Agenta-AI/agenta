@@ -27,23 +27,25 @@ export const draftItemAccountsFamilyKey = (workflowId: string, agent: unknown): 
 
 /**
  * The account each "user" item of the configuration on screen gets when the asker runs it, saved
- * or not. One query per agent and set of "user" items, so the drawers of one agent share it.
+ * or not. One query per agent and set of "user" items, so the drawers of one agent share it. The
+ * answer names the asker's own accounts, so it is cached per person.
  */
 export const draftItemAccountsQueryAtomFamily = atomFamily((key: string) =>
     atomWithQuery<ItemAccount[]>((get) => {
         const projectId = get(projectIdAtom)
+        const userId = get(userAtom)?.id ?? null
         const {workflowId = "", parameters = null} = key
             ? (JSON.parse(key) as {workflowId?: string; parameters?: Record<string, unknown>})
             : {}
         return {
-            queryKey: [...ACCOUNT_CHOICES_KEY, "resolve-draft", projectId, key],
+            queryKey: [...ACCOUNT_CHOICES_KEY, "resolve-draft", userId, projectId, key],
             queryFn: () =>
                 resolveDraftAccountChoices({
                     projectId: projectId as string,
                     workflowId,
                     parameters: parameters ?? {},
                 }),
-            enabled: !!projectId && !!parameters,
+            enabled: !!projectId && !!userId && !!parameters,
             staleTime: 30_000,
         }
     }),

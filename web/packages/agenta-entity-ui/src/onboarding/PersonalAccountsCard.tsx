@@ -10,9 +10,7 @@
  */
 import {useMemo, useState} from "react"
 
-import {invalidatePersonalAccountReads, upsertAccountChoice} from "@agenta/entities/accountChoice"
 import {
-    isConnectionActive,
     isConnectionDefault,
     usePersonalToolConnections,
     useToolIntegrationDetail,
@@ -20,14 +18,15 @@ import {
 import {
     findCustomMcpEndpoint,
     mcpEndpointsQueryAtom,
-    usePersonalMcpSignIn,
     type MCPEndpoint,
 } from "@agenta/entities/mcpEndpoint"
-import {CustomSecretFormat, personalNamedSecretsAtom} from "@agenta/entities/secret"
-import {projectIdAtom} from "@agenta/shared/state"
-import {Button, Input} from "@agenta/ui/ui"
+import {personalNamedSecretsAtom} from "@agenta/entities/secret"
+import {Button} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
+import {McpSignIn} from "../accounts/McpSignIn"
+import {personalConnectionsFor, personalTextSecrets} from "../accounts/personalAccounts"
+import {useAccountChoice} from "../accounts/useAccountChoice"
 import ConnectDrawer from "../gatewayTool/drawers/ConnectDrawer"
 
 import {PERSONAL_SETUP_COPY as copy} from "./copy"
@@ -77,7 +76,7 @@ export const PersonalAccountsCard = ({
                         : undefined,
                 }
                 if (item.kind === "app_connection") return <AppRow key={item.key} {...props} />
-                if (item.kind === "mcp") return <McpRow key={item.key} {...props} />
+                if (item.kind === "mcp_server") return <McpRow key={item.key} {...props} />
                 return <SecretRow key={item.key} {...props} />
             })}
         </div>
@@ -106,29 +105,6 @@ interface RowProps {
     onToggle?: () => void
 }
 
-/** Store the viewer's pick for this agent and item, then read Needs setup again. */
-const useChoose = (workflowId: string, itemKey: string) => {
-    const projectId = useAtomValue(projectIdAtom)
-    const [busy, setBusy] = useState(false)
-    const [failed, setFailed] = useState(false)
-    const choose = async (account: {gatewayConnectionId: string} | {secretId: string}) => {
-        if (!projectId || !workflowId || busy) return false
-        setBusy(true)
-        setFailed(false)
-        try {
-            await upsertAccountChoice({projectId, workflowId, itemKey, account})
-            await invalidatePersonalAccountReads()
-            return true
-        } catch {
-            setFailed(true)
-            return false
-        } finally {
-            setBusy(false)
-        }
-    }
-    return {choose, busy, failed}
-}
-
 const Failure = ({show}: {show: boolean}) =>
     show ? <span className="text-xs text-[var(--ag-colorError)]">{copy.failed}</span> : null
 
@@ -139,14 +115,10 @@ function AppRow({item, workflowId, done, open, onToggle}: RowProps) {
     const {connections} = usePersonalToolConnections()
     const yours = useMemo(
         () =>
-            (connections ?? []).filter(
-                (connection) =>
-                    connection.integration_key === item.name && isConnectionActive(connection),
-            ),
-        [connections, item.name],
+            personalConnectionsFor(connections, {integration: item.name, provider: item.provider}),
+        [connections, item.name, item.provider],
     )
-    const {choose, busy, failed} = useChoose(workflowId, item.key)
-    const [picked, setPicked] = useState<string | null>(null)
+    const {choose, busy, failed} = useAccountChoice(workflowId, item.key)
     const [connectOpen, setConnectOpen] = useState(false)
 
     return (
@@ -182,18 +154,14 @@ function AppRow({item, workflowId, done, open, onToggle}: RowProps) {
                             label={`${connection.name || connection.slug}${
                                 isConnectionDefault(connection) ? ` · ${copy.defaultMark}` : ""
                             }`}
-                            inUse={picked === connection.id}
                             disabled={busy}
                             onClick={() => {
-                                if (!connection.id) return
-                                setPicked(connection.id)
-                                void choose({gatewayConnectionId: connection.id})
+                                if (connection.id) void choose({gatewayConnectionId: connection.id})
                             }}
                         />
                     ))}
                     <SetupChoiceCard
                         label={copy.connectAnother}
-                        inUse={false}
                         onClick={() => setConnectOpen(true)}
                     />
                 </SetupChoiceStrip>
@@ -216,9 +184,6 @@ function McpRow({item, done, open, onToggle}: RowProps) {
         [endpoints.data, item.name],
     )
     const name = endpoint?.name || item.name
-    const {pendingId, error, signIn, signInWithToken} = usePersonalMcpSignIn()
-    const [token, setToken] = useState<string | null>(null)
-    const pending = Boolean(endpoint?.id) && pendingId === endpoint?.id
 
     return (
         <SetupSection
@@ -232,57 +197,36 @@ function McpRow({item, done, open, onToggle}: RowProps) {
             <p className="m-0 text-xs leading-snug text-[var(--ag-colorTextSecondary)]">
                 {copy.signIn(name)}
             </p>
-            {endpoint && token === null ? (
-                <div className="flex items-center gap-1">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={pending}
-                        // The OAuth popup opens inside this click; a token server asks for it here.
-                        onClick={() =>
-                            endpoint.auth_mode === "api_key" ? setToken("") : signIn(endpoint)
-                        }
-                    >
-                        {copy.signInAction}
-                    </Button>
-                </div>
-            ) : null}
-            {endpoint && token !== null ? (
-                <form
-                    className="flex items-center gap-2"
-                    onSubmit={(event) => {
-                        event.preventDefault()
-                        void signInWithToken(endpoint, token.trim()).then((ok) => {
-                            if (ok) setToken(null)
-                        })
-                    }}
+            {endpoint ? (
+                <McpSignIn
+                    endpoint={endpoint}
+                    tokenLabel={copy.signInAction}
+                    submitLabel={copy.signInAction}
                 >
-                    <Input
-                        type="password"
-                        autoComplete="off"
-                        aria-label={copy.signInAction}
-                        value={token}
-                        onChange={(event) => setToken(event.target.value)}
-                        className="ph-no-capture"
-                    />
-                    <Button type="submit" size="sm" disabled={pending || !token.trim()}>
-                        {copy.signInAction}
-                    </Button>
-                </form>
+                    {(start, pending) =>
+                        start ? (
+                            <div className="flex items-center gap-1">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={pending}
+                                    onClick={start}
+                                >
+                                    {copy.signInAction}
+                                </Button>
+                            </div>
+                        ) : null
+                    }
+                </McpSignIn>
             ) : null}
-            {error ? <span className="text-xs text-[var(--ag-colorError)]">{error}</span> : null}
         </SetupSection>
     )
 }
 
 function SecretRow({item, workflowId, done, open, onToggle}: RowProps) {
     const secrets = useAtomValue(personalNamedSecretsAtom)
-    const yours = useMemo(
-        () => secrets.filter((secret) => secret.format === CustomSecretFormat.Text && secret.id),
-        [secrets],
-    )
-    const {choose, busy, failed} = useChoose(workflowId, item.key)
-    const [picked, setPicked] = useState<string | null>(null)
+    const yours = useMemo(() => personalTextSecrets(secrets), [secrets])
+    const {choose, busy, failed} = useAccountChoice(workflowId, item.key)
 
     return (
         <SetupSection
@@ -302,12 +246,8 @@ function SecretRow({item, workflowId, done, open, onToggle}: RowProps) {
                         <SetupChoiceCard
                             key={secret.id}
                             label={secret.name ?? ""}
-                            inUse={picked === secret.id}
                             disabled={busy}
-                            onClick={() => {
-                                setPicked(secret.id as string)
-                                void choose({secretId: secret.id as string})
-                            }}
+                            onClick={() => void choose({secretId: secret.id as string})}
                         />
                     ))}
                 </SetupChoiceStrip>

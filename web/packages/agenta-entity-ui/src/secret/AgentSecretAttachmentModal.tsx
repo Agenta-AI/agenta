@@ -1,5 +1,6 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
+import type {AccountSource} from "@agenta/entities/accountChoice"
 import {
     CustomSecretFormat,
     isUserSecretBinding,
@@ -22,7 +23,7 @@ import {
 } from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
-import {ACCOUNT_COPY} from "../DrillInView/SchemaControls/agentTemplate/accounts/copy"
+import {ACCOUNT_COPY} from "../accounts/copy"
 
 import {useSecretForm, type SavedSecret} from "./SecretForm"
 import {YourSecretLine} from "./YourSecretLine"
@@ -37,9 +38,6 @@ export interface AgentSecretRequestSeed {
     envVar?: string
     reason?: string
 }
-
-/** Whose secret the variable receives: each person's own, or a project secret. */
-export type AgentSecretSource = "user" | "project"
 
 export interface AgentSecretAttachmentResult {
     /** Empty for each person's own secret. */
@@ -152,7 +150,7 @@ export function AgentSecretAttachmentModal({
         [namedSecrets],
     )
     const access = useAtomValue(personalAccountsAccessAtom)
-    const [source, setSource] = useState<AgentSecretSource>("project")
+    const [source, setSource] = useState<AccountSource>("agent")
     const [selectedSlug, setSelectedSlug] = useState("")
     const [createdSecret, setCreatedSecret] = useState<SavedSecret | null>(null)
     const [envVar, setEnvVar] = useState("")
@@ -203,7 +201,7 @@ export function AgentSecretAttachmentModal({
     useEffect(() => {
         if (!open) return
         const original = editingBinding?.value
-        setSource(original && isUserSecretBinding(original) ? "user" : "project")
+        setSource(original && isUserSecretBinding(original) ? "user" : "agent")
         const initialSlug = original?.secret.slug ?? ""
         const initialSecret = textSecrets.find((secret) => secret.slug === initialSlug)
         const startNew = canCreateSecret && !original && initialMode === "create"
@@ -363,7 +361,7 @@ export function AgentSecretAttachmentModal({
                         <Select
                             value={source}
                             onValueChange={(value) => {
-                                setSource(value as AgentSecretSource)
+                                setSource(value as AccountSource)
                                 setError(null)
                             }}
                         >
@@ -374,9 +372,7 @@ export function AgentSecretAttachmentModal({
                                 <SelectItem value="user">
                                     {ACCOUNT_COPY.eachPersonSecret}
                                 </SelectItem>
-                                <SelectItem value="project">
-                                    {ACCOUNT_COPY.projectSecret}
-                                </SelectItem>
+                                <SelectItem value="agent">{ACCOUNT_COPY.projectSecret}</SelectItem>
                             </SelectContent>
                         </Select>
                         {personal ? (

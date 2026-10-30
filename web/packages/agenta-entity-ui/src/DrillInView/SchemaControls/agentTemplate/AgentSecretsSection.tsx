@@ -29,10 +29,10 @@ import {Key, PencilSimple, Plus, Trash} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 import {createPortal} from "react-dom"
 
+import {ACCOUNT_COPY} from "../../../accounts/copy"
 import {AgentSecretAttachmentModal, agentSecretBinding} from "../../../secret"
 import {useSectionDrawerPanel} from "../sectionDrawerPanel"
 
-import {ACCOUNT_COPY} from "./accounts/copy"
 import {NeedsSetupTag} from "./NeedsSetupTag"
 
 export interface AgentSecretsSectionProps {
