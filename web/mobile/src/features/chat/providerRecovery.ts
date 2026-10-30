@@ -7,6 +7,8 @@ import {useRouter} from "next/router"
 
 import {billingUrl, llmProvidersUrl} from "@/lib/context"
 
+import {useProjectPermission} from "../context/useProjectPermission"
+
 const useProjectRoute = () => {
     const router = useRouter()
     const {workspace_id: workspaceId, project_id: projectId} = router.query
@@ -37,7 +39,10 @@ export const useBillingRoute = (): (() => void) | undefined => {
 export const useCanBuyCredits = (code: string | null | undefined): boolean => {
     const {projectId} = useProjectRoute()
     const outOfCredits = !!code && (BUY_CREDITS_CODES.has(code) || STARTER_CREDIT_CODES.has(code))
-    const wanted = isBillingEnabled() && !!projectId && outOfCredits
+    // Checkout itself needs `edit_billing`; the pack list behind the offer does not, so a role
+    // that cannot pay would see the button and get a refusal.
+    const canEditBilling = useProjectPermission(projectId ?? "", "edit_billing")
+    const wanted = isBillingEnabled() && !!projectId && outOfCredits && canEditBilling
     const offer = useTopUpOffer({projectId, enabled: wanted})
     return wanted && offer.data?.status === "available"
 }

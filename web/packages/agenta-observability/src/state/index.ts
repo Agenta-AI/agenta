@@ -1,3 +1,4 @@
+import {canViewSpansAtom} from "@agenta/entities/access"
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom, useAtomValue} from "jotai"
 import {atomFamily} from "jotai-family"
@@ -27,7 +28,7 @@ export const observabilityDashboardQueryAtomFamily = atomFamily((appId: string |
                 if (!projectId) return null
                 return fetchDashboardAnalytics({projectId, appId, range, signal})
             },
-            enabled: Boolean(projectId),
+            enabled: Boolean(projectId) && get(canViewSpansAtom),
             staleTime: 1000 * 60,
             refetchOnWindowFocus: false,
             // A timed-out range times out again; retrying only delays the error by minutes.

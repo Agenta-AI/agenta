@@ -7,7 +7,6 @@ import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import {useNewAgentAction} from "../agents/useNewAgentAction"
-
 interface Props {
     workspaceId: string
     projectId: string

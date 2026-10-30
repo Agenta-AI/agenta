@@ -15,21 +15,47 @@ const getProjectValues = () => ({projectId: getDefaultStore().get(projectIdAtom)
 //  - update: PUT data to server
 //  - delete: DELETE data from server
 
-export const fetchAllWorkspaceRoles = async (ignoreAxiosError = false) => {
-    // Read workspace-scope roles from /access/roles and project to the legacy
-    // `{role_name, role_description}` shape callers expect.
+/** `/access/roles`: the catalog per scope, and the roles this organization may set now. */
+interface AccessRolesResponse {
+    organization?: RoleCatalogEntry[]
+    workspace?: RoleCatalogEntry[]
+    project?: RoleCatalogEntry[]
+    offered?: {roles?: string[]; floor_role?: string}
+}
+
+interface RoleCatalogEntry {
+    role: string
+    description?: string | null
+    permissions?: string[]
+}
+
+/**
+ * The roles an invite or a role change may set in this organization, in catalog order.
+ *
+ * The plan decides the list, and it never holds `owner`: ownership moves by transfer only, and
+ * both routes refuse anything the plan does not offer. Each entry keeps the catalog's
+ * description.
+ *
+ * The route answers for the caller's organization, which the request's auth scope names, so the
+ * project rides along: a session with no project is scoped to the default one, which can belong
+ * to another organization.
+ */
+export const fetchOfferedRoles = async (
+    projectId?: string,
+    ignoreAxiosError = false,
+): Promise<Omit<WorkspaceRole, "permissions">[]> => {
     const response = await axios.get(`${getAgentaApiUrl()}/access/roles`, {
+        params: projectId ? {project_id: projectId} : undefined,
         _ignoreError: ignoreAxiosError,
     })
-    const data = response.data as Record<
-        "organization" | "workspace" | "project",
-        {role: string; description?: string | null; permissions: string[]}[]
-    >
-    const workspaceRoles = data?.workspace ?? []
-    return workspaceRoles.map((entry) => ({
-        role_name: entry.role,
-        role_description: entry.description ?? "",
-    })) as Omit<WorkspaceRole, "permissions">[]
+    const data = (response.data ?? {}) as AccessRolesResponse
+    const offered = new Set(data.offered?.roles ?? [])
+    return (data.workspace ?? [])
+        .filter((entry) => offered.has(entry.role))
+        .map((entry) => ({
+            role_name: entry.role,
+            role_description: entry.description ?? "",
+        }))
 }
 
 export const assignWorkspaceRole = async (
