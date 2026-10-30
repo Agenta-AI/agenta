@@ -401,10 +401,10 @@ class AgentRequirementsService:
                 )
         return found
 
-    async def _missing_servers(
-        self, *, scope: AuthScope, items: Sequence[UserItem]
-    ) -> List[_Found]:
-        """The "user" MCP items whose project server is missing or turned off."""
+    async def _project_servers(
+        self, *, scope: AuthScope
+    ) -> Tuple[Dict[str, MCPEndpoint], int]:
+        """The project's custom MCP servers by slug, and how many are on and ready."""
         endpoints = await self.mcp_gateway_service.query_endpoints(
             project_id=scope.project_id
         )
@@ -418,6 +418,13 @@ class AgentRequirementsService:
             for endpoint in by_slug.values()
             if endpoint.flags.is_active and _mcp_ready(endpoint)
         )
+        return by_slug, candidates
+
+    async def _missing_servers(
+        self, *, scope: AuthScope, items: Sequence[UserItem]
+    ) -> List[_Found]:
+        """The "user" MCP items whose project server is missing or turned off."""
+        by_slug, candidates = await self._project_servers(scope=scope)
         found: List[_Found] = []
         for item in items:
             endpoint = by_slug.get(item.match_text)
@@ -590,19 +597,7 @@ class AgentRequirementsService:
     async def _mcp_servers(
         self, *, scope: AuthScope, items: Sequence[ItemReference]
     ) -> List[_Found]:
-        endpoints = await self.mcp_gateway_service.query_endpoints(
-            project_id=scope.project_id
-        )
-        by_slug = {
-            endpoint.slug: endpoint
-            for endpoint in endpoints
-            if endpoint.namespace == GatewayEndpointNamespace.CUSTOM and endpoint.slug
-        }
-        candidates = sum(
-            1
-            for endpoint in by_slug.values()
-            if endpoint.flags.is_active and _mcp_ready(endpoint)
-        )
+        by_slug, candidates = await self._project_servers(scope=scope)
         found: List[_Found] = []
         for item in items:
             endpoint = by_slug.get(item.reference.get("slug"))
