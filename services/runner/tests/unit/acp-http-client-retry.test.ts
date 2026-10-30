@@ -7,12 +7,15 @@
  */
 import { describe, it } from "vitest";
 import assert from "node:assert/strict";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 
 import {
   AcpHttpClient,
   AcpHttpError,
   isRetryableAcpWriteError,
 } from "acp-http-client";
+import { createAcpFetch } from "../../src/engines/sandbox_agent/acp-fetch.ts";
 
 /** Reach the private StreamableHttpAcpTransport instance backing an AcpHttpClient. */
 function transportOf(client: AcpHttpClient): {
@@ -209,4 +212,87 @@ describe("postMessage retry-with-backoff", () => {
 
     assert.equal(failReadableCalled, false);
   });
+});
+
+describe("session/prompt is never resent once it may have arrived", () => {
+  const prompt = { jsonrpc: "2.0", id: 1, method: "session/prompt" };
+
+  /** Post `message` through a client whose fetch always fails with `error`; returns the attempts. */
+  async function attemptsFor(message: unknown, error: Error): Promise<number> {
+    let calls = 0;
+    const client = new AcpHttpClient({
+      baseUrl: "http://example.invalid",
+      fetch: (async () => {
+        calls += 1;
+        throw error;
+      }) as unknown as typeof fetch,
+    });
+    await withSuppressedReaderRejection(() =>
+      transportOf(client).postMessage("http://example.invalid/v1/rpc", new Headers(), message),
+    );
+    return calls;
+  }
+
+  it("does not retry a prompt after a socket error", async () => {
+    assert.equal(await attemptsFor(prompt, socketError()), 1);
+  });
+
+  it("does not retry a prompt after a 503", async () => {
+    let calls = 0;
+    const client = new AcpHttpClient({
+      baseUrl: "http://example.invalid",
+      fetch: (async () => {
+        calls += 1;
+        return new Response("", { status: 503 });
+      }) as unknown as typeof fetch,
+    });
+    await withSuppressedReaderRejection(() =>
+      transportOf(client).postMessage("http://example.invalid/v1/rpc", new Headers(), prompt),
+    );
+    assert.equal(calls, 1);
+  });
+
+  it("retries a prompt when the connection was refused, because it never arrived", async () => {
+    const refused = Object.assign(new TypeError("fetch failed"), {
+      cause: Object.assign(new Error("connect ECONNREFUSED"), { code: "ECONNREFUSED" }),
+    });
+    assert.equal(await attemptsFor(prompt, refused), 3);
+  });
+
+  it("still retries other methods after a socket error", async () => {
+    assert.equal(await attemptsFor({ jsonrpc: "2.0", id: 2, method: "session/cancel" }, socketError()), 3);
+  });
+
+  it("sends one prompt when the real transport times out waiting for the response", async () => {
+    let promptPosts = 0;
+    const server = createServer((req, res) => {
+      if (req.method === "POST") {
+        promptPosts += 1;
+        return; // The turn is still running, so the response never starts.
+      }
+      res.writeHead(200, { "content-type": "text/event-stream" });
+      res.flushHeaders();
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const { port } = server.address() as AddressInfo;
+    process.env.SANDBOX_AGENT_ACP_HEADERS_TIMEOUT_MS = "200";
+    try {
+      const client = new AcpHttpClient({
+        baseUrl: `http://127.0.0.1:${port}`,
+        fetch: createAcpFetch(),
+      });
+      await withSuppressedReaderRejection(async () => {
+        await assert.rejects(
+          client.clientSideConnection.prompt({ sessionId: "s", prompt: [] }),
+        );
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      });
+      assert.equal(promptPosts, 1);
+      assert.equal(transportOf(client).closed, true);
+    } finally {
+      delete process.env.SANDBOX_AGENT_ACP_HEADERS_TIMEOUT_MS;
+      server.closeAllConnections();
+      server.close();
+    }
+  }, 20_000);
 });
