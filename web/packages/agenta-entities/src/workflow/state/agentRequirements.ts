@@ -25,7 +25,15 @@ export const agentRequirementsQueryAtomFamily = atomFamily((revisionId: string) 
         const projectId = get(projectIdAtom)
         return {
             queryKey: [...REQUIREMENTS_KEY, projectId, revisionId],
-            queryFn: () => queryAgentRequirements({projectId: projectId as string, revisionId}),
+            // An unreadable answer is an error, so a refetch keeps the last good one.
+            queryFn: async () => {
+                const result = await queryAgentRequirements({
+                    projectId: projectId as string,
+                    revisionId,
+                })
+                if (!result) throw new Error("[agentRequirements] unreadable answer")
+                return result
+            },
             enabled: !!projectId && checkableRevision(revisionId),
             staleTime: 30_000,
             refetchOnWindowFocus: true,
