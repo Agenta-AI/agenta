@@ -1,3 +1,4 @@
+import {personalAccountsAccessAtom} from "@agenta/entities/secret"
 import type {DisclosedConnection, ShareDisclosure} from "@agenta/entities/sharing"
 import {
     AlertDialog,
@@ -9,6 +10,7 @@ import {
     AlertDialogTitle,
     LoadingButton,
 } from "@agenta/ui/ui"
+import {useAtomValue} from "jotai"
 
 import {shareDisclosureCopy as copy} from "./copy"
 import {disclosureAccountNames, disclosurePersonalAccountNames} from "./result"
@@ -56,7 +58,11 @@ export const ShareDisclosureNotice = ({
     confirming = false,
 }: ShareDisclosureNoticeProps) => {
     const accounts = disclosureAccountNames(disclosure, providerLabel)
-    const personalAccounts = disclosurePersonalAccountNames(disclosure, providerLabel)
+    // With personal accounts off for the deployment, the run leaves these items out.
+    const personalOff = useAtomValue(personalAccountsAccessAtom) === "off"
+    const personalAccounts = personalOff
+        ? []
+        : disclosurePersonalAccountNames(disclosure, providerLabel)
     const isAgent = target.kind === "agent"
     return (
         <AlertDialog open={open} onOpenChange={onOpenChange}>

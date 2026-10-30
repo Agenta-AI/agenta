@@ -1,6 +1,7 @@
 import {useCallback, useMemo, useState} from "react"
 
 import {hasUserItems} from "@agenta/entities/accountChoice"
+import {personalAccountsAccessAtom} from "@agenta/entities/secret"
 import {
     restrictSessionToOwnerAtom,
     revokeSessionGrantAtom,
@@ -66,9 +67,10 @@ export const SessionShareDialogBound = ({
             retrievedWorkflowRevisionFamilyKey(agentId ? {workflow: {id: agentId}} : null),
         ),
     )
+    const personalOff = useAtomValue(personalAccountsAccessAtom) === "off"
     const usesPersonalAccounts = useMemo(
-        () => hasUserItems(agentRevision.data?.parameters?.agent),
-        [agentRevision.data],
+        () => !personalOff && hasUserItems(agentRevision.data?.parameters?.agent),
+        [agentRevision.data, personalOff],
     )
     const labels = useDisclosureProviderLabel(sharingQuery.data?.disclosure)
     const [search, setSearch] = useState("")
