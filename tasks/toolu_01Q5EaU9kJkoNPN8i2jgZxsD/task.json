@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01Q5EaU9kJkoNPN8i2jgZxsD",
+  "agent_id": "aaed330573fcb26d8",
+  "subagent_type": "general-purpose",
+  "task_description": "Opus simplify review",
+  "token_usage": {
+    "input_tokens": 20,
+    "cache_creation_tokens": 134411,
+    "cache_read_tokens": 881603,
+    "output_tokens": 21030,
+    "api_call_count": 10
+  },
+  "started_at": "2026-10-30T17:00:39.2850207+01:00",
+  "completed_at": "2026-10-30T17:04:46.705595376+01:00"
+}
