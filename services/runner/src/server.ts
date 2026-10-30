@@ -11,6 +11,7 @@
  *                             subscription connection (the login goes to the API, never to a user)
  *   POST /stream              -> body is an AgentRunRequest, NDJSON event stream (alias: POST /run)
  *   POST /kill                -> best-effort, idempotent teardown, scoped to one { sessionId, projectId }
+ *   POST /browser/live        -> the live-view link of the browser in one { sessionId, projectId } sandbox
  *   POST /cancel              -> stop the CURRENT TURN of one session and keep it warm
  *
  * Uses Node's built-in http server (no framework dependency).
@@ -179,6 +180,7 @@ import {
   type KillSessionSandboxes,
 } from "./engines/sandbox_agent/kill-by-label.ts";
 import { endAbandonedTurn, noteTurnScope, runAdmittedTurn } from "./metering/turn-admission.ts";
+import { browserLiveLink } from "./browser/live-link.ts";
 
 /** How long a shutdown waits for interrupted turns to write their terminal records. */
 const SHUTDOWN_TURN_END_BUDGET_MS = 10_000;
@@ -1808,6 +1810,45 @@ export function createRequestListener(
         // session's sandboxes, whichever pod created them.
         await killLabelledSandboxes({ sessionId, projectId }, deadline);
         return send(res, 200, { ok: true });
+      }
+
+      if (req.method === "POST" && req.url === "/browser/live") {
+        if (!isAuthorized(req)) {
+          return send(res, 401, { ok: false, error: "Unauthorized" });
+        }
+        // The answer carries the sandbox's preview token and the browser's own token.
+        res.setHeader("cache-control", "no-store");
+        let liveBody: { sessionId?: unknown; projectId?: unknown };
+        try {
+          const raw = await readBodyCapped(req, KILL_BODY_MAX_BYTES);
+          liveBody = raw.trim() ? JSON.parse(raw) : {};
+        } catch (err) {
+          if (err instanceof BodyTooLargeError) {
+            return send(res, 413, { ok: false, error: err.message });
+          }
+          return send(res, 400, { ok: false, error: "Invalid JSON" });
+        }
+        const sessionId =
+          typeof liveBody.sessionId === "string" ? liveBody.sessionId.trim() : "";
+        const projectId = normalizeKillProjectId(liveBody.projectId);
+        if (!sessionId || !projectId) {
+          return send(res, 400, {
+            ok: false,
+            error: "sessionId and projectId are both required",
+          });
+        }
+        try {
+          const link = await browserLiveLink({ projectId, sessionId });
+          if (!link) {
+            return send(res, 404, { ok: false, error: "No browser is running in this session" });
+          }
+          return send(res, 200, link);
+        } catch (err) {
+          return send(res, 502, {
+            ok: false,
+            error: err instanceof Error ? err.message : "browser lookup failed",
+          });
+        }
       }
 
       if (req.method === "POST" && req.url === "/cancel") {

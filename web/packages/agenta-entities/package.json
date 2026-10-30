@@ -31,6 +31,7 @@
         ".": "./src/index.ts",
         "./annotation": "./src/annotation/index.ts",
         "./annotation/dto": "./src/annotation/dto/index.ts",
+        "./browser": "./src/browser/index.ts",
         "./drive": "./src/drive/index.ts",
         "./environment": "./src/environment/index.ts",
         "./etl": "./src/etl/index.ts",

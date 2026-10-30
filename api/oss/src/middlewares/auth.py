@@ -438,6 +438,17 @@ async def auth_middleware(request: Request, call_next):
             reset_auth_context(auth_token)
 
 
+async def authenticate_connection(request: Request) -> RequestAccess:
+    """`auth_middleware`'s checks for a WebSocket; raises, or fills `request.state` and
+    returns the caller's access."""
+    await _check_authentication_token(request)
+    await _check_organization_policy(request)
+    access = _build_request_access_from_state(request)
+    if access is None:
+        raise UnauthorizedException()
+    return access
+
+
 def _build_auth_context_from_state(request: Request) -> Optional[AuthContext]:
     """Assemble an `AuthContext` from `request.state.*` after the verify_*
     helpers populated it.
