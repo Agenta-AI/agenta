@@ -1,0 +1,55 @@
+Background (from the session that started this one):
+Context: during release v0.127.0 QA (2026-10-28), a real Composio GitHub event automation test on Agenta's staging stage showed three side problems in the event automations feature. Mahmoud (the owner) asked for separate sessions that each open a fix PR. This session handles only the startup log of the registered webhook URL. Two other sessions handle sending edited filters to Composio and the repo field format; do not touch those. Rules: work in your own worktree, no deploys, no merges, no changes to any Composio account. Plain English, no em dashes.
+
+Task:
+Fix: the API never says which Composio webhook address it uses, so a wrong address stays hidden.
+
+What happens today: at startup, `api/entrypoints/routers.py` calls `triggers_service.ensure_webhook_registered()` when Composio is enabled. That goes through `WebhookSecretResolver.resolve()` in `api/oss/src/core/triggers/utils.py` and `ensure_webhook_subscription()` in `api/oss/src/core/triggers/providers/composio/adapter.py`. It gets or creates the single webhook of the Composio project and never updates its URL. The success path logs nothing. On 2026-10-28 the staging stage shared a Composio key with the demo stage, the webhook pointed at demo, and events never reached staging, with no log line to show it.
+
+Do:
+1. After the webhook is resolved, log one INFO line with the registered webhook URL (a URL, not a secret; never log the secret).
+2. Compare it with the URL this deployment expects (`COMPOSIO_WEBHOOK_URL`, or `AGENTA_API_URL` plus `/triggers/composio/events/`, as the code already computes). If they differ, log one WARNING that says events for this deployment go to another address, and that the Composio project's webhook must be changed or a separate Composio project used. Do not change the webhook automatically.
+3. Keep the cache behavior. Unit tests for match and mismatch. Run `~/.local/bin/ruff format` and `ruff check --fix` in `api/`, and the triggers unit tests.
+4. Open a PR into `main` titled `fix(api): log the Composio webhook URL and warn on a mismatch`. Body per the write-pr-description skill. Ready for review. Never merge.
+Done: PR open, tests passing, link reported.
+
+---
+
+<cross-session-message from="local_faa86c46-da2b-4212-9eac-0b6a3463bfe0" from-name="Release conductor handoff">
+From the release conductor, with Mahmoud's words (2026-10-28): "let's address coderabbit reviews in loop also entire reviews in loop then add them to merge queue, they look quite low risk".
+For your PR #7879:
+1. Loop on review feedback until it is clean: read every CodeRabbit item (review bodies including folded "outside diff" and nitpick sections, inline threads, issue comments) and every Entire review or "Entire Gates" finding on the PR. Fix real problems, reply with a short reason where you do not, resolve the threads, and ask `@coderabbitai review` again after each push until CodeRabbit has no new actionable items.
+2. Then land it with the merge queue skill: read ~/code/agenta/.claude/skills/release-merge-queue/SKILL.md and follow its PR-agent rules. Retarget the PR to `release/v0.127.0` (`gh api -X PATCH repos/Agenta-AI/agenta/pulls/7879 -f base=release/v0.127.0`), merge the release branch into your PR branch if needed (no rebase, no force push), wait for the checks the change type needs, and merge with `gh pr merge 7879 --merge --admin`. Mahmoud gave his word in chat to merge into the release branch. Never merge into main. Release PR is #7875; queue note ~/agenta-release-0127/queue.md (add your own row). "Entire Gates" is not required.
+Report the merge SHA when done.
+</cross-session-message>
+
+---
+
+<task-notification>
+<task-id>byyu3unhk</task-id>
+<tool-use-id>toolu_014NbJaVn8RSFnW2sitAc9RS</tool-use-id>
+<output-file>/tmp/claude-1000/-home-mahmoud-code-agenta--claude-worktrees-fix-composio-webhook-log-9238c5/6aab1d80-8b39-4197-b6f3-5b036b8e293d/tasks/byyu3unhk.output</output-file>
+<status>completed</status>
+<summary>Background command "cd .. &amp;&amp; grep -rn "ensure_webhook_subscription\|webhook_secret_resolver\." --include=*.py api | grep -v tests; git add -A &amp;&amp; git commit -q --no-edit &amp;&amp; git push -q 2&gt;&amp;1 | grep -v "^remote:" ; git rev-parse HEAD; git ls-remote --heads origin agenta-/fix-composio-webhook-log-9238c5" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>b5prxwmii</task-id>
+<tool-use-id>toolu_015XxLRNPZPDo3QmEryqD594</tool-use-id>
+<output-file>/tmp/claude-1000/-home-mahmoud-code-agenta--claude-worktrees-fix-composio-webhook-log-9238c5/6aab1d80-8b39-4197-b6f3-5b036b8e293d/tasks/b5prxwmii.output</output-file>
+<status>completed</status>
+<summary>Background command "H=904db1cfe9bda7464b961830205da8464c4b5ab9
+for i in $(seq 1 30); do n=$(gh api repos/Agenta-AI/agenta/pulls/7879/reviews -q "[.[]|select(.user.login==\"coderabbitai[bot]\" and .commit_id==\"$H\")]|length"); [ "$n" -gt 0 ] &amp;&amp; break; sleep 30; done
+echo "reviews on head: $n"
+gh api repos/Agenta-AI/agenta/pulls/7879/reviews -q ".[]|select(.commit_id==\"$H\")|.body" | grep -i "actionable comments posted\|No actionable" 
+gh api repos/Agenta-AI/agenta/pulls/7879/comments -q ".[]|select(.commit_id==\"$H\" and .in_reply_to_id==null)|{id,p:.path,l:.line,b:.body[0:600]}"
+gh api repos/Agenta-AI/agenta/issues/7879/comments -q '.[-2:][]|{u:.user.login,b:.body[0:400]}'" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<cross-session-message from="local_faa86c46-da2b-4212-9eac-0b6a3463bfe0" from-name="Release conductor handoff">
+Conductor: on #7879 (head b798eb3356) every required check has finished. Only "Entire Gates" and "tests / run-web-tests (unit)" are pending, and the merge queue skill says to wait for neither. If CodeRabbit's last review has no new actionable items, merge now with `gh pr merge 7879 --merge --admin` into release/v0.127.0, then report the merge SHA and update your queue.md row.
+</cross-session-message>
