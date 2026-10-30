@@ -431,3 +431,16 @@ async def test_an_unreadable_stored_account_asks_the_person_to_set_it_up_again()
     [linear] = result.requirements
     assert linear.reason.value == "needs_personal_account"
     assert linear.fix.can_sign_in is True
+
+
+async def test_a_server_with_no_sign_in_is_ready_for_everyone():
+    """A project MCP server with no auth: the resolver says ready with no match."""
+    result = await _check(
+        _service(
+            accounts=_AccountChoices(
+                {LINEAR: ItemAccount(item_key=LINEAR, is_ready=True, candidates=0)}
+            )
+        ),
+        _agent(mcps=[_linear_mcp()]),
+    )
+    assert result.requirements == []
