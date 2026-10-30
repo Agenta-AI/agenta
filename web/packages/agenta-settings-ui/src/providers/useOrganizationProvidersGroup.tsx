@@ -145,8 +145,9 @@ export const useOrganizationProvidersGroup = (
                           connection,
                           manage ? projectsSummary(connection, names) : null,
                       ),
-            // A subscription row has no drawer: its sign-in is not a key to edit or test.
-            canOpen: (connection: ProviderConnection) => !isSubscriptionConnection(connection),
+            // A subscription row opens its sign-in for a manager; a member has nothing to do there.
+            canOpen: (connection: ProviderConnection) =>
+                manage || !isSubscriptionConnection(connection),
             manage,
             remove: async (connection: ProviderConnection) => {
                 await deleteSecret(connection.source)
@@ -170,6 +171,8 @@ export const useOrganizationProvidersGroup = (
                 <EmptyNote manage />
             ) : undefined,
             organization: drawerScope,
+            // A manager signs the organization in to ChatGPT or Claude here.
+            offersSubscriptions: manage,
             onSaved: () => void refresh(),
         }
     }, [

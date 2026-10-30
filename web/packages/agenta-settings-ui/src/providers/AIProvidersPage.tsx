@@ -59,7 +59,7 @@ export interface AIProvidersPageProps {
 }
 
 /** The project's own connections: one row per connection, every provider stays connectable. */
-const useProjectProvidersSource = (): ProvidersSource & {all: ProviderConnection[]} => {
+const useProjectProvidersSource = (): ProvidersSource => {
     const {loading, mutate} = useVaultSecret()
     const connections = useAtomValue(providerConnectionsAtom)
     const capabilities = useAtomValue(harnessCapabilitiesAtomFamily(HARNESS_CATALOG_KEY))
@@ -74,7 +74,6 @@ const useProjectProvidersSource = (): ProvidersSource & {all: ProviderConnection
                 !isSubscriptionConnection(connection),
         )
         return {
-            all: connections,
             connections,
             rows,
             loading: loading && rows.length === 0,
@@ -142,8 +141,7 @@ export const AIProvidersPage = ({
     return (
         <ProvidersPanel
             groups={groups}
-            catalog={{}}
-            subscriptions={project.all}
+            subscriptions={project.connections}
             ownerChoiceFor={ownerChoiceFor}
             loading={project.loading}
             renderRemoveDialog={renderRemoveDialog}
