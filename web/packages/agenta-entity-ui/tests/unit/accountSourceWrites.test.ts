@@ -25,9 +25,9 @@ const projectEntry = {
 
 describe("Composio entry account", () => {
     it("each person: writes account_source user and drops the slug", () => {
-        const [entry] = setGatewayConnectionAccount([projectEntry], target, {accountSource: "user"}) as [
-            Record<string, Record<string, unknown>>,
-        ]
+        const [entry] = setGatewayConnectionAccount([projectEntry], target, {
+            accountSource: "user",
+        }) as [Record<string, Record<string, unknown>>]
         expect(entry.connection).toEqual({
             provider: "composio",
             integration: "gmail",
@@ -86,9 +86,13 @@ describe("Composio entry account", () => {
     it("leaves tools alone when the integration has no entry", () => {
         const tools = [projectEntry]
         expect(
-            setGatewayConnectionAccount(tools, {provider: "composio", integration: "x"}, {
-                accountSource: "user",
-            }),
+            setGatewayConnectionAccount(
+                tools,
+                {provider: "composio", integration: "x"},
+                {
+                    accountSource: "user",
+                },
+            ),
         ).toBe(tools)
     })
 })
