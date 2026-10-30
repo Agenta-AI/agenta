@@ -58,19 +58,15 @@ export const turnsByTraceId = (turns: SessionTurn[]): Map<string, SessionTurn> =
     return byTrace
 }
 
-// Polling bounds. A running turn is watched for 30 minutes from its start, so a turn that never
-// ends (stopped, crashed, an older runner) stops the polling. An ended turn is watched for 2
-// minutes for its usage from the trace, which ingest writes over any runner value.
-const RUNNING_WATCH_MS = 30 * 60_000
+// A turn's figures from the trace land after it ends, once ingest has the trace. A running turn
+// gives the footer nothing new (it shows the streamed usage), and the turn's end refetches the
+// turns, so only an ended turn is watched: for 2 minutes, until its figures come from the trace.
 const ENDED_WATCH_MS = 2 * 60_000
 
-/** Whether the turns may still change within the polling bounds above. */
+/** Whether a turn may still get its figures from the trace within the window above. */
 export const turnsMayChange = (turns: SessionTurn[], now: number = Date.now()): boolean =>
     turns.some((turn) => {
-        if (!turn.end_time) {
-            const started = turn.start_time ? Date.parse(turn.start_time) : NaN
-            return Number.isFinite(started) && now - started < RUNNING_WATCH_MS
-        }
+        if (!turn.end_time || turn.usage?.source === "trace") return false
         const ended = Date.parse(turn.end_time)
         return Number.isFinite(ended) && now - ended < ENDED_WATCH_MS
     })

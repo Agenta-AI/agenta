@@ -140,6 +140,7 @@ export {deriveMountRows, mountBreadcrumbs, type MountRow} from "./core/mountBrow
 export {pickCwdMount} from "./core/mountSelection"
 export {listedEntryAt, parentFolderOf} from "./core/pathUtils"
 export {
+    revalidateSessionTurnsAtom,
     sessionTurnsByTraceAtomFamily,
     sessionTurnsQueryFamily,
     sessionTurnsQueryKey,

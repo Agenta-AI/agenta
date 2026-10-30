@@ -10,6 +10,7 @@ import {
     interactionStatesFromWatchEvent,
     revalidateSessionInteractionsAtom,
     revalidateSessionRecordsAtom,
+    revalidateSessionTurnsAtom,
     type SessionInteractionRowStates,
 } from "@agenta/entities/session"
 import {isHitlPending} from "@agenta/playground"
@@ -169,6 +170,7 @@ export const useSessionTranscript = (sessionId: string, pollMs = 0) => {
         inFlightRef.current = true
         // Invalidate first so the shared-cache read refetches instead of serving staleTime.
         getDefaultStore().set(revalidateSessionRecordsAtom, sessionId)
+        getDefaultStore().set(revalidateSessionTurnsAtom, sessionId)
         void adoptTranscriptRead(
             () => loadSessionMessages(sessionId),
             (transcript) => adoptRef.current(transcript),

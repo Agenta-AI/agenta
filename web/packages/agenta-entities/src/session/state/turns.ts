@@ -6,7 +6,7 @@
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
 import {atomFamily} from "jotai-family"
-import {atomWithQuery} from "jotai-tanstack-query"
+import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
 import {querySessionTurns} from "../api/api"
 import type {SessionTurn} from "../core/schema"
@@ -16,7 +16,7 @@ export const sessionTurnsQueryKey = (projectId: string, sessionId: string) =>
     ["session", "turns", projectId, sessionId] as const
 
 const SESSION_TURNS_STALE_MS = 15_000
-/** Re-read while a turn runs or just ended (its trace usage lands after ingest). */
+/** Re-read while a turn that just ended waits for its figures from the trace. */
 const SESSION_TURNS_POLL_MS = 10_000
 
 export const sessionTurnsQueryFamily = atomFamily((sessionId: string) =>
@@ -45,3 +45,14 @@ export const sessionTurnsQueryFamily = atomFamily((sessionId: string) =>
 export const sessionTurnsByTraceAtomFamily = atomFamily((sessionId: string) =>
     atom((get) => turnsByTraceId(get(sessionTurnsQueryFamily(sessionId)).data ?? [])),
 )
+
+/** Mark a session's turns stale (a finished turn has its end and its runner figures). Fire-and-
+ * forget; `cancelRefetch: false` keeps a first read in flight. */
+export const revalidateSessionTurnsAtom = atom(null, (get, _set, sessionId: string) => {
+    const projectId = get(projectIdAtom) ?? ""
+    if (!projectId || !sessionId) return
+    void get(queryClientAtom).invalidateQueries(
+        {queryKey: sessionTurnsQueryKey(projectId, sessionId)},
+        {cancelRefetch: false},
+    )
+})
