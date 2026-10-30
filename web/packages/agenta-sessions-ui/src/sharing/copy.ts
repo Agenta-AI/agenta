@@ -102,6 +102,8 @@ export const shareDisclosureCopy = {
     bodySession: (accounts: readonly string[]) =>
         `They will see everything in this chat, and anyone who can send can make the agent use its connected accounts: ${joinNames(accounts)}.`,
     bodySessionNoAccounts: "They will see everything in this chat.",
+    /** Draft (accounts package): an item that uses each person's own account, not the owner's. */
+    personalAccount: (account: string) => `Each person's own ${account}`,
     back: "Back",
     share: "Share",
 

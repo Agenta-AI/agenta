@@ -104,6 +104,31 @@ describe("sharing schemas", () => {
         })
     })
 
+    it("parses an agent with a personal Gmail tool: a \"user\" item names no connection", () => {
+        // GET /workflows/{id}/sharing on A2: the router drops None fields, so no `connection` key.
+        const parsed = agentSharingResponseSchema.parse({
+            count: 1,
+            sharing: {
+                policy: {visibility: "private", owner_user_id: ALICE},
+                owner_is_active: true,
+                my_role: "owner",
+                can_take_ownership: false,
+            },
+            disclosure: {
+                connections: [
+                    {provider: "composio", integration: "gmail", account_source: "user"},
+                ],
+                turns_use_run_credentials: true,
+                files_and_tool_results_shared: true,
+                trace_readers_can_read: true,
+            },
+        })
+
+        expect(parsed.disclosure.connections).toEqual([
+            {provider: "composio", integration: "gmail", account_source: "user"},
+        ])
+    })
+
     it("parses a session sharing response with grants and a null disclosure", () => {
         const parsed = sessionSharingResponseSchema.parse({
             count: 1,

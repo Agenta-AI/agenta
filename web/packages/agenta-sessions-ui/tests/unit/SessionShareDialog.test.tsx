@@ -142,6 +142,24 @@ describe("SessionShareDialog", () => {
         expect(onUpsertGrant).toHaveBeenCalledWith("u-bob", "viewer")
     })
 
+    it("lists an item that uses each person's own account on its own line", () => {
+        render({
+            disclosure: {
+                ...disclosure,
+                connections: [
+                    {provider: "composio", integration: "slack", connection: "c2"},
+                    {provider: "composio", integration: "gmail", account_source: "user"},
+                ],
+            },
+        })
+        pickBob()
+        act(() => buttonNamed(sessionSharingCopy.inviteButton)!.click())
+
+        expect(text()).toContain(shareDisclosureCopy.bodySession(["Slack"]))
+        const lines = Array.from(document.querySelectorAll("li")).map((li) => li.textContent)
+        expect(lines).toContain(shareDisclosureCopy.personalAccount("Gmail"))
+    })
+
     it("an open disclosure closes and writes nothing once the state is not known or not the owner's", async () => {
         const base = render()
         pickBob()

@@ -11,7 +11,7 @@ import {
 } from "@agenta/ui/ui"
 
 import {shareDisclosureCopy as copy} from "./copy"
-import {disclosureAccountNames} from "./result"
+import {disclosureAccountNames, disclosurePersonalAccountNames} from "./result"
 
 /** Who the change shares with. The UI ignores `trace_readers_can_read` on purpose. */
 export type ShareDisclosureTarget =
@@ -56,6 +56,7 @@ export const ShareDisclosureNotice = ({
     confirming = false,
 }: ShareDisclosureNoticeProps) => {
     const accounts = disclosureAccountNames(disclosure, providerLabel)
+    const personalAccounts = disclosurePersonalAccountNames(disclosure, providerLabel)
     const isAgent = target.kind === "agent"
     return (
         <AlertDialog open={open} onOpenChange={onOpenChange}>
@@ -65,6 +66,13 @@ export const ShareDisclosureNotice = ({
                     <AlertDialogDescription className="text-foreground">
                         {bodyOf(target, accounts)}
                     </AlertDialogDescription>
+                    {personalAccounts.length ? (
+                        <ul className="m-0 list-none p-0 text-sm text-muted-foreground">
+                            {personalAccounts.map((account) => (
+                                <li key={account}>{copy.personalAccount(account)}</li>
+                            ))}
+                        </ul>
+                    ) : null}
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                     <AlertDialogCancel disabled={confirming}>
