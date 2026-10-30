@@ -340,3 +340,54 @@ describe("installPreviewPicker: who can pick", () => {
         expect(r.posted).toEqual([])
     })
 })
+
+describe("installPreviewPicker: notes and keys", () => {
+    const key = (r: Realm, init: KeyboardEventInit, target: Element = r.doc.body) =>
+        target.dispatchEvent(new r.win.KeyboardEvent("keydown", {bubbles: true, ...init}))
+    const altM = {key: "µ", code: "KeyM", altKey: true}
+    const types = (r: Realm) => r.posted.map((m) => m.type)
+
+    it("dismisses the note on a click or Escape while held, and picks again once released", () => {
+        const r = realm(`<p id="a">A</p>`)
+        r.handle({type: "pick-start", format: "html"})
+        r.handle({type: "pick-hold", held: true})
+        press(r, r.doc.querySelector("#a")!)
+        key(r, {key: "Escape"})
+        expect(types(r)).toEqual(["pick-dismiss", "pick-dismiss"])
+        r.handle({type: "pick-hold", held: false})
+        press(r, r.doc.querySelector("#a")!)
+        expect(lastPicked(r).element.selector).toBe("#a")
+    })
+
+    it("shows no highlight while held", () => {
+        const r = realm(`<p id="a">A</p>`)
+        r.handle({type: "pick-start", format: "html"})
+        r.handle({type: "pick-hold", held: true})
+        fire(r, r.doc.querySelector("#a")!, "mouseover")
+        expect(r.doc.querySelector("[data-agenta-picker]")).toBeNull()
+    })
+
+    it("forwards Alt+M only after pick-keys, and never from an app's own text field", () => {
+        const r = realm(`<input id="i" />`)
+        key(r, altM)
+        expect(types(r)).toEqual([])
+        r.handle({type: "pick-keys"})
+        key(r, altM, r.doc.querySelector("#i")!)
+        expect(types(r)).toEqual([])
+        key(r, altM)
+        expect(types(r)).toEqual(["pick-toggle"])
+    })
+
+    it("scrolls a pinned comment's element into view on pin-reveal", () => {
+        const r = realm(`<p id="a">A</p>`)
+        const el = r.doc.querySelector("#a") as HTMLElement
+        const scrolled: unknown[] = []
+        el.scrollIntoView = (arg?: unknown) => {
+            scrolled.push(arg)
+        }
+        r.handle({type: "pins", pins: [{id: "c1", selector: "#a", text: "A"}]})
+        r.handle({type: "pin-reveal", id: "c2"})
+        r.handle({type: "pin-reveal", id: "c1"})
+        expect(scrolled).toEqual([{block: "center", inline: "nearest"}])
+    })
+})

@@ -81,6 +81,13 @@ export const AutomationCreateBody = ({
                     agentId={draft.agentId}
                     inputsFields={draft.inputsFields}
                     onCommit={state.setInputs}
+                    kind={draft.kind}
+                    connectionId={draft.connectionId}
+                    eventKey={draft.eventKey}
+                    includeEvent={draft.includeEvent}
+                    onChangeIncludeEvent={state.setIncludeEvent}
+                    // Nothing is created yet, so there is no delivery: the preview shows labels.
+                    automation={null}
                 />
             </div>
 

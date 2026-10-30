@@ -56,7 +56,7 @@ async def test_a_grant_on_an_agent_outside_the_project_is_refused():
 
 
 async def test_a_grant_on_a_space_outside_the_project_is_refused():
-    service, dao = _service(agent=object(), space=None)
+    service, dao = _service(agent=MagicMock(), space=None)
     project_id = uuid4()
     grant = _grant(space_id=uuid4())
 
@@ -70,7 +70,7 @@ async def test_a_grant_on_a_space_outside_the_project_is_refused():
 
 
 async def test_a_grant_on_the_projects_own_agent_and_space_is_written():
-    service, dao = _service(agent=object(), space=object())
+    service, dao = _service(agent=MagicMock(), space=object())
     grant = _grant(space_id=uuid4())
 
     written = await service.create_grant(
@@ -82,7 +82,7 @@ async def test_a_grant_on_the_projects_own_agent_and_space_is_written():
 
 
 async def test_a_kind_grant_needs_no_space():
-    service, dao = _service(agent=object(), space=None)
+    service, dao = _service(agent=MagicMock(), space=None)
 
     await service.create_grant(project_id=uuid4(), user_id=uuid4(), grant=_grant())
 

@@ -22,7 +22,7 @@ Some jobs should begin when something happens rather than at a set time.
 
 The launch agent could start when a row is added to the launch tracker, or when a review issue gets a particular label. Agenta starts the run when the event arrives, so the agent does not need to check for changes on a timer.
 
-The agent receives the message written in the automation, not the event's data. The message has to tell the agent where to look for what changed. For example: "Read the newest row in the launch tracker and draft the announcement for it."
+The agent receives the message written in the automation, followed by the event's data: what the app sent about the change, such as the new row or the issue. The message tells the agent what to do with it. For example: "Draft the announcement for this new row in the launch tracker." An automation can also be set to send the message alone, without the event's data.
 
 ## An unattended run needs a complete starting point
 

@@ -42,6 +42,8 @@ export interface AutomationDraft {
     connectionId: string | null
     eventKey: string | null
     triggerConfig?: Record<string, unknown>
+    /** Event drafts only — whether the event data is added to the agent's message. */
+    includeEvent: boolean
     /** Whether it starts running the moment it is created. */
     isActive: boolean
 }
@@ -87,6 +89,7 @@ export const useAutomationCreate = ({
         inputsFields: {},
         connectionId: null,
         eventKey: null,
+        includeEvent: true,
         isActive: true,
     }))
     const [saving, setSaving] = useState(false)
@@ -165,6 +168,7 @@ export const useAutomationCreate = ({
                           event_key: draft.eventKey ?? "",
                           trigger_config: draft.triggerConfig,
                           inputs_fields: draft.inputsFields,
+                          include_event: draft.includeEvent,
                       },
                   }
         return {
@@ -204,6 +208,9 @@ export const useAutomationCreate = ({
     }, [])
     const setAgent = useCallback((agentId: string) => {
         setDraft((current) => ({...current, agentId}))
+    }, [])
+    const setIncludeEvent = useCallback((includeEvent: boolean) => {
+        setDraft((current) => ({...current, includeEvent}))
     }, [])
     const setActive = useCallback((isActive: boolean) => {
         setDraft((current) => ({...current, isActive}))
@@ -249,8 +256,14 @@ export const useAutomationCreate = ({
                     : "Automation created — it stays off until you switch it on",
             )
             return created
-        } catch {
-            message.error("Couldn't create this automation")
+        } catch (error) {
+            // 424: the app's provider refused, most often because the connection is not active.
+            const status = (error as {response?: {status?: number}})?.response?.status
+            message.error(
+                status === 424
+                    ? "Couldn't create this automation. Reconnect the app and try again."
+                    : "Couldn't create this automation",
+            )
             return null
         } finally {
             setSaving(false)
@@ -271,6 +284,7 @@ export const useAutomationCreate = ({
         setKind,
         setEvent,
         setInputs,
+        setIncludeEvent,
         setActive,
         create,
     }

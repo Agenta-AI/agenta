@@ -20,28 +20,39 @@ export function previewValue(value: unknown): string {
 
 /** Best-effort resolution of `$.a.b[0]` / `$["a"]["b"]` / `/a/b/0`. */
 export function resolveSelectorPreview(selector: string, data: Record<string, unknown>): unknown {
-    try {
-        if (selector === "$") return data
-        if (selector.startsWith("/")) {
-            const tokens = selector
-                .split("/")
-                .slice(1)
-                .map((t) => t.replace(/~1/g, "/").replace(/~0/g, "~"))
-            return walk(data, tokens)
-        }
-        if (selector.startsWith("$")) {
-            const tokens = selector
-                .slice(1)
-                .replace(/\[(\d+)\]/g, ".$1")
-                .replace(/\[["'](.*?)["']\]/g, ".$1")
-                .split(".")
-                .filter((t) => t.length > 0)
-            return walk(data, tokens)
-        }
-    } catch {
-        return undefined
+    const tokens = selectorPath(selector)
+    return tokens ? walk(data, tokens) : undefined
+}
+
+// One step of a `$` path: `.name`, `[0]`, `["quoted key"]` or `['quoted key']`.
+const PATH_STEP_RE = /\.([^.[\]]+)|\[(\d+)\]|\["((?:[^"\\]|\\.)*)"\]|\['([^']*)'\]/y
+
+/** The keys a selector walks, in order; a quoted key stays whole. Null when unreadable. */
+export function selectorPath(selector: string): string[] | null {
+    if (selector === "$") return []
+    if (selector.startsWith("/")) {
+        return selector
+            .split("/")
+            .slice(1)
+            .map((t) => t.replace(/~1/g, "/").replace(/~0/g, "~"))
     }
-    return undefined
+    if (!selector.startsWith("$")) return null
+    const tokens: string[] = []
+    PATH_STEP_RE.lastIndex = 1
+    while (PATH_STEP_RE.lastIndex < selector.length) {
+        const m = PATH_STEP_RE.exec(selector)
+        if (!m) return null
+        if (m[3] !== undefined) {
+            try {
+                tokens.push(JSON.parse(`"${m[3]}"`) as string)
+            } catch {
+                return null
+            }
+        } else {
+            tokens.push(m[1] ?? m[2] ?? m[4] ?? "")
+        }
+    }
+    return tokens
 }
 
 function walk(data: unknown, tokens: string[]): unknown {

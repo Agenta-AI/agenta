@@ -2,7 +2,7 @@
 import {createRef} from "react"
 
 import type {PreviewAnchor} from "@agenta/shared/quotes"
-import {act, cleanup, fireEvent, render, screen, within} from "@testing-library/react"
+import {act, cleanup, fireEvent, render, renderHook, screen, within} from "@testing-library/react"
 import {afterAll, afterEach, beforeAll, describe, expect, it, vi} from "vitest"
 
 import {
@@ -11,10 +11,14 @@ import {
     type PreviewPinRect,
 } from "../../src/QuoteSelection/PreviewCommentLayer"
 import {
+    addQuote,
+    clearQuoteReveal,
     clearQuotes,
     clearSessionQuotes,
     getQuotes,
     registerQuoteSubmit,
+    revealQuote,
+    useQuoteReveal,
 } from "../../src/QuoteSelection/store"
 
 const sessionId = "preview-comment-session"
@@ -285,5 +289,92 @@ describe("PreviewCommentLayer", () => {
         // 28px badge + 8px each side = 44px.
         expect(pin.className).toContain("h-7 min-w-7")
         expect(pin.className).toContain("after:-inset-2")
+    })
+})
+
+describe("PreviewCommentLayer: reveal, dismiss and mode", () => {
+    const getQuoteRevealForTest = () => renderHook(() => useQuoteReveal(sessionId)).result.current
+    const staged = (id: string, stale = false) => ({
+        id,
+        text: "Q3 revenue grew 40%",
+        note: "Say 41%.",
+        staged: true,
+        stale,
+        source: {kind: "preview" as const, ...target, anchor},
+    })
+
+    const mount = (props: {
+        pick?: PreviewPick | null
+        pinRects?: PreviewPinRect[]
+        dismissSignal?: number
+        commenting?: boolean
+        onRevealPin?: () => void
+        onNoteChange?: (open: boolean) => void
+    }) => {
+        const rootRef = createRef<HTMLDivElement>()
+        const ui = (next: typeof props) => (
+            <div ref={rootRef}>
+                <PreviewCommentLayer
+                    rootRef={rootRef}
+                    sessionId={sessionId}
+                    target={target}
+                    pick={next.pick ?? null}
+                    onPickConsumed={() => {}}
+                    pinRects={next.pinRects ?? []}
+                    dismissSignal={next.dismissSignal}
+                    commenting={next.commenting}
+                    onRevealPin={next.onRevealPin}
+                    onNoteChange={next.onNoteChange}
+                    touch
+                />
+            </div>
+        )
+        const view = render(ui(props))
+        return (next: typeof props) => view.rerender(ui(next))
+    }
+
+    afterEach(() => {
+        const reveal = getQuoteRevealForTest()
+        if (reveal) clearQuoteReveal(sessionId, reveal.seq)
+    })
+
+    it("opens the pin card of a revealed comment once its pin is on screen", () => {
+        act(() => addQuote(sessionId, staged("c1")))
+        const onRevealPin = vi.fn()
+        const update = mount({onRevealPin})
+        act(() => revealQuote(sessionId, "c1"))
+        expect(onRevealPin).toHaveBeenCalledTimes(1)
+        update({onRevealPin, pinRects: [{id: "c1", rect}]})
+        expect(screen.getByRole("button", {name: "Delete"})).toBeTruthy()
+        expect(getQuoteRevealForTest()).toBeNull()
+    })
+
+    it("clears the request for a changed comment instead of opening it later", () => {
+        act(() => addQuote(sessionId, staged("c1", true)))
+        mount({pinRects: [{id: "c1", rect: null}]})
+        act(() => revealQuote(sessionId, "c1"))
+        expect(getQuoteRevealForTest()).toBeNull()
+        expect(screen.queryByRole("button", {name: "Delete"})).toBeNull()
+    })
+
+    it("discards an open draft when a comment is revealed", () => {
+        act(() => addQuote(sessionId, staged("c1")))
+        mount({pick, pinRects: [{id: "c1", rect}]})
+        expect(getQuotes(sessionId)).toHaveLength(2)
+        act(() => revealQuote(sessionId, "c1"))
+        expect(getQuotes(sessionId).map((q) => q.id)).toEqual(["c1"])
+    })
+
+    it("closes the draft on a dismiss signal and when comment mode turns off", () => {
+        const onNoteChange = vi.fn()
+        const update = mount({pick, commenting: true, onNoteChange})
+        expect(onNoteChange).toHaveBeenLastCalledWith(true)
+        update({commenting: true, dismissSignal: 1, onNoteChange})
+        expect(getQuotes(sessionId)).toEqual([])
+        expect(onNoteChange).toHaveBeenLastCalledWith(false)
+        update({pick: {...pick, text: "again"}, commenting: true, onNoteChange})
+        expect(screen.getByRole("dialog")).toBeTruthy()
+        update({commenting: false, onNoteChange})
+        expect(screen.queryByRole("dialog")).toBeNull()
     })
 })
