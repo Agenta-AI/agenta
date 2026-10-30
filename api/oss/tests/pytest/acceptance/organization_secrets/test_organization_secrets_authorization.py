@@ -162,23 +162,36 @@ def test_duplicate_slug_answers_409_and_one_row_exists(org):
 @pytest.mark.parametrize(
     "body",
     [
-        {
-            "header": {"name": "token"},
-            "secret": {
-                "kind": "custom_secret",
-                "data": {"secret": {"format": "text", "content": KEY}},
-            },
-        },
         custom_provider(slug="bedrock-co", key=KEY, family="bedrock"),
         custom_provider(slug="sagemaker-co", key=KEY, family="sagemaker"),
         provider_key(slug="short-co", key="m5key12"),
         provider_key(slug="padded-co", key="   m5key12   "),
     ],
-    ids=["custom_secret", "bedrock", "sagemaker", "short", "padded"],
+    ids=["bedrock", "sagemaker", "short", "padded"],
 )
 def test_refused_kinds_and_values_answer_422(org, body):
     response = org.call("POST", "/secrets/", json=organization_scope(body))
     assert response.status_code == 422, response.text
+    assert KEY not in response.text
+
+
+def test_an_organization_custom_secret_is_stored_and_never_returned(org):
+    """An organization may hold a custom secret (API only); its value never leaves."""
+    response = org.call(
+        "POST",
+        "/secrets/",
+        json=organization_scope(
+            {
+                "header": {"name": "token"},
+                "secret": {
+                    "kind": "custom_secret",
+                    "data": {"secret": {"format": "text", "content": KEY}},
+                },
+            }
+        ),
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["write_only"] is True
     assert KEY not in response.text
 
 
