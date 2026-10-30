@@ -286,6 +286,7 @@ async def test_create_workflow_revision_v0_persists_explicit_revision_flags():
         "is_feedback": False,
         "is_agent": False,
         "is_skill": False,
+        "is_plugin": False,
         "is_chat": True,
         "has_url": False,
         "has_script": False,
