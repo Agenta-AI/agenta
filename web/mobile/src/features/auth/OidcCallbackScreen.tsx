@@ -8,7 +8,13 @@ import {useRouter} from "next/router"
 
 import {AgentaLogo} from "@/components/AgentaLogo"
 import {postAuthBootAtom} from "@/features/app/postAuthBoot"
-import {completeOidcSignIn, isTurnstileEnabled, setPendingTurnstileToken} from "@/lib/auth"
+import {
+    claimOAuthCode,
+    completeOidcSignIn,
+    isTurnstileEnabled,
+    OAUTH_CODE_USED_MESSAGE,
+    setPendingTurnstileToken,
+} from "@/lib/auth"
 
 import {useAuthSuccess} from "./useAuthSuccess"
 
@@ -49,6 +55,11 @@ export const OidcCallbackScreen = () => {
 
         if (!turnstileReady) return
         started.current = true
+        const code = router.query.code
+        if (!claimOAuthCode(Array.isArray(code) ? code[0] : code)) {
+            setError(OAUTH_CODE_USED_MESSAGE)
+            return
+        }
         // The post-auth loader covers the exchange, so the screen goes straight to it.
         startBoot({account: "pending", startedAt: Date.now()})
 
