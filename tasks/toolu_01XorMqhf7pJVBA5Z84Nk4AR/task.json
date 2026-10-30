@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01XorMqhf7pJVBA5Z84Nk4AR",
+  "agent_id": "a484a89ebef104deb",
+  "subagent_type": "general-purpose",
+  "task_description": "Deploy stack and live QA",
+  "token_usage": {
+    "input_tokens": 260,
+    "cache_creation_tokens": 366239,
+    "cache_read_tokens": 21089880,
+    "output_tokens": 58581,
+    "api_call_count": 130
+  },
+  "started_at": "2026-10-30T17:00:39.812617852+01:00",
+  "completed_at": "2026-10-30T17:48:23.395956867+01:00"
+}
