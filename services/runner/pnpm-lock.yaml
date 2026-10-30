@@ -32,7 +32,7 @@ patchedDependencies:
     hash: 0b70d95afa7c214e8692a7a055f1b4ee0364622231c0c19b87aacbabc652ffac
     path: patches/@earendil-works__pi-coding-agent@0.99.1.patch
   acp-http-client@0.4.2:
-    hash: a673c410af2021d9bb5f05c899522b66e6bcbe67134a92f506f0aef23fcf090d
+    hash: 34818932c2fc408b62731b05e3c783b033081fa467c46bfd9ace046f2fda65d6
     path: patches/acp-http-client@0.4.2.patch
   pi-acp@0.0.29:
     hash: f9deb01a2d67a755607fe78552ef0dbfe7242e93d3c8e30bdc7b6fb0140d37f0
@@ -89,7 +89,7 @@ importers:
         version: 1.37.0
       acp-http-client:
         specifier: 0.4.2
-        version: 0.4.2(patch_hash=a673c410af2021d9bb5f05c899522b66e6bcbe67134a92f506f0aef23fcf090d)(zod@4.6.5)
+        version: 0.4.2(patch_hash=34818932c2fc408b62731b05e3c783b033081fa467c46bfd9ace046f2fda65d6)(zod@4.6.5)
       pi-acp:
         specifier: 0.0.29
         version: 0.0.29(patch_hash=f9deb01a2d67a755607fe78552ef0dbfe7242e93d3c8e30bdc7b6fb0140d37f0)
@@ -4410,7 +4410,7 @@ snapshots:
 
   acorn@8.17.0: {}
 
-  acp-http-client@0.4.2(patch_hash=a673c410af2021d9bb5f05c899522b66e6bcbe67134a92f506f0aef23fcf090d)(zod@4.6.5):
+  acp-http-client@0.4.2(patch_hash=34818932c2fc408b62731b05e3c783b033081fa467c46bfd9ace046f2fda65d6)(zod@4.6.5):
     dependencies:
       '@agentclientprotocol/sdk': 0.16.1(patch_hash=b1e535c03be4f19383f2741026f6231cda7f757d0827a9fd98ea2e2198b09473)(zod@4.6.5)
     transitivePeerDependencies:
@@ -5361,7 +5361,7 @@ snapshots:
   sandbox-agent@0.4.2(patch_hash=91ccdae91dc68390329197a105ecd8cf394f680dd3be2a26731ebe1c2bd58c3f)(@daytona/sdk@0.198.0(ws@8.21.0))(zod@4.6.5):
     dependencies:
       '@sandbox-agent/cli-shared': 0.4.2
-      acp-http-client: 0.4.2(patch_hash=a673c410af2021d9bb5f05c899522b66e6bcbe67134a92f506f0aef23fcf090d)(zod@4.6.5)
+      acp-http-client: 0.4.2(patch_hash=34818932c2fc408b62731b05e3c783b033081fa467c46bfd9ace046f2fda65d6)(zod@4.6.5)
     optionalDependencies:
       '@daytonaio/sdk': '@daytona/sdk@0.198.0(ws@8.21.0)'
       '@sandbox-agent/cli': 0.4.2
