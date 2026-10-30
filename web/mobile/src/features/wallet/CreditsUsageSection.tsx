@@ -49,11 +49,14 @@ const dayLabel = (day: string, withYear = false) =>
 /** Where credits went over a range: one stacked bar per day, split by the chosen group. */
 export const CreditsUsageSection = ({
     projectId,
-    canReadUsage = true,
+    canReadUsage,
+    checkingAccess,
 }: {
     projectId: string
     /** Whether the reader may read where credits went. The API keeps it for `edit_billing`. */
-    canReadUsage?: boolean
+    canReadUsage: boolean
+    /** The permission check is still in flight: the section loads rather than locks. */
+    checkingAccess: boolean
 }) => {
     const [range, setRange] = useState<CreditsUsageRange>(30)
     const [group, setGroup] = useState<CreditsUsageGroup>("category")
@@ -87,8 +90,9 @@ export const CreditsUsageSection = ({
         setHidden(next)
     }
 
-    // Locked either because the reader's role says so, or because an older client asked anyway.
-    const locked = !canReadUsage || isForbidden(usage.error)
+    // Locked once the check says no, or when the API refuses after a yes (the role changed
+    // since the check). While the check runs, the chart shows its loading state instead.
+    const locked = (!canReadUsage && !checkingAccess) || isForbidden(usage.error)
 
     const controls = (
         <div className="flex flex-wrap items-center gap-2">
@@ -139,9 +143,9 @@ export const CreditsUsageSection = ({
             {locked ? (
                 <div className="border-border flex flex-col items-center gap-2 rounded-xl border border-dashed px-6 py-12 text-center">
                     <LockSimple size={22} className="text-muted-foreground" />
-                    <span className="font-medium">Usage details are owner-only</span>
+                    <span className="font-medium">Usage details are for owners and admins.</span>
                     <span className="text-muted-foreground text-sm">
-                        Only the organization owner can see where credits were used.
+                        Ask an owner or admin to see where credits were used.
                     </span>
                 </div>
             ) : (
@@ -154,7 +158,7 @@ export const CreditsUsageSection = ({
                         </>
                     }
                     caption={rangeLabel}
-                    loading={usage.isPending}
+                    loading={checkingAccess || usage.isPending}
                     error={usage.isError ? usage.error : null}
                     onRetry={() => void usage.refetch()}
                     empty={
