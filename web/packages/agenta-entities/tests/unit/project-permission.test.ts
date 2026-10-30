@@ -1,5 +1,3 @@
-// The fetcher lives in `@agenta/entities/access`, so the packages gate on the same answer.
-import {fetchProjectPermission} from "@agenta/entities/access"
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
 // The permission probe must pin the request's auth scope to the project it asks about.
@@ -10,6 +8,8 @@ const checkPermissions = vi.fn()
 vi.mock("@agenta/sdk/resources", () => ({
     getAccessClient: () => ({checkPermissions}),
 }))
+
+import {fetchProjectPermission} from "../../src/access"
 
 describe("fetchProjectPermission", () => {
     beforeEach(() => {
