@@ -49,7 +49,7 @@ export function EventMessageComposer({
                 }`}
             >
                 {template === null
-                    ? "This schedule sends a richer set of inputs than one message — typing here replaces them."
+                    ? "This automation sends a richer set of inputs than one message. Typing here replaces them."
                     : "Sent to the agent each time this event happens. Fields fill in with the real values."}
             </span>
         </div>

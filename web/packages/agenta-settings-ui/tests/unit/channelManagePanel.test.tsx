@@ -314,6 +314,9 @@ it("offers Who can message it on Slack and picks a person by name", async () => 
         await new Promise((resolve) => setTimeout(resolve, 300))
     })
     expect(queryPeople).toHaveBeenCalledWith("connection", "ben", undefined)
+    // the match is in the workspace section, so the empty "Wrote to" section is not shown
+    expect(container.textContent).not.toContain("Wrote to")
+    expect(container.textContent).not.toContain("No match.")
     const result = container.querySelector(
         '[data-testid="channels-people-result"]',
     ) as HTMLButtonElement
@@ -333,6 +336,13 @@ it("marks a channel left unchecked under Only these channels as off", async () =
         (row) => row.textContent,
     )
     expect(rows).toEqual(["#supportMentions only", "#randomOff"])
+    // channels are listed, so the invite hint and the "Saved automatically" footer stay hidden
+    expect(container.textContent).not.toContain("to a channel to add it here.")
+    expect(container.textContent).not.toContain("Saved automatically")
+})
+it("shows the invite hint only while the bot is in no channel", async () => {
+    await render({listSpaces: vi.fn().mockResolvedValue([])}, {platform: "slack", kind: "custom"})
+    expect(container.textContent).toContain("to a channel to add it here.")
 })
 it("adds several channels from the picker at once", async () => {
     const addSpace = vi.fn(async () => {})
