@@ -1,8 +1,8 @@
 """The role shortcuts never open a private item (M3), against a running API.
 
-The organization owner, a project admin and, in EE without the RBAC entitlement,
-every member pass the role check of step 3. A private session or agent still reads
-for them exactly like an unknown id.
+The organization owner and a project admin pass the role check of step 3, and every
+role may read sessions. A private session or agent still reads for them exactly like
+an unknown id, with or without the RBAC entitlement.
 """
 
 import pytest
@@ -32,8 +32,7 @@ def test_org_owner_and_no_rbac_get_404(sharing_cast):
     turn = invoke(alice, session_id=session_id, agent=agent)
     assert turn.status_code == 200, turn.text
 
-    # With RBAC off (EE), every member passes the role check: the viewer too.
-    callers = ["owner", "dana"] + ([] if sharing_cast.rbac else ["carol", "bob"])
+    callers = ["owner", "dana", "bob", "carol"]
     for label in callers:
         caller = sharing_cast[label]
         unknown_id = new_session_id()

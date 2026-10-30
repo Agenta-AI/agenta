@@ -5,7 +5,6 @@ rolled-back transaction (`rolled_back_connection`) and reads through the real DA
 that connection, so the shared database keeps none of the global repair.
 """
 
-
 import pytest
 from sqlalchemy import text
 

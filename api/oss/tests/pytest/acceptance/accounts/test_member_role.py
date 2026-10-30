@@ -136,13 +136,14 @@ _EE_DENIED_ROUTES = [
 ]
 
 
-def _call(admin_api, team, label, method, path, body):
+def _call(admin_api, team, label, method, path, body, **kwargs):
     resp = admin_api(
         method,
         path,
         params={"project_id": team["project_id"]},
         headers=team["headers"][label],
         **({"json": body} if body is not None else {}),
+        **kwargs,
     )
     # The wallet routes exist only while `AGENTA_WALLETS_ENABLED` is on.
     if path.startswith("/wallets/") and resp.status_code == 404:
@@ -165,8 +166,10 @@ def test_admin_reads_trace_content(admin_api, team, method, path, body):
 @pytest.mark.skipif(not is_ee(), reason="billing is EE")
 @pytest.mark.parametrize("method, path, body", _EE_DENIED_ROUTES)
 def test_member_cannot_change_billing(admin_api, team, method, path, body):
-    resp = _call(admin_api, team, "member", method, path, body)
-    assert resp.status_code == 403, (path, resp.status_code, resp.text)
+    # These 403 answers carry a gzip header over a plain body, so the body is not read.
+    resp = _call(admin_api, team, "member", method, path, body, stream=True)
+    resp.close()
+    assert resp.status_code == 403, (path, resp.status_code)
 
 
 @pytest.mark.skipif(not is_ee(), reason="billing is EE")
