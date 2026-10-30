@@ -744,3 +744,44 @@ async def test_an_organization_secret_that_is_not_shared_is_fixed_by_its_manager
     assert missing.fix.ask.role == "organization_admin"
     # Asked once, for the reason and the fix together.
     assert asked == [True]
+
+
+@pytest.mark.asyncio
+async def test_an_organization_login_that_needs_sign_in_is_the_organizations_to_fix():
+    login = _secret(
+        "team-claude",
+        SecretKind.SUBSCRIPTION_PROVIDER,
+        provider="claude",
+        login_state="expired",
+        login={"access": "x"},
+    )
+    parameters = {
+        "agent": {
+            "harness": {"kind": "claude"},
+            "llm": {
+                "model": "claude-sonnet-4-5",
+                "provider": "anthropic",
+                "connection": {
+                    "mode": "self_managed",
+                    "slug": "team-claude",
+                    "namespace": "organization",
+                    "scope": "organization",
+                },
+            },
+        }
+    }
+    result = await _service(vault=_Vault(organization=[login])).check(
+        scope=_scope(),
+        parameters=parameters,
+        artifact_id=None,
+        run_person_id=None,
+        can_edit_agent=_yes,
+        allowed=_Allowed(allowed=True),
+        may_run_agent=_yes,
+        manages_organization=_no,
+    )
+    [needs] = result.requirements
+    assert needs.reason.value == "needs_sign_in"
+    # A project admin cannot sign in the organization's login.
+    assert needs.fix.can_sign_in is False
+    assert needs.fix.ask.role == "organization_admin"

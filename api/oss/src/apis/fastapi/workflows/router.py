@@ -1576,25 +1576,23 @@ class WorkflowsRouter:
 
         parameters = body.parameters
         artifact_id: Optional[UUID] = body.workflow_id
-        if artifact_id is not None and not await allow_agent(
-            request,
-            action=Permission.VIEW_WORKFLOWS,
-            artifact_id=artifact_id,
-        ):
-            raise HTTPException(status_code=404, detail="Workflow not found.")
-        if body.workflow_revision_ref is not None:
+        if body.workflow_revision_ref is None:
+            if artifact_id is not None and not await allow_agent(
+                request,
+                action=Permission.VIEW_WORKFLOWS,
+                artifact_id=artifact_id,
+            ):
+                raise HTTPException(status_code=404, detail="Workflow not found.")
+        else:
             revision = await self.workflows_service.fetch_workflow_revision(
                 project_id=UUID(request.state.project_id),
                 #
                 workflow_revision_ref=body.workflow_revision_ref,
             )
-            revision_artifact_id = artifact_id_of(revision) if revision else None
-            if (
-                body.workflow_id is not None
-                and body.workflow_id != revision_artifact_id
-            ):
-                revision = None
-            artifact_id = revision_artifact_id
+            artifact_id = artifact_id_of(revision) if revision else None
+            if body.workflow_id is not None and body.workflow_id != artifact_id:
+                # Another agent's revision: the answer an unknown revision gets.
+                raise HTTPException(status_code=404, detail="Revision not found.")
             if revision is None or not await allow_agent(
                 request,
                 action=Permission.VIEW_WORKFLOWS,

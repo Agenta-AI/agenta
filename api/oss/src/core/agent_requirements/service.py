@@ -679,8 +679,9 @@ class AgentRequirementsService:
         can_connect = not sign_in and entry.kind != _KIND.MODEL and manages
         ask: Optional[AgentRequirementAsk] = None
         if entry.reason == _REASON.NOT_SHARED or (
-            entry.is_organization and not manages and not sign_in
+            entry.is_organization and not manages
         ):
+            # Only the organization adds, shares or signs in its own item.
             ask = AgentRequirementAsk(role="organization_admin")
         elif sign_in and not can_sign_in:
             ask = AgentRequirementAsk(role="project_admin")
