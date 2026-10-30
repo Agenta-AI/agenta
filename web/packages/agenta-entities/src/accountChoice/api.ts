@@ -11,9 +11,7 @@ import {safeParseWithLogging} from "../shared"
 import {
     accountChoiceResponseSchema,
     accountChoicesResponseSchema,
-    itemAccountsResponseSchema,
     type AccountChoice,
-    type ItemAccount,
 } from "./schema"
 
 const BASE = "/account-choices"
@@ -90,27 +88,4 @@ export const deleteAccountChoice = async ({
     accountChoiceId: string
 }): Promise<void> => {
     await axios.delete(`${getAgentaApiUrl()}${BASE}/${accountChoiceId}`, scoped(projectId))
-}
-
-/** The account each "user" item of one saved revision gets when the asker runs it. */
-export const resolveAccountChoices = async ({
-    projectId,
-    workflowId,
-    revisionId,
-}: {
-    projectId: string
-    workflowId: string
-    revisionId: string
-}): Promise<ItemAccount[]> => {
-    const response = await axios.post(
-        `${getAgentaApiUrl()}${BASE}/resolve`,
-        {workflow_id: workflowId, workflow_revision_ref: {id: revisionId}, parameters: null},
-        scoped(projectId),
-    )
-    const data = safeParseWithLogging(
-        itemAccountsResponseSchema,
-        response.data,
-        "[resolveAccountChoices]",
-    )
-    return data?.item_accounts ?? []
 }

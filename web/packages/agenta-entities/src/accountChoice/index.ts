@@ -14,7 +14,6 @@ export {
 export {
     deleteAccountChoice,
     queryAccountChoices,
-    resolveAccountChoices,
     upsertAccountChoice,
     type AccountPick,
 } from "./api"
@@ -22,7 +21,5 @@ export {
 export {
     invalidateAccountChoices,
     invalidatePersonalAccountReads,
-    itemAccountsFamilyKey,
-    itemAccountsQueryAtomFamily,
     secretChoicesQueryAtomFamily,
 } from "./state"
