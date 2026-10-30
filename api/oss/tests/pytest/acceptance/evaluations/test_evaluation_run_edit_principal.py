@@ -102,4 +102,7 @@ def test_a_step_save_that_changes_nothing_writes_the_editor(admin_api, team):
         json={"steps": [step]},
     )
     assert response.status_code == 200, response.text
+    # The save is recorded as the editor's, and the response is the stored run.
+    assert response.json()["run"]["principal"] == editor_principal
+    assert response.json()["run"]["updated_by_id"] == team.user_ids["editor"]
     assert _principal(owner, run["id"]) == editor_principal

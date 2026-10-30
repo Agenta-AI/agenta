@@ -3259,7 +3259,8 @@ class SimpleEvaluationsService:
     ) -> EvaluationRun:
         """A save that changes no step still makes the editor the run's executing
         principal. Only the principal is written, never the fetched snapshot, so a
-        concurrent save's steps stay. A closed run refuses the save, as an edit does."""
+        concurrent save's steps stay. A closed run refuses the save, as an edit does.
+        Returns the run as stored after the write."""
         if not await self.evaluations_service.set_run_principal(
             project_id=project_id,
             run_id=run.id,
@@ -3268,7 +3269,9 @@ class SimpleEvaluationsService:
             open_only=True,
         ):
             raise EvaluationClosedConflict(run_id=run.id)
-        return run.model_copy(update={"principal": principal})
+        return await self.evaluations_service.fetch_run(
+            project_id=project_id, run_id=run.id
+        )
 
     async def add_scenarios(
         self,
