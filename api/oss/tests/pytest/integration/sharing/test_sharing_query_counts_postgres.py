@@ -8,7 +8,7 @@ the same shape, then counts the next call.
 
 The services are built as `entrypoints/routers.py` builds them: `bootstrap_access()`
 (the real `AccessService` with the real `SharingService` as its resource policy; under
-EE the real `EntitlementsRbacEnforcement`, on an organization whose plan has the RBAC
+EE the real `PlanRbacEntitlement`, on an organization whose plan has the RBAC
 entitlement), the real DAOs on the transactions engine, the real `LockEngine` and the
 real `RunAdmission`. Every cache and lock is a real Redis, so the real serializer and
 the real lock scripts run. The stack's Redis is not published to the host: run these
@@ -334,9 +334,9 @@ async def world(redis_commands, monkeypatch) -> World:
         entitlements_module.bootstrap_entitlements_services()
     access_service = bootstrap_access()
     if is_ee():
-        from ee.src.core.access.rbac import EntitlementsRbacEnforcement
+        from ee.src.core.access.rbac import PlanRbacEntitlement
 
-        assert isinstance(access_service._rbac, EntitlementsRbacEnforcement)
+        assert isinstance(access_service._rbac, PlanRbacEntitlement)
 
     engine = get_transactions_engine()
     lock_engine = get_lock_engine()

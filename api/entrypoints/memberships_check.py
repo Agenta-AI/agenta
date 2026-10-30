@@ -344,7 +344,7 @@ async def _rbac_enforced(organization_id: UUID) -> Optional[bool]:
     it), or None when the plan cannot answer: no subscription, or a plan the
     entitlements do not define.
 
-    The hot path (`EntitlementsRbacEnforcement.is_enforced`) raises
+    The hot path (`PlanRbacEntitlement.is_entitled`) raises
     `EntitlementsException` in those cases, so it never treats such an organization
     as one without RBAC. The job does the same: the organization is not a P2b
     organization, and the report lists it as `P2b_undecided` instead of stopping.

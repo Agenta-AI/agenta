@@ -18,7 +18,8 @@ from oss.src.models.api.workspace_models import (
     ResendInviteRequest,
 )
 from oss.src.core.access.controls import get_role
-from oss.src.core.access.permissions.types import DefaultRole, Permission
+from oss.src.core.access.service import get_access_service
+from oss.src.core.access.permissions.types import Permission
 
 log = get_module_logger(__name__)
 
@@ -163,22 +164,32 @@ async def send_invitation_email(
     return True
 
 
-def resolve_workspace_invite_role(payload: InviteRequest) -> str:
-    """Resolve the workspace role for an invite, defaulting to the catalog floor.
+async def resolve_workspace_invite_role(
+    payload: InviteRequest, *, organization_id: str
+) -> str:
+    """Resolve the workspace role for an invite: the named role, or the plan's floor role.
 
-    Shared by OSS and EE invite paths. Validates against the effective workspace
-    catalog (env-overridable via AGENTA_ACCESS_ROLES in EE) since the API model
-    accepts any string for forward-compatibility with custom roles.
+    Shared by OSS and EE invite paths. The role must be in the effective workspace
+    catalog (env-overridable via AGENTA_ACCESS_ROLES in EE) and offered by the
+    organization's plan, which never offers `owner`.
     """
 
     raw = payload.roles[0] if payload.roles else None
     role = getattr(raw, "value", None) or (str(raw) if raw is not None else None)
-    role = role or DefaultRole.VIEWER.value
+    offered = await get_access_service().offered_roles(
+        organization_id=UUID(str(organization_id))
+    )
+    role = role or offered.floor_role
 
     if get_role("workspace", role) is None:
         raise HTTPException(
             status_code=400,
             detail=f"Workspace role '{role}' is invalid.",
+        )
+    if role not in offered.roles:
+        raise HTTPException(
+            status_code=400,
+            detail="This role is not available on your plan.",
         )
 
     return role
@@ -215,6 +226,7 @@ async def invite_user_to_organization(
     payload: InviteRequest,
     project_id: str,
     user_id: str,
+    role: str,
     organization_id: str | None = None,
 ):
     """
@@ -262,8 +274,6 @@ async def invite_user_to_organization(
         )
 
         await assert_invite_domain_allowed(organization_id, payload.email)
-
-    role = resolve_workspace_invite_role(payload)
 
     log.info(
         "[invite] creating invitation",

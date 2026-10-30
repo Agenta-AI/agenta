@@ -15,7 +15,7 @@ import pytest
 import ee.src.core.access.entitlements.service as entitlements_service
 from ee.src.core.access.entitlements.service import EntitlementsException
 from ee.src.core.access.entitlements.types import DefaultPlan
-from ee.src.core.access.rbac import EntitlementsRbacEnforcement
+from ee.src.core.access.rbac import PlanRbacEntitlement
 from entrypoints import memberships_check
 
 HOBBY = DefaultPlan.CLOUD_V0_HOBBY.value
@@ -46,7 +46,7 @@ async def test_hot_path_never_treats_an_undecided_plan_as_without_rbac(
     _wire_subscriptions(monkeypatch, {str(organization_id): plan})
 
     with pytest.raises(EntitlementsException):
-        await EntitlementsRbacEnforcement().is_enforced(organization_id=organization_id)
+        await PlanRbacEntitlement().is_entitled(organization_id=organization_id)
 
 
 @pytest.mark.asyncio

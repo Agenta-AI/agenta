@@ -145,7 +145,7 @@ class _World:
             self.principals.human(user)
         self.access = AccessService(
             memberships=self.world.service._memberships,
-            rbac=RecordingRbac(enforced=True),
+            rbac=RecordingRbac(entitled=True),
             principals=self.principals,
             resource_policy=self.world.service,
         )

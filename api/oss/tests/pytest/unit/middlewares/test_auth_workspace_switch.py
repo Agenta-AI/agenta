@@ -429,7 +429,7 @@ async def test_decide_refuses_a_mismatched_organization():
         memberships=MembershipsService(
             memberships_dao=dao, policy=MembershipPolicy.PROJECT_ROWS
         ),
-        rbac=RecordingRbac(enforced=True),
+        rbac=RecordingRbac(entitled=True),
         principals=principals,
         resource_policy=AllowAllResourcePolicy(),
     )

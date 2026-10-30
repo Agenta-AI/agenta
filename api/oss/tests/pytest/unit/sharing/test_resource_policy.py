@@ -491,7 +491,7 @@ class _DecideWorld:
     `SharingService` as its resource policy. The project's organization owner is
     `owner`; Alice owns a private session; Bob is a member with `bob_role`."""
 
-    def __init__(self, *, enforced: bool = True, bob_role: str = "editor") -> None:
+    def __init__(self, *, bob_role: str = "editor") -> None:
         self.world = SharingWorld()
         self.owner = uuid4()
         summary = self.world.memberships_dao.projects[self.world.project_id]
@@ -507,7 +507,7 @@ class _DecideWorld:
         self.policy = _RecordingPolicy(self.world.service)
         self.service = AccessService(
             memberships=self.world.service._memberships,
-            rbac=RecordingRbac(enforced=enforced),
+            rbac=RecordingRbac(),
             principals=self.principals,
             resource_policy=self.policy,
         )
@@ -543,12 +543,6 @@ async def test_shortcuts_do_not_open_private():
     assert (decision.allowed, decision.reason) == (False, DENIED)
     unchecked = await world.decide(world.bob, Permission.VIEW_SESSIONS)
     assert unchecked.reason == DecisionReason.PROJECT_OWNER
-
-    # The EE no-RBAC shortcut (RBAC_NOT_ENTITLED).
-    world = _DecideWorld(enforced=False)
-    for action in (Permission.VIEW_SESSIONS, Permission.RUN_SESSIONS):
-        decision = await world.decide(world.bob, action, world.session_ref)
-        assert (decision.allowed, decision.reason) == (False, DENIED)
 
     # The owner herself passes.
     decision = await world.decide(

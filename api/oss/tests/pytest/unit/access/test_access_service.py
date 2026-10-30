@@ -24,14 +24,14 @@ from oss.tests.pytest.utils.sharing import AllowAllResourcePolicy
 
 
 class _World:
-    def __init__(self, *, policy=MembershipPolicy.PROJECT_ROWS, enforced=True):
+    def __init__(self, *, policy=MembershipPolicy.PROJECT_ROWS, entitled=True):
         self.dao = InMemoryMembershipsDAO()
         self.owner = uuid4()
         self.user = uuid4()
         self.project = self.dao.add_project(
             make_summary(organization_owner_id=self.owner)
         )
-        self.rbac = RecordingRbac(enforced=enforced)
+        self.rbac = RecordingRbac(entitled=entitled)
         self.service = AccessService(
             memberships=MembershipsService(memberships_dao=self.dao, policy=policy),
             rbac=self.rbac,
@@ -80,20 +80,23 @@ async def test_organization_owner_without_membership_denies_not_member():
 
 
 async def test_no_rbac_organization_and_a_non_member_denies_not_member():
-    world = _World(enforced=False)
+    world = _World(entitled=False)
     decision = await world.check(Permission.VIEW_APPLICATIONS)
     assert (decision.allowed, decision.reason) == (False, DecisionReason.NOT_MEMBER)
 
 
-async def test_no_rbac_member_is_allowed():
-    world = _World(enforced=False)
+async def test_roles_apply_without_the_rbac_entitlement():
+    # A plan without RBAC offers fewer roles; it lets no role pass a check it lacks.
+    world = _World(entitled=False)
     world.member(world.user, organization_role="viewer")
     decision = await world.check(Permission.DELETE_WORKSPACE)
     assert (decision.allowed, decision.reason) == (
-        True,
-        DecisionReason.RBAC_NOT_ENTITLED,
+        False,
+        DecisionReason.MISSING_CAPABILITY,
     )
-    assert world.rbac.calls == [world.project.organization_id]
+    assert (await world.check(Permission.VIEW_APPLICATIONS)).allowed is True
+    # The decision never reads the plan.
+    assert world.rbac.calls == []
 
 
 async def test_organization_owner_member_is_allowed():
@@ -217,12 +220,12 @@ async def test_null_role_member_is_denied_ordinary_checks():
             DecisionReason.MISSING_CAPABILITY,
         )
 
-    no_rbac = _World(enforced=False)
+    no_rbac = _World(entitled=False)
     no_rbac.member_with_null_role(no_rbac.user)
     decision = await no_rbac.check(Permission.VIEW_APPLICATIONS)
     assert (decision.allowed, decision.reason) == (
-        True,
-        DecisionReason.RBAC_NOT_ENTITLED,
+        False,
+        DecisionReason.MISSING_CAPABILITY,
     )
 
     owner = _World()

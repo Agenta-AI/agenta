@@ -13,6 +13,8 @@ from oss.src.core.memberships.dtos import OrganizationMember
 from oss.src.core.memberships.types import MemberNotFound, OrganizationOwnerProtected
 import oss.src.routers.workspace_router as workspace_router
 from oss.src.core.access.permissions.types import RequiredRole
+from oss.src.core.access.service import AccessService
+from oss.tests.pytest.utils.memberships import RecordingRbac
 
 
 DENIED = (
@@ -131,10 +133,33 @@ class _MembershipsService:
         )
 
 
+class _OfferedRoles:
+    """The `offered_roles` half of `AccessService`, for one plan."""
+
+    def __init__(self, *, entitled):
+        self.entitled = entitled
+        self.calls = []
+
+    async def offered_roles(self, *, organization_id):
+        self.calls.append(organization_id)
+        service = AccessService(
+            memberships=None,
+            rbac=RecordingRbac(entitled=self.entitled),
+            principals=None,
+            resource_policy=None,
+        )
+        return await service.offered_roles(organization_id=organization_id)
+
+
 @pytest.fixture
 def wired(monkeypatch, project):
-    def _wire(service, *, allowed=True):
+    def _wire(service, *, allowed=True, entitled=True):
         monkeypatch.setattr(memberships_module, "_memberships_service", service)
+        monkeypatch.setattr(
+            workspace_router,
+            "get_access_service",
+            lambda: _OfferedRoles(entitled=entitled),
+        )
         monkeypatch.setattr(workspace_router, "check_action_access", _Recorder(allowed))
 
         async def _get_project_by_workspace(workspace_id):
@@ -248,6 +273,63 @@ async def test_assign_role_for_a_non_member_is_404(wired, project):
 
     assert error.value.status_code == 404
     assert error.value.detail == "User not found."
+
+
+@pytest.mark.parametrize("role", ["viewer", "editor", "developer", "annotator"])
+async def test_assign_role_refuses_a_role_the_plan_does_not_offer(wired, project, role):
+    service = _MembershipsService(organization_role="member")
+    target = wired(service, entitled=False)
+
+    response = await workspace_router.assign_role_to_user(
+        payload=SimpleNamespace(
+            email=target.email,
+            organization_id=str(project.organization_id),
+            role=role,
+        ),
+        workspace_id=str(project.workspace_id),
+        request=_request(),
+    )
+
+    assert response.status_code == 400
+    assert service.calls == []
+
+
+@pytest.mark.parametrize("entitled", [True, False])
+@pytest.mark.parametrize("role", ["admin", "member"])
+async def test_assign_role_sets_admin_or_member_on_every_plan(
+    wired, project, role, entitled
+):
+    service = _MembershipsService(organization_role="viewer")
+    target = wired(service, entitled=entitled)
+
+    result = await workspace_router.assign_role_to_user(
+        payload=SimpleNamespace(
+            email=target.email,
+            organization_id=str(project.organization_id),
+            role=role,
+        ),
+        workspace_id=str(project.workspace_id),
+        request=_request(),
+    )
+
+    assert result is True
+    assert service.calls[0][1]["role"] == role
+
+
+async def test_unassign_without_rbac_sets_the_member_floor_role(wired, project):
+    service = _MembershipsService(organization_role="admin")
+    target = wired(service, entitled=False)
+
+    result = await workspace_router.unassign_role_from_user(
+        email=target.email,
+        organization_id=str(project.organization_id),
+        role="admin",
+        workspace_id=str(project.workspace_id),
+        request=_request(),
+    )
+
+    assert result is True
+    assert service.calls[0][1]["role"] == "member"
 
 
 async def test_unassign_current_role_sets_viewer(wired, project):

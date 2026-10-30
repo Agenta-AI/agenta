@@ -10,7 +10,7 @@ class _Rbac:
         self.enforced = enforced
         self.calls = []
 
-    async def is_enforced(self, *, organization_id):
+    async def is_entitled(self, *, organization_id):
         self.calls.append(organization_id)
         return self.enforced
 

@@ -47,10 +47,10 @@ def fake_cache(monkeypatch):
 
 
 class _World:
-    def __init__(self, *, enforced: bool = True):
+    def __init__(self, *, entitled: bool = True):
         self.memberships_dao = InMemoryMembershipsDAO()
         self.principals = InMemoryPrincipalsDAO()
-        self.rbac = RecordingRbac(enforced=enforced)
+        self.rbac = RecordingRbac(entitled=entitled)
         self.organization_id = uuid4()
         self.owner = uuid4()
         self.project = self.memberships_dao.add_project(

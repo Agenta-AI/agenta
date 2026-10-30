@@ -57,7 +57,7 @@ class _World:
             memberships=MembershipsService(
                 memberships_dao=self.dao, policy=MembershipPolicy.PROJECT_ROWS
             ),
-            rbac=RecordingRbac(enforced=True),
+            rbac=RecordingRbac(entitled=True),
             principals=self.principals,
             resource_policy=AllowAllResourcePolicy(),
         )
