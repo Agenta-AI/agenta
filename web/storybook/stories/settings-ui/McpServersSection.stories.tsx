@@ -68,7 +68,7 @@ const SECRETS = [
 
 const fixture = (rows: Row[]): AgentaDataParameters => ({
     queries: (scope) => [
-        [["mcp-endpoints", scope.projectId], rows],
+        [["mcp-endpoints", undefined, scope.projectId], rows],
         // `userAtom` is unseeded here, so the vault key carries an undefined user id.
         [["vault", "secrets", undefined, scope.projectId], SECRETS],
     ],
@@ -195,7 +195,7 @@ export const WithYourSignIns: Story = {
         agenta: {
             queries: (scope) => [
                 [
-                    ["mcp-endpoints", scope.projectId],
+                    ["mcp-endpoints", undefined, scope.projectId],
                     [
                         {...LINEAR, user_sign_in: {is_ready: true}},
                         {...AXIOM, user_sign_in: null},

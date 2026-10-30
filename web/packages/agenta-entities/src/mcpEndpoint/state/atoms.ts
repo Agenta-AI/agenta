@@ -87,11 +87,12 @@ export const deleteMcpEndpointAtom = atom(null, async (get, _set, endpointId: st
  */
 export const disconnectMcpEndpointAtom = atom(null, async (get, _set, endpointId: string) => {
     const projectId = get(projectIdAtom)
+    // Read before the request: another person may sign in while it runs.
+    const queryKey = mcpEndpointsQueryKey(get(userAtom)?.id, projectId)
     const result = await disconnectMcpEndpoint(endpointId, projectId ?? undefined)
     const endpoint = result.endpoint ?? null
 
     const queryClient = getHostQueryClient()
-    const queryKey = mcpEndpointsQueryKey(get(userAtom)?.id, projectId)
     const cached = queryClient.getQueryData<MCPEndpoint[]>(queryKey)
 
     if (endpoint && cached) {
