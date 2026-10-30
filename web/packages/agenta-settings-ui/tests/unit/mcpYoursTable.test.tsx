@@ -54,6 +54,14 @@ beforeEach(() => {
 })
 afterEach(cleanup)
 
+describe("with no server to sign in to", () => {
+    it("keeps the group and shows the empty note", () => {
+        renderTable([])
+        expect(screen.getByText("Yours")).toBeTruthy()
+        expect(screen.getByText("No accounts of your own yet")).toBeTruthy()
+    })
+})
+
 describe("personalSignInServers", () => {
     it("leaves out a server that needs no sign-in", () => {
         const servers = [

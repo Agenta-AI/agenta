@@ -272,15 +272,11 @@ export const NamedSecretTable = ({
         />
     )
 
-    // With nothing of either owner, the page keeps its one empty state.
-    const nothingYet =
-        !loading && !personalQuery.isPending && rows.length === 0 && yoursRows.length === 0
-
     return (
         <>
             <section className="flex flex-col">
                 <SettingsPageActions>{create}</SettingsPageActions>
-                {yours && !nothingYet ? (
+                {yours ? (
                     <div className="flex flex-col gap-8">
                         <section className="flex flex-col gap-3">
                             <SettingsGroupHeading

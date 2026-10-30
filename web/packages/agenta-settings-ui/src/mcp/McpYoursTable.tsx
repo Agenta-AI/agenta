@@ -15,6 +15,7 @@ import type {ConfirmDestructive} from "../confirm"
 import {SettingsGroupHeading} from "../shared/SettingsGroupHeading"
 import {SettingsRowMenu} from "../shared/SettingsRowMenu"
 import {usePhoneColumns} from "../shared/usePhoneColumns"
+import {YoursEmpty} from "../shared/YoursEmpty"
 
 import {McpTokenSignInDialog} from "./McpTokenSignInDialog"
 
@@ -39,9 +40,17 @@ export interface McpYoursTableProps {
     collapsed: boolean
     onToggle: () => void
     confirm?: ConfirmDestructive
+    /** How many projects the person has in the organization, for the empty note. */
+    projectCount?: number
 }
 
-export const McpYoursTable = ({servers, collapsed, onToggle, confirm}: McpYoursTableProps) => {
+export const McpYoursTable = ({
+    servers,
+    collapsed,
+    onToggle,
+    confirm,
+    projectCount,
+}: McpYoursTableProps) => {
     const {pendingId, error, signIn, signInWithToken, signOut} = usePersonalMcpSignIn()
     const [tokenFor, setTokenFor] = useState<MCPEndpoint | null>(null)
     const {columns, shows} = usePhoneColumns(COLUMNS, PHONE_KEYS)
@@ -85,7 +94,9 @@ export const McpYoursTable = ({servers, collapsed, onToggle, confirm}: McpYoursT
                 collapsed={collapsed}
                 onToggle={onToggle}
             />
-            {collapsed ? null : (
+            {collapsed ? null : servers.length === 0 ? (
+                <YoursEmpty projectCount={projectCount} />
+            ) : (
                 <>
                     {error && !tokenFor ? (
                         <p className="m-0 text-xs text-colorError">{error}</p>

@@ -137,6 +137,8 @@ export interface McpServersSectionProps {
     copy?: Partial<McpServersSectionCopy>
     /** The project group's heading: the project switch. Shown with "Yours". */
     projectSwitch?: ReactNode
+    /** How many projects the person has in the organization, for the empty "Yours" note. */
+    projectCount?: number
 }
 
 export default function McpServersSection({
@@ -145,6 +147,7 @@ export default function McpServersSection({
     canListTools = true,
     copy: copyOverrides,
     projectSwitch,
+    projectCount,
 }: McpServersSectionProps) {
     const copy = useMemo<McpServersSectionCopy>(
         () => ({...DEFAULT_COPY, ...copyOverrides}),
@@ -177,11 +180,8 @@ export default function McpServersSection({
     const projectId = useAtomValue(projectIdAtom)
 
     const rows = useMemo(() => endpoints ?? [], [endpoints])
-    // A person signs in to the project's servers; with no server there is nothing to sign in to.
-    const yoursServers = useMemo(
-        () => (showsYours(access) ? personalSignInServers(rows) : []),
-        [access, rows],
-    )
+    // A person signs in to the project's servers.
+    const yoursServers = useMemo(() => personalSignInServers(rows), [rows])
     const names = useMemo(() => rows.map((row) => row.name), [rows])
     const rowKey = useCallback((record: MCPEndpoint) => record.id ?? record.slug ?? "", [])
     const viewing = useMemo(
@@ -495,13 +495,14 @@ export default function McpServersSection({
         <div className="flex flex-col">
             {readOnly ? null : <SettingsPageActions>{connect}</SettingsPageActions>}
 
-            {yoursServers.length ? (
+            {showsYours(access) ? (
                 <div className="flex flex-col gap-8">
                     <McpYoursTable
                         servers={yoursServers}
                         collapsed={yoursCollapsed}
                         onToggle={() => setYoursCollapsed((value) => !value)}
                         confirm={confirm}
+                        projectCount={projectCount}
                     />
                     <section className="flex flex-col gap-3">
                         <SettingsGroupHeading
