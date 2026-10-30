@@ -241,6 +241,7 @@ export const toAnalyticsRun = (span: TraceSpan): AnalyticsRun => {
     return {
         traceId: span.trace_id,
         agentId,
+        name: span.span_name?.trim() || null,
         model: (dig(attributes, [...llm, "model"]) as string | undefined) ?? null,
         startedAt: Date.parse(String(span.start_time ?? span.created_at ?? "")),
         tokens: asNumber(dig(attributes, ["ag", "metrics", "tokens", "cumulative", "total"])) ?? 0,
