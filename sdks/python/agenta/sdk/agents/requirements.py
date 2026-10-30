@@ -82,7 +82,8 @@ def user_item_reference(item: UserItem) -> ItemReference:
     elif item.kind == KIND_SECRET:
         reference = {"name": item.match_text}
     else:
-        reference = {"login": item.match_text}
+        # The login kind, named as the stored login names it (`provider`).
+        reference = {"provider": item.match_text}
     return ItemReference(
         kind=item.kind,
         key=item.item_key,

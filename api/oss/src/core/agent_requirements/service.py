@@ -404,6 +404,10 @@ class AgentRequirementsService:
         manages_organization: Callable[[], Awaitable[bool]],
     ) -> List[_Found]:
         connection = llm.connection_item()
+        if llm.account_source == "user" and llm.user_login_item() is None:
+            # A login each person brings, for a provider no login serves: the run
+            # fails with this model, so the model is what needs changing.
+            return [_Found(llm.model_item(), reason=_REASON.NOT_AVAILABLE)]
         if connection is None:
             # The operator's own login on the runner: not an Agenta item.
             return []

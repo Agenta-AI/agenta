@@ -416,7 +416,7 @@ def test_no_login_for_the_run_person_is_a_missing_model():
         "key": "subscription:user/claude",
         "kind": "subscription",
         "label": "claude",
-        "reference": {"login": "claude", "account_source": "user"},
+        "reference": {"provider": "claude", "account_source": "user"},
         "paths": ["agent.llm.connection"],
         "reason": "needs_personal_account",
         "blocks_run": True,

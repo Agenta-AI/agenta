@@ -390,3 +390,29 @@ async def test_the_turn_on_check_without_a_run_person_refuses_a_user_login():
     )
     assert [requirement.key for requirement in requirements] == [CLAUDE]
     assert accounts.calls == []
+
+
+async def test_a_user_login_for_a_provider_no_login_serves_is_a_model_to_change():
+    parameters = {
+        "agent": {
+            "llm": {
+                "model": "gpt-5.5",
+                "provider": "openai",
+                "connection": {"mode": "self_managed", "account_source": "user"},
+            }
+        }
+    }
+    accounts = _AccountChoices()
+    result = await _check(_service(accounts=accounts), parameters)
+    [model] = result.requirements
+    assert (model.kind.value, model.reason.value) == ("model", "not_available")
+    assert model.blocks_run is True
+
+    blocking = await _service(accounts=accounts).model_requirements(
+        scope=_scope(),
+        parameters=parameters,
+        artifact_id=uuid4(),
+        run_person_id=uuid4(),
+    )
+    assert [requirement.key for requirement in blocking] == ["model:openai/gpt-5.5"]
+    assert accounts.calls == []

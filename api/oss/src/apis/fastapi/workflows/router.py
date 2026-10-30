@@ -1590,13 +1590,15 @@ class WorkflowsRouter:
                 workflow_revision_ref=body.workflow_revision_ref,
             )
             artifact_id = artifact_id_of(revision) if revision else None
-            if body.workflow_id is not None and body.workflow_id != artifact_id:
+            if (
+                revision is None
                 # Another agent's revision: the answer an unknown revision gets.
-                raise HTTPException(status_code=404, detail="Revision not found.")
-            if revision is None or not await allow_agent(
-                request,
-                action=Permission.VIEW_WORKFLOWS,
-                artifact_id=artifact_id,
+                or (body.workflow_id is not None and body.workflow_id != artifact_id)
+                or not await allow_agent(
+                    request,
+                    action=Permission.VIEW_WORKFLOWS,
+                    artifact_id=artifact_id,
+                )
             ):
                 raise HTTPException(status_code=404, detail="Revision not found.")
             parameters = revision.data.parameters if revision.data else None
