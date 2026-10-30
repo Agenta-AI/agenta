@@ -870,7 +870,8 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         """Renew one connection's stored grant, in place.
 
         `owner` names a person's own sign-in; None is the project's grant, as
-        before.
+        before. A person's grant that the server refuses for good is deleted, so their
+        sign-in reads as absent rather than ready.
 
         Without `failed_access_token` this renews a grant that is due (see
         `grant_refresh_due`). With it, the upstream refused that token, and the grant is
@@ -912,75 +913,83 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
                 raise MCPOAuthRefreshFailedError(
                     server_url=server_url, detail="no stored grant"
                 )
-            if failed_access_token is not None:
-                if stored.access_token != failed_access_token:
-                    return
-            elif not grant_refresh_due(stored):
-                # Another caller refreshed while we waited.
-                return
-            if not stored.refresh_token:
-                raise MCPOAuthNoRefreshTokenError(server_url=server_url)
-            if not stored.issuer:
-                # Nothing to check the resource's answer against, so there is no safe
-                # way to present this refresh token. Reconnecting writes the pin.
-                raise MCPOAuthIssuerChangedError(
-                    server_url=server_url, stored_issuer=None, named_issuer=None
-                )
-
-            # The token endpoint is rediscovered rather than stored — it is not part of a
-            # grant, and a server may move it within its own authorization server. The
-            # ISSUER is not rediscovered. Discovery's checks are only internally
-            # consistent: the protected-resource document is published by the MCP server
-            # itself, so a server that was honest at connect time can later name an
-            # authorization server it controls and satisfy every one of them. Pinning the
-            # refresh to the issuer that actually granted these tokens is what stops the
-            # refresh token being handed to that new server.
-            discovery = await self.client.discover(server_url=server_url)
-            if not same_issuer(discovery.authorization_server, stored.issuer):
-                raise MCPOAuthIssuerChangedError(
-                    server_url=server_url,
-                    stored_issuer=stored.issuer,
-                    named_issuer=discovery.authorization_server,
-                )
-            # The pinned value, not the discovered one: the client registration is
-            # addressed by issuer, and this keeps the rewritten grant pinned as it was.
-            storage.authorization_server = stored.issuer
-
-            # The registration this grant was issued against, not the one this
-            # deployment would register today. An authorization server refuses a refresh
-            # presented by a client it never issued those tokens to, so reading "the
-            # current registration for this issuer" is what made a changed public address
-            # quietly stop every connection that was working (D6).
-            client_info = await self._client_info_for_grant(
-                storage=storage,
-                stored=stored,
-                project_id=project_id,
-                endpoint_id=endpoint_id,
-            )
-
             try:
-                refreshed = await self.client.refresh_token(
-                    token_endpoint=discovery.token_endpoint,
-                    refresh_token=stored.refresh_token,
-                    client_info=client_info,
-                    resource=discovery.resource,
+                if failed_access_token is not None:
+                    if stored.access_token != failed_access_token:
+                        return
+                elif not grant_refresh_due(stored):
+                    # Another caller refreshed while we waited.
+                    return
+                if not stored.refresh_token:
+                    raise MCPOAuthNoRefreshTokenError(server_url=server_url)
+                if not stored.issuer:
+                    # Nothing to check the resource's answer against, so there is no safe
+                    # way to present this refresh token. Reconnecting writes the pin.
+                    raise MCPOAuthIssuerChangedError(
+                        server_url=server_url, stored_issuer=None, named_issuer=None
+                    )
+
+                # The token endpoint is rediscovered rather than stored — it is not part of a
+                # grant, and a server may move it within its own authorization server. The
+                # ISSUER is not rediscovered. Discovery's checks are only internally
+                # consistent: the protected-resource document is published by the MCP server
+                # itself, so a server that was honest at connect time can later name an
+                # authorization server it controls and satisfy every one of them. Pinning the
+                # refresh to the issuer that actually granted these tokens is what stops the
+                # refresh token being handed to that new server.
+                discovery = await self.client.discover(server_url=server_url)
+                if not same_issuer(discovery.authorization_server, stored.issuer):
+                    raise MCPOAuthIssuerChangedError(
+                        server_url=server_url,
+                        stored_issuer=stored.issuer,
+                        named_issuer=discovery.authorization_server,
+                    )
+                # The pinned value, not the discovered one: the client registration is
+                # addressed by issuer, and this keeps the rewritten grant pinned as it was.
+                storage.authorization_server = stored.issuer
+
+                # The registration this grant was issued against, not the one this
+                # deployment would register today. An authorization server refuses a refresh
+                # presented by a client it never issued those tokens to, so reading "the
+                # current registration for this issuer" is what made a changed public address
+                # quietly stop every connection that was working (D6).
+                client_info = await self._client_info_for_grant(
+                    storage=storage,
+                    stored=stored,
+                    project_id=project_id,
+                    endpoint_id=endpoint_id,
                 )
-            except MCPOAuthTokenExchangeError as e:
-                if e.temporary:
-                    raise MCPOAuthRefreshUnavailableError(
+
+                try:
+                    refreshed = await self.client.refresh_token(
+                        token_endpoint=discovery.token_endpoint,
+                        refresh_token=stored.refresh_token,
+                        client_info=client_info,
+                        resource=discovery.resource,
+                    )
+                except MCPOAuthTokenExchangeError as e:
+                    if e.temporary:
+                        raise MCPOAuthRefreshUnavailableError(
+                            server_url=server_url, detail=e.detail
+                        ) from e
+                    raise MCPOAuthRefreshFailedError(
                         server_url=server_url, detail=e.detail
                     ) from e
-                raise MCPOAuthRefreshFailedError(
-                    server_url=server_url, detail=e.detail
-                ) from e
 
-            if not refreshed.refresh_token:
-                # RFC 6749 s6: a server that does not rotate returns no new refresh
-                # token, and the old one stays valid. Dropping it would make the next
-                # expiry unrecoverable.
-                refreshed.refresh_token = stored.refresh_token
+                if not refreshed.refresh_token:
+                    # RFC 6749 s6: a server that does not rotate returns no new refresh
+                    # token, and the old one stays valid. Dropping it would make the next
+                    # expiry unrecoverable.
+                    refreshed.refresh_token = stored.refresh_token
 
-            await storage.write_tokens(refreshed, client_id=client_info.client_id)
+                await storage.write_tokens(refreshed, client_id=client_info.client_id)
+            except MCPOAuthRefreshFailedError:
+                # Refused for good. A person's own grant goes, so their list says "not
+                # signed in" and Needs setup asks them again; nothing else marks it dead.
+                # The project's grant stays, and the relay marks its server instead.
+                if owner is not None:
+                    await storage.delete_grant()
+                raise
 
     async def _client_info_for_grant(
         self,

@@ -488,3 +488,103 @@ async def test_a_token_for_a_server_that_moved_to_another_address_is_not_written
 
     assert stored is None
     assert vault.person_rows == {}
+
+
+async def _seed_person_grant(service, vault, *, refresh_token="renew-me"):
+    from mcp.shared.auth import OAuthToken
+
+    from oss.src.core.gateways.mcps.oauth.storage import SecretsTokenStorage
+    from oss.src.core.secrets.dtos import SecretOwner
+
+    organization_id, person, endpoint_id = uuid4(), uuid4(), uuid4()
+    owner = SecretOwner.for_user(organization_id=organization_id, user_id=person)
+    await SecretsTokenStorage(
+        vault_service=vault,
+        project_id=PROJECT,
+        server_url=_SERVER_URL,
+        endpoint_id=endpoint_id,
+        authorization_server="https://auth.acme.io/",
+        owner=owner,
+    ).write_tokens(
+        OAuthToken(
+            access_token="stale",
+            token_type="Bearer",
+            expires_in=-60,
+            refresh_token=refresh_token,
+        )
+    )
+    return owner, endpoint_id, (organization_id, person, grant_slug(endpoint_id))
+
+
+@pytest.mark.asyncio
+async def test_a_person_grant_the_server_refuses_for_good_is_deleted():
+    """So the list says "not signed in" and Needs setup asks the person again."""
+    from oss.src.core.gateways.mcps.oauth.types import MCPOAuthRefreshFailedError
+    from oss.tests.pytest.unit.gateways.test_gateways_mcp_oauth_service import (
+        _refreshing_as_handler,
+    )
+
+    service, vault, _ = _service_with(_refreshing_as_handler(calls=[], refusal=True))
+    owner, endpoint_id, key = await _seed_person_grant(service, vault)
+
+    with pytest.raises(MCPOAuthRefreshFailedError):
+        await service.refresh_grant(
+            project_id=PROJECT,
+            endpoint_id=endpoint_id,
+            server_url=_SERVER_URL,
+            owner=owner,
+        )
+
+    assert key not in vault.person_rows
+
+
+@pytest.mark.asyncio
+async def test_a_person_grant_with_no_refresh_token_is_deleted_when_it_dies():
+    from oss.src.core.gateways.mcps.oauth.types import MCPOAuthNoRefreshTokenError
+
+    service, vault, _ = _service_with(_mock_as_handler())
+    owner, endpoint_id, key = await _seed_person_grant(
+        service, vault, refresh_token=None
+    )
+
+    with pytest.raises(MCPOAuthNoRefreshTokenError):
+        await service.refresh_grant(
+            project_id=PROJECT,
+            endpoint_id=endpoint_id,
+            server_url=_SERVER_URL,
+            failed_access_token="stale",
+            owner=owner,
+        )
+
+    assert key not in vault.person_rows
+
+
+@pytest.mark.asyncio
+async def test_a_person_grant_survives_a_token_endpoint_outage():
+    """A failure on the server's side says nothing about the grant: it stays."""
+    import httpx as _httpx
+
+    from oss.src.core.gateways.mcps.oauth.types import MCPOAuthRefreshUnavailableError
+    from oss.tests.pytest.unit.gateways.test_gateways_mcp_oauth_service import (
+        _refreshing_as_handler,
+    )
+
+    inner = _refreshing_as_handler(calls=[])
+
+    def handler(request):
+        if request.url.path == "/token":
+            return _httpx.Response(503)
+        return inner(request)
+
+    service, vault, _ = _service_with(handler)
+    owner, endpoint_id, key = await _seed_person_grant(service, vault)
+
+    with pytest.raises(MCPOAuthRefreshUnavailableError):
+        await service.refresh_grant(
+            project_id=PROJECT,
+            endpoint_id=endpoint_id,
+            server_url=_SERVER_URL,
+            owner=owner,
+        )
+
+    assert key in vault.person_rows
