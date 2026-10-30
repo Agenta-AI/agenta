@@ -37,7 +37,7 @@ def rpc(client, url, method, params, request_id):
         )
     else:
         message = response.json()
-    if not message or message.get("error"):
+    if not message or message.get("id") != request_id or message.get("error"):
         raise RuntimeError(
             f"MCP {method} failed. Check access to the declared connection."
         )

@@ -32,3 +32,9 @@ test('refuses oversized batches before calling Linear',async()=>{
  const {ops,ctx}=operations(()=>{throw new Error('must not call')});
  await assert.rejects(ops.bulk_label({ids:['1','2','3','4','5','6']},ctx),/one and five/);
 });
+
+test('treats an unreadable write response as uncertain',async()=>{
+ const {ops,ctx}=operations(async(name)=>name==='get_issue'?result({labels:[]}):{content:[{type:'text',text:'Updated'}]});
+ const response=await ops.bulk_label({ids:['a']},ctx);
+ assert.equal(response.uncertain,'a');assert.match(response.error,/Check Linear/);
+});

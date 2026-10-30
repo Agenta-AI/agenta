@@ -3,7 +3,7 @@ function unpack(result) {
   if (result.isError) throw new Error((result.content || []).map(c => c.text || "").join("\n") || "Linear refused the action");
   if (result.structuredContent) return result.structuredContent;
   const text = (result.content || []).filter(c => c.type === "text").map(c => c.text).join("\n");
-  try { return JSON.parse(text); } catch { throw new Error("Linear returned an unexpected response. No changes were made by this step."); }
+  try { return JSON.parse(text); } catch { throw new Error("Linear returned an unexpected response. Check Linear before repeating a write."); }
 }
 const operations = {
   my_open_issues: async (_args, ctx) => {

@@ -8,7 +8,7 @@ The plugin backend, MCP adapter, browser bridge, and demo are implemented. The r
 - API gateway suite: 2,223 passed and 12 skipped.
 - Services unit suite: 226 passed.
 - Shared workflow frontend tests: 26 passed. Mobile list and plugin error tests: 13 passed.
-- Linear demo unit tests: four passed. These check scoring, preserving labels, partial completion, and batch limits.
+- Linear demo unit tests: five passed. These check scoring, preserving labels, partial completion, and batch limits.
 - Mobile TypeScript and scoped ESLint checks passed. The generated API client was refreshed from the running API.
 - A Daytona sandbox initialized an MCP connection and listed tools through the gateway with the caller's credential. Node was version 22.22.1.
 - The agent called a plugin through the gateway, and the plugin called the mock MCP server. Audit records had the same caller on both calls. With ask enabled, the agent paused before executing the plugin.
