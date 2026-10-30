@@ -1,7 +1,13 @@
 import {useMemo, useState} from "react"
 
 import {CustomSecretFormat, useVaultSecret, type AgentSecretBinding} from "@agenta/entities/secret"
-import {commitAgentCredentialsAtom, workflowMolecule} from "@agenta/entities/workflow"
+import {
+    agentRequirementsAtomFamily,
+    commitAgentCredentialsAtom,
+    needsSetupReasonLabel,
+    requirementForItem,
+    workflowMolecule,
+} from "@agenta/entities/workflow"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -20,6 +26,8 @@ import {createPortal} from "react-dom"
 
 import {AgentSecretAttachmentModal} from "../../../secret"
 import {useSectionDrawerPanel} from "../sectionDrawerPanel"
+
+import {NeedsSetupTag} from "./NeedsSetupTag"
 
 export interface AgentSecretsSectionProps {
     revisionId?: string | null
@@ -47,6 +55,8 @@ export function AgentSecretsSection({
     const commitCredentials = useSetAtom(commitAgentCredentialsAtom)
     const artifactName = useAtomValue(workflowMolecule.selectors.artifactName(revisionId ?? ""))
     const workflowDirty = useAtomValue(workflowMolecule.selectors.isDirty(revisionId ?? ""))
+    // The server's needs-setup check; a tagged secret is fixed through the same Edit button.
+    const requirements = useAtomValue(agentRequirementsAtomFamily(revisionId ?? ""))
     const dirty = workflowDirty || localDraftDirty
     const [modalOpen, setModalOpen] = useState(false)
     const [editingIndex, setEditingIndex] = useState<number | null>(null)
@@ -156,6 +166,12 @@ export function AgentSecretsSection({
                 <div className="-mx-1 flex flex-col gap-0.5">
                     {bindings.map((binding, index) => {
                         const secretName = namesBySlug.get(binding.secret.slug)
+                        const requirement = requirements
+                            ? requirementForItem(requirements, {
+                                  kinds: ["secret"],
+                                  slug: binding.secret.slug,
+                              })
+                            : undefined
                         return (
                             <div
                                 key={`${binding.secret.slug}-${binding.binding.name}`}
@@ -168,11 +184,19 @@ export function AgentSecretsSection({
                                     <span className="truncate text-[13px] font-medium leading-5 text-foreground">
                                         {binding.binding.name}
                                     </span>
-                                    <span className="truncate text-xs leading-4 text-muted-foreground">
-                                        {secretName ?? `${binding.secret.slug} (unavailable)`}
-                                    </span>
+                                    {requirement ? (
+                                        <NeedsSetupTag
+                                            tag={false}
+                                            reason={needsSetupReasonLabel(requirement.reason)}
+                                        />
+                                    ) : (
+                                        <span className="truncate text-xs leading-4 text-muted-foreground">
+                                            {secretName ?? binding.secret.slug}
+                                        </span>
+                                    )}
                                 </span>
                                 <span className="flex shrink-0 items-center gap-0.5">
+                                    {requirement ? <NeedsSetupTag className="mr-1" /> : null}
                                     <Button
                                         variant="ghost"
                                         size="icon-sm"

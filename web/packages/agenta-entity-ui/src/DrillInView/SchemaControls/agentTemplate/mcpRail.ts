@@ -4,24 +4,11 @@
  */
 import {
     buildMcpConnectionRef,
-    getMcpConnectionStatus,
     isLegacyMcpItem,
     RESERVED_TOOL_PREFIX,
     toolPrefixFromName,
     type MCPEndpoint,
 } from "@agenta/entities/mcpEndpoint"
-
-/**
- * Whether this server needs attention before its tools will run.
- *
- * Derived through the data layer's list vocabulary rather than the journey's, so a rail row
- * and a settings row cannot disagree about one connection. Today that is Connected or Login
- * expired; a server that is merely unreachable is not distinguishable, because the only
- * failure signal on the record is written when a call fails with the credential the row
- * still holds, so a server that is simply down never sets it.
- */
-export const mcpLoginExpired = (endpoint: MCPEndpoint | undefined): boolean =>
-    Boolean(endpoint) && getMcpConnectionStatus(endpoint!) !== "connected"
 
 /**
  * Whether a saved MCP item has to open its form rather than its permissions.

@@ -28,6 +28,7 @@ import {
     toolPrefixFromName,
     type MCPEndpoint,
 } from "@agenta/entities/mcpEndpoint"
+import {needsSetupReasonLabel, requirementForItem} from "@agenta/entities/workflow"
 import {Tag} from "@agenta/ui/components/presentational"
 import {
     Button,
@@ -44,6 +45,9 @@ import {useAtomValue} from "jotai"
 import {RailField, railInfoLabel} from "../../drawers/shared/RailField"
 import McpConnectJourney from "../../mcpEndpoint/McpConnectJourney"
 import McpPermissionDrawer from "../../mcpEndpoint/McpPermissionDrawer"
+
+import {NeedsSetupTag} from "./agentTemplate/NeedsSetupTag"
+import {useAgentRequirements} from "./agentTemplate/useAgentRequirements"
 
 export interface McpServerFormViewProps {
     value: Record<string, unknown>
@@ -69,6 +73,11 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
     const selectedSlug = readMcpConnectionSlug(value)
     const selected = endpoints.find((endpoint) => endpoint.slug === selectedSlug)
     const legacy = isLegacyMcpItem(value)
+    // The saved server the server's check reports as missing or turned off.
+    const requirements = useAgentRequirements()
+    const requirement = requirements
+        ? requirementForItem(requirements, {kinds: ["mcp_server"], slug: selectedSlug})
+        : undefined
 
     /** Point the item at a connection, and freeze the tool prefix from its label. */
     const chooseConnection = useCallback(
@@ -101,7 +110,8 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                     <SelectTrigger className="w-full" aria-label="Connection">
                         <SelectValue
                             placeholder={
-                                selectedSlug && !selected
+                                // An unsaved item the server has not checked keeps the local wording.
+                                selectedSlug && !selected && !requirement
                                     ? "This connection is no longer available"
                                     : "Select a connection"
                             }
@@ -138,7 +148,13 @@ export function McpServerFormView({value, onChange, disabled}: McpServerFormView
                 </Select>
             </RailField>
 
-            {selected ? (
+            {requirement ? (
+                <RailField label="Status" align="center">
+                    <NeedsSetupTag reason={needsSetupReasonLabel(requirement.reason)} />
+                </RailField>
+            ) : null}
+
+            {selected && !requirement ? (
                 <RailField label="Status" align="center">
                     <div className="flex min-w-0 items-center gap-2">
                         <Tag

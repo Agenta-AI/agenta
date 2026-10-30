@@ -1,4 +1,4 @@
-import {memo, useCallback, useMemo, useRef} from "react"
+import {memo, useCallback, useEffect, useMemo, useRef} from "react"
 
 import {
     getMessageTraceId,
@@ -47,6 +47,7 @@ import {quotedMessageParts} from "./quotedMessageParts"
 import {describeRunFailure, RunErrorMessage} from "./RunErrorMessage"
 import {RunErrorRecovery} from "./RunErrorRecovery"
 import {runRetryAction} from "./runRetry"
+import {refreshOnSetupFailure} from "./setupFailureRefresh"
 import {turnFiles} from "./turnFileList"
 import {TurnFiles} from "./TurnFiles"
 import {mobileTurnRowClass} from "./turnRowClass"
@@ -174,6 +175,9 @@ const TurnRowInner = ({
               onSignIn: openProviders,
           })
         : null
+    // The latest turn failing for needs-setup refreshes the tags and the banner.
+    const lastErrorCode = turn.isLast && errorText ? turn.status.errorCode : null
+    useEffect(() => refreshOnSetupFailure(lastErrorCode), [lastErrorCode, turn.message.id])
     // A closed text is only the answer once the run is over: until then a call can still follow it,
     // and the model may take many seconds to start that call. A timed hold promoted such asides to
     // the answer and pulled them back into the fold when the call landed.

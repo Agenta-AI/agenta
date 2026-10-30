@@ -60,7 +60,7 @@ export const RUN_TYPE_LABEL: Record<Exclude<RunTypeFilter, "all">, string> = {
 export function deriveRunList(runs: TriggerDelivery[], view: RunListView): TriggerDelivery[] {
     return sortRuns(
         runs.filter((delivery) => {
-            if (view.status !== "all" && statusKey(delivery) !== view.status) return false
+            if (view.status !== "all" && deliveryOutcome(delivery) !== view.status) return false
             if (view.type !== "all" && runType(delivery) !== view.type) return false
             return true
         }),
@@ -80,7 +80,8 @@ export function runGroups(runs: TriggerDelivery[], grouping: RunGrouping): RunDa
 
     const buckets = new Map<string, RunDayGroup>()
     for (const delivery of runs) {
-        const key = grouping === "status" ? statusKey(delivery) : (runType(delivery) as string)
+        const key =
+            grouping === "status" ? deliveryOutcome(delivery) : (runType(delivery) as string)
         const label =
             grouping === "status" ? runOutcomeLabel(delivery) : RUN_TYPE_LABEL[runType(delivery)]
         const bucket = buckets.get(key)
@@ -88,15 +89,4 @@ export function runGroups(runs: TriggerDelivery[], grouping: RunGrouping): RunDa
         else buckets.set(key, {key, label, runs: [delivery]})
     }
     return [...buckets.values()]
-}
-
-function statusKey(delivery: TriggerDelivery): RunStatusFilter {
-    switch (deliveryOutcome(delivery)) {
-        case "ok":
-            return "ok"
-        case "bad":
-            return "bad"
-        default:
-            return "pending"
-    }
 }

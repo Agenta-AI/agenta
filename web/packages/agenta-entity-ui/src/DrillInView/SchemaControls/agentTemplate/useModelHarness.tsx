@@ -8,8 +8,6 @@ import {
     customSecretsAtom,
     type AgentConnectionNamespace,
     type AgentSecretBinding,
-    standardSecretsAtom,
-    vaultSecretsQueryAtom,
 } from "@agenta/entities/secret"
 import type {SchemaProperty} from "@agenta/entities/shared"
 import {
@@ -19,12 +17,11 @@ import {
     type BuildKitUiState,
 } from "@agenta/entities/workflow"
 import {getEnabledSandboxProviders} from "@agenta/shared/api"
-import {normalizeProviderFamily} from "@agenta/shared/utils"
 import {ConfigAccordionSection} from "@agenta/ui/components/presentational"
 import {useDrillInUI} from "@agenta/ui/drill-in"
 import {SelectLLMProviderBase} from "@agenta/ui/select-llm-provider"
 import {Cube, Hammer, Toolbox, Vault} from "@phosphor-icons/react"
-import {atom, useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 
 import {useHasChangedUnder, useRevertUnder} from "../../../drawers/shared/ChangedPathsContext"
 import {
@@ -41,7 +38,6 @@ import {
     buildModelOptionGroups,
     composeModelValue,
     connectionFromConfig,
-    harnessAllowsModel,
     harnessSupportsUserMcp,
     modelIdFromConfig,
     bareConnectionModelId,
@@ -67,14 +63,8 @@ import {CatalogUnavailableNotice} from "./CatalogUnavailableNotice"
 import {INTEGRATION_DRAWER_WIDTH} from "./drawerWidths"
 import ModelPickerControl from "./ModelPickerControl"
 import {PermissionPolicySelect} from "./PermissionPolicySelect"
-import {shouldPromptForProviderKey} from "./providerKeyPrompt"
 import {RevertGroupButton} from "./RevertGroupButton"
 import {useBuildKit} from "./useBuildKit"
-
-// Only assert "needs a key" once the vault query has resolved (an array). While it's pending,
-// `standardSecretsAtom` returns the static provider catalog with empty keys, so a reload would
-// flash a false "Connect key" warning on the section, rail item, and config-panel row.
-const vaultLoadedAtom = atom((get) => Array.isArray(get(vaultSecretsQueryAtom).data))
 
 // Shared with the chat composer's model palette so a hidden harness stays hidden everywhere.
 
@@ -96,6 +86,7 @@ export function useModelHarness({
     credentialOperationsBlocked = false,
     onCredentialRevisionCommitted,
     normalizeSandbox = false,
+    onlyCurrentConnection = false,
 }: {
     schema?: SchemaProperty | null
     config: Record<string, unknown>
@@ -111,6 +102,8 @@ export function useModelHarness({
     onCredentialRevisionCommitted?: (nextRevisionId: string) => void
     /** Only the live panel owner normalizes; mounting a section body never does. */
     normalizeSandbox?: boolean
+    /** The picker lists only the stored connection's models (a model it no longer offers). */
+    onlyCurrentConnection?: boolean
 }) {
     const props = (schema?.properties ?? {}) as Record<string, SchemaProperty>
     const subProps = useCallback(
@@ -227,10 +220,6 @@ export function useModelHarness({
     const catalogUnavailable = Boolean(harnessRefKey) && !capabilities && catalogFailed
     const mcpSupported = harnessSupportsUserMcp(capabilities, harnessValue)
 
-    // Narrowed to the loaded flag (all this hook reads) — the raw query atom churns identity on
-    // every fetch-state flip during boot.
-    const vaultLoaded = useAtomValue(vaultLoadedAtom)
-
     const modeOptions = useMemo(
         () => allowedConnectionModes(capabilities, harnessValue),
         [capabilities, harnessValue],
@@ -238,34 +227,6 @@ export function useModelHarness({
 
     // Vault custom_provider connections carry their own models; the harness catalog can't reach them.
     const customSecrets = useAtomValue(customSecretsAtom)
-
-    // Inline credential prompt: resolve the selected model's provider family and check whether the
-    // vault already holds its (standard) key. When it doesn't, the drawer surfaces a key field so the
-    // user can connect it here. `providerForModel` is the same catalog lookup the model picker uses.
-    // Also fed to the Provider credentials section, which auto-highlights this family in its rail.
-    const standardSecrets = useAtomValue(standardSecretsAtom)
-    const selectedProviderFamily = useMemo(
-        () => providerForModel(capabilities, harnessValue, modelId) ?? connection.provider ?? null,
-        [capabilities, harnessValue, modelId, connection.provider],
-    )
-    const providerVaultEntry = useMemo(() => {
-        const family = normalizeProviderFamily(selectedProviderFamily)
-        if (!family) return null
-        return (
-            standardSecrets.find(
-                (secret) =>
-                    normalizeProviderFamily((secret.name ?? "").replace(/_api_key$/i, "")) ===
-                        family || normalizeProviderFamily(secret.title) === family,
-            ) ?? null
-        )
-    }, [standardSecrets, selectedProviderFamily])
-    // Presence goes through `hasStoredKey`, never the row's value (see the module for the rule).
-    const providerNeedsKey = shouldPromptForProviderKey({
-        connectionMode: connection.mode,
-        connectionSlug: connection.slug,
-        vaultLoaded,
-        standardProviderEntry: providerVaultEntry,
-    })
 
     // The "Add custom provider" footer + drawer come from context, same source as the completion picker.
     const {llmProviderConfig, permissions, onWorkflowRevisionCommitted} = useDrillInUI()
@@ -569,27 +530,11 @@ export function useModelHarness({
             // isCloud is really isEE today, which would hide subscriptions on self-hosted EE,
             // exactly where mounted logins exist. Ungated until a real cloud signal exists.
             showSubscriptions={true}
+            onlyCurrentConnection={onlyCurrentConnection}
             onSelect={applyPickerSelection}
             fallback={catalogModelControl}
         />
     ) : null
-
-    // The harness is no longer chosen here — each model row carries its own — so the section shows
-    // no harness control. What survives is the compatibility check behind the section's badge.
-    const selectedCaps = harnessValue ? capabilities?.[harnessValue] : null
-    const selectedProviders = selectedCaps?.providers ?? []
-    // A harness supports the model if it lists the exact id OR the model's PROVIDER family (harnesses use
-    // different id namespaces; the provider is the reliable cross-harness signal on the config).
-    const selectedKeepsModel =
-        !modelId ||
-        harnessAllowsModel(
-            capabilities,
-            harnessValue,
-            modelId,
-            customSecrets,
-            connection.slug || null,
-        ) ||
-        (!!connection.provider && selectedProviders.includes(connection.provider))
 
     // The Model section's body: the picker, and nothing else. It carries no rail label — that would
     // only restate the section title and cost the narrow panel its label gutter. A focus filter
@@ -874,12 +819,6 @@ export function useModelHarness({
     return {
         hasModelOrHarness,
         mcpSupported,
-        // Standard vault slot, no key yet: the config panel highlights the Model section. The chat
-        // composer gates on its own project-wide `gateActive`, not on this.
-        needsProviderKey: providerNeedsKey,
-        // A model is selected but its harness can't run it — a *model* problem, so the config panel
-        // flags the Model section as invalid.
-        modelUnsupported: !!modelId && !selectedKeepsModel,
         modelSummary,
         modelHarnessBody,
         // One column of connection rows; it needs no more room than the plain drawer.
