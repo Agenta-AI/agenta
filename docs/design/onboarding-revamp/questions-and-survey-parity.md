@@ -1,6 +1,6 @@
 # Onboarding questions and the signup survey: one vocabulary
 
-Last updated: 2026-10-27.
+Last updated: 2026-10-30.
 
 The first-agent onboarding and the EE post-signup survey ("Signup 3 - Agents" in PostHog)
 both ask who the person is. They used different option lists and different property names,
@@ -14,18 +14,18 @@ mapping that makes them one.
 | `user_role_v2` | string | onboarding; the survey only with `$set_once` while it still asks role | the role labels below |
 | `company_size_v2` | string | onboarding; the survey only with `$set_once` while it still asks size | Solo, 2-10, 11-50, 51-200, 201+ |
 | `referral_source_v2` | string | onboarding only | the source labels below |
-| `agent_experience_v2` | string | the survey | Not yet — just exploring, Built prototypes or side projects, Running some in production, Running many at scale |
+| `agent_experience_v2` | string | the post-signup form only; the onboarding does not ask it | Not yet — just exploring, Built prototypes or side projects, Running some in production, Running many at scale |
 | `is_icp_v2` | boolean | nobody from now on; older persons keep the survey's value | derived in reporting, see below |
 
-One writer per topic. The onboarding owns role, size and source. The survey keeps agent
-experience, intent and the email backfill. PostHog person properties are last-write-wins and
+One writer per topic. The onboarding owns role, size and source. The post-signup form keeps
+agent experience and intent. PostHog person properties are last-write-wins and
 keep no history, so a second writer would make "who said this" unanswerable. Until the survey
 stops asking role and size, it writes them with `$set_once`: it fills them for someone who
 never saw the onboarding and never replaces an onboarding answer. Its referral answer is a
 list, so it stays on the `survey sent` event and is not written to `referral_source_v2`.
 
-`is_icp_v2` needs company size, role and agent experience, which now arrive from two surfaces.
-No form writes it any more. A value stored before this change can disagree with the current
+`is_icp_v2` needs company size and role, which now arrive from two surfaces. No form writes it
+any more. A value stored before this change can disagree with the current
 inputs, so reporting derives the current result instead (see below).
 
 ## Role: old label to new chip
@@ -92,9 +92,8 @@ and hosting as the only repeated real ones.
 
 ## is_icp_v2
 
-Definition: company size in 11-50, 51-200 or 201+, role not Student or Hobbyist, and agent
-experience set and not "Not yet — just exploring". A person with no agent experience answer
-is not counted as ICP.
+Definition: company size in 11-50, 51-200 or 201+, and role not Student or Hobbyist. Agent
+experience is not part of it, because the onboarding does not ask that question.
 
 The role test matches any label starting with "Hobbyist", so a rename cannot flip the result.
 The stored property is frozen at what the survey wrote before this change, so derive the
@@ -107,11 +106,10 @@ SELECT
     AND lower(properties['user_role_v2']) NOT LIKE 'hobbyist%'
     AND properties['user_role_v2'] != 'Student'
     AND trim(properties['user_role_v2']) != ''
-    AND properties['agent_experience_v2'] NOT IN ('Not yet — just exploring', '')
   ) AS icp,
   count() AS people
 FROM persons
-WHERE properties['agent_experience_v2'] IS NOT NULL
+WHERE properties['company_size_v2'] IS NOT NULL
 ```
 
 ## Events
@@ -120,6 +118,16 @@ Unchanged: `onboarding_started`, `onboarding_step_completed` (with `step`, the 1
 position in the registry, and `step_key`, the question id), `onboarding_create_clicked`,
 `onboarding_agent_created`, `onboarding_skipped`. Adding the size question shifts the numbers:
 credits is step 4 of 5 now, not 3 of 4. Build funnels on `step_key`.
+
+`survey sent` has two senders, and both use the same survey and question ids. The post-signup
+form sends it for sign-in links that keep the old app (`redirectToPath`, invites). The onboarding
+sends it once the person completes the last question. The onboarding's event answers role, size,
+referral source and email, and it leaves out agent experience and intent, so those responses are
+blank on the survey results for people who signed up through `/m`. A write-in is sent as the typed
+line without the `Other:` prefix, as the form does, and referral source is sent as a list.
+
+The onboarding also sends `first_agent_intent` when the person creates the first agent or skips,
+with `source` set to `template`, `composer` or `skipped`.
 
 The survey's answers live on the immutable `survey sent` event as `$survey_response_<question
 id>`. Those events are the record of what people answered before this change; do not delete
