@@ -3,6 +3,7 @@ import {useState} from "react"
 import {isValidEmailAddress} from "@agenta/auth"
 import type {WorkspaceMember} from "@agenta/entities/organization"
 import {
+    assignWorkspaceRole,
     fetchAllWorkspaceRoles,
     inviteToWorkspace,
     removeFromWorkspace,
@@ -35,14 +36,15 @@ import {
 } from "@agenta/ui/ui"
 import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query"
 
+import {useProjectPermission} from "../context/useProjectPermission"
+
 import {InvitedLinkDialog, type InvitedLink} from "./InvitedLinkDialog"
+import {memberRole, MemberRoleCell, memberRoleLabel} from "./MemberRoleCell"
 import type {SettingsTabProps} from "./settingsTabProps"
 import {useSettingsOrg} from "./useSettingsOrg"
 
-const roleLabel = (role: string) => role.charAt(0).toUpperCase() + role.slice(1)
-
 /** Mobile binding for Members: invite and remove as dialogs, your own name renamed in place. */
-export const MembersTab = ({workspaceId: routeWorkspaceId}: SettingsTabProps) => {
+export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsTabProps) => {
     const {user: signedInUser} = useProfile()
     const {organizationId, org, loading, failed, retry} = useSettingsOrg(routeWorkspaceId)
     const members = org.data?.default_workspace?.members ?? []
@@ -58,21 +60,31 @@ export const MembersTab = ({workspaceId: routeWorkspaceId}: SettingsTabProps) =>
     const [invitedLink, setInvitedLink] = useState<InvitedLink | null>(null)
     const queryClient = useQueryClient()
 
-    // NOT a permission check: it only says we know which workspace to write to. Mobile's access
-    // model is deliberately optimistic (`useMobileSettingsAccess`) and the API authorizes — there
-    // is no packaged RBAC rule yet.
+    // Knowing the workspace is the floor; each verb below also asks the backend what this
+    // reader may do, so no control appears that the API would refuse.
     const scopeKnown = Boolean(organizationId && workspaceId)
+    const canInvite = useProjectPermission(projectId, "add_new_user_to_workspace")
+    // Changing a role and removing a member both need the admin or owner role, which this
+    // permission marks: no lesser role holds it.
+    const canModifyRoles = useProjectPermission(projectId, "modify_user_roles")
 
+    // The roles this organization offers. Keyed by organization, because another organization
+    // on another plan offers another set.
     const roles = useQuery({
-        queryKey: ["workspace-roles"],
-        queryFn: () => fetchAllWorkspaceRoles(true),
-        enabled: inviteOpen,
+        queryKey: ["workspace-roles", organizationId, projectId],
+        queryFn: () => fetchAllWorkspaceRoles(true, projectId),
+        enabled: Boolean(projectId) && (inviteOpen || canModifyRoles),
     })
+    // An invite never names the owner, and a role change cannot set it: ownership moves by
+    // transfer only, and the API refuses it on both routes.
+    const offeredRoles = (roles.data ?? [])
+        .map((entry) => entry.role_name)
+        .filter((entry) => entry !== "owner")
 
     const emailValid = isValidEmailAddress(email.trim())
     const showEmailError = emailTouched && Boolean(email.trim()) && !emailValid
     // A role is required wherever the API offers roles; still loading counts as offered.
-    const roleMissing = (roles.isPending || Boolean(roles.data?.length)) && !role
+    const roleMissing = (roles.isPending || offeredRoles.length > 0) && !role
 
     const closeInvite = () => {
         setInviteOpen(false)
@@ -118,6 +130,22 @@ export const MembersTab = ({workspaceId: routeWorkspaceId}: SettingsTabProps) =>
             setError((cause as Error)?.message || "Unable to remove the member"),
     })
 
+    const roleMutation = useMutation({
+        mutationFn: ({member, role: next}: {member: WorkspaceMember; role: string}) =>
+            assignWorkspaceRole(
+                {
+                    organizationId: organizationId!,
+                    workspaceId: workspaceId!,
+                    email: member.user.email,
+                    role: next,
+                },
+                true,
+            ),
+        onSuccess: () => onChanged(),
+        onError: (cause: unknown) =>
+            setError((cause as Error)?.message || "Unable to change the role"),
+    })
+
     if (failed)
         return <LoadError title="Could not load this organization's members" onRetry={retry} />
 
@@ -127,8 +155,24 @@ export const MembersTab = ({workspaceId: routeWorkspaceId}: SettingsTabProps) =>
             loading={loading}
             signedInUser={signedInUser}
             ownerId={ownerId}
-            canInviteMembers={scopeKnown}
-            canRemoveMembers={scopeKnown}
+            canInviteMembers={scopeKnown && canInvite}
+            canRemoveMembers={scopeKnown && canModifyRoles}
+            renderRoleCell={(member) => (
+                <MemberRoleCell
+                    member={member}
+                    isOwner={Boolean(ownerId) && member.user.id === ownerId}
+                    roles={offeredRoles}
+                    canChange={scopeKnown && canModifyRoles}
+                    pending={
+                        roleMutation.isPending &&
+                        roleMutation.variables?.member.user.id === member.user.id
+                    }
+                    onChange={(next) => {
+                        setError(null)
+                        if (next !== memberRole(member)) roleMutation.mutate({member, role: next})
+                    }}
+                />
+            )}
             onInvite={() => setInviteOpen(true)}
             onRemove={(member) => {
                 setError(null)
@@ -163,7 +207,7 @@ export const MembersTab = ({workspaceId: routeWorkspaceId}: SettingsTabProps) =>
                                 Enter a valid email address
                             </p>
                         ) : null}
-                        {roles.data?.length ? (
+                        {offeredRoles.length ? (
                             <Select value={role} onValueChange={setRole}>
                                 {/* Full width, like the field above it — the trigger's
                                     default is fit-to-content, which left it stranded. */}
@@ -171,9 +215,9 @@ export const MembersTab = ({workspaceId: routeWorkspaceId}: SettingsTabProps) =>
                                     <SelectValue placeholder="Role" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    {roles.data.map((entry) => (
-                                        <SelectItem key={entry.role_name} value={entry.role_name}>
-                                            {roleLabel(entry.role_name)}
+                                    {offeredRoles.map((entry) => (
+                                        <SelectItem key={entry} value={entry}>
+                                            {memberRoleLabel(entry)}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>

@@ -15,10 +15,13 @@ const getProjectValues = () => ({projectId: getDefaultStore().get(projectIdAtom)
 //  - update: PUT data to server
 //  - delete: DELETE data from server
 
-export const fetchAllWorkspaceRoles = async (ignoreAxiosError = false) => {
+export const fetchAllWorkspaceRoles = async (ignoreAxiosError = false, projectId?: string) => {
     // Read workspace-scope roles from /access/roles and project to the legacy
-    // `{role_name, role_description}` shape callers expect.
+    // `{role_name, role_description}` shape callers expect. The route answers with the roles the
+    // caller's organization offers, so the project has to be named: without it the session falls
+    // back to the default project, which can belong to another organization.
     const response = await axios.get(`${getAgentaApiUrl()}/access/roles`, {
+        params: projectId ? {project_id: projectId} : undefined,
         _ignoreError: ignoreAxiosError,
     })
     const data = response.data as Record<
