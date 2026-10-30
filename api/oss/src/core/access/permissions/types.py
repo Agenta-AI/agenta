@@ -13,6 +13,7 @@ class DefaultRole(str, Enum):
 
     OWNER = "owner"
     ADMIN = "admin"
+    MEMBER = "member"
     DEVELOPER = "developer"
     EDITOR = "editor"
     ANNOTATOR = "annotator"
@@ -26,7 +27,8 @@ class DefaultRole(str, Enum):
     def get_description(cls, role):
         descriptions = {
             cls.OWNER: "Can fully manage the workspace, including adding and removing members.",
-            cls.ADMIN: "Can manage workspace settings and members but cannot delete the workspace.",
+            cls.ADMIN: "Can manage workspace settings, members and billing but cannot delete the workspace.",
+            cls.MEMBER: "Can use and build agents, chats and automations, but cannot read traces, analytics or evaluations.",
             cls.DEVELOPER: "Can deploy, export, and manage API keys and environments.",
             cls.EDITOR: "Can edit prompts, testsets, evaluators, and workflows.",
             cls.ANNOTATOR: "Can run evaluations and annotate traces.",
@@ -38,16 +40,18 @@ class DefaultRole(str, Enum):
 class RequiredRole(str, Enum):
     """Required role slugs per scope (the minimal guaranteed subset).
 
-    `owner`, `admin`, and `viewer` must exist in every scope (organization,
+    `owner`, `admin`, `member` and `viewer` must exist in every scope (organization,
     workspace, project) — they are merged in by the access-controls builder
     regardless of `AGENTA_ACCESS_ROLES` content, so application code can depend
-    on these three slugs being valid in any scope.
+    on these slugs being valid in any scope.
 
     The rationale for the minimal set: `owner` is the single full-access owner,
-    `admin` is full access that can be granted to many people, and `viewer` is
-    minimal (read-only) access for many people. Without `admin` in the minimal
-    set, an env override could leave a scope with only owner + viewer — where no
-    non-owner can actually do anything.
+    `admin` is full access that can be granted to many people, `member` is the
+    floor role of plans without RBAC (it uses the product but reads no trace
+    content), and `viewer` is minimal (read-only) access for many people, the floor
+    role of plans with RBAC. Without `admin` in the minimal set, an env override
+    could leave a scope with only owner + viewer — where no non-owner can actually
+    do anything.
 
     Env overrides may customize the permissions of these roles or add
     additional roles, but cannot remove them.
@@ -55,6 +59,7 @@ class RequiredRole(str, Enum):
 
     OWNER = "owner"
     ADMIN = "admin"
+    MEMBER = "member"
     VIEWER = "viewer"
 
 
@@ -273,10 +278,36 @@ class Permission(str, Enum):
             cls.RESET_PASSWORD,
             cls.VIEW_WORKSPACE,
             cls.MANAGE_AGENT_OWNERSHIP,
+            cls.EDIT_BILLING,
+        ]
+        # A member uses the product but reads no trace content: no spans or analytics,
+        # no invocation or annotation by trace id, and no evaluation, which can copy
+        # trace content into its results. `EDIT_SPANS` stays, because a member's runs
+        # export their spans with the member's credential.
+        MEMBER_EXCLUDED = {
+            cls.VIEW_SPANS,
+            cls.VIEW_INVOCATIONS,
+            cls.EDIT_INVOCATIONS,
+            cls.VIEW_ANNOTATIONS,
+            cls.EDIT_ANNOTATIONS,
+            cls.VIEW_EVALUATION_RUNS,
+            cls.EDIT_EVALUATION_RUNS,
+            cls.VIEW_EVALUATION_SCENARIOS,
+            cls.EDIT_EVALUATION_SCENARIOS,
+            cls.VIEW_EVALUATION_RESULTS,
+            cls.EDIT_EVALUATION_RESULTS,
+            cls.VIEW_EVALUATION_METRICS,
+            cls.EDIT_EVALUATION_METRICS,
+            cls.VIEW_EVALUATION_QUEUES,
+            cls.EDIT_EVALUATION_QUEUES,
+        }
+        MEMBER_PERMISSIONS = [
+            p for p in DEVELOPER_PERMISSIONS if p not in MEMBER_EXCLUDED
         ]
         defaults = {
             DefaultRole.OWNER: [p for p in cls],
             DefaultRole.ADMIN: ADMIN_PERMISSIONS,
+            DefaultRole.MEMBER: MEMBER_PERMISSIONS,
             DefaultRole.DEVELOPER: DEVELOPER_PERMISSIONS,
             DefaultRole.EDITOR: EDITOR_PERMISSIONS,
             DefaultRole.ANNOTATOR: ANNOTATOR_PERMISSIONS,
