@@ -4,7 +4,7 @@ import {isValidEmailAddress} from "@agenta/auth"
 import type {WorkspaceMember} from "@agenta/entities/organization"
 import {
     assignWorkspaceRole,
-    fetchAllWorkspaceRoles,
+    fetchOfferedRoles,
     inviteToWorkspace,
     removeFromWorkspace,
 } from "@agenta/entities/organization"
@@ -72,7 +72,7 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
     // Keyed by organization, because another organization on another plan offers another set.
     const roles = useQuery({
         queryKey: ["workspace-roles", organizationId, projectId],
-        queryFn: () => fetchAllWorkspaceRoles(true, projectId),
+        queryFn: () => fetchOfferedRoles(projectId, true),
         enabled: Boolean(projectId) && (inviteOpen || canModifyRoles),
     })
     const offeredRoles = (roles.data ?? []).map((entry) => entry.role_name)

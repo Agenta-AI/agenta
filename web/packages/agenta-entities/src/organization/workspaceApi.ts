@@ -30,35 +30,25 @@ interface RoleCatalogEntry {
 }
 
 /**
- * Read the role catalog and the offered roles.
+ * The roles an invite or a role change may set in this organization, in catalog order.
+ *
+ * The plan decides the list, and it never holds `owner`: ownership moves by transfer only, and
+ * both routes refuse anything the plan does not offer. Each entry keeps the catalog's
+ * description.
  *
  * The route answers for the caller's organization, which the request's auth scope names, so the
  * project rides along: a session with no project is scoped to the default one, which can belong
  * to another organization.
  */
-const fetchAccessRoles = async (
+export const fetchOfferedRoles = async (
     projectId?: string,
     ignoreAxiosError = false,
-): Promise<AccessRolesResponse> => {
+): Promise<Omit<WorkspaceRole, "permissions">[]> => {
     const response = await axios.get(`${getAgentaApiUrl()}/access/roles`, {
         params: projectId ? {project_id: projectId} : undefined,
         _ignoreError: ignoreAxiosError,
     })
-    return (response.data ?? {}) as AccessRolesResponse
-}
-
-/**
- * The roles an invite or a role change may set in this organization, in catalog order.
- *
- * The plan decides the list, and it never holds `owner`: ownership moves by transfer only, and
- * both routes refuse anything the plan does not offer. Each entry keeps the catalog's
- * description, which also describes a stored role the plan no longer offers.
- */
-export const fetchAllWorkspaceRoles = async (
-    ignoreAxiosError = false,
-    projectId?: string,
-): Promise<Omit<WorkspaceRole, "permissions">[]> => {
-    const data = await fetchAccessRoles(projectId, ignoreAxiosError)
+    const data = (response.data ?? {}) as AccessRolesResponse
     const offered = new Set(data.offered?.roles ?? [])
     return (data.workspace ?? [])
         .filter((entry) => offered.has(entry.role))
