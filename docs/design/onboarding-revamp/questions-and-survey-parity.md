@@ -21,8 +21,9 @@ One writer per topic. The onboarding owns role, size and source. The post-signup
 agent experience and intent. PostHog person properties are last-write-wins and
 keep no history, so a second writer would make "who said this" unanswerable. Until the survey
 stops asking role and size, it writes them with `$set_once`: it fills them for someone who
-never saw the onboarding and never replaces an onboarding answer. Its referral answer is a
-list, so it stays on the `survey sent` event and is not written to `referral_source_v2`.
+never saw the onboarding and never replaces an onboarding answer. The post-signup form's
+referral answer is a list, so that form does not write `referral_source_v2`. The onboarding writes
+that property as a string, and its `survey sent` event carries the same answer as a list.
 
 `is_icp_v2` needs company size and role, which now arrive from two surfaces. No form writes it
 any more. A value stored before this change can disagree with the current
@@ -127,7 +128,9 @@ blank on the survey results for people who signed up through `/m`. A write-in is
 line without the `Other:` prefix, as the form does, and referral source is sent as a list.
 
 The onboarding also sends `first_agent_intent` when the person creates the first agent or skips,
-with `source` set to `template`, `composer` or `skipped`.
+with `source` set to `template`, `composer` or `skipped`. A template or a typed message also sets
+the person property `first_agent_intent_v1`, to the template's category or to the keyword group
+from `classifyAgentIntent`. The typed text itself is never sent.
 
 The survey's answers live on the immutable `survey sent` event as `$survey_response_<question
 id>`. Those events are the record of what people answered before this change; do not delete
