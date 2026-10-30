@@ -37,6 +37,8 @@ from agenta.sdk.agents.requirements import (
 )
 
 from oss.src.core.access.permissions.types import Permission
+from oss.src.core.account_choices.dtos import ItemAccount
+from oss.src.core.account_choices.exceptions import AccountDataUnreadable
 from oss.src.core.account_choices.policy import personal_accounts_enabled
 from oss.src.core.account_choices.service import AccountChoicesService
 from oss.src.core.agent_requirements.dtos import (
@@ -56,6 +58,9 @@ from oss.src.core.secrets.dtos import SecretResponseDTO
 from oss.src.core.secrets.enums import SecretKind, SecretOwnerKind
 from oss.src.core.secrets.services import VaultService
 from oss.src.utils.context import AuthScope
+from oss.src.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
 
 Allowed = Callable[[Permission], Awaitable[bool]]
 Decision = Callable[[], Awaitable[bool]]
@@ -330,13 +335,19 @@ class AgentRequirementsService:
         if person is not None:
             # Without an agent (a draft with no `workflow_id`) the resolver reads no
             # choices; defaults and sign-ins still apply.
-            resolved = await self.account_choices_service.resolve(
-                organization_id=scope.organization_id,
-                project_id=scope.project_id,
-                artifact_id=artifact_id,
-                user_id=person,
-                items=items,
-            )
+            try:
+                resolved = await self.account_choices_service.resolve(
+                    organization_id=scope.organization_id,
+                    project_id=scope.project_id,
+                    artifact_id=artifact_id,
+                    user_id=person,
+                    items=items,
+                )
+            except AccountDataUnreadable:
+                # A stored sign-in that cannot be read: the run leaves these items
+                # out, so the person sets them up again.
+                log.warning("needs setup: a stored account could not be read")
+                resolved = [ItemAccount(item_key=item.item_key) for item in items]
             accounts = {account.item_key: account for account in resolved}
 
         found: List[_Found] = []

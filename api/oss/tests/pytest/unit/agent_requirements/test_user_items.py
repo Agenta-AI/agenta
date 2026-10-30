@@ -416,3 +416,18 @@ async def test_a_user_login_for_a_provider_no_login_serves_is_a_model_to_change(
     )
     assert [requirement.key for requirement in blocking] == ["model:openai/gpt-5.5"]
     assert accounts.calls == []
+
+
+async def test_an_unreadable_stored_account_asks_the_person_to_set_it_up_again():
+    from oss.src.core.account_choices.exceptions import AccountDataUnreadable
+
+    class _Unreadable(_AccountChoices):
+        async def resolve(self, **kwargs):
+            raise AccountDataUnreadable()
+
+    result = await _check(
+        _service(accounts=_Unreadable()), _agent(mcps=[_linear_mcp()])
+    )
+    [linear] = result.requirements
+    assert linear.reason.value == "needs_personal_account"
+    assert linear.fix.can_sign_in is True
