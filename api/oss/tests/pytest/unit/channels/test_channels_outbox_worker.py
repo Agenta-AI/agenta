@@ -427,7 +427,7 @@ class FakeTurnsDAO(SessionTurnsDAOInterface):
     async def complete(self, **kwargs):
         raise NotImplementedError
 
-    async def record_trace_usage(self, **kwargs):
+    async def set_turn_usage_from_trace(self, **kwargs):
         raise NotImplementedError
 
     async def fetch_turn(self, *, project_id, turn_id):

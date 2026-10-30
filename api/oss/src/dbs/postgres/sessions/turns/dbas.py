@@ -54,8 +54,9 @@ class SessionTurnDBA(
     parent_run_id = Column(String, nullable=True)
     approved_by = Column(JSONB(none_as_null=True), nullable=True)
 
-    # Usage of the turn. Null means unknown. `usage_source` names the writer: `runner`
-    # (the runner's figure at completion) or `trace` (the priced trace root, which wins).
+    # Usage of the turn. Null means unknown. `usage_source` says where the figures came
+    # from: `trace` (the priced trace root, which wins; a field it did not report can
+    # hold the runner's figure) or `runner` (only the runner reported).
     input_tokens = Column(BigInteger, nullable=True)
     output_tokens = Column(BigInteger, nullable=True)
     total_tokens = Column(BigInteger, nullable=True)

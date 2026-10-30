@@ -3,13 +3,13 @@ from typing import Dict, List, Optional
 from uuid import UUID
 
 from oss.src.core.shared.dtos import Reference, Windowing
+from oss.src.core.shared.dtos import RunUsage
 from oss.src.core.sessions.turns.dtos import (
     HarnessKind,
     SessionTurn,
     SessionTurnComplete,
     SessionTurnCreate,
     SessionTurnQuery,
-    SessionTurnUsage,
 )
 
 
@@ -34,16 +34,17 @@ class SessionTurnsDAOInterface(ABC):
     ) -> Optional[SessionTurn]: ...
 
     @abstractmethod
-    async def record_trace_usage(
+    async def set_turn_usage_from_trace(
         self,
         *,
         project_id: UUID,
         trace_id: UUID,
-        usage: SessionTurnUsage,
+        usage: RunUsage,
     ) -> int:
         """Write a trace's priced usage to the one turn with that trace id, over any
-        runner value. A trace that several turns share writes nothing. Returns the
-        number of turns written."""
+        runner value. A field the trace does not report keeps the turn's value. A
+        trace that several turns share writes nothing. Returns the number of turns
+        written."""
         ...
 
     @abstractmethod

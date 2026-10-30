@@ -12,8 +12,8 @@ from uuid import UUID
 from redis.asyncio import Redis
 
 from oss.src.core.tracing.service import TracingService
-from oss.src.core.tracing.dtos import OTelFlatSpan, TraceTotals
-from oss.src.core.sessions.turns.dtos import SessionTurnUsage
+from oss.src.core.shared.dtos import RunUsage
+from oss.src.core.tracing.dtos import OTelFlatSpan
 from oss.src.core.sessions.turns.service import SessionTurnsService
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.common import is_ee
@@ -56,6 +56,7 @@ class TracingWorker(StreamConsumer):
     def __init__(
         self,
         service: TracingService,
+        turns_service: SessionTurnsService,
         redis_client: Redis,
         stream_name: str,
         consumer_group: str,
@@ -64,7 +65,6 @@ class TracingWorker(StreamConsumer):
         max_block_ms: int = 5000,  # 5 seconds
         max_delay_ms: int = 250,  # 250 milliseconds
         max_batch_mb: int = 50,  # 50 MB
-        turns_service: Optional[SessionTurnsService] = None,
     ):
         super().__init__(
             redis_client=redis_client,
@@ -218,8 +218,8 @@ class TracingWorker(StreamConsumer):
                     await self.service.recompute_trace_totals(
                         project_id=project_id,
                         trace_id=trace_id,
-                        on_totals=partial(
-                            self._write_turn_usage,
+                        on_root_usage=partial(
+                            self._set_turn_usage_from_trace,
                             project_id=project_id,
                             trace_id=trace_id,
                         ),
@@ -240,30 +240,20 @@ class TracingWorker(StreamConsumer):
         # Return count and message IDs for ACK/DEL
         return (processed_count, processed_message_ids)
 
-    async def _write_turn_usage(
+    async def _set_turn_usage_from_trace(
         self,
-        totals: TraceTotals,
+        usage: RunUsage,
         *,
         project_id: UUID,
         trace_id: UUID,
     ) -> None:
         """A trace gives its root's priced usage to the turn with the same trace id. A
         trace of no chat matches no turn, so the update writes no row. It runs under
-        the trace's recompute lock, so a later recompute writes last. A failed write is
-        logged: it never fails the recompute."""
+        the trace's recompute lock, so a later recompute writes last. A failure fails
+        the recompute, so the recompute's retries also retry this write."""
 
-        if self.turns_service is None or not totals.root_usage:
-            return
-        try:
-            await self.turns_service.record_trace_usage(
-                project_id=project_id,
-                trace_id=trace_id,
-                usage=SessionTurnUsage(**totals.root_usage.model_dump()),
-            )
-        except Exception:
-            log.error(
-                "[INGEST] Failed to write turn usage",
-                project_id=str(project_id),
-                trace_id=str(trace_id),
-                exc_info=True,
-            )
+        await self.turns_service.set_turn_usage_from_trace(
+            project_id=project_id,
+            trace_id=trace_id,
+            usage=usage,
+        )

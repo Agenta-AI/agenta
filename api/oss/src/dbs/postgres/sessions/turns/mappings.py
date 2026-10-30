@@ -1,12 +1,12 @@
 from typing import Optional
 from uuid import UUID
 
+from oss.src.core.shared.dtos import RunUsage
 from oss.src.core.sessions.turns.dtos import (
     HarnessKind,
     SessionTurn,
     SessionTurnCreate,
     SessionTurnStoredUsage,
-    SessionTurnUsage,
     SessionTurnUsageSource,
 )
 from oss.src.dbs.postgres.sessions.references import (
@@ -124,21 +124,17 @@ def map_turn_usage_dbe_to_dto(
 ) -> Optional[SessionTurnStoredUsage]:
     if turn_dbe.usage_source is None:
         return None
-    try:
-        source = SessionTurnUsageSource(turn_dbe.usage_source)
-    except ValueError:
-        return None
     return SessionTurnStoredUsage(
         input_tokens=turn_dbe.input_tokens,
         output_tokens=turn_dbe.output_tokens,
         total_tokens=turn_dbe.total_tokens,
         cost=float(turn_dbe.cost) if turn_dbe.cost is not None else None,
-        source=source,
+        source=SessionTurnUsageSource(turn_dbe.usage_source),
     )
 
 
 def map_turn_usage_to_columns(
-    *, usage: SessionTurnUsage, source: SessionTurnUsageSource
+    *, usage: RunUsage, source: SessionTurnUsageSource
 ) -> dict:
     return {
         "input_tokens": usage.input_tokens,

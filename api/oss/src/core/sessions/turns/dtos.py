@@ -15,24 +15,19 @@ from oss.src.core.access.dtos import (
     RunSender,
 )
 from oss.src.core.sessions.types import SessionReference
-from oss.src.core.shared.dtos import Identifier, Lifecycle, OTelSpanId
+from oss.src.core.shared.dtos import Identifier, Lifecycle, OTelSpanId, RunUsage
 
 
 class SessionTurnUsageSource(str, Enum):
+    """Where a turn's figures came from. `trace`: the priced usage of the trace root.
+    A field the trace did not report can then hold the runner's figure. `runner`: only
+    the runner reported."""
+
     RUNNER = "runner"
     TRACE = "trace"
 
 
-class SessionTurnUsage(BaseModel):
-    """Usage of one turn. A null field is unknown, never zero."""
-
-    input_tokens: Optional[int] = None
-    output_tokens: Optional[int] = None
-    total_tokens: Optional[int] = None
-    cost: Optional[float] = None
-
-
-class SessionTurnStoredUsage(SessionTurnUsage):
+class SessionTurnStoredUsage(RunUsage):
     source: SessionTurnUsageSource
 
 
@@ -81,8 +76,8 @@ class SessionTurnComplete(BaseModel):
     turn_index: int
     agent_session_id: Optional[str] = None
     end_time: datetime
-    # The runner's usage of the turn; stored only when the turn has no usage yet.
-    usage: Optional[SessionTurnUsage] = None
+    # The runner's usage of the turn; it fills only the fields that have no value.
+    usage: Optional[RunUsage] = None
     # Server-set. Fills the attribution only on a row that has none.
     envelope: Optional[RunEnvelope] = None
 

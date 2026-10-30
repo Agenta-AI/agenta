@@ -3,14 +3,13 @@ from collections import OrderedDict
 from typing import Any, Dict, List, Optional
 
 from oss.src.utils.logging import get_module_logger
-from oss.src.core.shared.dtos import Trace, Traces
+from oss.src.core.shared.dtos import RunUsage, Trace, Traces
 from oss.src.core.tracing.dtos import (
     OTelFlatSpan,
     OTelSpan,
     OTelSpansTree,
     OTelTraceTree,
     Span,
-    TraceRootUsage,
     TraceType,
 )
 from oss.src.core.tracing.utils.pricing import price_tokens, resolve_pricing_model
@@ -123,7 +122,7 @@ def recompute_cumulative_metrics(
     return changes
 
 
-def trace_root_usage(span_dtos: List[OTelFlatSpan]) -> Optional[TraceRootUsage]:
+def trace_root_usage(span_dtos: List[OTelFlatSpan]) -> Optional[RunUsage]:
     """The cumulative tokens and cost of the trace's one root span, after the roll-up.
     None when the trace has no single root or the root carries no usage."""
 
@@ -138,7 +137,7 @@ def trace_root_usage(span_dtos: List[OTelFlatSpan]) -> Optional[TraceRootUsage]:
     def _int(value) -> Optional[int]:
         return int(value) if value is not None else None
 
-    return TraceRootUsage(
+    return RunUsage(
         input_tokens=_int(tokens.get("prompt")),
         output_tokens=_int(tokens.get("completion")),
         total_tokens=_int(tokens.get("total")),

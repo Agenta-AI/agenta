@@ -3,7 +3,7 @@ from uuid import UUID
 from abc import ABC, abstractmethod
 from datetime import datetime
 
-from oss.src.core.shared.dtos import Windowing
+from oss.src.core.shared.dtos import RunUsage, Windowing
 from oss.src.core.tracing.dtos import (
     OTelLink,
     OTelFlatSpan,
@@ -11,7 +11,6 @@ from oss.src.core.tracing.dtos import (
     Bucket,
     MetricSpec,
     MetricsBucket,
-    TraceTotals,
 )
 
 
@@ -105,8 +104,8 @@ class TracingDAOInterface(ABC):
         #
         recompute: Callable[[List[OTelFlatSpan]], Dict[str, Dict[str, Any]]],
         max_spans: int,
-        on_totals: Optional[Callable[[TraceTotals], Awaitable[None]]] = None,
-    ) -> Optional[TraceTotals]:
+        on_root_usage: Optional[Callable[[RunUsage], Awaitable[None]]] = None,
+    ) -> Optional[int]:
         raise NotImplementedError
 
     ### SESSIONS AND USERS

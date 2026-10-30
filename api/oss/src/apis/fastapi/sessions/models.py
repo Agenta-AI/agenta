@@ -31,11 +31,10 @@ from oss.src.core.sessions.turns.dtos import (
     HarnessKind,
     SessionTurn,
     SessionTurnQuery,
-    SessionTurnUsage,
 )
 from oss.src.core.sessions.types import SessionReference
 from oss.src.core.sessions.inputs.dtos import PendingInputUpdate, PendingInput
-from oss.src.core.shared.dtos import OTelSpanId, Windowing
+from oss.src.core.shared.dtos import OTelSpanId, Windowing, RunUsage
 from oss.src.dbs.postgres.sessions.streams.dao import MAX_SESSION_QUERY_LIMIT
 
 
@@ -459,7 +458,7 @@ class SessionTurnCompleteRequest(BaseModel):
     agent_session_id: Optional[str] = None
     end_time: datetime
     # The runner's usage of the turn; kept only from the runner.
-    usage: Optional[SessionTurnUsage] = None
+    usage: Optional[RunUsage] = None
 
 
 class SessionTurnQueryRequest(BaseModel):

@@ -22,11 +22,10 @@ from oss.src.core.sessions.turns.dtos import (
     SessionTurnComplete,
     SessionTurnCreate,
     SessionTurnQuery,
-    SessionTurnUsage,
     SessionTurnUsageSource,
 )
 from oss.src.core.sessions.turns.interfaces import SessionTurnsDAOInterface
-from oss.src.core.shared.dtos import Reference, Windowing
+from oss.src.core.shared.dtos import Reference, RunUsage, Windowing
 from oss.src.core.sessions.turns.types import (
     SessionTurnCursorInvalid,
     SessionTurnStreamMismatch,
@@ -131,17 +130,14 @@ class SessionTurnsDAO(SessionTurnsDAOInterface):
         if turn.agent_session_id is not None:
             values["agent_session_id"] = turn.agent_session_id
         if turn.usage is not None:
-            # The runner's figure is stored only on a turn with no usage yet: a priced
-            # trace that arrived first keeps its value.
-            no_usage = SessionTurnDBE.usage_source.is_(None)
+            # The runner's figures fill only the fields that have no value: a priced
+            # trace that arrived first keeps its figures and its source, and the runner
+            # still fills a field the trace did not report.
             for column, value in map_turn_usage_to_columns(
                 usage=turn.usage, source=SessionTurnUsageSource.RUNNER
             ).items():
                 typed = literal(value, type_=SessionTurnDBE.__table__.c[column].type)
-                values[column] = case(
-                    (no_usage, typed),
-                    else_=getattr(SessionTurnDBE, column),
-                )
+                values[column] = func.coalesce(getattr(SessionTurnDBE, column), typed)
         if turn.envelope is not None:
             # One group: every attribution column takes the completing envelope's
             # value only when the row recorded no principal; otherwise every column
@@ -195,12 +191,12 @@ class SessionTurnsDAO(SessionTurnsDAOInterface):
             return None
         return map_turn_dbe_to_dto(turn_dbe=dbe)
 
-    async def record_trace_usage(
+    async def set_turn_usage_from_trace(
         self,
         *,
         project_id: UUID,
         trace_id: UUID,
-        usage: SessionTurnUsage,
+        usage: RunUsage,
     ) -> int:
         # A field the trace does not report keeps the value the turn has.
         values = {

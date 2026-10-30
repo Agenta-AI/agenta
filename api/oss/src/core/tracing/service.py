@@ -62,7 +62,6 @@ from oss.src.core.tracing.dtos import (
     OTelFlatSpan,
     OTelSpan,
     OTelTraceTree,
-    TraceTotals,
     Span,
     SpanType,
     Spans,
@@ -88,7 +87,7 @@ from oss.src.core.tracing.dtos import (
     SimpleTraceChannel,
     SimpleTraceReferences,
 )
-from oss.src.core.shared.dtos import Link, Reference
+from oss.src.core.shared.dtos import Link, Reference, RunUsage
 
 if TYPE_CHECKING:
     from oss.src.core.queries.service import QueriesService
@@ -145,17 +144,17 @@ class TracingService:
         *,
         project_id: UUID,
         trace_id: UUID,
-        on_totals: Optional[Callable[[TraceTotals], Awaitable[None]]] = None,
-    ) -> Optional[TraceTotals]:
+        on_root_usage: Optional[Callable[[RunUsage], Awaitable[None]]] = None,
+    ) -> Optional[int]:
         """Recompute cumulative metrics of one trace from all its stored spans.
-        `on_totals` runs under the trace's lock."""
+        `on_root_usage` runs under the trace's lock."""
         return await self.tracing_dao.recompute_trace_metrics(
             project_id=project_id,
             trace_id=trace_id,
             #
             recompute=recompute_cumulative_metrics,
             max_spans=env.agenta.otlp.totals_max_spans,
-            on_totals=on_totals,
+            on_root_usage=on_root_usage,
         )
 
     async def ingest_span_dtos(

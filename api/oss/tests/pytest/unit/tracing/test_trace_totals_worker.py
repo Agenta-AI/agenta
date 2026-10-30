@@ -12,12 +12,8 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from oss.src.core.tracing.dtos import (
-    OTelFlatSpan,
-    SpanType,
-    TraceRootUsage,
-    TraceTotals,
-)
+from oss.src.core.shared.dtos import RunUsage
+from oss.src.core.tracing.dtos import OTelFlatSpan, SpanType
 from oss.src.core.tracing.streaming import serialize_span
 from oss.src.core.tracing.utils.trees import (
     calculate_and_propagate_metrics_by_trace,
@@ -48,7 +44,7 @@ class _StoringService:
         for span_dto in calculate_and_propagate_metrics_by_trace(span_dtos):
             self.spans[span_dto.span_id] = deepcopy(span_dto)
 
-    async def recompute_trace_totals(self, *, project_id, trace_id, on_totals=None):
+    async def recompute_trace_totals(self, *, project_id, trace_id, on_root_usage=None):
         self.recomputed.append((project_id, trace_id))
         if self.recompute_failures:
             self.recompute_failures -= 1
@@ -88,9 +84,23 @@ def _message(ids, span_dto):
     return (uuid4().hex.encode(), {b"data": serialize_span(**ids, span_dto=span_dto)})
 
 
-def _worker(service):
+class _Turns:
+    def __init__(self, failures=0):
+        self.written = []
+        self.failures = failures
+
+    async def set_turn_usage_from_trace(self, *, project_id, trace_id, usage):
+        if self.failures:
+            self.failures -= 1
+            raise ConnectionError("core database down")
+        self.written.append((project_id, trace_id, usage))
+        return 1
+
+
+def _worker(service, turns=None):
     return TracingWorker(
         service=service,
+        turns_service=turns or _Turns(),
         redis_client=None,
         stream_name="streams:spans",
         consumer_group="worker-spans",
@@ -232,7 +242,7 @@ async def test_dao_writes_only_changed_cumulative_values_in_span_order():
     engine = _Engine(rows)
     project_id, trace_id = uuid4(), uuid4()
 
-    totals = await TracingDAO(engine=engine).recompute_trace_metrics(
+    written = await TracingDAO(engine=engine).recompute_trace_metrics(
         project_id=project_id,
         trace_id=trace_id,
         recompute=recompute_cumulative_metrics,
@@ -242,8 +252,7 @@ async def test_dao_writes_only_changed_cumulative_values_in_span_order():
     assert "pg_advisory_xact_lock" in str(engine.executed[0][0])
     update_stmt, params = engine.executed[-2]
     assert update_stmt is UPDATE_CUMULATIVE_METRIC_STMT
-    assert totals.written == 2
-    assert totals.root_usage.cost == pytest.approx(0.03)
+    assert written == 2
     assert [(p["span_id"], p["metric"]) for p in params] == [
         (child_a, "costs"),
         (root, "costs"),
@@ -267,7 +276,7 @@ async def test_dao_skips_a_trace_over_the_span_limit():
     assert len(engine.executed) == 2
 
 
-async def test_dao_reports_the_root_usage():
+async def test_dao_hands_on_the_root_usage_before_the_commit():
     root, child = UUID(int=2), UUID(int=1)
     rows = [
         _row(root, None, SpanType.WORKFLOW, 0, None),
@@ -282,75 +291,76 @@ async def test_dao_reports_the_root_usage():
             },
         ),
     ]
-    totals = await TracingDAO(engine=_Engine(rows)).recompute_trace_metrics(
+    engine = _Engine(rows)
+    seen = []
+
+    async def on_root_usage(usage):
+        assert ("COMMIT", None) not in engine.executed
+        seen.append(usage)
+
+    await TracingDAO(engine=engine).recompute_trace_metrics(
         project_id=uuid4(),
         trace_id=uuid4(),
         recompute=recompute_cumulative_metrics,
         max_spans=10,
+        on_root_usage=on_root_usage,
     )
 
-    usage = totals.root_usage
+    assert len(seen) == 1
+    usage = seen[0]
     assert (usage.input_tokens, usage.output_tokens, usage.total_tokens) == (10, 5, 15)
     assert usage.cost == pytest.approx(0.02)
+    assert engine.executed[-1] == ("COMMIT", None)
 
 
-class _Turns:
-    def __init__(self):
-        self.written = []
+async def test_dao_hands_on_nothing_for_a_trace_without_usage():
+    seen = []
 
-    async def record_trace_usage(self, *, project_id, trace_id, usage):
-        self.written.append((project_id, trace_id, usage))
-        return 1
+    async def on_root_usage(usage):
+        seen.append(usage)
 
-
-class _TotalsService(_StoringService):
-    def __init__(self, totals):
-        super().__init__()
-        self.totals = totals
-
-    async def recompute_trace_totals(self, *, project_id, trace_id, on_totals=None):
-        await super().recompute_trace_totals(project_id=project_id, trace_id=trace_id)
-        if self.totals is not None and on_totals is not None:
-            await on_totals(self.totals)
-        return self.totals
-
-
-def _usage_worker(totals, turns):
-    return TracingWorker(
-        service=_TotalsService(totals),
-        redis_client=None,
-        stream_name="streams:spans",
-        consumer_group="worker-spans",
-        consumer_name="test",
-        turns_service=turns,
+    await TracingDAO(
+        engine=_Engine([_row(UUID(int=1), None, SpanType.WORKFLOW, 0, None)])
+    ).recompute_trace_metrics(
+        project_id=uuid4(),
+        trace_id=uuid4(),
+        recompute=recompute_cumulative_metrics,
+        max_spans=10,
+        on_root_usage=on_root_usage,
     )
+
+    assert seen == []
+
+
+class _UsageService(_StoringService):
+    """Hands a fixed root usage on, as the DAO does for a priced trace."""
+
+    def __init__(self, usage):
+        super().__init__()
+        self.usage = usage
+
+    async def recompute_trace_totals(self, *, project_id, trace_id, on_root_usage=None):
+        await super().recompute_trace_totals(project_id=project_id, trace_id=trace_id)
+        if self.usage is not None and on_root_usage is not None:
+            await on_root_usage(self.usage)
+        return 0
 
 
 async def test_a_priced_trace_writes_its_root_usage_to_the_turn():
     turns = _Turns()
-    usage = TraceRootUsage(input_tokens=3, output_tokens=4, total_tokens=7, cost=0.5)
-    worker = _usage_worker(TraceTotals(written=1, root_usage=usage), turns)
+    usage = RunUsage(input_tokens=3, output_tokens=4, total_tokens=7, cost=0.5)
+    worker = _worker(_UsageService(usage), turns)
     ids = dict(organization_id=uuid4(), project_id=uuid4(), user_id=uuid4())
     trace_id = uuid4()
 
     await worker.process_batch([_message(ids, _span(trace_id, uuid4(), None, 0))])
 
-    assert len(turns.written) == 1
-    project_id, written_trace, written_usage = turns.written[0]
-    assert (project_id, written_trace) == (ids["project_id"], trace_id)
-    assert written_usage.model_dump() == usage.model_dump()
+    assert turns.written == [(ids["project_id"], trace_id, usage)]
 
 
-@pytest.mark.parametrize(
-    "totals",
-    [
-        None,
-        TraceTotals(written=0, root_usage=None),
-    ],
-)
-async def test_an_unpriced_trace_writes_no_turn(totals):
+async def test_an_unpriced_trace_writes_no_turn():
     turns = _Turns()
-    worker = _usage_worker(totals, turns)
+    worker = _worker(_UsageService(None), turns)
     ids = dict(organization_id=uuid4(), project_id=uuid4(), user_id=uuid4())
 
     await worker.process_batch([_message(ids, _span(uuid4(), uuid4(), None, 0))])
@@ -358,44 +368,16 @@ async def test_an_unpriced_trace_writes_no_turn(totals):
     assert turns.written == []
 
 
-async def test_a_failed_usage_write_does_not_fail_the_recompute():
-    class _Down(_Turns):
-        async def record_trace_usage(self, **_):
-            raise ConnectionError("core database down")
-
-    usage = TraceRootUsage(cost=0.5)
-    service = _TotalsService(TraceTotals(written=1, root_usage=usage))
-    worker = TracingWorker(
-        service=service,
-        redis_client=None,
-        stream_name="streams:spans",
-        consumer_group="worker-spans",
-        consumer_name="test",
-        turns_service=_Down(),
-    )
+async def test_a_failed_usage_write_is_retried_with_the_recompute(monkeypatch):
+    monkeypatch.setattr(worker_module, "RECOMPUTE_BACKOFF_S", 0)
+    turns = _Turns(failures=1)
+    usage = RunUsage(cost=0.5)
+    service = _UsageService(usage)
+    worker = _worker(service, turns)
     ids = dict(organization_id=uuid4(), project_id=uuid4(), user_id=uuid4())
+    trace_id = uuid4()
 
-    await worker.process_batch([_message(ids, _span(uuid4(), uuid4(), None, 0))])
+    await worker.process_batch([_message(ids, _span(trace_id, uuid4(), None, 0))])
 
-    assert len(service.recomputed) == 1
-
-
-async def test_dao_hands_the_totals_on_before_the_commit():
-    rows = [_row(UUID(int=1), None, SpanType.WORKFLOW, 0, None)]
-    engine = _Engine(rows)
-    seen = []
-
-    async def on_totals(totals):
-        seen.append(totals.written)
-        assert ("COMMIT", None) not in engine.executed
-
-    await TracingDAO(engine=engine).recompute_trace_metrics(
-        project_id=uuid4(),
-        trace_id=uuid4(),
-        recompute=recompute_cumulative_metrics,
-        max_spans=10,
-        on_totals=on_totals,
-    )
-
-    assert seen == [0]
-    assert engine.executed[-1] == ("COMMIT", None)
+    assert len(service.recomputed) == 2
+    assert turns.written == [(ids["project_id"], trace_id, usage)]

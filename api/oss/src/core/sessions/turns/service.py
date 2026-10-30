@@ -9,13 +9,13 @@ from typing import Dict, List, Optional
 from uuid import UUID
 
 from oss.src.core.shared.dtos import Reference, Windowing
+from oss.src.core.shared.dtos import RunUsage
 from oss.src.core.sessions.turns.dtos import (
     HarnessKind,
     SessionTurn,
     SessionTurnComplete,
     SessionTurnCreate,
     SessionTurnQuery,
-    SessionTurnUsage,
 )
 from oss.src.core.sessions.turns.interfaces import SessionTurnsDAOInterface
 from oss.src.core.sessions.turns.types import SessionTurnNotFound
@@ -94,17 +94,17 @@ class SessionTurnsService:
             log.error("[SESSIONS] Failed to publish turn-ended", exc_info=True)
         return completed
 
-    async def record_trace_usage(
+    async def set_turn_usage_from_trace(
         self,
         *,
         project_id: UUID,
         trace_id: UUID,
-        usage: SessionTurnUsage,
+        usage: RunUsage,
     ) -> int:
         """Ingest's write-back: the priced usage of a trace's root goes to its
-        turn, with source `trace`. It replaces a runner value; a runner value never
-        replaces it."""
-        return await self._dao.record_trace_usage(
+        turn, with source `trace`. It replaces the runner's figures it reports; a
+        runner figure fills only a field the trace left empty."""
+        return await self._dao.set_turn_usage_from_trace(
             project_id=project_id,
             trace_id=trace_id,
             usage=usage,
