@@ -158,7 +158,7 @@ const TurnRowInner = ({
     // answer. Read only for an answer-less settled turn, as the desktop does.
     const answerless = !turn.isUser && turn.status.noResponse && !live && !turn.status.showError
     const traceSummary = useAtomValue(
-        traceDataSummaryAtomFamily(answerless && traceId && canViewSpans ? traceId : ""),
+        traceDataSummaryAtomFamily(answerless && traceId ? traceId : ""),
     )
     // A trace keeps the provider's failure as it came back, which can be a raw JSON body with
     // account ids; only its sanitized sentence may reach the screen, as on the desktop.

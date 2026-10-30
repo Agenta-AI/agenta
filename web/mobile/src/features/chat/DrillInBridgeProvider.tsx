@@ -1,5 +1,6 @@
 import {type PropsWithChildren, useCallback, useMemo} from "react"
 
+import {canViewSpansAtom} from "@agenta/entities/access"
 import {
     DrillInUIProvider,
     GatewayToolsBridgeProvider,
@@ -12,7 +13,7 @@ import {isEE} from "@agenta/shared/api"
 import {useSkillsBridge} from "@agenta/skills-ui"
 import {EditorProvider} from "@agenta/ui/editor"
 import {SharedEditor} from "@agenta/ui/shared-editor"
-import {getDefaultStore, useSetAtom} from "jotai"
+import {getDefaultStore, useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import {agentEntryHref} from "../agents/agentEntry"
@@ -61,7 +62,7 @@ export const DrillInBridgeProvider = ({
 
     const canEditSecrets = useProjectPermission(projectId, "edit_secret")
     // No trace access, no trace openers: the config pane and the delivery rows hide theirs.
-    const canViewSpans = useProjectPermission(projectId, "view_spans")
+    const canViewSpans = useAtomValue(canViewSpansAtom)
     const permissions = useMemo(() => ({canEditSecrets}), [canEditSecrets])
     const pinRevision = useSetAtom(selectedRevisionAtomFamily(sessionId))
     const onWorkflowRevisionCommitted = useCallback(
