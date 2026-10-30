@@ -3,7 +3,7 @@
  * Pure, so the card and its tests run the same rule.
  */
 import type {UserItemKind} from "@agenta/entities/accountChoice"
-import {isUserRequirement, type AgentRequirementItem} from "@agenta/entities/workflow"
+import {isPersonalRequirement, type AgentRequirementItem} from "@agenta/entities/workflow"
 
 export interface PersonalSetupItem {
     /** The requirement key, which is the item key of the account choice. */
@@ -26,7 +26,7 @@ export const personalSetupItems = (
 ): PersonalSetupItem[] => {
     const items: PersonalSetupItem[] = []
     for (const req of requirements ?? []) {
-        if (!isUserRequirement(req) || req.blocks_run) continue
+        if (!isPersonalRequirement(req) || req.blocks_run) continue
         const ref = req.reference ?? {}
         if (req.kind === "app_connection") {
             const name = text(ref.integration) ?? req.label

@@ -3,7 +3,7 @@ import {describe, expect, it} from "vitest"
 import {
     agentRequirementsSchema,
     canFixRequirement,
-    isUserRequirement,
+    isPersonalRequirement,
     modelRequirement,
     needsSetupReasonLabel,
     requirementAtPath,
@@ -156,7 +156,26 @@ describe("user items", () => {
     })
 
     it("are told apart by account_source, not by the key", () => {
-        expect(isUserRequirement(userGmail)).toBe(true)
-        expect(isUserRequirement(github)).toBe(false)
+        expect(isPersonalRequirement(userGmail)).toBe(true)
+        expect(isPersonalRequirement(github)).toBe(false)
+    })
+
+    // The project's server is missing: no sign-in fixes it, so the editor row shows it.
+    const userMissingServer = req({
+        key: "mcp_server:user/octolens",
+        kind: "mcp_server",
+        account_source: "user",
+        reference: {type: "gateway", namespace: "custom", slug: "octolens"},
+        paths: ["agent.mcps[2].connection"],
+        reason: "not_found",
+        fix: {can_edit_agent: true},
+    })
+
+    it("are the agent's problem when the project's server is missing", () => {
+        expect(isPersonalRequirement(userMissingServer)).toBe(false)
+        expect(requirementAtPath([userMissingServer], "mcps[2]")).toBe(userMissingServer)
+        expect(
+            requirementForItem([userMissingServer], {kinds: ["mcp_server"], slug: "octolens"}),
+        ).toBe(userMissingServer)
     })
 })

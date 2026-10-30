@@ -107,7 +107,7 @@ export {
     MODEL_SETUP_PLACEHOLDER,
     NEEDS_SETUP_LABEL,
     canFixRequirement,
-    isUserRequirement,
+    isPersonalRequirement,
     modelRequirement,
     needsSetupReasonLabel,
     requirementAtPath,
