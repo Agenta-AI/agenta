@@ -10,8 +10,8 @@ import {
     beginPersonalMcpSignIn,
     cancelMcpConnectAttempt,
     fetchMcpConnectAttempt,
-    signInToMcpEndpointWithToken,
-    signOutOfMcpEndpoint,
+    signInPersonalMcpWithToken,
+    signOutPersonalMcp,
 } from "../api/api"
 import {buildTrustedOrigins} from "../core/connectMessage"
 import {watchOauthConsent} from "../core/connectWatch"
@@ -166,7 +166,7 @@ export function usePersonalMcpSignIn(): PersonalMcpSignIn {
         async (endpoint: MCPEndpoint, token: string) => {
             if (!endpoint.id || !begin(endpoint.id)) return false
             try {
-                await signInToMcpEndpointWithToken(endpoint.id, token, projectId)
+                await signInPersonalMcpWithToken(endpoint.id, token, projectId)
                 await finish(null)
                 return true
             } catch {
@@ -181,7 +181,7 @@ export function usePersonalMcpSignIn(): PersonalMcpSignIn {
         async (endpoint: MCPEndpoint) => {
             if (!endpoint.id || !begin(endpoint.id)) return
             try {
-                await signOutOfMcpEndpoint(endpoint.id, projectId)
+                await signOutPersonalMcp(endpoint.id, projectId)
                 await finish(null)
             } catch {
                 await finish("Could not sign out. Try again.")

@@ -45,8 +45,8 @@ import {
 } from "../../src/gatewayTool/api/api"
 import {
     beginPersonalMcpSignIn,
-    signInToMcpEndpointWithToken,
-    signOutOfMcpEndpoint,
+    signInPersonalMcpWithToken,
+    signOutPersonalMcp,
 } from "../../src/mcpEndpoint/api/api"
 
 const PROJECT = {queryParams: {project_id: "project-1"}}
@@ -147,7 +147,7 @@ describe("the caller's own MCP sign-in", () => {
     it("sends the person's token", async () => {
         gatewayMcp.connectMcpEndpoint.mockResolvedValue({count: 1})
 
-        await signInToMcpEndpointWithToken("e-1", "token-value", "project-1")
+        await signInPersonalMcpWithToken("e-1", "token-value", "project-1")
 
         expect(gatewayMcp.connectMcpEndpoint).toHaveBeenCalledWith(
             {endpoint_id: "e-1", owner_kind: "user", token: "token-value"},
@@ -156,7 +156,7 @@ describe("the caller's own MCP sign-in", () => {
     })
 
     it("signs the person out only", async () => {
-        await signOutOfMcpEndpoint("e-1", "project-1")
+        await signOutPersonalMcp("e-1", "project-1")
 
         expect(gatewayMcp.disconnectMcpEndpoint).toHaveBeenCalledWith(
             {endpoint_id: "e-1", owner_kind: "user"},
@@ -186,7 +186,7 @@ describe("the caller's own tool connections", () => {
         )
     })
 
-    it("lists the project's connections with no scope, as before", async () => {
+    it("lists the project's connections with no scope", async () => {
         tools.queryToolConnections.mockResolvedValue({connections: []})
 
         await queryToolConnections()

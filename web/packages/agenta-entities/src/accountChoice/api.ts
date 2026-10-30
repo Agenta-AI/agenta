@@ -14,7 +14,7 @@ import {
     type ItemAccount,
 } from "./schema"
 
-const scoped = (projectId: string) => ({queryParams: {project_id: projectId}})
+const projectScopedRequest = (projectId: string) => ({queryParams: {project_id: projectId}})
 
 /** The one account the asker picked: exactly one of the two ids. */
 export type AccountPick = {secretId: string} | {gatewayConnectionId: string}
@@ -40,7 +40,7 @@ export const upsertAccountChoice = async ({
                     : {gateway_connection_id: account.gatewayConnectionId}),
             },
         },
-        scoped(projectId),
+        projectScopedRequest(projectId),
     )
     const data = safeParseWithLogging(
         accountChoiceResponseSchema,
@@ -66,7 +66,7 @@ export const queryAccountChoices = async ({
                 secret_ids: filter.secretIds,
             },
         },
-        scoped(projectId),
+        projectScopedRequest(projectId),
     )
     const data = safeParseWithLogging(
         accountChoicesResponseSchema,
@@ -85,7 +85,7 @@ export const deleteAccountChoice = async ({
 }): Promise<void> => {
     await getAccountChoicesClient().deleteAccountChoice(
         {account_choice_id: accountChoiceId},
-        scoped(projectId),
+        projectScopedRequest(projectId),
     )
 }
 
@@ -105,7 +105,7 @@ export const resolveDraftAccountChoices = async ({
 }): Promise<ItemAccount[]> => {
     const response = await getAccountChoicesClient().resolveAccountChoices(
         {workflow_id: workflowId, parameters},
-        scoped(projectId),
+        projectScopedRequest(projectId),
     )
     const data = safeParseWithLogging(
         itemAccountsResponseSchema,

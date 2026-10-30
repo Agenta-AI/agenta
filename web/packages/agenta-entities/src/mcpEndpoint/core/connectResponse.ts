@@ -4,11 +4,11 @@
  */
 import {z} from "zod"
 
-export const mcpConnectResponseSchema = z.object({
+export const personalMcpConnectResponseSchema = z.object({
     redirect_url: z.string().nullish(),
     attempt_id: z.string().nullish(),
     expires_in: z.number().nullish(),
     scopes_offered: z.array(z.string()).nullish(),
 })
 
-export type MCPPersonalConnectResponse = z.infer<typeof mcpConnectResponseSchema>
+export type MCPPersonalConnectResponse = z.infer<typeof personalMcpConnectResponseSchema>

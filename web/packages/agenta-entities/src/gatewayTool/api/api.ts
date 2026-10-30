@@ -156,7 +156,7 @@ export const fetchToolActionDetail = async (
 
 // --- Connections ---
 
-/** `scope=user` for the caller's own connections; omitted, the project's as before. */
+/** `scope=user` for the caller's own connections; omitted, the project's connections. */
 const ownerScope = (ownerKind?: Exclude<OwnerKind, "organization">) =>
     ownerKind === "user" ? {scope: ownerKind} : {}
 

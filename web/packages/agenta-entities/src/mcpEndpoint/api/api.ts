@@ -1,11 +1,14 @@
 // This domain uses the shared Axios client the host configures. The person's own sign-in calls
-// (`owner_kind=user`) are newer and go through the generated client.
+// (`owner_kind=user`) use the generated client.
 import {getGatewayMcpClient} from "@agenta/sdk/resources"
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 
 import {safeParseWithLogging} from "../../shared"
 import type {McpToolSummary} from "../core/connectJourney"
-import {mcpConnectResponseSchema, type MCPPersonalConnectResponse} from "../core/connectResponse"
+import {
+    personalMcpConnectResponseSchema,
+    type MCPPersonalConnectResponse,
+} from "../core/connectResponse"
 import {
     jsonRpcErrorMessage,
     jsonRpcResult,
@@ -162,7 +165,7 @@ export const beginMcpConnect = async (
     return response.data
 }
 
-const projectScope = (projectId?: string) =>
+const projectScopedRequest = (projectId?: string) =>
     projectId ? {queryParams: {project_id: projectId}} : undefined
 
 /**
@@ -176,31 +179,32 @@ export const beginPersonalMcpSignIn = async (
 ): Promise<MCPPersonalConnectResponse | null> => {
     const response = await getGatewayMcpClient().connectMcpEndpoint(
         {endpoint_id: endpointId, owner_kind: "user", scopes},
-        projectScope(projectId),
+        projectScopedRequest(projectId),
     )
-    return safeParseWithLogging(mcpConnectResponseSchema, response, "[beginPersonalMcpSignIn]")
+    return safeParseWithLogging(
+        personalMcpConnectResponseSchema,
+        response,
+        "[beginPersonalMcpSignIn]",
+    )
 }
 
 /** The caller signs in to a token server with their own token. Nothing redirects. */
-export const signInToMcpEndpointWithToken = async (
+export const signInPersonalMcpWithToken = async (
     endpointId: string,
     token: string,
     projectId?: string,
 ): Promise<void> => {
     await getGatewayMcpClient().connectMcpEndpoint(
         {endpoint_id: endpointId, owner_kind: "user", token},
-        projectScope(projectId),
+        projectScopedRequest(projectId),
     )
 }
 
 /** The caller signs out of their own sign-in. The project's sign-in stays. */
-export const signOutOfMcpEndpoint = async (
-    endpointId: string,
-    projectId?: string,
-): Promise<void> => {
+export const signOutPersonalMcp = async (endpointId: string, projectId?: string): Promise<void> => {
     await getGatewayMcpClient().disconnectMcpEndpoint(
         {endpoint_id: endpointId, owner_kind: "user"},
-        projectScope(projectId),
+        projectScopedRequest(projectId),
     )
 }
 

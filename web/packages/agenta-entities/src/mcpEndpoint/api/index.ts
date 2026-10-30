@@ -10,6 +10,6 @@ export {
     queryMcpEndpoints,
     recordMcpEndpointCheck,
     beginPersonalMcpSignIn,
-    signInToMcpEndpointWithToken,
-    signOutOfMcpEndpoint,
+    signInPersonalMcpWithToken,
+    signOutPersonalMcp,
 } from "./api"

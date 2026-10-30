@@ -27,7 +27,7 @@ type DeleteSecretResponse = Awaited<ReturnType<SecretsClient["deleteSecret"]>>
 /** Payload portion of an update — `secret_id` is supplied alongside. */
 type UpdateSecretPayload = Omit<UpdateSecretRequest, "secret_id" | "scope">
 
-/** The owner a by-id route acts for; omitted, the project's row as before. */
+/** The owner a by-id route acts for; omitted, the project's row. */
 const ownerScope = (scope?: OwnerKind | null) =>
     scope === "organization" || scope === "user" ? {scope} : {}
 
