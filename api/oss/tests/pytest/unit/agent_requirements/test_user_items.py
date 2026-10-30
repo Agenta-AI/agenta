@@ -267,12 +267,44 @@ async def test_no_person_reads_nothing_and_offers_no_fix():
     assert accounts.calls == [] and may_run.calls == 0
 
 
-async def test_with_personal_accounts_off_every_user_item_has_no_fix(monkeypatch):
+async def test_with_personal_accounts_off_user_items_are_left_out_as_in_the_run(
+    monkeypatch,
+):
+    """Nobody can set up a personal account, so nothing is reported for those items,
+    and nothing is read for them."""
+    monkeypatch.setattr(service_module, "personal_accounts_enabled", lambda: False)
+    accounts, mcp = _AccountChoices(), _Mcp([])
+    result = await _check(
+        _service(mcp=mcp, accounts=accounts),
+        _agent(
+            tools=[_gmail_tool()],
+            mcps=[_linear_mcp()],
+            sandbox={"credentials": [_token_credential()]},
+        ),
+    )
+    assert result.status.value == "ready" and result.requirements == []
+    assert accounts.calls == [] and mcp.calls == 0
+
+
+async def test_with_personal_accounts_off_a_user_login_is_a_model_to_change(
+    monkeypatch,
+):
     monkeypatch.setattr(service_module, "personal_accounts_enabled", lambda: False)
     accounts = _AccountChoices()
-    result = await _check(_service(accounts=accounts), _agent(tools=[_gmail_tool()]))
-    [gmail] = result.requirements
-    assert gmail.reason.value == "needs_personal_account" and gmail.fix is None
+    result = await _check(_service(accounts=accounts), _claude_login_agent())
+    [model] = result.requirements
+    assert (model.kind.value, model.reason.value) == ("model", "not_available")
+    assert model.blocks_run is True and model.account_source == "agent"
+
+    blocking = await _service(accounts=accounts).model_requirements(
+        scope=_scope(),
+        parameters=_claude_login_agent(),
+        artifact_id=uuid4(),
+        run_person_id=uuid4(),
+    )
+    assert [requirement.key for requirement in blocking] == [
+        "model:anthropic/claude-sonnet-4-5"
+    ]
     assert accounts.calls == []
 
 

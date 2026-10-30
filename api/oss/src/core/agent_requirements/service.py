@@ -330,7 +330,9 @@ class AgentRequirementsService:
     ) -> List[_Found]:
         """The `"user"` items with no ready account for the run person. One resolve, and
         only when there are such items and a person to resolve them for."""
-        if not items:
+        if not items or not personal_accounts_enabled():
+            # With personal accounts off, the run leaves every "user" item out, and a
+            # "user" model login is a model this deployment cannot run (`_llm`).
             return []
         found: List[_Found] = []
         servers = [item for item in items if item.kind == _KIND.MCP_SERVER.value]
@@ -344,9 +346,8 @@ class AgentRequirementsService:
             items = [item for item in items if item.item_key not in left_out]
             if not items:
                 return found
-        person = run_person_id if personal_accounts_enabled() else None
         accounts = {}
-        if person is not None:
+        if run_person_id is not None:
             # Without an agent (a draft with no `workflow_id`) the resolver reads no
             # choices; defaults and sign-ins still apply.
             try:
@@ -354,7 +355,7 @@ class AgentRequirementsService:
                     organization_id=scope.organization_id,
                     project_id=scope.project_id,
                     artifact_id=artifact_id,
-                    user_id=person,
+                    user_id=run_person_id,
                     items=items,
                 )
             except AccountDataUnreadable:
@@ -469,9 +470,12 @@ class AgentRequirementsService:
         manages_organization: Callable[[], Awaitable[bool]],
     ) -> List[_Found]:
         connection = llm.connection_item()
-        if llm.account_source == "user" and llm.user_login_item() is None:
-            # A login each person brings, for a provider no login serves: the run
-            # fails with this model, so the model is what needs changing.
+        if llm.account_source == "user" and (
+            not personal_accounts_enabled() or llm.user_login_item() is None
+        ):
+            # A login each person brings, with personal accounts off or for a provider
+            # no login serves: the run fails with this model, so the model is what
+            # needs changing.
             return [_Found(llm.model_item(), reason=_REASON.NOT_AVAILABLE)]
         if connection is None:
             # The operator's own login on the runner: not an Agenta item.
