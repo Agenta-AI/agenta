@@ -1,0 +1,38 @@
+{
+  "cli_version": "0.12.2",
+  "checkpoint_id": "01M674MH3NPH1KXS348KXTNBN8",
+  "strategy": "manual-commit",
+  "branch": "fix/runner-no-prompt-resend",
+  "checkpoints_count": 3,
+  "files_touched": null,
+  "sessions": [
+    {
+      "metadata": "/0/metadata.json",
+      "transcript": "/0/full.jsonl",
+      "compact_transcript": "/0/transcript.jsonl",
+      "content_hash": "/0/content_hash.txt",
+      "prompt": "/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 88,
+    "cache_creation_tokens": 336690,
+    "cache_read_tokens": 6059468,
+    "output_tokens": 46289,
+    "api_call_count": 43
+  },
+  "redaction": {
+    "replacements": 38,
+    "layers": {
+      "betterleaks": 0,
+      "connection_string": 0,
+      "credential_key": 0,
+      "credential_value": 0,
+      "credentialed_uri": 0,
+      "entropy": 38,
+      "key_context": 0,
+      "provider_token": 0,
+      "shell_stdin": 0
+    }
+  }
+}
