@@ -36,7 +36,7 @@ import {
 } from "./cards/OverviewCards"
 import {ANALYTICS_COLOR_CSS} from "./colors"
 import {AnalyticsDrawer} from "./drawer/AnalyticsDrawer"
-import {PARTIAL_TOTALS_NOTE, bucketUnit, fullLabel, groupKeyLabel, shortLabel} from "./labels"
+import {bucketUnit, fullLabel, groupKeyLabel, shortLabel} from "./labels"
 import {useAgentNames, useFailureReasons, usePageAnalytics} from "./useAnalyticsData"
 
 export interface AnalyticsPageProps {
@@ -181,9 +181,7 @@ export const AnalyticsPage = ({
         !overviewStatus.pending &&
         !overviewStatus.error &&
         data.overview.totals.runs === 0 &&
-        !filtered &&
-        // Runs the reader may not open are left out, so zero here is not "no runs yet".
-        !data.restricted
+        !filtered
     if (noAnalyticsYet) {
         return (
             <>
@@ -239,12 +237,6 @@ export const AnalyticsPage = ({
                     <Button size="xs" onClick={clearFilters}>
                         Clear filters
                     </Button>
-                </div>
-            ) : null}
-            {/* `restricted` comes from the overview answer, so it is set only when the totals loaded. */}
-            {data.restricted ? (
-                <div className="rounded-lg bg-muted px-3.5 py-2.5 text-sm text-muted-foreground">
-                    {PARTIAL_TOTALS_NOTE}
                 </div>
             ) : null}
             <CostCard ctx={ctx} />

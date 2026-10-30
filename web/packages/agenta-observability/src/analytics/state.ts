@@ -10,10 +10,8 @@ import {shouldRetryDashboard} from "../core/dashboardError"
 import {
     PATH,
     fetchAnalyticsBuckets,
-    fetchAnalyticsResult,
     fetchAnalyticsRunSpans,
     fetchAnalyticsToolSpans,
-    type AnalyticsBucketsResult,
     type AnalyticsFocus,
     type AnalyticsQueryName,
 } from "./queries"
@@ -81,31 +79,18 @@ export interface AnalyticsBucketsKey {
     focus?: AnalyticsFocus | null
 }
 
-// One cache entry per key; the buckets and the restricted flag are two views of it.
-const bucketsQuery = (projectId: string | null | undefined, key: AnalyticsBucketsKey) => ({
-    queryKey: ["analytics", "buckets", projectId, key],
-    queryFn: ({signal}: {signal: AbortSignal}) =>
-        fetchAnalyticsResult({projectId: projectId as string, ...key, signal}),
-    enabled: Boolean(projectId),
-    ...QUERY_OPTIONS,
-})
-
 export const analyticsBucketsAtomFamily = atomFamily(
     (key: AnalyticsBucketsKey) =>
-        atomWithQuery((get) => ({
-            ...bucketsQuery(get(projectIdAtom), key),
-            select: (result: AnalyticsBucketsResult) => result.buckets,
-        })),
-    isEqual,
-)
-
-/** True when the caller's trace access left traces out of these totals (`access.restricted`). */
-export const analyticsRestrictedAtomFamily = atomFamily(
-    (key: AnalyticsBucketsKey) =>
-        atomWithQuery((get) => ({
-            ...bucketsQuery(get(projectIdAtom), key),
-            select: (result: AnalyticsBucketsResult) => result.restricted,
-        })),
+        atomWithQuery((get) => {
+            const projectId = get(projectIdAtom)
+            return {
+                queryKey: ["analytics", "buckets", projectId, key],
+                queryFn: ({signal}) =>
+                    fetchAnalyticsBuckets({projectId: projectId as string, ...key, signal}),
+                enabled: Boolean(projectId),
+                ...QUERY_OPTIONS,
+            }
+        }),
     isEqual,
 )
 

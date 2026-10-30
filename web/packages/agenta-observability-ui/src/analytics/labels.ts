@@ -56,9 +56,6 @@ export const bucketUnit = (window: AnalyticsWindow) =>
 
 export const UNKNOWN_AGENT = "Unknown agent"
 
-/** Shown when the totals leave out traces the reader may not read (`access.restricted`). */
-export const PARTIAL_TOTALS_NOTE = "Partial: these totals leave out private chats you cannot open."
-
 /** How a group key reads: an agent's name, a model id, or a provider's display name. */
 export const groupKeyLabel = (
     dim: "agent" | "model" | "provider",

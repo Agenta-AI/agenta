@@ -396,7 +396,7 @@ export type Mount = z.infer<typeof mountSchema>
 /** Stream command modes (prompt × force matrix). */
 export type CommandMode = "send" | "steer" | "cancel" | "attach"
 
-/** A turn's usage (M9). Absent, or a null field, means unknown: never read it as zero. */
+/** A turn's usage. Absent, or a null field, means unknown: never read it as zero. */
 export const sessionTurnUsageSchema = z.object({
     input_tokens: z.number().nullish(),
     output_tokens: z.number().nullish(),

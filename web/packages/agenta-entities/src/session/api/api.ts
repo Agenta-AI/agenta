@@ -1364,7 +1364,7 @@ export async function cancelSessionExecution({
 }
 
 /**
- * A session's turns, with their usage (M9). One read per session: the chat takes each turn's
+ * A session's turns, with their usage. One read per session: the chat takes each turn's
  * tokens, cost and latency from these rows instead of reading the trace. `null` on failure.
  */
 export async function querySessionTurns({

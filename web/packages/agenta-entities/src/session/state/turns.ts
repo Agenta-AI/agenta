@@ -1,5 +1,5 @@
 /**
- * A session's turn rows, the source of each chat turn's tokens, cost and latency (M9): one read
+ * A session's turn rows, the source of each chat turn's tokens, cost and latency: one read
  * per session instead of one trace read per turn, and readable by everyone who can read the
  * session, with or without trace access.
  */
