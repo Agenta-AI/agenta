@@ -7,6 +7,7 @@ import {useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import {useNewAgentAction} from "../agents/useNewAgentAction"
+import {useProjectPermission} from "../context/useProjectPermission"
 
 interface Props {
     workspaceId: string
@@ -20,6 +21,8 @@ export const AnalyticsTab = ({workspaceId, projectId}: Props) => {
     const subscription = useBillingSubscription({projectId, enabled: billingEnabled})
     const newAgent = useNewAgentAction(`/w/${workspaceId}/p/${projectId}`)
     const openTrace = useSetAtom(openTraceDrawerAtom)
+    // The tab itself is hidden without trace access; the drawer's opener goes with it.
+    const canViewSpans = useProjectPermission(projectId, "view_spans")
 
     return (
         <AnalyticsPage
@@ -39,7 +42,7 @@ export const AnalyticsTab = ({workspaceId, projectId}: Props) => {
             onCreateAgent={() => void newAgent.create()}
             creatingAgent={newAgent.creating}
             createAgentError={newAgent.error}
-            onOpenTrace={(traceId) => openTrace({traceId})}
+            onOpenTrace={canViewSpans ? (traceId) => openTrace({traceId}) : undefined}
         />
     )
 }

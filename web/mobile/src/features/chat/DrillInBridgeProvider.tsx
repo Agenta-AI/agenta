@@ -60,6 +60,8 @@ export const DrillInBridgeProvider = ({
     )
 
     const canEditSecrets = useProjectPermission(projectId, "edit_secret")
+    // No trace access, no trace openers: the config pane and the delivery rows hide theirs.
+    const canViewSpans = useProjectPermission(projectId, "view_spans")
     const permissions = useMemo(() => ({canEditSecrets}), [canEditSecrets])
     const pinRevision = useSetAtom(selectedRevisionAtomFamily(sessionId))
     const onWorkflowRevisionCommitted = useCallback(
@@ -78,12 +80,13 @@ export const DrillInBridgeProvider = ({
                 SharedEditor,
                 workflowReference,
                 skills,
-                openTrace,
+                openTrace: canViewSpans ? openTrace : undefined,
                 deployment,
                 permissions,
                 onWorkflowRevisionCommitted,
             }) as DrillInUIComponents,
         [
+            canViewSpans,
             llmProviderConfig,
             workflowReference,
             skills,

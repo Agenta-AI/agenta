@@ -1,6 +1,12 @@
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
-const env = vi.hoisted(() => ({ee: true, path: "/settings?tab=credits"}))
+const env = vi.hoisted(() => ({
+    ee: true,
+    path: "/settings?tab=credits",
+    allowed: true,
+    pending: false,
+    owner: true,
+}))
 
 vi.mock("react", () => ({useMemo: (fn: () => unknown) => fn()}))
 vi.mock("next/router", () => ({useRouter: () => ({query: {}, asPath: env.path})}))
@@ -10,6 +16,21 @@ vi.mock("@agenta/shared/api", () => ({
     isMcpGatewayEnabled: () => true,
     isToolsEnabled: () => true,
     isWalletsEnabled: () => true,
+}))
+vi.mock("../../src/features/context/useProjectPermission", () => ({
+    useProjectPermission: () => env.allowed,
+    useProjectPermissionState: () => ({allowed: env.allowed, pending: env.pending}),
+}))
+vi.mock("@agenta/entities/profile", () => ({useProfile: () => ({user: {id: "person-1"}})}))
+vi.mock("../../src/features/settings/useSettingsOrg", () => ({
+    useSettingsOrg: () => ({
+        projects: {data: [], isPending: false, isError: false},
+        organizationId: "organization-1",
+        org: {data: {owner_id: env.owner ? "person-1" : "someone-else"}, isPending: false},
+        loading: false,
+        failed: false,
+        retry: () => undefined,
+    }),
 }))
 vi.mock("../../src/features/wallet/useWalletSummary", () => ({
     useWalletSummary: () => ({data: {mode: "enforce"}}),
@@ -21,6 +42,9 @@ import {
 } from "../../src/features/settings/settingsTabs"
 
 beforeEach(() => {
+    env.allowed = true
+    env.pending = false
+    env.owner = true
     env.ee = true
 })
 

@@ -18,6 +18,7 @@ import {
 } from "@agenta/chat/components"
 import {readableTraceError, splitTurnActivity, type TurnViewModel} from "@agenta/chat/model"
 import {messageBodyKey} from "@agenta/chat/state"
+import {canViewSpansAtom} from "@agenta/entities/access"
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {buildRenderMap} from "@agenta/playground/agent-chat"
@@ -90,6 +91,8 @@ const TurnRowInner = ({
     runStartedAt?: number
 }) => {
     const inspectorEnabled = useAtomValue(playgroundInspectorEnabledAtom)
+    // A reader whose role has no trace access gets no trace action and no trace read.
+    const canViewSpans = useAtomValue(canViewSpansAtom)
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
     const traceId = getMessageTraceId(turn.message)
     // `render.kind` rides as a sibling `data-render` part, so widget dispatch needs the map.
@@ -145,7 +148,7 @@ const TurnRowInner = ({
         copyText,
         // Rewinding the last turn re-runs the current one; hidden, as on desktop.
         onRewind: onRewind && !turn.isLast ? () => onRewind(turn) : undefined,
-        onViewTrace: (id: string) => openTraceDrawer({traceId: id}),
+        onViewTrace: canViewSpans ? (id: string) => openTraceDrawer({traceId: id}) : undefined,
         // The time is the fold's line ("Worked for 11s"); the meta keeps the rest.
         metrics: ASSISTANT_META,
     }
@@ -155,7 +158,7 @@ const TurnRowInner = ({
     // answer. Read only for an answer-less settled turn, as the desktop does.
     const answerless = !turn.isUser && turn.status.noResponse && !live && !turn.status.showError
     const traceSummary = useAtomValue(
-        traceDataSummaryAtomFamily(answerless && traceId ? traceId : ""),
+        traceDataSummaryAtomFamily(answerless && traceId && canViewSpans ? traceId : ""),
     )
     // A trace keeps the provider's failure as it came back, which can be a raw JSON body with
     // account ids; only its sanitized sentence may reach the screen, as on the desktop.
@@ -254,7 +257,7 @@ const TurnRowInner = ({
                 waitingOnUser={turn.isLast && waitingOnUser}
                 resuming={turn.isLast && resuming}
                 hadGate={turn.hadGate}
-                traceId={traceId}
+                traceId={canViewSpans ? traceId : undefined}
                 streamedHere={streamedHereRef.current}
                 runStartedAt={runStartedAt}
                 renderClientTool={renderClientTool}
