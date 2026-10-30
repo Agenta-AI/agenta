@@ -166,11 +166,11 @@ class TestTurnUsage:
             headers={"X-Agenta-Runner-Token": runner_token},
         )
 
+        # The response leaves out null fields: no cost was reported.
         assert turn["usage"] == {
             "input_tokens": 3,
             "output_tokens": 4,
             "total_tokens": 7,
-            "cost": None,
             "source": "runner",
         }
 
