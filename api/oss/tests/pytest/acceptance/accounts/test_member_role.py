@@ -9,6 +9,7 @@ On EE the owner's organization is pinned to Pro, a plan without the RBAC entitle
 which proves that roles apply there. On OSS the same checks run without a plan.
 """
 
+from urllib.parse import parse_qs, urlparse
 from uuid import uuid4
 
 import pytest
@@ -110,6 +111,7 @@ def team(admin_api):
             "workspace_id": _first_id(owner["workspaces"]),
             "project_id": project_id,
             "headers": headers,
+            "emails": emails,
             "owner_headers": {"Authorization": f"ApiKey {owner['api_keys']['key']}"},
         }
     finally:
@@ -119,7 +121,7 @@ def team(admin_api):
 
 _DENIED_ROUTES = [
     ("POST", "/spans/query", {}),
-    ("GET", "/spans/", None),
+    ("GET", f"/spans/?trace_id={_TRACE_ID}", None),
     ("POST", "/traces/query", {}),
     ("GET", f"/traces/{_TRACE_ID}", None),
     ("POST", "/spans/analytics/query", {}),
@@ -159,8 +161,9 @@ def test_member_cannot_read_trace_content(admin_api, team, method, path, body):
 
 @pytest.mark.parametrize("method, path, body", _DENIED_ROUTES)
 def test_admin_reads_trace_content(admin_api, team, method, path, body):
+    # Reads of a trace that does not exist answer 200 with nothing in it.
     resp = _call(admin_api, team, "admin", method, path, body)
-    assert resp.status_code != 403, (path, resp.status_code, resp.text)
+    assert resp.status_code == 200, (path, resp.status_code, resp.text)
 
 
 @pytest.mark.skipif(not is_ee(), reason="billing is EE")
@@ -175,7 +178,7 @@ def test_member_cannot_change_billing(admin_api, team, method, path, body):
 @pytest.mark.skipif(not is_ee(), reason="billing is EE")
 def test_admin_reads_credit_usage(admin_api, team):
     resp = _call(admin_api, team, "admin", "POST", "/wallets/usage/query", {})
-    assert resp.status_code != 403, resp.text
+    assert resp.status_code == 200, resp.text
 
 
 @pytest.mark.parametrize(
@@ -183,15 +186,14 @@ def test_admin_reads_credit_usage(admin_api, team):
     [
         ("POST", "/sessions/streams/query", {}),
         ("POST", "/sessions/turns/query", {}),
-        ("POST", "/sessions/records/query", {}),
+        ("POST", "/sessions/records/query", {"session_id": str(uuid4())}),
         ("POST", "/workflows/query", {}),
     ]
     + ([("GET", "/wallets/summary", None)] if is_ee() else []),
 )
 def test_member_keeps_what_a_run_needs(admin_api, team, method, path, body):
     resp = _call(admin_api, team, "member", method, path, body)
-    assert resp.status_code != 403, (path, resp.status_code, resp.text)
-    assert resp.status_code < 500, (path, resp.status_code, resp.text)
+    assert resp.status_code == 200, (path, resp.status_code, resp.text)
 
 
 def test_member_may_ingest_spans(admin_api, team):
@@ -207,7 +209,7 @@ def test_member_may_ingest_spans(admin_api, team):
         },
         data=b"",
     )
-    assert resp.status_code != 403, resp.text
+    assert resp.status_code == 200, resp.text
 
 
 def test_member_cannot_invite_or_change_roles(admin_api, team):
@@ -219,6 +221,19 @@ def test_member_cannot_invite_or_change_roles(admin_api, team):
         json=[{"email": f"x-{uuid4().hex[:8]}@agenta.ai"}],
     )
     assert invite.status_code == 403, invite.text
+
+    change = admin_api(
+        "POST",
+        f"/workspaces/{team['workspace_id']}/roles/",
+        params={"project_id": team["project_id"]},
+        headers=team["headers"]["member"],
+        json={
+            "email": team["emails"]["viewer"],
+            "role": "admin",
+            "organization_id": team["organization_id"],
+        },
+    )
+    assert change.status_code == 403, change.text
 
 
 def test_roles_offered_without_rbac(admin_api, team):
@@ -256,15 +271,43 @@ def test_invite_takes_the_floor_role_and_refuses_owner(admin_api, team):
         )
         assert refused.status_code == 400, (roles, refused.text)
 
-    # No role: the invitation is written with the floor role `member`.
-    accepted = admin_api(
-        "POST",
-        invite,
-        params={"project_id": team["project_id"]},
-        headers=team["owner_headers"],
-        json=[{"email": f"x-{uuid4().hex[:8]}@agenta.ai"}],
-    )
-    assert accepted.status_code == 200, accepted.text
+    # No role: the invitation gets the floor role `member`, which the accepted
+    # membership shows.
+    email = f"member-role-invitee-{uuid4().hex[:10]}@test.agenta.ai"
+    invitee = _create_account(admin_api, email=email)
+    try:
+        invited = admin_api(
+            "POST",
+            invite,
+            params={"project_id": team["project_id"]},
+            headers=team["owner_headers"],
+            json=[{"email": email}],
+        )
+        assert invited.status_code == 200, invited.text
+        token = parse_qs(urlparse(invited.json()["url"]).query)["token"][0]
+        accepted = admin_api(
+            "POST",
+            f"{invite}/accept",
+            params={"project_id": team["project_id"]},
+            headers={"Authorization": f"ApiKey {invitee['api_keys']['key']}"},
+            json={"token": token, "email": email},
+        )
+        assert accepted.status_code == 200, accepted.text
+        key = _project_key(
+            admin_api, project_id=team["project_id"], user_id=invitee["user"]["id"]
+        )
+        projects = admin_api(
+            "GET", "/projects/", headers={"Authorization": f"ApiKey {key}"}
+        )
+        assert projects.status_code == 200, projects.text
+        roles = [
+            p["user_role"]
+            for p in projects.json()
+            if p["project_id"] == team["project_id"]
+        ]
+        assert roles == ["member"]
+    finally:
+        _delete_account_by_email(admin_api, email=email)
 
 
 def test_admin_cannot_delete_a_project(admin_api, team):

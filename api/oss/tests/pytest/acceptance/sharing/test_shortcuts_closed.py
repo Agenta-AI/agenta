@@ -25,7 +25,7 @@ pytestmark = [
 ]
 
 
-def test_org_owner_and_no_rbac_get_404(sharing_cast):
+def test_org_owner_and_members_get_404(sharing_cast):
     alice = sharing_cast["alice"]
     agent = new_agent(alice, visibility="private")
     session_id = new_session_id()
