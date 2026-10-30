@@ -6,4 +6,5 @@ export interface ChannelAgentData {
     references: Record<string, AgentaApi.Reference>;
     policy?: (AgentaApi.ChannelPolicy | null) | undefined;
     tools?: AgentaApi.ChannelAgentToolSettings | undefined;
+    audience?: AgentaApi.ChannelAgentAudience | undefined;
 }

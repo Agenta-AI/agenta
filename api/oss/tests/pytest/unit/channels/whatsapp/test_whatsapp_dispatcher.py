@@ -92,6 +92,7 @@ def world(dao, graph):
     service.channels_dao = dao
     service.adapter_registry = registry
     service.resolve = AsyncMock(return_value=resolution)
+    _route_through_resolve(service)
     service.fetch_connection = AsyncMock(return_value=connection)
     service.fetch_capabilities = AsyncMock(return_value=fetch_whatsapp_capabilities())
     service.open_turn = AsyncMock(
@@ -110,6 +111,17 @@ def world(dao, graph):
 
 
 _NOW = object()  # Meta stamps every message; pass None to model one it did not
+
+
+def _route_through_resolve(service):
+    """The dispatcher calls `resolve_or_refuse`; these tests stub `resolve`."""
+
+    async def _routing(**kwargs):
+        from oss.src.core.channels.dtos import ChannelRouting
+
+        return ChannelRouting(resolution=await service.resolve(**kwargs))
+
+    service.resolve_or_refuse = _routing
 
 
 def _event(content, kind=ChannelEventKind.MESSAGE, sent_at=_NOW):

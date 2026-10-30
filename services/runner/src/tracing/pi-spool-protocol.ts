@@ -10,6 +10,8 @@ export const PI_TRACE_MAX_BATCH_BYTES = 8 * 1024 * 1024;
  *  Normal chunks hold about 80 MB per turn; the reader may keep up to 16 x 8 MB in memory. */
 export const PI_TRACE_MAX_FILES = 16;
 export const PI_TRACE_FILE_SUFFIX = ".otlp.pb";
+/** Pi writes this empty marker after the turn's last batch, so the runner can stop waiting. */
+export const PI_TRACE_DONE_SUFFIX = ".done";
 
 const CHANNEL_ID_RE = /^[0-9a-f]{32}$/;
 
@@ -43,11 +45,14 @@ export function piTraceFileName(channelId: string, sequence: number): string {
   return `${channelId}.${sequence}${PI_TRACE_FILE_SUFFIX}`;
 }
 
+export function piTraceDoneFileName(channelId: string): string {
+  return `${channelId}${PI_TRACE_DONE_SUFFIX}`;
+}
+
 export function isPiTraceSpoolFileName(name: string): boolean {
   if (name === PI_TRACE_CONTROL_FILE) return true;
   if (name.includes(`${PI_TRACE_FILE_SUFFIX}.tmp.`)) return true;
-  const match = /^([0-9a-f]{32})\.(\d+)\.otlp\.pb$/.exec(name);
-  return !!match;
+  return /^[0-9a-f]{32}(\.\d+\.otlp\.pb|\.done)$/.test(name);
 }
 
 function optionalString(value: unknown): string | undefined {

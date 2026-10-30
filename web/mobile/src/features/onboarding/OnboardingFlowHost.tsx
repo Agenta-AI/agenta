@@ -4,17 +4,19 @@ import {stagedFilesToParts, useComposerAttachments} from "@agenta/chat/hooks"
 import {useToolConnectionsQuery} from "@agenta/entities/gatewayTool"
 import {
     agentIconAtomFamily,
+    agentTemplateByKey,
     agentTemplatesAtom,
     agentTemplatesStatusAtom,
     refetchAgentTemplatesAtom,
     workflowMolecule,
 } from "@agenta/entities/workflow"
+import {classifyAgentIntent} from "@agenta/shared/analytics"
 import {isToolsEnabled, isWalletsEnabled} from "@agenta/shared/api/env"
 import {loadAgentIconCatalog} from "@agenta/ui/agent-icon"
 import {useAtomValue, useSetAtom, useStore} from "jotai"
 import {useRouter} from "next/router"
 
-import {capture} from "@/features/analytics/client"
+import {capture, captureIntent} from "@/features/analytics/client"
 import {newId} from "@/lib/ids"
 
 import {useNewAgentAction} from "../agents/useNewAgentAction"
@@ -30,8 +32,8 @@ import {
 } from "./onboardingDraft"
 import {OnboardingFlow} from "./OnboardingFlow"
 import {endOnboarding, isOnboardingPending} from "./onboardingPending"
-import {personProperties} from "./onboardingQuestions"
-import {onboardingSteps, stepIndex, type OnboardingStep} from "./onboardingRoute"
+import {personProperties, signupSurveyProperties} from "./onboardingQuestions"
+import {isFixedStep, onboardingSteps, stepIndex, type OnboardingStep} from "./onboardingRoute"
 import {useOnboardingModel} from "./useOnboardingModel"
 import {useSeedToolConnections} from "./useSeedToolConnections"
 
@@ -41,6 +43,7 @@ export const OnboardingFlowHost = ({
     projectId,
     entityId,
     userId,
+    userEmail,
     homeUrl,
 }: {
     base: string
@@ -48,6 +51,8 @@ export const OnboardingFlowHost = ({
     /** The local draft agent Create commits; `null` while it is still being minted. */
     entityId: string | null
     userId: string | null
+    /** Answers the signup survey's email question. */
+    userEmail: string | null
     /** Where Skip leads. */
     homeUrl: string
 }) => {
@@ -108,12 +113,35 @@ export const OnboardingFlowHost = ({
         }
     }
 
-    const onStepCompleted = (step: OnboardingStep, draft: OnboardingDraft) =>
+    const onStepCompleted = (step: OnboardingStep, draft: OnboardingDraft) => {
         track("onboarding_step_completed", {
             step: stepIndex(step) + 1,
             step_key: step,
             $set: personProperties(draft.answers),
         })
+        if (step === steps.findLast((shown) => !isFixedStep(shown))) {
+            track("survey sent", signupSurveyProperties(draft.answers, userEmail))
+        }
+    }
+
+    const trackIntent = (templateKey: string | null, firstMessage: string) => {
+        if (preview) return
+        const template = templateKey ? agentTemplateByKey(templates, templateKey) : undefined
+        if (template) {
+            captureIntent({
+                source: "template",
+                properties: {
+                    template: template.name,
+                    templateId: template.key,
+                    templateCategory: template.category,
+                    surface: "onboarding",
+                },
+                intentValue: template.category || template.name,
+            })
+        } else {
+            captureIntent({source: "composer", intentValue: classifyAgentIntent(firstMessage)})
+        }
+    }
 
     const onCreate = async ({
         name,
@@ -128,6 +156,7 @@ export const OnboardingFlowHost = ({
             onboardingConfiguration(configuration ?? {}, {apps: chosenApps, connections}),
         )
         track("onboarding_create_clicked")
+        trackIntent(templateKey ?? null, firstMessage)
         const staged = attachments.files
         const parts = staged.length > 0 ? stagedFilesToParts(staged, sessionId) : undefined
         // Cleared before the hand-off: the chat route seeds its tray from this session's store.
@@ -153,6 +182,7 @@ export const OnboardingFlowHost = ({
 
     const onSkip = () => {
         track("onboarding_skipped", {step: stepIndex("templates") + 1, step_key: "templates"})
+        if (!preview) captureIntent({source: "skipped"})
         if (userId) endOnboarding(userId)
         void router.replace(homeUrl)
     }

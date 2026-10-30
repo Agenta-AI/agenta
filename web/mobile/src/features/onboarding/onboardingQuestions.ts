@@ -39,6 +39,10 @@ export interface OnboardingQuestionDef {
     multiple?: boolean
     /** The PostHog person property the answer is set as. */
     personProperty?: string
+    /** The question this answers in the signup survey. */
+    surveyQuestionId?: string
+    /** The survey question takes several answers, so its response is a list. */
+    surveyList?: boolean
 }
 
 /**
@@ -56,6 +60,7 @@ export const ONBOARDING_QUESTIONS = [
         dot: "About you",
         enabled: true,
         personProperty: "user_role_v2",
+        surveyQuestionId: "d71aec24-7e9b-4d89-9cd7-c8f366693367",
         choices: [
             {label: "Founder or Executive", icon: RocketLaunch, category: "Ops"},
             {label: "Freelancer / Consultant / Agency", icon: Handshake, category: "Sales"},
@@ -77,6 +82,7 @@ export const ONBOARDING_QUESTIONS = [
         dot: "Company size",
         enabled: true,
         personProperty: "company_size_v2",
+        surveyQuestionId: "3b4ac88c-7530-46f1-b54a-c42bf6aca67a",
         choices: [
             {label: "Solo"},
             {label: "2-10"},
@@ -92,6 +98,8 @@ export const ONBOARDING_QUESTIONS = [
         dot: "How you found us",
         enabled: true,
         personProperty: "referral_source_v2",
+        surveyQuestionId: "e15a61d7-15b2-4ddd-9efd-b2e154005675",
+        surveyList: true,
         choices: [
             {label: "Google search", icon: GoogleLogo},
             {label: "ChatGPT or Claude", icon: OpenAiLogo},
@@ -182,3 +190,45 @@ export const personProperties = (answers: OnboardingAnswers): Record<string, Onb
                 : []
         }),
     )
+
+const SIGNUP_SURVEY_ID = "019f3812-8ce3-0000-1123-8c254a48750d"
+const SIGNUP_SURVEY_NAME = "Signup 3 - Agents"
+const SURVEY_EMAIL_QUESTION_ID = "d6c2d8aa-d624-4736-a71b-25fe0b74d0e9"
+
+const surveyResponseKey = (questionId: string) => `$survey_response_${questionId}`
+
+/** A write-in reads as the typed line in the survey, not as `Other: line`. */
+const surveyLabel = (question: OnboardingQuestionDef, label: string) => {
+    for (const choice of question.choices) {
+        const text = choice.text === true ? writeInText(choice.label, label) : null
+        if (text !== null) return text
+    }
+    return label
+}
+
+/**
+ * The `survey sent` properties for the answers, in the shape the post-signup form sends.
+ * The survey's experience and intent questions are not asked here, so they stay unanswered.
+ */
+export const signupSurveyProperties = (
+    answers: OnboardingAnswers,
+    email: string | null,
+): Record<string, unknown> => ({
+    $survey_id: SIGNUP_SURVEY_ID,
+    $survey_name: SIGNUP_SURVEY_NAME,
+    ...Object.fromEntries(
+        QUESTIONS.flatMap((question): [string, string | string[]][] => {
+            const labels = answerLabels(answers[question.id]).map((label) =>
+                surveyLabel(question, label),
+            )
+            if (!question.surveyQuestionId || labels.length === 0) return []
+            return [
+                [
+                    surveyResponseKey(question.surveyQuestionId),
+                    question.surveyList ? labels : labels[0],
+                ],
+            ]
+        }),
+    ),
+    ...(email ? {[surveyResponseKey(SURVEY_EMAIL_QUESTION_ID)]: email} : {}),
+})

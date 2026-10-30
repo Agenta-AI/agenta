@@ -10,4 +10,5 @@ export interface ChannelAgentDataEdit {
     references?: (Record<string, AgentaApi.Reference | null> | null) | undefined;
     policy?: (AgentaApi.ChannelPolicy | null) | undefined;
     tools?: (AgentaApi.ChannelAgentToolSettings | null) | undefined;
+    audience?: (AgentaApi.ChannelAgentAudience | null) | undefined;
 }

@@ -94,6 +94,7 @@ beforeEach(() => {
  * open stream fails the cases that follow instead of the one that caused it.
  */
 let releaseFreshResponse: (() => void) | null = null
+let queueSessions = 0
 
 afterEach(() => {
     releaseFreshResponse?.()
@@ -139,7 +140,9 @@ const RunningElsewhereAdmissionHarness = ({
         // The browser owns no AI-SDK stream; only the server snapshot says the run is active.
         locallyBusy: false,
     })
+    const [queueSessionId] = useState(() => `queue-session-${++queueSessions}`)
     const queue = useAgentChatQueue({
+        sessionId: queueSessionId,
         messages: [],
         stopped: false,
         server,

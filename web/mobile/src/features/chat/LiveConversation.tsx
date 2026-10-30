@@ -1066,12 +1066,19 @@ export const LiveConversation = ({
                                         // had already gone would hand the text back with that dock's
                                         // request silently cancelled. Both writes go out, and the
                                         // first rejection is what the composer reports.
+                                        //
+                                        // The steer waits on the dismissals, but its message shows
+                                        // now: awaiting them first left the run resuming with the
+                                        // message nowhere on screen.
                                         if (elicits.open || connects.open) {
-                                            await Promise.all([
+                                            const dismissed = Promise.all([
                                                 elicits.open ? elicits.dismiss() : null,
                                                 connects.open ? connects.dismiss() : null,
                                             ])
-                                            await conversation.steer({text, parts, stagedFiles})
+                                            await conversation.steer(
+                                                {text, parts, stagedFiles},
+                                                {after: dismissed},
+                                            )
                                             return
                                         }
                                         await send({text, parts, stagedFiles})

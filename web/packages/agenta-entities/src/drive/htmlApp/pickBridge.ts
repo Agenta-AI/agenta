@@ -6,7 +6,17 @@ import type {HtmlAppHost, ParentToPicker, PickedPayload, PinRectsMsg} from "./pr
 type PickApi = Required<
     Pick<
         HtmlAppHost,
-        "startPick" | "stopPick" | "setPins" | "onPicked" | "onPinRects" | "onPickCancel"
+        | "startPick"
+        | "stopPick"
+        | "holdPick"
+        | "allowPickKeys"
+        | "setPins"
+        | "revealPin"
+        | "onPicked"
+        | "onPinRects"
+        | "onPickCancel"
+        | "onPickDismiss"
+        | "onPickToggle"
     >
 >
 
@@ -31,10 +41,14 @@ export function createPickBridge(post: (msg: ParentToPicker) => void): PickBridg
     let frame: HTMLIFrameElement | null = null
     let ready = false
     let picking = false
+    let held = false
+    let keys = false
     let pins: PinQuery[] = []
     const pickedCbs = new Set<(picked: PickedPayload) => void>()
     const rectCbs = new Set<(rects: PinRectsMsg["rects"]) => void>()
     const cancelCbs = new Set<() => void>()
+    const dismissCbs = new Set<() => void>()
+    const toggleCbs = new Set<() => void>()
 
     const send = (msg: ParentToPicker) => {
         if (ready) post(msg)
@@ -52,7 +66,9 @@ export function createPickBridge(post: (msg: ParentToPicker) => void): PickBridg
         acked() {
             ready = true
             if (pins.length > 0) send({v: 1, type: "pins", pins})
+            if (keys) send({v: 1, type: "pick-keys"})
             if (picking) send({v: 1, type: "pick-start", format: "html"})
+            if (held) send({v: 1, type: "pick-hold", held})
         },
         receive(data) {
             if (!frame) return false
@@ -69,6 +85,10 @@ export function createPickBridge(post: (msg: ParentToPicker) => void): PickBridg
                 for (const cb of pickedCbs) cb(payload)
             } else if (msg.type === "pin-rects") {
                 for (const cb of rectCbs) cb(msg.rects)
+            } else if (msg.type === "pick-dismiss") {
+                for (const cb of dismissCbs) cb()
+            } else if (msg.type === "pick-toggle") {
+                for (const cb of toggleCbs) cb()
             } else {
                 for (const cb of cancelCbs) cb()
             }
@@ -80,14 +100,28 @@ export function createPickBridge(post: (msg: ParentToPicker) => void): PickBridg
         },
         stopPick() {
             picking = false
+            held = false
             send({v: 1, type: "pick-stop"})
+        },
+        holdPick(next) {
+            held = next
+            send({v: 1, type: "pick-hold", held})
+        },
+        allowPickKeys() {
+            keys = true
+            send({v: 1, type: "pick-keys"})
         },
         setPins(next) {
             pins = next
             send({v: 1, type: "pins", pins})
         },
+        revealPin(id) {
+            send({v: 1, type: "pin-reveal", id})
+        },
         onPicked: (cb) => subscribe(pickedCbs, cb),
         onPinRects: (cb) => subscribe(rectCbs, cb),
         onPickCancel: (cb) => subscribe(cancelCbs, cb),
+        onPickDismiss: (cb) => subscribe(dismissCbs, cb),
+        onPickToggle: (cb) => subscribe(toggleCbs, cb),
     }
 }

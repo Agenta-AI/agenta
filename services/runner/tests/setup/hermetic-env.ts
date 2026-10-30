@@ -13,6 +13,7 @@ import { join } from "node:path";
 import { beforeEach, vi } from "vitest";
 
 import { resetRunnerConfigCache } from "../../src/config/runner-config.ts";
+import { resetCapabilityProbeCache } from "../../src/environment/harness-session-lifecycle.ts";
 
 // The permission-enforcing Pi extension bundle is built by `pnpm run build:extension` into
 // `dist/`, which CI does NOT run before the unit suite (only dev builds it). Since the runner now
@@ -91,4 +92,6 @@ beforeEach(() => {
   process.env.AGENTA_RUNNER_COLD_PAUSE_USAGE_SETTLE_MS =
     COLD_PAUSE_USAGE_SETTLE_MS;
   resetRunnerConfigCache();
+  // The probe result is kept per process; each test starts with none, as a new runner would.
+  resetCapabilityProbeCache();
 });
