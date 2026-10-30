@@ -24,7 +24,7 @@ import {
     askWritesPolicy,
     fromGatewayPermissions,
     gatewayRefusalCode,
-    gatewayRefusalMessage,
+    gatewayRefusalStatus,
     getMcpConnectionStatusLabel,
     isToolHidden,
     listMcpTools,
@@ -128,7 +128,40 @@ type ToolsState =
     | {status: "idle"}
     | {status: "loading"}
     | {status: "ready"; tools: McpToolSummary[]}
-    | {status: "failed"; error: string; needsAuth: boolean}
+    | {status: "failed"; error: string; needsAuth: boolean; retryable: boolean}
+
+/**
+ * What a person reads when the tool list fails, and whether trying again can help. The server's
+ * own sentence names routes and permissions, so it goes to the console, never to the screen.
+ */
+const toolListFailure = (
+    error: unknown,
+    name: string,
+): Omit<Extract<ToolsState, {status: "failed"}>, "status"> => {
+    const code = gatewayRefusalCode(error)
+    const status = gatewayRefusalStatus(error)
+    if (code === "auth_required") {
+        return {
+            needsAuth: true,
+            retryable: false,
+            error: `${name} is not connected yet, so its tools cannot be listed.`,
+        }
+    }
+    if (status === 403 && code !== "endpoint_inactive") {
+        return {
+            needsAuth: false,
+            retryable: false,
+            error: "You do not have access to this server's tools.",
+        }
+    }
+    return {
+        needsAuth: false,
+        // No answer, a server fault, or the chosen server failing can pass. Any other refusal
+        // answers the same way again.
+        retryable: status === null || status >= 500 || code === "upstream_error",
+        error: "The tool list could not be read.",
+    }
+}
 
 /** The login-expired banner (D4), and the one action that fixes it. */
 function LoginExpiredBanner({
@@ -295,18 +328,8 @@ export default function McpPermissionDrawer({
             setTools({status: "ready", tools: listed})
         } catch (error) {
             if (shownFor.current !== slug) return
-            // The gateway's own sentence, with the harness marker taken out of it. What reached the
-            // screen before was "Authorization required for custom/<slug>
-            // ⟦agenta_code:auth_required⟧", which names a route and a code rather than the
-            // connection and what to do about it (QA-D3).
-            const needsAuth = gatewayRefusalCode(error) === "auth_required"
-            setTools({
-                status: "failed",
-                needsAuth,
-                error: needsAuth
-                    ? `${name} is not connected yet, so its tools cannot be listed.`
-                    : gatewayRefusalMessage(error) || "The tool list could not be read.",
-            })
+            console.error("[mcp] the tool list could not be read", error)
+            setTools({status: "failed", ...toolListFailure(error, name)})
         }
     }, [loadToolsFrom, name, projectId, slug])
 
@@ -467,17 +490,16 @@ export default function McpPermissionDrawer({
                 title="Couldn't read this server's tools"
                 description={tools.error}
                 action={
-                    // Retrying a tool list on a server nobody has authorized only fails again.
                     tools.needsAuth && onReconnect ? (
                         <Button variant="outline" disabled={disabled} onClick={onReconnect}>
                             Connect
                         </Button>
-                    ) : (
+                    ) : tools.retryable ? (
                         <Button variant="outline" onClick={() => void loadTools()}>
                             <ArrowClockwise size={14} />
                             Retry tools
                         </Button>
-                    )
+                    ) : undefined
                 }
             />
         )

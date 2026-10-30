@@ -260,13 +260,51 @@ describe("when the server has not been authorized", () => {
 })
 
 describe("when the tool list cannot be read", () => {
-    it("says so in the gateway's own words, and offers to try again", async () => {
-        listMcpTools.mockRejectedValue(new McpProtocolError("The server did not answer."))
+    it("shows a plain sentence and offers to try again when nothing answered", async () => {
+        listMcpTools.mockRejectedValue(
+            new McpProtocolError("The server did not answer tools/list."),
+        )
         const onChange = await render({tool_permissions: {echo: "allow"}})
 
-        expect(text()).toContain("The server did not answer.")
+        expect(text()).toContain("The tool list could not be read.")
+        expect(text()).not.toContain("tools/list")
         expect(button("Retry tools")).toBeDefined()
         expect(onChange).not.toHaveBeenCalled()
+    })
+
+    it("tells a person who has no access so, with no retry, and logs the real error", async () => {
+        const refusal = new McpProtocolError(
+            "Denied use_mcp_endpoints on custom/acme",
+            "policy_denied",
+            403,
+        )
+        const logged = vi.spyOn(console, "error").mockImplementation(() => undefined)
+        listMcpTools.mockRejectedValue(refusal)
+        await render({tool_permissions: {echo: "allow"}})
+
+        expect(text()).toContain("You do not have access to this server's tools.")
+        expect(text()).not.toContain("use_mcp_endpoints")
+        expect(text()).not.toContain("custom/acme")
+        expect(button("Retry tools")).toBeUndefined()
+        expect(logged).toHaveBeenCalledWith(expect.any(String), refusal)
+        logged.mockRestore()
+    })
+
+    it.each([
+        ["a server fault", new McpProtocolError("Bad gateway at 10.0.0.1", null, 502), true],
+        ["the chosen server failing", new McpProtocolError("boom", "upstream_error", 424), true],
+        ["a connection turned off", new McpProtocolError("off", "endpoint_inactive", 403), false],
+        ["a missing secret", new McpProtocolError("no KEY", "secret_missing", 409), false],
+        ["a deleted connection", new McpProtocolError("gone", "endpoint_not_found", 404), false],
+    ])("reads plainly on %s, and offers Retry only where it can help", async (_, error, retry) => {
+        const logged = vi.spyOn(console, "error").mockImplementation(() => undefined)
+        listMcpTools.mockRejectedValue(error)
+        await render({tool_permissions: {echo: "allow"}})
+
+        expect(text()).toContain("The tool list could not be read.")
+        expect(text()).not.toContain(error.message)
+        expect(Boolean(button("Retry tools"))).toBe(retry)
+        logged.mockRestore()
     })
 
     it("says something readable when the failure carries no sentence at all", async () => {
