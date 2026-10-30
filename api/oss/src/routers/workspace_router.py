@@ -133,9 +133,9 @@ async def get_workspace(request: Request):
 )
 async def get_all_workspace_roles(request: Request) -> List[Dict[str, str]]:
     """
-    Get the workspace roles that the caller's organization offers in invites and role
-    changes. The plan decides the list; `GET /access/roles` also returns the full
-    catalog.
+    Get the offered roles of the caller's organization: the workspace roles its
+    invites and role changes may set. The plan decides the list; `GET /access/roles`
+    also returns the full catalog.
     """
 
     offered = await get_access_service().offered_roles(

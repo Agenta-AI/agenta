@@ -216,9 +216,10 @@ class AccessRouter:
     @intercept_exceptions()
     async def fetch_roles(self) -> AccessRolesResponse:
         """Return the effective role catalog per scope (organization, workspace,
-        project), and the roles the caller's organization offers in invites and role
-        changes (`offered`). The catalog keeps every role, so a stored role that the
-        plan no longer offers still has a description and permissions.
+        project), and the offered roles of the caller's organization (`offered`): the
+        roles its invites and role changes may set, and its floor role. The catalog
+        keeps every role, so a stored role that is not offered still has a description
+        and permissions.
         """
         offered = await get_access_service().offered_roles(
             organization_id=get_auth_scope().organization_id
