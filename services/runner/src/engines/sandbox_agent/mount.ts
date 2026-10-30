@@ -256,6 +256,7 @@ function geesefsArgs(
     "--region",
     creds.region,
     "--no-detect",
+    "--no-expire-multipart",
     "--fsync-on-close",
     ...(options.enablePerms ? ["--enable-perms"] : []),
     ...(options.readRetryAttempts ? ["--read-retry-attempts", String(options.readRetryAttempts)] : []),
@@ -430,6 +431,7 @@ export async function mountStorage(
   // geesefs runs FOREGROUND (-f): spawn it as a long-lived child and poll for the mount to come
   // alive, rather than awaiting exit (it never exits). Detached + unref'd so it is not killed when
   // this call returns but survives for the run; teardown unmounts it (fusermount -uz reaps it).
+  let geesefsStderr = "";
   const run =
     deps.runGeesefs ??
     (async (a: string[], e: Record<string, string>) => {
@@ -447,7 +449,10 @@ export async function mountStorage(
       });
       child.stderr?.on("data", (d) => {
         const s = String(d).trim();
-        if (s) log(`geesefs stderr: ${s.slice(0, 400)}`);
+        if (s) {
+          geesefsStderr = `${geesefsStderr}\n${s}`.trim().slice(-1000);
+          log(`geesefs stderr: ${s.slice(0, 400)}`);
+        }
       });
       child.unref();
       // Wait up to ~15s for the mountpoint to serve I/O (geesefs mounts within ~1s normally), and
@@ -520,9 +525,17 @@ export async function mountStorage(
   // Never detach/fallback while a failed geesefs attempt may still attach later.
   await attempt?.stop();
   const detached = await unmountStorage(cwd, { ...deps.unmountDeps, log });
-  const detail = String(
+      const failureDetail = String(
     failure instanceof Error ? failure.message : failure,
-  ).slice(0, 300);
+  );
+
+  const detail = [
+    failureDetail,
+    geesefsStderr ? `geesefs stderr: ${geesefsStderr.slice(-300)}` : "",
+  ]
+    .filter(Boolean)
+    .join("; ")
+    .slice(0, 600);
   if (!detached) {
     throw new Error(
       `mount failed and detach could not be confirmed for ${cwd}; refusing ephemeral cwd fallback ` +
