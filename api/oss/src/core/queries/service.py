@@ -1,5 +1,4 @@
 from typing import Optional, List, TYPE_CHECKING, Any, Dict
-from oss.src.core.tracing.access import SpanReadScope, TraceScopeError
 from oss.src.core.git.dtos import RevisionGrouping
 from uuid import UUID, uuid4
 from collections import defaultdict
@@ -145,7 +144,6 @@ class QueriesService:
         include_trace_ids: Optional[bool] = None,
         include_traces: Optional[bool] = None,
         windowing: Optional[Windowing] = None,
-        scope: Optional[SpanReadScope] = None,
     ) -> None:
         """Conditionally execute the stored filter and populate trace IDs / traces.
 
@@ -168,9 +166,6 @@ class QueriesService:
 
         if not _include_ids and not _include_items:
             return
-        if scope is None:
-            # Traces are read only under the caller's scope; never unfiltered.
-            raise TraceScopeError("A saved query with traces needs a read scope.")
 
         # Merge windowing: stored bounds take precedence; request limit overrides
         stored = query_revision.data.windowing
@@ -206,7 +201,6 @@ class QueriesService:
         flat_spans = await self.tracing_service.query(
             project_id=project_id,
             query=tracing_query,
-            scope=scope,
         )
 
         # Group spans by trace_id while preserving first-seen order.
@@ -684,7 +678,6 @@ class QueriesService:
         include_traces: Optional[bool] = None,
         #
         windowing: Optional[Windowing] = None,
-        scope: Optional[SpanReadScope] = None,
     ) -> Optional[QueryRevision]:
         if not query_ref and not query_variant_ref and not query_revision_ref:
             return None
@@ -779,7 +772,6 @@ class QueriesService:
             include_traces=include_traces,
             #
             windowing=windowing,
-            scope=scope,
         )
 
         return _query_revision
@@ -797,10 +789,8 @@ class QueriesService:
         include_traces: Optional[bool] = None,
         #
         windowing: Optional[Windowing] = None,
-        scope: Optional[SpanReadScope] = None,
     ) -> tuple[Optional[QueryRevision], Optional[RetrievalInfo]]:
         query_revision = await self.fetch_query_revision(
-            scope=scope,
             project_id=project_id,
             #
             query_ref=query_ref,

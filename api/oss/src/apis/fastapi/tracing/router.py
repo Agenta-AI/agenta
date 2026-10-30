@@ -3,11 +3,9 @@ from uuid import UUID
 
 from fastapi import APIRouter, Query, Request, Depends, status, HTTPException, Body
 
-from oss.src.apis.fastapi.shared.trace_scope import request_span_read_scope
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
-from oss.src.core.tracing.access import TraceScopeError
 
 from oss.src.apis.fastapi.tracing.utils import (
     parse_query_from_params_request,
@@ -31,7 +29,6 @@ from oss.src.apis.fastapi.tracing.models import (
     SpansQueryRequest,
     OldAnalyticsResponse,
     AnalyticsResponse,
-    TraceAccess,
     SessionsQueryRequest,
     SessionIdsResponse,
     UsersQueryRequest,
@@ -325,9 +322,7 @@ class TracingRouter:
         return link_response
 
     @intercept_exceptions()
-    @suppress_exceptions(
-        default=OTelTracingResponse(), exclude=[HTTPException, TraceScopeError]
-    )
+    @suppress_exceptions(default=OTelTracingResponse(), exclude=[HTTPException])
     async def query_spans(  # QUERY
         self,
         request: Request,
@@ -389,7 +384,6 @@ class TracingRouter:
                 spans_or_traces,
                 next_windowing,
             ) = await self.service.query_spans_or_traces_page(
-                scope=await request_span_read_scope(request),
                 project_id=UUID(request.state.project_id),
                 query=merged_query,
             )
@@ -462,9 +456,7 @@ class TracingRouter:
         return spans_response
 
     @intercept_exceptions()
-    @suppress_exceptions(
-        default=AnalyticsResponse(), exclude=[HTTPException, TraceScopeError]
-    )
+    @suppress_exceptions(default=AnalyticsResponse(), exclude=[HTTPException])
     async def fetch_analytics(
         self,
         request: Request,
@@ -536,10 +528,8 @@ class TracingRouter:
             analytics_from_body,
         )
 
-        scope = await request_span_read_scope(request)
         try:
             buckets = await self.service.analytics(
-                scope=scope,
                 project_id=UUID(request.state.project_id),
                 query=query,
                 specs=specs,
@@ -551,7 +541,6 @@ class TracingRouter:
             ) from e
 
         return AnalyticsResponse(
-            access=TraceAccess(restricted=scope.restricted),
             count=len(buckets),
             buckets=buckets,
             query=query,
@@ -559,9 +548,7 @@ class TracingRouter:
         )
 
     @intercept_exceptions()
-    @suppress_exceptions(
-        default=OldAnalyticsResponse(), exclude=[HTTPException, TraceScopeError]
-    )
+    @suppress_exceptions(default=OldAnalyticsResponse(), exclude=[HTTPException])
     async def fetch_legacy_analytics(
         self,
         request: Request,
@@ -608,9 +595,7 @@ class TracingRouter:
         # log.trace(merged_query.model_dump(mode="json", exclude_none=True))
         # ---------
 
-        scope = await request_span_read_scope(request)
         buckets = await self.service.legacy_analytics(
-            scope=scope,
             project_id=UUID(request.state.project_id),
             query=merged_query,
         )
@@ -620,7 +605,6 @@ class TracingRouter:
         # ---------
 
         return OldAnalyticsResponse(
-            access=TraceAccess(restricted=scope.restricted),
             count=len(buckets),
             buckets=buckets,
         )
@@ -688,9 +672,7 @@ class TracingRouter:
         return link_response
 
     @intercept_exceptions()
-    @suppress_exceptions(
-        default=OTelTracingResponse(), exclude=[HTTPException, TraceScopeError]
-    )
+    @suppress_exceptions(default=OTelTracingResponse(), exclude=[HTTPException])
     async def fetch_trace(  # READ
         self,
         request: Request,
@@ -715,7 +697,6 @@ class TracingRouter:
 
         try:
             trace = await self.service.fetch_trace(
-                scope=await request_span_read_scope(request),
                 project_id=UUID(request.state.project_id),
                 #
                 trace_id=trace_id,
@@ -866,7 +847,6 @@ class TracingRouter:
 
         try:
             links = await self.service.delete_trace(
-                scope=await request_span_read_scope(request),
                 project_id=UUID(request.state.project_id),
                 trace_id=trace_id,
             )
@@ -886,9 +866,7 @@ class TracingRouter:
     ## SESSIONS & USERS
 
     @intercept_exceptions()
-    @suppress_exceptions(
-        default=SessionIdsResponse(), exclude=[HTTPException, TraceScopeError]
-    )
+    @suppress_exceptions(default=SessionIdsResponse(), exclude=[HTTPException])
     async def list_sessions(
         self,
         request: Request,
@@ -919,7 +897,6 @@ class TracingRouter:
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
         session_ids, activity_cursor = await self.service.sessions(
-            scope=await request_span_read_scope(request),
             project_id=request.state.project_id,
             #
             realtime=sessions_query_request.realtime,
@@ -943,9 +920,7 @@ class TracingRouter:
         return session_ids_response
 
     @intercept_exceptions()
-    @suppress_exceptions(
-        default=UserIdsResponse(), exclude=[HTTPException, TraceScopeError]
-    )
+    @suppress_exceptions(default=UserIdsResponse(), exclude=[HTTPException])
     async def list_users(
         self,
         request: Request,
@@ -966,7 +941,6 @@ class TracingRouter:
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
         user_ids, activity_cursor = await self.service.users(
-            scope=await request_span_read_scope(request),
             project_id=request.state.project_id,
             #
             realtime=users_query_request.realtime,
@@ -1104,9 +1078,7 @@ class SpansRouter:
         return links
 
     @intercept_exceptions()
-    @suppress_exceptions(
-        default=SpansResponse(), exclude=[HTTPException, TraceScopeError]
-    )
+    @suppress_exceptions(default=SpansResponse(), exclude=[HTTPException])
     async def query_spans(
         self,
         request: Request,
@@ -1200,7 +1172,6 @@ class SpansRouter:
 
         try:
             spans, next_windowing = await self.service.query_spans_page(
-                scope=await request_span_read_scope(request),
                 project_id=project_id,
                 #
                 query=query,
@@ -1235,9 +1206,7 @@ class SpansRouter:
         )
 
     @intercept_exceptions()
-    @suppress_exceptions(
-        default=SpansResponse(), exclude=[HTTPException, TraceScopeError]
-    )
+    @suppress_exceptions(default=SpansResponse(), exclude=[HTTPException])
     async def fetch_spans(
         self,
         request: Request,
@@ -1277,7 +1246,6 @@ class SpansRouter:
 
         try:
             spans = await self.service.fetch_spans(
-                scope=await request_span_read_scope(request),
                 project_id=UUID(request.state.project_id),
                 #
                 trace_ids=trace_id_values,
@@ -1312,9 +1280,7 @@ class SpansRouter:
         )
 
     @intercept_exceptions()
-    @suppress_exceptions(
-        default=SpanResponse(), exclude=[HTTPException, TraceScopeError]
-    )
+    @suppress_exceptions(default=SpanResponse(), exclude=[HTTPException])
     async def fetch_span(
         self,
         request: Request,
@@ -1337,7 +1303,6 @@ class SpansRouter:
 
         try:
             span = await self.service.fetch_span(
-                scope=await request_span_read_scope(request),
                 project_id=UUID(request.state.project_id),
                 #
                 trace_id=trace_id,
@@ -1369,9 +1334,7 @@ class SpansRouter:
         )
 
     @intercept_exceptions()
-    @suppress_exceptions(
-        default=AnalyticsResponse(), exclude=[HTTPException, TraceScopeError]
-    )
+    @suppress_exceptions(default=AnalyticsResponse(), exclude=[HTTPException])
     async def query_analytics(
         self,
         request: Request,
@@ -1399,10 +1362,8 @@ class SpansRouter:
             analytics_from_body,
         )
 
-        scope = await request_span_read_scope(request)
         try:
             buckets = await self.service.analytics(
-                scope=scope,
                 project_id=UUID(request.state.project_id),
                 query=query,
                 specs=specs,
@@ -1414,7 +1375,6 @@ class SpansRouter:
             ) from e
 
         return AnalyticsResponse(
-            access=TraceAccess(restricted=scope.restricted),
             count=len(buckets),
             buckets=buckets,
             query=query,
@@ -1422,9 +1382,7 @@ class SpansRouter:
         )
 
     @intercept_exceptions()
-    @suppress_exceptions(
-        default=SessionIdsResponse(), exclude=[HTTPException, TraceScopeError]
-    )
+    @suppress_exceptions(default=SessionIdsResponse(), exclude=[HTTPException])
     async def query_sessions(
         self,
         request: Request,
@@ -1438,7 +1396,6 @@ class SpansRouter:
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
         session_ids, activity_cursor = await self.service.sessions(
-            scope=await request_span_read_scope(request),
             project_id=request.state.project_id,
             realtime=sessions_query_request.realtime,
             windowing=sessions_query_request.windowing,
@@ -1455,9 +1412,7 @@ class SpansRouter:
         )
 
     @intercept_exceptions()
-    @suppress_exceptions(
-        default=UserIdsResponse(), exclude=[HTTPException, TraceScopeError]
-    )
+    @suppress_exceptions(default=UserIdsResponse(), exclude=[HTTPException])
     async def query_users(
         self,
         request: Request,
@@ -1471,7 +1426,6 @@ class SpansRouter:
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
         user_ids, activity_cursor = await self.service.users(
-            scope=await request_span_read_scope(request),
             project_id=request.state.project_id,
             realtime=users_query_request.realtime,
             windowing=users_query_request.windowing,
@@ -1605,9 +1559,7 @@ class TracesRouter:
     # TRACES -------------------------------------------------------------------
 
     @intercept_exceptions()
-    @suppress_exceptions(
-        default=TracesResponse(), exclude=[HTTPException, TraceScopeError]
-    )
+    @suppress_exceptions(default=TracesResponse(), exclude=[HTTPException])
     async def query_traces(  # QUERY
         self,
         request: Request,
@@ -1703,7 +1655,6 @@ class TracesRouter:
 
         try:
             traces, next_windowing = await self.service.query_traces_page(
-                scope=await request_span_read_scope(request),
                 project_id=project_id,
                 #
                 query=query,
@@ -1948,9 +1899,7 @@ class TracesRouter:
         )
 
     @intercept_exceptions()
-    @suppress_exceptions(
-        default=TracesResponse(), exclude=[HTTPException, TraceScopeError]
-    )
+    @suppress_exceptions(default=TracesResponse(), exclude=[HTTPException])
     async def fetch_traces(
         self,
         request: Request,
@@ -1985,7 +1934,6 @@ class TracesRouter:
 
         try:
             traces_list = await self.service.fetch_traces(
-                scope=await request_span_read_scope(request),
                 project_id=UUID(request.state.project_id),
                 #
                 trace_ids=ids,
@@ -2022,9 +1970,7 @@ class TracesRouter:
         return traces_response
 
     @intercept_exceptions()
-    @suppress_exceptions(
-        default=TraceResponse(), exclude=[HTTPException, TraceScopeError]
-    )
+    @suppress_exceptions(default=TraceResponse(), exclude=[HTTPException])
     async def fetch_trace(
         self,
         request: Request,
@@ -2053,7 +1999,6 @@ class TracesRouter:
 
         try:
             trace = await self.service.fetch_trace(
-                scope=await request_span_read_scope(request),
                 project_id=UUID(request.state.project_id),
                 #
                 trace_id=trace_id,
@@ -2105,7 +2050,6 @@ class TracesRouter:
 
         try:
             links = await self.service.delete_trace(
-                scope=await request_span_read_scope(request),
                 project_id=UUID(request.state.project_id),
                 trace_id=trace_id,
             )

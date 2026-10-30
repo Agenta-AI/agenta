@@ -366,12 +366,6 @@ class ApiTracingConfig(BaseModel):
     query_max_limit: int = (
         _parse_optional_positive_int_env("AGENTA_API_TRACING_QUERY_MAX_LIMIT") or 1000
     )
-    # Trace reads hide the traces of sessions the reader may not read (private
-    # sessions of other users, live or deleted). Turn it on after every api pod
-    # passes read scopes. Off: every `VIEW_SPANS` holder reads every trace.
-    session_filter_enabled: bool = _parse_bool_env(
-        "AGENTA_API_TRACING_SESSION_FILTER_ENABLED", default=False
-    )
 
     model_config = ConfigDict(extra="ignore")
 

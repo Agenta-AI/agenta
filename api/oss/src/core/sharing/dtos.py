@@ -5,7 +5,7 @@ from typing import List, Optional
 from agenta.sdk.agents.accounts import AccountSource
 from uuid import UUID
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, model_validator
 
 
 # Every nullable field below has an explicit `= None` default: the cache serializer
@@ -162,22 +162,14 @@ class DisclosedConnection(BaseModel):
     account_source: Optional[AccountSource] = None
 
 
-def _trace_readers_can_read() -> bool:
-    # True until trace reads are filtered by session access (M9).
-    from oss.src.utils.env import env  # noqa: PLC0415
-
-    return not env.agenta.api.tracing.session_filter_enabled
-
-
 class ShareDisclosure(BaseModel):
-    """What sharing an agent or a session lets others reach. The UI owns the text.
-    `trace_readers_can_read` is true while project members who read traces also read
-    the traces of private chats, which ends when the trace session filter is on."""
+    """What sharing an agent or a session lets others reach. The three statements are
+    always true; the UI owns their text."""
 
     connections: List[DisclosedConnection]
     turns_use_run_credentials: bool = True
     files_and_tool_results_shared: bool = True
-    trace_readers_can_read: bool = Field(default_factory=_trace_readers_can_read)
+    trace_readers_can_read: bool = True
 
 
 # -- sharing state (the sharing routes) ---------------------------------------------------

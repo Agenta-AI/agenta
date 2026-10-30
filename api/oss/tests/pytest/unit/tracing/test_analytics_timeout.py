@@ -6,6 +6,7 @@ No live DB: a fake session raises the DBAPIError that asyncpg produces when
 
 from contextlib import asynccontextmanager
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 
 import pytest
 from sqlalchemy.exc import DBAPIError
@@ -14,7 +15,6 @@ from oss.src.core.shared.dtos import Windowing
 from oss.src.core.tracing.dtos import AnalyticsQueryTimeoutError, TracingQuery
 from oss.src.core.tracing.service import TracingService
 from oss.src.dbs.postgres.tracing.dao import TracingDAO
-from oss.tests.pytest.utils.trace_scope import scoped  # noqa: E402
 
 
 @pytest.fixture
@@ -78,7 +78,7 @@ async def test_analytics_statement_timeout_raises(anyio_backend):
 
     with pytest.raises(AnalyticsQueryTimeoutError):
         await dao.analytics(
-            **scoped(),
+            project_id=uuid4(),
             query=_query(),
             specs=TracingService.default_analytics_specs(),
         )
@@ -104,7 +104,7 @@ async def test_analytics_other_db_errors_stay_suppressed(
     dao = TracingDAO(engine=_FailingEngine(error))
 
     buckets = await dao.analytics(
-        **scoped(),
+        project_id=uuid4(),
         query=_query(),
         specs=TracingService.default_analytics_specs(),
     )

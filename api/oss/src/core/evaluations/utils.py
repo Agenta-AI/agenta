@@ -2,7 +2,6 @@ from typing import List, Tuple, Dict, Optional, Any, Literal
 from uuid import UUID
 from asyncio import sleep
 
-from oss.src.core.tracing.access import SpanReadScope, TraceScopeError
 from oss.src.utils.logging import get_module_logger
 from oss.src.core.shared.dtos import Windowing
 from oss.src.core.shared.dtos import Trace
@@ -369,7 +368,6 @@ class TraceFetcher:
         project_id: UUID,
         #
         trace_id: str,
-        scope: SpanReadScope,
         max_retries: int = 8,
         delay: float = 0.5,
         max_delay: float = 4.0,
@@ -381,7 +379,6 @@ class TraceFetcher:
                 trace = await self.tracing_service.fetch_trace(
                     project_id=project_id,
                     trace_id=trace_id,
-                    scope=scope,
                 )
                 if trace and _has_usable_root_span(trace):
                     if isinstance(trace, Trace):
@@ -401,9 +398,6 @@ class TraceFetcher:
 
                     return Trace(**trace_payload)
 
-            except TraceScopeError:
-                # No scope is a failure, never "no trace yet": no retry.
-                raise
             except Exception:  # pylint: disable=broad-exception-caught
                 had_exception = True
                 if attempt == max_retries - 1:
@@ -432,7 +426,6 @@ class TraceFetcher:
         project_id: UUID,
         #
         hash_id: str,
-        scope: SpanReadScope,
         limit: Optional[int] = None,
     ) -> Traces:
         if not hash_id:
@@ -440,7 +433,6 @@ class TraceFetcher:
 
         return await self.tracing_service.query_traces(
             project_id=project_id,
-            scope=scope,
             query=TracingQuery(
                 formatting=Formatting(
                     focus=Focus.TRACE,

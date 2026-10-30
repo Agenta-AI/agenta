@@ -58,10 +58,8 @@ class SpanDBA:
         nullable=True,
     )
 
-    # Promoted from ag.session/user/agent attributes at ingest_span_dtos. `session_id`
-    # is set on every span that carries a session id, and on the spans of a trace whose
-    # root carries one in the same batch (the trace read scope reads it). `user_id`
-    # and `agent_id` are root-span-only.
+    # Root-span-only (parent_id IS NULL); promoted from ag.session/user/agent
+    # attributes at ingest_span_dtos. Nullable — children never populate these.
     session_id = Column(
         VARCHAR,
         nullable=True,

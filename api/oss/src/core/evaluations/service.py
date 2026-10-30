@@ -6,7 +6,6 @@ from datetime import datetime, timedelta, timezone
 
 from genson import SchemaBuilder
 
-from oss.src.core.tracing.access import SpanReadScope, TraceScopeError
 from oss.src.core.access.dtos import PrincipalRef
 from oss.src.utils.logging import get_module_logger
 
@@ -121,10 +120,7 @@ from oss.src.core.access.principals import (
     missing_principal_error,
 )
 from oss.src.core.access.types import AccessDenied, MissingPrincipal
-from oss.src.core.evaluations.run_access import (
-    evaluation_run_trace_scope,
-    require_evaluation_run_access,
-)
+from oss.src.core.evaluations.run_access import require_evaluation_run_access
 
 log = get_module_logger(__name__)
 
@@ -1511,11 +1507,6 @@ class EvaluationsService:
                 log.warning("[METRICS] No trace_ids found! Cannot extract metrics.")
             return []
 
-        # The metrics are stored on the run, so the run's principal reads the traces,
-        # whoever asks for the refresh. Built once, only when traces are read; a run
-        # without a principal, or a scope that cannot be computed, fails the refresh.
-        scope = await evaluation_run_trace_scope(project_id=project_id, run=run)
-
         # Resolved metric keys per step (declared schema, else trace-inferred);
         # become the run's `mappings`. Rewrite only when something was inferred.
         metrics_keys_by_step: Dict[str, List[Dict[str, str]]] = {}
@@ -1567,7 +1558,6 @@ class EvaluationsService:
                     inferred_schema = await self._infer_evaluator_schema_from_traces(
                         project_id=project_id,
                         trace_ids=trace_ids,
-                        scope=scope,
                     )
 
                     if not inferred_schema:
@@ -1669,7 +1659,6 @@ class EvaluationsService:
                     #
                     query=query,
                     specs=specs,
-                    scope=scope,
                 )
 
                 # log.info(
@@ -1697,8 +1686,6 @@ class EvaluationsService:
                 metrics_data |= {step_key: bucket.metrics}
                 # log.info(f"[METRICS] Step '{step_key}': added to metrics_data")
 
-            except TraceScopeError:
-                raise
             except Exception:
                 log.error(
                     f"[METRICS] Step '{step_key}': Exception during analytics",
@@ -1736,7 +1723,6 @@ class EvaluationsService:
         *,
         project_id: UUID,
         trace_ids: List[str],
-        scope: SpanReadScope,
     ) -> Optional[Dict[str, Any]]:
         """Infer the outputs schema from trace attributes."""
         try:
@@ -1765,7 +1751,6 @@ class EvaluationsService:
             spans = await self.tracing_service.query(
                 project_id=project_id,
                 query=query,
-                scope=scope,
             )
 
             # Build schema from trace outputs
@@ -1798,8 +1783,6 @@ class EvaluationsService:
             schema = builder.to_schema()
             return schema
 
-        except TraceScopeError:
-            raise
         except Exception as e:
             log.warning(f"[METRICS] Failed to infer evaluator schema from traces: {e}")
             return None
@@ -4976,7 +4959,6 @@ class SimpleQueuesService:
         batches = await self._sources.resolve_queue_source_batches(
             project_id=project_id,
             run=run,
-            scope=await evaluation_run_trace_scope(project_id=project_id, run=run),
         )
 
         dispatched = False

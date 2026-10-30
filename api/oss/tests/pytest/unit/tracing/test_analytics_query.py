@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from uuid import uuid4
 
 from sqlalchemy import select
 from sqlalchemy.dialects import postgresql
@@ -9,7 +10,6 @@ from oss.src.dbs.postgres.tracing.utils import (
     fill_empty_buckets,
     get_sampling_percent,
 )
-from oss.tests.pytest.utils.trace_scope import scoped
 
 
 UTC = timezone.utc
@@ -19,7 +19,7 @@ NEWEST = datetime(2026, 9, 1, 3, 0, tzinfo=UTC)
 
 def _sql(focus=None) -> str:
     cte = build_base_cte(
-        **scoped(),
+        project_id=uuid4(),
         oldest=OLDEST,
         newest=NEWEST,
         stride="1 hour",

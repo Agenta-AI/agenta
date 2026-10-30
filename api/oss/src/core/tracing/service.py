@@ -23,11 +23,6 @@ from oss.src.core.evaluators.dtos import (
     SimpleEvaluatorFlags,
 )
 from oss.src.core.tracing.interfaces import TracingDAOInterface
-from oss.src.core.tracing.access import (
-    MaintenanceOperation,
-    SpanReadScope,
-    TraceAccessService,
-)
 from oss.src.core.tracing.utils.parsing import (
     parse_span_id_to_uuid,
     parse_span_id_from_uuid,
@@ -152,17 +147,14 @@ class TracingService:
         trace_id: UUID,
         on_totals: Optional[Callable[[TraceTotals], Awaitable[None]]] = None,
     ) -> Optional[TraceTotals]:
-        """Recompute cumulative metrics of one trace from all its stored spans, under
-        the ingest maintenance scope. `on_totals` runs under the trace's lock."""
+        """Recompute cumulative metrics of one trace from all its stored spans.
+        `on_totals` runs under the trace's lock."""
         return await self.tracing_dao.recompute_trace_metrics(
             project_id=project_id,
             trace_id=trace_id,
             #
             recompute=recompute_cumulative_metrics,
             max_spans=env.agenta.otlp.totals_max_spans,
-            scope=TraceAccessService.maintenance(
-                project_id=project_id, operation=MaintenanceOperation.INGEST
-            ),
             on_totals=on_totals,
         )
 
@@ -625,11 +617,9 @@ class TracingService:
         project_id: UUID,
         #
         query: TracingQuery,
-        scope: SpanReadScope,
     ) -> List[OTelFlatSpan]:
         span_dtos, _ = await self.query_page(
             project_id=project_id,
-            scope=scope,
             query=query,
         )
 
@@ -641,13 +631,11 @@ class TracingService:
         project_id: UUID,
         #
         query: TracingQuery,
-        scope: SpanReadScope,
     ) -> Tuple[List[OTelFlatSpan], Optional[Windowing]]:
         parse_query(query)
 
         return await self.tracing_dao.query_page(
             project_id=project_id,
-            scope=scope,
             #
             query=query,
         )
@@ -657,11 +645,9 @@ class TracingService:
         *,
         project_id: UUID,
         query: TracingQuery,
-        scope: SpanReadScope,
     ) -> OTelFlatSpans:
         span_dtos, _ = await self.query_span_dtos_page(
             project_id=project_id,
-            scope=scope,
             query=query,
         )
 
@@ -672,7 +658,6 @@ class TracingService:
         *,
         project_id: UUID,
         query: TracingQuery,
-        scope: SpanReadScope,
     ) -> Tuple[OTelFlatSpans, Optional[Windowing]]:
         # A filter on trace ids alone reads whole traces (the trace drawer): full
         # attributes, no limit, no next page.
@@ -680,14 +665,12 @@ class TracingService:
         if trace_ids is not None:
             span_dtos = await self.fetch(
                 project_id=project_id,
-                scope=scope,
                 trace_ids=trace_ids,
             )
             return span_dtos, None
 
         return await self.query_page(
             project_id=project_id,
-            scope=scope,
             query=query,
         )
 
@@ -697,11 +680,9 @@ class TracingService:
         project_id: UUID,
         query: TracingQuery,
         focus: Optional[Focus] = None,
-        scope: SpanReadScope,
     ) -> Optional[Union[OTelFlatSpans, OTelTraceTree]]:
         spans_or_traces, _ = await self.query_spans_or_traces_page(
             project_id=project_id,
-            scope=scope,
             query=query,
             focus=focus,
         )
@@ -714,7 +695,6 @@ class TracingService:
         project_id: UUID,
         query: TracingQuery,
         focus: Optional[Focus] = None,
-        scope: SpanReadScope,
     ) -> Tuple[Optional[Union[OTelFlatSpans, OTelTraceTree]], Optional[Windowing]]:
         formatting = query.formatting or Formatting()
         if formatting.focus is None:
@@ -727,7 +707,6 @@ class TracingService:
         merged_query = query.model_copy(update={"formatting": formatting})
         span_dtos, next_windowing = await self.query_span_dtos_page(
             project_id=project_id,
-            scope=scope,
             query=merged_query,
         )
 
@@ -745,11 +724,8 @@ class TracingService:
         project_id: UUID,
         #
         query: TracingQuery,
-        scope: SpanReadScope,
     ) -> Spans:
-        spans, _ = await self.query_spans_page(
-            project_id=project_id, scope=scope, query=query
-        )
+        spans, _ = await self.query_spans_page(project_id=project_id, query=query)
 
         return spans
 
@@ -759,11 +735,9 @@ class TracingService:
         project_id: UUID,
         #
         query: TracingQuery,
-        scope: SpanReadScope,
     ) -> Tuple[Spans, Optional[Windowing]]:
         spans_or_traces, next_windowing = await self.query_spans_or_traces_page(
             project_id=project_id,
-            scope=scope,
             query=query,
             focus=Focus.SPAN,
         )
@@ -778,7 +752,6 @@ class TracingService:
         #
         trace_ids: Optional[List[str]] = None,
         span_ids: Optional[List[str]] = None,
-        scope: SpanReadScope,
     ) -> Spans:
         if not trace_ids and not span_ids:
             return []
@@ -799,7 +772,6 @@ class TracingService:
 
         spans = await self.fetch(
             project_id=project_id,
-            scope=scope,
             trace_ids=normalized_trace_ids,
             span_ids=normalized_span_ids,
         )
@@ -820,11 +792,9 @@ class TracingService:
         #
         trace_id: str,
         span_id: str,
-        scope: SpanReadScope,
     ) -> Optional[Span]:
         spans = await self.fetch_spans(
             project_id=project_id,
-            scope=scope,
             trace_ids=[trace_id],
             span_ids=[span_id],
         )
@@ -836,11 +806,8 @@ class TracingService:
         project_id: UUID,
         #
         query: TracingQuery,
-        scope: SpanReadScope,
     ) -> Traces:
-        traces, _ = await self.query_traces_page(
-            project_id=project_id, scope=scope, query=query
-        )
+        traces, _ = await self.query_traces_page(project_id=project_id, query=query)
 
         return traces
 
@@ -850,11 +817,9 @@ class TracingService:
         project_id: UUID,
         #
         query: TracingQuery,
-        scope: SpanReadScope,
     ) -> Tuple[Traces, Optional[Windowing]]:
         spans_or_traces, next_windowing = await self.query_spans_or_traces_page(
             project_id=project_id,
-            scope=scope,
             query=query,
             focus=Focus.TRACE,
         )
@@ -869,13 +834,11 @@ class TracingService:
         #
         query: TracingQuery,
         specs: List[MetricSpec],
-        scope: SpanReadScope,
     ) -> List[MetricsBucket]:
         parse_query(query)
 
         bucket_dtos = await self.tracing_dao.analytics(
             project_id=project_id,
-            scope=scope,
             #
             query=query,
             specs=specs,
@@ -889,13 +852,11 @@ class TracingService:
         project_id: UUID,
         #
         query: TracingQuery,
-        scope: SpanReadScope,
     ) -> List[Bucket]:
         parse_query(query)
 
         bucket_dtos = await self.tracing_dao.legacy_analytics(
             project_id=project_id,
-            scope=scope,
             #
             query=query,
         )
@@ -911,12 +872,10 @@ class TracingService:
         #
         trace_ids: Optional[List[UUID]] = None,
         span_ids: Optional[List[UUID]] = None,
-        scope: SpanReadScope,
     ) -> List[OTelFlatSpan]:
         """Fetch spans by trace IDs and/or span IDs."""
         return await self.tracing_dao.fetch(
             project_id=project_id,
-            scope=scope,
             #
             trace_ids=trace_ids,
             span_ids=span_ids,
@@ -928,7 +887,6 @@ class TracingService:
         project_id: UUID,
         #
         trace_ids: List[str],
-        scope: SpanReadScope,
     ) -> Traces:
         if not trace_ids:
             return []
@@ -936,7 +894,6 @@ class TracingService:
         uuid_ids = [UUID(parse_trace_id_to_uuid(trace_id)) for trace_id in trace_ids]
         spans = await self.fetch(
             project_id=project_id,
-            scope=scope,
             trace_ids=uuid_ids,
         )
         traces = parse_spans_into_response(
@@ -954,13 +911,11 @@ class TracingService:
         project_id: UUID,
         #
         trace_id: str,
-        scope: SpanReadScope,
     ) -> Optional[Trace]:
         normalized_trace_id = UUID(parse_trace_id_to_uuid(trace_id))
 
         traces = await self.fetch_traces(
             project_id=project_id,
-            scope=scope,
             trace_ids=[str(normalized_trace_id)],
         )
         if not traces:
@@ -979,12 +934,10 @@ class TracingService:
         project_id: UUID,
         #
         trace_ids: List[UUID],
-        scope: SpanReadScope,
     ) -> List[OTelLink]:
         """Delete all spans for the given trace IDs."""
         return await self.tracing_dao.delete(
             project_id=project_id,
-            scope=scope,
             #
             trace_ids=trace_ids,
         )
@@ -994,12 +947,10 @@ class TracingService:
         *,
         project_id: UUID,
         trace_id: str,
-        scope: SpanReadScope,
     ) -> OTelLinks:
         normalized_trace_id = UUID(parse_trace_id_to_uuid(trace_id))
         return await self.delete(
             project_id=project_id,
-            scope=scope,
             trace_ids=[normalized_trace_id],
         )
 
@@ -1013,11 +964,9 @@ class TracingService:
         realtime: Optional[bool] = None,
         #
         windowing: Optional[Windowing] = None,
-        scope: SpanReadScope,
     ) -> Tuple[List[str], Optional[datetime]]:
         return await self.tracing_dao.sessions(
             project_id=project_id,
-            scope=scope,
             #
             realtime=realtime,
             #
@@ -1032,11 +981,9 @@ class TracingService:
         realtime: Optional[bool] = None,
         #
         windowing: Optional[Windowing] = None,
-        scope: SpanReadScope,
     ) -> Tuple[List[str], Optional[datetime]]:
         return await self.tracing_dao.users(
             project_id=project_id,
-            scope=scope,
             #
             realtime=realtime,
             #
@@ -1300,11 +1247,9 @@ class SimpleTracesService:
         project_id: UUID,
         #
         trace_id: str,
-        scope: SpanReadScope,
     ) -> Optional[SimpleTrace]:
         trace = await self.tracing_service.fetch_trace(
             project_id=project_id,
-            scope=scope,
             trace_id=trace_id,
         )
 
@@ -1324,11 +1269,8 @@ class SimpleTracesService:
         trace_id: str,
         #
         trace_edit: SimpleTraceEdit,
-        scope: SpanReadScope,
     ) -> Optional[SimpleTrace]:
-        existing = await self.fetch(
-            project_id=project_id, trace_id=trace_id, scope=scope
-        )
+        existing = await self.fetch(project_id=project_id, trace_id=trace_id)
         if existing is None:
             return None
 
@@ -1395,11 +1337,9 @@ class SimpleTracesService:
         user_id: UUID,
         #
         trace_id: str,
-        scope: SpanReadScope,
     ) -> Optional[Link]:
         otel_links = await self.tracing_service.delete_trace(
             project_id=project_id,
-            scope=scope,
             trace_id=trace_id,
         )
 
@@ -1413,7 +1353,6 @@ class SimpleTracesService:
         trace_query: Optional[SimpleTraceQuery] = None,
         trace_links: Optional[List] = None,
         windowing: Optional[Windowing] = None,
-        scope: SpanReadScope,
     ) -> List[SimpleTrace]:
         _flags = None
         _tags = None
@@ -1536,7 +1475,6 @@ class SimpleTracesService:
         traces = await self.tracing_service.query_traces(
             project_id=project_id,
             query=base_query,
-            scope=scope,
         )
 
         result = []

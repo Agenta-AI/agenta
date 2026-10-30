@@ -9,8 +9,6 @@ from ee.src.dbs.postgres.tracing.dao import TracingRetentionDAO
 
 log = get_module_logger(__name__)
 
-TOMBSTONE_GRACE = timedelta(days=1)
-
 
 class TracingRetentionService:
     def __init__(
@@ -117,14 +115,6 @@ class TracingRetentionService:
                 cutoff=cutoff,
                 project_ids=project_ids,
                 max_traces=max_traces_per_batch,
-            )
-
-            # A deleted private session keeps its tombstone until its traces have
-            # expired (one day past the trace cutoff) and no stored span carries its
-            # id any more.
-            await self.tracing_dao.delete_session_tombstones_before_cutoff(
-                cutoff=cutoff - TOMBSTONE_GRACE,
-                project_ids=project_ids,
             )
 
             total_traces += traces

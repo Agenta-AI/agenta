@@ -400,26 +400,6 @@ class SharingService(ResourcePolicyInterface):
             ],
         )
 
-    async def unreadable_session_ids(
-        self,
-        *,
-        project_id: UUID,
-        principal: PrincipalRef,
-    ) -> List[str]:
-        """The project's session ids whose traces the principal may not read: the
-        private sessions outside its session read scope, and the tombstones of private
-        sessions it did not own. The grants come from the cached read the session list
-        uses; the ids from one uncached statement."""
-
-        scope = await self.session_read_scope(
-            project_id=project_id, principal=principal
-        )
-        return await self._dao.list_unreadable_session_ids(
-            project_id=project_id,
-            user_id=scope.owner_user_id,
-            granted_stream_ids=list(scope.granted_stream_ids),
-        )
-
     async def list_session_grants(
         self,
         *,

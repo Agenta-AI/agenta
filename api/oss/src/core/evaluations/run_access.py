@@ -6,7 +6,6 @@ before M2) is refused; the principal is never rebuilt from `created_by_id`.
 
 from uuid import UUID
 
-from oss.src.core.tracing.access import SpanReadScope, get_trace_access_service
 from oss.src.core.access.dtos import RunEnvelope, RunOrigin
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.principals import stored_work_envelope
@@ -44,20 +43,6 @@ async def evaluation_run_envelope(
         # For an installation, the linked user is the acting user of the request that
         # set the principal (create, start, rerun), not the run's creator.
         created_by_id=run.principal_user_id or run.created_by_id,
-    )
-
-
-async def evaluation_run_trace_scope(
-    *, project_id: UUID, run: EvaluationRun
-) -> SpanReadScope:
-    """The trace read scope of a stored evaluation run: its principal's. Build it once
-    per run, batch or tick. Raises `TraceScopeError` for a run without a principal or
-    when the scope cannot be computed."""
-
-    return await get_trace_access_service().read_scope(
-        authority=None,
-        principal=run.principal,
-        project_id=project_id,
     )
 
 

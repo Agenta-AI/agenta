@@ -2,7 +2,7 @@ from typing import Optional, List, Tuple
 from uuid import UUID
 from datetime import datetime
 
-from sqlalchemy import String, delete, func, literal, select, text, tuple_, bindparam
+from sqlalchemy import delete, func, literal, select, text, tuple_, bindparam
 from sqlalchemy.sql import any_
 from sqlalchemy.dialects.postgresql import ARRAY, UUID as PG_UUID
 
@@ -17,7 +17,6 @@ from oss.src.dbs.postgres.shared.engine import (
     get_analytics_engine,
 )
 from oss.src.dbs.postgres.tracing.dbes import SpanDBE
-from oss.src.dbs.postgres.sharing.dbes import SessionTraceTombstoneDBE
 
 from ee.src.dbs.postgres.subscriptions.dbes import SubscriptionDBE
 
@@ -242,94 +241,3 @@ class TracingRetentionDAO:
             spans_deleted = int(row[1]) if row and row[1] is not None else 0
 
             return (traces_selected, spans_deleted)
-
-    async def delete_session_tombstones_before_cutoff(
-        self,
-        *,
-        cutoff: datetime,
-        project_ids: List[UUID],
-        page_size: int = 1000,
-    ) -> int:
-        """Delete the privacy tombstones of deleted private sessions whose traces are
-        gone: `deleted_at` before `cutoff` (the trace cutoff minus one day) and no stored
-        span carries the session id any more. A span left behind (for example a child
-        whose root never arrived, which retention does not select) keeps its tombstone,
-        so its trace stays hidden. The candidates are read in key-ordered pages of
-        `page_size`, so a kept tombstone never blocks the ones after it and no statement
-        carries an unbounded argument list."""
-
-        if not project_ids:
-            return 0
-
-        projects = bindparam(
-            "project_ids", value=project_ids, type_=ARRAY(PG_UUID(as_uuid=True))
-        )
-        key = tuple_(
-            SessionTraceTombstoneDBE.project_id, SessionTraceTombstoneDBE.session_id
-        )
-        deleted = 0
-        after = None
-        while True:
-            query = (
-                select(
-                    SessionTraceTombstoneDBE.project_id,
-                    SessionTraceTombstoneDBE.session_id,
-                )
-                .where(
-                    SessionTraceTombstoneDBE.project_id == any_(projects),
-                    SessionTraceTombstoneDBE.deleted_at < cutoff,
-                )
-                .order_by(
-                    SessionTraceTombstoneDBE.project_id,
-                    SessionTraceTombstoneDBE.session_id,
-                )
-                .limit(page_size)
-            )
-            if after is not None:
-                query = query.where(key > tuple_(*after))
-            async with self.transactions_engine.session() as session:
-                candidates = (await session.execute(query)).all()
-            if not candidates:
-                return deleted
-            after = (candidates[-1].project_id, candidates[-1].session_id)
-
-            async with self.analytics_engine.session() as session:
-                remaining = {
-                    (row.project_id, row.session_id)
-                    for row in (
-                        await session.execute(
-                            select(SpanDBE.project_id, SpanDBE.session_id)
-                            .where(
-                                SpanDBE.project_id == any_(projects),
-                                SpanDBE.session_id
-                                == any_(
-                                    bindparam(
-                                        "session_ids",
-                                        value=sorted(
-                                            {row.session_id for row in candidates}
-                                        ),
-                                        type_=ARRAY(String),
-                                    )
-                                ),
-                            )
-                            .distinct()
-                        )
-                    ).all()
-                }
-            gone = [
-                (row.project_id, row.session_id)
-                for row in candidates
-                if (row.project_id, row.session_id) not in remaining
-            ]
-            if gone:
-                async with self.transactions_engine.session() as session:
-                    result = await session.execute(
-                        delete(SessionTraceTombstoneDBE).where(
-                            key.in_(gone),
-                            SessionTraceTombstoneDBE.deleted_at < cutoff,
-                        )
-                    )
-                    await session.commit()
-                    deleted += result.rowcount or 0
-            if len(candidates) < page_size:
-                return deleted

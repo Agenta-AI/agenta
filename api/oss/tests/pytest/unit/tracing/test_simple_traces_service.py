@@ -15,7 +15,6 @@ from oss.src.core.tracing.dtos import (
     SimpleTraceReferences,
 )
 from oss.src.core.tracing.service import SimpleTracesService
-from oss.tests.pytest.utils.trace_scope import scoped
 
 
 @pytest.mark.asyncio
@@ -52,7 +51,7 @@ async def test_edit_uses_incoming_references_and_links():
     ) as build_attributes:
         result = await service.edit(
             organization_id=uuid4(),
-            **scoped(),
+            project_id=uuid4(),
             user_id=uuid4(),
             trace_id="old-trace",
             trace_edit=trace_edit,

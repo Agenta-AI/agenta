@@ -31,8 +31,7 @@ from pydantic import ValidationError
 from agenta.sdk.engines.tracing.propagation import inject
 from agenta.sdk.models.workflows import WorkflowServiceStatus
 
-from oss.src.core.tracing.access import get_trace_access_service
-from oss.src.core.access.dtos import RunAuthority, RunEnvelope
+from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.sharing.admission import CHILD_RUN_BOUNDARY, RunAdmission
 from oss.src.core.apps.handlers import (
@@ -171,7 +170,6 @@ async def handle_test_run(
         tracing_service=tracing_service,
         project_id=project_id,
         expectations=request.expectations,
-        authority=envelope.authority,
     )
 
 
@@ -372,7 +370,6 @@ async def _digest_test_run_response(
     tracing_service: Optional[TracingService],
     project_id: UUID,
     expectations: Optional[TestRunExpectations],
-    authority: RunAuthority,
 ) -> PlatformHandlerResult:
     status_code = response.status.code if response.status else None
     status_message = response.status.message if response.status else None
@@ -398,7 +395,6 @@ async def _digest_test_run_response(
         tracing_service=tracing_service,
         project_id=project_id,
         trace_id=response.trace_id,
-        authority=authority,
     )
     _merge_span_observations(tools, spans)
     resolved = _resolved_from_spans(spans)
@@ -537,15 +533,9 @@ async def _query_trace_spans(
     tracing_service: Optional[TracingService],
     project_id: UUID,
     trace_id: Optional[str],
-    authority: RunAuthority,
 ) -> List[Any]:
     if tracing_service is None or not trace_id:
         return []
-
-    # The test run's spans are read as the principal of the run that started it.
-    scope = await get_trace_access_service().read_scope(
-        authority=None, principal=authority.principal, project_id=project_id
-    )
 
     query = TracingQuery(
         formatting=Formatting(focus=Focus.SPAN),
@@ -555,9 +545,7 @@ async def _query_trace_spans(
     for attempt, delay in enumerate((0.0, 0.05, 0.2)):
         if delay:
             await asyncio.sleep(delay)
-        spans = await tracing_service.query_spans(
-            project_id=project_id, query=query, scope=scope
-        )
+        spans = await tracing_service.query_spans(project_id=project_id, query=query)
         if spans or attempt == 2:
             return list(spans or [])
     return []

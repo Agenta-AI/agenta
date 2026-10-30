@@ -137,8 +137,7 @@ class FakeTracingService:
         self.responses = list(responses) or [[]]
         self.calls = []
 
-    async def query_spans(self, *, project_id, query, scope):
-        assert scope.project_id == project_id
+    async def query_spans(self, *, project_id, query):
         self.calls.append({"project_id": project_id, "query": query})
         if len(self.responses) > 1:
             return self.responses.pop(0)

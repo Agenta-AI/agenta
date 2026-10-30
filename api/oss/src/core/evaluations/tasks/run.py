@@ -16,10 +16,7 @@ from oss.src.core.evaluations.runtime.adapters import (
     APIScenarioCreator,
 )
 from oss.src.core.access.types import AccessDenied, MissingPrincipal
-from oss.src.core.evaluations.run_access import (
-    evaluation_run_trace_scope,
-    require_evaluation_run_access,
-)
+from oss.src.core.evaluations.run_access import require_evaluation_run_access
 from oss.src.core.evaluations.service import EvaluationsService
 from oss.src.core.evaluations.types import (
     EvaluationRun,
@@ -565,7 +562,6 @@ class RunProcessor:
                 project_id=project_id,
                 #
                 run=run,
-                scope=await evaluation_run_trace_scope(project_id=project_id, run=run),
                 #
                 newest=newest,
                 oldest=oldest,
@@ -726,11 +722,6 @@ class RunProcessor:
             trace_ids=list(trace_ids or []) if source_kind == "traces" else None,
             testcase_ids=(
                 list(testcase_ids or []) if source_kind == "testcases" else None
-            ),
-            scope=(
-                await evaluation_run_trace_scope(project_id=project_id, run=run)
-                if source_kind == "traces"
-                else None
             ),
         )
         for source_item in source_items:

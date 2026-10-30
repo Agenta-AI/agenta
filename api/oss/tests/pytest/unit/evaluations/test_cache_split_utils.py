@@ -3,8 +3,6 @@ from uuid import uuid4
 
 import pytest
 
-from oss.src.core.access.dtos import PrincipalKind, PrincipalRef
-from oss.src.core.tracing.access import SpanReadScope
 from oss.src.core.evaluations.utils import (
     TraceFetcher,
     build_repeat_indices,
@@ -16,14 +14,6 @@ from oss.src.core.evaluations.utils import (
 )
 from oss.src.core.shared.dtos import Reference
 from oss.src.core.tracing.dtos import Fields, ListOperator
-
-
-def _scope(project_id):
-    """A caller's trace read scope; the fakes here never reach the tracing DAO."""
-    return SpanReadScope(
-        project_id=project_id,
-        principal=PrincipalRef(kind=PrincipalKind.HUMAN, id=uuid4()),
-    )
 
 
 def test_make_hash_normalizes_reference_objects_and_ignores_extra_fields():
@@ -161,9 +151,8 @@ async def test_fetch_traces_by_hash_wrapper_delegates_to_tracing_service():
     expected_traces = [SimpleNamespace(trace_id="trace-1")]
 
     class DummyTracingService:
-        async def query_traces(self, *, project_id, query, scope):
+        async def query_traces(self, *, project_id, query):
             assert project_id == uuid_project_id
-            assert scope.project_id == uuid_project_id
             assert query.windowing is not None
             assert query.windowing.limit == 2
             assert query.windowing.order == "descending"
@@ -181,7 +170,6 @@ async def test_fetch_traces_by_hash_wrapper_delegates_to_tracing_service():
         tracing_service=DummyTracingService(),
     ).fetch_traces_by_hash(
         project_id=uuid_project_id,
-        scope=_scope(uuid_project_id),
         hash_id="hash-1",
         limit=2,
     )

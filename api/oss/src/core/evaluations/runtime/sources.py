@@ -2,7 +2,6 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from oss.src.core.tracing.access import SpanReadScope
 from oss.src.core.evaluations.runtime.types import (
     ResolvedSourceBatch,
     ResolvedSourceItem,
@@ -92,7 +91,6 @@ class SourceResolver:
         *,
         project_id: UUID,
         step: EvaluationRunDataStep,
-        scope: Optional[SpanReadScope] = None,
     ) -> Optional[ResolvedSourceBatch]:
         raise NotImplementedError
 
@@ -112,7 +110,6 @@ class QueryRevisionTraceResolver(SourceResolver):
         *,
         project_id: UUID,
         step: EvaluationRunDataStep,
-        scope: Optional[SpanReadScope] = None,
     ) -> Optional[ResolvedSourceBatch]:
         refs = step.references or {}
         query_revision_ref = refs.get("query_revision")
@@ -126,7 +123,6 @@ class QueryRevisionTraceResolver(SourceResolver):
             query_revision_ref=query_revision_ref,
             #
             include_trace_ids=True,
-            scope=scope,
         )
         trace_ids = (
             query_revision.data.trace_ids
@@ -160,7 +156,6 @@ class TestsetRevisionTestcaseResolver(SourceResolver):
         *,
         project_id: UUID,
         step: EvaluationRunDataStep,
-        scope: Optional[SpanReadScope] = None,
     ) -> Optional[ResolvedSourceBatch]:
         refs = step.references or {}
         testset_revision_ref = refs.get("testset_revision")
@@ -288,7 +283,6 @@ class SourceResolution:
         *,
         project_id: UUID,
         run: EvaluationRun,
-        scope: SpanReadScope,
     ) -> List[ResolvedSourceBatch]:
         if not run.data or not run.data.steps:
             return []
@@ -327,7 +321,6 @@ class SourceResolution:
                 project_id=project_id,
                 #
                 step=step,
-                scope=scope,
             )
             if batch:
                 batches.append(batch)
@@ -360,8 +353,6 @@ class SourceResolution:
         #
         trace_ids: Optional[List[str]] = None,
         testcase_ids: Optional[List[UUID]] = None,
-        # Required when `trace_ids` is given: the reads fail closed without it.
-        scope: Optional[SpanReadScope] = None,
     ) -> List[ResolvedSourceItem]:
         source_items: List[ResolvedSourceItem] = []
         testcase_ids = testcase_ids or []
@@ -387,7 +378,6 @@ class SourceResolution:
             for trace_id in trace_ids:
                 trace = await self._traces.fetch_trace(
                     project_id=project_id,
-                    scope=scope,
                     #
                     trace_id=trace_id,
                     #
@@ -433,7 +423,6 @@ class SourceResolution:
         project_id: UUID,
         #
         query_revisions: Dict[str, Any],
-        scope: SpanReadScope,
         #
         newest: Optional[datetime] = None,
         oldest: Optional[datetime] = None,
@@ -483,7 +472,6 @@ class SourceResolution:
             query_traces[query_step_key] = (
                 await self.tracing_service.query_traces(
                     project_id=project_id,
-                    scope=scope,
                     #
                     query=TracingQuery(
                         formatting=formatting,
@@ -502,7 +490,6 @@ class SourceResolution:
         project_id: UUID,
         #
         run: EvaluationRun,
-        scope: SpanReadScope,
         #
         newest: Optional[datetime] = None,
         oldest: Optional[datetime] = None,
@@ -539,7 +526,6 @@ class SourceResolution:
             project_id=project_id,
             #
             query_revisions=query_revisions,
-            scope=scope,
             #
             newest=newest,
             oldest=oldest,

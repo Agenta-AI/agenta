@@ -191,22 +191,6 @@ FROM owner o
 WHERE s.project_id = o.project_id AND s.id = o.id AND s.visibility IS NULL
 """
 
-# One statement: the private rows come from the partial index on
-# (project_id, owner_user_id) WHERE visibility = 'private', the tombstones from their key.
-_LIST_UNREADABLE_SESSION_IDS_SQL = """
-SELECT s.session_id
-FROM session_streams s
-WHERE s.project_id = :project_id
-  AND s.visibility = 'private'
-  AND s.owner_user_id IS DISTINCT FROM CAST(:user_id AS uuid)
-  AND NOT (s.id = ANY(CAST(:granted AS uuid[])))
-UNION
-SELECT t.session_id
-FROM session_trace_tombstones t
-WHERE t.project_id = :project_id
-  AND t.owner_user_id IS DISTINCT FROM CAST(:user_id AS uuid)
-"""
-
 _GRANT_COLUMNS = "g.stream_id, g.user_id, g.role, g.created_at, g.created_by_id"
 
 _LIST_SESSION_GRANTS_SQL = f"""
@@ -441,26 +425,6 @@ class SharingDAO(SharingDAOInterface):
                 )
             ).all()
         return [map_user_session_grant_to_dto(row) for row in rows]
-
-    async def list_unreadable_session_ids(
-        self,
-        *,
-        project_id: UUID,
-        user_id: Optional[UUID],
-        granted_stream_ids: List[UUID],
-    ) -> List[str]:
-        async with self.engine.session() as session:
-            rows = (
-                await session.execute(
-                    text(_LIST_UNREADABLE_SESSION_IDS_SQL),
-                    {
-                        "project_id": project_id,
-                        "user_id": user_id,
-                        "granted": list(granted_stream_ids),
-                    },
-                )
-            ).all()
-        return [row[0] for row in rows]
 
     async def set_session_sharing(
         self,

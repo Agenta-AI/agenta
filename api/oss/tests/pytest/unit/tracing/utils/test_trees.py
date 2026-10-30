@@ -1620,7 +1620,7 @@ def test_trace_map_to_traces_and_back_and_get_span_helpers():
     assert get_span_from_trace(trace, str(UUID(int=1))) is None
 
 
-def test_promote_identity_by_trace_links_children_and_lifts_user_from_root_only():
+def test_promote_identity_by_trace_lifts_root_only():
     root = _span(
         span_id=ROOT_UUID,
         span_name="root",
@@ -1635,34 +1635,16 @@ def test_promote_identity_by_trace_links_children_and_lifts_user_from_root_only(
         start_offset_s=1,
     )
 
-    out = promote_identity_by_trace([child, root])
+    out = promote_identity_by_trace([root, child])
     out_idx = {span.span_id: span for span in out}
 
     assert out_idx[ROOT_UUID].session_id == "sess-1"
     assert out_idx[ROOT_UUID].user_id == "user-1"
     assert out_idx[ROOT_UUID].agent_id == "agent-1"
 
-    # The child follows its root's session (children before the root in the batch too).
-    assert out_idx[CHILD_A_UUID].session_id == "sess-1"
+    assert out_idx[CHILD_A_UUID].session_id is None
     assert out_idx[CHILD_A_UUID].user_id is None
     assert out_idx[CHILD_A_UUID].agent_id is None
-
-
-def test_promote_identity_by_trace_keeps_a_child_s_own_session_id():
-    root = _span(span_id=ROOT_UUID, span_name="root")
-    child = _span(
-        span_id=CHILD_A_UUID,
-        parent_id=ROOT_UUID,
-        span_name="agent",
-        session_id="sess-agent",
-        start_offset_s=1,
-    )
-
-    out = promote_identity_by_trace([root, child])
-    out_idx = {span.span_id: span for span in out}
-
-    assert out_idx[CHILD_A_UUID].session_id == "sess-agent"
-    assert out_idx[ROOT_UUID].session_id is None
 
 
 def test_promote_identity_by_trace_is_per_trace_and_ignores_missing_attrs():

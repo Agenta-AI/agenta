@@ -3,10 +3,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, Request, status, Depends, HTTPException
 
-from oss.src.apis.fastapi.shared.trace_scope import request_span_read_scope
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
-from oss.src.core.tracing.access import TraceScopeError
 from oss.src.utils.caching import get_cache, set_cache
 
 from oss.src.core.events.utils import publish_revision_event
@@ -353,9 +351,7 @@ class QueriesRouter:
         return query_response
 
     @intercept_exceptions()
-    @suppress_exceptions(
-        default=QueryResponse(), exclude=[HTTPException, TraceScopeError]
-    )
+    @suppress_exceptions(default=QueryResponse(), exclude=[HTTPException])
     async def fetch_query(
         self,
         request: Request,
@@ -470,9 +466,7 @@ class QueriesRouter:
         return query_response
 
     @intercept_exceptions()
-    @suppress_exceptions(
-        default=QueriesResponse(), exclude=[HTTPException, TraceScopeError]
-    )
+    @suppress_exceptions(default=QueriesResponse(), exclude=[HTTPException])
     async def query_queries(
         self,
         request: Request,
@@ -552,9 +546,7 @@ class QueriesRouter:
         )
 
     @intercept_exceptions()
-    @suppress_exceptions(
-        default=QueryVariantResponse(), exclude=[HTTPException, TraceScopeError]
-    )
+    @suppress_exceptions(default=QueryVariantResponse(), exclude=[HTTPException])
     async def fetch_query_variant(
         self,
         request: Request,
@@ -663,9 +655,7 @@ class QueriesRouter:
         )
 
     @intercept_exceptions()
-    @suppress_exceptions(
-        default=QueryVariantsResponse(), exclude=[HTTPException, TraceScopeError]
-    )
+    @suppress_exceptions(default=QueryVariantsResponse(), exclude=[HTTPException])
     async def query_query_variants(
         self,
         request: Request,
@@ -772,9 +762,7 @@ class QueriesRouter:
         return query_revision_response
 
     @intercept_exceptions()
-    @suppress_exceptions(
-        default=QueryRevisionResponse(), exclude=[HTTPException, TraceScopeError]
-    )
+    @suppress_exceptions(default=QueryRevisionResponse(), exclude=[HTTPException])
     async def fetch_query_revision(
         self,
         request: Request,
@@ -899,9 +887,7 @@ class QueriesRouter:
         return query_revision_response
 
     @intercept_exceptions()
-    @suppress_exceptions(
-        default=QueryRevisionsResponse(), exclude=[HTTPException, TraceScopeError]
-    )
+    @suppress_exceptions(default=QueryRevisionsResponse(), exclude=[HTTPException])
     async def query_query_revisions(
         self,
         request: Request,
@@ -977,9 +963,7 @@ class QueriesRouter:
         return query_revision_response
 
     @intercept_exceptions()
-    @suppress_exceptions(
-        default=QueryRevisionsResponse(), exclude=[HTTPException, TraceScopeError]
-    )
+    @suppress_exceptions(default=QueryRevisionsResponse(), exclude=[HTTPException])
     async def log_query_revisions(
         self,
         request: Request,
@@ -1015,9 +999,7 @@ class QueriesRouter:
         return revisions_response
 
     @intercept_exceptions()
-    @suppress_exceptions(
-        default=QueryRevisionResponse(), exclude=[HTTPException, TraceScopeError]
-    )
+    @suppress_exceptions(default=QueryRevisionResponse(), exclude=[HTTPException])
     @handle_git_exceptions()
     async def retrieve_query_revision(
         self,
@@ -1089,9 +1071,6 @@ class QueriesRouter:
                 retrieval_info,
             ) = await self.queries_service.retrieve_query_revision(
                 project_id=UUID(request.state.project_id),
-                scope=(
-                    await request_span_read_scope(request) if not should_cache else None
-                ),
                 #
                 query_ref=query_revision_retrieve_request.query_ref,
                 query_variant_ref=query_revision_retrieve_request.query_variant_ref,
@@ -1236,9 +1215,7 @@ class SimpleQueriesRouter:
         return simple_query_response
 
     @intercept_exceptions()
-    @suppress_exceptions(
-        default=SimpleQueryResponse(), exclude=[HTTPException, TraceScopeError]
-    )
+    @suppress_exceptions(default=SimpleQueryResponse(), exclude=[HTTPException])
     async def fetch_simple_query(
         self,
         request: Request,
@@ -1354,9 +1331,7 @@ class SimpleQueriesRouter:
         return simple_query_response
 
     @intercept_exceptions()
-    @suppress_exceptions(
-        default=SimpleQueriesResponse(), exclude=[HTTPException, TraceScopeError]
-    )
+    @suppress_exceptions(default=SimpleQueriesResponse(), exclude=[HTTPException])
     async def query_simple_queries(
         self,
         *,

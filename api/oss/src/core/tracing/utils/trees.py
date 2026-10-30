@@ -227,43 +227,30 @@ def promote_identity_by_trace(
     span_dtos: List[OTelFlatSpan],
 ) -> List[OTelFlatSpan]:
     """
-    Lift identity from span attributes onto the span columns.
+    Lift session/user/agent identity from the root span's attributes onto its
+    own session_id/user_id/agent_id columns.
 
-    `session_id` links a trace to a session for the trace read scope, so every span
-    that carries `ag.session.id` gets it, and the other spans of a trace whose root is
-    in the batch get the root's value. A span of another batch is linked through the
-    trace: the read scope hides a trace when any of its spans names a hidden session.
-
-    `user_id` and `agent_id` stay root-only.
+    Root-only: ingestion is span-by-span / partial-batch, so there is no cheap
+    way to propagate identity from a root to children arriving in a different
+    request. Children are left untouched (nullable columns).
     """
     if not span_dtos:
         return span_dtos
 
-    root_sessions: Dict[str, str] = {}
-
     for span_dto in span_dtos:
+        if span_dto.parent_id is not None:
+            continue
+
         attributes = span_dto.attributes or {}
         ag = attributes.get("ag") or {}
 
         session = ag.get("session") or {}
-        session_id = session.get("id") if isinstance(session, dict) else None
-        span_dto.session_id = session_id if isinstance(session_id, str) else None
-
-        if span_dto.parent_id is not None:
-            continue
-
-        if span_dto.session_id:
-            root_sessions[str(span_dto.trace_id)] = span_dto.session_id
-
         user = ag.get("user") or {}
         agent = ag.get("agent") or {}
 
+        span_dto.session_id = session.get("id") if isinstance(session, dict) else None
         span_dto.user_id = user.get("id") if isinstance(user, dict) else None
         span_dto.agent_id = agent.get("id") if isinstance(agent, dict) else None
-
-    for span_dto in span_dtos:
-        if span_dto.session_id is None:
-            span_dto.session_id = root_sessions.get(str(span_dto.trace_id))
 
     return span_dtos
 

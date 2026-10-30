@@ -47,7 +47,7 @@ class TracingWorker(StreamConsumer):
     4. Check entitlements per org (Layer 2 - authoritative)
     5. Bulk create spans per project/user if allowed
     6. Recompute the totals of every trace the batch touched
-    7. Write the usage of each session trace's root to its turn
+    7. Write the usage of each trace's root to the turn with that trace id
     8. ACK + DEL messages — StreamConsumer
     """
 
@@ -77,7 +77,7 @@ class TracingWorker(StreamConsumer):
             max_batch_mb=max_batch_mb,
         )
         self.service = service
-        # Writes a session trace's priced usage to its turn (step 7).
+        # Writes a trace's priced usage to its turn (step 7).
         self.turns_service = turns_service
 
     async def process_batch(
@@ -247,12 +247,12 @@ class TracingWorker(StreamConsumer):
         project_id: UUID,
         trace_id: UUID,
     ) -> None:
-        """A trace linked to a session gives its root's priced usage to the turn with
-        the same trace id. It runs under the trace's recompute lock, so a later
-        recompute writes last. Unlinked traces cost no core statement. A failed write
-        is logged: it never fails the recompute."""
+        """A trace gives its root's priced usage to the turn with the same trace id. A
+        trace of no chat matches no turn, so the update writes no row. It runs under
+        the trace's recompute lock, so a later recompute writes last. A failed write is
+        logged: it never fails the recompute."""
 
-        if self.turns_service is None or not totals.linked or not totals.root_usage:
+        if self.turns_service is None or not totals.root_usage:
             return
         try:
             await self.turns_service.record_trace_usage(

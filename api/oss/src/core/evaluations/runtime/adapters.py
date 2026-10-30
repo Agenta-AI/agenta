@@ -8,7 +8,6 @@ from agenta.sdk.evaluations.runtime.models import (
 )
 from agenta.sdk.models.evaluations import EvaluationStatus as SDKEvaluationStatus
 
-from oss.src.core.tracing.access import SpanReadScope
 from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.evaluations.runtime.cache import RunnableCacheResolver
 from oss.src.core.evaluations.types import (
@@ -410,12 +409,9 @@ class APITraceFetcher:
         self.tracing_service = tracing_service
         self._traces = TraceFetcher(tracing_service=tracing_service)
 
-    async def __call__(
-        self, *, trace_id: str, project_id: UUID, scope: SpanReadScope
-    ) -> Any:
+    async def __call__(self, *, trace_id: str, project_id: UUID) -> Any:
         return await self._traces.fetch_trace(
             project_id=project_id,
-            scope=scope,
             #
             trace_id=trace_id,
         )
@@ -599,14 +595,11 @@ class APICachedRunner:
         runner: Any,
         #
         enabled: bool,
-        # The run principal's trace scope; the cache lookup reads traces with it.
-        scope: Optional[SpanReadScope] = None,
     ):
         self.tracing_service = tracing_service
 
         self.runner = runner
         self.enabled = enabled
-        self.scope = scope
 
         self.cache_resolver = RunnableCacheResolver(
             tracing_service=tracing_service,
@@ -660,7 +653,6 @@ class APICachedRunner:
                 links=request.links,
                 #
                 required_count=1,
-                scope=self.scope,
             )
             reusable = cache.reusable_traces[0] if cache.reusable_traces else None
             if reusable and getattr(reusable, "trace_id", None):

@@ -3,10 +3,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, Request, Response, status, HTTPException
 
-from oss.src.apis.fastapi.shared.trace_scope import request_span_read_scope
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import intercept_exceptions, suppress_exceptions
-from oss.src.core.tracing.access import TraceScopeError
 
 from oss.src.core.shared.dtos import (
     Link,
@@ -131,9 +129,7 @@ class AnnotationsRouter:
         return annotation_response
 
     @intercept_exceptions()
-    @suppress_exceptions(
-        default=AnnotationResponse(), exclude=[HTTPException, TraceScopeError]
-    )
+    @suppress_exceptions(default=AnnotationResponse(), exclude=[HTTPException])
     async def fetch_annotation(
         self,
         request: Request,
@@ -149,7 +145,6 @@ class AnnotationsRouter:
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
         annotation = await self.annotations_service.fetch(
-            scope=await request_span_read_scope(request),
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id) if request.state.user_id else None,
             #
@@ -182,7 +177,6 @@ class AnnotationsRouter:
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
         annotation = await self.annotations_service.edit(
-            scope=await request_span_read_scope(request),
             organization_id=UUID(request.state.organization_id),
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
@@ -216,7 +210,6 @@ class AnnotationsRouter:
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
         annotation_link: Optional[Link] = await self.annotations_service.delete(
-            scope=await request_span_read_scope(request),
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id),
             #
@@ -232,9 +225,7 @@ class AnnotationsRouter:
         return annotation_link_response
 
     @intercept_exceptions()
-    @suppress_exceptions(
-        default=AnnotationsResponse(), exclude=[HTTPException, TraceScopeError]
-    )
+    @suppress_exceptions(default=AnnotationsResponse(), exclude=[HTTPException])
     async def query_annotations(
         self,
         request: Request,
@@ -249,7 +240,6 @@ class AnnotationsRouter:
             raise FORBIDDEN_EXCEPTION  # type: ignore
 
         annotations = await self.annotations_service.query(
-            scope=await request_span_read_scope(request),
             project_id=UUID(request.state.project_id),
             user_id=UUID(request.state.user_id) if request.state.user_id else None,
             #

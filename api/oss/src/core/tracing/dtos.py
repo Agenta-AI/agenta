@@ -292,8 +292,6 @@ class TraceTotals(BaseModel):
     """What one recompute of a trace's cumulative metrics wrote and found."""
 
     written: int
-    # True when a span of the trace carries a session id.
-    linked: bool = False
     root_usage: Optional[TraceRootUsage] = None
 
 

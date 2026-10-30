@@ -101,7 +101,7 @@ class SessionTurnsService:
         trace_id: UUID,
         usage: SessionTurnUsage,
     ) -> int:
-        """Ingest's write-back: the priced usage of a session trace's root goes to its
+        """Ingest's write-back: the priced usage of a trace's root goes to its
         turn, with source `trace`. It replaces a runner value; a runner value never
         replaces it."""
         return await self._dao.record_trace_usage(

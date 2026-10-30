@@ -3,18 +3,8 @@ from uuid import uuid4
 
 import pytest
 
-from oss.src.core.access.dtos import PrincipalKind, PrincipalRef
-from oss.src.core.tracing.access import SpanReadScope
 from oss.src.core.evaluations import utils as evaluation_utils
 from oss.src.core.tracing.dtos import OTelSpan
-
-
-def _scope(project_id):
-    """A caller's trace read scope; the fakes here never reach the tracing DAO."""
-    return SpanReadScope(
-        project_id=project_id,
-        principal=PrincipalRef(kind=PrincipalKind.HUMAN, id=uuid4()),
-    )
 
 
 @pytest.mark.asyncio
@@ -40,8 +30,7 @@ async def test_fetch_trace_retries_until_trace_has_usable_root_span(monkeypatch)
         def __init__(self) -> None:
             self.calls = 0
 
-        async def fetch_trace(self, *, project_id, trace_id, scope):
-            assert scope.project_id == project_id
+        async def fetch_trace(self, *, project_id, trace_id):
             assert project_id == project_id_value
             assert trace_id == trace_id_value
             response = responses[self.calls]
@@ -59,7 +48,6 @@ async def test_fetch_trace_retries_until_trace_has_usable_root_span(monkeypatch)
     ).fetch_trace(
         project_id=project_id,
         trace_id=trace_id,
-        scope=_scope(project_id),
         max_retries=5,
         delay=0.5,
         max_delay=2.0,
@@ -84,8 +72,7 @@ async def test_fetch_trace_returns_none_when_trace_never_has_root_span(monkeypat
         def __init__(self) -> None:
             self.calls = 0
 
-        async def fetch_trace(self, *, project_id, trace_id, scope):
-            assert scope.project_id == project_id
+        async def fetch_trace(self, *, project_id, trace_id):
             self.calls += 1
             return SimpleNamespace(trace_id=trace_id, spans=None)
 
@@ -98,7 +85,6 @@ async def test_fetch_trace_returns_none_when_trace_never_has_root_span(monkeypat
     ).fetch_trace(
         project_id=project_id,
         trace_id=trace_id,
-        scope=_scope(project_id),
         max_retries=3,
         delay=0.25,
         max_delay=1.0,
