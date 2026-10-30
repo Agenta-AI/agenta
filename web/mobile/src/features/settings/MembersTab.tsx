@@ -57,6 +57,8 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
     const [emailTouched, setEmailTouched] = useState(false)
     const [pendingRemoval, setPendingRemoval] = useState<WorkspaceMember | null>(null)
     const [error, setError] = useState<string | null>(null)
+    // A role change happens on the table, not in a dialog, so its failure is said there.
+    const [roleError, setRoleError] = useState<string | null>(null)
     const [invitedLink, setInvitedLink] = useState<InvitedLink | null>(null)
     const queryClient = useQueryClient()
 
@@ -64,16 +66,16 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
     // reader may do, so no control appears that the API would refuse.
     const scopeKnown = Boolean(organizationId && workspaceId)
     const canInvite = useProjectPermission(projectId, "add_new_user_to_workspace")
-    // Changing a role and removing a member both need the admin or owner role, which this
-    // permission marks: no lesser role holds it.
-    const canModifyRoles = useProjectPermission(projectId, "modify_user_roles")
+    // Changing a role needs `modify_user_roles`; removing a member needs the admin or owner
+    // role. Only those two roles hold that permission, so one answer decides both.
+    const isAdminOrOwner = useProjectPermission(projectId, "modify_user_roles")
 
     // The roles this organization offers, which is what an invite and a role change may set.
     // Keyed by organization, because another organization on another plan offers another set.
     const roles = useQuery({
         queryKey: ["workspace-roles", organizationId, projectId],
         queryFn: () => fetchOfferedRoles(projectId, true),
-        enabled: Boolean(projectId) && (inviteOpen || canModifyRoles),
+        enabled: Boolean(projectId) && (inviteOpen || isAdminOrOwner),
     })
     const offeredRoles = (roles.data ?? []).map((entry) => entry.role_name)
 
@@ -138,8 +140,13 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
                 true,
             ),
         onSuccess: () => onChanged(),
-        onError: (cause: unknown) =>
-            setError((cause as Error)?.message || "Unable to change the role"),
+        // The API's refusal is a sentence written for the reader ("This role is not available on
+        // your plan."); anything else gets the plain fallback, never the transport's own text.
+        onError: (cause: unknown) => {
+            const detail = (cause as {response?: {data?: {detail?: unknown}}})?.response?.data
+                ?.detail
+            setRoleError(typeof detail === "string" ? detail : "Unable to change the role")
+        },
     })
 
     if (failed)
@@ -152,19 +159,19 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
             signedInUser={signedInUser}
             ownerId={ownerId}
             canInviteMembers={scopeKnown && canInvite}
-            canRemoveMembers={scopeKnown && canModifyRoles}
+            canRemoveMembers={scopeKnown && isAdminOrOwner}
             renderRoleCell={(member) => (
                 <MemberRoleCell
                     member={member}
                     isOwner={Boolean(ownerId) && member.user.id === ownerId}
-                    roles={offeredRoles}
-                    canChange={scopeKnown && canModifyRoles}
+                    offeredRoles={offeredRoles}
+                    canChange={scopeKnown && isAdminOrOwner}
                     pending={
                         roleMutation.isPending &&
                         roleMutation.variables?.member.user.id === member.user.id
                     }
                     onChange={(next) => {
-                        setError(null)
+                        setRoleError(null)
                         if (next !== memberRole(member)) roleMutation.mutate({member, role: next})
                     }}
                 />
@@ -180,6 +187,12 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
                 onChanged()
             }}
         >
+            {roleError ? (
+                <p role="alert" className="m-0 mt-2 text-sm text-colorError">
+                    {roleError}
+                </p>
+            ) : null}
+
             <Dialog open={inviteOpen} onOpenChange={(next) => (next ? undefined : closeInvite())}>
                 <DialogContent>
                     <DialogHeader>
