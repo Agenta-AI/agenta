@@ -1,0 +1,58 @@
+Background (from the session that started this one):
+Context: during release v0.127.0 QA (2026-10-28), a real Composio GitHub event automation test on Agenta's staging stage showed three side problems in the event automations feature. Mahmoud (the owner) asked for separate sessions that each open a fix PR. This session handles only the edit-sync bug. Two other sessions handle the repo field format and a startup log of the registered webhook URL; do not touch those. Rules: work in your own worktree, no deploys, no merges, no production access. Write plain English, no em dashes.
+
+Task:
+Fix: editing an event automation's filters never reaches Composio.
+
+Bug: `TriggersService.edit_subscription` in `api/oss/src/core/triggers/service.py` only tells Composio when `is_active` changes. A changed `trigger_config` (for example the GitHub owner/repo filter) is saved in the Agenta database only, so the live Composio trigger keeps its old filters. Seen on GKE staging on 2026-10-28: the subscription row had `owner: agenta-ai, repo: agenta`, but the Composio trigger instance had no owner or repo, so it watched every repo of the connected account.
+
+Do:
+1. Read the triggers service, the Composio provider adapter (`api/oss/src/core/triggers/providers/composio/`), and how `create_subscription` sends the config to Composio. Make an edit that changes `trigger_config` update the live Composio trigger (use Composio's update call for a trigger instance if one exists; otherwise recreate the instance and keep the subscription id stable, deleting the old instance). Keep the behavior for `is_active` changes as it is.
+2. Add unit tests for: config changed (Composio updated), only is_active changed (as today), nothing changed (no Composio call). Add an acceptance test only if the existing acceptance tests already cover subscription edits.
+3. Run `ruff format` and `ruff check --fix` in `api/` (use `~/.local/bin/ruff`, never uvx), and the triggers unit tests.
+4. Open a PR into `main` titled `fix(api): send edited automation filters to Composio`. Body per the write-pr-description skill: lead with the symptom. Ready for review, not draft. Sign any PR comment with "🤖 _The AI agent says:_". Never merge.
+Done: PR open with green unit tests, link reported.
+
+---
+
+<cross-session-message from="local_faa86c46-da2b-4212-9eac-0b6a3463bfe0" from-name="Release conductor handoff">
+From the release conductor, with Mahmoud's words (2026-10-28): "let's address coderabbit reviews in loop also entire reviews in loop then add them to merge queue, they look quite low risk".
+For your PR #7877:
+1. Loop on review feedback until it is clean: read every CodeRabbit item (review bodies including folded "outside diff" and nitpick sections, inline threads, issue comments) and every Entire review or "Entire Gates" finding on the PR. Fix real problems, reply with a short reason where you do not, resolve the threads, and ask `@coderabbitai review` again after each push until CodeRabbit has no new actionable items.
+2. Then land it with the merge queue skill: read ~/code/agenta/.claude/skills/release-merge-queue/SKILL.md and follow its PR-agent rules. Retarget the PR to `release/v0.127.0` (`gh api -X PATCH repos/Agenta-AI/agenta/pulls/7877 -f base=release/v0.127.0`), merge the release branch into your PR branch if needed (no rebase, no force push), wait for the checks the change type needs, and merge with `gh pr merge 7877 --merge --admin`. Mahmoud gave his word in chat to merge into the release branch. Never merge into main. Release PR is #7875; the queue note is ~/agenta-release-0127/queue.md (add your own row). The "Entire Gates" check is not required.
+Report the merge SHA when done.
+</cross-session-message>
+
+---
+
+<task-notification>
+<task-id>br0fhyfle</task-id>
+<tool-use-id>toolu_01WuCoFCfKm1Y5xNkc1RxDnn</tool-use-id>
+<output-file>/tmp/claude-1000/-home-mahmoud-code-agenta--claude-worktrees-fix-composio-edit-sync-6a9d6b/62c74e6d-98c6-4259-86dd-7c9588ee8113/tasks/br0fhyfle.output</output-file>
+<status>completed</status>
+<summary>Background command "HEAD=dc57d3968d20f0ff5d48c7a3857e2eac6ddb3f1d
+for i in $(seq 1 60); do
+  sleep 60
+  pend=$(gh pr view 7877 --json statusCheckRollup -q '[.statusCheckRollup[]|select(.name!="Entire Gates")|select(.status!="COMPLETED")]|length')
+  cr=$(gh api repos/Agenta-AI/agenta/pulls/7877/reviews -q "[.[]|select(.user.login==\"coderabbitai[bot]\" and .commit_id==\"$HEAD\")]|length")
+  echo "$(date +%H:%M) pending=$pend coderabbit_reviews_on_head=$cr"
+  [ "$pend" = "0" ] &amp;&amp; [ "$cr" != "0" ] &amp;&amp; break
+done
+gh pr view 7877 --json statusCheckRollup -q '.statusCheckRollup[]|select(.conclusion!="SUCCESS" and .conclusion!="SKIPPED" and .conclusion!="NEUTRAL")|"\(.name) \(.status) \(.conclusion)"'" completed (exit code 0)</summary>
+</task-notification>
+
+---
+
+<task-notification>
+<task-id>bu1x2p9e0</task-id>
+<tool-use-id>toolu_01QgMQcvirr1PBeecMQ1f1C7</tool-use-id>
+<output-file>/tmp/claude-1000/-home-mahmoud-code-agenta--claude-worktrees-fix-composio-edit-sync-6a9d6b/62c74e6d-98c6-4259-86dd-7c9588ee8113/tasks/bu1x2p9e0.output</output-file>
+<status>completed</status>
+<summary>Background command "sleep 240; for i in $(seq 1 50); do
+  st=$(gh run view 40725843366 --repo Agenta-AI/agenta --json status,conclusion -q '"\(.status) \(.conclusion)"')
+  echo "$(date +%H:%M) $st"
+  case "$st" in completed*) break;; esac
+  sleep 60
+done
+gh pr view 7877 --json statusCheckRollup -q '.statusCheckRollup[]|select(.conclusion!="SUCCESS" and .conclusion!="SKIPPED" and .conclusion!="NEUTRAL")|"\(.name) \(.status) \(.conclusion)"'" completed (exit code 0)</summary>
+</task-notification>
