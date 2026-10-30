@@ -365,7 +365,11 @@ export default function GatewayToolsSection({
                                     },
                                     {
                                         key: "make-default",
-                                        hidden: !personal || isDefault,
+                                        hidden:
+                                            !personal ||
+                                            isDefault ||
+                                            !isConnectionActive(connection) ||
+                                            !isConnectionValid(connection),
                                         label: "Make default",
                                         icon: <Star size={14} />,
                                         onClick: () => void makeDefault(connection),
