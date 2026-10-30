@@ -1,0 +1,34 @@
+Background (from the session that started this one):
+Context: during release v0.127.0 QA (2026-10-28), a real Composio GitHub event automation test on Agenta's staging stage showed three side problems in the event automations feature. Mahmoud (the owner) asked for separate sessions that each open a fix PR. This session handles only the repo field format. Two other sessions handle sending edited filters to Composio and a startup log of the registered webhook URL; do not touch those. Rules: work in your own worktree, no deploys, no merges. /m (web/mobile) is the main app. Plain English, no em dashes.
+
+Task:
+Fix: the event automation form accepts a GitHub repo filter that Composio cannot use.
+
+Bug: when a user creates an event automation for a GitHub event, the filter form accepted `repo: agenta` with a separate `owner: agenta-ai`. Composio's trigger schema says `repo` must be in `owner/repo` form and ignores `owner` when `repo` is set, so the filter does nothing.
+
+Do:
+1. Find where the event filter form is built (web/mobile automations: `EventPickerPanel.tsx` under the automations feature, and the filter fields that come from the Composio event schema) and where the API accepts `trigger_config` for subscriptions (`api/oss/src/core/triggers/`, `api/oss/src/apis/fastapi/triggers/`). Check Composio's schema text for the field.
+2. Choose the smallest correct fix, preferably one place: normalize on the frontend if the user typed only the repo name and an owner field exists (join to `owner/repo`), or show a clear inline hint and block "Done" until the value has the `owner/repo` form. Do not invent new UI text beyond one short hint; quote any new user-facing string in the PR body for Mahmoud's approval. If the API should also reject a bad value, return a 422 with a plain message.
+3. Tests for the normalization or validation. Run `pnpm lint-fix` in `web/` for frontend changes, and ruff for API changes (`~/.local/bin/ruff`).
+4. Open a PR into `main` titled `fix(frontend): require owner/repo for GitHub event filters` (or `fix(api)` if the fix is in the API). Body per the write-pr-description skill. Ready for review. Never merge.
+Done: PR open with tests passing, link reported, new strings listed.
+
+---
+
+<cross-session-message from="local_faa86c46-da2b-4212-9eac-0b6a3463bfe0" from-name="Release conductor handoff">
+From the release conductor, with Mahmoud's words (2026-10-28): "let's address coderabbit reviews in loop also entire reviews in loop then add them to merge queue, they look quite low risk".
+For your PR #7878:
+1. Loop on review feedback until it is clean: read every CodeRabbit item (review bodies including folded "outside diff" and nitpick sections, inline threads, issue comments) and every Entire review or "Entire Gates" finding on the PR. Fix real problems, reply with a short reason where you do not, resolve the threads, and ask `@coderabbitai review` again after each push until CodeRabbit has no new actionable items. Also check the change once in /m if you can do it without a deploy (unit or component test is fine); say what you could not check.
+2. Then land it with the merge queue skill: read ~/code/agenta/.claude/skills/release-merge-queue/SKILL.md and follow its PR-agent rules. Retarget the PR to `release/v0.127.0` (`gh api -X PATCH repos/Agenta-AI/agenta/pulls/7878 -f base=release/v0.127.0`), merge the release branch into your PR branch if needed (no rebase, no force push), wait for the checks a frontend change needs (the web image builds), and merge with `gh pr merge 7878 --merge --admin`. Mahmoud gave his word in chat to merge into the release branch. Never merge into main. Release PR is #7875; queue note ~/agenta-release-0127/queue.md (add your own row). "Entire Gates" is not required. List any new user-facing string in your report.
+Report the merge SHA when done.
+</cross-session-message>
+
+---
+
+<task-notification>
+<task-id>b75r051as</task-id>
+<tool-use-id>toolu_01AwxdK6YLn8ZXHuA7wje9oW</tool-use-id>
+<output-file>/tmp/claude-1000/-home-mahmoud-code-agenta--claude-worktrees-fix-composio-repo-format-be605f/0b57f7ce-9721-4b10-b584-c6ee858bfc21/tasks/b75r051as.output</output-file>
+<status>completed</status>
+<summary>Background command "for i in $(seq 1 40); do out=$(gh pr checks 7878 2&gt;/dev/null | grep -E "build-image \(agenta-web(-mobile)?,|^CodeRabbit"); pend=$(echo "$out" | grep -cE "pending|queued|in_progress"); n=$(echo "$out" | grep -c .); if [ "$n" -ge 5 ] &amp;&amp; [ "$pend" -eq 0 ]; then break; fi; sleep 60; done; echo "$out"" completed (exit code 0)</summary>
+</task-notification>
