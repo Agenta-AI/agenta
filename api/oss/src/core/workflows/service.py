@@ -186,6 +186,7 @@ from oss.src.core.workflows.types import (
     WorkflowDetachedStartFailed,
     WorkflowDetachedStartNeverSent,
     WorkflowDetachedStartRejected,
+    service_failure_status,
     answered_by_service,
     detached_start_never_sent,
     transport_never_sent,
@@ -1091,7 +1092,12 @@ class WorkflowsService:
                         if detached_start_never_sent(response):
                             raise WorkflowDetachedStartNeverSent(message)
                         if answered_by_service(response):
-                            raise WorkflowDetachedStartRejected(message)
+                            status = service_failure_status(raw)
+                            raise WorkflowDetachedStartRejected(
+                                message,
+                                failure_code=status.get("failure_code"),
+                                failure_details=status.get("details"),
+                            )
                         raise WorkflowDetachedStartFailed(message)
 
                     trace_id = response.headers.get("x-ag-trace-id")
@@ -1430,6 +1436,17 @@ class WorkflowsService:
         if len(artifact_ids) != 1:
             raise AgentReferenceUnresolved()
         return artifact_ids.pop()
+
+    async def fetch_request_revision(
+        self,
+        *,
+        project_id: UUID,
+        request: WorkflowServiceRequest,
+    ) -> Optional[WorkflowRevision]:
+        """The revision a request's references and selector resolve to, or None."""
+        return await self._ensure_request_revision(
+            project_id=project_id, request=request
+        )
 
     async def _ensure_request_revision(
         self,

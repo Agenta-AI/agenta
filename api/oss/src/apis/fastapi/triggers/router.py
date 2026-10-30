@@ -62,6 +62,7 @@ from oss.src.core.triggers.service import TriggersService
 
 
 from oss.src.core.access.permissions.types import Permission
+from oss.src.core.agent_requirements.guard import AgentNeedsSetupRefused
 from oss.src.core.access.permissions.service import check_action_access
 from oss.src.apis.fastapi.shared.exceptions import FORBIDDEN_EXCEPTION
 
@@ -1330,6 +1331,8 @@ class TriggersRouter:
             raise _resume_refused(
                 refusal, project_id=request.state.project_id
             ) from refusal
+        except AgentNeedsSetupRefused as refusal:
+            raise HTTPException(status_code=422, detail=refusal.envelope()) from refusal
 
         return TriggerSubscriptionResponse(
             count=1,
@@ -1541,6 +1544,8 @@ class TriggersRouter:
             raise _resume_refused(
                 refusal, project_id=request.state.project_id
             ) from refusal
+        except AgentNeedsSetupRefused as refusal:
+            raise HTTPException(status_code=422, detail=refusal.envelope()) from refusal
 
         return TriggerScheduleResponse(
             count=1,

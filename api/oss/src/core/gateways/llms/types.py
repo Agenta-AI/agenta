@@ -25,6 +25,22 @@ class LLMModelNotAllowedError(GatewaysError):
         super().__init__(f"Model {model} not allowed on {namespace.value}/{name}")
 
 
+class LLMAgentModelNotAvailableError(GatewaysError):
+    """An agent names a model that its connection does not offer (needs setup).
+
+    Raised while the agent's connection resolves, before the run starts, for a connection
+    with an allowlist of its own (a custom endpoint, an organization custom provider, a
+    built-in model). The relay refuses the same model at call time; resolving it first lets
+    the run stop before a sandbox starts. A standard provider key has no such check.
+    """
+
+    def __init__(self, *, model: str, namespace: GatewayEndpointNamespace, name: str):
+        self.model = model
+        self.namespace = namespace
+        self.name = name
+        super().__init__(f"Model {model} is not offered by {namespace.value}/{name}")
+
+
 class LLMRoutingFieldNotAllowedError(GatewaysError):
     """The body carries a model-routing field the gateway cannot evaluate (OR44).
 

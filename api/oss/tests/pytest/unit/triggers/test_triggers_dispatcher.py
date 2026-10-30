@@ -811,3 +811,75 @@ async def test_post_invoke_write_failure_does_not_permit_a_reinvoke_on_retry():
 
     workflows.invoke_workflow.assert_not_awaited()
     dao_retry.update_delivery.assert_not_awaited()
+
+
+# --- NEEDS SETUP ---------------------------------------------------------------- #
+# A fire whose agent's model needs setup is recorded once as skipped, never retried,
+# and the trigger stays on (no refusal, so no pause).
+
+
+async def test_a_schedule_fire_whose_model_needs_setup_is_skipped_not_retried():
+    from oss.src.core.workflows.types import WorkflowDetachedStartRejected
+
+    project_id = uuid4()
+    schedule = _make_schedule(references={"workflow": Reference(slug="wf-1")})
+    dao = _make_dao()
+    requirements = [{"key": "model_key:project/gone", "kind": "model_key"}]
+    dispatch_fn = AsyncMock(
+        side_effect=WorkflowDetachedStartRejected(
+            "HTTP 422",
+            failure_code="agent_needs_setup",
+            failure_details={"requirements": requirements},
+        )
+    )
+    dispatcher = TriggersDispatcher(
+        run_admission=NoopRunAdmission(),
+        triggers_dao=dao,
+        session_claims_dao=dao,
+        workflows_service=MagicMock(),
+        dispatch_fn=dispatch_fn,
+    )
+
+    # No raise: the task's retry never sees an error.
+    await dispatcher.dispatch_schedule(
+        project_id=project_id,
+        schedule=schedule,
+        event_id="sched-1:2026-07-13T00:00:00",
+        event=_SCHEDULE_EVENT,
+    )
+
+    completion = dao.update_delivery.await_args.kwargs
+    assert completion["status"].message == "skipped"
+    assert completion["status"].code != "500"
+    assert completion["data"].error_details.code == "agent_needs_setup"
+    assert completion["data"].error_details.details == {"requirements": requirements}
+    dao.refuse_delivery.assert_not_awaited()
+    dao.abandon_claimed_session.assert_awaited_once()
+
+
+async def test_another_rejected_start_still_fails_and_retries():
+    from oss.src.core.workflows.types import WorkflowDetachedStartRejected
+
+    schedule = _make_schedule(references={"workflow": Reference(slug="wf-1")})
+    dao = _make_dao()
+    dispatcher = TriggersDispatcher(
+        run_admission=NoopRunAdmission(),
+        triggers_dao=dao,
+        session_claims_dao=dao,
+        workflows_service=MagicMock(),
+        dispatch_fn=AsyncMock(
+            side_effect=WorkflowDetachedStartRejected(
+                "HTTP 422", failure_code="agent_run_failed"
+            )
+        ),
+    )
+
+    with pytest.raises(WorkflowDetachedStartRejected):
+        await dispatcher.dispatch_schedule(
+            project_id=uuid4(),
+            schedule=schedule,
+            event_id="sched-1:2026-07-13T00:00:00",
+            event=_SCHEDULE_EVENT,
+        )
+
+    assert dao.update_delivery.await_args.kwargs["status"].code == "500"
