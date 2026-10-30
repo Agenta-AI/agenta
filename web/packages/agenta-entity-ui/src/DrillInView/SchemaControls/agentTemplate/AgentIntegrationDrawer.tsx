@@ -27,6 +27,9 @@ import {
     type ToolCatalogIntegrationDetails,
     type ToolConnection,
 } from "@agenta/entities/gatewayTool"
+import {fetchProject} from "@agenta/entities/project"
+import {personalAccountsAccessAtom} from "@agenta/entities/secret"
+import {projectIdAtom} from "@agenta/shared/state"
 import {connectionDisplayName} from "@agenta/shared/utils"
 import {HeightCollapse, ScrollSentinel} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
@@ -43,6 +46,7 @@ import {
     SearchInput,
 } from "@agenta/ui/ui"
 import {Check, MagnifyingGlass, Plugs, Plus} from "@phosphor-icons/react"
+import {useQuery} from "@tanstack/react-query"
 import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
@@ -75,6 +79,8 @@ export interface AgentIntegrationDrawerProps {
     integrationRows: IntegrationRow[]
     /** Add an integration, or point a configured one at another connection. One write, one entry. */
     onAddIntegration: (target: GatewayConnectionTarget, connectionSlug: string) => void
+    /** Add an integration that uses each person's own account. */
+    onAddPersonalIntegration: (target: GatewayConnectionTarget) => void
 }
 
 interface ConnectedGroup {
@@ -334,11 +340,52 @@ function CatalogRow({
     )
 }
 
+/**
+ * The connect dialog of the editor. With personal accounts on it asks "Who can use it", as
+ * Settings does: "Only me" makes a personal connection and the item uses each person's own account.
+ */
+function AgentConnectDrawer({
+    integration,
+    container,
+    onClose,
+    onConnected,
+}: {
+    integration: CatalogIntegration
+    container: HTMLElement | null
+    onClose: () => void
+    onConnected: (owner: "user" | "project") => void
+}) {
+    const access = useAtomValue(personalAccountsAccessAtom)
+    const projectId = useAtomValue(projectIdAtom)
+    const {data: project} = useQuery({
+        queryKey: ["projects", "detail", projectId],
+        queryFn: () => fetchProject(projectId as string),
+        enabled: Boolean(projectId),
+        staleTime: 60_000,
+    })
+    return (
+        <ConnectDrawer
+            open
+            container={container}
+            integrationKey={integration.key}
+            integrationName={integration.name}
+            integrationLogo={integration.logo ?? undefined}
+            integrationDescription={integration.description ?? undefined}
+            authSchemes={(integration as {auth_schemes?: string[] | null}).auth_schemes ?? []}
+            owners={access === "on" ? ["user", "project"] : undefined}
+            projectName={project?.project_name}
+            onClose={onClose}
+            onSuccess={onConnected}
+        />
+    )
+}
+
 // Body — mounted only while the drawer is open (EnhancedDrawer destroyOnClose), so the catalog
 // queries don't run in the background.
 function IntegrationCatalogContent({
     integrationRows,
     onAddIntegration,
+    onAddPersonalIntegration,
     container,
 }: Omit<AgentIntegrationDrawerProps, "open" | "onClose"> & {
     /** The drawer panel, so its dialogs open inside it. */
@@ -639,19 +686,19 @@ function IntegrationCatalogContent({
                 />
             ) : null}
             {connectTarget ? (
-                <ConnectDrawer
-                    open
+                <AgentConnectDrawer
+                    integration={connectTarget}
                     container={container}
-                    integrationKey={connectTarget.key}
-                    integrationName={connectTarget.name}
-                    integrationLogo={connectTarget.logo ?? undefined}
-                    integrationDescription={connectTarget.description ?? undefined}
-                    authSchemes={
-                        (connectTarget as {auth_schemes?: string[] | null}).auth_schemes ?? []
-                    }
                     onClose={() => setConnectTarget(null)}
-                    onSuccess={() => {
-                        setPendingAdd(connectTarget.key)
+                    onConnected={(owner) => {
+                        if (owner === "user") {
+                            onAddPersonalIntegration({
+                                provider: "composio",
+                                integration: connectTarget.key,
+                            })
+                        } else {
+                            setPendingAdd(connectTarget.key)
+                        }
                         setConnectTarget(null)
                     }}
                 />
@@ -665,6 +712,7 @@ export function AgentIntegrationDrawer({
     onClose,
     integrationRows,
     onAddIntegration,
+    onAddPersonalIntegration,
 }: AgentIntegrationDrawerProps) {
     const [panel, setPanel] = useState<HTMLDivElement | null>(null)
     return (
@@ -696,6 +744,7 @@ export function AgentIntegrationDrawer({
             <IntegrationCatalogContent
                 integrationRows={integrationRows}
                 onAddIntegration={onAddIntegration}
+                onAddPersonalIntegration={onAddPersonalIntegration}
                 container={panel}
             />
         </EnhancedDrawer>

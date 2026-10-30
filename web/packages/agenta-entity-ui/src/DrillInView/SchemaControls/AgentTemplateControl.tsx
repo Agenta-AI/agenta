@@ -536,6 +536,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         handleRemoveReferenceBySlug,
         integrationRows,
         setIntegrationConnection,
+        addPersonalIntegration,
         setIntegrationAccount,
         setIntegrationPermissions,
         setIntegrationToolPermission,
@@ -1593,6 +1594,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                     }}
                     integrationRows={integrationRows}
                     onAddIntegration={setIntegrationConnection}
+                    onAddPersonalIntegration={addPersonalIntegration}
                 />
             )}
 

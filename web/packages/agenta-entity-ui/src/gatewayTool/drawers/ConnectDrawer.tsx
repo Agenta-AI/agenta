@@ -36,7 +36,8 @@ interface Props {
     integrationDescription?: string
     authSchemes: string[]
     onClose: () => void
-    onSuccess?: () => void
+    /** The connection is made; `owner` is who it belongs to. */
+    onSuccess?: (owner: Exclude<OwnerKind, "organization">) => void
     /** A drawer panel to open inside, masking only that drawer. Absent = the page. */
     container?: HTMLElement | null
     /**
@@ -173,13 +174,13 @@ export default function ConnectDrawer({
                         }
                         invalidateConnections()
                         handleClose()
-                        onSuccess?.()
+                        onSuccess?.(owner)
                     })()
                 })
                 if (!popupCleanupRef.current) setLoading(false)
             } else {
                 handleClose()
-                onSuccess?.()
+                onSuccess?.(owner)
             }
         } catch (error) {
             console.error("[ConnectDrawer] create connection failed", error)

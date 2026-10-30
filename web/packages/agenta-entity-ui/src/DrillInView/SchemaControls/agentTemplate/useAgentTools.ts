@@ -112,6 +112,23 @@ export function useAgentTools({
         [tools, setTools],
     )
 
+    /** Add an integration that uses each person's own account, or point a configured one at it. */
+    const addPersonalIntegration = useCallback(
+        (target: GatewayConnectionTarget) => {
+            const index = findGatewayConnectionIndex(tools, target)
+            const existing = index >= 0 ? parseGatewayConnection(tools[index]) : null
+            setTools(
+                upsertGatewayConnection(tools, {
+                    ...target,
+                    connection: "",
+                    accountSource: "user",
+                    permissions: existing?.permissions ?? DEFAULT_INTEGRATION_PERMISSIONS,
+                }),
+            )
+        },
+        [tools, setTools],
+    )
+
     /** The drawer's "Account" select: a project connection, or each person's own account. */
     const setIntegrationAccount = useCallback(
         (target: GatewayConnectionTarget, account: GatewayConnectionAccount) =>
@@ -162,6 +179,7 @@ export function useAgentTools({
         handleRemoveReferenceBySlug,
         integrationRows,
         setIntegrationConnection,
+        addPersonalIntegration,
         setIntegrationAccount,
         setIntegrationPermissions,
         setIntegrationToolPermission,

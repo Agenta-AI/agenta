@@ -548,7 +548,7 @@ export default function GatewayToolsSection({
                     integrationDescription={connectTarget.description ?? undefined}
                     authSchemes={connectTarget.auth_schemes ?? []}
                     onClose={() => setConnectTarget(null)}
-                    onSuccess={refetch}
+                    onSuccess={() => void refetch()}
                     owners={connectOwners}
                     projectName={projectName}
                 />
