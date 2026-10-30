@@ -9,7 +9,8 @@ import {createStore, Provider, type PrimitiveAtom} from "jotai"
 import {createRoot} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
-const {accessAtom, dialog, catalog} = vi.hoisted(() => ({
+const {accessAtom, dialog, catalog, personal} = vi.hoisted(() => ({
+    personal: {connections: [] as unknown[]},
     // Stable across renders, as the real query's data is.
     catalog: {
         integrations: [{key: "gmail", name: "Gmail", auth_schemes: ["oauth"]}],
@@ -42,6 +43,7 @@ vi.mock("@agenta/entities/gatewayTool", async (importOriginal) => ({
         setCategory: () => undefined,
     }),
     useToolConnectionsQuery: () => ({connections: catalog.connections}),
+    usePersonalToolConnections: () => ({connections: personal.connections}),
     useToolCatalogCategories: () => ({categories: catalog.categories, isLoading: false}),
     useToolIntegrationDetail: () => ({integration: {name: "Gmail", categories: []}}),
 }))
@@ -114,7 +116,13 @@ describe("the connect dialog of the agent editor", () => {
         expect(dialog.props?.owners).toBeUndefined()
     })
 
-    it("Only me sets the item to each person's own account", async () => {
+    it("Only me sets the item to each person's own account once the sign-in is valid", async () => {
+        personal.connections = [
+            {
+                integration_key: "gmail",
+                flags: {is_active: true, is_valid: true},
+            },
+        ]
         await openDialog("on")
         await act(async () => (dialog.props?.onSuccess as (owner: string) => void)("user"))
         expect(onAddPersonalIntegration).toHaveBeenCalledWith({
@@ -122,6 +130,13 @@ describe("the connect dialog of the agent editor", () => {
             integration: "gmail",
         })
         expect(onAddIntegration).not.toHaveBeenCalled()
+    })
+
+    it("a closed popup with no valid sign-in adds nothing", async () => {
+        personal.connections = []
+        await openDialog("on")
+        await act(async () => (dialog.props?.onSuccess as (owner: string) => void)("user"))
+        expect(onAddPersonalIntegration).not.toHaveBeenCalled()
     })
 
     it("Everyone waits for the new connection and adds nothing personal", async () => {

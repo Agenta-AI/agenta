@@ -1,11 +1,12 @@
 /**
- * "When you run it: <your secret> · Change", for a variable that takes each person's own secret.
+ * "When you run it: <your secret> · Change", for a variable that takes each person's own secret:
+ * the same line as an integration's.
  *
  * Reads the viewer's own account for the item from `resolve` and lists their own secrets; picking
- * one stores an account choice for this agent and variable. It shows only the viewer's own
- * secret, never another person's.
+ * one, or adding one, stores an account choice for this agent and variable. It shows only the
+ * viewer's own secret, never another person's.
  */
-import {useMemo} from "react"
+import {useMemo, useState} from "react"
 
 import {userItemKey} from "@agenta/entities/accountChoice"
 import {personalNamedSecretsAtom, type AgentSecretBinding} from "@agenta/entities/secret"
@@ -13,9 +14,10 @@ import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from "@agenta/ui/ui"
-import {Check} from "@phosphor-icons/react"
+import {Check, Plus} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
 import {AccountLine, AccountLineAction} from "../accounts/AccountLine"
@@ -23,6 +25,8 @@ import {ACCOUNT_COPY} from "../accounts/copy"
 import {personalTextSecrets} from "../accounts/personalAccounts"
 import {useAccountChoice} from "../accounts/useAccountChoice"
 import {useItemAccount} from "../accounts/useItemAccount"
+
+import {OwnSecretDialog} from "./OwnSecretDialog"
 
 export function YourSecretLine({
     revisionId,
@@ -47,13 +51,31 @@ export function YourSecretLine({
     const secrets = useAtomValue(personalNamedSecretsAtom)
     const textSecrets = useMemo(() => personalTextSecrets(secrets), [secrets])
     const {choose: storeChoice, busy, failed: choiceFailed} = useAccountChoice(workflowId, itemKey)
+    const [adding, setAdding] = useState(false)
 
     if (loading || failed) return null
 
     const usedId = account?.match ? account.secret_id : null
     const used = textSecrets.find((secret) => secret.id === usedId)
+    const addDialog = (
+        <OwnSecretDialog
+            open={adding}
+            onClose={() => setAdding(false)}
+            onCreated={(secretId) => void storeChoice({secretId})}
+            initialName={textSecrets.length === 0 ? envVar : undefined}
+            container={container}
+            zIndex={zIndex ? zIndex + 1 : undefined}
+        />
+    )
     if (textSecrets.length === 0 && !account?.match) {
-        return <AccountLine text={ACCOUNT_COPY.noSecretYet} />
+        return (
+            <AccountLine text={ACCOUNT_COPY.noSecretYet}>
+                <AccountLineAction onClick={() => setAdding(true)}>
+                    {ACCOUNT_COPY.addOne}
+                </AccountLineAction>
+                {addDialog}
+            </AccountLine>
+        )
     }
 
     const choose = (secretId: string) => {
@@ -92,9 +114,15 @@ export function YourSecretLine({
                                 <span className="min-w-0 flex-1 truncate">{secret.name}</span>
                             </DropdownMenuItem>
                         ))}
+                        <DropdownMenuSeparator />
+                        <DropdownMenuItem onSelect={() => setAdding(true)}>
+                            <Plus size={14} />
+                            {ACCOUNT_COPY.addAnotherSecret}
+                        </DropdownMenuItem>
                     </DropdownMenuContent>
                 </DropdownMenu>
             </AccountLine>
+            {addDialog}
             {choiceFailed ? (
                 <span className="text-xs text-error">{ACCOUNT_COPY.choiceFailed}</span>
             ) : null}

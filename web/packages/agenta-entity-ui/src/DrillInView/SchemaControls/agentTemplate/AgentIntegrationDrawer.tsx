@@ -21,15 +21,14 @@ import {
     toolIntegrationsSearchAtom,
     useToolCatalogIntegrations,
     useToolConnectionActions,
+    usePersonalToolConnections,
     useToolConnectionsQuery,
     useToolIntegrationDetail,
     type ToolCatalogIntegration,
     type ToolCatalogIntegrationDetails,
     type ToolConnection,
 } from "@agenta/entities/gatewayTool"
-import {fetchProject} from "@agenta/entities/project"
 import {personalAccountsAccessAtom} from "@agenta/entities/secret"
-import {projectIdAtom} from "@agenta/shared/state"
 import {connectionDisplayName} from "@agenta/shared/utils"
 import {HeightCollapse, ScrollSentinel} from "@agenta/ui"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
@@ -46,10 +45,10 @@ import {
     SearchInput,
 } from "@agenta/ui/ui"
 import {Check, MagnifyingGlass, Plugs, Plus} from "@phosphor-icons/react"
-import {useQuery} from "@tanstack/react-query"
 import {atom, useAtom, useAtomValue, useSetAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
+import {useProjectName} from "../../../accounts/useProjectName"
 import {FinishConnectionDialog} from "../../../gatewayTool/components/FinishConnectionDialog"
 import ConnectDrawer from "../../../gatewayTool/drawers/ConnectDrawer"
 import {useRefreshToolConnection} from "../../../gatewayTool/hooks/useRefreshToolConnection"
@@ -356,13 +355,8 @@ function AgentConnectDrawer({
     onConnected: (owner: "user" | "project") => void
 }) {
     const access = useAtomValue(personalAccountsAccessAtom)
-    const projectId = useAtomValue(projectIdAtom)
-    const {data: project} = useQuery({
-        queryKey: ["projects", "detail", projectId],
-        queryFn: () => fetchProject(projectId as string),
-        enabled: Boolean(projectId),
-        staleTime: 60_000,
-    })
+    const askOwner = access === "on"
+    const projectName = useProjectName(askOwner)
     return (
         <ConnectDrawer
             open
@@ -372,8 +366,8 @@ function AgentConnectDrawer({
             integrationLogo={integration.logo ?? undefined}
             integrationDescription={integration.description ?? undefined}
             authSchemes={(integration as {auth_schemes?: string[] | null}).auth_schemes ?? []}
-            owners={access === "on" ? ["user", "project"] : undefined}
-            projectName={project?.project_name}
+            owners={askOwner ? ["user", "project"] : undefined}
+            projectName={projectName}
             onClose={onClose}
             onSuccess={onConnected}
         />
@@ -404,6 +398,8 @@ function IntegrationCatalogContent({
     const searching = query.trim().length > 0
     // The integration a just-finished connect flow should land, once its connection shows up.
     const [pendingAdd, setPendingAdd] = useState<string | null>(null)
+    const [pendingPersonalAdd, setPendingPersonalAdd] = useState<string | null>(null)
+    const {connections: personalConnections} = usePersonalToolConnections()
     // The rows' Settings verbs: finish a pending sign-in, or confirm a revoke or delete.
     const [finishing, setFinishing] = useState<{
         connection: ToolConnection
@@ -536,7 +532,18 @@ function IntegrationCatalogContent({
         setPendingAdd(null)
     }, [pendingAdd, allConnectedGroups, addIntegration])
 
-    // A new search or category starts a fresh query with nothing to show yet.
+    // As above: a closed popup is not a sign-in, so the item waits for a valid connection.
+    useEffect(() => {
+        if (!pendingPersonalAdd) return
+        const signedIn = personalConnections?.some(
+            (connection) =>
+                connection.integration_key === pendingPersonalAdd && isConnectionValid(connection),
+        )
+        if (!signedIn) return
+        onAddPersonalIntegration({provider: "composio", integration: pendingPersonalAdd})
+        setPendingPersonalAdd(null)
+    }, [pendingPersonalAdd, personalConnections, onAddPersonalIntegration])
+
     const catalogLoading = isLoading && integrations.length === 0
     const nothingFound = !catalogLoading && connectedGroups.length === 0 && catalogRows.length === 0
 
@@ -691,14 +698,8 @@ function IntegrationCatalogContent({
                     container={container}
                     onClose={() => setConnectTarget(null)}
                     onConnected={(owner) => {
-                        if (owner === "user") {
-                            onAddPersonalIntegration({
-                                provider: "composio",
-                                integration: connectTarget.key,
-                            })
-                        } else {
-                            setPendingAdd(connectTarget.key)
-                        }
+                        if (owner === "user") setPendingPersonalAdd(connectTarget.key)
+                        else setPendingAdd(connectTarget.key)
                         setConnectTarget(null)
                     }}
                 />

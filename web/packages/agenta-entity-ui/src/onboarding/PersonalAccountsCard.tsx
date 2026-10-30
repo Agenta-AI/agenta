@@ -24,10 +24,12 @@ import {personalNamedSecretsAtom} from "@agenta/entities/secret"
 import {Button} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
+import {ACCOUNT_COPY} from "../accounts/copy"
 import {McpSignIn} from "../accounts/McpSignIn"
 import {personalConnectionsFor, personalTextSecrets} from "../accounts/personalAccounts"
 import {useAccountChoice} from "../accounts/useAccountChoice"
 import ConnectDrawer from "../gatewayTool/drawers/ConnectDrawer"
+import {OwnSecretDialog} from "../secret/OwnSecretDialog"
 
 import {PERSONAL_SETUP_COPY as copy} from "./copy"
 import type {PersonalSetupItem} from "./personalSetup"
@@ -227,6 +229,7 @@ function SecretRow({item, workflowId, done, open, onToggle}: RowProps) {
     const secrets = useAtomValue(personalNamedSecretsAtom)
     const yours = useMemo(() => personalTextSecrets(secrets), [secrets])
     const {choose, busy, failed} = useAccountChoice(workflowId, item.key)
+    const [adding, setAdding] = useState(false)
 
     return (
         <SetupSection
@@ -236,9 +239,17 @@ function SecretRow({item, workflowId, done, open, onToggle}: RowProps) {
             stateTone="success"
             open={open && !done}
             onToggle={done ? undefined : onToggle}
+            after={
+                <OwnSecretDialog
+                    open={adding}
+                    onClose={() => setAdding(false)}
+                    onCreated={(secretId) => void choose({secretId})}
+                    initialName={yours.length === 0 ? item.name : undefined}
+                />
+            }
         >
             <p className="m-0 text-xs leading-snug text-[var(--ag-colorTextSecondary)]">
-                {yours.length > 0 ? copy.chooseSecret(item.name) : copy.noSecretYet}
+                {yours.length > 0 ? copy.chooseSecret(item.name) : copy.addSecret(item.name)}
             </p>
             {yours.length > 0 ? (
                 <SetupChoiceStrip>
@@ -250,8 +261,18 @@ function SecretRow({item, workflowId, done, open, onToggle}: RowProps) {
                             onClick={() => void choose({secretId: secret.id as string})}
                         />
                     ))}
+                    <SetupChoiceCard
+                        label={ACCOUNT_COPY.addAnotherSecret}
+                        onClick={() => setAdding(true)}
+                    />
                 </SetupChoiceStrip>
-            ) : null}
+            ) : (
+                <div className="flex items-center gap-1">
+                    <Button variant="outline" size="sm" onClick={() => setAdding(true)}>
+                        {ACCOUNT_COPY.addOne}
+                    </Button>
+                </div>
+            )}
             <Failure show={failed} />
         </SetupSection>
     )

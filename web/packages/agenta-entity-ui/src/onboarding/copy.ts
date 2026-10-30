@@ -80,7 +80,7 @@ export const PERSONAL_SETUP_COPY = {
     connectAccount: (name: string) => `Connect your ${name} account`,
     signIn: (name: string) => `Sign in to ${name} with your own account`,
     chooseSecret: (envVar: string) => `Choose your value for ${envVar}`,
-    noSecretYet: "Add a secret of your own in Settings, then choose it here.",
+    addSecret: (envVar: string) => `Add your value for ${envVar}`,
     connect: "Connect",
     connectAnother: "Connect another",
     signInAction: "Sign in",

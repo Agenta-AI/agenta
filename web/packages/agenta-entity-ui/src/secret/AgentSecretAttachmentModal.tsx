@@ -1,6 +1,6 @@
 import {useEffect, useMemo, useRef, useState} from "react"
 
-import type {AccountSource} from "@agenta/entities/accountChoice"
+import {userItemKey} from "@agenta/entities/accountChoice"
 import {
     CustomSecretFormat,
     isUserSecretBinding,
@@ -9,7 +9,10 @@ import {
     type AgentSecretBinding,
     type NamedSecretRow,
 } from "@agenta/entities/secret"
-import {slugifyBase, toEnvVarName} from "@agenta/shared/utils"
+import {workflowMolecule} from "@agenta/entities/workflow"
+import type {OwnerKind} from "@agenta/shared/types"
+import {isValidUUID, slugifyBase, toEnvVarName} from "@agenta/shared/utils"
+import {message} from "@agenta/ui/app-message"
 import {EnhancedModal} from "@agenta/ui/components/modal"
 import {
     Input,
@@ -19,12 +22,15 @@ import {
     SelectSeparator,
     SelectTrigger,
     SelectValue,
-    Textarea,
 } from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
 
 import {ACCOUNT_COPY} from "../accounts/copy"
+import {useAccountChoice} from "../accounts/useAccountChoice"
+import {useProjectName} from "../accounts/useProjectName"
 
+import {OwnerRadioGroup} from "./OwnerRadioGroup"
+import {SecretCreateFields} from "./SecretCreateFields"
 import {useSecretForm, type SavedSecret} from "./SecretForm"
 import {YourSecretLine} from "./YourSecretLine"
 
@@ -72,11 +78,21 @@ export interface AgentSecretAttachmentModalProps {
 const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/
 const SECRET_FIELD_ID = "agent-secret-attach-secret"
 const ENV_FIELD_ID = "agent-secret-attach-env"
-const NAME_FIELD_ID = "agent-secret-attach-name"
-const VALUE_FIELD_ID = "agent-secret-attach-value"
-const ACCOUNT_FIELD_ID = "agent-secret-attach-account"
 /** The picker option that swaps in the inline create fields. */
 const NEW_SECRET = "__new__"
+/** The picker option "Each person's own secret". */
+const PERSONAL_SECRET = "__personal__"
+
+type SecretOwner = Exclude<OwnerKind, "organization">
+
+/** Who may own a new secret, as on Settings; the first is the default. Absent: the project's. */
+export const newSecretOwners = (
+    personalAccountsOn: boolean,
+    canCreateProjectSecret: boolean,
+): SecretOwner[] | undefined => {
+    if (!personalAccountsOn) return undefined
+    return canCreateProjectSecret ? ["user", "project"] : ["user"]
+}
 
 /** The saved secret the agent most likely means: same env var, name, or slug as the request. */
 export const matchRequestedSecret = <
@@ -119,6 +135,17 @@ export const preserveAgentSecretEnvOverride = ({
     name: string
 }): string => (touched ? current : suggestedAgentSecretEnv({requestEnv, defaultEnvVar, name}))
 
+/** The variable as typed, a beat behind, so typing it asks the server once and not per letter. */
+const useDebouncedEnv = (envVar: string, active: boolean): string => {
+    const [settled, setSettled] = useState(envVar)
+    useEffect(() => {
+        if (!active) return
+        const timer = setTimeout(() => setSettled(envVar), 400)
+        return () => clearTimeout(timer)
+    }, [active, envVar])
+    return settled
+}
+
 export function AgentSecretAttachmentModal({
     open,
     onClose,
@@ -146,12 +173,15 @@ export function AgentSecretAttachmentModal({
         [namedSecrets],
     )
     const access = useAtomValue(personalAccountsAccessAtom)
-    const [source, setSource] = useState<AccountSource>("agent")
     const [selectedSlug, setSelectedSlug] = useState("")
     const [createdSecret, setCreatedSecret] = useState<SavedSecret | null>(null)
     const [envVar, setEnvVar] = useState("")
     const [envTouched, setEnvTouched] = useState(false)
     const [attaching, setAttaching] = useState(false)
+    const owners = newSecretOwners(access === "on", canCreateSecret)
+    const canCreate = canCreateSecret || access === "on"
+    const [chosenOwner, setOwner] = useState<SecretOwner>("user")
+    const owner = owners?.includes(chosenOwner) ? chosenOwner : (owners?.[0] ?? "project")
     const [error, setError] = useState<string | null>(null)
     // Set once the modal has picked its opening choice, or the user has picked one.
     const choiceMade = useRef(false)
@@ -197,32 +227,29 @@ export function AgentSecretAttachmentModal({
     useEffect(() => {
         if (!open) return
         const original = editingBinding?.value
-        setSource(original && isUserSecretBinding(original) ? "user" : "agent")
-        const initialSlug = original?.secret.slug ?? ""
+        const initialSlug = original
+            ? isUserSecretBinding(original)
+                ? PERSONAL_SECRET
+                : (original.secret.slug ?? "")
+            : ""
         const initialSecret = textSecrets.find((secret) => secret.slug === initialSlug)
-        const startNew = canCreateSecret && !original && initialMode === "create"
+        const startNew = canCreate && !original && initialMode === "create"
         choiceMade.current = Boolean(original) || startNew
         setSelectedSlug(startNew ? NEW_SECRET : initialSlug)
         setCreatedSecret(null)
+        setOwner("user")
         setEnvVar(original?.binding.name ?? suggestion(initialSecret))
         setEnvTouched(Boolean(original))
         setAttaching(false)
         setError(null)
         // The target/base identify one opening transaction. Query refreshes must not clear typing.
-    }, [
-        open,
-        target.revisionId,
-        baseRevisionId,
-        editingBinding?.index,
-        initialMode,
-        canCreateSecret,
-    ])
+    }, [open, target.revisionId, baseRevisionId, editingBinding?.index, initialMode, canCreate])
 
     const selectSecret = (slug: string) => {
         choiceMade.current = true
         setSelectedSlug(slug)
         setError(null)
-        if (!envTouched) {
+        if (!envTouched && slug !== PERSONAL_SECRET) {
             const secret = allSecrets.find((candidate) => candidate.slug === slug)
             setEnvVar(
                 preserveAgentSecretEnvOverride({
@@ -242,12 +269,13 @@ export function AgentSecretAttachmentModal({
         if (!open || loading || !vaultFresh || choiceMade.current) return
         const match = matchRequestedSecret(textSecrets, request)
         if (match?.slug) selectSecret(match.slug)
-        else if (canCreateSecret && textSecrets.length === 0) selectSecret(NEW_SECRET)
+        else if (canCreate && textSecrets.length === 0) selectSecret(NEW_SECRET)
         else choiceMade.current = true
     }, [open, loading, vaultFresh, textSecrets])
 
-    const personal = source === "user"
-    const creating = !personal && selectedSlug === NEW_SECRET
+    const personal = selectedSlug === PERSONAL_SECRET
+    const creating = selectedSlug === NEW_SECRET
+    const personalOption = access === "on" || personal
 
     const duplicate = bindings.some(
         (candidate, index) =>
@@ -256,14 +284,18 @@ export function AgentSecretAttachmentModal({
     const envError = envVar.length > 0 && !ENV_NAME.test(envVar)
     const envOk = !!envVar.trim() && !envError && !duplicate
 
+    const workflowId = useAtomValue(workflowMolecule.selectors.workflowId(target.revisionId)) ?? ""
+    const {choose: storeChoice} = useAccountChoice(workflowId, userItemKey("secret", envVar.trim()))
+
     const attach = async (slug: string, saved?: SavedSecret) => {
-        if (disabled || dirty || (!slug && !personal) || !envOk || attaching) return
+        const asPersonal = slug === PERSONAL_SECRET
+        if (disabled || dirty || !slug || !envOk || attaching) return
         setAttaching(true)
         setError(null)
         // A "user" secret names no slug: each person who runs the agent gives their own value
         // (contract section 5.1).
         const credential: AgentSecretBinding = {
-            secret: personal ? {account_source: "user"} : {slug},
+            secret: asPersonal ? {account_source: "user"} : {slug},
             binding: {type: "env", name: envVar.trim()},
         }
         try {
@@ -287,7 +319,16 @@ export function AgentSecretAttachmentModal({
 
     // Save & attach: the new secret is saved, then attached in the same step. If the attach
     // fails, the saved secret stays selected so Attach can retry it.
-    const handleCreated = (secret: SavedSecret) => {
+    const handleCreated = async (secret: SavedSecret) => {
+        if (owner === "user") {
+            // "Only me": the item takes each person's own secret, and this one is the choice.
+            // Stored first: a failed attach retries from the line, which then shows this choice.
+            setSelectedSlug(PERSONAL_SECRET)
+            const stored = secret.id ? await storeChoice({secretId: secret.id}) : false
+            if (stored !== true) message.error(ACCOUNT_COPY.choiceFailed)
+            await attach(PERSONAL_SECRET, secret)
+            return
+        }
         setCreatedSecret(secret)
         setSelectedSlug(secret.slug)
         void attach(secret.slug, secret)
@@ -297,19 +338,32 @@ export function AgentSecretAttachmentModal({
         open: open && creating,
         initialName: request?.name,
         initialDefaultEnvVar: request?.envVar,
-        onSaved: handleCreated,
+        ownerKind: owner === "user" ? "user" : undefined,
+        onSaved: (secret) => void handleCreated(secret),
     })
+    const askOwner = creating && (owners?.length ?? 0) > 1
+    const projectName = useProjectName(askOwner)
+
+    // The line needs a saved agent to store a choice against, and a variable to store it for.
+    const lineEnv = useDebouncedEnv(envVar.trim(), open && personal)
+    const showLine = personal && isValidUUID(target.revisionId) && ENV_NAME.test(lineEnv)
+    const lineBindings = useMemo<AgentSecretBinding[]>(
+        () => [
+            ...bindings.filter((_, index) => index !== editingBinding?.index),
+            {secret: {account_source: "user"}, binding: {type: "env", name: lineEnv}},
+        ],
+        [bindings, editingBinding, lineEnv],
+    )
 
     const canSubmit =
         !disabled &&
         !dirty &&
         envOk &&
-        (personal ||
-            (creating
-                ? !!createController.name.trim() &&
-                  !!createController.textValue.trim() &&
-                  !createController.okDisabled
-                : !!selectedSlug))
+        (creating
+            ? !!createController.name.trim() &&
+              !!createController.textValue.trim() &&
+              !createController.okDisabled
+            : !!selectedSlug)
 
     const submit = () => (creating ? createController.submit() : attach(selectedSlug))
 
@@ -346,49 +400,9 @@ export function AgentSecretAttachmentModal({
                     </p>
                 ) : null}
 
-                {access === "on" || personal ? (
-                    <div className="flex flex-col gap-1">
-                        <label htmlFor={ACCOUNT_FIELD_ID} className="font-medium text-colorText">
-                            {ACCOUNT_COPY.label}
-                        </label>
-                        <Select
-                            value={source}
-                            onValueChange={(value) => {
-                                setSource(value as AccountSource)
-                                setError(null)
-                            }}
-                        >
-                            <SelectTrigger id={ACCOUNT_FIELD_ID}>
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent container={container} style={{zIndex: popupZIndex}}>
-                                <SelectItem value="user">
-                                    {ACCOUNT_COPY.eachPersonSecret}
-                                </SelectItem>
-                                <SelectItem value="agent">{ACCOUNT_COPY.projectSecret}</SelectItem>
-                            </SelectContent>
-                        </Select>
-                        {personal ? (
-                            editingBinding && isUserSecretBinding(editingBinding.value) ? (
-                                <YourSecretLine
-                                    revisionId={target.revisionId}
-                                    bindings={bindings}
-                                    envVar={editingBinding.value.binding.name}
-                                    container={container}
-                                    zIndex={popupZIndex}
-                                />
-                            ) : (
-                                <span className="text-xs text-colorTextSecondary">
-                                    {ACCOUNT_COPY.secretValueLine}
-                                </span>
-                            )
-                        ) : null}
-                    </div>
-                ) : null}
-
-                <div className={personal ? "hidden" : "flex flex-col gap-1"}>
+                <div className="flex flex-col gap-1">
                     <label htmlFor={SECRET_FIELD_ID} className="font-medium text-colorText">
-                        Secret
+                        {personalOption ? ACCOUNT_COPY.label : "Secret"}
                     </label>
                     <Select value={selectedSlug} onValueChange={selectSecret} disabled={loading}>
                         <SelectTrigger id={SECRET_FIELD_ID}>
@@ -406,62 +420,83 @@ export function AgentSecretAttachmentModal({
                                 focusNewSecretField()
                             }}
                         >
+                            {personalOption ? (
+                                <>
+                                    <SelectItem value={PERSONAL_SECRET}>
+                                        {ACCOUNT_COPY.eachPersonSecret}
+                                    </SelectItem>
+                                    {allSecrets.length > 0 ? <SelectSeparator /> : null}
+                                </>
+                            ) : null}
                             {allSecrets.map((secret) => (
                                 <SelectItem key={secret.slug} value={secret.slug ?? ""}>
                                     {secret.name}
                                 </SelectItem>
                             ))}
-                            {canCreateSecret ? (
+                            {canCreate ? (
                                 <>
-                                    {allSecrets.length > 0 ? <SelectSeparator /> : null}
-                                    <SelectItem value={NEW_SECRET}>+ New secret</SelectItem>
+                                    {allSecrets.length > 0 || personalOption ? (
+                                        <SelectSeparator />
+                                    ) : null}
+                                    <SelectItem value={NEW_SECRET}>
+                                        {ACCOUNT_COPY.createNewSecret}
+                                    </SelectItem>
                                 </>
                             ) : null}
                         </SelectContent>
                     </Select>
+                    {personal ? (
+                        showLine ? (
+                            <YourSecretLine
+                                revisionId={target.revisionId}
+                                bindings={lineBindings}
+                                envVar={lineEnv}
+                                container={container}
+                                zIndex={popupZIndex}
+                            />
+                        ) : (
+                            <span className="text-xs text-colorTextSecondary">
+                                {ACCOUNT_COPY.secretValueLine}
+                            </span>
+                        )
+                    ) : null}
                 </div>
 
                 {creating ? (
                     <>
-                        <div className="flex flex-col gap-1">
-                            <label htmlFor={NAME_FIELD_ID} className="font-medium text-colorText">
-                                Name
-                            </label>
-                            <Input
-                                id={NAME_FIELD_ID}
-                                ref={nameRef}
-                                autoFocus={!request?.name?.trim()}
-                                placeholder="For example, GITHUB_TOKEN"
-                                value={createController.name}
-                                onChange={(event) => {
-                                    createController.onChangeName(event.target.value)
-                                    if (!envTouched) {
-                                        setEnvVar(suggestion({name: event.target.value}))
-                                    }
-                                }}
-                            />
-                        </div>
-                        <div className="flex flex-col gap-1 ph-no-capture">
-                            <label htmlFor={VALUE_FIELD_ID} className="font-medium text-colorText">
-                                Value
-                            </label>
-                            <Textarea
-                                id={VALUE_FIELD_ID}
-                                ref={valueRef}
-                                rows={3}
-                                className="font-mono"
-                                autoFocus={!!request?.name?.trim()}
-                                value={createController.textValue}
-                                onChange={(event) =>
-                                    createController.setTextValue(event.target.value)
-                                }
-                                autoComplete="off"
-                                spellCheck={false}
-                            />
-                            <span className="text-xs text-colorTextSecondary">
-                                Stored in the project vault.
-                            </span>
-                        </div>
+                        <SecretCreateFields
+                            controller={createController}
+                            focusValue={!!request?.name?.trim()}
+                            hint={owner === "user" ? undefined : "Stored in the project vault."}
+                            nameRef={nameRef}
+                            valueRef={valueRef}
+                            onNameChange={(name) => {
+                                if (!envTouched) setEnvVar(suggestion({name}))
+                            }}
+                        />
+                        {askOwner ? (
+                            <div className="flex flex-col gap-1">
+                                <span className="font-medium text-colorText">
+                                    {ACCOUNT_COPY.whoCanUseIt}
+                                </span>
+                                <OwnerRadioGroup<SecretOwner>
+                                    value={owner}
+                                    onChange={setOwner}
+                                    options={[
+                                        {
+                                            value: "user",
+                                            label: ACCOUNT_COPY.onlyMe,
+                                            note: ACCOUNT_COPY.onlyMeSecretNote,
+                                        },
+                                        {
+                                            value: "project",
+                                            label: ACCOUNT_COPY.everyoneIn(projectName),
+                                            note: ACCOUNT_COPY.everyoneSecretNote,
+                                        },
+                                    ]}
+                                />
+                            </div>
+                        ) : null}
                     </>
                 ) : null}
 
