@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_014nD67uAsaMTzh3K5yiGRsv",
+  "agent_id": "aa81d3836dbcdeb77",
+  "subagent_type": "general-purpose",
+  "task_description": "Research invite flow code",
+  "token_usage": {
+    "input_tokens": 50,
+    "cache_creation_tokens": 301592,
+    "cache_read_tokens": 4808147,
+    "output_tokens": 47058,
+    "api_call_count": 25
+  },
+  "started_at": "2026-10-30T14:45:39.149695988+01:00",
+  "completed_at": "2026-10-30T14:55:32.014902161+01:00"
+}
