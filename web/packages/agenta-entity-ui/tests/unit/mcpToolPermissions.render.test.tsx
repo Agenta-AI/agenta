@@ -293,6 +293,7 @@ describe("when the tool list cannot be read", () => {
     it.each([
         ["a server fault", new McpProtocolError("Bad gateway at 10.0.0.1", null, 502), true],
         ["the chosen server failing", new McpProtocolError("boom", "upstream_error", 424), true],
+        ["a rate limit", new McpProtocolError("slow down", null, 429), true],
         ["a connection turned off", new McpProtocolError("off", "endpoint_inactive", 403), false],
         ["a missing secret", new McpProtocolError("no KEY", "secret_missing", 409), false],
         ["a deleted connection", new McpProtocolError("gone", "endpoint_not_found", 404), false],

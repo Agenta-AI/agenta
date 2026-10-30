@@ -156,9 +156,14 @@ const toolListFailure = (
     }
     return {
         needsAuth: false,
-        // No answer, a server fault, or the chosen server failing can pass. Any other refusal
-        // answers the same way again.
-        retryable: status === null || status >= 500 || code === "upstream_error",
+        // No answer, a server fault, a rate limit, or the chosen server failing can pass. Any
+        // other refusal answers the same way again.
+        retryable:
+            status === null ||
+            status >= 500 ||
+            status === 408 ||
+            status === 429 ||
+            code === "upstream_error",
         error: "The tool list could not be read.",
     }
 }
