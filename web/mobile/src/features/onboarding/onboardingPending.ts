@@ -3,6 +3,9 @@ import {onboardingDraftKey, saveOnboardingDraft} from "./onboardingDraft"
 /** Set at sign-up for a new account; while it stands, Home sends that user to onboarding. */
 const onboardingPendingKey = (userId: string) => `agenta:onboarding:pending:${userId}`
 
+/** Set when the account joined through an invite: it answers the questions only. */
+const onboardingInvitedKey = (userId: string) => `agenta:onboarding:invited:${userId}`
+
 /**
  * Written instead when the profile could not load right after sign-up, so the user id is not
  * known yet. The first user read within the window claims it; after that it is ignored, so a
@@ -42,9 +45,26 @@ export const isOnboardingPending = (userId: string, now: number = Date.now()): b
     }
 }
 
+export const markOnboardingInvited = (userId: string) => {
+    try {
+        window.localStorage.setItem(onboardingInvitedKey(userId), "1")
+    } catch {
+        // Storage restrictions only cost the shorter flow, never the invite.
+    }
+}
+
+export const isOnboardingInvited = (userId: string): boolean => {
+    try {
+        return window.localStorage.getItem(onboardingInvitedKey(userId)) !== null
+    } catch {
+        return false
+    }
+}
+
 export const clearOnboardingPending = (userId: string) => {
     try {
         window.localStorage.removeItem(onboardingPendingKey(userId))
+        window.localStorage.removeItem(onboardingInvitedKey(userId))
     } catch {
         // Nothing to clear when storage is unavailable.
     }

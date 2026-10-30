@@ -1,8 +1,10 @@
 import {useEffect} from "react"
 
+import {readInviteParams} from "@agenta/auth"
 import {useQuery} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
+import {rememberInvite} from "@/features/invite/pendingInvite"
 import {fetchProjects, rememberTemplateKey} from "@/lib/context"
 
 import {authRedirectTarget, shouldCheckSession, type SessionVerdict} from "./authRoute"
@@ -45,6 +47,13 @@ export const AuthGate = () => {
               : "unknown"
     const target = authRedirectTarget(verdict, router.pathname)
     useEffect(() => {
+        // Next fills the query after the first render; a redirect before that loses what it holds.
+        if (!router.isReady) return
+        // Here and not on the sign-in screen: a signed-in visit leaves /auth at once.
+        if (router.pathname === "/auth") {
+            const invite = readInviteParams(router.query)
+            if (invite) rememberInvite(invite)
+        }
         // Sign-in drops the query; the root resolver picks the template key back up after it.
         if (target === "/auth" && typeof router.query.template === "string") {
             rememberTemplateKey(router.query.template)
@@ -53,7 +62,7 @@ export const AuthGate = () => {
         // The target string is the only trigger. The router object changes identity on every
         // navigation, so including it would re-fire the redirect.
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [target])
+    }, [target, router.isReady])
 
     return null
 }

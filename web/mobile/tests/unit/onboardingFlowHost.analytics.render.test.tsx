@@ -8,6 +8,9 @@ const state = vi.hoisted(() => ({
     capture: vi.fn(),
     captureIntent: vi.fn(),
     pending: true,
+    invited: false,
+    replace: vi.fn(),
+    endOnboarding: vi.fn(),
     flow: null as Record<string, (...args: never[]) => unknown> | null,
     templates: [
         {key: "lead-qualifier", name: "Lead qualifier", category: "Sales"},
@@ -25,8 +28,9 @@ vi.mock("@/features/onboarding/OnboardingFlow", () => ({
     },
 }))
 vi.mock("@/features/onboarding/onboardingPending", () => ({
-    endOnboarding: vi.fn(),
+    endOnboarding: state.endOnboarding,
     isOnboardingPending: () => state.pending,
+    isOnboardingInvited: () => state.invited,
 }))
 vi.mock("@/features/onboarding/useOnboardingModel", () => ({
     useOnboardingModel: () => ({}),
@@ -80,7 +84,7 @@ vi.mock("@agenta/shared/analytics", () => ({
 vi.mock("@agenta/ui/agent-icon", () => ({
     loadAgentIconCatalog: () => Promise.resolve([]),
 }))
-vi.mock("next/router", () => ({useRouter: () => ({replace: vi.fn()})}))
+vi.mock("next/router", () => ({useRouter: () => ({replace: state.replace})}))
 vi.mock("@/lib/ids", () => ({newId: () => "session-1"}))
 
 const {OnboardingFlowHost} = await import("@/features/onboarding/OnboardingFlowHost")
@@ -119,6 +123,9 @@ const surveyEvents = () => state.capture.mock.calls.filter(([event]) => event ==
 
 beforeEach(() => {
     state.pending = true
+    state.invited = false
+    state.replace.mockClear()
+    state.endOnboarding.mockClear()
     state.capture.mockClear()
     state.captureIntent.mockClear()
 })
@@ -143,6 +150,23 @@ describe("the onboarding's PostHog events", () => {
 
         flow().onStepCompleted("credits", draft)
         expect(surveyEvents()).toHaveLength(1)
+    })
+
+    it("asks an invited person the questions only, then opens the project", () => {
+        state.invited = true
+        mount()
+        expect(flow().steps).toEqual(["persona", "size", "source"])
+        flow().onStepCompleted("source", draft)
+        expect(surveyEvents()).toHaveLength(1)
+        flow().onQuestionsDone?.()
+        expect(state.endOnboarding).toHaveBeenCalledWith("user-1")
+        expect(state.replace).toHaveBeenCalledWith("/home")
+    })
+
+    it("keeps the full flow for a new account with no invite", () => {
+        mount()
+        expect(flow().steps).toEqual(["persona", "size", "source", "credits", "templates"])
+        expect(flow().onQuestionsDone).toBeUndefined()
     })
 
     it("sends nothing from a preview", () => {
