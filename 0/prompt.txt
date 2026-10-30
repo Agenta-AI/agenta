@@ -1,0 +1,21 @@
+Background (from the session that started this one):
+The user (Mahmoud) runs a self-hosted Agenta stack called oss-team on the dev box. One of their agent chat sessions failed on every new message. Investigation found the cause above in the runner. A separate investigation in the parent session covers a second bug: why the runner evicted the warm session with reason `credentials-rotated` when no credentials changed. Do not work on that one. Do not touch the oss-team stack or its database. This repo uses GitButler; follow AGENTS.md and the gitbutler skills for commits and pushes, and never merge into main.
+
+Task:
+Fix a runner bug that breaks every new message in a session whose history holds certain Unicode characters.
+
+Bug: when the runner rebuilds chat history as text (cold replay), `services/runner/src/engines/sandbox_agent/transcript.ts` cuts strings with `String.prototype.slice`, which counts UTF-16 code units. Two places:
+1. Line ~138: `body.slice(0, TOOL_RESULT_RENDER_MAX_CHARS)` (4000) for each old tool result.
+2. Line ~345: `full.slice(-maxChars)` (100_000) for the whole transcript tail.
+When the cut falls between the two halves of a surrogate pair (emoji, or LinkedIn-style bold letters like "𝗰𝗼𝗺𝗯𝗶𝗻𝗲"), a lone surrogate remains. `JSON.stringify` writes it as `\ud835`, and the sandbox-agent daemon (Rust serde_json) rejects the ACP `session/prompt` body with `400 invalid JSON body: unexpected end of hex escape`. The turn fails, and every later turn fails the same way because the record stays in history.
+
+Real case: oss-team session `4425a7e7-8f81-4788-96da-80febbe39864`, record_index 29 (a `tool_result`, 15835 chars) has a surrogate pair at UTF-16 index 3999-4000.
+
+Do:
+- Make both cuts surrogate-safe (do not leave a lone high surrogate at the end of a head cut, or a lone low surrogate at the start of a tail cut). Look for an existing helper in the runner first (grep for surrogate / `isWellFormed` / `toWellFormed`); reuse it if one exists. Keep the eviction count logic in `buildTurnText` correct.
+- Grep the rest of `services/runner/src` for other `.slice(` cuts on user or tool text that go into a prompt or into JSON sent to the daemon, and fix the same class of bug there if it exists. Ignore cuts on log lines.
+- Add unit tests in `services/runner/tests/unit/` that put a surrogate pair right at each cut point and assert the output is well formed (`str.isWellFormed()`).
+- Run `pnpm test` and `pnpm run typecheck` in `services/runner`.
+- Open a PR (ready, not draft) against the current open release branch (check `git branch -r | grep release/` for the newest), title like `fix(runner): do not split a character when cutting replayed history`. Use the write-pr-description skill. Lead with the symptom.
+
+Done = PR open, tests green, the PR link reported back.
