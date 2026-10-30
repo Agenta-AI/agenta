@@ -299,6 +299,7 @@ export async function createEphemeralAppFromTemplate({
                 is_feedback: false,
                 is_agent: type === "agent",
                 is_skill: false,
+                is_plugin: false,
                 // Agent takes messages-in / returns a final message, so it runs in
                 // chat mode like `chat` (backend infers is_chat from messages-in too).
                 is_chat: type === "chat" || type === "agent",
