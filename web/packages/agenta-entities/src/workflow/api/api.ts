@@ -321,12 +321,17 @@ export async function retrieveWorkflowRevision({
     workflowRef,
     workflowVariantRef,
     workflowRevisionRef,
+    environmentRef,
+    key,
     lowPriority,
 }: {
     projectId: string
     workflowRef?: {id?: string; slug?: string; version?: string}
     workflowVariantRef?: {id?: string; slug?: string; version?: string}
     workflowRevisionRef?: {id?: string; slug?: string; version?: string}
+    /** The environment to read the deployed revision from, with `key` into its reference map. */
+    environmentRef?: {id?: string; slug?: string; version?: string}
+    key?: string
     /** Send with the `priority: "low"` fetch hint (secondary/background load). */
     lowPriority?: boolean
 }): Promise<Workflow | null> {
@@ -338,7 +343,9 @@ export async function retrieveWorkflowRevision({
     const hasWorkflowIdent = !!(workflowRef?.id || workflowRef?.slug)
     const hasVariantIdent = !!(workflowVariantRef?.id || workflowVariantRef?.slug)
     const hasRevisionIdent = !!(workflowRevisionRef?.id || workflowRevisionRef?.slug)
-    const hasNoIdentifyingRef = !hasWorkflowIdent && !hasVariantIdent && !hasRevisionIdent
+    const hasEnvironmentIdent = !!(environmentRef?.id || environmentRef?.slug)
+    const hasNoIdentifyingRef =
+        !hasWorkflowIdent && !hasVariantIdent && !hasRevisionIdent && !hasEnvironmentIdent
     if (hasNoIdentifyingRef) return null
 
     // Use the Fern-generated client (single source of truth for the
@@ -349,6 +356,8 @@ export async function retrieveWorkflowRevision({
             ...(workflowRef ? {workflow_ref: workflowRef} : {}),
             ...(workflowVariantRef ? {workflow_variant_ref: workflowVariantRef} : {}),
             ...(workflowRevisionRef ? {workflow_revision_ref: workflowRevisionRef} : {}),
+            ...(environmentRef ? {environment_ref: environmentRef} : {}),
+            ...(key ? {key} : {}),
         },
         {queryParams: {project_id: projectId}},
     )

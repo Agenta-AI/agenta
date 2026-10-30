@@ -77,12 +77,15 @@ export const useChatAccess = ({
         [owner, reason],
     )
     const canSend = !blocked && !readOnly && known
+    // The row read has not answered yet. "No row" is an answer: a chat with no turns has none.
+    const accessPending = !fresh && query.isPending
     // The recheck's clock: the agent's visibility is re-read on the same beat.
     const checkedAt = Math.max(query.dataUpdatedAt ?? 0, query.errorUpdatedAt ?? 0)
     return {
         blocked,
         readOnly,
         canSend,
+        accessPending,
         checkedAt,
         agentHidden: effectiveAgentHidden,
         rowAgentHidden,

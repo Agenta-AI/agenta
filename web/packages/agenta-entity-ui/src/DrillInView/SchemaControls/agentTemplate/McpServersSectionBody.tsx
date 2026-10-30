@@ -40,9 +40,15 @@ import {
 } from "../../../mcpEndpoint"
 import type {PermissionPolicy} from "../permissionPolicy"
 
+import {McpAccountBlock} from "./accounts/McpAccountBlock"
 import {ConfigItemList} from "./ConfigItemList"
 import {type ItemRowStatus} from "./ItemRow"
-import {buildMcpAgentItem, mcpItemNeedsRepair} from "./mcpRail"
+import {
+    buildMcpAgentItem,
+    mcpItemNeedsRepair,
+    readMcpAccountSource,
+    withMcpAccountSource,
+} from "./mcpRail"
 import {needsSetupStatus} from "./needsSetup"
 import {useAgentRequirements} from "./useAgentRequirements"
 
@@ -289,6 +295,25 @@ export function McpServersSectionBody({
                     agentPolicy={agentPolicy}
                     disabled={disabled}
                     panelRef={setPermissionPanel}
+                    account={
+                        <McpAccountBlock
+                            endpoint={permissionEndpoint}
+                            source={readMcpAccountSource(permissionItem)}
+                            onChange={(source) =>
+                                onChangeItems(
+                                    items.map((item, index) =>
+                                        index === permissionIndex
+                                            ? withMcpAccountSource(
+                                                  item as Record<string, unknown>,
+                                                  source,
+                                              )
+                                            : item,
+                                    ),
+                                )
+                            }
+                            disabled={disabled}
+                        />
+                    }
                 />
             ) : null}
 

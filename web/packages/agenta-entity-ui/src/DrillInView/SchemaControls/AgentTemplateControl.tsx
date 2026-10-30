@@ -73,6 +73,7 @@ import {useOptionalDrillIn} from "../components/MoleculeDrillInContext"
 
 import {mergeAgentConfigDraft, readRunnerPermission} from "./agentConfigPatch"
 import {useAutoExpandOnPopulate} from "./agentSectionAutoExpand"
+import {IntegrationAccountBlock} from "./agentTemplate/accounts/IntegrationAccountBlock"
 import {AgentIntegrationDrawer} from "./agentTemplate/AgentIntegrationDrawer"
 import {
     AgentTemplateSectionList,
@@ -535,11 +536,15 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
         handleRemoveReferenceBySlug,
         integrationRows,
         setIntegrationConnection,
+        addPersonalIntegration,
+        setIntegrationAccount,
         setIntegrationPermissions,
         setIntegrationToolPermission,
         removeIntegration,
         migrateIntegrationEntries,
     } = useAgentTools({config, onChange, configRef, openCreate, workflowReference})
+    // Where an item's "Account" line reads from: the revision on screen and the agent as edited.
+    const accountContext = useMemo(() => ({revisionId, agent: config}), [revisionId, config])
 
     /**
      * Open one integration's permission drawer. Migration runs HERE, on the click, and never on a
@@ -1589,6 +1594,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                     }}
                     integrationRows={integrationRows}
                     onAddIntegration={setIntegrationConnection}
+                    onAddPersonalIntegration={addPersonalIntegration}
                 />
             )}
 
@@ -1609,6 +1615,19 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
                     }
                     agentPolicy={agentPermissionPolicy}
                     disabled={disabled}
+                    account={
+                        permissionRow?.entry ? (
+                            <IntegrationAccountBlock
+                                target={permissionTarget}
+                                entry={permissionRow.entry}
+                                context={accountContext}
+                                onChange={(account) =>
+                                    setIntegrationAccount(permissionTarget, account)
+                                }
+                                disabled={disabled}
+                            />
+                        ) : undefined
+                    }
                 />
             )}
         </div>

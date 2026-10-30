@@ -92,6 +92,15 @@ export {
     invalidateAgentRequirements,
 } from "./state/agentRequirements"
 export {
+    retrieveWorkflowRevisionByRefs,
+    type RetrievedWorkflowRevision,
+    type WorkflowRevisionRefs,
+} from "./api/retrieveRevisionByRefs"
+export {
+    retrievedWorkflowRevisionQueryAtomFamily,
+    retrievedWorkflowRevisionFamilyKey,
+} from "./state/retrievedRevision"
+export {
     AGENT_NEEDS_SETUP_CODE,
     AGENT_NEEDS_SETUP_TITLE,
     MODEL_NEEDS_SETUP_MESSAGE,

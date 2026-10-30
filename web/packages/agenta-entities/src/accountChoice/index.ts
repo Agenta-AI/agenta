@@ -12,13 +12,27 @@ export {
 } from "./schema"
 
 export {
+    hasUserItems,
+    readUserItems,
+    USER_ACCOUNT_SOURCE,
+    userItemKey,
+    userItemsParameters,
+    type AgentUserItems,
+    type AccountSource,
+    type UserItemKind,
+} from "./items"
+
+export {
     deleteAccountChoice,
     queryAccountChoices,
+    resolveDraftAccountChoices,
     upsertAccountChoice,
     type AccountPick,
 } from "./api"
 
 export {
+    draftItemAccountsFamilyKey,
+    draftItemAccountsQueryAtomFamily,
     invalidateAccountChoices,
     invalidatePersonalAccountReads,
     secretChoicesQueryAtomFamily,

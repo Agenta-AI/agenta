@@ -99,6 +99,22 @@ describe("secret attachment transaction", () => {
             revisionId: "rev-1",
         })
     })
+    it("writes a user secret with account_source and no slug", async () => {
+        const mixed = [
+            {secret: {slug: "jira-token"}, binding: {type: "env" as const, name: "JIRA_TOKEN"}},
+            {
+                secret: {account_source: "user" as const, slug: "left-over"},
+                binding: {type: "env" as const, name: "GITHUB_TOKEN"},
+            },
+        ]
+        await store.set(commitAgentCredentialsAtom, {revisionId: "rev-1", bindings: mixed})
+        const [payload] = api.commit.mock.calls[0]
+        expect(payload.workflow_revision.data.parameters.agent.sandbox.credentials).toEqual([
+            {secret: {slug: "jira-token"}, binding: {type: "env", name: "JIRA_TOKEN"}},
+            {secret: {account_source: "user"}, binding: {type: "env", name: "GITHUB_TOKEN"}},
+        ])
+    })
+
     it("saves the default Agenta tools entry on an agent saved without one", async () => {
         await store.set(commitAgentCredentialsAtom, {revisionId: "rev-1", bindings})
         const [payload] = api.commit.mock.calls[0]

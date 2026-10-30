@@ -355,12 +355,15 @@ export const createCustomNamedSecretAtom = atom(null, async (get, set, secret: N
                 scope: secret.ownerKind,
             })
         } else {
-            await createMutation.mutateAsync({
+            const created = await createMutation.mutateAsync({
                 projectId,
                 payload: personal ? {...payload, scope: USER_SCOPE} : payload,
             })
+            if (personal) await invalidatePersonalSecrets()
+            return created?.id ?? undefined
         }
         if (personal) await invalidatePersonalSecrets()
+        return secretId
     } catch (error) {
         console.error("Failed to create/update named secret:", error)
         throw error

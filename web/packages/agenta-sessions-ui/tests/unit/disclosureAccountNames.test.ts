@@ -1,6 +1,10 @@
 import {describe, expect, it} from "vitest"
 
-import {defaultProviderLabel, disclosureAccountNames} from "../../src/sharing/result"
+import {
+    defaultProviderLabel,
+    disclosureAccountNames,
+    disclosurePersonalAccountNames,
+} from "../../src/sharing/result"
 
 const disclosure = (...integrations: string[]) => ({
     connections: integrations.map((integration, index) => ({
@@ -32,5 +36,17 @@ describe("the disclosure's account names", () => {
                 (connection) => labels[connection.integration] ?? "?",
             ),
         ).toEqual(["Gmail", "Shopify"])
+    })
+
+    it("keeps the items that use each person's own account apart", () => {
+        const mixed = {
+            ...disclosure("slack"),
+            connections: [
+                ...disclosure("slack").connections,
+                {provider: "composio", integration: "gmail", account_source: "user" as const},
+            ],
+        }
+        expect(disclosureAccountNames(mixed)).toEqual(["Slack"])
+        expect(disclosurePersonalAccountNames(mixed)).toEqual(["Gmail"])
     })
 })

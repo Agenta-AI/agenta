@@ -103,6 +103,7 @@ export {
     StandardProviderKind,
     getEnvNameMap,
     hasStoredKey,
+    isUserSecretBinding,
     transformCustomProviderPayloadData,
     transformCustomSecretPayloadData,
     transformSecret,
