@@ -10,14 +10,14 @@
 import {useMemo, useState} from "react"
 
 import {
-    invalidateAccountChoices,
+    invalidatePersonalAccountReads,
     upsertAccountChoice,
     userItemKey,
 } from "@agenta/entities/accountChoice"
 import {
     invalidateToolConnections,
     isConnectionActive,
-    isDefaultConnection,
+    isConnectionDefault,
     makeDefaultToolConnection,
     usePersonalToolConnections,
     useToolConnectionsQuery,
@@ -25,7 +25,6 @@ import {
     type ToolConnection,
 } from "@agenta/entities/gatewayTool"
 import {personalAccountsAccessAtom} from "@agenta/entities/secret"
-import {invalidateAgentRequirements} from "@agenta/entities/workflow"
 import {projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
 import {
@@ -162,7 +161,7 @@ function YourAccountLine({
                 itemKey,
                 account: {gatewayConnectionId: connection.id},
             })
-            await Promise.all([invalidateAccountChoices(), invalidateAgentRequirements()])
+            await invalidatePersonalAccountReads()
         } catch {
             message.error(ACCOUNT_COPY.choiceFailed)
         } finally {
@@ -176,7 +175,6 @@ function YourAccountLine({
         try {
             await makeDefaultToolConnection(usedId)
             invalidateToolConnections()
-            await Promise.all([invalidateAccountChoices(), invalidateAgentRequirements()])
         } catch {
             message.error(ACCOUNT_COPY.defaultFailed)
         } finally {
@@ -216,7 +214,7 @@ function YourAccountLine({
                   : accountName,
           )
         : ACCOUNT_COPY.noneChosen
-    const usedIsDefault = account?.match === "default" || isDefaultConnection(used)
+    const usedIsDefault = account?.match === "default" || isConnectionDefault(used)
 
     return (
         <AccountLine text={text}>
@@ -238,7 +236,7 @@ function YourAccountLine({
                             <span className="min-w-0 flex-1 truncate">
                                 {connection.name || connection.slug}
                             </span>
-                            {isDefaultConnection(connection) ? (
+                            {isConnectionDefault(connection) ? (
                                 <span className="shrink-0 text-xs text-[var(--ag-colorTextTertiary)]">
                                     {ACCOUNT_COPY.defaultMark}
                                 </span>

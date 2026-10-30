@@ -10,7 +10,7 @@ import {atomWithQuery} from "jotai-tanstack-query"
 
 import {invalidateAgentRequirements} from "../workflow/state/agentRequirements"
 
-import {queryAccountChoices, resolveDraftItemAccounts} from "./api"
+import {queryAccountChoices, resolveDraftAccountChoices} from "./api"
 import {userItemsParameters} from "./items"
 import type {AccountChoice, ItemAccount} from "./schema"
 
@@ -20,7 +20,7 @@ const ACCOUNT_CHOICES_KEY = ["account-choices"] as const
  * The key of {@link draftItemAccountsQueryAtomFamily}: the agent and its "user" items only, so an
  * edit elsewhere in the configuration keeps the same key. Empty when the agent has none.
  */
-export const draftItemAccountsKey = (workflowId: string, agent: unknown): string => {
+export const draftItemAccountsFamilyKey = (workflowId: string, agent: unknown): string => {
     const parameters = userItemsParameters(agent)
     return parameters && isValidUUID(workflowId) ? JSON.stringify({workflowId, parameters}) : ""
 }
@@ -38,7 +38,7 @@ export const draftItemAccountsQueryAtomFamily = atomFamily((key: string) =>
         return {
             queryKey: [...ACCOUNT_CHOICES_KEY, "resolve-draft", projectId, key],
             queryFn: () =>
-                resolveDraftItemAccounts({
+                resolveDraftAccountChoices({
                     projectId: projectId as string,
                     workflowId,
                     parameters: parameters ?? {},

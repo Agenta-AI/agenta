@@ -8,13 +8,12 @@
 import {useMemo, useState} from "react"
 
 import {
-    invalidateAccountChoices,
+    invalidatePersonalAccountReads,
     upsertAccountChoice,
     userItemKey,
 } from "@agenta/entities/accountChoice"
 import {CustomSecretFormat, personalNamedSecretsAtom} from "@agenta/entities/secret"
 import type {AgentSecretBinding} from "@agenta/entities/secret"
-import {invalidateAgentRequirements} from "@agenta/entities/workflow"
 import {projectIdAtom} from "@agenta/shared/state"
 import {
     DropdownMenu,
@@ -73,7 +72,7 @@ export function YourSecretLine({
         setFailure(false)
         try {
             await upsertAccountChoice({projectId, workflowId, itemKey, account: {secretId}})
-            await Promise.all([invalidateAccountChoices(), invalidateAgentRequirements()])
+            await invalidatePersonalAccountReads()
         } catch {
             setFailure(true)
         }

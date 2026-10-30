@@ -1,6 +1,6 @@
 import {useState} from "react"
 
-import {draftItemAccountsKey, type ItemAccount} from "@agenta/entities/accountChoice"
+import {draftItemAccountsFamilyKey, type ItemAccount} from "@agenta/entities/accountChoice"
 import type {ToolConnection} from "@agenta/entities/gatewayTool"
 import type {MCPEndpoint} from "@agenta/entities/mcpEndpoint"
 import {userAtom} from "@agenta/shared/state"
@@ -90,7 +90,7 @@ const seeded = ({
                               "account-choices",
                               "resolve-draft",
                               scope.projectId,
-                              draftItemAccountsKey(WORKFLOW_ID, agentWith(userEntry)),
+                              draftItemAccountsFamilyKey(WORKFLOW_ID, agentWith(userEntry)),
                           ],
                           account ? [account] : [],
                       ],

@@ -8,7 +8,7 @@
 import {useMemo} from "react"
 
 import {
-    draftItemAccountsKey,
+    draftItemAccountsFamilyKey,
     draftItemAccountsQueryAtomFamily,
     type ItemAccount,
 } from "@agenta/entities/accountChoice"
@@ -44,7 +44,7 @@ export const useItemAccount = (
     )
     const workflowId = context?.workflowId || fromRevision || ""
     const key = useMemo(
-        () => (context ? draftItemAccountsKey(workflowId, context.agent) : ""),
+        () => (context ? draftItemAccountsFamilyKey(workflowId, context.agent) : ""),
         [context, workflowId],
     )
     const query = useAtomValue(draftItemAccountsQueryAtomFamily(key))

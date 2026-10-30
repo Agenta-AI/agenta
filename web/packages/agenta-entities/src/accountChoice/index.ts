@@ -24,13 +24,13 @@ export {
 export {
     deleteAccountChoice,
     queryAccountChoices,
-    resolveDraftItemAccounts,
+    resolveDraftAccountChoices,
     upsertAccountChoice,
     type AccountPick,
 } from "./api"
 
 export {
-    draftItemAccountsKey,
+    draftItemAccountsFamilyKey,
     draftItemAccountsQueryAtomFamily,
     invalidateAccountChoices,
     invalidatePersonalAccountReads,

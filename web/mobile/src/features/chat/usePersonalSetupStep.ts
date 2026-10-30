@@ -6,8 +6,8 @@ import {useAtomValue} from "jotai"
 
 /**
  * The chat's "Connect your accounts" card: the viewer's own missing items of the agent the chat
- * runs, from the Needs setup answer the screen already reads (the same query as the model setup
- * strip, so no request is added).
+ * runs, from the Needs setup answer the screen already reads (the same query as the needs-setup
+ * banner, so no request is added).
  *
  * The rows are taken once per session, from the first answer that has any, so a row the viewer
  * fixes stays on the card marked done instead of jumping away. The card never holds a message:

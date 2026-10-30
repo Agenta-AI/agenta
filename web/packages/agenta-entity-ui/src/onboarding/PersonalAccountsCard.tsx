@@ -10,10 +10,10 @@
  */
 import {useMemo, useState} from "react"
 
-import {invalidateAccountChoices, upsertAccountChoice} from "@agenta/entities/accountChoice"
+import {invalidatePersonalAccountReads, upsertAccountChoice} from "@agenta/entities/accountChoice"
 import {
     isConnectionActive,
-    isDefaultConnection,
+    isConnectionDefault,
     usePersonalToolConnections,
     useToolIntegrationDetail,
 } from "@agenta/entities/gatewayTool"
@@ -24,7 +24,6 @@ import {
     type MCPEndpoint,
 } from "@agenta/entities/mcpEndpoint"
 import {CustomSecretFormat, personalNamedSecretsAtom} from "@agenta/entities/secret"
-import {invalidateAgentRequirements} from "@agenta/entities/workflow"
 import {projectIdAtom} from "@agenta/shared/state"
 import {Button, Input} from "@agenta/ui/ui"
 import {useAtomValue} from "jotai"
@@ -118,7 +117,7 @@ const useChoose = (workflowId: string, itemKey: string) => {
         setFailed(false)
         try {
             await upsertAccountChoice({projectId, workflowId, itemKey, account})
-            await Promise.all([invalidateAccountChoices(), invalidateAgentRequirements()])
+            await invalidatePersonalAccountReads()
             return true
         } catch {
             setFailed(true)
@@ -181,7 +180,7 @@ function AppRow({item, workflowId, done, open, onToggle}: RowProps) {
                             key={connection.id ?? connection.slug}
                             logo={logo}
                             label={`${connection.name || connection.slug}${
-                                isDefaultConnection(connection) ? ` · ${copy.defaultMark}` : ""
+                                isConnectionDefault(connection) ? ` · ${copy.defaultMark}` : ""
                             }`}
                             inUse={picked === connection.id}
                             disabled={busy}

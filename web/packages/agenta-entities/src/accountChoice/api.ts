@@ -97,7 +97,7 @@ export const deleteAccountChoice = async ({
  * item switched to "each person" in the editor). `parameters` has the revision's `parameters`
  * shape.
  */
-export const resolveDraftItemAccounts = async ({
+export const resolveDraftAccountChoices = async ({
     projectId,
     workflowId,
     parameters,
@@ -114,7 +114,7 @@ export const resolveDraftItemAccounts = async ({
     const data = safeParseWithLogging(
         itemAccountsResponseSchema,
         response.data,
-        "[resolveDraftItemAccounts]",
+        "[resolveDraftAccountChoices]",
     )
     return data?.item_accounts ?? []
 }

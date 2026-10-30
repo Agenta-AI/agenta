@@ -18,7 +18,7 @@ const text = (value: unknown): string | null => (typeof value === "string" && va
 
 /**
  * The "user" requirements a person can set up here, in the server's order. A "user" model login
- * is left out: it blocks the run, and the model setup strip already asks for it.
+ * is left out: it blocks the run, and the needs-setup banner already asks for it.
  */
 export const personalSetupItems = (
     requirements: readonly AgentRequirementItem[] | null | undefined,
