@@ -1,8 +1,14 @@
-// This domain uses the shared Axios client the host configures.
+// This domain uses the shared Axios client the host configures. The person's own sign-in calls
+// (`owner_kind=user`) use the generated client.
+import {getGatewayMcpClient} from "@agenta/sdk/resources"
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
-import type {OwnerKind} from "@agenta/shared/types"
 
+import {safeParseWithLogging} from "../../shared"
 import type {McpToolSummary} from "../core/connectJourney"
+import {
+    personalMcpConnectResponseSchema,
+    type MCPPersonalConnectResponse,
+} from "../core/connectResponse"
 import {
     jsonRpcErrorMessage,
     jsonRpcResult,
@@ -26,12 +32,6 @@ import type {
 } from "../core/types"
 
 const BASE = "/gateways/mcps/endpoints"
-
-/** `owner_kind=user` signs the caller in (or out); omitted, the project's sign-in as before. */
-const connectParams = (projectId?: string, ownerKind?: Exclude<OwnerKind, "organization">) => ({
-    ...(projectId ? {project_id: projectId} : {}),
-    ...(ownerKind === "user" ? {owner_kind: ownerKind} : {}),
-})
 
 export const listMcpEndpoints = async (projectId?: string): Promise<MCPEndpointsResponse> => {
     const response = await axios.get(`${getAgentaApiUrl()}${BASE}/`, {
@@ -131,10 +131,9 @@ export const probeMcpUrl = async (
 export const disconnectMcpEndpoint = async (
     endpointId: string,
     projectId?: string,
-    ownerKind?: Exclude<OwnerKind, "organization">,
 ): Promise<MCPEndpointResponse> => {
     const response = await axios.delete(`${getAgentaApiUrl()}${BASE}/${endpointId}/connect`, {
-        params: connectParams(projectId, ownerKind),
+        params: projectId ? {project_id: projectId} : undefined,
     })
     return response.data
 }
@@ -157,28 +156,56 @@ export const beginMcpConnect = async (
     endpointId: string,
     scopes: string[],
     projectId?: string,
-    ownerKind?: Exclude<OwnerKind, "organization">,
 ): Promise<MCPConnectResponse> => {
     const response = await axios.post(
         `${getAgentaApiUrl()}${BASE}/${endpointId}/connect`,
         {scopes},
-        {params: connectParams(projectId, ownerKind)},
+        {params: projectId ? {project_id: projectId} : undefined},
     )
     return response.data
 }
 
+const projectScopedRequest = (projectId?: string) =>
+    projectId ? {queryParams: {project_id: projectId}} : undefined
+
+/**
+ * The caller starts their own OAuth sign-in (`owner_kind=user`). It reuses the discovery a
+ * project admin stored; with none, the route refuses with `server_not_discovered`.
+ */
+export const beginPersonalMcpSignIn = async (
+    endpointId: string,
+    scopes: string[],
+    projectId?: string,
+): Promise<MCPPersonalConnectResponse | null> => {
+    const response = await getGatewayMcpClient().connectMcpEndpoint(
+        {endpoint_id: endpointId, owner_kind: "user", scopes},
+        projectScopedRequest(projectId),
+    )
+    return safeParseWithLogging(
+        personalMcpConnectResponseSchema,
+        response,
+        "[beginPersonalMcpSignIn]",
+    )
+}
+
 /** The caller signs in to a token server with their own token. Nothing redirects. */
-export const connectMcpEndpointWithToken = async (
+export const signInPersonalMcpWithToken = async (
     endpointId: string,
     token: string,
     projectId?: string,
-): Promise<MCPConnectResponse> => {
-    const response = await axios.post(
-        `${getAgentaApiUrl()}${BASE}/${endpointId}/connect`,
-        {token},
-        {params: connectParams(projectId, "user")},
+): Promise<void> => {
+    await getGatewayMcpClient().connectMcpEndpoint(
+        {endpoint_id: endpointId, owner_kind: "user", token},
+        projectScopedRequest(projectId),
     )
-    return response.data
+}
+
+/** The caller signs out of their own sign-in. The project's sign-in stays. */
+export const signOutPersonalMcp = async (endpointId: string, projectId?: string): Promise<void> => {
+    await getGatewayMcpClient().disconnectMcpEndpoint(
+        {endpoint_id: endpointId, owner_kind: "user"},
+        projectScopedRequest(projectId),
+    )
 }
 
 /** How one consent attempt stands, for when the callback's message never arrives. */

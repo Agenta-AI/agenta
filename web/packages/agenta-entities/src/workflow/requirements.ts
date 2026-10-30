@@ -36,9 +36,16 @@ export const agentRequirementsSchema = z.object({
 
 export type AgentRequirementItem = z.infer<typeof agentRequirementSchema>
 
-/** An item each person who runs the agent sets up with their own account. */
-export const isUserRequirement = (req: AgentRequirementItem): boolean =>
-    req.account_source === "user"
+/** The reasons a person fixes with their own account: none yet, or a sign-in that lapsed. */
+const PERSONAL_REASONS: ReadonlySet<string> = new Set(["needs_personal_account", "needs_sign_in"])
+
+/**
+ * An item each person who runs the agent sets up with their own account. A "user" item can also
+ * fail for the project's reason (its MCP server is missing or turned off, or no login serves its
+ * model); that one is the agent's problem, like any other item.
+ */
+export const isPersonalRequirement = (req: AgentRequirementItem): boolean =>
+    req.account_source === "user" && PERSONAL_REASONS.has(req.reason)
 export type AgentRequirementsResult = z.infer<typeof agentRequirementsSchema>
 
 /** The run failure class and the delivery skip reason the server uses for this problem. */
@@ -71,7 +78,7 @@ const pathIsUnder = (path: string, prefix: string): boolean =>
 
 /**
  * The requirement whose paths fall under one config location, e.g. `mcps[0]` or `llm`.
- * A "user" item is never the agent's problem, so the editor rows skip it.
+ * A personal requirement is never the agent's problem, so the editor rows skip it.
  */
 export const requirementAtPath = (
     requirements: readonly AgentRequirementItem[],
@@ -79,7 +86,7 @@ export const requirementAtPath = (
 ): AgentRequirementItem | undefined =>
     requirements.find(
         (req) =>
-            !isUserRequirement(req) &&
+            !isPersonalRequirement(req) &&
             (req.paths ?? []).some((path) => pathIsUnder(templatePath(path), prefix)),
     )
 
@@ -90,7 +97,7 @@ export const requirementForItem = (
 ): AgentRequirementItem | undefined => {
     if (!match.slug) return undefined
     return requirements.find((req) => {
-        if (isUserRequirement(req) || !match.kinds.includes(req.kind)) return false
+        if (isPersonalRequirement(req) || !match.kinds.includes(req.kind)) return false
         const ref = req.reference ?? {}
         if (ref.slug !== match.slug) return false
         return !match.integration || !ref.integration || ref.integration === match.integration

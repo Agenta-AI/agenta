@@ -5,6 +5,7 @@ import type * as AgentaApi from "../index.js";
 export interface AgentRequirement {
     key: string;
     kind: AgentaApi.AgentRequirementKind;
+    account_source?: AgentRequirement.AccountSource | undefined;
     label: string;
     reference: Record<string, unknown>;
     paths: string[];
@@ -12,4 +13,12 @@ export interface AgentRequirement {
     blocks_run: boolean;
     fix?: (AgentaApi.AgentRequirementFix | null) | undefined;
     detail?: (AgentaApi.AgentRequirementDetail | null) | undefined;
+}
+
+export namespace AgentRequirement {
+    export const AccountSource = {
+        Agent: "agent",
+        User: "user",
+    } as const;
+    export type AccountSource = (typeof AccountSource)[keyof typeof AccountSource];
 }

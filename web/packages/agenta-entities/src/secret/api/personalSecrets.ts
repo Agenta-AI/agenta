@@ -6,12 +6,9 @@
  * `personal_accounts_disabled`, which is how the screens learn the switch.
  */
 import {transformSecret} from "../core/transforms"
-import type {ProviderVaultRow, SecretResponseDto} from "../core/types"
+import type {ProviderVaultRow} from "../core/types"
 
 import {getSecretsClient, projectScopedRequest} from "./client"
-
-/** `user` is not in the generated request type until the client is regenerated. */
-const USER_SCOPE = "user" as unknown as "organization"
 
 export const fetchPersonalSecrets = async ({
     projectId,
@@ -19,10 +16,8 @@ export const fetchPersonalSecrets = async ({
     projectId: string
 }): Promise<ProviderVaultRow[]> => {
     const result = await getSecretsClient().listSecrets(
-        {scope: USER_SCOPE},
+        {scope: "user"},
         projectScopedRequest(projectId),
     )
-    return transformSecret(result as SecretResponseDto[])
+    return transformSecret(result)
 }
-
-export {USER_SCOPE}

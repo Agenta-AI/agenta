@@ -77,6 +77,20 @@ describe("personalSetupItems", () => {
         ).toEqual([])
     })
 
+    it("leaves out a user MCP item whose project server is missing, which no sign-in fixes", () => {
+        expect(
+            personalSetupItems([
+                req({
+                    key: "mcp_server:user/octolens",
+                    kind: "mcp_server",
+                    account_source: "user",
+                    reference: {type: "gateway", namespace: "custom", slug: "octolens"},
+                    reason: "not_found",
+                }),
+            ]),
+        ).toEqual([])
+    })
+
     it("is empty before Needs setup answered", () => {
         expect(personalSetupItems(null)).toEqual([])
     })

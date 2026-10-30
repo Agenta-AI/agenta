@@ -6,5 +6,14 @@
 export interface UnavailableToolConnection {
     provider: string;
     integration: string;
-    connection: string;
+    connection?: (string | null) | undefined;
+    account_source?: (UnavailableToolConnection.AccountSource | null) | undefined;
+}
+
+export namespace UnavailableToolConnection {
+    export const AccountSource = {
+        Agent: "agent",
+        User: "user",
+    } as const;
+    export type AccountSource = (typeof AccountSource)[keyof typeof AccountSource];
 }
