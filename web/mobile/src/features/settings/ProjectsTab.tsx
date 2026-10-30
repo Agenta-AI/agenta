@@ -1,3 +1,4 @@
+import {useProfile} from "@agenta/entities/profile"
 import {ProjectsPage} from "@agenta/settings-ui"
 import {
     AlertDialog,
@@ -13,6 +14,8 @@ import {
 import {useQueryClient} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
+import {useProjectPermission} from "../context/useProjectPermission"
+
 import {NameDialog} from "./NameDialog"
 import type {SettingsTabProps} from "./settingsTabProps"
 import {switchSettingsContext} from "./switchContext"
@@ -26,13 +29,23 @@ import {useSettingsOrg} from "./useSettingsOrg"
 export const ProjectsTab = ({workspaceId, projectId}: SettingsTabProps) => {
     const router = useRouter()
     const queryClient = useQueryClient()
-    const {projects: query} = useSettingsOrg(workspaceId)
+    const {projects: query, org} = useSettingsOrg(workspaceId)
+    const {user} = useProfile()
+    const canCreate = useProjectPermission(projectId, "create_workspace")
+    const canEdit = useProjectPermission(projectId, "edit_workspace")
+    // Deleting a project loses its data for good, so the API keeps it with the organization
+    // owner on every plan. No permission marks that: the owner id does.
+    const ownerId = org.data?.owner_id
+    const canDelete = Boolean(ownerId && user?.id && ownerId === user.id)
     return (
         <ProjectsPage
             projects={query.data ?? []}
             isLoading={query.isPending}
             workspaceId={workspaceId}
             currentProjectId={projectId}
+            canCreate={canCreate}
+            canEdit={canEdit}
+            canDelete={canDelete}
             // The nav switcher reads its own projects list.
             onChanged={() => void queryClient.invalidateQueries({queryKey: ["mobile", "projects"]})}
             onSwitch={(project) =>

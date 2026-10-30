@@ -4,6 +4,8 @@ import {isBillingEnabled} from "@agenta/shared/api"
 import {useQuery} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
+import {useProjectPermission} from "../context/useProjectPermission"
+
 import {CreditHistoryTable} from "./CreditHistoryTable"
 import {CreditsBuyAction} from "./CreditsBuyAction"
 import {CreditsHero} from "./CreditsHero"
@@ -20,6 +22,9 @@ export const CreditsTab = ({projectId}: {projectId: string}) => {
     const router = useRouter()
     const summary = useWalletSummary(projectId)
     const enforced = summary.data?.mode === "enforce"
+    // The balance reads under `view_billing`, which every role has. Where the credits went, and
+    // buying more, are `edit_billing`.
+    const canEditBilling = useProjectPermission(projectId, "edit_billing")
     // Same key as the usage chart's default range, so the page reads it once.
     const pace = useQuery({
         queryKey: ["wallet", "credits-usage", projectId, PACE_DAYS],
@@ -27,7 +32,7 @@ export const CreditsTab = ({projectId}: {projectId: string}) => {
             fetchWalletUsage(projectId, {
                 start: new Date(Date.now() - PACE_DAYS * 86_400_000).toISOString(),
             }),
-        enabled: Boolean(projectId) && enforced,
+        enabled: Boolean(projectId) && enforced && canEditBilling,
         retry: false,
     })
 
@@ -51,14 +56,14 @@ export const CreditsTab = ({projectId}: {projectId: string}) => {
     return (
         <div className="flex flex-col gap-11">
             <style>{ANALYTICS_COLOR_CSS}</style>
-            {billing ? (
+            {billing && canEditBilling ? (
                 <CreditsBuyAction
                     projectId={projectId}
                     onUpgrade={() => goTab("billing", {plans: "1"})}
                 />
             ) : null}
             <CreditsHero wallet={summary.data} dailyMusd={dailyMusd} />
-            <CreditsUsageSection projectId={projectId} />
+            <CreditsUsageSection projectId={projectId} canReadUsage={canEditBilling} />
             <CreditHistoryTable
                 projectId={projectId}
                 credits={summary.data.credits}

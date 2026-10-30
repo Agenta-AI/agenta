@@ -47,7 +47,14 @@ const dayLabel = (day: string, withYear = false) =>
     })
 
 /** Where credits went over a range: one stacked bar per day, split by the chosen group. */
-export const CreditsUsageSection = ({projectId}: {projectId: string}) => {
+export const CreditsUsageSection = ({
+    projectId,
+    canReadUsage = true,
+}: {
+    projectId: string
+    /** Whether the reader may read where credits went. The API keeps it for `edit_billing`. */
+    canReadUsage?: boolean
+}) => {
     const [range, setRange] = useState<CreditsUsageRange>(30)
     const [group, setGroup] = useState<CreditsUsageGroup>("category")
     const [hovered, setHovered] = useState<number | null>(null)
@@ -59,7 +66,7 @@ export const CreditsUsageSection = ({projectId}: {projectId: string}) => {
             fetchWalletUsage(projectId, {
                 start: new Date(Date.now() - range * 86_400_000).toISOString(),
             }),
-        enabled: Boolean(projectId),
+        enabled: Boolean(projectId) && canReadUsage,
         refetchInterval: 60_000,
         retry: (count, error) => !isForbidden(error) && count < 2,
     })
@@ -79,6 +86,9 @@ export const CreditsUsageSection = ({projectId}: {projectId: string}) => {
         if (series.every((s) => next[s.key])) return
         setHidden(next)
     }
+
+    // Locked either because the reader's role says so, or because an older client asked anyway.
+    const locked = !canReadUsage || isForbidden(usage.error)
 
     const controls = (
         <div className="flex flex-wrap items-center gap-2">
@@ -124,9 +134,9 @@ export const CreditsUsageSection = ({projectId}: {projectId: string}) => {
         <section className="flex flex-col gap-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="m-0 text-lg font-semibold tracking-[-0.01em]">Usage</h2>
-                {isForbidden(usage.error) ? null : controls}
+                {locked ? null : controls}
             </div>
-            {isForbidden(usage.error) ? (
+            {locked ? (
                 <div className="border-border flex flex-col items-center gap-2 rounded-xl border border-dashed px-6 py-12 text-center">
                     <LockSimple size={22} className="text-muted-foreground" />
                     <span className="font-medium">Usage details are owner-only</span>
