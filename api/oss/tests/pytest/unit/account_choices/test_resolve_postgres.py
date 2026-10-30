@@ -16,6 +16,7 @@ from agenta.sdk.agents.accounts import UserItem, user_item_key
 
 import oss.src.dbs.postgres.shared.engine as engine_module
 import oss.src.models.db_models  # noqa: F401
+from oss.src.core.account_choices.claims import run_accounts_claim
 from oss.src.core.account_choices.dtos import AccountChoiceUpsert, AccountMatch
 from oss.src.core.account_choices.exceptions import (
     AccountNotForItem,
@@ -123,6 +124,7 @@ async def world():
         for endpoint_id, slug, mode in (
             (oauth_server, "linear", "OAUTH"),
             (token_server, "notion", "API_KEY"),
+            (uuid.uuid4(), "open-docs", "NONE"),
         ):
             await session.execute(
                 text(
@@ -234,6 +236,7 @@ async def test_the_chain_of_every_kind_in_one_statement(world):
         item("secret", "OTHER_TOKEN"),
         item("mcp_server", "linear"),
         item("mcp_server", "notion"),
+        item("mcp_server", "open-docs"),
         item("subscription", "claude"),
     ]
     statements = []
@@ -285,6 +288,16 @@ async def test_the_chain_of_every_kind_in_one_statement(world):
     )
     notion = by_key["mcp_server:user/notion"]
     assert notion.match == AccountMatch.SIGN_IN and notion.is_ready is True
+
+    # A server with no sign-in method is ready with no account, and stays out of the
+    # claim.
+    open_docs = by_key["mcp_server:user/open-docs"]
+    assert (open_docs.match, open_docs.secret_id, open_docs.is_ready) == (
+        None,
+        None,
+        True,
+    )
+    assert run_accounts_claim([open_docs]) == []
 
     assert by_key["subscription:user/claude"].match is None
 

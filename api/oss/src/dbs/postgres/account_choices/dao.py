@@ -51,7 +51,8 @@ TOKEN_SLUG_SQL = "'mcp-token-' || right(replace(e.id::text, '-', ''), 12)"
 #   secrets.
 # - mcp_server: the person's sign-in to the project's server of that slug, at the slug
 #   the server's auth mode selects; a token is ready, a grant unless it expired with no
-#   refresh token. Candidates: 0 or 1.
+#   refresh token. Candidates: 0 or 1. A server with no sign-in method (`none`) is ready
+#   with no account and no match.
 # - subscription: never matched in this step.
 #
 # Every account must be the person's own, in the agent's organization. A choice whose
@@ -88,6 +89,15 @@ custom_secrets AS (
       AND s.kind = 'CUSTOM_SECRET'
       AND CAST(:has_secrets AS boolean)
 ),
+open_servers AS (
+    -- A project server with no sign-in method: a "user" item on it is ready with no
+    -- account, and needs nothing in the run's claim.
+    SELECT e.slug
+    FROM mcps_endpoints e
+    WHERE e.project_id = CAST(:project_id AS uuid)
+      AND e.slug = ANY(CAST(:mcp_texts AS text[]))
+      AND e.auth_mode = 'NONE'
+),
 sign_ins AS (
     SELECT e.slug AS endpoint_slug, s.id, s.name,
            CASE WHEN s.kind = 'MCP_TOKEN' THEN true ELSE (
@@ -114,7 +124,10 @@ sign_ins AS (
       AND e.slug = ANY(CAST(:mcp_texts AS text[]))
 )
 SELECT i.item_key, m.match, m.secret_id, m.gateway_connection_id, m.name,
-       coalesce(m.is_ready, false) AS is_ready,
+       coalesce(m.is_ready, false) OR (
+           i.kind = 'mcp_server' AND EXISTS (
+               SELECT 1 FROM open_servers o WHERE o.slug = i.match_text)
+       ) AS is_ready,
        CASE i.kind
            WHEN 'app_connection' THEN (
                SELECT count(*) FROM connections x WHERE x.integration_key = i.match_text)
