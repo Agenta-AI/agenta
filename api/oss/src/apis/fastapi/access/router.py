@@ -27,6 +27,7 @@ from oss.src.core.gateways.run_claims import run_accounts
 from oss.src.core.access.context import get_request_access
 from oss.src.core.access.principals import access_denied_error
 from oss.src.core.access.service import get_access_service
+from oss.src.core.access.types import RbacEntitlementUnavailable
 from oss.src.core.access.permissions.controls import SCOPES
 from oss.src.core.access.controls import get_roles
 from oss.src.apis.fastapi.access.models import AccessRolesResponse
@@ -221,9 +222,12 @@ class AccessRouter:
         keeps every role, so a stored role that is not offered still has a description
         and permissions.
         """
-        offered = await get_access_service().offered_roles(
-            organization_id=get_auth_scope().organization_id
-        )
+        try:
+            offered = await get_access_service().offered_roles(
+                organization_id=get_auth_scope().organization_id
+            )
+        except RbacEntitlementUnavailable as exc:
+            raise HTTPException(status_code=503, detail=exc.message) from exc
         return AccessRolesResponse(
             **{scope: list(get_roles(scope)) for scope in SCOPES},
             offered=offered,

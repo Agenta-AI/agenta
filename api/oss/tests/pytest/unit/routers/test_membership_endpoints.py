@@ -14,7 +14,7 @@ from oss.src.core.memberships.types import MemberNotFound, OrganizationOwnerProt
 import oss.src.routers.workspace_router as workspace_router
 from oss.src.core.access.permissions.types import RequiredRole
 from oss.src.core.access.service import AccessService
-from oss.src.core.access.types import RoleNotOffered
+from oss.src.core.access.types import RbacEntitlementUnavailable
 from oss.tests.pytest.utils.memberships import RecordingRbac
 
 
@@ -134,27 +134,22 @@ class _MembershipsService:
         )
 
 
-class _OfferedRoles:
-    """The `offered_roles` half of `AccessService`, for one plan."""
+class _UnreadablePlan:
+    async def is_entitled(self, *, organization_id):
+        raise RbacEntitlementUnavailable()
 
-    def __init__(self, *, entitled):
-        self.entitled = entitled
-        self.calls = []
 
-    async def offered_roles(self, *, organization_id):
-        self.calls.append(organization_id)
-        service = AccessService(
-            memberships=None,
-            rbac_entitlement=RecordingRbac(entitled=self.entitled),
-            principals=None,
-            resource_policy=None,
-        )
-        return await service.offered_roles(organization_id=organization_id)
-
-    async def require_offered_role(self, *, organization_id, role):
-        offered = await self.offered_roles(organization_id=organization_id)
-        if role not in offered.roles:
-            raise RoleNotOffered()
+def _plan_access(*, entitled):
+    """A real `AccessService` whose only plan answer is `entitled` (None: the plan
+    read fails); the routes read only its offered roles."""
+    return AccessService(
+        memberships=None,
+        rbac_entitlement=(
+            _UnreadablePlan() if entitled is None else RecordingRbac(entitled=entitled)
+        ),
+        principals=None,
+        resource_policy=None,
+    )
 
 
 @pytest.fixture
@@ -164,7 +159,7 @@ def wired(monkeypatch, project):
         monkeypatch.setattr(
             workspace_router,
             "get_access_service",
-            lambda: _OfferedRoles(entitled=entitled),
+            lambda: _plan_access(entitled=entitled),
         )
         monkeypatch.setattr(workspace_router, "check_action_access", _Recorder(allowed))
 
@@ -338,6 +333,31 @@ async def test_unassign_without_rbac_sets_the_member_floor_role(wired, project):
     assert service.calls[0][1]["role"] == "member"
 
 
+async def test_role_writes_stop_when_the_plan_cannot_be_read(wired, project):
+    service = _MembershipsService(organization_role="admin")
+    target = wired(service, entitled=None)
+
+    assigned = await workspace_router.assign_role_to_user(
+        payload=SimpleNamespace(
+            email=target.email,
+            organization_id=str(project.organization_id),
+            role="member",
+        ),
+        workspace_id=str(project.workspace_id),
+        request=_request(),
+    )
+    removed = await workspace_router.unassign_role_from_user(
+        email=target.email,
+        organization_id=str(project.organization_id),
+        role="admin",
+        workspace_id=str(project.workspace_id),
+        request=_request(),
+    )
+
+    assert (assigned.status_code, removed.status_code) == (503, 503)
+    assert service.calls == []
+
+
 async def test_unassign_current_role_sets_viewer(wired, project):
     service = _MembershipsService(organization_role="editor")
     target = wired(service)
@@ -449,7 +469,7 @@ def auto_join(monkeypatch):
         monkeypatch.setattr(
             auth_service_module,
             "get_access_service",
-            lambda: _OfferedRoles(entitled=entitled),
+            lambda: _plan_access(entitled=entitled),
         )
 
         class _Domains:
@@ -481,6 +501,15 @@ async def test_auto_join_does_not_change_an_existing_member_role(auto_join):
     auth, service = wire(already_member=True)
 
     await auth.enforce_domain_policies(email="admin@corp.test", user_id=uuid4())
+
+    assert service.calls == []
+
+
+async def test_auto_join_adds_nobody_when_the_plan_cannot_be_read(auto_join):
+    _, wire = auto_join
+    auth, service = wire(already_member=False, entitled=None)
+
+    await auth.enforce_domain_policies(email="new@corp.test", user_id=uuid4())
 
     assert service.calls == []
 

@@ -20,7 +20,8 @@ class RbacEntitlementInterface(ABC):
     """Whether an organization's plan has the RBAC entitlement: it offers every catalog
     role, and organization credentials can be limited to selected projects. Role checks
     apply on every plan; this answers only what the plan offers. OSS: never. EE:
-    `Flag.RBAC`."""
+    `Flag.RBAC`. Raises `RbacEntitlementUnavailable` when the plan cannot be read, so
+    no caller mistakes a failed read for an answer."""
 
     @abstractmethod
     async def is_entitled(self, *, organization_id: UUID) -> bool: ...

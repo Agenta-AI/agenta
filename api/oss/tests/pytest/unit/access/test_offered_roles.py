@@ -17,7 +17,7 @@ import oss.src.services.organization_service as organization_service
 from oss.src.core.access.controls import get_role, get_role_permissions
 from oss.src.core.access.permissions.types import DefaultRole, Permission
 from oss.src.core.access.service import AccessService
-from oss.src.core.access.types import RoleNotOffered
+from oss.src.core.access.types import RbacEntitlementUnavailable, RoleNotOffered
 from oss.tests.pytest.utils.memberships import RecordingRbac
 
 _TRACE_CONTENT = {
@@ -28,6 +28,13 @@ _TRACE_CONTENT = {
     Permission.EDIT_ANNOTATIONS,
     *(p for p in Permission if "_evaluation_" in p.value),
 }
+
+
+class _UnreadablePlan:
+    """The plan read fails, as the EE adapter raises on a Redis or database error."""
+
+    async def is_entitled(self, *, organization_id):
+        raise RbacEntitlementUnavailable()
 
 
 def _service(*, entitled: bool) -> AccessService:
@@ -210,3 +217,37 @@ async def test_workspace_roles_lists_the_offered_roles(
     roles = await workspace_router.get_all_workspace_roles(request=None)
     assert sorted(entry["role_name"] for entry in roles) == sorted(expected)
     assert all(entry["role_description"] for entry in roles)
+
+
+# -- a plan that cannot be read -----------------------------------------------------------
+
+
+async def test_an_unreadable_plan_offers_nothing():
+    service = AccessService(
+        memberships=None,
+        rbac_entitlement=_UnreadablePlan(),
+        principals=None,
+        resource_policy=None,
+    )
+    with pytest.raises(RbacEntitlementUnavailable):
+        await service.offered_roles(organization_id=uuid4())
+    with pytest.raises(RbacEntitlementUnavailable):
+        await service.require_offered_role(organization_id=uuid4(), role="member")
+    # The access decision reads no plan, so it is not affected.
+    assert service.role_allows(role="member", action=Permission.RUN_SESSIONS) is True
+
+
+@pytest.mark.parametrize("roles", [(), ("member",)])
+async def test_an_invite_stops_when_the_plan_cannot_be_read(monkeypatch, roles):
+    service = AccessService(
+        memberships=None,
+        rbac_entitlement=_UnreadablePlan(),
+        principals=None,
+        resource_policy=None,
+    )
+    monkeypatch.setattr(organization_service, "get_access_service", lambda: service)
+    with pytest.raises(HTTPException) as error:
+        await organization_service.resolve_workspace_invite_role(
+            _invite(*roles), organization_id=str(uuid4())
+        )
+    assert error.value.status_code == 503

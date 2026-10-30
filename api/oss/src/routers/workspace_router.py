@@ -22,7 +22,7 @@ from oss.src.core.memberships.service import get_memberships_service
 from oss.src.core.memberships.types import MemberNotFound, OrganizationOwnerProtected
 from oss.src.core.access.controls import get_role, get_roles
 from oss.src.core.access.service import ROLE_SCOPE, get_access_service
-from oss.src.core.access.types import RoleNotOffered
+from oss.src.core.access.types import RbacEntitlementUnavailable, RoleNotOffered
 from oss.src.utils.context import get_auth_scope
 from oss.src.services.db_manager import get_project_by_workspace
 
@@ -136,9 +136,12 @@ async def get_all_workspace_roles(request: Request) -> List[Dict[str, str]]:
     also returns the full catalog.
     """
 
-    offered = await get_access_service().offered_roles(
-        organization_id=get_auth_scope().organization_id
-    )
+    try:
+        offered = await get_access_service().offered_roles(
+            organization_id=get_auth_scope().organization_id
+        )
+    except RbacEntitlementUnavailable as exc:
+        raise HTTPException(status_code=503, detail=exc.message) from exc
     return [
         {
             "role_name": role["role"],
@@ -216,6 +219,8 @@ async def assign_role_to_user(
                 )
             except RoleNotOffered as exc:
                 return JSONResponse(status_code=400, content={"detail": exc.message})
+            except RbacEntitlementUnavailable as exc:
+                return JSONResponse(status_code=503, content={"detail": exc.message})
 
         user = await db_manager.get_user_with_email(payload.email)
         if user is None:
@@ -295,9 +300,12 @@ async def unassign_role_from_user(
         # Removing the active role reverts the member to the plan's floor role;
         # removing any other role changes nothing.
         if member.role == role:
-            offered = await get_access_service().offered_roles(
-                organization_id=project.organization_id
-            )
+            try:
+                offered = await get_access_service().offered_roles(
+                    organization_id=project.organization_id
+                )
+            except RbacEntitlementUnavailable as exc:
+                return JSONResponse(status_code=503, content={"detail": exc.message})
             await _set_member_role(
                 organization_id=project.organization_id,
                 user_id=user.id,

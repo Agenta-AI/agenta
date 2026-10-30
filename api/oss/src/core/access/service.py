@@ -673,12 +673,14 @@ class AccessService:
 
     async def offered_roles(self, *, organization_id: UUID) -> OfferedRoles:
         """The roles an invite or a role change may set in this organization, and its
-        floor role, from the project-scope catalog that the access check reads. A plan
-        with the RBAC entitlement offers every catalog role but
-        `owner`, with floor role `viewer`; OSS and the other plans offer admin and
-        member, with floor role `member`. Ownership moves only through the transfer
-        route. Stored roles outside the list keep working. The only reader of the RBAC
-        entitlement for roles; not on the decision path."""
+        floor role, from the project-scope catalog that the access check reads.
+
+        A plan with the RBAC entitlement offers every catalog role but `owner`, with
+        floor role `viewer`; OSS and the other plans offer admin and member, with floor
+        role `member`. Ownership moves only through the transfer route. Stored roles
+        outside the list keep working. The only reader of the RBAC entitlement for
+        roles; not on the decision path. Raises `RbacEntitlementUnavailable` when the
+        plan cannot be read, so no role write guesses."""
 
         if await self._rbac_entitlement.is_entitled(organization_id=organization_id):
             return OfferedRoles(

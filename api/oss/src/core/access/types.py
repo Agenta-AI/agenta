@@ -24,6 +24,16 @@ class RoleNotOffered(AccessError):
         super().__init__(message)
 
 
+class RbacEntitlementUnavailable(AccessError):
+    """The organization's plan could not be read, so the offered roles are unknown. A
+    role write stops rather than guess; the caller may try again."""
+
+    def __init__(
+        self, message: str = "We could not check your plan. Please try again."
+    ):
+        super().__init__(message)
+
+
 class AccessServiceNotRegistered(RuntimeError):
     """A wiring error, not a domain error."""
 

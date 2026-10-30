@@ -19,7 +19,7 @@ from oss.src.models.api.workspace_models import (
 )
 from oss.src.core.access.controls import get_role
 from oss.src.core.access.service import ROLE_SCOPE, get_access_service
-from oss.src.core.access.types import RoleNotOffered
+from oss.src.core.access.types import RbacEntitlementUnavailable, RoleNotOffered
 from oss.src.core.access.permissions.types import Permission
 
 log = get_module_logger(__name__)
@@ -179,21 +179,26 @@ async def resolve_workspace_invite_role(
     role = getattr(raw, "value", None) or (str(raw) if raw is not None else None)
     access_service = get_access_service()
     organization_uuid = UUID(str(organization_id))
-    if not role:
-        offered = await access_service.offered_roles(organization_id=organization_uuid)
-        role = offered.floor_role
-
-    if get_role(ROLE_SCOPE, role) is None:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Workspace role '{role}' is invalid.",
-        )
     try:
+        if not role:
+            # The floor role is always offered and in the catalog.
+            offered = await access_service.offered_roles(
+                organization_id=organization_uuid
+            )
+            return offered.floor_role
+
+        if get_role(ROLE_SCOPE, role) is None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Workspace role '{role}' is invalid.",
+            )
         await access_service.require_offered_role(
             organization_id=organization_uuid, role=role
         )
     except RoleNotOffered as exc:
         raise HTTPException(status_code=400, detail=exc.message) from exc
+    except RbacEntitlementUnavailable as exc:
+        raise HTTPException(status_code=503, detail=exc.message) from exc
 
     return role
 
