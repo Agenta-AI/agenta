@@ -6,13 +6,13 @@ Facts about today, read from the code:
 
 - `AccessService._capability` returns allowed when `RbacEnforcementInterface.is_enforced` is false. EE reads `Flag.RBAC`, which is false for Hobby and Pro. OSS always enforces.
 - Roles are stored on every plan. The invite path does not read the plan, and the default is `viewer`.
-- Trace reads and analytics reads check `VIEW_SPANS`. All default roles have it.
+- Trace reads and analytics reads check `VIEW_SPANS`. All built-in roles have it.
 - `GET /invocations/{trace_id}` and `GET /annotations/{trace_id}` return the root span's `ag.data` for any trace id, under `VIEW_INVOCATIONS` and `VIEW_ANNOTATIONS`.
 - Evaluation workers load traces and pass inputs and outputs to the evaluator. Metrics can store span values.
 - OTLP ingest requires `EDIT_SPANS`, and the runner sends spans with the acting user's credential.
 - Chat transcripts live in `records`, under `VIEW_SESSIONS` and chat access. They do not read `spans`.
 - A few organization paths read the stored role on every plan: `decide_organization` (organization credentials, the provider test, the organization project list and "Needs setup"), `verify_user_org_admin` (domains and SSO) and the new-member notice email. Personal accounts, account choices, personal MCP sign-in and channel bindings read no role.
-- The /m Members tab shows no role and has no role change control. The API routes for changing roles exist.
+- The /m Members tab shows no role and has no role change control. The API routes for changing roles exist. The tab's payload reads `organization_members.role`, and the access check reads `project_members.role`. `set_member_role` writes both, so they agree.
 
 ## Decision 1: one new role, defined by removal
 
@@ -26,6 +26,12 @@ Why: the first item alone leaves trace content readable through the routes above
 
 `member` keeps `EDIT_SPANS`, because its runs must send spans, and `VIEW_BILLING`, because credit balances are read under it.
 
+`member` exists in all three scopes, with an empty permission list at organization scope, as `admin` and `viewer` have. It joins `RequiredRole` and the reserved slugs in `role_overrides.py`, so an `AGENTA_ACCESS_ROLES` override cannot remove or rebind it. Its description names the exclusion: "Can use and build, but cannot read traces, analytics or evaluations."
+
+The roles are a set, not a ladder. `member` holds `EDIT_WORKFLOWS`, which `annotator` and `viewer` lack, and lacks `VIEW_SPANS`, which `viewer` holds.
+
+`member` was the old lowest slug. Migration `a1b2c3d4e5f7` renamed it to `viewer`, and its downgrade renames every `viewer` back to `member`. Under the new catalog that downgrade would promote viewers, so its role rewrite becomes a no-op.
+
 No analytics permission is added. Admins and owners read analytics, as they read traces, so one permission serves both. Business can split them later if a customer asks.
 
 ## Decision 2: enforce everywhere, offer by plan
@@ -37,7 +43,7 @@ Remove the shortcut from `_capability` and from the role check that shares it. A
 | OSS, Hobby, Pro | admin, member |
 | Business, Agenta AI, self-hosted Enterprise | every catalog role except `owner` |
 
-On EE, `Flag.RBAC` keeps its name and now means "offers every role". It also still controls selected-project credentials, which today read it through `RbacEnforcementInterface.is_enforced` (`EntitlementProjectLimits`). When the shortcut goes, that caller reads `Flag.RBAC` through the offered-roles helper or its own check, so removing `is_enforced` does not change it. OSS offers the short list, so the helper cannot reuse `is_enforced`, which answers true on OSS. `GET /access/roles` and `GET /workspaces/roles/` return the offered roles for the caller's organization, which makes the first route request-aware. The invite and assign routes refuse any other role, so the API and the screen agree. The role route already refuses `owner` (`_set_member_role`). The invite path does not: `resolve_workspace_invite_role` accepts any catalog role. The offered-roles check closes that, on every edition and plan. `DELETE /workspaces/{id}/roles/` demotes to the plan's default role, not to `viewer`. `DecisionReason.RBAC_NOT_ENTITLED` is deleted. The catalog keeps all roles, so stored rows and higher plans keep working.
+On EE, `Flag.RBAC` keeps its name and now means "offers every role". One offered-roles helper in `core/access` is the only reader of `Flag.RBAC` for offering, and `Flag.RBAC` gets a comment that says this meaning. It also still controls selected-project credentials, which today read it through `RbacEnforcementInterface.is_enforced` (`EntitlementProjectLimits`). When the shortcut goes, that caller reads `Flag.RBAC` through the offered-roles helper or its own check, so removing `is_enforced` does not change it. OSS offers the short list, so the helper cannot reuse `is_enforced`, which answers true on OSS. `GET /access/roles` and `GET /workspaces/roles/` return the offered roles for the caller's organization, which makes the first route request-aware. Their docstrings say "offered roles". "Catalog" stays the name of the full set. The invite and assign routes refuse any other role, so the API and the screen agree. The role route already refuses `owner` (`_set_member_role`). The invite path does not: `resolve_workspace_invite_role` accepts any catalog role. The offered-roles check closes that, on every edition and plan. The floor role is the role a person gets when an invite names no role, and the role a demotion writes. It is `member` on OSS, Hobby and Pro, and `viewer`, as today, on plans with `Flag.RBAC`. The `organization_members.role` column keeps its server default `viewer`, because every writer passes the role. `DELETE /workspaces/{id}/roles/` demotes to the floor role. Its shipped name, `unassign_role_from_user`, stays, although the route writes a role. `DecisionReason.RBAC_NOT_ENTITLED` is deleted. The catalog keeps all roles, so stored rows and higher plans keep working.
 
 Alternative rejected: keep the shortcut and check only `member` on Hobby and Pro, with no migration. It is smaller, but a stored "viewer" could then do everything, and the app would show roles that are not real.
 
@@ -48,7 +54,7 @@ One EE data migration does two things. A migration cannot read entitlements, so 
 1. On `cloud_v0_hobby` and `cloud_v0_pro`, it sets `role = 'admin'` on `organization_members`, `project_members` and unused `project_invitations` where the role is not `owner`, `admin` or `member`, or is null. Nothing is lost, because those stored values have no effect on project actions on those plans today.
 2. On every EE plan, it sets `role = 'admin'` on `organization_members` and `project_members` rows whose role is `owner` and whose user is not `organizations.owner_id`, and on unused `project_invitations` whose role is `owner`. Today an invite can name `owner`. Such a row passes every project check, and the role route cannot change it. It is a mistake, and the app has no way to fix it.
 
-Effects on the members in step 1:
+Effects on the people in step 1:
 
 - They keep every project action, including traces, analytics and evaluations.
 - They lose `DELETE_WORKSPACE`, so only the owner deletes a project. Editing, transferring and deleting the organization were already owner-only on every plan, because those routes check the owner id first (`_check_org_owner`). `ADD_USER_TO_ORGANIZATION` is checked nowhere. They keep billing, because admin gains `EDIT_BILLING` (Decision 6).
@@ -62,7 +68,7 @@ OSS has no migration. Its roles already limit people, so moving a viewer to admi
 
 A plan downgrade from Business needs no code: a stored `viewer` stays a real, enforced viewer, and an admin can change it. No Business customer exists today.
 
-## Decision 4: the app hides what a member cannot read
+## Decision 4: the app hides what a Member cannot read
 
 The app gates on `useProjectPermission(projectId, "view_spans")` (`web/mobile/src/features/context/useProjectPermission.ts`), which returns false while loading and on error:
 
@@ -79,7 +85,9 @@ Removing the shortcut also exposes actions that /m shows to everyone today, beca
 
 - Invite: `add_new_user_to_workspace`. Create project: `create_workspace`. Rename project: `edit_workspace`. Delete project: `delete_workspace`, which only the owner has.
 - Billing portal, plan change, credit usage and the chat "Buy credits" button: `edit_billing`.
-- Remove member: an admin or owner check, because that route requires the admin role.
+- Remove a person: an admin or owner check, because that route requires the admin role.
+
+The permission names `create_workspace`, `edit_workspace` and `delete_workspace` mean project. The gates reuse them; no project-named copies are added.
 - Access & Security: the organization owner only, as the API already requires.
 
 ## Decision 5: reduce PR #7881
@@ -108,15 +116,15 @@ The runner value fills a turn when the write-back cannot: a turn with no trace i
 
 ## Accepted limits
 
-- **Old members keep full trace access** until an owner or admin changes them to Member.
-- **Owners and admins read traces of private chats.** Private means private from members.
-- **A member can overwrite or delete a trace if they know its ids.** `EDIT_SPANS` covers ingest, edit and delete, and ingest updates an existing span. A member sees ids only for chats they can open. Annotators and above can do this today, and so can everyone on Hobby and Pro. Guarding the edit and delete routes would not close ingest.
-- **A failed turn shows less to a member.** A provider failure that exists only on the trace shows as "No response". Showing the real text would need a sanitized copy on the turn, because the raw text can hold account ids.
+- **People migrated to admin keep full trace access** until an owner or admin changes them to Member.
+- **Owners and admins read traces of private chats.** Private means private from Members.
+- **A Member can overwrite or delete a trace if they know its ids.** `EDIT_SPANS` covers ingest, edit and delete, and ingest updates an existing span. A Member sees ids only for chats they can open. Annotators and above can do this today, and so can everyone on Hobby and Pro. Guarding the edit and delete routes would not close ingest.
+- **A failed turn shows less to a Member.** A provider failure that exists only on the trace shows as "No response". Showing the real text would need a sanitized copy on the turn, because the raw text can hold account ids.
 - **Trace summaries cached in a browser** stay readable on that device after a demotion, until they expire.
-- **Membership is cached for up to five minutes.** Just after the rollout, a new pod can read a cached old role, so an active Pro member can get a 403 on an edit during that window.
+- **Membership is cached for up to five minutes.** Just after the rollout, a new pod can read a cached old role, so an active person on Pro can get a 403 on an edit during that window.
 - **Invitations written during the rollout** by old pods keep their old role. That person becomes an enforced viewer, and an admin can change the role.
-- **An agent running as a member** gets a 403 from the `query_spans` and `annotate_trace` operations. Neither is in the default build kit.
-- **`test_run` reads its child run's trace without `VIEW_SPANS`.** The handler reads spans as the service and returns a digest. A member sees only the digest of a run they started.
+- **An agent running as a Member** gets a 403 from the `query_spans` and `annotate_trace` operations. Neither is in the default build kit.
+- **`test_run` reads its child run's trace without `VIEW_SPANS`.** The handler reads spans as the service and returns a digest. A Member sees only the digest of a run they started.
 - **An evaluation run whose principal becomes a Member stops.** Runs execute as their stored principal and recheck `EDIT_EVALUATION_RUNS`.
 - **A stray `owner` row on OSS keeps full power.** OSS has no migration. The invite path stops writing new ones.
 
@@ -124,7 +132,7 @@ The runner value fills a turn when the write-back cannot: a turn with no trace i
 
 1. Ship reduced PR #7881.
 2. The owner runs a read-only production count of organizations per `subscriptions.plan`, to confirm that no other plan values exist. The build does not run it, because a production read needs the owner's approval. The migration names only `cloud_v0_hobby` and `cloud_v0_pro`, so rows on any other plan value keep their role.
-3. Ship the roles API, the migration and the app gates in one PR. The API change without the app gates shows 403 errors to members.
+3. Ship the roles API, the migration and the app gates in one PR. The API change without the app gates shows 403 errors to Members.
 4. Run the data migration, then roll out API pods. Old pods keep the shortcut, so the migrated data is safe with old and new code.
 5. Roll back by redeploying old pods. The shortcut returns, and migrated roles stay valid.
 

@@ -3,9 +3,9 @@
 ## ADDED Requirements
 
 ### Requirement: Members tab shows and changes roles
-The /m Members tab SHALL show each member's role. A person with `MODIFY_USER_ROLES` SHALL be able to change a role to any offered role. The owner row SHALL have no control.
+The /m Members tab SHALL show each person's role, read from `organization_members.role`. Every role write SHALL update `organization_members.role` and `project_members.role` together, as `set_member_role` and the migration do. A person with `MODIFY_USER_ROLES` SHALL be able to change a role to any offered role. The owner row SHALL have no control.
 
-#### Scenario: Owner demotes an old member
+#### Scenario: Owner demotes a migrated admin
 - **WHEN** an owner changes a migrated admin to Member
 - **THEN** the next trace read by that person SHALL answer 403.
 
