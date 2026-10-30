@@ -37,7 +37,7 @@ from agenta.sdk.managers.secrets import SecretsManager
 from agenta.sdk.decorators.tracing import instrument
 from agenta.sdk.models.shared import Data
 from agenta.sdk.engines.running.sandbox import run_code_safely
-from agenta.sdk.engines.running.templates import EVALUATOR_TEMPLATES
+from agenta.sdk.engines.running.templates import EVALUATOR_TEMPLATES, PLUGIN_TEMPLATES
 from agenta.sdk.engines.running.errors import (
     CustomCodeServerV0Error,
     CustomHookHandlerNotDefinedV0Error,
@@ -3728,3 +3728,58 @@ async def _llm_v0_run(
                     else result,
                 },
             ]
+
+
+@instrument(ignore_inputs=["parameters"])
+async def plugin_v0(
+    request: Optional[Data] = None,
+    revision: Optional[Data] = None,
+    inputs: Optional[Data] = None,
+    parameters: Optional[Data] = None,
+    **kwargs: Any,
+) -> Any:
+    import agenta as ag
+    from agenta.sdk.contexts.running import RunningContext
+    from agenta.sdk.agents.mcp.models import MCPGatewayConnection
+    from agenta.sdk.agents.mcp.resolver import _gateway_mcp_route
+
+    ctx = RunningContext.get()
+    plugin = (parameters or {}).get("plugin") or {}
+    operation = (inputs or {}).get("operation")
+    names = {op.get("name") for op in plugin.get("operations") or []}
+    if not isinstance(operation, str) or operation not in names:
+        raise InvalidInputsV0Error(
+            expected=sorted(n for n in names if n), got=operation
+        )
+    args = (inputs or {}).get("args", {})
+    if not isinstance(args, dict):
+        raise InvalidInputsV0Error(expected="object args", got=args)
+    code = _extract_revision_field(revision, "script") or _extract_revision_field(
+        ctx.revision, "script"
+    )
+    if not code:
+        raise MissingConfigurationParameterV0Error(path="script")
+    api_url = ag.DEFAULT_AGENTA_SINGLETON_INSTANCE.api_url
+    entries = plugin.get("mcps") or []
+    if entries and not api_url:
+        raise MissingConfigurationParameterV0Error(path="AGENTA_API_URL")
+    mcps = {
+        entry["name"]: _gateway_mcp_route(
+            connection=MCPGatewayConnection.model_validate(entry["connection"]),
+            name=entry["name"],
+            gateway_base_url=api_url,
+        )
+        for entry in entries
+    }
+    wrapped = await run_code_safely(
+        app_params={},
+        inputs={"operation": operation, "args": args, "mcps": mcps},
+        output=None,
+        correct_answer=None,
+        code=str(code),
+        runtime="javascript",
+        templates=PLUGIN_TEMPLATES,
+        version="3",
+        trace=None,
+    )
+    return wrapped["value"]

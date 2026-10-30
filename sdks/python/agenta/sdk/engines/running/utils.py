@@ -16,6 +16,7 @@ from agenta.sdk.engines.running.handlers import (
     feedback_v0,
     hook_v0,
     code_v0,
+    plugin_v0,
     mock_v0,
     match_v0,
     llm_v0,
@@ -47,6 +48,7 @@ from agenta.sdk.engines.running.interfaces import (
     feedback_v0_interface,
     hook_v0_interface,
     code_v0_interface,
+    plugin_v0_interface,
     mock_v0_interface,
     match_v0_interface,
     llm_v0_interface,
@@ -81,6 +83,7 @@ INTERFACE_REGISTRY: dict = dict(
             feedback=dict(v0=feedback_v0_interface),
             hook=dict(v0=hook_v0_interface),
             code=dict(v0=code_v0_interface),
+            plugin=dict(v0=plugin_v0_interface),
             mock=dict(v0=mock_v0_interface),
         ),
         builtin=dict(
@@ -127,6 +130,15 @@ def _catalog_entry() -> dict:
 CATALOG_REGISTRY: dict = dict(
     agenta=dict(
         custom=dict(
+            plugin=dict(
+                v0=dict(
+                    name="Plugin",
+                    description="Run a named operation in a plugin.",
+                    categories=[],
+                    flags=WorkflowFlags(is_application=True, is_plugin=True),
+                    presets=[],
+                )
+            ),
             feedback=dict(
                 v0=dict(
                     name="Custom Feedback",
@@ -272,6 +284,7 @@ CONFIGURATION_REGISTRY: dict = dict(
             feedback=dict(v0=WorkflowRevisionData()),
             hook=dict(v0=WorkflowRevisionData()),
             code=dict(v0=WorkflowRevisionData()),
+            plugin=dict(v0=WorkflowRevisionData()),
         ),
         builtin=dict(
             # --- NEW URI
@@ -350,6 +363,7 @@ HANDLER_REGISTRY: dict = dict(
             feedback=dict(v0=feedback_v0),
             hook=dict(v0=hook_v0),
             code=dict(v0=code_v0),
+            plugin=dict(v0=plugin_v0),
             mock=dict(v0=mock_v0),
         ),
         builtin=dict(
@@ -607,6 +621,7 @@ def infer_url_from_uri(uri: Optional[str]) -> Optional[str]:
 _AGENTA_ROLE_TABLE: dict = {
     # agenta:custom:* — user-deployed code running on agenta platform
     ("custom", "code"): (True, True, False),
+    ("custom", "plugin"): (True, False, False),
     ("custom", "hook"): (True, True, False),
     ("custom", "feedback"): (True, True, False),
     # agenta:custom:mock — deterministic test workflow (app + evaluator, no LLM/sandbox)
@@ -658,6 +673,7 @@ def is_static_workflow_slug(slug: Optional[str]) -> bool:
 
 # The single builtin skill uri. is_skill derives from it (key == "skill").
 AGENTA_BUILTIN_SKILL_URI = "agenta:builtin:skill:v0"
+AGENTA_CUSTOM_PLUGIN_URI = "agenta:custom:plugin:v0"
 
 
 def normalize_snippet_data(
@@ -737,6 +753,7 @@ def infer_flags_from_data(
     is_feedback = key == "feedback"
     is_agent = key == "agent"
     is_skill = key == "skill"
+    is_plugin = key == "plugin"
 
     # schema-derived flags
     inputs_schema = (
@@ -783,6 +800,10 @@ def infer_flags_from_data(
         is_evaluator = default_evaluator
         is_snippet = default_snippet
 
+    # Simple workflow creation supplies default role flags, even when omitted by the caller.
+    if is_plugin:
+        is_application, is_evaluator, is_snippet = True, False, False
+
     # slug-inferred:
     is_static = is_static_workflow_slug(slug)
 
@@ -797,6 +818,7 @@ def infer_flags_from_data(
         is_feedback=is_feedback,
         is_agent=is_agent,
         is_skill=is_skill,
+        is_plugin=is_plugin,
         # schema-derived
         is_chat=is_chat,
         # interface-derived

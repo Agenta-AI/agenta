@@ -627,3 +627,28 @@ async def test_an_agent_item_keeps_the_plain_gateway_url(account_source):
     )
 
     assert resolved[0].url == _gateway_route("linear")
+
+
+def test_builtin_plugin_connection_takes_a_slug():
+    c = MCPGatewayConnection(
+        namespace="builtin", provider="plugin", slug="linear-triage"
+    )
+    assert c.slug == "linear-triage"
+
+
+def test_slug_still_refused_for_other_builtin_providers():
+    with pytest.raises(ValidationError):
+        MCPGatewayConnection(namespace="builtin", provider="mock", slug="x")
+
+
+def test_builtin_plugin_route():
+    from agenta.sdk.agents.mcp.resolver import _gateway_mcp_route
+
+    url = _gateway_mcp_route(
+        connection=MCPGatewayConnection(
+            namespace="builtin", provider="plugin", slug="linear-triage"
+        ),
+        name="linear-triage",
+        gateway_base_url="https://api.example",
+    )
+    assert url == "https://api.example/gateways/mcps/builtin/plugin/linear-triage"

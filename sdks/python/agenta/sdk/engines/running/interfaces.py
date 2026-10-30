@@ -987,3 +987,15 @@ auto_semantic_similarity_v0_interface = WorkflowRevisionData(
         outputs=SCORE_SUCCESS_OUTPUTS_SCHEMA,
     ),
 )
+
+
+plugin_v0_interface = WorkflowRevisionData(
+    uri="agenta:custom:plugin:v0",
+    schemas=dict(
+        inputs={
+            "type": "object",
+            "properties": {"operation": {"type": "string"}, "args": {"type": "object"}},
+            "required": ["operation"],
+        }
+    ),
+)
