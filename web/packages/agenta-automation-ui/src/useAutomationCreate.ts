@@ -256,8 +256,14 @@ export const useAutomationCreate = ({
                     : "Automation created — it stays off until you switch it on",
             )
             return created
-        } catch {
-            message.error("Couldn't create this automation")
+        } catch (error) {
+            // 424: the app's provider refused, most often because the connection is not active.
+            const status = (error as {response?: {status?: number}})?.response?.status
+            message.error(
+                status === 424
+                    ? "Couldn't create this automation. Reconnect the app and try again."
+                    : "Couldn't create this automation",
+            )
             return null
         } finally {
             setSaving(false)

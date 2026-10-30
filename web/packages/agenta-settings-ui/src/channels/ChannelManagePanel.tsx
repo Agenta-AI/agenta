@@ -922,7 +922,7 @@ export const ChannelManagePanel = ({
                         </div>
                     ) : null}
 
-                    {isWhatsApp ? null : (
+                    {isWhatsApp || places?.length !== 0 ? null : (
                         <span className="py-3 text-[13px] text-muted-foreground">
                             {isSlack
                                 ? `Invite ${inviteHandle} to a channel to add it here.`
@@ -1057,10 +1057,7 @@ export const ChannelManagePanel = ({
                         </div>
                     </div>
                 ) : (
-                    <div className="flex w-full items-center justify-between">
-                        <span className="whitespace-nowrap text-[12.5px] text-muted-foreground">
-                            Saved automatically
-                        </span>
+                    <div className="flex w-full items-center justify-end">
                         <Button
                             variant="destructive"
                             disabled={busy !== null}

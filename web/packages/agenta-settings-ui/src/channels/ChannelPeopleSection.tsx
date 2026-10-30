@@ -236,6 +236,9 @@ export const ChannelPeopleSection = ({
     const inWorkspace = candidates.filter((person) => person.source === "directory")
     const byEmail = candidates.filter((person) => person.source === "email_lookup")
     const typedEmail = EMAIL.test(draft.trim())
+    // A search that found someone in another section hides the empty "Wrote to" section, so
+    // "No match." never sits above a match.
+    const otherMatch = found !== null && !wrote.length && (inWorkspace.length || byEmail.length) > 0
 
     const whoLine = (() => {
         if (people === null) return error ? "Unavailable" : "Loading…"
@@ -282,16 +285,18 @@ export const ChannelPeopleSection = ({
             data-testid="channels-people-results"
         >
             {searchError ? <Alert type="error" showIcon message={searchError} /> : null}
-            <div className={GROUP}>
-                <span>Wrote to {handle}</span>
-            </div>
+            {otherMatch ? null : (
+                <div className={GROUP}>
+                    <span>Wrote to {handle}</span>
+                </div>
+            )}
             {found === null ? (
                 <span className="flex items-center gap-2 px-1.5 py-1 text-xs text-muted-foreground">
                     <Spinner size="small" /> Looking…
                 </span>
             ) : wrote.length ? (
                 wrote.map(personItem)
-            ) : (
+            ) : otherMatch ? null : (
                 <span className="px-1.5 py-1 text-xs text-muted-foreground">No match.</span>
             )}
             {directory && directory.state !== "unavailable" ? (
@@ -335,7 +340,7 @@ export const ChannelPeopleSection = ({
                         </span>
                     ) : inWorkspace.length ? (
                         inWorkspace.map(personItem)
-                    ) : (
+                    ) : wrote.length || byEmail.length ? null : (
                         <span className="px-1.5 py-1 text-xs text-muted-foreground">No match.</span>
                     )}
                 </>
