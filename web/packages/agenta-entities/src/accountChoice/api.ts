@@ -1,10 +1,8 @@
 /**
- * `/account-choices` calls.
- *
- * The routes are not in the generated client yet, so these go through the host's axios. They
- * move to `getAccountChoicesClient()` when the client is regenerated from the package branch.
+ * `/account-choices` calls, through the generated client. Answers are checked with the zod
+ * schemas before the screens read them.
  */
-import {axios, getAgentaApiUrl} from "@agenta/shared/api"
+import {getAccountChoicesClient} from "@agenta/sdk/resources"
 
 import {safeParseWithLogging} from "../shared"
 
@@ -16,9 +14,7 @@ import {
     type ItemAccount,
 } from "./schema"
 
-const BASE = "/account-choices"
-
-const scoped = (projectId: string) => ({params: {project_id: projectId}})
+const scoped = (projectId: string) => ({queryParams: {project_id: projectId}})
 
 /** The one account the asker picked: exactly one of the two ids. */
 export type AccountPick = {secretId: string} | {gatewayConnectionId: string}
@@ -34,8 +30,7 @@ export const upsertAccountChoice = async ({
     itemKey: string
     account: AccountPick
 }): Promise<AccountChoice | null> => {
-    const response = await axios.post(
-        `${getAgentaApiUrl()}${BASE}/`,
+    const response = await getAccountChoicesClient().upsertAccountChoice(
         {
             account_choice: {
                 workflow_id: workflowId,
@@ -49,7 +44,7 @@ export const upsertAccountChoice = async ({
     )
     const data = safeParseWithLogging(
         accountChoiceResponseSchema,
-        response.data,
+        response,
         "[upsertAccountChoice]",
     )
     return data?.account_choice ?? null
@@ -63,8 +58,7 @@ export const queryAccountChoices = async ({
     projectId: string
     filter: {workflowId?: string; itemKey?: string; secretIds?: string[]}
 }): Promise<AccountChoice[]> => {
-    const response = await axios.post(
-        `${getAgentaApiUrl()}${BASE}/query`,
+    const response = await getAccountChoicesClient().queryAccountChoices(
         {
             account_choice: {
                 workflow_id: filter.workflowId,
@@ -76,7 +70,7 @@ export const queryAccountChoices = async ({
     )
     const data = safeParseWithLogging(
         accountChoicesResponseSchema,
-        response.data,
+        response,
         "[queryAccountChoices]",
     )
     return data?.account_choices ?? []
@@ -89,7 +83,10 @@ export const deleteAccountChoice = async ({
     projectId: string
     accountChoiceId: string
 }): Promise<void> => {
-    await axios.delete(`${getAgentaApiUrl()}${BASE}/${accountChoiceId}`, scoped(projectId))
+    await getAccountChoicesClient().deleteAccountChoice(
+        {account_choice_id: accountChoiceId},
+        scoped(projectId),
+    )
 }
 
 /**
@@ -106,14 +103,13 @@ export const resolveDraftAccountChoices = async ({
     workflowId: string
     parameters: Record<string, unknown>
 }): Promise<ItemAccount[]> => {
-    const response = await axios.post(
-        `${getAgentaApiUrl()}${BASE}/resolve`,
-        {workflow_id: workflowId, workflow_revision_ref: null, parameters},
+    const response = await getAccountChoicesClient().resolveAccountChoices(
+        {workflow_id: workflowId, parameters},
         scoped(projectId),
     )
     const data = safeParseWithLogging(
         itemAccountsResponseSchema,
-        response.data,
+        response,
         "[resolveDraftAccountChoices]",
     )
     return data?.item_accounts ?? []

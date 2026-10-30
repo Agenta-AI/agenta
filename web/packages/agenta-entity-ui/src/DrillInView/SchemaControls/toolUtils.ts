@@ -191,14 +191,20 @@ export function buildGatewayConnectionEntry(
         // The discriminator the SDK parses on. Fern models the union arm without it.
         type: "gateway_connection",
         // A "user" entry names no slug; the SDK refuses one next to `account_source: "user"`.
-        // `account_source` is not in the generated type until the client is regenerated.
-        connection: (view.accountSource === "user"
-            ? {provider: view.provider, integration: view.integration, account_source: "user"}
-            : {
-                  provider: view.provider,
-                  integration: view.integration,
-                  slug: view.connection,
-              }) as GatewayConnectionToolConfig["connection"],
+        connection:
+            view.accountSource === "user"
+                ? {
+                      provider:
+                          view.provider as GatewayConnectionToolConfig["connection"]["provider"],
+                      integration: view.integration,
+                      account_source: "user",
+                  }
+                : {
+                      provider:
+                          view.provider as GatewayConnectionToolConfig["connection"]["provider"],
+                      integration: view.integration,
+                      slug: view.connection,
+                  },
         policy: {
             permissions: {
                 default: view.permissions.default,

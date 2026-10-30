@@ -45,7 +45,6 @@ import {z} from "zod"
 import {invalidatePersonalAccountReads} from "../../accountChoice/state"
 import {safeParseWithLogging} from "../../shared/utils/zodSchema"
 import {createVaultSecret, deleteVaultSecret, fetchVaultSecret, updateVaultSecret} from "../api/api"
-import {USER_SCOPE} from "../api/personalSecrets"
 import {
     getEnvNameMap,
     projectRowsOnly,
@@ -357,7 +356,7 @@ export const createCustomNamedSecretAtom = atom(null, async (get, set, secret: N
         } else {
             const created = await createMutation.mutateAsync({
                 projectId,
-                payload: personal ? {...payload, scope: USER_SCOPE} : payload,
+                payload: personal ? {...payload, scope: "user"} : payload,
             })
             if (personal) await invalidatePersonalSecrets()
             return created?.id ?? undefined

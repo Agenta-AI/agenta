@@ -27,12 +27,9 @@ type DeleteSecretResponse = Awaited<ReturnType<SecretsClient["deleteSecret"]>>
 /** Payload portion of an update — `secret_id` is supplied alongside. */
 type UpdateSecretPayload = Omit<UpdateSecretRequest, "secret_id" | "scope">
 
-/**
- * The owner a by-id route acts for; omitted, the project's row as before. The generated client
- * does not know `user` yet, so the value is widened here until it is regenerated.
- */
+/** The owner a by-id route acts for; omitted, the project's row as before. */
 const ownerScope = (scope?: OwnerKind | null) =>
-    scope === "organization" || scope === "user" ? {scope: scope as "organization"} : {}
+    scope === "organization" || scope === "user" ? {scope} : {}
 
 export const fetchVaultSecret = async ({
     projectId,
@@ -101,6 +98,7 @@ export const setSubscriptionToken = async ({
     scope?: SecretOwnerScope | null
 }) =>
     getSecretsClient().setSubscriptionToken(
-        {secret_id: secretId, token, ...ownerScope(scope)},
+        // A login token is set on the project's or the organization's row only.
+        {secret_id: secretId, token, ...(scope === "organization" ? {scope} : {})},
         projectScopedRequest(projectId),
     )

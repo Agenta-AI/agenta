@@ -9,5 +9,7 @@ export {
     probeMcpUrl,
     queryMcpEndpoints,
     recordMcpEndpointCheck,
-    connectMcpEndpointWithToken,
+    beginPersonalMcpSignIn,
+    signInToMcpEndpointWithToken,
+    signOutOfMcpEndpoint,
 } from "./api"

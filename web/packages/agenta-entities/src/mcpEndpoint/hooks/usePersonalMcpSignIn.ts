@@ -7,11 +7,11 @@ import {useAtomValue} from "jotai"
 
 import {invalidatePersonalAccountReads} from "../../accountChoice/state"
 import {
-    beginMcpConnect,
+    beginPersonalMcpSignIn,
     cancelMcpConnectAttempt,
-    disconnectMcpEndpoint,
     fetchMcpConnectAttempt,
-    connectMcpEndpointWithToken,
+    signInToMcpEndpointWithToken,
+    signOutOfMcpEndpoint,
 } from "../api/api"
 import {buildTrustedOrigins} from "../core/connectMessage"
 import {watchOauthConsent} from "../core/connectWatch"
@@ -108,13 +108,15 @@ export function usePersonalMcpSignIn(): PersonalMcpSignIn {
             }
             void (async () => {
                 try {
-                    const result = await beginMcpConnect(endpointId, scopes, projectId, "user")
-                    const {redirect_url: redirectUrl, attempt_id: attemptId} = result
+                    const result = await beginPersonalMcpSignIn(endpointId, scopes, projectId)
+                    const redirectUrl = result?.redirect_url
+                    const attemptId = result?.attempt_id
+                    const expiresIn = result?.expires_in
                     if (stale()) {
                         dropStale(attemptId)
                         return
                     }
-                    if (!redirectUrl || !attemptId || !result.expires_in) {
+                    if (!redirectUrl || !attemptId || !expiresIn) {
                         popup?.close()
                         await finish("Could not start the sign-in. Try again.")
                         return
@@ -133,7 +135,7 @@ export function usePersonalMcpSignIn(): PersonalMcpSignIn {
                         checkOutcome: async () =>
                             (await fetchMcpConnectAttempt(endpointId, attemptId, projectId))
                                 .attempt ?? null,
-                        timeoutMs: result.expires_in * 1000,
+                        timeoutMs: expiresIn * 1000,
                         onConnected: () => void finish(null),
                         onFailed: () => {
                             void cancelMcpConnectAttempt(endpointId, attemptId, projectId).catch(
@@ -164,7 +166,7 @@ export function usePersonalMcpSignIn(): PersonalMcpSignIn {
         async (endpoint: MCPEndpoint, token: string) => {
             if (!endpoint.id || !begin(endpoint.id)) return false
             try {
-                await connectMcpEndpointWithToken(endpoint.id, token, projectId)
+                await signInToMcpEndpointWithToken(endpoint.id, token, projectId)
                 await finish(null)
                 return true
             } catch {
@@ -179,7 +181,7 @@ export function usePersonalMcpSignIn(): PersonalMcpSignIn {
         async (endpoint: MCPEndpoint) => {
             if (!endpoint.id || !begin(endpoint.id)) return
             try {
-                await disconnectMcpEndpoint(endpoint.id, projectId, "user")
+                await signOutOfMcpEndpoint(endpoint.id, projectId)
                 await finish(null)
             } catch {
                 await finish("Could not sign out. Try again.")
