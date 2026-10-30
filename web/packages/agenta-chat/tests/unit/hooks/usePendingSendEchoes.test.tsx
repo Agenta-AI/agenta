@@ -17,12 +17,18 @@ const user = (id: string, text: string, turnId?: string): UIMessage =>
 
 const NO_DOCK: ReadonlySet<string> = new Set()
 
-const setup = (messages: UIMessage[] = [], dockedInputIds: ReadonlySet<string> = NO_DOCK) =>
-    renderHook(
+// Echoes live in a per-session store that outlives a mount, so each test takes its own session.
+let sessions = 0
+const nextSessionId = () => `session-${++sessions}`
+
+const setup = (messages: UIMessage[] = [], dockedInputIds: ReadonlySet<string> = NO_DOCK) => {
+    const sessionId = nextSessionId()
+    return renderHook(
         (props: {messages: UIMessage[]; dockedInputIds: ReadonlySet<string>}) =>
-            usePendingSendEchoes(props),
+            usePendingSendEchoes({sessionId, ...props}),
         {initialProps: {messages, dockedInputIds}},
     )
+}
 
 const texts = (rows: UIMessage[]) =>
     rows.map((row) => row.parts.map((part) => ("text" in part ? part.text : "")).join(""))
@@ -95,9 +101,10 @@ describe("usePendingSendEchoes", () => {
 
     it("never returns an adopted row and its echo together, in any render", () => {
         const seen: number[] = []
+        const sessionId = nextSessionId()
         const {result, rerender} = renderHook(
             (props: {messages: UIMessage[]; dockedInputIds: ReadonlySet<string>}) => {
-                const echoes = usePendingSendEchoes(props)
+                const echoes = usePendingSendEchoes({sessionId, ...props})
                 seen.push(
                     props.messages.filter((m) => m.role === "user").length + echoes.rows.length,
                 )
@@ -131,8 +138,9 @@ describe("usePendingSendEchoes", () => {
 
         const Harness = () => {
             const [messages, setMessages] = useState<UIMessage[]>([])
+            const [sessionId] = useState(nextSessionId)
             commit = setMessages
-            const value = usePendingSendEchoes({messages, dockedInputIds: NO_DOCK})
+            const value = usePendingSendEchoes({sessionId, messages, dockedInputIds: NO_DOCK})
             if (messages.length === 0) echoes = value
             return (
                 <Suspense fallback={null}>
@@ -159,9 +167,10 @@ describe("usePendingSendEchoes", () => {
 
     it("behaves the same under StrictMode's double render", () => {
         const wrapper = ({children}: {children: ReactNode}) => <StrictMode>{children}</StrictMode>
+        const sessionId = nextSessionId()
         const {result, rerender} = renderHook(
             (props: {messages: UIMessage[]; dockedInputIds: ReadonlySet<string>}) =>
-                usePendingSendEchoes(props),
+                usePendingSendEchoes({sessionId, ...props}),
             {initialProps: {messages: [] as UIMessage[], dockedInputIds: NO_DOCK}, wrapper},
         )
 
@@ -173,14 +182,22 @@ describe("usePendingSendEchoes", () => {
         expect(result.current.rows).toHaveLength(0)
     })
 
-    it("drops an echo a rewind stranded below its origin", () => {
-        const {result, rerender} = setup([user("h1", "old"), user("h2", "older")])
+    it("keeps an echo when the view remounts on a shorter transcript than it was sent on", () => {
+        const sessionId = nextSessionId()
+        const first = renderHook(() =>
+            usePendingSendEchoes({
+                sessionId,
+                messages: [user("h1", "old"), user("h2", "older")],
+                dockedInputIds: NO_DOCK,
+            }),
+        )
+        act(() => first.result.current.add({id: "m1", text: "new"}))
+        first.unmount()
 
-        act(() => result.current.add({id: "m1", text: "new"}))
-        expect(texts(result.current.rows)).toEqual(["new"])
-
-        rerender({messages: [], dockedInputIds: NO_DOCK})
-        expect(result.current.rows).toHaveLength(0)
+        const second = renderHook(() =>
+            usePendingSendEchoes({sessionId, messages: [], dockedInputIds: NO_DOCK}),
+        )
+        expect(texts(second.result.current.rows)).toEqual(["new"])
     })
 })
 
@@ -253,5 +270,20 @@ describe("usePendingSendEchoes baseline freshness", () => {
 
         rerender({messages: [user("s1", "old"), user("s2", "one")], dockedInputIds: NO_DOCK})
         expect(texts(result.current.rows)).toEqual(["two"])
+    })
+
+    it("keeps a send on screen when the session view remounts before its row is saved", () => {
+        const sessionId = nextSessionId()
+        const mount = () =>
+            renderHook(() =>
+                usePendingSendEchoes({sessionId, messages: [], dockedInputIds: NO_DOCK}),
+            )
+
+        const first = mount()
+        act(() => first.result.current.add({id: "m1", text: "build me an agent"}))
+        first.unmount()
+
+        const second = mount()
+        expect(texts(second.result.current.rows)).toEqual(["build me an agent"])
     })
 })

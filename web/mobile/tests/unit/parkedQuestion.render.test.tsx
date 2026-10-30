@@ -2,8 +2,8 @@
 //
 // A turn parked on a question, as `/m` draws it.
 //
-// While the run waits on the reader it is not live, so a closed trailing text used to be promoted
-// to the answer: the agent's lead-in to the question showed under "Waiting for you".
+// The agent's messages show below the fold, never in it, so its lead-in to a question is readable
+// while the run waits on the reader.
 import {act} from "react"
 
 import {buildTurnViewModels, createExecutedToolIdentityCache} from "@agenta/chat/model"
@@ -63,15 +63,17 @@ const renderTurn = (props: {waitingOnUser?: boolean; resuming?: boolean}): HTMLE
 }
 
 describe("mobile TurnRow: a turn parked on a question", () => {
-    it("keeps the lead-in text in the fold while waiting on the reader", () => {
+    it("shows the lead-in under Waiting for you while waiting on the reader", () => {
         const host = renderTurn({waitingOnUser: true})
 
         expect(host.textContent).toContain("Waiting for you")
-        expect(host.querySelector("[data-quotable]")).toBeNull()
+        expect(host.querySelector("[data-quotable]")?.textContent).toContain(leadIn.text)
     })
 
-    it("keeps it in the fold while the answer is on its way back", () => {
-        expect(renderTurn({resuming: true}).querySelector("[data-quotable]")).toBeNull()
+    it("keeps the lead-in on screen while the answer is on its way back", () => {
+        const host = renderTurn({resuming: true})
+
+        expect(host.querySelector("[data-quotable]")?.textContent).toContain(leadIn.text)
     })
 
     it("shows the trailing text as the answer once the run is over", () => {

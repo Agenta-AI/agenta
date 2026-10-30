@@ -554,7 +554,8 @@ async def guard_agent_activation(
     """`lock_agent_policy`, then refuse a private agent with `SharedItemNotFound`
     (what an unknown agent answers) unless `user_id` (the human whose request writes)
     is its owner: only its owner writes an active channel binding of a private agent
-    (rule A2: nobody else may see it). None, for an API key or any other non-human
+    (rule A2: nobody else may see it), and only its owner changes its channel limits
+    (its rules and people list). None, for an API key or any other non-human
     principal, never passes."""
 
     policy = await lock_agent_policy(

@@ -1237,9 +1237,10 @@ _TRIGGER_INPUTS_FIELDS_SCHEMA: Dict[str, Any] = {
         "selectors are never interpolated into a larger string, and an unmatched selector "
         "resolves to null. Omit this field to pass the whole fire context through as-is. "
         "Put only the task in `messages`, not schedule/trigger metadata, timing checks, or "
-        "skip-run guards. Configure when to run in the schedule or trigger settings. For "
-        'subscriptions, map event data under a sibling key, e.g. `{"messages": [{"role": "user", '
-        '"content": "Handle this event."}], "payload": "$.event.attributes"}`.'
+        "skip-run guards. Configure when to run in the schedule or trigger settings. The "
+        "agent reads only `messages`. For subscriptions, the event is added to the last "
+        "user message in `messages` by default, so do not map it under a sibling key. "
+        "When this field is omitted, no message carries the event."
     ),
     "anyOf": [
         {"type": "object", "additionalProperties": True},

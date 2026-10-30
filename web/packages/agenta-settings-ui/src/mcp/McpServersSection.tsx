@@ -41,7 +41,7 @@ import {projectIdAtom} from "@agenta/shared/state"
 import {message} from "@agenta/ui/app-message"
 import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {ListTable, type ListTableColumn} from "@agenta/ui/list-table"
-import {Button, cn, IconTile, touchTargetExpansion} from "@agenta/ui/ui"
+import {Button, IconTile} from "@agenta/ui/ui"
 import {
     ArrowsClockwise,
     LinkBreak,
@@ -409,7 +409,7 @@ export default function McpServersSection({
                                 <StatusIndicator
                                     tone={STATUS_TONE[status]}
                                     label={getMcpConnectionStatusLabel(status)}
-                                    // min-w-0 lets the label truncate instead of pushing Reconnect under the menu.
+                                    // min-w-0 lets the label truncate instead of pushing the menu out.
                                     className="min-w-0 text-[13px]"
                                 />
                                 {checkLabel ? (
@@ -422,24 +422,6 @@ export default function McpServersSection({
                                     </span>
                                 ) : null}
                             </span>
-                            {/* The repair is offered where the problem is reported, so a row
-                            that needs attention does not send the reader to a menu. */}
-                            {status !== "connected" && !readOnly ? (
-                                <Button
-                                    variant="link"
-                                    // An inline link in a dense status cell: kept at the 24px step its touch target is built on.
-                                    size="xs"
-                                    // The invisible expansion lifts the 24px link to a 44px touch target.
-                                    className={cn("p-0 text-xs", touchTargetExpansion(24))}
-                                    onClick={(event) => {
-                                        // A different intent from the row click.
-                                        event.stopPropagation()
-                                        openReconnect(record)
-                                    }}
-                                >
-                                    Reconnect
-                                </Button>
-                            ) : null}
                         </span>
                         {readOnly ? null : (
                             <SettingsRowMenu

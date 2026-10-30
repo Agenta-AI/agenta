@@ -35,7 +35,7 @@ patchedDependencies:
     hash: a673c410af2021d9bb5f05c899522b66e6bcbe67134a92f506f0aef23fcf090d
     path: patches/acp-http-client@0.4.2.patch
   pi-acp@0.0.29:
-    hash: c79151077c4d847dc38433baaa6898754d64b18509e737f4626f673c1e300222
+    hash: f9deb01a2d67a755607fe78552ef0dbfe7242e93d3c8e30bdc7b6fb0140d37f0
     path: patches/pi-acp@0.0.29.patch
   sandbox-agent@0.4.2:
     hash: 91ccdae91dc68390329197a105ecd8cf394f680dd3be2a26731ebe1c2bd58c3f
@@ -92,7 +92,7 @@ importers:
         version: 0.4.2(patch_hash=a673c410af2021d9bb5f05c899522b66e6bcbe67134a92f506f0aef23fcf090d)(zod@4.6.5)
       pi-acp:
         specifier: 0.0.29
-        version: 0.0.29(patch_hash=c79151077c4d847dc38433baaa6898754d64b18509e737f4626f673c1e300222)
+        version: 0.0.29(patch_hash=f9deb01a2d67a755607fe78552ef0dbfe7242e93d3c8e30bdc7b6fb0140d37f0)
       pi-coding-agent-pi-ai:
         specifier: npm:@earendil-works/pi-ai@0.99.1
         version: '@earendil-works/pi-ai@0.99.1(@aws-sdk/credential-provider-node@3.972.84)(@modelcontextprotocol/sdk@1.31.0(zod@4.6.5))(@smithy/signature-v4@5.7.4)(undici@8.12.2)(ws@8.21.0)(zod@4.6.5)'
@@ -5228,7 +5228,7 @@ snapshots:
 
   pathe@2.0.3: {}
 
-  pi-acp@0.0.29(patch_hash=c79151077c4d847dc38433baaa6898754d64b18509e737f4626f673c1e300222):
+  pi-acp@0.0.29(patch_hash=f9deb01a2d67a755607fe78552ef0dbfe7242e93d3c8e30bdc7b6fb0140d37f0):
     dependencies:
       '@agentclientprotocol/sdk': 0.26.0(zod@3.25.76)
       zod: 3.25.76

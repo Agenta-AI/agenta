@@ -3,6 +3,14 @@ title: "Projects use only their own provider keys"
 slug: project-provider-keys-only
 date: 2026-10-25
 tags: [v0.124.1]
+improvements:
+  - area: Models
+    text: "Built-in Gemini uses gemini-3.8-flash with low thinking by default"
+fixes:
+  - area: Models
+    text: "Built-in Gemini turns no longer hang when a Vertex call stalls"
+  - area: Sign-up
+    text: "Gmail addresses with dots or a +tag count as one address at sign-up"
 description: "Prompts and evaluators run on the provider keys saved in the project. Self-hosted deployments can opt in to shared keys, and custom providers need their own key."
 ---
 

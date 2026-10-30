@@ -16,12 +16,7 @@ import {
     McpServerNoticeCard,
     TurnFooter,
 } from "@agenta/chat/components"
-import {
-    endsOnClosedText,
-    readableTraceError,
-    splitTurnActivity,
-    type TurnViewModel,
-} from "@agenta/chat/model"
+import {readableTraceError, splitTurnActivity, type TurnViewModel} from "@agenta/chat/model"
 import {messageBodyKey} from "@agenta/chat/state"
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
@@ -72,6 +67,7 @@ const TurnRowInner = ({
     waitingOnUser = false,
     resuming = false,
     runId,
+    runStartedAt,
 }: {
     turn: TurnViewModel
     /** Settles a browser-fulfilled tool (elicitation, connect) back into the run. Optional because
@@ -90,6 +86,8 @@ const TurnRowInner = ({
     resuming?: boolean
     /** Keys the clock and fold to the run, so the placeholder turn's carry to the real one. */
     runId?: string
+    /** When the server saved the user message that started this run: the clock counts from it. */
+    runStartedAt?: number
 }) => {
     const inspectorEnabled = useAtomValue(playgroundInspectorEnabledAtom)
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
@@ -178,26 +176,19 @@ const TurnRowInner = ({
     // The latest turn failing for needs-setup refreshes the tags and the banner.
     const lastErrorCode = turn.isLast && errorText ? turn.status.errorCode : null
     useEffect(() => refreshOnSetupFailure(lastErrorCode), [lastErrorCode, turn.message.id])
-    // A closed text is only the answer once the run is over: until then a call can still follow it,
-    // and the model may take many seconds to start that call. A timed hold promoted such asides to
-    // the answer and pulled them back into the fold when the call landed.
-    const trailingClosed = useMemo(() => endsOnClosedText(turn.items), [turn.items])
     const streamedHereRef = useRef(false)
     if (turn.isStreamingTurn) streamedHereRef.current = true
-    // `live`, as the fold's header reads it: a send can flip the local stream on and off and then
-    // run on the shared reader, so a closed local stream is not a finished run.
-    // Parked on the reader is open too: the text before a question is not the answer.
+    // The fold holds the work; every message the agent wrote to the reader shows below it, so a
+    // message followed by a call or a card is never mistaken for thinking.
+    const activity = useMemo(() => splitTurnActivity(turn.items), [turn.items])
+    const answered = activity.messages.length > 0
+    const writing = activity.messages.at(-1)?.part.state === "streaming"
+    // Parked on the reader is open too: a message before a question is not the answer yet.
     const runOpen = live || (turn.isLast && (waitingOnUser || resuming))
-    const activity = useMemo(
-        () =>
-            splitTurnActivity(turn.items, {
-                holdClosedText: runOpen && trailingClosed,
-            }),
-        [turn.items, runOpen, trailingClosed],
-    )
     // An answer present at mount is history (reload, session open); a later one arrived live.
     // By message id alone: adoption can shift the answer's index without it being a new answer.
-    const answerKey = activity.answer ? turn.message.id : null
+    // Only once the run is over: an interim message must not pin the scroll while work goes on.
+    const answerKey = answered && !runOpen ? turn.message.id : null
     const mountAnswerKeyRef = useRef(answerKey)
     const rowMarkers = turn.isLast
         ? {
@@ -252,34 +243,43 @@ const TurnRowInner = ({
         </div>
     ) : (
         <div className="flex min-w-0 max-w-full flex-col gap-3">
-            {mcpNotices.map((item) => (
-                <McpServerNoticeCard key={`mcp-${item.index}`} notice={item.notice} />
-            ))}
             <ActivityTimeline
                 messageId={turn.message.id}
                 clockId={runId}
                 sessionId={sessionId}
                 steps={activity.steps}
                 streaming={live}
-                answerStarted={activity.answer !== null}
+                answerStarted={answered}
+                writing={writing}
                 waitingOnUser={turn.isLast && waitingOnUser}
                 resuming={turn.isLast && resuming}
                 hadGate={turn.hadGate}
                 traceId={traceId}
                 streamedHere={streamedHereRef.current}
+                runStartedAt={runStartedAt}
                 renderClientTool={renderClientTool}
                 failure={runError?.failure}
             />
-            {activity.answer ? (
-                <div {...quoteProps}>
-                    <AnswerReveal animate={live}>
-                        <AssistantMarkdown
-                            streaming={isLiveTextItem(turn, activity.answerIndex)}
-                            text={activity.answer.text}
-                        />
-                    </AnswerReveal>
+            {answered ? (
+                <div {...quoteProps} className="flex min-w-0 flex-col gap-3">
+                    {activity.messages.map((message, at) => (
+                        <AnswerReveal
+                            key={message.index}
+                            animate={live}
+                            answer={at === activity.messages.length - 1}
+                        >
+                            <AssistantMarkdown
+                                streaming={isLiveTextItem(turn, message.index)}
+                                text={message.part.text}
+                            />
+                        </AnswerReveal>
+                    ))}
                 </div>
             ) : null}
+            {/* After the messages: a server that did not join is what the turn came to. */}
+            {mcpNotices.map((item) => (
+                <McpServerNoticeCard key={`mcp-${item.index}`} notice={item.notice} />
+            ))}
             {!live ? <TurnFiles files={writtenFiles} /> : null}
             {runError ? (
                 <>
@@ -290,7 +290,7 @@ const TurnRowInner = ({
                 <span className="text-xs italic text-colorTextSecondary">
                     No response — the agent ended its turn without answering.
                 </span>
-            ) : turn.status.stopped && !activity.answer && !live ? (
+            ) : turn.status.stopped && !answered && !live ? (
                 // Keyed on the answer the row shows, not on `hasAnswer`: a stop interrupts the
                 // running call, the fold hides that failed call, and the turn would read empty.
                 <span className="text-xs italic text-colorTextSecondary">Stopped</span>

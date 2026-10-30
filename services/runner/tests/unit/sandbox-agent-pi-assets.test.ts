@@ -44,12 +44,12 @@ import {
   resolvePiSkillSnapshot,
   resolvePiToolSpecsDelivery,
   uploadDirToSandbox,
-  uploadGatewayPiRetryToSandbox,
+  uploadRunnerPiSettingsToSandbox,
   uploadPiToolSpecsToSandbox,
   uploadSystemPromptToSandbox,
   writePiModelsConfigLocal,
   writePiToolSpecsFileLocal,
-  withGatewayPiRetry,
+  withRunnerPiSettings,
   writeSystemPromptLocal,
 } from "../../src/engines/sandbox_agent/pi-assets.ts";
 import { PUBLIC_SPECS_FILE_ENV } from "../../src/tools/tool-mcp-env.ts";
@@ -1012,9 +1012,11 @@ describe("prepareLocalPiAssets (managed/none routes through a throwaway dir)", (
     // The managed custom run authenticates from $OPENAI_API_KEY, never the operator's login.
     assert.equal(existsSync(join(runDir as string, "auth.json")), false);
     // Non-credential settings are still carried.
-    assert.equal(
-      readFileSync(join(runDir as string, "settings.json"), "utf-8"),
-      '{"model":"x"}',
+    assert.deepEqual(
+      JSON.parse(
+        readFileSync(join(runDir as string, "settings.json"), "utf-8"),
+      ),
+      { model: "x", quietStartup: true },
     );
     // The exact models.json is present and references only the env var.
     const modelsText = readFileSync(
@@ -1836,7 +1838,7 @@ describe("sandbox uploads", () => {
   });
 });
 
-describe("Pi retries on a run through the LLM gateway", () => {
+describe("the runner's Pi settings (gateway retry and quietStartup)", () => {
   const plan = (throughGateway: boolean, sourcePiAgentDir = "/unused") => ({
     isPi: true,
     isDaytona: false,
@@ -1851,17 +1853,23 @@ describe("Pi retries on a run through the LLM gateway", () => {
 
   it("keeps the operator's settings and their other retry fields", () => {
     const merged = JSON.parse(
-      withGatewayPiRetry('{"theme":"dark","retry":{"maxRetries":5,"baseDelayMs":10}}'),
+      withRunnerPiSettings(
+        '{"theme":"dark","retry":{"maxRetries":5,"baseDelayMs":10}}',
+        true,
+      ),
     );
 
     assert.deepEqual(merged, {
       theme: "dark",
+      quietStartup: true,
       retry: { maxRetries: 1, baseDelayMs: 10 },
     });
-    assert.deepEqual(JSON.parse(withGatewayPiRetry(undefined)), {
+    assert.deepEqual(JSON.parse(withRunnerPiSettings(undefined, true)), {
+      quietStartup: true,
       retry: GATEWAY_PI_RETRY,
     });
-    assert.deepEqual(JSON.parse(withGatewayPiRetry("not json")), {
+    assert.deepEqual(JSON.parse(withRunnerPiSettings("not json", true)), {
+      quietStartup: true,
       retry: GATEWAY_PI_RETRY,
     });
   });
@@ -1877,19 +1885,29 @@ describe("Pi retries on a run through the LLM gateway", () => {
     dirs.push(runDir as string);
 
     assert.deepEqual(
-      JSON.parse(readFileSync(join(runDir as string, "settings.json"), "utf-8")),
-      { model: "x", retry: { maxRetries: 1 } },
+      JSON.parse(
+        readFileSync(join(runDir as string, "settings.json"), "utf-8"),
+      ),
+      { model: "x", quietStartup: true, retry: { maxRetries: 1 } },
     );
   });
 
-  it("leaves Pi's own retries on a run that goes straight to the provider", () => {
-    const { dir: runDir } = prepareLocalPiAssets({ plan: plan(false), env: {} });
+  it("leaves Pi's own retries on a run that goes straight to the provider, and quiets the banner", () => {
+    const { dir: runDir } = prepareLocalPiAssets({
+      plan: plan(false),
+      env: {},
+    });
     dirs.push(runDir as string);
 
-    assert.equal(existsSync(join(runDir as string, "settings.json")), false);
+    assert.deepEqual(
+      JSON.parse(
+        readFileSync(join(runDir as string, "settings.json"), "utf-8"),
+      ),
+      { quietStartup: true },
+    );
   });
 
-  it("merges the retry into a Daytona sandbox's settings.json", async () => {
+  it("merges the runner's settings into a Daytona sandbox's settings.json", async () => {
     const written: Record<string, string> = {};
     const sandbox = {
       readFsFile: async () => new TextEncoder().encode('{"model":"y"}'),
@@ -1899,12 +1917,32 @@ describe("Pi retries on a run through the LLM gateway", () => {
       },
     };
 
-    await uploadGatewayPiRetryToSandbox(sandbox, "/home/sandbox/.pi/agent");
+    await uploadRunnerPiSettingsToSandbox(
+      sandbox,
+      "/home/sandbox/.pi/agent",
+      true,
+    );
+    assert.deepEqual(
+      JSON.parse(written["/home/sandbox/.pi/agent/settings.json"]),
+      {
+        model: "y",
+        quietStartup: true,
+        retry: { maxRetries: 1 },
+      },
+    );
 
-    assert.deepEqual(JSON.parse(written["/home/sandbox/.pi/agent/settings.json"]), {
-      model: "y",
-      retry: { maxRetries: 1 },
-    });
+    await uploadRunnerPiSettingsToSandbox(
+      sandbox,
+      "/home/sandbox/.pi/agent",
+      false,
+    );
+    assert.deepEqual(
+      JSON.parse(written["/home/sandbox/.pi/agent/settings.json"]),
+      {
+        model: "y",
+        quietStartup: true,
+      },
+    );
   });
 
   it("gives an in-process session the retry it is handed", async () => {
@@ -1925,7 +1963,10 @@ describe("Pi retries on a run through the LLM gateway", () => {
       log: () => {},
     });
     try {
-      assert.equal(opened.session.settingsManager.getRetrySettings().maxRetries, 1);
+      assert.equal(
+        opened.session.settingsManager.getRetrySettings().maxRetries,
+        1,
+      );
     } finally {
       opened.session.dispose();
       await opened.cleanup();

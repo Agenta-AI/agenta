@@ -34,6 +34,7 @@ export const OnboardingFlowScreen = ({
                     projectId={projectId}
                     entityId={entityId}
                     userId={profile.user?.id ?? null}
+                    userEmail={profile.user?.email ?? null}
                     homeUrl={projectHomeUrl({workspaceId, projectId})}
                 />
             ) : (
