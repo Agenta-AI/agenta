@@ -27,6 +27,12 @@ class SecretsDBE(Base, SecretsDBA):
             ["organizations.id"],
             ondelete="CASCADE",
         ),
+        ForeignKeyConstraint(
+            ["user_id"],
+            ["users.id"],
+            ondelete="CASCADE",
+            name="fk_secrets_user_id",
+        ),
         Index(
             "uq_secrets_project_id_slug",
             "project_id",
@@ -41,7 +47,18 @@ class SecretsDBE(Base, SecretsDBA):
             "organization_id",
             "slug",
             unique=True,
-            postgresql_where=text("project_id IS NULL AND slug IS NOT NULL"),
+            postgresql_where=text(
+                "project_id IS NULL AND user_id IS NULL AND slug IS NOT NULL"
+            ),
+        ),
+        # Each person's slugs, per organization.
+        Index(
+            "uq_secrets_user_slug",
+            "organization_id",
+            "user_id",
+            "slug",
+            unique=True,
+            postgresql_where=text("user_id IS NOT NULL"),
         ),
         Index(
             "ix_secrets_organization_id",
@@ -49,8 +66,14 @@ class SecretsDBE(Base, SecretsDBA):
             postgresql_where=text("project_id IS NULL"),
         ),
         CheckConstraint(
-            "num_nonnulls(project_id, organization_id) = 1",
+            "(project_id IS NOT NULL AND organization_id IS NULL AND user_id IS NULL) "
+            "OR (project_id IS NULL AND organization_id IS NOT NULL)",
             name="ck_secrets_single_owner",
+        ),
+        CheckConstraint(
+            "user_id IS NULL OR kind IN "
+            "('CUSTOM_SECRET', 'SUBSCRIPTION_PROVIDER', 'OAUTH_GRANT', 'MCP_TOKEN')",
+            name="ck_secrets_user_kinds",
         ),
         CheckConstraint(
             "availability IN ('all_projects', 'selected_projects')",

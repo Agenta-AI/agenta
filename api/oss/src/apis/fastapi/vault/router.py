@@ -20,7 +20,11 @@ from oss.src.core.secrets.dtos import (
     SecretResponseDTO,
     PublicSecretResponseDTO,
 )
-from oss.src.core.secrets.enums import SecretAvailability, SecretKind
+from oss.src.core.secrets.enums import (
+    PERSONAL_SECRET_KINDS,
+    SecretAvailability,
+    SecretKind,
+)
 from oss.src.core.secrets.managed import ManagedSecretReadOnlyError
 from oss.src.core.secrets.redaction import (
     organization_connection_response,
@@ -33,6 +37,7 @@ from oss.src.core.secrets.subscription_service import (
     SubscriptionLoginService,
 )
 from oss.src.core.secrets.types import (
+    PersonalSecretKindNotSupported,
     OrganizationSecretKindNotShareable,
     OrganizationSecretNotFound,
     OrganizationSecretNotServed,
@@ -45,7 +50,6 @@ from oss.src.core.secrets.types import (
     SubscriptionLoginAttemptNotFound,
     SubscriptionLoginRunnerNotConfigured,
     SubscriptionLoginRunnerUnavailable,
-    SubscriptionProviderConflict,
     SubscriptionProviderMismatch,
     SubscriptionSecretNotFound,
     SubscriptionTokenError,
@@ -63,6 +67,7 @@ from oss.src.apis.fastapi.vault.models import (
     SubscriptionTokenRequest,
 )
 from oss.src.apis.fastapi.shared.runner_auth import assert_runner_token
+from oss.src.apis.fastapi.shared.personal import require_person
 
 from oss.src.core.access.context import get_request_access
 from oss.src.core.access.organizations import OrganizationAction, decide_organization
@@ -79,7 +84,10 @@ ORGANIZATION_DENIED_MESSAGE = (
     "organization credentials."
 )
 
-Scope = Literal["project", "organization"]
+# Whose rows a route acts on. `user` is the caller's own rows in the request's
+# organization. A subscription login route takes only `LoginScope`.
+Scope = Literal["project", "organization", "user"]
+LoginScope = Literal["project", "organization"]
 
 _UNPROCESSABLE = (
     OrganizationSecretKindNotShareable,
@@ -113,6 +121,11 @@ def handle_secrets_exceptions():
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=e.message,
                 ) from e
+            except PersonalSecretKindNotSupported as e:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail={"code": e.code, "message": e.message},
+                ) from None
             except SecretValueRequiredError as e:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST, detail=e.message
@@ -139,7 +152,6 @@ def handle_secrets_exceptions():
             # A managed row's state, not the payload, forbids the change: 409, not 400.
             except (
                 SecretSlugConflict,
-                SubscriptionProviderConflict,
                 SubscriptionProviderMismatch,
                 ManagedSecretReadOnlyError,
             ) as e:
@@ -415,6 +427,15 @@ class VaultRouter:
     @intercept_exceptions()
     @handle_secrets_exceptions()
     async def create_secret(self, request: Request, body: CreateSecretDTO):
+        if body.scope == "user":
+            organization_id, user_id = require_person(request)
+            secret = await self.service.create_personal_secret(
+                organization_id=organization_id,
+                user_id=user_id,
+                create_secret_dto=body,
+            )
+            return self._for_caller(request, secret)
+
         if body.scope == "organization":
             organization_id = await self._require_organization(request)
             secret = await self.service.create_organization_secret(
@@ -441,6 +462,14 @@ class VaultRouter:
         include_organization: bool = False,
         scope: Scope = "project",
     ):
+        if scope == "user":
+            # The caller's own rows in this organization; never their MCP sign-ins.
+            organization_id, user_id = require_person(request)
+            secrets = await self.service.list_personal_secrets(
+                organization_id=organization_id, user_id=user_id
+            )
+            return [self._for_caller(request, secret) for secret in secrets]
+
         if scope == "organization":
             # Every connection of the organization, with the projects that may use it.
             organization_id = await self._require_organization(request)
@@ -525,6 +554,9 @@ class VaultRouter:
         secret_id_or_slug: str,
         scope: Scope = "project",
     ):
+        if scope == "user":
+            return await self._read_personal_secret(request, secret_id_or_slug)
+
         if scope == "organization":
             # The run's own credential gets the login it named; an owner or admin reads
             # the connection by id, without its value.
@@ -580,6 +612,20 @@ class VaultRouter:
         body: UpdateSecretDTO,
         scope: Scope = "project",
     ):
+        if scope == "user":
+            organization_id, user_id = require_person(request)
+            secret = await self.service.update_personal_secret(
+                organization_id=organization_id,
+                user_id=user_id,
+                secret_id=UUID(secret_id),
+                update_secret_dto=body,
+            )
+            if secret is None:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND, detail="Secret not found"
+                )
+            return self._for_caller(request, secret)
+
         if scope == "organization":
             organization_id = await self._require_organization(request)
             secret = await self.service.update_organization_secret(
@@ -627,6 +673,25 @@ class VaultRouter:
     async def delete_secret(
         self, request: Request, secret_id: str, scope: Scope = "project"
     ):
+        if scope == "user":
+            # Like a project delete: an id that is not one of the caller's rows deletes
+            # nothing and still answers 204.
+            organization_id, user_id = require_person(request)
+            stored = await self.service.get_personal_secret_by_id(
+                organization_id=organization_id,
+                user_id=user_id,
+                secret_id=UUID(secret_id),
+            )
+            # Only the kinds these routes serve; an MCP sign-in goes through the MCP
+            # disconnect route.
+            if stored is not None and stored.kind in PERSONAL_SECRET_KINDS:
+                await self.service.delete_personal_secret(
+                    organization_id=organization_id,
+                    user_id=user_id,
+                    secret_id=stored.id,
+                )
+            return status.HTTP_204_NO_CONTENT
+
         if scope == "organization":
             organization_id = await self._require_organization(request)
             if not await self.service.delete_organization_secret(
@@ -662,7 +727,31 @@ class VaultRouter:
                     ),
                 )
 
-    async def _owner_ids(self, request: Request, scope: Scope) -> dict:
+    async def _read_personal_secret(self, request: Request, secret_id_or_slug: str):
+        """One of the caller's own custom secrets, by id or slug. Another kind is not
+        found here."""
+        organization_id, user_id = require_person(request)
+        try:
+            secret_id = UUID(secret_id_or_slug)
+        except ValueError:
+            secret = await self.service.get_personal_secret_by_slug(
+                organization_id=organization_id,
+                user_id=user_id,
+                slug=secret_id_or_slug,
+            )
+        else:
+            secret = await self.service.get_personal_secret_by_id(
+                organization_id=organization_id,
+                user_id=user_id,
+                secret_id=secret_id,
+            )
+        if secret is None or secret.kind not in PERSONAL_SECRET_KINDS:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Secret not found"
+            )
+        return self._for_caller(request, secret)
+
+    async def _owner_ids(self, request: Request, scope: LoginScope) -> dict:
         """The owner a subscription route acts for, after its access check."""
         if scope == "organization":
             return {"organization_id": await self._require_organization(request)}
@@ -676,7 +765,7 @@ class VaultRouter:
         request: Request,
         secret_id: UUID,
         body: SubscriptionTokenRequest,
-        scope: Scope = "project",
+        scope: LoginScope = "project",
     ):
         owner = await self._owner_ids(request, scope)
         secret = await self.subscription_login_service.set_subscription_token(
@@ -692,7 +781,7 @@ class VaultRouter:
     @intercept_exceptions()
     @handle_secrets_exceptions()
     async def start_subscription_login(
-        self, request: Request, secret_id: UUID, scope: Scope = "project"
+        self, request: Request, secret_id: UUID, scope: LoginScope = "project"
     ):
         view = await self.subscription_login_service.start_attempt(
             **await self._owner_ids(request, scope),
@@ -708,7 +797,7 @@ class VaultRouter:
         request: Request,
         secret_id: UUID,
         attempt_id: str,
-        scope: Scope = "project",
+        scope: LoginScope = "project",
     ):
         view = await self.subscription_login_service.read_attempt(
             **await self._owner_ids(request, scope),
@@ -725,7 +814,7 @@ class VaultRouter:
         request: Request,
         secret_id: UUID,
         attempt_id: str,
-        scope: Scope = "project",
+        scope: LoginScope = "project",
     ):
         view = await self.subscription_login_service.cancel_attempt(
             **await self._owner_ids(request, scope),
@@ -769,7 +858,7 @@ class VaultRouter:
         request: Request,
         secret_id: UUID,
         body: SubscriptionLoginPushRequest,
-        scope: Scope = "project",
+        scope: LoginScope = "project",
     ):
         # The caller here is the run's own credential, not an editor, so this is the pair
         # the mount sign route uses rather than EDIT_SECRET. The grant is what proves the
@@ -794,7 +883,7 @@ class VaultRouter:
         request: Request,
         secret_id: UUID,
         body: SubscriptionLoginFailureRequest,
-        scope: Scope = "project",
+        scope: LoginScope = "project",
     ):
         self._require_platform_runtime(request)
         await self._require(request, Permission.RUN_SESSIONS, Permission.USE_MOUNTS)

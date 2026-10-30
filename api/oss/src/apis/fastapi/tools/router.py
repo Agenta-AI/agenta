@@ -4,7 +4,7 @@ import json
 import re
 from datetime import datetime, timezone
 from functools import wraps
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional, Tuple
 from urllib.parse import urlsplit
 from uuid import UUID, uuid4
 
@@ -14,6 +14,9 @@ from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import HTMLResponse, JSONResponse
 
 from oss.src.core.access.principals import access_denied_error
+from oss.src.core.secrets.dtos import SecretOwner
+from oss.src.apis.fastapi.shared.personal import require_person, signed_in_person
+from oss.src.core.account_choices.policy import personal_accounts_enabled
 from oss.src.core.access.service import get_access_service
 from oss.src.core.access.types import AccessDenied
 from oss.src.core.access.dtos import RunEnvelope
@@ -53,6 +56,7 @@ from oss.src.core.tools.dtos import (
     ToolCatalogIntegrationDetails,  # noqa: F401
     #
     ToolCall,
+    ToolConnection,
     ToolResult,
     ToolResultData,
     #
@@ -128,6 +132,10 @@ _GATEWAY_SEARCH_CALL_REF = "gateway.search"
 _GATEWAY_RUN_CALL_REF = "gateway.run"
 
 _SLUG_SEGMENT_RE = re.compile(r"[a-zA-Z0-9_-]+")
+
+
+# Whose connections a create or a query acts on: the project's, or the caller's own.
+ConnectionScope = Literal["project", "user"]
 
 log = get_module_logger(__name__)
 
@@ -533,6 +541,14 @@ class ToolsRouter:
             self.revoke_connection,
             methods=["POST"],
             operation_id="revoke_tool_connection",
+            response_model=ToolConnectionResponse,
+            response_model_exclude_none=True,
+        )
+        self.router.add_api_route(
+            "/connections/{connection_id}/make-default",
+            self.make_default_connection,
+            methods=["POST"],
+            operation_id="make_default_tool_connection",
             response_model=ToolConnectionResponse,
             response_model_exclude_none=True,
         )
@@ -991,8 +1007,22 @@ class ToolsRouter:
         *,
         provider_key: Optional[str] = Query(default=None),
         integration_key: Optional[str] = Query(default=None),
+        scope: ConnectionScope = Query(default="project"),
     ) -> ToolConnectionsResponse:
-        """Query connections with optional filtering."""
+        """Query connections with optional filtering. `scope=user`: the caller's own
+        connections in the request's organization."""
+        if scope == "user":
+            organization_id, user_id = require_person(request)
+            connections = await self.tools_service.query_personal_connections(
+                organization_id=organization_id,
+                user_id=user_id,
+                provider_key=provider_key,
+                integration_key=integration_key,
+            )
+            return ToolConnectionsResponse(
+                count=len(connections), connections=connections
+            )
+
         has_permission = await check_action_access(
             user_uid=request.state.user_id,
             project_id=request.state.project_id,
@@ -1017,15 +1047,25 @@ class ToolsRouter:
         request: Request,
         *,
         body: ToolConnectionCreateRequest,
+        scope: ConnectionScope = Query(default="project"),
     ) -> ToolConnectionResponse:
-        """Create a new tool connection."""
-        has_permission = await check_action_access(
-            user_uid=request.state.user_id,
-            project_id=request.state.project_id,
-            permission=Permission.EDIT_TOOLS,
-        )
-        if not has_permission:
-            raise FORBIDDEN_EXCEPTION
+        """Create a new tool connection. `scope=user`: the caller's own connection, in
+        the request's organization. A person's first connection for an integration
+        becomes their default."""
+        owner: Optional[SecretOwner] = None
+        if scope == "user":
+            organization_id, user_id = require_person(request)
+            owner = SecretOwner.for_user(
+                organization_id=organization_id, user_id=user_id
+            )
+        else:
+            has_permission = await check_action_access(
+                user_uid=request.state.user_id,
+                project_id=request.state.project_id,
+                permission=Permission.EDIT_TOOLS,
+            )
+            if not has_permission:
+                raise FORBIDDEN_EXCEPTION
 
         slug = body.connection.slug
         if "." in slug or "__" in slug:
@@ -1046,6 +1086,7 @@ class ToolsRouter:
                 user_id=UUID(request.state.user_id),
                 #
                 connection_create=body.connection,
+                owner=owner,
             )
         except ConnectionAdapterError as e:
             # Composio has no managed ("use_composio_managed_auth") auth config for
@@ -1078,19 +1119,16 @@ class ToolsRouter:
         request: Request,
         connection_id: UUID,
     ) -> ToolConnectionResponse:
-        """Get a connection by ID."""
-        has_permission = await check_action_access(
-            user_uid=request.state.user_id,
-            project_id=request.state.project_id,
-            permission=Permission.VIEW_TOOLS,
+        """Get a connection by ID: the caller's own, or one of the project's."""
+        owner, connection = await self._connection_owner(
+            request, connection_id, permission=Permission.VIEW_TOOLS
         )
-        if not has_permission:
-            raise FORBIDDEN_EXCEPTION
 
-        connection = await self.tools_service.get_connection(
-            project_id=UUID(request.state.project_id),
-            connection_id=connection_id,
-        )
+        if connection is None:
+            connection = await self.tools_service.get_connection(
+                project_id=UUID(request.state.project_id),
+                connection_id=connection_id,
+            )
         if not connection:
             return JSONResponse(
                 status_code=404,
@@ -1108,18 +1146,15 @@ class ToolsRouter:
         request: Request,
         connection_id: UUID,
     ) -> None:
-        """Delete a connection by ID."""
-        has_permission = await check_action_access(
-            user_uid=request.state.user_id,
-            project_id=request.state.project_id,
-            permission=Permission.EDIT_TOOLS,
+        """Delete a connection by ID: the caller's own, or one of the project's."""
+        owner, _ = await self._connection_owner(
+            request, connection_id, permission=Permission.EDIT_TOOLS
         )
-        if not has_permission:
-            raise FORBIDDEN_EXCEPTION
 
         await self.tools_service.delete_connection(
             project_id=UUID(request.state.project_id),
             connection_id=connection_id,
+            owner=owner,
         )
 
     @intercept_exceptions()
@@ -1131,18 +1166,15 @@ class ToolsRouter:
         force: bool = Query(default=False),
     ) -> ToolConnectionResponse:
         """Refresh a connection's credentials."""
-        has_permission = await check_action_access(
-            user_uid=request.state.user_id,
-            project_id=request.state.project_id,
-            permission=Permission.EDIT_TOOLS,
+        owner, _ = await self._connection_owner(
+            request, connection_id, permission=Permission.EDIT_TOOLS
         )
-        if not has_permission:
-            raise FORBIDDEN_EXCEPTION
 
         connection = await self.tools_service.refresh_connection(
             project_id=UUID(request.state.project_id),
             connection_id=connection_id,
             force=force,
+            owner=owner,
         )
 
         return ToolConnectionResponse(
@@ -1157,23 +1189,67 @@ class ToolsRouter:
         connection_id: UUID,
     ) -> ToolConnectionResponse:
         """Mark a connection invalid locally (does not revoke at the provider)."""
-        has_permission = await check_action_access(
-            user_uid=request.state.user_id,
-            project_id=request.state.project_id,
-            permission=Permission.EDIT_TOOLS,
+        owner, _ = await self._connection_owner(
+            request, connection_id, permission=Permission.EDIT_TOOLS
         )
-        if not has_permission:
-            raise FORBIDDEN_EXCEPTION
 
         connection = await self.tools_service.revoke_connection(
             project_id=UUID(request.state.project_id),
             connection_id=connection_id,
+            owner=owner,
         )
 
         return ToolConnectionResponse(
             count=1,
             connection=connection,
         )
+
+    @intercept_exceptions()
+    async def make_default_connection(
+        self,
+        request: Request,
+        connection_id: UUID,
+    ) -> ToolConnectionResponse:
+        """Make one of the caller's own connections their default for its integration.
+        Only a person has a default."""
+        organization_id, user_id = require_person(request)
+        connection = await self.tools_service.make_default(
+            organization_id=organization_id,
+            user_id=user_id,
+            connection_id=connection_id,
+        )
+        if connection is None:
+            raise HTTPException(
+                status_code=404,
+                detail={"code": "not_found", "message": "Connection not found."},
+            )
+        return ToolConnectionResponse(count=1, connection=connection)
+
+    async def _connection_owner(
+        self, request: Request, connection_id: UUID, *, permission: Permission
+    ) -> Tuple[Optional[SecretOwner], Optional[ToolConnection]]:
+        """Who a by-id route acts for, and the caller's own row when it is one. An id
+        names one row: the caller's own row (a signed-in person; with the switch off that
+        answers 403 `personal_accounts_disabled`), or else a row of the request's project
+        with today's permission (owner None). A row of neither answers 404 in the route."""
+        person = signed_in_person(request)
+        if person is not None:
+            owner = SecretOwner.for_user(organization_id=person[0], user_id=person[1])
+            connection = await self.tools_service.get_connection(
+                project_id=None, connection_id=connection_id, owner=owner
+            )
+            if connection is not None:
+                require_person(request)
+                return owner, connection
+
+        has_permission = await check_action_access(
+            user_uid=request.state.user_id,
+            project_id=request.state.project_id,
+            permission=permission,
+        )
+        if not has_permission:
+            raise FORBIDDEN_EXCEPTION
+        return None, None
 
     async def callback_connection(
         self,
@@ -1248,12 +1324,30 @@ class ToolsRouter:
         # Activate the connection — this is the critical path.
         conn = None
         try:
-            conn = (
-                await self.tools_service.activate_connection_by_provider_connection_id(
+            if state_payload.get("owner") == "user":
+                # A person's own connection: the signed state names the person and their
+                # organization; never a project row. Nothing activates while the
+                # deployment switch is off.
+                if not personal_accounts_enabled():
+                    return HTMLResponse(
+                        status_code=403,
+                        content=_oauth_card(
+                            success=False,
+                            error="Personal accounts are not available here.",
+                            slug=state_slug,
+                            integration_key=state_integration,
+                        ),
+                    )
+                conn = await self.tools_service.activate_personal_connection(
+                    organization_id=UUID(state_payload["organization_id"]),
+                    user_id=UUID(state_payload["user_id"]),
+                    provider_connection_id=connected_account_id,
+                )
+            else:
+                conn = await self.tools_service.activate_connection_by_provider_connection_id(
                     provider_connection_id=connected_account_id,
                     project_id=project_id,
                 )
-            )
             if not conn:
                 log.error("OAuth callback: connection not found for provider ID")
                 return HTMLResponse(

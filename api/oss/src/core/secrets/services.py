@@ -17,6 +17,7 @@ from oss.src.core.secrets.enums import (
     STANDARD_PROVIDER_DISPLAY_NAMES,
     SUBSCRIPTION_PROVIDER_DISPLAY_NAMES,
     ORGANIZATION_SECRET_KINDS,
+    PERSONAL_SECRET_KINDS,
     LLMCustomProviderKind,
     SecretAvailability,
     SecretKind,
@@ -45,9 +46,10 @@ from oss.src.core.secrets.types import (
     OrganizationSecretNotServed,
     OrganizationSecretValueNotScannable,
     OrganizationSecretValueTooShort,
+    PersonalSecretKindNotSupported,
     ProjectLimitNotAllowed,
+    SecretSlugConflict,
     ServerOwnedFieldNotWritable,
-    SubscriptionProviderConflict,
 )
 from oss.src.core.secrets.scopes import (
     available_organization_secrets,
@@ -691,32 +693,14 @@ class VaultService:
         owner: SecretOwner,
         create_secret_dto: CreateSecretDTO,
     ) -> None:
-        """Name and slug a new subscription connection, and refuse a duplicate provider.
+        """Name and slug a new subscription login.
 
-        One connection per provider per project is the whole model for now, so the slug is
-        the provider id itself and a second one is a conflict rather than a second row. The
-        unique index on (project_id, slug) would refuse it too, but as an integrity error
-        the caller cannot act on.
+        An owner may hold several logins of one provider, so a new login gets a unique slug
+        made from its name. Logins stored before this rule keep their provider slug
+        (`claude`, `chatgpt`), so saved agents that name them keep working.
         """
         provider = create_secret_dto.secret.data.provider
         provider_kind = SubscriptionProviderKind(getattr(provider, "value", provider))
-
-        with set_data_encryption_key(
-            data_encryption_key=self._data_encryption_key,
-        ):
-            secrets_dtos = await self.secrets_dao.list(owner=owner)
-
-        for secret_dto in secrets_dtos or []:
-            if secret_dto.kind != SecretKind.SUBSCRIPTION_PROVIDER:
-                continue
-            stored_provider = getattr(secret_dto.data, "provider", None)
-            if (
-                getattr(stored_provider, "value", stored_provider)
-                == provider_kind.value
-            ):
-                raise SubscriptionProviderConflict(
-                    provider=provider_kind.value, owner=owner.kind.value
-                )
 
         header = create_secret_dto.header
         if not header.name:
@@ -724,9 +708,8 @@ class VaultService:
             if owner.kind == SecretOwnerKind.ORGANIZATION:
                 header.name = f"{header.name} (Organization)"
 
-        # This is the storage identity, not the editable display identity. Keeping it canonical
-        # lets the database's (project_id, slug) unique index serialize concurrent creates.
-        create_secret_dto.slug = provider_kind.value
+        # The storage identity, never the caller's: unique, and made from the name.
+        create_secret_dto.slug = get_slug_from_name_and_id(header.name, uuid4())
 
         create_secret_dto.secret.data.provider_slug = subscription_provider_slug(
             header.name
@@ -1173,6 +1156,201 @@ class VaultService:
             await self._deregister_llm_endpoint(
                 project_id=project_id, secret_dto=deleted
             )
+
+    # -- a person's own rows -----------------------------------------------------
+    #
+    # A person owns rows inside one organization. Every read and write names the
+    # organization and the person, so no project or organization read sees these rows.
+
+    async def create_personal_secret(
+        self,
+        *,
+        organization_id: UUID,
+        user_id: UUID,
+        create_secret_dto: CreateSecretDTO,
+    ) -> SecretResponseDTO:
+        """A person's own custom secret, at the slug the caller gives (or one made from
+        its name). The slug is unique per person in the organization."""
+        reject_server_owned_fields(secret=create_secret_dto.secret)
+        if create_secret_dto.secret.kind not in PERSONAL_SECRET_KINDS:
+            raise PersonalSecretKindNotSupported(kind=create_secret_dto.secret.kind)
+        if not create_secret_dto.slug and create_secret_dto.header.name:
+            create_secret_dto.slug = get_slug_from_name_and_id(
+                create_secret_dto.header.name, uuid4()
+            )
+        with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
+            return await self.secrets_dao.create(
+                owner=SecretOwner.for_user(
+                    organization_id=organization_id, user_id=user_id
+                ),
+                create_secret_dto=create_secret_dto,
+            )
+
+    async def list_personal_secrets(
+        self, *, organization_id: UUID, user_id: UUID
+    ) -> List[SecretResponseDTO]:
+        """The person's own custom secrets in the organization. Their MCP sign-ins and
+        any other kind stay out: the vault routes serve only `PERSONAL_SECRET_KINDS`."""
+        with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
+            secrets = await self.secrets_dao.list(
+                owner=SecretOwner.for_user(
+                    organization_id=organization_id, user_id=user_id
+                )
+            )
+        return [secret for secret in secrets if secret.kind in PERSONAL_SECRET_KINDS]
+
+    async def get_personal_secret_by_id(
+        self, *, organization_id: UUID, user_id: UUID, secret_id: UUID
+    ) -> Optional[SecretResponseDTO]:
+        with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
+            return await self.secrets_dao.get_by_id(
+                owner=SecretOwner.for_user(
+                    organization_id=organization_id, user_id=user_id
+                ),
+                secret_id=secret_id,
+            )
+
+    async def get_personal_secret_by_slug(
+        self, *, organization_id: UUID, user_id: UUID, slug: str
+    ) -> Optional[SecretResponseDTO]:
+        with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
+            return await self.secrets_dao.get_by_slug(
+                owner=SecretOwner.for_user(
+                    organization_id=organization_id, user_id=user_id
+                ),
+                secret_slug=slug,
+            )
+
+    async def update_personal_secret(
+        self,
+        *,
+        organization_id: UUID,
+        user_id: UUID,
+        secret_id: UUID,
+        update_secret_dto: UpdateSecretDTO,
+    ) -> Optional[SecretResponseDTO]:
+        """Edit one of the person's custom secrets. A sign-in is not edited here."""
+        reject_server_owned_fields(secret=update_secret_dto.secret)
+
+        def resolve_update(
+            stored_secret_dto: SecretResponseDTO,
+            requested_update: UpdateSecretDTO,
+        ) -> UpdateSecretDTO:
+            if stored_secret_dto.kind not in PERSONAL_SECRET_KINDS:
+                raise PersonalSecretKindNotSupported(kind=stored_secret_dto.kind)
+            merged = _merge_update(stored_secret_dto, requested_update)
+            if merged.secret is not None and merged.secret.kind not in (
+                PERSONAL_SECRET_KINDS
+            ):
+                raise PersonalSecretKindNotSupported(kind=merged.secret.kind)
+            return merged
+
+        with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
+            return await self.secrets_dao.update(
+                owner=SecretOwner.for_user(
+                    organization_id=organization_id, user_id=user_id
+                ),
+                secret_id=secret_id,
+                update_secret_dto=update_secret_dto,
+                user_id=user_id,
+                resolve_update=resolve_update,
+            )
+
+    async def delete_personal_secret(
+        self, *, organization_id: UUID, user_id: UUID, secret_id: UUID
+    ) -> bool:
+        with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
+            deleted = await self.secrets_dao.delete(
+                owner=SecretOwner.for_user(
+                    organization_id=organization_id, user_id=user_id
+                ),
+                secret_id=secret_id,
+                authorize_delete=_authorize_delete,
+            )
+        return deleted is not None
+
+    async def put_personal_secret(
+        self,
+        *,
+        organization_id: UUID,
+        user_id: UUID,
+        create_secret_dto: CreateSecretDTO,
+    ) -> SecretResponseDTO:
+        """Create the person's row at the given slug, or replace the data of the row at
+        the same slug and kind. Used for MCP sign-ins, which have a fixed slug."""
+        owner = SecretOwner.for_user(organization_id=organization_id, user_id=user_id)
+        slug = create_secret_dto.slug
+        if not slug:
+            raise ValueError("put_personal_secret needs a slug")
+        with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
+            for _ in range(2):
+                stored = await self.secrets_dao.get_by_slug(
+                    owner=owner, secret_slug=slug
+                )
+                if stored is None:
+                    try:
+                        return await self.secrets_dao.create(
+                            owner=owner, create_secret_dto=create_secret_dto
+                        )
+                    except SecretSlugConflict:
+                        # Another write created it first: replace its data instead.
+                        continue
+                if stored.kind != create_secret_dto.secret.kind:
+                    raise SecretSlugConflict(slug=slug)
+                updated = await self.secrets_dao.update(
+                    owner=owner,
+                    secret_id=stored.id,
+                    update_secret_dto=UpdateSecretDTO(
+                        header=create_secret_dto.header,
+                        secret=UpdateSecretPayloadDTO(
+                            kind=create_secret_dto.secret.kind,
+                            data=create_secret_dto.secret.data,
+                        ),
+                    ),
+                    user_id=user_id,
+                )
+                if updated is not None:
+                    return updated
+        raise SecretSlugConflict(slug=slug)
+
+    async def delete_personal_secret_by_slug(
+        self, *, organization_id: UUID, user_id: UUID, slug: str
+    ) -> bool:
+        stored = await self.get_personal_secret_by_slug(
+            organization_id=organization_id, user_id=user_id, slug=slug
+        )
+        if stored is None or stored.id is None:
+            return False
+        return await self.delete_personal_secret(
+            organization_id=organization_id, user_id=user_id, secret_id=stored.id
+        )
+
+    async def list_personal_sign_ins(
+        self, *, organization_id: UUID, user_id: UUID, slugs: Sequence[str]
+    ) -> List[SecretResponseDTO]:
+        """The person's MCP sign-ins at these slugs, in one statement."""
+        if not slugs:
+            return []
+        with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
+            return await self.secrets_dao.list_sign_ins(
+                owner=SecretOwner.for_user(
+                    organization_id=organization_id, user_id=user_id
+                ),
+                slugs=list(slugs),
+            )
+
+    async def delete_sign_ins(
+        self, *, organization_id: UUID, project_id: UUID, slugs: Sequence[str]
+    ) -> int:
+        """Delete the MCP sign-ins at these slugs, for the project and for every person
+        in the organization, in one statement. Returns the count."""
+        if not slugs:
+            return 0
+        deleted = await self.secrets_dao.delete_sign_ins(
+            organization_id=organization_id, project_id=project_id, slugs=list(slugs)
+        )
+        await self._invalidate_project(project_id)
+        return deleted
 
     # -- organization credentials (M5) --------------------------------------------
 
