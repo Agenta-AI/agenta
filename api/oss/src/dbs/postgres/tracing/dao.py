@@ -27,7 +27,7 @@ from sqlalchemy.orm.attributes import set_committed_value
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.exceptions import suppress_exceptions
 
-from oss.src.core.shared.dtos import RunUsage, Windowing
+from oss.src.core.shared.dtos import Windowing
 from oss.src.core.tracing.interfaces import TracingDAOInterface
 from oss.src.core.tracing.utils.trees import trace_root_usage
 from oss.src.core.tracing.dtos import (
@@ -995,12 +995,12 @@ class TracingDAO(TracingDAOInterface):
         #
         recompute: Callable[[List[OTelFlatSpan]], Dict[str, Dict[str, Any]]],
         max_spans: int,
-        on_root_usage: Optional[Callable[[RunUsage], Awaitable[None]]] = None,
+        on_root_usage: Optional[Callable[..., Awaitable[object]]] = None,
     ) -> Optional[int]:
         """Rewrite the cumulative metrics of one trace from all its stored spans.
 
         Returns the number of cumulative values written, or None when the trace has more
-        than `max_spans` spans and is skipped. `on_root_usage` gets the root's usage
+        than `max_spans` spans and is skipped. `on_root_usage` gets the root's usage (keyword `usage`)
         after the roll-up, when the trace has one. It runs before the commit, under the
         trace's lock, so two recomputes of one trace hand on their usage in order, and
         its failure rolls the recompute back.
@@ -1083,7 +1083,7 @@ class TracingDAO(TracingDAOInterface):
             if on_root_usage is not None:
                 root_usage = trace_root_usage(span_dtos)
                 if root_usage is not None:
-                    await on_root_usage(root_usage)
+                    await on_root_usage(usage=root_usage)
 
             await session.commit()
 

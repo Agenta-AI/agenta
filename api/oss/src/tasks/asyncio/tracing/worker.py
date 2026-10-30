@@ -12,7 +12,6 @@ from uuid import UUID
 from redis.asyncio import Redis
 
 from oss.src.core.tracing.service import TracingService
-from oss.src.core.shared.dtos import RunUsage
 from oss.src.core.tracing.dtos import OTelFlatSpan
 from oss.src.core.sessions.turns.service import SessionTurnsService
 from oss.src.utils.logging import get_module_logger
@@ -219,7 +218,7 @@ class TracingWorker(StreamConsumer):
                         project_id=project_id,
                         trace_id=trace_id,
                         on_root_usage=partial(
-                            self._set_turn_usage_from_trace,
+                            self.turns_service.set_turn_usage_from_trace,
                             project_id=project_id,
                             trace_id=trace_id,
                         ),
@@ -239,21 +238,3 @@ class TracingWorker(StreamConsumer):
 
         # Return count and message IDs for ACK/DEL
         return (processed_count, processed_message_ids)
-
-    async def _set_turn_usage_from_trace(
-        self,
-        usage: RunUsage,
-        *,
-        project_id: UUID,
-        trace_id: UUID,
-    ) -> None:
-        """A trace gives its root's priced usage to the turn with the same trace id. A
-        trace of no chat matches no turn, so the update writes no row. It runs under
-        the trace's recompute lock, so a later recompute writes last. A failure fails
-        the recompute, so the recompute's retries also retry this write."""
-
-        await self.turns_service.set_turn_usage_from_trace(
-            project_id=project_id,
-            trace_id=trace_id,
-            usage=usage,
-        )

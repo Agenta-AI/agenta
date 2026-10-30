@@ -130,9 +130,7 @@ class SessionTurnsDAO(SessionTurnsDAOInterface):
         if turn.agent_session_id is not None:
             values["agent_session_id"] = turn.agent_session_id
         if turn.usage is not None:
-            # The runner's figures fill only the fields that have no value: a priced
-            # trace that arrived first keeps its figures and its source, and the runner
-            # still fills a field the trace did not report.
+            # Fills only empty fields (see `set_turn_usage_from_trace` on the interface).
             for column, value in map_turn_usage_to_columns(
                 usage=turn.usage, source=SessionTurnUsageSource.RUNNER
             ).items():
@@ -198,7 +196,6 @@ class SessionTurnsDAO(SessionTurnsDAOInterface):
         trace_id: UUID,
         usage: RunUsage,
     ) -> int:
-        # A field the trace does not report keeps the value the turn has.
         values = {
             column: (
                 value
@@ -212,8 +209,7 @@ class SessionTurnsDAO(SessionTurnsDAOInterface):
                 usage=usage, source=SessionTurnUsageSource.TRACE
             ).items()
         }
-        # A trace shared by several turns (a caller's traceparent reused) holds their
-        # combined usage, which is no turn's own: those turns keep their runner value.
+        # A shared trace (a caller's traceparent reused) writes no turn.
         turns_of_trace = (
             select(func.count())
             .select_from(SessionTurnDBE)

@@ -342,7 +342,7 @@ class _UsageService(_StoringService):
     async def recompute_trace_totals(self, *, project_id, trace_id, on_root_usage=None):
         await super().recompute_trace_totals(project_id=project_id, trace_id=trace_id)
         if self.usage is not None and on_root_usage is not None:
-            await on_root_usage(self.usage)
+            await on_root_usage(usage=self.usage)
         return 0
 
 

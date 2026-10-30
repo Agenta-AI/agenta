@@ -19,9 +19,7 @@ from oss.src.core.shared.dtos import Identifier, Lifecycle, OTelSpanId, RunUsage
 
 
 class SessionTurnUsageSource(str, Enum):
-    """Where a turn's figures came from. `trace`: the priced usage of the trace root.
-    A field the trace did not report can then hold the runner's figure. `runner`: only
-    the runner reported."""
+    """Where a turn's figures came from: the trace root, or only the runner."""
 
     RUNNER = "runner"
     TRACE = "trace"

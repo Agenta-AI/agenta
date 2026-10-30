@@ -101,9 +101,6 @@ class SessionTurnsService:
         trace_id: UUID,
         usage: RunUsage,
     ) -> int:
-        """Ingest's write-back: the priced usage of a trace's root goes to its
-        turn, with source `trace`. It replaces the runner's figures it reports; a
-        runner figure fills only a field the trace left empty."""
         return await self._dao.set_turn_usage_from_trace(
             project_id=project_id,
             trace_id=trace_id,

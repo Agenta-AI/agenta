@@ -87,7 +87,7 @@ from oss.src.core.tracing.dtos import (
     SimpleTraceChannel,
     SimpleTraceReferences,
 )
-from oss.src.core.shared.dtos import Link, Reference, RunUsage
+from oss.src.core.shared.dtos import Link, Reference
 
 if TYPE_CHECKING:
     from oss.src.core.queries.service import QueriesService
@@ -144,7 +144,7 @@ class TracingService:
         *,
         project_id: UUID,
         trace_id: UUID,
-        on_root_usage: Optional[Callable[[RunUsage], Awaitable[None]]] = None,
+        on_root_usage: Optional[Callable[..., Awaitable[object]]] = None,
     ) -> Optional[int]:
         """Recompute cumulative metrics of one trace from all its stored spans.
         `on_root_usage` runs under the trace's lock."""
