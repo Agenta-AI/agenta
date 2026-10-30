@@ -133,8 +133,12 @@ class TestRequirementsOfUserItems:
             "mcp_server:user/linear",
             "secret:user/GITHUB_TOKEN",
         }
-        for item in by_key.values():
+        for key, item in by_key.items():
             assert item["account_source"] == "user"
+            if key == "mcp_server:user/linear":
+                # The project has no `linear` server: the project fixes it.
+                assert item["reason"] == "not_found"
+                continue
             assert item["reason"] == "needs_personal_account"
             # An API key is not a person: nobody can set up its own account.
             assert "fix" not in item

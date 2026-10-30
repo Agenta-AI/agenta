@@ -123,6 +123,7 @@ class _Found:
         kind: Optional[AgentRequirementKind] = None,
         candidates: int = 0,
         fixable: bool = True,
+        by_person: Optional[bool] = None,
     ) -> None:
         self.item = item
         self.kind = kind or AgentRequirementKind(item.kind)
@@ -131,10 +132,11 @@ class _Found:
         # A "user" item with no run person, with personal accounts off, or a login
         # (no flow creates one yet) has no fix.
         self.fixable = fixable
-
-    @property
-    def is_user(self) -> bool:
-        return self.item.account_source == "user"
+        # Whether the person sets it up with their own account. A "user" item whose
+        # project server is missing is the project's to fix, like an "agent" item.
+        self.by_person = (
+            item.account_source == "user" if by_person is None else by_person
+        )
 
     @property
     def is_organization(self) -> bool:
@@ -201,16 +203,16 @@ class AgentRequirementsService:
         for entry in found:
             permission = _MANAGE_PERMISSION[entry.kind]
             if (
-                not entry.is_user
+                not entry.by_person
                 and permission is not None
                 and permission not in permissions
             ):
                 permissions[permission] = await allowed(permission)
-        may_run = any(entry.is_user and entry.fixable for entry in found) and bool(
+        may_run = any(entry.by_person and entry.fixable for entry in found) and bool(
             await may_run_agent()
         )
         manages = any(
-            entry.is_organization and not entry.is_user for entry in found
+            entry.is_organization and not entry.by_person for entry in found
         ) and bool(await manages_organization())
 
         return AgentRequirements.of(
@@ -330,6 +332,18 @@ class AgentRequirementsService:
         only when there are such items and a person to resolve them for."""
         if not items:
             return []
+        found: List[_Found] = []
+        servers = [item for item in items if item.kind == _KIND.MCP_SERVER.value]
+        if servers:
+            # A person signs in to a server of the project. When the project has no such
+            # server, or it is turned off, the project fixes it, as for an "agent" item.
+            # One read, only in this check (never on the run path).
+            missing = await self._missing_servers(scope=scope, items=servers)
+            found.extend(missing)
+            left_out = {entry.item.key for entry in missing}
+            items = [item for item in items if item.item_key not in left_out]
+            if not items:
+                return found
         person = run_person_id if personal_accounts_enabled() else None
         accounts = {}
         if person is not None:
@@ -350,7 +364,6 @@ class AgentRequirementsService:
                 resolved = [ItemAccount(item_key=item.item_key) for item in items]
             accounts = {account.item_key: account for account in resolved}
 
-        found: List[_Found] = []
         for item in items:
             reference = user_item_reference(item)
             account = accounts.get(item.item_key)
@@ -386,6 +399,40 @@ class AgentRequirementsService:
                         candidates=account.candidates,
                     )
                 )
+        return found
+
+    async def _missing_servers(
+        self, *, scope: AuthScope, items: Sequence[UserItem]
+    ) -> List[_Found]:
+        """The "user" MCP items whose project server is missing or turned off."""
+        endpoints = await self.mcp_gateway_service.query_endpoints(
+            project_id=scope.project_id
+        )
+        by_slug = {
+            endpoint.slug: endpoint
+            for endpoint in endpoints
+            if endpoint.namespace == GatewayEndpointNamespace.CUSTOM and endpoint.slug
+        }
+        candidates = sum(
+            1
+            for endpoint in by_slug.values()
+            if endpoint.flags.is_active and _mcp_ready(endpoint)
+        )
+        found: List[_Found] = []
+        for item in items:
+            endpoint = by_slug.get(item.match_text)
+            if endpoint is not None and endpoint.flags.is_active:
+                continue
+            found.append(
+                _Found(
+                    user_item_reference(item),
+                    reason=(
+                        _REASON.NOT_FOUND if endpoint is None else _REASON.TURNED_OFF
+                    ),
+                    candidates=candidates,
+                    by_person=False,
+                )
+            )
         return found
 
     async def _not_shared(
@@ -664,7 +711,7 @@ class AgentRequirementsService:
         may_run: bool,
         manages_organization: bool,
     ) -> AgentRequirement:
-        if entry.is_user:
+        if entry.by_person:
             return cls._user_requirement(
                 entry, can_edit_agent=can_edit_agent, may_run=may_run
             )

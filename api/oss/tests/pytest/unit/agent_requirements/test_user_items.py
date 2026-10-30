@@ -16,11 +16,19 @@ from .test_agent_requirements_service import (
     _Vault,
     _no,
     _scope,
-    _service,
+    _mcp_endpoint,
+    _service as _base_service,
     _yes,
 )
 
 pytestmark = pytest.mark.asyncio
+
+
+def _service(mcp=None, **kwargs):
+    """The project has the `linear` server, so a "user" item can sign in to it."""
+    return _base_service(
+        mcp=mcp or _Mcp([_mcp_endpoint("linear", auth="oauth")]), **kwargs
+    )
 
 
 @pytest.fixture(autouse=True)
@@ -222,12 +230,13 @@ async def test_a_ready_account_gives_no_requirement():
 async def test_a_user_mcp_item_has_one_reader_and_no_project_sign_in_requirement():
     """The `"user"` MCP item keeps its slug, so without the one-reader rule it would
     also get an `"agent"` requirement for the project's own sign-in."""
-    mcp = _Mcp()
+    mcp = _Mcp([_mcp_endpoint("linear", auth="oauth")])
     result = await _check(
         _service(mcp=mcp, accounts=_AccountChoices()), _agent(mcps=[_linear_mcp()])
     )
     assert [requirement.key for requirement in result.requirements] == [LINEAR]
-    assert mcp.calls == 0
+    # One read of the project's servers, to know the server exists.
+    assert mcp.calls == 1
 
 
 async def test_a_user_login_blocks_the_run_and_offers_no_fix():
@@ -300,7 +309,7 @@ async def test_an_agent_without_user_items_never_calls_the_resolver():
 
 async def test_user_items_cost_one_resolve_for_the_person_who_asks():
     accounts = _AccountChoices()
-    mcp, connections = _Mcp(), _Connections()
+    mcp, connections = _Mcp([_mcp_endpoint("linear", auth="oauth")]), _Connections()
     scope = _scope()
     person, artifact = uuid4(), uuid4()
     await _service(mcp=mcp, connections=connections, accounts=accounts).check(
@@ -322,8 +331,8 @@ async def test_user_items_cost_one_resolve_for_the_person_who_asks():
     assert call["organization_id"] == scope.organization_id
     assert call["project_id"] == scope.project_id
     assert [item.item_key for item in call["items"]] == [GMAIL, LINEAR, TOKEN]
-    # The "user" items read no project store.
-    assert mcp.calls == 0 and connections.calls == 0
+    # The "user" items read no project store, except the project's MCP servers.
+    assert mcp.calls == 1 and connections.calls == 0
 
 
 # --- the turn-on check --------------------------------------------------------------- #
@@ -444,3 +453,45 @@ async def test_a_server_with_no_sign_in_is_ready_for_everyone():
         _agent(mcps=[_linear_mcp()]),
     )
     assert result.requirements == []
+
+
+@pytest.mark.parametrize(
+    "endpoints, reason",
+    [([], "not_found"), ([_mcp_endpoint("linear", active=False)], "turned_off")],
+)
+async def test_a_server_the_project_does_not_have_is_the_projects_to_fix(
+    endpoints, reason
+):
+    """Signing in cannot help: the project adds or turns on the server, as for an
+    "agent" item. The person's accounts are not read for it."""
+    accounts = _AccountChoices()
+    allowed = _Allowed(allowed=False)
+    result = await _check(
+        _service(mcp=_Mcp(endpoints), accounts=accounts),
+        _agent(mcps=[_linear_mcp()]),
+        allowed=allowed,
+    )
+    [linear] = result.requirements
+    assert (linear.key, linear.kind.value, linear.reason.value) == (
+        LINEAR,
+        "mcp_server",
+        reason,
+    )
+    assert linear.account_source == "user"
+    assert linear.fix.can_sign_in is False and linear.fix.can_connect is False
+    assert linear.fix.ask.role == "agent_editor"
+    assert accounts.calls == []
+
+
+async def test_a_project_admin_can_add_the_missing_server():
+    result = await _check(
+        _service(mcp=_Mcp([])), _agent(mcps=[_linear_mcp()]), allowed=_Allowed(True)
+    )
+    [linear] = result.requirements
+    assert linear.fix.can_connect is True and linear.fix.can_sign_in is False
+
+
+async def test_agents_without_user_mcp_items_never_read_the_servers_for_them():
+    mcp = _Mcp([])
+    await _check(_service(mcp=mcp), _agent(tools=[_gmail_tool()]))
+    assert mcp.calls == 0
