@@ -273,3 +273,10 @@ async def test_a_turn_without_user_items_sends_nothing_new_and_is_cached(exchang
     assert len(exchange.calls) == 1
     assert "item_keys" not in exchange.calls[0]
     assert "workflow_id" not in exchange.calls[0]
+
+
+async def test_an_unsaved_agent_still_names_its_user_items(exchange):
+    body = {"data": {"parameters": _agent(tools=[GMAIL])}}
+    await auth_module.get_credentials(_BodyRequest(body), "http://agenta.test")
+    assert exchange.calls[0]["item_keys"] == ["app_connection:user/gmail"]
+    assert "workflow_id" not in exchange.calls[0]

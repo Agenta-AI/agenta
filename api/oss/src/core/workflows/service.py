@@ -417,8 +417,10 @@ def _artifact_id_of_references(references: Optional[dict]) -> Optional[UUID]:
             if isinstance(reference, dict)
             else getattr(reference, "id", None)
         )
+        if not reference_id:
+            continue
         try:
-            return UUID(str(reference_id)) if reference_id else None
+            return UUID(str(reference_id))
         except ValueError:
             continue
     return None

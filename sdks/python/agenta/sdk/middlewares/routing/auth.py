@@ -154,9 +154,14 @@ async def _run_accounts_params(request: Request) -> Dict[str, Any]:
             if isinstance(reference, dict) and reference.get("id"):
                 workflow_id = str(reference["id"])
                 break
-    if not items or not workflow_id:
+    if not items:
         return {}
-    return {"workflow_id": workflow_id, "item_keys": [item.item_key for item in items]}
+    # Without a saved agent there are no account choices; defaults and sign-ins still
+    # resolve, so the keys go either way.
+    params: Dict[str, Any] = {"item_keys": [item.item_key for item in items]}
+    if workflow_id:
+        params["workflow_id"] = workflow_id
+    return params
 
 
 async def get_credentials(

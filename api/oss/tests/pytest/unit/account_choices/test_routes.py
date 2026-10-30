@@ -225,7 +225,7 @@ def vault_world(state, monkeypatch):
     install_cache_engine(monkeypatch)
 
     async def allow(**kwargs):
-        return True
+        return state["allowed"]
 
     monkeypatch.setattr(vault_router_module, "check_action_access", allow)
     dao = InMemorySecretsDAO(projects={state["project"]: state["organization"]})
@@ -280,3 +280,40 @@ async def test_secrets_resolve_returns_only_the_claims_secrets(state, vault_worl
     # Another person's run never reads it, even with the same claim.
     state["person"] = uuid4()
     assert client.post("/secrets/resolve", json=keys).json()["count"] == 0
+
+
+async def test_secrets_resolve_serves_two_items_on_one_secret_and_needs_view_secret(
+    state, vault_world
+):
+    client, vault, _ = vault_world
+    secret = await vault.create_personal_secret(
+        organization_id=state["organization"],
+        user_id=state["person"],
+        create_secret_dto=CreateSecretDTO.model_validate(
+            {
+                "header": {"name": "GitHub"},
+                "secret": {
+                    "kind": "custom_secret",
+                    "data": {"secret": {"format": "text", "content": "ghp-value"}},
+                },
+            }
+        ),
+    )
+    other_key = "secret:user/GH_TOKEN"
+    state["credential"] = "run_credential"
+    state["run_accounts"] = run_accounts_from_claim(
+        [
+            {"item_key": TOKEN_KEY, "secret_id": str(secret.id)},
+            {"item_key": other_key, "secret_id": str(secret.id)},
+        ]
+    )
+    body = client.post(
+        "/secrets/resolve", json={"item_keys": [TOKEN_KEY, other_key]}
+    ).json()
+    assert sorted(item["item_key"] for item in body["item_secrets"]) == sorted(
+        [TOKEN_KEY, other_key]
+    )
+
+    state["allowed"] = False
+    response = client.post("/secrets/resolve", json={"item_keys": [TOKEN_KEY]})
+    assert response.status_code == 403

@@ -184,3 +184,18 @@ async def test_the_switch_off_reads_nothing(monkeypatch, service):
         is None
     )
     assert service.calls == []
+
+
+def test_the_agent_of_a_run_is_read_from_any_artifact_reference():
+    from oss.src.core.workflows.service import _artifact_id_of_references
+
+    agent = uuid4()
+    assert _artifact_id_of_references({"application": {"id": str(agent)}}) == agent
+    assert (
+        _artifact_id_of_references(
+            {"workflow": {"id": "not-a-uuid"}, "application": {"id": str(agent)}}
+        )
+        == agent
+    )
+    assert _artifact_id_of_references({"workflow_revision": {"id": str(agent)}}) is None
+    assert _artifact_id_of_references(None) is None

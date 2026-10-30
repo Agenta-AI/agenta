@@ -15,11 +15,8 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from oss.src.core.secrets.enums import SecretKind
 
+# A "user" item key (`<kind>:user/<match text>`): the SDK builds it and owns its shape.
 from agenta.sdk.agents.accounts import USER_ITEM_KEY_PATTERN
-
-# The text of a "user" item key: `<kind>:user/<match text>`. The SDK builds it and owns
-# its shape (`agenta.sdk.agents.accounts`).
-ITEM_KEY_PATTERN = USER_ITEM_KEY_PATTERN
 
 
 # The most "user" items one run names. A route refuses a longer list; the credential
@@ -52,7 +49,7 @@ class AccountChoiceUpsert(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     workflow_id: UUID
-    item_key: str = Field(pattern=ITEM_KEY_PATTERN)
+    item_key: str = Field(pattern=USER_ITEM_KEY_PATTERN)
     secret_id: Optional[UUID] = None
     gateway_connection_id: Optional[UUID] = None
 
@@ -66,7 +63,7 @@ class AccountChoiceQuery(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     workflow_id: Optional[UUID] = None
-    item_key: Optional[str] = Field(default=None, pattern=ITEM_KEY_PATTERN)
+    item_key: Optional[str] = Field(default=None, pattern=USER_ITEM_KEY_PATTERN)
     secret_ids: Optional[List[UUID]] = None
     gateway_connection_ids: Optional[List[UUID]] = None
 
@@ -88,7 +85,7 @@ class RunAccount(BaseModel):
 
     model_config = ConfigDict(frozen=True, extra="forbid")
 
-    item_key: str = Field(pattern=ITEM_KEY_PATTERN)
+    item_key: str = Field(pattern=USER_ITEM_KEY_PATTERN)
     secret_id: Optional[UUID] = None
     gateway_connection_id: Optional[UUID] = None
 

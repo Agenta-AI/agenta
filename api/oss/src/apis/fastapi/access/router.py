@@ -323,9 +323,8 @@ class AccessRouter:
             run_accounts=await _run_accounts_of_exchange(
                 request,
                 envelope=envelope,
-                # Typed only when FastAPI parsed the query; a direct call passes defaults.
-                workflow_id=workflow_id if isinstance(workflow_id, UUID) else None,
-                item_keys=item_keys if isinstance(item_keys, list) else None,
+                workflow_id=workflow_id,
+                item_keys=item_keys,
             ),
             user_id=user_id,
             user_email=getattr(request.state, "user_email", None),
