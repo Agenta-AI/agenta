@@ -1548,6 +1548,7 @@ mcp_gateway_service = MCPGatewayService(
     resolver=mcp_secrets_resolver,
     connections_service=connections_service,
     agenta_tools_router=tools,
+    workflows_service=workflows_service,
     upstream_registry=MCPUpstreamRegistry(
         adapters={
             "http": HttpMCPAdapter(),

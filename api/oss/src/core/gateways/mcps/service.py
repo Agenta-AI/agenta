@@ -29,6 +29,7 @@ from oss.src.core.gateways.dtos import (
 )
 from oss.src.core.gateways.mcps.dtos import (
     AGENTA_PROVIDER,
+    PLUGIN_PROVIDER,
     COMPOSIO_PROVIDER,
     MANAGED_PROVIDER,
     MOCK_PROVIDER,
@@ -109,6 +110,7 @@ if TYPE_CHECKING:
 
 _BUILTIN_ADAPTER_KEYS: Dict[str, str] = {
     AGENTA_PROVIDER: "agenta",
+    PLUGIN_PROVIDER: "plugin",
     MOCK_PROVIDER: "mock",
 }
 
@@ -265,6 +267,7 @@ class MCPGatewayService:
         upstream_registry: MCPUpstreamRegistry,
         connections_service: ConnectionsService,
         agenta_tools_router: Optional[Any] = None,
+        workflows_service: Optional[Any] = None,
         oauth_refresher: Optional[MCPOAuthRefresherInterface] = None,
         managed_tools: Optional[ManagedMCPAdapter] = None,
     ) -> None:
@@ -274,6 +277,7 @@ class MCPGatewayService:
         self.upstream_registry = upstream_registry
         self.connections_service = connections_service
         self.agenta_tools_router = agenta_tools_router
+        self.workflows_service = workflows_service
         # Absent only in tests that never resolve an OAuth endpoint; a deployment wires
         # the connect service, which is what knows how to spend a refresh token.
         self.oauth_refresher = oauth_refresher
@@ -896,6 +900,38 @@ class MCPGatewayService:
             )
             return result
 
+        if (
+            provider == PLUGIN_PROVIDER
+            and namespace == GatewayEndpointNamespace.BUILTIN
+        ):
+            from oss.src.core.gateways.mcps.providers.plugin.adapter import (
+                PluginMCPAdapter,
+            )
+
+            try:
+                if (
+                    self.workflows_service is None
+                    or self.agenta_tools_router is None
+                    or request is None
+                ):
+                    raise MCPEndpointNotFoundError(namespace=namespace, name=name)
+                result = await PluginMCPAdapter(
+                    workflows_service=self.workflows_service,
+                    tools_router=self.agenta_tools_router,
+                ).relay(
+                    request=request, project_id=scope.project_id, slug=name, body=body
+                )
+            except MCPEndpointNotFoundError:
+                await record(GatewayOutcome(status_code=404))
+                raise
+            except Exception:
+                await record(GatewayOutcome(status_code=500))
+                raise
+            await record(
+                self._outcome_for(result=result, auth=MCPDirectAuth(secret=None))
+            )
+            return result
+
         # Managed actions dial no gateway upstream either. The executor admits and bills
         # each `tools/call`; the context comes from the credential, never the body.
         if provider == MANAGED_PROVIDER and self.managed_tools is not None:
@@ -1054,6 +1090,24 @@ class MCPGatewayService:
         provider: Optional[str],
         integration: Optional[str],
     ) -> _ResolvedTarget:
+        if (
+            namespace == GatewayEndpointNamespace.BUILTIN
+            and provider == PLUGIN_PROVIDER
+        ):
+            return _ResolvedTarget(
+                namespace=namespace,
+                name=name,
+                provider=provider,
+                endpoint=MCPEndpoint(
+                    slug=name,
+                    name=name,
+                    auth_mode=MCPAuthScheme.NONE,
+                    namespace=namespace,
+                    provider_key=PLUGIN_PROVIDER,
+                    data=MCPEndpointData(route=MCPEndpointRoute()),
+                ),
+            )
+
         if (
             namespace == GatewayEndpointNamespace.BUILTIN
             and provider == AGENTA_PROVIDER

@@ -32,6 +32,7 @@ MCPAuthScheme = GatewayAuthScheme
 
 # Builtin MCP providers.
 AGENTA_PROVIDER = "agenta"
+PLUGIN_PROVIDER = "plugin"
 COMPOSIO_PROVIDER = "composio"
 MOCK_PROVIDER = "mock"
 # Paid actions on provider accounts Agenta holds (`core/managed_tools`).
