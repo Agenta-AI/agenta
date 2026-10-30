@@ -1,4 +1,3 @@
-import {useProfile} from "@agenta/entities/profile"
 import {ProjectsPage} from "@agenta/settings-ui"
 import {
     AlertDialog,
@@ -19,6 +18,7 @@ import {useProjectPermission} from "../context/useProjectPermission"
 import {NameDialog} from "./NameDialog"
 import type {SettingsTabProps} from "./settingsTabProps"
 import {switchSettingsContext} from "./switchContext"
+import {useOrganizationOwner} from "./useOrganizationOwner"
 import {useSettingsOrg} from "./useSettingsOrg"
 
 /**
@@ -29,14 +29,12 @@ import {useSettingsOrg} from "./useSettingsOrg"
 export const ProjectsTab = ({workspaceId, projectId}: SettingsTabProps) => {
     const router = useRouter()
     const queryClient = useQueryClient()
-    const {projects: query, org} = useSettingsOrg(workspaceId)
-    const {user} = useProfile()
+    const {projects: query} = useSettingsOrg(workspaceId)
     const canCreate = useProjectPermission(projectId, "create_workspace")
     const canEdit = useProjectPermission(projectId, "edit_workspace")
     // Deleting a project loses its data for good, so the API keeps it with the organization
     // owner on every plan. No permission marks that: the owner id does.
-    const ownerId = org.data?.owner_id
-    const canDelete = Boolean(ownerId && user?.id && ownerId === user.id)
+    const canDelete = useOrganizationOwner(workspaceId).isOwner
     return (
         <ProjectsPage
             projects={query.data ?? []}

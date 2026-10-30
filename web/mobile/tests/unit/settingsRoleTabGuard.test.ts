@@ -5,6 +5,7 @@ const env = vi.hoisted(() => ({
     allowed: true,
     pending: false,
     owner: true,
+    profilePending: false,
 }))
 
 vi.mock("react", () => ({useMemo: (fn: () => unknown) => fn()}))
@@ -20,7 +21,12 @@ vi.mock("../../src/features/context/useProjectPermission", () => ({
     useProjectPermission: () => env.allowed,
     useProjectPermissionState: () => ({allowed: env.allowed, pending: env.pending}),
 }))
-vi.mock("@agenta/entities/profile", () => ({useProfile: () => ({user: {id: "person-1"}})}))
+vi.mock("@agenta/entities/profile", () => ({
+    useProfile: () =>
+        env.profilePending
+            ? {user: null, isPending: true}
+            : {user: {id: "person-1"}, isPending: false},
+}))
 vi.mock("../../src/features/settings/useSettingsOrg", () => ({
     useSettingsOrg: () => ({
         projects: {data: [], isPending: false, isError: false},
@@ -46,6 +52,7 @@ beforeEach(() => {
     env.allowed = true
     env.pending = false
     env.owner = true
+    env.profilePending = false
 })
 
 describe("tabs a role cannot open", () => {
@@ -74,6 +81,12 @@ describe("tabs a role cannot open", () => {
         expect(useActiveSettingsTab()).toBe("organization")
         env.owner = false
         expect(useActiveSettingsTab()).toBe(DEFAULT_MOBILE_SETTINGS_TAB)
+    })
+
+    it("holds Access & Security while the profile is still loading", () => {
+        env.path = "/settings?tab=organization"
+        env.profilePending = true
+        expect(useActiveSettingsTab()).toBe("organization")
     })
 
     it("keeps the plan page readable for every role", () => {

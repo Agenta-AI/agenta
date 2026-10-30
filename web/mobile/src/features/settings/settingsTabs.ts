@@ -1,6 +1,5 @@
 import {useMemo} from "react"
 
-import {useProfile} from "@agenta/entities/profile"
 import type {SettingsAccess, SettingsTabKey} from "@agenta/settings"
 import {
     isBillingEnabled,
@@ -14,7 +13,7 @@ import {useRouter} from "next/router"
 import {useProjectPermissionState} from "../context/useProjectPermission"
 import {useWalletSummary} from "../wallet/useWalletSummary"
 
-import {useSettingsOrg} from "./useSettingsOrg"
+import {useOrganizationOwner} from "./useOrganizationOwner"
 
 /** Tabs this app has a page for. The rest are listed nowhere rather than dead-ending. */
 export const AVAILABLE_SETTINGS_TABS: SettingsTabKey[] = [
@@ -37,6 +36,28 @@ export const AVAILABLE_SETTINGS_TABS: SettingsTabKey[] = [
     "preferences",
 ]
 
+/** What the reader's role reaches here, with the waiting state of each check. */
+interface RoleReach {
+    projectId: string
+    /** May read trace content, which the Analytics tab is made of. */
+    analytics: {allowed: boolean; pending: boolean}
+    /** Owns the organization, which Access & Security needs. */
+    owner: {isOwner: boolean; pending: boolean}
+}
+
+/** Read the role checks once, from the route, for the tab list and the tab guard alike. */
+const useRoleReach = (): RoleReach => {
+    const router = useRouter()
+    const projectId = typeof router.query.project_id === "string" ? router.query.project_id : ""
+    const workspaceId =
+        typeof router.query.workspace_id === "string" ? router.query.workspace_id : ""
+    return {
+        projectId,
+        analytics: useProjectPermissionState(projectId, "view_spans"),
+        owner: useOrganizationOwner(workspaceId),
+    }
+}
+
 /**
  * Read-only host for most tabs: it renders lists but brings none of the create/edit dialogs,
  * so those write affordances stay off. Tools and MCP servers are the exceptions — their
@@ -45,7 +66,7 @@ export const AVAILABLE_SETTINGS_TABS: SettingsTabKey[] = [
  * name a role's reach (Analytics, Access & Security) come from the backend check, so a reader never
  * opens a page whose every request the API would refuse; the rest are optimistic view flags.
  */
-export const useMobileSettingsAccess = (): SettingsAccess => {
+const useSettingsAccess = ({projectId, analytics, owner}: RoleReach): SettingsAccess => {
     // Edition and feature gates come from the shared helpers the desktop uses, so a tab cannot
     // be visible here and hidden there. `isEE()` also accepts the `cloud*` tiers, which a bare
     // `=== "ee"` misses.
@@ -54,18 +75,7 @@ export const useMobileSettingsAccess = (): SettingsAccess => {
     const toolsEnabled = isToolsEnabled()
     const mcpGatewayEnabled = isMcpGatewayEnabled()
     const walletsEnabled = isWalletsEnabled()
-    const router = useRouter()
-    const projectId = typeof router.query.project_id === "string" ? router.query.project_id : ""
-    const workspaceId =
-        typeof router.query.workspace_id === "string" ? router.query.workspace_id : ""
     const walletEnforced = useWalletSummary(projectId).data?.mode === "enforce"
-    // Analytics reads trace content, which a role without `view_spans` cannot read at all.
-    const analytics = useProjectPermissionState(projectId, "view_spans")
-    // Access & Security writes organization flags, which the API allows the owner only.
-    const {user} = useProfile()
-    const {org} = useSettingsOrg(workspaceId)
-    const ownerId = org.data?.owner_id
-    const isOwner = Boolean(ownerId && user?.id && ownerId === user.id)
 
     return useMemo(
         () => ({
@@ -77,11 +87,12 @@ export const useMobileSettingsAccess = (): SettingsAccess => {
             canViewApiKeys: true,
             canViewEvents: true,
             isEE: enterprise,
+            // Analytics reads trace content, which a role without `view_spans` cannot read.
             canViewAnalytics: analytics.allowed,
             // Every role reads the plan and its limits; the controls on that page gate themselves.
             canViewBilling: true,
             // Access & Security changes organization flags, which only the owner may do.
-            isOwner,
+            isOwner: owner.isOwner,
             walletsEnabled,
             walletEnforced,
         }),
@@ -89,7 +100,7 @@ export const useMobileSettingsAccess = (): SettingsAccess => {
             analytics.allowed,
             enterprise,
             billingEnabled,
-            isOwner,
+            owner.isOwner,
             toolsEnabled,
             mcpGatewayEnabled,
             walletsEnabled,
@@ -97,6 +108,9 @@ export const useMobileSettingsAccess = (): SettingsAccess => {
         ],
     )
 }
+
+/** The settings tabs this reader may see, for the tab list. */
+export const useMobileSettingsAccess = (): SettingsAccess => useSettingsAccess(useRoleReach())
 
 /** Where Settings opens with no `?tab=`, and where a tab this app cannot show falls back to. */
 export const DEFAULT_MOBILE_SETTINGS_TAB: SettingsTabKey = "llms"
@@ -110,12 +124,8 @@ export const DEFAULT_MOBILE_SETTINGS_TAB: SettingsTabKey = "llms"
  */
 export const useActiveSettingsTab = (): SettingsTabKey => {
     const router = useRouter()
-    const access = useMobileSettingsAccess()
-    const projectId = typeof router.query.project_id === "string" ? router.query.project_id : ""
-    const workspaceId =
-        typeof router.query.workspace_id === "string" ? router.query.workspace_id : ""
-    const analytics = useProjectPermissionState(projectId, "view_spans")
-    const {loading: ownerPending} = useSettingsOrg(workspaceId)
+    const reach = useRoleReach()
+    const access = useSettingsAccess(reach)
 
     const fromQuery = typeof router.query.tab === "string" ? router.query.tab : null
     const fromPath = router.asPath.split("?")[1]
@@ -131,10 +141,10 @@ export const useActiveSettingsTab = (): SettingsTabKey => {
     if (requested === "billing" && !access.isEE) return DEFAULT_MOBILE_SETTINGS_TAB
     // Analytics reads trace content: a role without it would see an empty page of refusals. The
     // tab holds while the check is in flight, so a reader who may open it is never bounced.
-    if (requested === "analytics" && !access.canViewAnalytics && !analytics.pending)
+    if (requested === "analytics" && !access.canViewAnalytics && !reach.analytics.pending)
         return DEFAULT_MOBILE_SETTINGS_TAB
     // Access & Security belongs to the organization owner; it holds while ownership is unknown.
-    if (requested === "organization" && !access.isOwner && !ownerPending)
+    if (requested === "organization" && !access.isOwner && !reach.owner.pending)
         return DEFAULT_MOBILE_SETTINGS_TAB
     // The wallet routes are EE-only, whatever the mirrored wallet flag says.
     if (requested === "credits" && !(access.isEE && access.walletsEnabled))
