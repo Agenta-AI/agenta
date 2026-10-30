@@ -141,17 +141,6 @@ function runIdOf(ctx: Context): string | undefined {
   return ctx.getValue(RUN_ID_CONTEXT_KEY) as string | undefined;
 }
 
-/** The session id of a run, carried in the start context so every span of the run gets it. */
-const SESSION_ID_CONTEXT_KEY = createContextKey("agenta.otel.session_id");
-
-/** Span attribute for the session id on every span of a session run. Ingest stores it in the
- * span's `session_id` column, which trace reads filter on. */
-const AG_SESSION_ID = "ag.session.id";
-
-function withRunSession(ctx: Context, sessionId: string | undefined): Context {
-  return sessionId ? ctx.setValue(SESSION_ID_CONTEXT_KEY, sessionId) : ctx;
-}
-
 /**
  * traceId (hex) -> runId -> where that run's spans should be exported. A distributed trace can be
  * shared by concurrent runs (the caller's traceparent nests them all under the same trace id), and
@@ -632,11 +621,6 @@ class TraceBatchProcessor implements SpanProcessor {
   onStart(span: Span, parentContext: Context): void {
     const runId = runIdOf(parentContext);
     if (runId) spanRunIds.set(span.spanContext().spanId, runId);
-    // Every span of a session run carries the session id, not only the agent span, so a trace
-    // read can filter the whole trace even when a batch holds no agent span.
-    const sessionId = parentContext.getValue(SESSION_ID_CONTEXT_KEY);
-    if (typeof sessionId === "string" && sessionId)
-      span.setAttribute(AG_SESSION_ID, sessionId);
   }
 
   onEnd(span: ReadableSpan): void {
@@ -1453,9 +1437,9 @@ export function createAgentaOtel(
       // so the whole run joins the /invoke trace; otherwise start a fresh root.
       // Tag the run id onto the start context BEFORE creating the root span, so onStart
       // attributes invoke_agent itself (and every descendant) to this run.
-      const parent = withRunSession(
-        withRunId(parentContext(config.traceparent) ?? context.active(), runId),
-        config.sessionId,
+      const parent = withRunId(
+        parentContext(config.traceparent) ?? context.active(),
+        runId,
       );
       agentSpan = tracer.startSpan("invoke_agent", undefined, parent);
       agentSpan.setAttribute("openinference.span.kind", "AGENT");
@@ -2028,7 +2012,6 @@ export function createSandboxAgentOtel(
   let turnCtx: Context | undefined;
   let llmSpan: Span | undefined;
   let runTraceId: string | undefined;
-  let runSessionId: string | undefined;
   let standaloneErrorRecorded = false;
   let accumulated = "";
   let reasoningAccumulated = "";
@@ -2264,7 +2247,6 @@ export function createSandboxAgentOtel(
     messages?: any[];
     sessionId?: string;
   }): void {
-    runSessionId = input.sessionId ?? init.sessionId;
     // Span-less mode (harness self-instruments): only track the trace id so the run can
     // report it; the harness emits the spans under the propagated parent.
     if (!emitSpans) {
@@ -2274,10 +2256,9 @@ export function createSandboxAgentOtel(
     }
     // Tag the run id onto the start context BEFORE creating the root span, so onStart
     // attributes invoke_agent itself (and every descendant) to this run.
-    const sessionId = runSessionId;
-    const parent = withRunSession(
-      withRunId(parentContext(init.traceparent) ?? context.active(), runId),
-      sessionId,
+    const parent = withRunId(
+      parentContext(init.traceparent) ?? context.active(),
+      runId,
     );
     agentSpan = tracer.startSpan("invoke_agent", undefined, parent);
     agentSpan.setAttribute("openinference.span.kind", "AGENT");
@@ -2295,6 +2276,7 @@ export function createSandboxAgentOtel(
     if (init.skillsDropped && init.skillsDropped.length > 0) {
       agentSpan.setAttribute("ag.meta.skills.dropped", init.skillsDropped);
     }
+    const sessionId = input.sessionId ?? init.sessionId;
     if (sessionId) {
       agentSpan.setAttribute("session.id", sessionId);
       agentSpan.setAttribute("gen_ai.conversation.id", sessionId);
@@ -2571,9 +2553,9 @@ export function createSandboxAgentOtel(
       standaloneErrorRecorded = true;
       // Tag the run id onto the start context first, same as the emitSpans=true root, so onStart
       // attributes this span to THIS run (concurrent runs may have different targets).
-      const parent = withRunSession(
-        withRunId(parentContext(init.traceparent) ?? context.active(), runId),
-        runSessionId,
+      const parent = withRunId(
+        parentContext(init.traceparent) ?? context.active(),
+        runId,
       );
       const errSpan = tracer.startSpan("agent_error", undefined, parent);
       errSpan.setAttribute("openinference.span.kind", "AGENT");

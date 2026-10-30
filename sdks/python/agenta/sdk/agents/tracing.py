@@ -269,19 +269,3 @@ def record_sandbox(sandbox: Optional[str]) -> None:
         log.warning(
             "agent: failed to record the sandbox on workflow span", exc_info=True
         )
-
-
-def record_session(session_id: Optional[str], span: Any = None) -> None:
-    """Stamp the platform session id on the workflow span as ``ag.session.id``.
-
-    The workflow span is the root of an agent run's trace. Ingest copies the root's session id
-    to the spans of the same batch, and trace reads filter by it. Best-effort.
-    """
-    if not session_id:
-        return
-    try:
-        (span or current_product_span()).set_attribute("ag.session.id", session_id)
-    except Exception:  # pylint: disable=broad-except
-        log.warning(
-            "agent: failed to record the session on workflow span", exc_info=True
-        )

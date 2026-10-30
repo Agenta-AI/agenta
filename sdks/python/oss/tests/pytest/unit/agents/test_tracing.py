@@ -151,16 +151,3 @@ def test_run_context_workflow_normalizes_application_references(monkeypatch):
     assert workflow.revision.id == "revision-id"
     assert workflow.revision.version == "v2"
     assert workflow.is_draft is False
-
-
-def test_record_session_stamps_the_session_id(monkeypatch):
-    attributes = {}
-    span = SimpleNamespace(
-        set_attribute=lambda key, value: attributes.__setitem__(key, value)
-    )
-    monkeypatch.setattr(tracing, "current_product_span", lambda: span)
-
-    tracing.record_session("sess-1")
-    tracing.record_session(None)
-
-    assert attributes == {"ag.session.id": "sess-1"}

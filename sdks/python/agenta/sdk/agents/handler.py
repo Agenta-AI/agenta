@@ -70,7 +70,6 @@ from agenta.sdk.agents.fold import fold, trim_to_trailing_unit
 from agenta.sdk.agents.tracing import (
     record_sandbox as ambient_record_sandbox,
     record_usage as ambient_record_usage,
-    record_session as ambient_record_session,
     run_context as ambient_run_context,
     trace_context as ambient_trace_context,
 )
@@ -489,7 +488,6 @@ def make_agent_handler(composition: Optional[AgentComposition] = None):
             raise InvalidSessionIdV0Error(session_id)
 
         workflow_span = current_product_span()
-        ambient_record_session(session_id, workflow_span)
         record_usage = _bind_workflow_span(comp.record_usage, workflow_span)
         record_sandbox = _bind_workflow_span(ambient_record_sandbox, workflow_span)
 
