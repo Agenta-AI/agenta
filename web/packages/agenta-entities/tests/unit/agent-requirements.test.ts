@@ -148,7 +148,10 @@ describe("user items", () => {
     it("are never the editor row's problem", () => {
         expect(requirementAtPath([userGmail], "tools[0]")).toBeUndefined()
         expect(
-            requirementForItem([userLinear], {kinds: ["mcp_server", "mcp_sign_in"], slug: "linear"}),
+            requirementForItem([userLinear], {
+                kinds: ["mcp_server", "mcp_sign_in"],
+                slug: "linear",
+            }),
         ).toBeUndefined()
     })
 
