@@ -61,7 +61,6 @@ Always:
   field ownership, shipped-name changes.
 - `references/naming-rules.md`: the naming and consistency rules.
 - `references/spec-checklist.md`: the section every spec fills in.
-- `references/sources.md`: where the rules come from, with licenses.
 
 Only when needed:
 

@@ -268,11 +268,3 @@ Before responding, verify:
 - The recommendation follows from the findings and evidence.
 - A reader unfamiliar with the subsystem can explain why the change is needed after reading the
   briefing.
-
-## Design sources
-
-This workflow adapts three useful ideas from public review skills:
-
-- [Matt Pocock's code-review skill](https://github.com/mattpocock/skills/blob/main/skills/engineering/code-review/SKILL.md): pin the comparison point and keep specification compliance separate from implementation quality.
-- [xpepper's PR Review Grill](https://github.com/xpepper/pr-review-agent-skill/blob/main/pr-review-grill/SKILL.md): treat review feedback as a claim to verify and keep review separate from editing.
-- [Tag1's comprehensive-review](https://github.com/tag1consulting/claude-comprehensive-review): separate the informational walkthrough from findings and scale context gathering to PR size.

@@ -1,22 +1,22 @@
-# Design red flags (optional)
+# Design warning signs (optional)
 
-A one-page list for naming a structural smell in a finding. A red flag is a prompt to look,
-not a finding by itself.
+A one-page list for when a finding needs a short name for a structural problem. A sign tells you
+where to look. It is not a finding by itself.
 
-| Red flag | Meaning |
+| Sign | What you see |
 | --- | --- |
-| Shallow module | The interface is nearly as complex as the implementation. |
-| Information leakage | One design decision is known in several modules. |
-| Temporal decomposition | Modules split by the order things happen, so they share knowledge. |
-| Overexposure | Common callers must know about rare options. |
-| Pass-through method | A method only forwards to another with a similar signature. |
-| Pass-through variable | A value threaded through layers that do not use it. |
-| Repetition | The same decision coded in several places. |
-| Special-general mixture | A general mechanism holds code for one feature. |
-| Conjoined methods | Two methods can only be understood together. |
-| Comment repeats code | The comment says what the code says. |
-| Implementation in interface docs | Interface docs describe internals callers do not need. |
-| Vague name | The name does not say what the thing is. |
-| Hard to pick name | No precise name fits; the concept may mix two things. |
-| Hard to describe | The contract needs many exceptions to state. |
-| Non-obvious code | A reader cannot tell what it does or why. |
+| Thin module | Callers must learn about as much as the code contains. |
+| Scattered decision | Several modules each hold their own copy of one design choice. |
+| Split by run order | Modules follow the order of the steps, so each needs to know about the others. |
+| Rare options up front | A simple call still has to deal with settings few callers use. |
+| Forwarding method | The method hands its arguments to another method and adds nothing. |
+| Unused passenger | A value goes down through layers that only hand it along. |
+| Copied logic | One decision appears as code in more than one place. |
+| Feature code in a general part | A shared mechanism has branches for one specific feature. |
+| Methods that need each other | You must read both methods to follow either of them. |
+| Comment that echoes | The comment adds nothing beyond the line below it. |
+| Internals in the docs | The interface docs explain things callers never need. |
+| Empty name | The name gives no clue about the thing. |
+| Name nobody can settle on | The thing may be two concepts merged into one. |
+| Long list of exceptions | The contract takes many special cases to explain. |
+| Puzzling code | A reader cannot work out what the code does, or why. |

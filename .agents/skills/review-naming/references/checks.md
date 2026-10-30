@@ -43,33 +43,33 @@ page says how to check them.
 | Check | Evidence to collect | Keep when |
 | --- | --- | --- |
 | Responsibility layers | Input and output handling, business rules, storage access, and where each sits. `api/AGENTS.md` layering is the authority. | One module may hold several responsibilities if they stay separable. |
-| Smells | One row of the table below, with its signal. | The signal is absent. |
-| Pass-through layer | Follow one operation through its layers. Say what each layer adds. Deletion test: if deleting it spreads complexity to callers, it earns its place. | It adds authorization, dispatch, compatibility, instrumentation or translation. |
-| One decision, one owner | Name the decision (a format, a key derivation, a selection rule). List every copy. Show a change that must touch all copies. | Similar code with different policies. An intentional shared protocol with one canonical spec. |
-| Rule on every entry point | Trace every path that writes the state: routes, workers, imports, admin scripts, SDK. A rule checked in one handler only can be bypassed. | The rule sits in a shared function every path calls. |
+| Structural problems | One row of the table below, with its signal. | The signal is absent. |
+| Pass-through layer | Take one call from the top layer to the bottom, and state the work each layer does. Then imagine the layer removed: if callers would each have to take on that work, keep the layer. | It adds authorization, dispatch, compatibility, instrumentation or translation. |
+| One decision, one owner | Name the decision (a format, a key derivation, a selection rule) and each place that holds it. Give a realistic change that would have to edit each place. | Similar code with different policies. An intentional shared protocol with one canonical spec. |
+| Rule on every entry point | List each path that writes the state: routes, workers, imports, admin scripts, SDK. A worker or a script can skip a check that lives in one route. | The rule sits in a shared function every path calls. |
 | Transactions and races (naming side only) | For each invariant: state, every writer, the atomic mechanism. Report a missing or unnamed mechanism; send the race itself to review-correctness. | Storage enforces it (a unique index, a conditional update). |
-| Deep modules | Everything a caller must know against what the module hides. Prefer one operation over caller-managed steps. | A specialized operation that is the honest domain contract. |
-| Defaults and overexposure | Write the common call. List rare options every caller must know. | Policy, cost or security choices stay with the party that knows them. |
-| Define errors out | The postcondition. Does a supposed error already satisfy it? | Never hide permission failures, corruption or incomplete work. Keep empty, absent, denied and failed apart when they differ. |
+| Deep modules | Compare what callers must learn with what the module keeps inside. One call beats a series of steps that each caller must manage. | A narrow operation that states exactly what the domain does. |
+| Defaults and overexposure | Write the common call. List rare options every caller must know. | The party with the facts decides on policy, cost and security. |
+| Define errors out | What the caller wants to be true afterwards, and whether that is already true in the case that now raises an error. | Permission failures, damaged data and unfinished work must always reach the caller. Keep empty, absent, denied and failed apart when they differ. |
 | Complexity symptoms | Name the cost: change amplification (the places a change touches), cognitive load (what a reader must know), unknown unknowns (what a reader cannot find). The word is not evidence; the places are. | none |
 
-### Structural smells
+### Structural problems
 
-| Smell | Signal | Evidence to show |
+| Problem | Signal | Evidence to show |
 | --- | --- | --- |
-| Circular dependency | Two modules import each other, directly or through a third. | The import chain. |
-| Layer inversion | Core imports an API router or model; a DAO calls a service. | The import and the layer map row. |
-| God module | One module owns unrelated decisions and changes for unrelated reasons. | The list of decisions and the changes that touched it. |
-| Modular mirage | Modules that look separate but must change together. | One change that touched all of them. |
-| Leaky abstraction | Callers must know the implementation to use the interface. | The caller code that depends on the internal detail. |
-| Shotgun change | One concept change needs edits in many places. | The places, counted. |
-| Manager centralization | A `*Manager` or `*Service` that every flow calls for unrelated reasons. | The unrelated callers. |
-| Hidden coupling through a shared table | Two modules read or write one table directly. | Both modules, and which one owns the table. |
+| Import cycle | A module ends up importing itself through others. | The chain of imports. |
+| Upward import | Core uses an API router or model, or a DAO calls a service. | The import and the layer map row. |
+| Catch-all module | One file makes decisions that have nothing to do with each other. | The decisions, and recent edits made for unrelated reasons. |
+| Separate in name only | The folders are apart, but a change to one needs a change to the others. | One change that edited them together. |
+| Exposed internals | Callers rely on how the code works inside. | The caller line that relies on it. |
+| Wide edit | Changing one concept means editing many files. | The count of files. |
+| One coordinator for all flows | Every flow goes through one `*Manager` or `*Service` for reasons with no link. | The unrelated callers. |
+| Two modules on one table | Both modules read or write the same table directly. | Both modules, and the one that owns the table. |
 
 ## Guardrails
 
 - A pattern name, a folder layout, a line count or a missing class is not evidence.
-- Do not ask for a repository, an interface or a value object per table or per primitive.
-- Do not merge code that only looks similar.
+- A table or a primitive does not need its own repository, interface or value object.
+- Code that only looks alike can stay apart.
 - Do not recommend a framework, a new service or a split without a failed requirement.
 - Do not raise a finding that only restates a generic standard our conventions override.

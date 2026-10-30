@@ -2,8 +2,7 @@
 
 Every stored item kind in Agenta has the same base shape and the same actions. A new kind
 copies the template, or the spec records why it differs. The template comes from our code
-(`project-conventions.md`). Google AIP-121, 122, 124, 126, 129, 130 to 136, 148, 180 and 216
-fill gaps only where we have no convention.
+(`project-conventions.md`). Generic API standards fill gaps only where we have no convention.
 
 ## 1. Fields every item has
 
@@ -58,15 +57,15 @@ domain it extends (`project-conventions.md`, Operation ids):
 | Query or list | `POST /query` (or `GET /` where the domain uses it) | `count` and the items, with `Windowing` |
 | Archive and unarchive, or delete | `POST /{<entity>_id}/archive`, `/unarchive`, or `DELETE /{<entity>_id}` | the item, or nothing for delete |
 
-- Get, create and edit return the item itself in the domain's response envelope.
+- Fetch, create and edit answer with the item, inside the domain's usual response envelope.
 - Sibling kinds use the same route pattern and the same response field names.
 - A kind that skips an action says why.
 
 ## 5. Custom actions
 
 - Prefer a standard edit of a field over a new action route.
-- Use a custom action only when a standard one cannot express it: a state change with side
-  effects, an action on several rows at once, or an operation that is not a field write.
+- Add a custom action only for work the standard set has no way to do: a state change with side
+  effects, a change to several rows at once, or an operation that writes no field.
 - Name it with a verb from the glossary. Use the project pattern
   `POST /{<entity>_id}/<verb>`.
 - Ask first whether the feature works with no new public surface at all.

@@ -7,8 +7,8 @@ look, not a quota.
 
 - One word means one thing inside one context, in every layer. Two different behaviors never
   share a name.
-- Compare the new names with neighboring interfaces. Try to predict behavior from the names
-  alone. If you cannot, the names are not doing their job.
+- Read the new names next to the interfaces around them, and guess what each call does before
+  you read its code. A wrong guess means the name needs work.
 - Keep a stable shipped name unless the benefit pays for the migration
   (`resource-template.md`, section 8).
 - Evidence: the two places, the two meanings, and a reader who would guess wrong.
@@ -20,8 +20,8 @@ look, not a quota.
 
 ## 2. Same word in two contexts, or overloading
 
-- Two separate models may use one word with two meanings when they exchange data through an
-  explicit mapping and neither writes the other's state. That is fine.
+- One word may mean two things in two separate models, as long as one explicit mapping sits
+  between them and each model writes only its own state.
 - Inside one context, one word must not carry two meanings. That is overloading.
 - Decide which case applies before you raise a finding. A shared module, a shared table or a
   shared config object means one context.
@@ -47,9 +47,9 @@ look, not a quota.
 - A name that needs a rule to stop readers from misreading it ("never show it as X", "keep
   the two labels apart", "this field does not mean Y") is a misleading name. The rule is the
   evidence.
-- A name that took several drafts to choose is a hint that the concept mixes two things.
-  Inspect the design; do not only rename.
-- Evidence: two plausible meanings of the name, and which one the code or spec uses.
+- When a name keeps changing across drafts, look for two concepts merged into one. Check the
+  design before you rename.
+- Evidence: a reader could take the name two ways, and only one is what the code or spec does.
 
 ## 5. Enum values from one scheme
 
@@ -86,8 +86,8 @@ look, not a quota.
   agent item), they use the same layers, folder layout, DTO shape, field names, route
   pattern, indexes and UI words.
 - A feature that bypasses the dominant pattern is a finding unless the spec says why.
-- Do not spread a known bad pattern in the name of consistency. Name the bad pattern and stop
-  it at the new surface.
+- Matching a known bad pattern is not a reason to copy it. Name the problem and keep it out of
+  the new surface.
 - Check across item kinds and across owner kinds. A rule written for one kind or one owner
   level and silent for the others is a gap.
 

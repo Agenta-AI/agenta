@@ -8,8 +8,9 @@ Before you report a finding, answer privately:
 2. What evidence shows it: the exact names, files, lines, or spec sections? What part is
    interpretation?
 3. Is it new in the target, made worse by it, or pre-existing and untouched?
-4. Does the fix reduce total cost after migration and compatibility costs?
-5. Is it more than a preference, and does its severity match its cost?
+4. After paying for the migration and for compatibility, is the code cheaper to live with?
+5. Would a reasonable engineer see more than a taste difference, and is the severity in line
+   with what it costs?
 
 Drop a finding that fails 1 or 2. Move a finding with missing evidence to "Questions". If
 one cause produces several symptoms, report the cause once and list the places.

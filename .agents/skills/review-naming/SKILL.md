@@ -45,18 +45,18 @@ decision recorded there, cite the rule, and say where it was decided.
    each area the target touches and any glossary the target has. Read
    `references/calibration.md` for what is and is not a finding. Judge against these, not
    against a generic ideal. Flag a doc that the code contradicts.
-2. **Build a small working model.** A few rows: module, what it promises callers, what it
-   hides, which state it owns, and the name it uses for each concept. Only for the reviewed
-   path. Keep it private unless it supports a finding.
+2. **Sketch the path under review.** Write a few rows that give each module, its promise to
+   callers, the details it keeps inside, the state it owns and its word for each concept. Share
+   the sketch only when a finding needs it.
 3. **Build the name inventory.** For each concept the target adds or changes, collect its
    name in every layer (the per-layer name table). Include enum values, index names, folder
    names, route parameters and UI labels. Collect every meaning of each word.
 4. **Trace one normal path and one failure path** through every layer, from entry point to
-   stored state and response, and check the name at each hop. For a design, walk the
-   proposed sequence and mark it as reasoning.
-5. **Run one change exercise.** Pick a plausible change grounded in current requirements
-   (for example, one more item kind or one more owner level). Count the places and naming
-   choices it needs. Do not invent future consumers.
+   stored state and response, and check the name at each hop. For a design, follow the
+   proposal step by step, and say that the result is reasoning rather than a test.
+5. **Try one likely change.** Use a change that today's requirements make realistic (for
+   example, one more item kind or one more owner level). Count the files it touches and the
+   names it forces you to choose. Leave out consumers nobody has asked for.
 6. **Apply the checks** in `references/checks.md`.
 7. **Filter.** Pass each finding through the evidence gate in `references/report-template.md`.
    Group symptoms under one cause.
@@ -83,8 +83,8 @@ decision recorded there, cite the rule, and say where it was decided.
 
 Load only when needed:
 
-- `references/optional/red-flags.md`: a one-page list of design red flags, when a finding
-  needs a short name for a structural smell.
+- `references/optional/red-flags.md`: a one-page list of design warning signs, when a finding
+  needs a short name for a structural problem.
 - `references/optional/confidence-labels.md`: when the caller asks for a confidence label
   on each finding.
 - `references/optional/action-timing.md`: when the caller asks when to act on each finding.

@@ -1,32 +1,33 @@
 # Design vocabulary (optional)
 
-Load this page when a design discussion or a review mixes words such as module, layer,
-boundary, component and service. Use these words with these meanings, so reviews and specs
-say the same thing.
+Load this page when a design discussion or a review uses module, layer, boundary, component and
+service loosely. Use these meanings, so that reviews and specs agree.
 
-**Module**: anything with an interface and an implementation: a function, a class, a
-package, or a slice across layers.
+**Module**: any piece of code that callers use from the outside, at any size. It can be one
+function, a class, a package, or a feature that runs through several layers.
 _Avoid_: unit, component (as a general word)
 
-**Interface**: everything a caller must know to use a module: the signature, plus
-invariants, call order, error modes, required configuration and cost.
-_Avoid_: signature (too narrow)
+**Interface**: the full set of facts a caller depends on. That covers the parameters and also
+the rules on call order, the errors, the configuration it needs and how slow it can be.
+_Avoid_: signature (it covers only part of this)
 
-**Implementation**: the code inside a module.
+**Implementation**: the code behind the interface.
 
-**Depth**: how much behavior a caller gets for each thing it must learn. A deep module hides
-much behind a small interface. A shallow module's interface is nearly as complex as its
-implementation.
+**Depth**: the ratio of what a module does for callers to what they must learn to use it. High
+depth means a little to learn and a lot done. Low depth means callers learn about as much as the
+code itself contains.
 
-**Seam**: the place where a module's interface lives, where behavior can change without
-editing the callers.
+**Seam**: the point where you can swap the behavior behind an interface and leave its callers
+untouched.
 _Avoid_: boundary (in Agenta, also used for API and trust boundaries)
 
-**Adapter**: a concrete thing that fills an interface at a seam, for example a provider
-adapter under `core/<domain>/providers/<name>/`.
+**Adapter**: the code at a seam that connects one specific thing to the interface, for example
+a provider under `core/<domain>/providers/<name>/`.
 
-**Layer**: one of the Agenta responsibilities: router, service, DAO interface, DAO
-implementation (`api/AGENTS.md`). A layer is a responsibility, not a deployment.
+**Layer**: one of the Agenta code roles: router, service, DAO interface, DAO implementation
+(`api/AGENTS.md`). Layers divide work inside the code. They say nothing about where the code
+is deployed.
 _Avoid_: tier, service (as a synonym for layer)
 
-**Locality**: what maintainers get from depth: a change, a bug or a rule sits in one place.
+**Locality**: the benefit of depth for maintainers. One fix or one rule change happens in one
+file or one small group of files.
