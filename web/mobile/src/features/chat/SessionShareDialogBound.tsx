@@ -12,7 +12,10 @@ import {
     type SessionRole,
     type Visibility,
 } from "@agenta/entities/sharing"
-import {workflowLatestRevisionQueryAtomFamily} from "@agenta/entities/workflow"
+import {
+    retrievedWorkflowRevisionFamilyKey,
+    retrievedWorkflowRevisionQueryAtomFamily,
+} from "@agenta/entities/workflow"
 import {sessionRoutePath, shareUrl} from "@agenta/sessions/link"
 import {
     SessionShareDialog,
@@ -57,13 +60,16 @@ export const SessionShareDialogBound = ({
     const sharingQuery = useAtomValue(sessionSharingQueryAtomFamily(sessionId))
     // The agent's configuration says whether it uses each person's own accounts (contract
     // section 13, item 16): no record says which turn used one.
-    const latestRevision = useAtomValue(workflowLatestRevisionQueryAtomFamily(agentId ?? ""))
-    const usesPersonalAccounts = useMemo(() => {
-        const parameters = latestRevision.data?.data?.parameters as
-            | Record<string, unknown>
-            | undefined
-        return hasUserItems(parameters?.agent)
-    }, [latestRevision.data])
+    // The agent ref reads its latest revision, as the automation notice does.
+    const agentRevision = useAtomValue(
+        retrievedWorkflowRevisionQueryAtomFamily(
+            retrievedWorkflowRevisionFamilyKey(agentId ? {workflow: {id: agentId}} : null),
+        ),
+    )
+    const usesPersonalAccounts = useMemo(
+        () => hasUserItems(agentRevision.data?.parameters?.agent),
+        [agentRevision.data],
+    )
     const labels = useDisclosureProviderLabel(sharingQuery.data?.disclosure)
     const [search, setSearch] = useState("")
     // The picker queries as the person types, a beat behind them.
