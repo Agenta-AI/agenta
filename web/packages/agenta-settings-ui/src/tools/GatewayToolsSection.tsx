@@ -27,20 +27,13 @@ import {useDebouncedAtomSearch} from "@agenta/shared/hooks"
 import {connectionDisplayName} from "@agenta/shared/utils"
 import {message} from "@agenta/ui/app-message"
 import {Button} from "@agenta/ui/ui"
-import {
-    ArrowClockwise,
-    MagnifyingGlass,
-    Play,
-    Star,
-    Trash,
-    WarningCircle,
-    XCircle,
-} from "@phosphor-icons/react"
+import {ArrowClockwise, MagnifyingGlass, Play, Star, Trash, XCircle} from "@phosphor-icons/react"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import {atomWithStorage} from "jotai/utils"
 
 import type {ConfirmDestructive} from "../confirm"
 import {addAccountOwners, showsYours} from "../shared/accountOwners"
+import {LoadFailed} from "../shared/LoadFailed"
 import {findScrollRoot} from "../shared/scrollRoot"
 import {
     SettingsCatalog,
@@ -164,18 +157,6 @@ const connectedCollapsedAtom = atomWithStorage(
 )
 
 /** Per viewer, like Connected: the person's own accounts fold away and stay folded. */
-const YoursLoadFailed = ({onRetry}: {onRetry: () => void}) => (
-    <div className="flex items-center gap-3 text-sm text-colorTextSecondary">
-        <span className="flex items-center gap-1.5">
-            <WarningCircle size={16} className="text-colorError" />
-            Couldn&apos;t load your connections.
-        </span>
-        <Button variant="outline" size="sm" onClick={onRetry}>
-            Try again
-        </Button>
-    </div>
-)
-
 const yoursCollapsedAtom = atomWithStorage("agenta:settings:integrations-yours-collapsed", false)
 
 export interface GatewayToolsSectionProps {
@@ -445,7 +426,10 @@ export default function GatewayToolsSection({
                 onToggle: term ? undefined : () => setYoursCollapsed((value) => !value),
                 // Empty, "Yours" says what it is for; a search with no match says nothing here.
                 footer: personalError ? (
-                    <YoursLoadFailed onRetry={() => void refetchPersonal()} />
+                    <LoadFailed
+                        message="Couldn't load your connections."
+                        onRetry={() => void refetchPersonal()}
+                    />
                 ) : !term && yoursItems.length === 0 ? (
                     <YoursEmpty projectCount={projectCount} />
                 ) : undefined,

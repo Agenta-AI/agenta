@@ -27,9 +27,9 @@ import {
     type OrganizationConnectionScope,
 } from "@agenta/entity-ui/secretProvider"
 import {message} from "@agenta/ui/app-message"
-import {Button} from "@agenta/ui/ui"
-import {WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
+
+import {LoadFailed} from "../shared/LoadFailed"
 
 import type {ProvidersGroup, ProvidersSource} from "./ProvidersPanel"
 
@@ -56,18 +56,6 @@ const rowDescription = (connection: ProviderConnection, projects: string | null)
     [connection.title, connection.hasStoredCredential ? "Key saved" : null, projects]
         .filter(Boolean)
         .join(" · ")
-
-const LoadFailed = ({onRetry}: {onRetry: () => void}) => (
-    <div className="flex items-center gap-3 text-sm text-colorTextSecondary">
-        <span className="flex items-center gap-1.5">
-            <WarningCircle size={16} className="text-colorError" />
-            Couldn&apos;t load the organization connections.
-        </span>
-        <Button variant="outline" size="sm" onClick={onRetry}>
-            Try again
-        </Button>
-    </div>
-)
 
 const EmptyNote = ({manage}: {manage: boolean}) => (
     <div className="flex flex-col gap-0.5">
@@ -125,9 +113,11 @@ export const useOrganizationProvidersGroup = (
         [scope, projects, choosing, projectsQuery.data, manage],
     )
 
-    const memberVaultFailed = access === "view" && vault.isError && !vault.data
+    // A failed refetch keeps the cached rows, so the failure line shows beside them.
+    const memberVaultFailed = access === "view" && vault.isError
     const projectsFailed = choosing && projectsQuery.isError
-    const failed = access === "error" || memberVaultFailed || projectsFailed
+    const failed =
+        access === "error" || (manage && query.isError) || memberVaultFailed || projectsFailed
 
     const source = useMemo<ProvidersSource | null>(() => {
         if (!scope || !drawerScope) return null
@@ -160,6 +150,7 @@ export const useOrganizationProvidersGroup = (
                 `Agenta could not remove ${connection.name}. Try again.`,
             failure: failed ? (
                 <LoadFailed
+                    message="Couldn't load the organization connections."
                     onRetry={() =>
                         void (memberVaultFailed
                             ? vault.refetch()
