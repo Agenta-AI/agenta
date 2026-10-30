@@ -2850,6 +2850,18 @@ const sidebar: SidebarsConfig = {
         },
         {
           type: "doc",
+          id: "reference/api/query-channel-people",
+          label: "Query Channel People",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
+          id: "reference/api/refresh-channel-people",
+          label: "Refresh Channel People",
+          className: "api-method post",
+        },
+        {
+          type: "doc",
           id: "reference/api/list-channel-agents",
           label: "List Channel Agents",
           className: "api-method get",
