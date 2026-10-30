@@ -1,5 +1,6 @@
 import {useEffect, useMemo, useState} from "react"
 
+import {personalAccountsAccessAtom} from "@agenta/entities/secret"
 import {agentRequirementsAtomFamily, workflowMolecule} from "@agenta/entities/workflow"
 import {personalSetupItems, type PersonalSetupItem} from "@agenta/entity-ui/onboarding"
 import {useAtomValue} from "jotai"
@@ -24,11 +25,13 @@ const NONE: ReadonlySet<string> = new Set()
  * fixes stays on the card marked done instead of jumping away. A row turns done only when an
  * answer leaves it out: while Needs setup is loading or failed, the last answer stands. The card
  * never holds a message: it is optional, and closing it ("Continue" or ✕) only puts it away for
- * this session.
+ * this session. With personal accounts off for the deployment the run leaves the viewer's own
+ * items out and nothing can be connected, so the card stays hidden.
  */
 export const usePersonalSetupStep = (sessionId: string, revisionId: string): PersonalSetupStep => {
     const requirements = useAtomValue(agentRequirementsAtomFamily(revisionId))
     const workflowId = useAtomValue(workflowMolecule.selectors.workflowId(revisionId)) ?? ""
+    const access = useAtomValue(personalAccountsAccessAtom)
     const [latched, setLatched] = useState<PersonalSetupItem[]>([])
     const [pendingKeys, setPendingKeys] = useState<ReadonlySet<string>>(NONE)
     const [closed, setClosed] = useState(false)
@@ -51,7 +54,7 @@ export const usePersonalSetupStep = (sessionId: string, revisionId: string): Per
     }, [current])
 
     return {
-        open: !closed && latched.length > 0 && Boolean(workflowId),
+        open: !closed && access === "on" && latched.length > 0 && Boolean(workflowId),
         workflowId,
         items: latched,
         pendingKeys,

@@ -12,9 +12,16 @@ import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 ;(globalThis as {IS_REACT_ACT_ENVIRONMENT?: boolean}).IS_REACT_ACT_ENVIRONMENT = true
 
-const {requirementsAtom} = vi.hoisted(() => ({
+const {requirementsAtom, accessAtom} = vi.hoisted(() => ({
     requirementsAtom: {current: null as unknown as PrimitiveAtom<AgentRequirementItem[] | null>},
+    accessAtom: {current: null as unknown as PrimitiveAtom<"loading" | "on" | "off" | "error">},
 }))
+
+vi.mock("@agenta/entities/secret", async () => {
+    const {atom: mockAtom} = await import("jotai")
+    accessAtom.current = mockAtom<"loading" | "on" | "off" | "error">("on")
+    return {personalAccountsAccessAtom: accessAtom.current}
+})
 
 vi.mock("@agenta/entities/workflow", async () => {
     const {atom: mockAtom} = await import("jotai")
@@ -74,5 +81,14 @@ describe("usePersonalSetupStep", () => {
         answer([req("secret:user/B")])
         expect([...step.pendingKeys]).toEqual(["secret:user/B"])
         expect(step.items.map((item) => item.key)).toEqual(["secret:user/A", "secret:user/B"])
+    })
+
+    it("stays hidden while personal accounts are off for the deployment", () => {
+        act(() => store.set(accessAtom.current, "off"))
+        answer([req("secret:user/A")])
+        expect(step.open).toBe(false)
+
+        act(() => store.set(accessAtom.current, "on"))
+        expect(step.open).toBe(true)
     })
 })
