@@ -25,6 +25,7 @@ const calls = vi.hoisted(() => ({
     rewind: vi.fn(),
 }))
 const dialog = vi.hoisted(() => ({confirm: vi.fn()}))
+const modelSetup = vi.hoisted(() => ({blocked: false, loading: false, canFix: false}))
 
 const approval = {approvalId: "gate-1", toolName: "send_email"}
 
@@ -70,7 +71,7 @@ vi.mock("@agenta/chat/hooks", () => ({
         retryHistory: vi.fn(),
     }),
     useAgentModelKeyStatus: () => ({gateActive: false, loading: false}),
-    useAgentModelSetup: () => ({blocked: false, requirement: null, canFix: false}),
+    useAgentModelSetup: () => modelSetup,
     // The docks open only when the screen enables them, as the real hooks do.
     useElicitationDock: ({enabled}: {enabled: boolean}) => ({
         open: enabled,
@@ -88,6 +89,7 @@ vi.mock("@agenta/chat/hooks", () => ({
 }))
 
 vi.mock("@agenta/chat/components", () => ({
+    ModelSetupBanner: () => null,
     ConnectionFocusProvider: ({children}: {children: ReactNode}) => children,
     ConnectionWarningStrip: () => null,
     ConnectionDock: () => <div data-testid="connection-dock" />,
@@ -156,6 +158,7 @@ vi.mock("@agenta/entities/workflow", async () => {
     return {
         invalidateAgentCommittedRevisionCache: vi.fn(),
         workflowBuildKitOverlayReadyAtomFamily: () => ready,
+        MODEL_SETUP_PLACEHOLDER: "Set up the model to send messages",
     }
 })
 vi.mock("@agenta/entity-ui/agent", () => ({AgentIntroCard: () => null}))
@@ -245,10 +248,23 @@ vi.mock("@/features/chat/states/PendingTaskError", () => ({
     ),
 }))
 vi.mock("@/features/chat/ConnectModelStrip", () => ({ConnectModelStrip: () => null}))
-vi.mock("@/features/chat/ModelSetupStrip", () => ({ModelSetupStrip: () => null}))
+vi.mock("@/features/chat/useOpenModelSetup", () => ({useOpenModelSetup: () => vi.fn()}))
 vi.mock("@/features/chat/Composer", () => ({
-    Composer: ({disabled}: {disabled: boolean}) => (
-        <div data-testid="composer" data-disabled={disabled ? "true" : "false"} />
+    Composer: ({
+        disabled,
+        sendDisabled,
+        placeholder,
+    }: {
+        disabled: boolean
+        sendDisabled?: boolean
+        placeholder?: string
+    }) => (
+        <div
+            data-testid="composer"
+            data-disabled={disabled ? "true" : "false"}
+            data-send-disabled={sendDisabled ? "true" : "false"}
+            data-placeholder={placeholder ?? ""}
+        />
     ),
 }))
 vi.mock("@/features/chat/TranscriptTurns", () => ({
@@ -291,6 +307,7 @@ let root: Root
 
 beforeEach(() => {
     for (const fn of Object.values(calls)) fn.mockReset()
+    Object.assign(modelSetup, {blocked: false, loading: false, canFix: false})
     dialog.confirm.mockReset()
     host = document.createElement("div")
     document.body.append(host)
@@ -440,5 +457,26 @@ describe("a rewind confirmation open when access goes", () => {
         await act(async () => onOk())
 
         expect(confirm).toHaveBeenCalledTimes(1)
+    })
+})
+
+describe("an agent whose model needs setup", () => {
+    it("turns Send off but keeps typing, swaps the placeholder and holds the Home task", async () => {
+        modelSetup.blocked = true
+        await render({readOnly: null, canSend: true})
+
+        const composer = byId("composer")
+        expect(composer?.dataset.disabled).toBe("false")
+        expect(composer?.dataset.sendDisabled).toBe("true")
+        expect(composer?.dataset.placeholder).toBe("Set up the model to send messages")
+        expect(byId("task-retry")?.dataset.disabled).toBe("true")
+    })
+
+    it("holds the Home task while the check has not answered", async () => {
+        modelSetup.loading = true
+        await render({readOnly: null, canSend: true})
+
+        expect(byId("composer")?.dataset.sendDisabled).toBe("false")
+        expect(byId("task-retry")?.dataset.disabled).toBe("true")
     })
 })

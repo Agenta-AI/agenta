@@ -1,15 +1,15 @@
 import {useCallback} from "react"
 
-import {configPanelCollapsedAtom} from "@agenta/chat/state"
+import {revealConfigPaneAtom} from "@agenta/chat/state"
 import {openAgentConfigSectionAtom} from "@agenta/shared/state"
 import {useSetAtom} from "jotai"
 
 /** Opens the config pane's Model drawer, the existing model picker, from the needs-setup banner. */
 export const useOpenModelSetup = () => {
-    const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
+    const revealConfigPane = useSetAtom(revealConfigPaneAtom)
     const openSection = useSetAtom(openAgentConfigSectionAtom)
     return useCallback(() => {
-        setConfigCollapsed(false)
+        revealConfigPane()
         openSection("model-harness")
-    }, [openSection, setConfigCollapsed])
+    }, [openSection, revealConfigPane])
 }

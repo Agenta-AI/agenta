@@ -15,6 +15,7 @@ import {
     type ProviderConnection,
     type SecretOwnerScope,
 } from "@agenta/entities/secret"
+import {invalidateAgentRequirements} from "@agenta/entities/workflow"
 import {extractApiErrorMessage} from "@agenta/shared/utils"
 import {useAtomValue, useSetAtom} from "jotai"
 
@@ -112,6 +113,8 @@ export const useSubscriptionSignIn = ({
         if (outcome === "succeeded") {
             setError(null)
             void refreshVault()
+            // A sign-in can fix an agent without a new revision.
+            void invalidateAgentRequirements()
             return
         }
         if (outcome === "unreadable") {

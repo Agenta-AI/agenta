@@ -29,6 +29,7 @@ import {
     agentCreationPrefsAtom,
     agentRequirementsAtomFamily,
     invalidateAgentRequirements,
+    isUserRequirement,
     MODEL_NEEDS_SETUP_MESSAGE,
     modelRequirement,
     NEEDS_SETUP_LABEL,
@@ -399,16 +400,19 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const revisionId = drillIn?.entityId ?? null
     revisionIdRef.current = revisionId
     // The server's needs-setup check for this saved revision; null until it answers.
+    // A "user" item belongs to each person who runs the agent, so the editor skips it.
     const requirements = useAtomValue(agentRequirementsAtomFamily(revisionId ?? ""))
-    const modelReq = requirements
-        ? (modelRequirement(requirements) ?? requirementAtPath(requirements, "llm"))
+    const editorRequirements = useMemo(
+        () => requirements?.filter((r) => !isUserRequirement(r)) ?? null,
+        [requirements],
+    )
+    const modelReq = editorRequirements ? modelRequirement(editorRequirements) : undefined
+    const secretReq = editorRequirements
+        ? requirementAtPath(editorRequirements, "sandbox.credentials")
         : undefined
-    const secretReq = requirements
-        ? requirementAtPath(requirements, "sandbox.credentials")
-        : undefined
-    const mcpSetupCount = requirements
-        ? requirements.filter((r) => r.kind === "mcp_server" || r.kind === "mcp_sign_in").length
-        : 0
+    const mcpNeedsSetup = Boolean(
+        editorRequirements?.some((r) => r.kind === "mcp_server" || r.kind === "mcp_sign_in"),
+    )
     // A secret attach/edit/remove commits a new revision from inside the open drawer. Keep the
     // drawer open on it: re-snapshot the (clean) draft from the adopted revision instead of closing.
     const credentialRebaseTarget = useRef<string | null>(null)
@@ -1014,7 +1018,7 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const sectionIncompleteTip = (key: string): string | null => {
         if (key === "model-harness" && modelReq) return MODEL_NEEDS_SETUP_MESSAGE
         if (key === "tools" && toolResolutionSummary.needsSetup > 0) return NEEDS_SETUP_LABEL
-        if (key === "mcp" && mcpSetupCount > 0) return NEEDS_SETUP_LABEL
+        if (key === "mcp" && mcpNeedsSetup) return NEEDS_SETUP_LABEL
         if (key === "advanced" && secretReq) return NEEDS_SETUP_LABEL
         return null
     }

@@ -12,8 +12,6 @@ import {runDayGroups, runOutcomeLabel, sortRuns, type RunDayGroup} from "./runMo
  */
 
 export type RunStatusFilter = "all" | "ok" | "bad" | "pending"
-/** A status group key; a skipped run groups apart and no filter selects it. */
-type RunStatusKey = Exclude<RunStatusFilter, "all"> | "skipped"
 /** How the run started — the three things `runLabel` can call a row. */
 export type RunTypeFilter = "all" | "scheduled" | "event" | "test"
 export type RunGrouping = "day" | "none" | "status" | "type"
@@ -62,7 +60,7 @@ export const RUN_TYPE_LABEL: Record<Exclude<RunTypeFilter, "all">, string> = {
 export function deriveRunList(runs: TriggerDelivery[], view: RunListView): TriggerDelivery[] {
     return sortRuns(
         runs.filter((delivery) => {
-            if (view.status !== "all" && statusKey(delivery) !== view.status) return false
+            if (view.status !== "all" && deliveryOutcome(delivery) !== view.status) return false
             if (view.type !== "all" && runType(delivery) !== view.type) return false
             return true
         }),
@@ -82,7 +80,8 @@ export function runGroups(runs: TriggerDelivery[], grouping: RunGrouping): RunDa
 
     const buckets = new Map<string, RunDayGroup>()
     for (const delivery of runs) {
-        const key = grouping === "status" ? statusKey(delivery) : (runType(delivery) as string)
+        const key =
+            grouping === "status" ? deliveryOutcome(delivery) : (runType(delivery) as string)
         const label =
             grouping === "status" ? runOutcomeLabel(delivery) : RUN_TYPE_LABEL[runType(delivery)]
         const bucket = buckets.get(key)
@@ -90,17 +89,4 @@ export function runGroups(runs: TriggerDelivery[], grouping: RunGrouping): RunDa
         else buckets.set(key, {key, label, runs: [delivery]})
     }
     return [...buckets.values()]
-}
-
-function statusKey(delivery: TriggerDelivery): RunStatusKey {
-    switch (deliveryOutcome(delivery)) {
-        case "ok":
-            return "ok"
-        case "bad":
-            return "bad"
-        case "skipped":
-            return "skipped"
-        default:
-            return "pending"
-    }
 }

@@ -123,7 +123,7 @@ export function McpServersSectionBody({
     // The server's needs-setup check: a missing or turned-off server, or an expired sign-in.
     const requirements = useAgentRequirements()
     const requirementFor = useCallback(
-        (item: unknown, index: number): AgentRequirementItem | undefined => {
+        (item: unknown): AgentRequirementItem | undefined => {
             if (!requirements) return undefined
             const slug = readMcpConnectionSlug((item ?? {}) as Record<string, unknown>)
             return requirementForItem(requirements, {kinds: ["mcp_server", "mcp_sign_in"], slug})
@@ -179,7 +179,7 @@ export function McpServersSectionBody({
             // A blocking problem outranks a draft marker and structural invalid stays first,
             // the same order the tool rows use.
             if (base?.tone === "invalid") return base
-            const req = requirementFor(item, index)
+            const req = requirementFor(item)
             return req ? needsSetupStatus(req) : base
         },
         [statusFor, requirementFor],
@@ -189,7 +189,7 @@ export function McpServersSectionBody({
         (_kind: "mcp" | "tool" | "skill", index: number, item: unknown) => {
             const record = (item ?? {}) as Record<string, unknown>
             const endpoint = endpointForItem(item)
-            const req = requirementFor(item, index)
+            const req = requirementFor(item)
             // An expired sign-in goes straight to the sign-in journey; the agent does not change.
             if (req?.kind === "mcp_sign_in" && endpoint) {
                 setConnectingEndpoint(endpoint)

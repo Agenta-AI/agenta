@@ -12,6 +12,7 @@ import {
     ConnectionFocusProvider,
     ConnectionWarningStrip,
     ElicitationDock,
+    ModelSetupBanner,
     QueuedMessagesDock,
 } from "@agenta/chat/components"
 import type {QueuedMessage} from "@agenta/chat/hooks"
@@ -79,7 +80,6 @@ import {committedRevisionIds} from "./committedRevisionIds"
 import {Composer} from "./Composer"
 import {ConnectModelStrip} from "./ConnectModelStrip"
 import {hasUnsavedConfigEdits} from "./hasUnsavedConfigEdits"
-import {ModelSetupStrip} from "./ModelSetupStrip"
 import {MODEL_KEY_WAIT_LIMIT_MS, pendingTaskDecision} from "./pendingTaskPolicy"
 import {ReadOnlyComposerNotice} from "./ReadOnlyComposerNotice"
 import {heldCommitAtomFamily, selectedRevisionAtomFamily} from "./selectedRevision"
@@ -93,6 +93,7 @@ import {mobileTurnRowClass} from "./turnRowClass"
 import {mergeAssistantRuns} from "./turnRuns"
 import {deriveMobileRemoteTurnPresentation, showTrailingWorkingPulse} from "./turnStatus"
 import {useApprovalActions, type ApprovalActions} from "./useApprovalActions"
+import {useOpenModelSetup} from "./useOpenModelSetup"
 import {useSessionSetupStep} from "./useSessionSetupStep"
 import {useSessionWatch} from "./useSessionWatch"
 import {useStartBlankSession} from "./useStartBlankSession"
@@ -295,10 +296,12 @@ export const LiveConversation = ({
     const modelBlocked = modelKey.gateActive && !hasCredits && !wallet.isLoading
     // The server's needs-setup check: a model item that needs setup turns Send off, not typing.
     // Subscribed here so the check starts with the screen's other requests.
-    const setupBlocked = useAgentModelSetup(entityId).blocked && !modelBlocked
-    // The strip stays hidden until the vault and wallet answer, but the parked task must NOT go
-    // out on that same unknown — see `pendingTaskPolicy`.
-    const modelKeyLoading = modelKey.loading || walletPending
+    const modelSetup = useAgentModelSetup(entityId)
+    const setupBlocked = modelSetup.blocked && !modelBlocked
+    const openModelSetup = useOpenModelSetup()
+    // The strips stay hidden until the vault, the wallet and the needs-setup check answer, but the
+    // parked task must NOT go out on that same unknown — see `pendingTaskPolicy`.
+    const modelKeyLoading = modelKey.loading || walletPending || modelSetup.loading
 
     // The vault wait is bounded (`pendingTaskPolicy`). This stays 0 while the wait is on and
     // becomes the elapsed time when the deadline fires, which is the render that releases the task.
@@ -1020,7 +1023,9 @@ export const LiveConversation = ({
                         the same place the desktop banner sits. */}
                         <ContentRail>
                             <ConnectModelStrip gateActive={modelBlocked} />
-                            {modelBlocked ? null : <ModelSetupStrip revisionId={entityId} />}
+                            {modelBlocked ? null : (
+                                <ModelSetupBanner revisionId={entityId} onSetUp={openModelSetup} />
+                            )}
                         </ContentRail>
                         {/* Failed Home tasks retain their original text and files for retry. */}
                         {pendingTaskError ? (

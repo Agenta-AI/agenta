@@ -1,6 +1,7 @@
 import {useCallback} from "react"
 
 import {automationRunHistoryDrawerAtom} from "@agenta/automation-ui"
+import {ModelSetupBanner} from "@agenta/chat/components"
 import {configPanelCollapsedAtom} from "@agenta/chat/state"
 import type {TriggerOwnerRef} from "@agenta/entity-ui/drill-in"
 import {StorageFilesHeader, StorageSection} from "@agenta/entity-ui/drive"
@@ -13,7 +14,7 @@ import {Sidebar} from "@phosphor-icons/react"
 import {useSetAtom} from "jotai"
 
 import {DrillInBridgeProvider} from "./DrillInBridgeProvider"
-import {ModelSetupNotice} from "./ModelSetupNotice"
+import {useOpenModelSetup} from "./useOpenModelSetup"
 
 /**
  * Build's left pane: the SHARED config panel under the SHARED "Configuration" header, with the
@@ -38,6 +39,7 @@ export const ConfigPane = ({
     projectId: string
 }) => {
     const setConfigCollapsed = useSetAtom(configPanelCollapsedAtom)
+    const openModelSetup = useOpenModelSetup()
     // A row's "Run history" opens in a drawer over the agent, like the automation editor does,
     // rather than navigating away from the conversation.
     const openDrawer = useSetAtom(automationRunHistoryDrawerAtom)
@@ -54,7 +56,15 @@ export const ConfigPane = ({
                 <AgentBuildPanel
                     revisionId={entityId}
                     stickyHeaderTop={48}
-                    banner={<ModelSetupNotice revisionId={entityId} />}
+                    banner={
+                        <div className="px-4">
+                            <ModelSetupBanner
+                                revisionId={entityId}
+                                layout="alert"
+                                onSetUp={openModelSetup}
+                            />
+                        </div>
+                    }
                     storage={
                         <StorageSection
                             revisionId={entityId}
