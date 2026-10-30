@@ -7,7 +7,7 @@ import {
 } from "./acp-fetch.ts";
 import {
   resolvePiToolSpecsDelivery,
-  uploadGatewayPiRetryToSandbox,
+  uploadRunnerPiSettingsToSandbox,
   uploadPiExtensionToSandbox,
   uploadPiToolSpecsToSandbox,
   uploadSkillsToSandbox,
@@ -402,8 +402,12 @@ export async function prepareDaytonaPiAssets({
     plan.workspace.relayDir,
   );
   if (toolSpecs) await uploadPiToolSpecsToSandbox(sandbox, toolSpecs, log);
-  if (plan.credentials.throughGateway)
-    await uploadGatewayPiRetryToSandbox(sandbox, agentDir, log);
+  await uploadRunnerPiSettingsToSandbox(
+    sandbox,
+    agentDir,
+    plan.credentials.throughGateway,
+    log,
+  );
   // A models.json plan (a custom provider, or a hand-entered model merged into a built-in one):
   // upload the exact file (overwriting stale) before the session starts. No plan: remove any stale
   // file so a reused sandbox keeps no earlier configuration. Upload failure THROWS here and is
