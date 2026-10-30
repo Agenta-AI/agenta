@@ -47,6 +47,7 @@ from oss.src.core.secrets.dtos import (
 from oss.src.core.secrets.enums import CustomSecretFormat, SecretKind
 from oss.src.core.shared.dtos import Header
 from oss.src.utils.context import AuthScope
+from oss.src.utils.env import env
 from oss.tests.pytest.unit.gateways.test_gateways_mcp_service import (
     MockMCPEndpointsDAO,
     MockUpstreamAdapter,
@@ -57,6 +58,12 @@ from oss.tests.pytest.utils.principals import make_envelope, make_request_access
 
 SLUG = "acme-notion"
 ITEM_KEY = f"mcp_server:user/{SLUG}"
+
+
+@pytest.fixture(autouse=True)
+def _personal_accounts_on(monkeypatch):
+    """The deployment switch; with it off, no claim entry is read (see the last case)."""
+    monkeypatch.setattr(env.agenta.access, "personal_accounts_enabled", True)
 
 
 def _scope() -> AuthScope:
@@ -477,3 +484,29 @@ def test_the_missing_sign_in_message_names_the_server_not_the_gateway_path():
 
     assert error.message == "Sign in to Acme Notion to use it."
     assert error.target == "custom/acme-notion"
+
+
+@pytest.mark.asyncio
+async def test_with_personal_accounts_off_a_user_item_has_no_sign_in(monkeypatch):
+    """A claim signed while the switch was on is not read once it is off, and the
+    project's sign-in is still never used in its place."""
+    monkeypatch.setattr(env.agenta.access, "personal_accounts_enabled", False)
+    dao = MockMCPEndpointsDAO()
+    endpoint = await _server(dao)
+    person = uuid4()
+    grant = _person_grant(endpoint=endpoint, person=person)
+    resolver = _RecordingResolver(secrets=[grant])
+    adapter = MockUpstreamAdapter()
+    service = _relay_service(
+        mcp_endpoints_dao=dao, resolver=resolver, adapters={"http": adapter}
+    )
+
+    with _run(
+        person=person,
+        accounts=[RunAccount(item_key=ITEM_KEY, secret_id=grant.secret.id)],
+    ):
+        with pytest.raises(MCPSignInMissingError):
+            await _relay(service, _scope())
+
+    assert resolver.refs == []
+    assert adapter.relay_calls == 0
