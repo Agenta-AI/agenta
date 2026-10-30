@@ -51,7 +51,7 @@ The `/m/invite` screen SHALL accept the kept invite once and show the outcomes o
 
 #### Scenario: Expired or not valid
 - **WHEN** the API answers `INVITE_EXPIRED` or `INVITE_NOT_FOUND`
-- **THEN** `/m` shows the old page's message for that code on the same card
+- **THEN** `/m` shows the old page's message for that code on the same card and clears the invite
 
 #### Scenario: Other failure
 - **WHEN** the request fails with no known code

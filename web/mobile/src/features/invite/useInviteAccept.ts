@@ -8,7 +8,7 @@ import {useRouter} from "next/router"
 
 import {useLogout} from "@/features/auth/useLogout"
 import {isOnboardingPending, markOnboardingInvited} from "@/features/onboarding/onboardingPending"
-import {fetchProjects, projectHomeUrl, writeLastContext} from "@/lib/context"
+import {fetchProjects, projectHomeUrl, projectOnboardingUrl} from "@/lib/context"
 import {queryClient} from "@/lib/queryClient"
 
 import {INVITE_JOINED_MESSAGE, inviteFailure, type InviteFailure} from "./inviteOutcome"
@@ -29,7 +29,7 @@ export const useInviteAccept = () => {
     const signedIn = session.data !== undefined && session.data.kind !== "unauthenticated"
 
     const openProject = useCallback(
-        async (invite: PendingInvite, joined: string) => {
+        async (invite: PendingInvite, user: {id: string}, joined: string) => {
             forgetInvite()
             message.success(joined)
             await Promise.all([
@@ -37,16 +37,9 @@ export const useInviteAccept = () => {
                 queryClient.invalidateQueries({queryKey: ["orgs"]}),
             ])
             const context = {workspaceId: invite.organization_id, projectId: invite.project_id}
-            writeLastContext(context)
-            const user = await queryClient
-                .fetchQuery({queryKey: ["profile"], queryFn: fetchProfile, staleTime: 30_000})
-                .catch(() => null)
-            if (user?.id && isOnboardingPending(user.id)) {
+            if (isOnboardingPending(user.id)) {
                 markOnboardingInvited(user.id)
-                const {workspaceId, projectId} = context
-                await router.replace(
-                    `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/onboarding`,
-                )
+                await router.replace(projectOnboardingUrl(context))
                 return
             }
             await router.replace(projectHomeUrl(context))
@@ -60,7 +53,15 @@ export const useInviteAccept = () => {
             await router.replace("/")
             return
         }
+        let user: {id: string} | null = null
         try {
+            // Read first: once the invite is used, a failed read could not tell a new account.
+            user = await queryClient.fetchQuery({
+                queryKey: ["profile"],
+                queryFn: fetchProfile,
+                staleTime: 30_000,
+            })
+            if (!user) throw new Error("The profile could not be read")
             await acceptWorkspaceInvite(
                 {
                     token: invite.token,
@@ -73,14 +74,15 @@ export const useInviteAccept = () => {
             )
         } catch (error) {
             const outcome = inviteFailure(error)
-            if (outcome.alreadyAccepted) {
-                await openProject(invite, outcome.message)
+            if (outcome.alreadyAccepted && user) {
+                await openProject(invite, user, outcome.message)
                 return
             }
+            if (!outcome.keepInvite) forgetInvite()
             setFailure(outcome)
             return
         }
-        await openProject(invite, INVITE_JOINED_MESSAGE)
+        await openProject(invite, user, INVITE_JOINED_MESSAGE)
     }, [router, openProject])
 
     useEffect(() => {

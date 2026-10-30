@@ -43,7 +43,7 @@ const docHeaders = (ua: string, extra: Record<string, string> = {}) => ({
 
 describe("isMobileDevice", () => {
     it("leaves a token-bearing auth link on desktop", () => {
-        // SuperTokens password-reset and invite links carry a one-time ?token=. Redirecting
+        // SuperTokens password-reset links carry a one-time ?token=. Redirecting
         // drops it twice over: mapDesktopToMobile returns a bare /m/auth, and mobile has no
         // screen that consumes a token.
         for (const pathname of ["/auth", "/auth/reset-password"]) {
@@ -400,7 +400,7 @@ describe("decideDesktopGate", () => {
         }
     })
     it("leaves a token-bearing auth link on desktop", () => {
-        // SuperTokens password-reset and invite links carry a one-time ?token=. Redirecting
+        // SuperTokens password-reset links carry a one-time ?token=. Redirecting
         // drops it twice over: mapDesktopToMobile returns a bare /m/auth, and mobile has no
         // screen that consumes a token.
         for (const pathname of ["/auth", "/auth/reset-password"]) {

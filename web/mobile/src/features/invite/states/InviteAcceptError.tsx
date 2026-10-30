@@ -23,7 +23,7 @@ export const InviteAcceptError = ({
         <div className="flex flex-wrap justify-center gap-3">
             {onRetry ? (
                 <Button type="button" variant="outline" onClick={onRetry}>
-                    Try again
+                    Retry
                 </Button>
             ) : null}
             <Button type="button" variant="outline" onClick={onGoBack}>

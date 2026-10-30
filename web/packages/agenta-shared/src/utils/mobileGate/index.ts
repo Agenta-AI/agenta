@@ -91,15 +91,15 @@ export function isInviteLink(pathname: string, search: string): boolean {
 }
 
 /**
- * Any other `/auth` link carrying a one-time `token` (SuperTokens password reset) completes on
- * desktop.
+ * An `/auth` link carrying a one-time `token` (SuperTokens password reset) completes on desktop.
+ * The desktop gate forwards an invite link before it reaches this check.
  *
  * Redirecting it would drop the token twice over: `mapDesktopToMobile` returns a bare `/m/auth`,
  * and the mobile app has no screen that consumes one. Same reasoning as the OAuth callback
  * exception — a single-use credential must not be bounced.
  */
 export function isTokenBearingAuthLink(pathname: string, search: string): boolean {
-    if (!AUTH_RE.test(pathname) || isInviteLink(pathname, search)) return false
+    if (!AUTH_RE.test(pathname)) return false
     return Boolean(new URLSearchParams(search).get("token"))
 }
 
@@ -349,7 +349,7 @@ export function decideDesktopGate(input: GateInput): GateDecision {
             }
         }
 
-        // Before the opt-out and Classic mode: an invite link only ever completes on /m.
+        // Before the opt-out and Classic mode: invites join through /m, and the link lives 7 days.
         if (isInviteLink(input.pathname, input.search)) {
             return {kind: "redirect", location: `/m/auth${input.search}`}
         }

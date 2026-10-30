@@ -1,6 +1,6 @@
 ## Context
 
-All references are to `release/v0.127.3`. The full evidence is in the research note kept with the run.
+All references are to `release/v0.127.3`.
 
 Today, an invited person takes this path:
 
@@ -30,7 +30,6 @@ Goals:
 Non-goals:
 
 - Removing the old `/workspaces/accept` page. Nothing emails that URL (`organization_service.py` is the only link producer).
-- Fixing the API text and check order listed as side bugs in the research note.
 
 ## Decisions
 
@@ -46,7 +45,7 @@ Non-goals:
 
 | Option | Trade-off |
 | --- | --- |
-| **localStorage with a 30 minute window, written through `onInvite`** | The same shape as `?template=`. It survives a provider redirect. The token is removed on every final outcome. |
+| **localStorage with a 30 minute window, written through `onInvite`** | The same shape as `?template=`. It survives a provider redirect. The token is removed on every final outcome. A mismatch keeps it, so the invited account can still use it. |
 | Carry the values in the OAuth state | It needs changes to the SuperTokens call and does nothing for password sign-in. |
 | A cookie | Sent to the server on every request, which a one-time token does not need. |
 
@@ -84,7 +83,7 @@ The API returns `{url}` when no email service is set up (`organization_service.p
 
 ### Wording
 
-Every string comes from the old page, so nothing is invented. `/m` cannot import `web/oss`, so the strings are copied into `features/invite/`.
+The card strings come from the old page, and the Retry button uses the label `/m` already uses. `/m` cannot import `web/oss`, so the strings are copied into `features/invite/`. The page title "Accept invitation" is the one new string.
 
 ## Risks / Trade-offs
 

@@ -10,7 +10,7 @@ const state = vi.hoisted(() => ({
     logout: vi.fn(),
     success: vi.fn(),
     session: {kind: "ok"} as unknown,
-    user: {id: "u1"} as {id: string} | null,
+    profile: vi.fn(),
 }))
 
 vi.mock("@agenta/entities/organization", () => ({acceptWorkspaceInvite: state.accept}))
@@ -25,12 +25,13 @@ vi.mock("@/features/auth/useLogout", () => ({useLogout: () => state.logout}))
 vi.mock("@/lib/queryClient", () => ({
     queryClient: {
         invalidateQueries: () => Promise.resolve(),
-        fetchQuery: () => Promise.resolve(state.user),
+        fetchQuery: () => state.profile(),
     },
 }))
 vi.mock("@/lib/context", () => ({
     fetchProjects: vi.fn(),
-    writeLastContext: vi.fn(),
+    projectOnboardingUrl: ({workspaceId, projectId}: {workspaceId: string; projectId: string}) =>
+        `/w/${workspaceId}/p/${projectId}/onboarding`,
     projectHomeUrl: ({workspaceId, projectId}: {workspaceId: string; projectId: string}) =>
         `/w/${workspaceId}/p/${projectId}/apps`,
 }))
@@ -76,7 +77,7 @@ beforeEach(() => {
     state.logout.mockReset()
     state.success.mockReset()
     state.session = {kind: "ok"}
-    state.user = {id: "u1"}
+    state.profile.mockReset().mockResolvedValue({id: "u1"})
     rememberInvite(INVITE)
     host = document.createElement("div")
     root = createRoot(host)
@@ -142,7 +143,7 @@ describe("the invite accept screen", () => {
             expect(host.textContent).toContain(
                 "This invitation is not for you. Sign in with the invited account to accept it.",
             )
-            expect(button("Try again")).toBeUndefined()
+            expect(button("Retry")).toBeUndefined()
         })
 
         it("keeps the invite when the person switches account", async () => {
@@ -160,10 +161,29 @@ describe("the invite accept screen", () => {
         })
     })
 
+    it.each(["INVITE_EXPIRED", "INVITE_NOT_FOUND"])("clears the invite on %s", async (error) => {
+        state.accept.mockRejectedValue({response: {status: 400, data: {detail: {error}}}})
+        await mount()
+        expect(host.textContent).toContain("Unable to accept invitation")
+        expect(readPendingInvite()).toBeNull()
+    })
+
+    it("does not use the invite until it can tell a new account", async () => {
+        markOnboardingPending("u1")
+        state.profile.mockRejectedValueOnce(new Error("Network Error"))
+        await mount()
+        expect(state.accept).not.toHaveBeenCalled()
+        expect(readPendingInvite()).toEqual(INVITE)
+        await act(async () => button("Retry")?.click())
+        expect(state.accept).toHaveBeenCalledTimes(1)
+        expect(state.replace).toHaveBeenCalledWith("/w/o1/p/p1/onboarding")
+    })
+
     it("retries an unknown failure", async () => {
         state.accept.mockRejectedValueOnce(new Error("Network Error"))
         await mount()
-        await act(async () => button("Try again")?.click())
+        expect(readPendingInvite()).toEqual(INVITE)
+        await act(async () => button("Retry")?.click())
         expect(state.accept).toHaveBeenCalledTimes(2)
         expect(state.replace).toHaveBeenCalledWith("/w/o1/p/p1/apps")
     })
