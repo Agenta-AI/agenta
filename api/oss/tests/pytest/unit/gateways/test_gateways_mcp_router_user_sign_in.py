@@ -667,3 +667,37 @@ def test_a_viewer_or_annotator_still_cannot_connect_for_the_project(
 
     assert response.status_code == 403
     assert oauth_service.begun_owner_kinds == []
+
+
+def test_an_editor_may_not_follow_or_cancel_another_persons_attempt(
+    client, oauth_service, allow, person
+):
+    """A person's sign-in attempt is theirs alone, whatever the caller may edit."""
+    endpoint_id = uuid4()
+    attempt = _person_attempt(endpoint_id, user_id=uuid4())
+    oauth_service.attempt_by_id = attempt
+
+    fetched = client.get(f"/endpoints/{endpoint_id}/connect/attempts/{attempt.id}")
+    cancelled = client.delete(f"/endpoints/{endpoint_id}/connect/attempts/{attempt.id}")
+
+    assert fetched.status_code == 403
+    assert cancelled.status_code == 403
+    assert oauth_service.cancelled == []
+
+
+def test_an_editor_still_follows_the_projects_own_attempt(
+    client, oauth_service, allow, person
+):
+    endpoint_id = uuid4()
+    attempt = _attempt(
+        project_id=FIXED_SCOPE.project_id, user_id=uuid4(), endpoint_id=endpoint_id
+    )
+    oauth_service.attempt_by_id = attempt
+    oauth_service.outcome_return = MCPOAuthAttemptOutcome(
+        id=attempt.id, status=MCPOAuthAttemptStatus.PENDING
+    )
+
+    response = client.get(f"/endpoints/{endpoint_id}/connect/attempts/{attempt.id}")
+
+    assert response.status_code == 200
+    assert _permissions(allow) == [Permission.EDIT_MCP_ENDPOINTS]

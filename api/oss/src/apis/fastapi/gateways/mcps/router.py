@@ -301,25 +301,19 @@ class MCPGatewayRouter:
         endpoint_id: UUID,
         attempt_id: UUID,
     ) -> None:
-        """A project admin may follow any attempt of the project. Any other project
-        member may follow their own sign-in attempt, and no other."""
-        if await check_action_access(
-            user_uid=str(scope.user_id),
-            project_id=str(scope.project_id),
-            permission=Permission.EDIT_MCP_ENDPOINTS,
-        ):
-            return
+        """A person's sign-in attempt is followed and cancelled by that person only,
+        whatever else the caller may edit. Any other attempt is the project's and needs
+        the edit permission, as before."""
         attempt = await self.oauth_connect_service.fetch_attempt(
             project_id=scope.project_id, endpoint_id=endpoint_id, attempt_id=attempt_id
         )
-        if (
-            attempt is None
-            or attempt.owner_kind != SecretOwnerKind.USER
-            or attempt.user_id != scope.user_id
-        ):
-            raise FORBIDDEN_EXCEPTION
-        require_person(request)
-        await self._check(scope, Permission.VIEW_MCP_ENDPOINTS)
+        if attempt is not None and attempt.owner_kind == SecretOwnerKind.USER:
+            if attempt.user_id != scope.user_id:
+                raise FORBIDDEN_EXCEPTION
+            require_person(request)
+            await self._check(scope, Permission.VIEW_MCP_ENDPOINTS)
+            return
+        await self._check(scope, Permission.EDIT_MCP_ENDPOINTS)
 
     async def _check(self, scope: AuthScope, permission: Permission) -> None:
         has_permission = await check_action_access(
