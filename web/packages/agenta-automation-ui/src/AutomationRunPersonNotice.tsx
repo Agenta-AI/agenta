@@ -12,8 +12,9 @@ import {useMemo} from "react"
 import {hasUserItems} from "@agenta/entities/accountChoice"
 import {
     agentRequirementsAtomFamily,
-    resolvedWorkflowRevisionQueryAtomFamily,
-    resolvedWorkflowRevisionFamilyKey,
+    retrievedWorkflowRevisionQueryAtomFamily,
+    workflowLatestRevisionQueryAtomFamily,
+    retrievedWorkflowRevisionFamilyKey,
 } from "@agenta/entities/workflow"
 import {PersonalAccountsCard, personalSetupItems} from "@agenta/entity-ui/onboarding"
 import {userAtom} from "@agenta/shared/state"
@@ -46,16 +47,24 @@ export const AutomationRunPersonNotice = ({
     const viewer = useAtomValue(userAtom)
     const principal = (automation.raw as {principal?: PrincipalRefLike | null}).principal
     const changesRunPerson = dirty && saveChangesRunPerson(principal, viewer?.id)
+    // A rebind saves the variant of the agent's newest revision; the draft reads the same query.
+    const rebinding = Boolean(draftAgentId && draftAgentId !== automation.agentId)
+    const latest = useAtomValue(
+        workflowLatestRevisionQueryAtomFamily(
+            changesRunPerson && rebinding ? (draftAgentId ?? "") : "",
+        ),
+    )
+    const rebindVariantId = latest.data?.workflow_variant_id ?? null
     const refsKey = useMemo(
         () =>
             changesRunPerson
-                ? resolvedWorkflowRevisionFamilyKey(
-                      automationRevisionRefs(automation, draftAgentId),
+                ? retrievedWorkflowRevisionFamilyKey(
+                      automationRevisionRefs(automation, draftAgentId, rebindVariantId),
                   )
                 : "",
-        [automation, changesRunPerson, draftAgentId],
+        [automation, changesRunPerson, draftAgentId, rebindVariantId],
     )
-    const revision = useAtomValue(resolvedWorkflowRevisionQueryAtomFamily(refsKey)).data ?? null
+    const revision = useAtomValue(retrievedWorkflowRevisionQueryAtomFamily(refsKey)).data ?? null
     const agentHasUserItems = Boolean(revision && hasUserItems(revision.parameters?.agent))
     // Shown only when the save changes the run person and the agent has "user" items.
     const shown = changesRunPerson && agentHasUserItems

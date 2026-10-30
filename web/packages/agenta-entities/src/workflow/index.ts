@@ -92,15 +92,14 @@ export {
     invalidateAgentRequirements,
 } from "./state/agentRequirements"
 export {
-    resolveWorkflowRevisionRefs,
-    type ResolvedWorkflowRevision,
-    type StoredRef,
+    retrieveWorkflowRevisionByRefs,
+    type RetrievedWorkflowRevision,
     type WorkflowRevisionRefs,
-} from "./api/resolveRevision"
+} from "./api/retrieveRevisionByRefs"
 export {
-    resolvedWorkflowRevisionQueryAtomFamily,
-    resolvedWorkflowRevisionFamilyKey,
-} from "./state/resolvedRevision"
+    retrievedWorkflowRevisionQueryAtomFamily,
+    retrievedWorkflowRevisionFamilyKey,
+} from "./state/retrievedRevision"
 export {
     AGENT_NEEDS_SETUP_CODE,
     AGENT_NEEDS_SETUP_TITLE,

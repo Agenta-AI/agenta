@@ -60,7 +60,10 @@ describe("automationRevisionRefs", () => {
         ).toEqual({variant: {id: "var-1"}})
     })
 
-    it("resolves the newest revision of the agent an unsaved rebind names", () => {
+    it("reads what Save writes for an unsaved rebind: the agent and its newest variant", () => {
+        expect(
+            automationRevisionRefs(automation({workflow: {id: "agent-1"}}), "agent-2", "var-9"),
+        ).toEqual({workflow: {id: "agent-2"}, variant: {id: "var-9"}})
         expect(automationRevisionRefs(automation({workflow: {id: "agent-1"}}), "agent-2")).toEqual({
             workflow: {id: "agent-2"},
         })

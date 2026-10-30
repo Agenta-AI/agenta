@@ -41,7 +41,7 @@ export interface AgentSecretRequestSeed {
 
 export interface AgentSecretAttachmentResult {
     /** The `sandbox.credentials[]` entry the attach wrote. */
-    binding: AgentSecretBinding
+    credential: AgentSecretBinding
     revisionId: string
 }
 
@@ -59,8 +59,8 @@ export interface AgentSecretAttachmentModalProps {
     canCreateSecret?: boolean
     commitBinding: (input: {
         baseRevisionId: string
-        /** The entry to add, or to put at `editIndex`. */
-        binding: AgentSecretBinding
+        /** The `sandbox.credentials[]` entry to add, or to put at `editIndex`. */
+        credential: AgentSecretBinding
         editIndex?: number
     }) => Promise<{revisionId: string}>
     onAttached?: (result: AgentSecretAttachmentResult) => void
@@ -262,17 +262,17 @@ export function AgentSecretAttachmentModal({
         setError(null)
         // A "user" secret names no slug: each person who runs the agent gives their own value
         // (contract section 5.1).
-        const binding: AgentSecretBinding = {
+        const credential: AgentSecretBinding = {
             secret: personal ? {account_source: "user"} : {slug},
             binding: {type: "env", name: envVar.trim()},
         }
         try {
             const result = await commitBinding({
                 baseRevisionId,
-                binding,
+                credential,
                 editIndex: editingBinding?.index,
             })
-            onAttached?.({binding, revisionId: result.revisionId})
+            onAttached?.({credential, revisionId: result.revisionId})
             onClose()
         } catch (cause) {
             setError(

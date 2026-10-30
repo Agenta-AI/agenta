@@ -96,10 +96,10 @@ export function AgentSecretsSection({
 
     const commitBinding: React.ComponentProps<
         typeof AgentSecretAttachmentModal
-    >["commitBinding"] = async ({binding, editIndex}) => {
+    >["commitBinding"] = async ({credential, editIndex}) => {
         const next = [...bindings]
-        if (editIndex === undefined) next.push(binding)
-        else next[editIndex] = binding
+        if (editIndex === undefined) next.push(credential)
+        else next[editIndex] = credential
         return saveBindings(next)
     }
 

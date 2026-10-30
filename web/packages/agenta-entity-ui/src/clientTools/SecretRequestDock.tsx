@@ -169,11 +169,13 @@ export const SecretRequestDock = ({
                 dirty={dirty}
                 disabled={!entity || !canEditSecrets}
                 canCreateSecret={canEditSecrets}
-                commitBinding={async ({baseRevisionId, binding, editIndex}) => {
+                commitBinding={async ({baseRevisionId, credential, editIndex}) => {
                     const nextBindings =
                         editIndex === undefined
-                            ? [...bindings, binding]
-                            : bindings.map((item, index) => (index === editIndex ? binding : item))
+                            ? [...bindings, credential]
+                            : bindings.map((item, index) =>
+                                  index === editIndex ? credential : item,
+                              )
                     const result = await commit({
                         revisionId: baseRevisionId,
                         bindings: nextBindings,
@@ -181,8 +183,8 @@ export const SecretRequestDock = ({
                     setTargetId(result.revisionId)
                     return result
                 }}
-                onAttached={({binding, revisionId: next}) =>
-                    configured(binding.secret, binding.binding.name, next)
+                onAttached={({credential, revisionId: next}) =>
+                    configured(credential.secret, credential.binding.name, next)
                 }
             />
         </>

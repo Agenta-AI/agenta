@@ -3,7 +3,8 @@
  * runs as, so an agent with "user" items will use the editor's own accounts. Pure, so the notice
  * and its tests run the same rule.
  */
-import type {StoredRef, WorkflowRevisionRefs} from "@agenta/entities/workflow"
+import type {TriggerReference} from "@agenta/entities/gatewayTrigger"
+import type {WorkflowReference, WorkflowRevisionRefs} from "@agenta/entities/workflow"
 
 import type {Automation} from "./automationModel"
 
@@ -19,12 +20,10 @@ export const saveChangesRunPerson = (
     viewerId: string | null | undefined,
 ): boolean => Boolean(viewerId) && !(principal?.kind === "human" && principal.id === viewerId)
 
-type RawRef = {id?: string | null; slug?: string | null; version?: string | null} | null | undefined
-
 /** The id, slug and version a stored reference has; nothing when it names none. */
-const storedRef = (ref: RawRef): StoredRef | undefined => {
+const storedRef = (ref: TriggerReference | null | undefined): WorkflowReference | undefined => {
     if (!ref) return undefined
-    const out: StoredRef = {
+    const out: WorkflowReference = {
         ...(ref.id ? {id: ref.id} : {}),
         ...(ref.slug ? {slug: ref.slug} : {}),
         ...(ref.version ? {version: ref.version} : {}),
@@ -37,15 +36,25 @@ const FAMILIES = ["application", "evaluator", "workflow"] as const
 
 /**
  * The references the next run reads, as the trigger service reads them: the stored family (an
- * environment binding included, with the key `<agent slug>.revision`), or the newest revision of
- * the agent an unsaved rebind names.
+ * environment binding included, with the key `<agent slug>.revision`). For an unsaved rebind, the
+ * references Save writes: the agent and the variant of its newest revision (`rebindVariantId`,
+ * null while it loads).
  */
 export const automationRevisionRefs = (
     automation: Pick<Automation, "agentId" | "raw">,
     draftAgentId: string | null,
+    rebindVariantId: string | null = null,
 ): WorkflowRevisionRefs | null => {
-    if (draftAgentId && draftAgentId !== automation.agentId) return {workflow: {id: draftAgentId}}
-    const stored = (automation.raw.data?.references ?? {}) as Record<string, RawRef>
+    if (draftAgentId && draftAgentId !== automation.agentId) {
+        return {
+            workflow: {id: draftAgentId},
+            ...(rebindVariantId ? {variant: {id: rebindVariantId}} : {}),
+        }
+    }
+    const stored = (automation.raw.data?.references ?? {}) as Record<
+        string,
+        TriggerReference | null | undefined
+    >
     const family = FAMILIES.find((name) =>
         [name, `${name}_variant`, `${name}_revision`].some((key) => stored[key]),
     )

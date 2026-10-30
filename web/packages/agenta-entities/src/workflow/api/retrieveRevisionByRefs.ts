@@ -6,26 +6,21 @@
  * An automation stores references; its next run uses the revision they point to at that moment,
  * so this is the one to check for "user" items.
  */
+import type {WorkflowReference} from "../core/types"
+
 import {retrieveWorkflowRevision} from "./api"
 
-/** One stored reference: an id, a slug, or a version, as the trigger stored it. */
-export interface StoredRef {
-    id?: string
-    slug?: string
-    version?: string
-}
-
 export interface WorkflowRevisionRefs {
-    workflow?: StoredRef
-    variant?: StoredRef
-    revision?: StoredRef
+    workflow?: WorkflowReference
+    variant?: WorkflowReference
+    revision?: WorkflowReference
     /** The environment the agent is deployed to; the run reads the revision deployed there. */
-    environment?: StoredRef
+    environment?: WorkflowReference
     /** With an environment: the agent's entry in the deployment, `<agent slug>.revision`. */
     key?: string
 }
 
-export interface ResolvedWorkflowRevision {
+export interface RetrievedWorkflowRevision {
     id: string
     /** The agent (workflow artifact) the revision belongs to. */
     workflowId: string | null
@@ -33,13 +28,13 @@ export interface ResolvedWorkflowRevision {
     parameters: Record<string, unknown> | null
 }
 
-export async function resolveWorkflowRevisionRefs({
+export async function retrieveWorkflowRevisionByRefs({
     projectId,
     refs,
 }: {
     projectId: string
     refs: WorkflowRevisionRefs
-}): Promise<ResolvedWorkflowRevision | null> {
+}): Promise<RetrievedWorkflowRevision | null> {
     const revision = await retrieveWorkflowRevision({
         projectId,
         workflowRef: refs.workflow,
