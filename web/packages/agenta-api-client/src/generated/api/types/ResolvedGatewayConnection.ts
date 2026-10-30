@@ -11,7 +11,16 @@ import type * as AgentaApi from "../index.js";
 export interface ResolvedGatewayConnection {
     provider: string;
     integration: string;
-    connection: string;
+    connection?: (string | null) | undefined;
+    account_source?: (ResolvedGatewayConnection.AccountSource | null) | undefined;
     toolkit_version: string;
     tools?: AgentaApi.ResolvedGatewayTool[] | undefined;
+}
+
+export namespace ResolvedGatewayConnection {
+    export const AccountSource = {
+        Agent: "agent",
+        User: "user",
+    } as const;
+    export type AccountSource = (typeof AccountSource)[keyof typeof AccountSource];
 }

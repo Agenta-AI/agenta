@@ -9,6 +9,8 @@ import type * as AgentaApi from "../../../../index.js";
 export interface WorkflowRevisionRequirementsQueryRequest {
     /** The saved revision to check. */
     workflow_revision_ref?: AgentaApi.Reference | null;
+    /** The agent an unsaved draft belongs to. With it, the draft's `"user"` items read the caller's account choices for that agent. */
+    workflow_id?: string | null;
     /** An unsaved draft's parameters (`{agent: {...}}`), checked instead of a saved revision. */
     parameters?: Record<string, unknown> | null;
 }

@@ -2,7 +2,7 @@
 
 import type * as AgentaApi from "../index.js";
 
-export interface McpEndpoint {
+export interface McpEndpointWithSignIn {
     flags?: AgentaApi.McpEndpointFlags | undefined;
     tags?: (Record<string, AgentaApi.LabelJsonOutput | null> | null) | undefined;
     meta?: (Record<string, AgentaApi.FullJsonOutput | null> | null) | undefined;
@@ -24,4 +24,5 @@ export interface McpEndpoint {
     integration_key?: (string | null) | undefined;
     data: AgentaApi.McpEndpointData;
     status?: (AgentaApi.Status | null) | undefined;
+    user_sign_in?: (AgentaApi.McpUserSignIn | null) | undefined;
 }

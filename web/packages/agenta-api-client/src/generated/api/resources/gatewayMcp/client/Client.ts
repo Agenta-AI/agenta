@@ -738,6 +738,8 @@ export class GatewayMcpClient {
      * checklist onto the row; a list (possibly empty) -> begin and return the
      * authorization redirect.
      *
+     * `owner_kind=user` is a person's own sign-in instead (`_connect_person`).
+     *
      * @param {AgentaApi.McpConnectRequest} request
      * @param {GatewayMcpClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -759,7 +761,10 @@ export class GatewayMcpClient {
         request: AgentaApi.McpConnectRequest,
         requestOptions?: GatewayMcpClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.McpConnectResponse>> {
-        const { endpoint_id: endpointId, ..._body } = request;
+        const { endpoint_id: endpointId, owner_kind: ownerKind, ..._body } = request;
+        const _queryParams: Record<string, unknown> = {
+            owner_kind: ownerKind != null ? ownerKind : undefined,
+        };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
@@ -776,7 +781,7 @@ export class GatewayMcpClient {
             method: "POST",
             headers: _headers,
             contentType: "application/json",
-            queryParameters: requestOptions?.queryParams,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
             requestType: "json",
             body: _body,
             timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
@@ -827,6 +832,9 @@ export class GatewayMcpClient {
      * Idempotent: disconnecting something already disconnected returns the endpoint
      * and changes nothing, so a repeated click or a retried request is not an error.
      *
+     * `owner_kind=user` deletes only the caller's own sign-in, at the slug the server's
+     * mode selects, and leaves the project's alone.
+     *
      * @param {AgentaApi.DisconnectMcpEndpointRequest} request
      * @param {GatewayMcpClient.RequestOptions} requestOptions - Request-specific configuration.
      *
@@ -848,7 +856,10 @@ export class GatewayMcpClient {
         request: AgentaApi.DisconnectMcpEndpointRequest,
         requestOptions?: GatewayMcpClient.RequestOptions,
     ): Promise<core.WithRawResponse<AgentaApi.McpEndpointResponse>> {
-        const { endpoint_id: endpointId } = request;
+        const { endpoint_id: endpointId, owner_kind: ownerKind } = request;
+        const _queryParams: Record<string, unknown> = {
+            owner_kind: ownerKind != null ? ownerKind : undefined,
+        };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(
             _authRequest.headers,
@@ -864,7 +875,7 @@ export class GatewayMcpClient {
             ),
             method: "DELETE",
             headers: _headers,
-            queryParameters: requestOptions?.queryParams,
+            queryParameters: { ..._queryParams, ...requestOptions?.queryParams },
             timeoutMs: (requestOptions?.timeoutInSeconds ?? this._options?.timeoutInSeconds ?? 30) * 1000,
             maxRetries: requestOptions?.maxRetries ?? this._options?.maxRetries,
             withCredentials: true,

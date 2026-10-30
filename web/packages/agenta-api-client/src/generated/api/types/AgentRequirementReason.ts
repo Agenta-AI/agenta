@@ -7,5 +7,6 @@ export const AgentRequirementReason = {
     TurnedOff: "turned_off",
     NeedsSignIn: "needs_sign_in",
     NotAvailable: "not_available",
+    NeedsPersonalAccount: "needs_personal_account",
 } as const;
 export type AgentRequirementReason = (typeof AgentRequirementReason)[keyof typeof AgentRequirementReason];
