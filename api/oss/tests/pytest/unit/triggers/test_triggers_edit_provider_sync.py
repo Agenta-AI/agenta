@@ -19,6 +19,7 @@ from oss.src.core.triggers.dtos import (
     TriggerSubscriptionFlags,
 )
 from oss.src.core.triggers.service import TriggersService
+from oss.tests.pytest.utils.principals import any_principal
 
 _EVENT = "GITHUB_COMMIT_EVENT"
 _OLD_CONFIG = {"owner": "agenta-ai", "repo": "agenta"}
@@ -108,6 +109,7 @@ async def test_edit_with_changed_config_updates_provider_trigger():
         project_id=project_id,
         user_id=uuid4(),
         subscription=_edit(existing, trigger_config=_NEW_CONFIG),
+        principal=any_principal(),
     )
 
     assert _names(calls) == ["upsert", "status", "dao"]
@@ -129,6 +131,7 @@ async def test_edit_with_changed_config_keeps_a_paused_trigger_disabled():
         project_id=uuid4(),
         user_id=uuid4(),
         subscription=_edit(existing, trigger_config={}, is_active=False),
+        principal=any_principal(),
     )
 
     # The upsert re-enables a disabled instance, so the disable must come after it.
@@ -145,6 +148,7 @@ async def test_edit_that_mints_a_new_provider_trigger_stores_it_and_deletes_the_
         project_id=uuid4(),
         user_id=uuid4(),
         subscription=_edit(existing, trigger_config=_NEW_CONFIG),
+        principal=any_principal(),
     )
 
     assert _names(calls) == ["upsert", "status", "dao", "delete"]
@@ -163,6 +167,7 @@ async def test_edit_that_fails_to_persist_deletes_the_new_provider_trigger():
             project_id=uuid4(),
             user_id=uuid4(),
             subscription=_edit(existing, trigger_config=_NEW_CONFIG),
+            principal=any_principal(),
         )
 
     # The stored ti_existing stays live; only the unreferenced ti_new goes.
@@ -182,6 +187,7 @@ async def test_edit_that_fails_to_set_status_deletes_the_new_provider_trigger():
             project_id=uuid4(),
             user_id=uuid4(),
             subscription=_edit(existing, trigger_config=_NEW_CONFIG),
+            principal=any_principal(),
         )
 
     assert _names(calls) == ["upsert", "delete"]
@@ -198,6 +204,7 @@ async def test_edit_with_changed_event_upserts_the_new_event():
         subscription=_edit(
             existing, trigger_config=_OLD_CONFIG, event_key="GITHUB_ISSUE_EVENT"
         ),
+        principal=any_principal(),
     )
 
     assert _names(calls) == ["upsert", "status", "dao", "delete"]
@@ -218,6 +225,7 @@ async def test_edit_onto_another_subscriptions_event_conflicts_before_the_provid
             subscription=_edit(
                 existing, trigger_config=_OLD_CONFIG, event_key="GITHUB_ISSUE_EVENT"
             ),
+            principal=any_principal(),
         )
 
     assert calls == []
@@ -231,6 +239,7 @@ async def test_edit_with_only_is_active_changed_toggles_provider_trigger():
         project_id=uuid4(),
         user_id=uuid4(),
         subscription=_edit(existing, trigger_config=dict(_OLD_CONFIG), is_active=False),
+        principal=any_principal(),
     )
 
     assert _names(calls) == ["status", "dao"]
@@ -246,6 +255,7 @@ async def test_edit_with_no_provider_change_makes_no_provider_call():
         project_id=uuid4(),
         user_id=uuid4(),
         subscription=_edit(existing, trigger_config=dict(_OLD_CONFIG)),
+        principal=any_principal(),
     )
 
     assert _names(calls) == ["dao"]
