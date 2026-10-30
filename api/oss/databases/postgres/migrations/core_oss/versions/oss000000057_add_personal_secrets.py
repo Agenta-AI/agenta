@@ -23,8 +23,8 @@ needs every API pod on this release.
 
 The downgrade deletes the person rows, then restores the M5 index and check.
 
-Revision ID: oss000000056
-Revises: oss000000055
+Revision ID: oss000000057
+Revises: oss000000056
 Create Date: 2026-10-29 00:00:00.000000
 """
 
@@ -34,8 +34,8 @@ from typing import Sequence, Union
 from alembic import op
 from sqlalchemy import text
 
-revision: str = "oss000000056"
-down_revision: Union[str, None] = "oss000000055"
+revision: str = "oss000000057"
+down_revision: Union[str, None] = "oss000000056"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

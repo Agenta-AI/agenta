@@ -24,8 +24,8 @@ rewritten: every existing row is a project row.
 
 The downgrade deletes the person and organization rows, then restores the composite key.
 
-Revision ID: oss000000057
-Revises: oss000000056
+Revision ID: oss000000058
+Revises: oss000000057
 Create Date: 2026-10-29 00:00:00.000000
 """
 
@@ -34,8 +34,8 @@ from typing import Sequence, Union
 from alembic import op
 from sqlalchemy import text
 
-revision: str = "oss000000057"
-down_revision: Union[str, None] = "oss000000056"
+revision: str = "oss000000058"
+down_revision: Union[str, None] = "oss000000057"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

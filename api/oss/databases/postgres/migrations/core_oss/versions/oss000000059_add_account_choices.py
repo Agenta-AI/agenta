@@ -9,8 +9,8 @@ deleted, never archived.
 The table is new and empty, so its indexes are built in the same transaction. The
 foreign keys to existing tables take a short lock on them, under a lock timeout.
 
-Revision ID: oss000000058
-Revises: oss000000057
+Revision ID: oss000000059
+Revises: oss000000058
 Create Date: 2026-10-29 00:00:00.000000
 """
 
@@ -20,8 +20,8 @@ import sqlalchemy as sa
 from alembic import op
 from sqlalchemy.dialects import postgresql
 
-revision: str = "oss000000058"
-down_revision: Union[str, None] = "oss000000057"
+revision: str = "oss000000059"
+down_revision: Union[str, None] = "oss000000058"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

@@ -1,4 +1,4 @@
-"""The accounts revisions (055 to 059): one chain after main's head, and no destructive
+"""The accounts revisions (056 to 060): one chain after main's head, and no destructive
 operation in an upgrade path. The warnings are the index and primary key swaps, which
 build the new index or key before the old one goes."""
 
@@ -11,11 +11,11 @@ _REPO = Path(__file__).resolve().parents[6]
 _SCRIPT = _REPO / "api" / "scripts" / "migration_gate.py"
 _VERSIONS = _REPO / "api/oss/databases/postgres/migrations/core_oss/versions"
 _CHAIN = [
-    ("oss000000055_add_mcp_token_secret_kind.py", "oss000000053"),
-    ("oss000000056_add_personal_secrets.py", "oss000000055"),
-    ("oss000000057_add_personal_gateway_connections.py", "oss000000056"),
-    ("oss000000058_add_account_choices.py", "oss000000057"),
-    ("oss000000059_add_mcps_oauth_attempts_owner_kind.py", "oss000000058"),
+    ("oss000000056_add_mcp_token_secret_kind.py", "oss000000055"),
+    ("oss000000057_add_personal_secrets.py", "oss000000056"),
+    ("oss000000058_add_personal_gateway_connections.py", "oss000000057"),
+    ("oss000000059_add_account_choices.py", "oss000000058"),
+    ("oss000000060_add_mcps_oauth_attempts_owner_kind.py", "oss000000059"),
 ]
 
 

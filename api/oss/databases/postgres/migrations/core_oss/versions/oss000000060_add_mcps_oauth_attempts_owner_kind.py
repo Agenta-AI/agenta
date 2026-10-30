@@ -7,8 +7,8 @@ the stored owner and never infers it.
 The check is added NOT VALID under a short lock timeout, then validated in an autocommit
 block. Adding a column with a constant default rewrites no row.
 
-Revision ID: oss000000059
-Revises: oss000000058
+Revision ID: oss000000060
+Revises: oss000000059
 Create Date: 2026-10-29 00:00:00.000000
 """
 
@@ -17,8 +17,8 @@ from typing import Sequence, Union
 from alembic import op
 from sqlalchemy import text
 
-revision: str = "oss000000059"
-down_revision: Union[str, None] = "oss000000058"
+revision: str = "oss000000060"
+down_revision: Union[str, None] = "oss000000059"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

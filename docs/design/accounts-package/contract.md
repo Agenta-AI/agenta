@@ -54,13 +54,13 @@ The head of `core_oss` on main is `oss000000053` (its `down_revision` is `oss000
 
 | Revision | File | `down_revision` | Content |
 | --- | --- | --- | --- |
-| `oss000000055` | `oss000000055_add_mcp_token_secret_kind.py` | `oss000000053` | `ALTER TYPE secretkind_enum ADD VALUE IF NOT EXISTS 'MCP_TOKEN'`, inside `op.get_context().autocommit_block()` |
-| `oss000000056` | `oss000000056_add_personal_secrets.py` | `oss000000055` | section 3.2 |
-| `oss000000057` | `oss000000057_add_personal_gateway_connections.py` | `oss000000056` | section 3.3 |
-| `oss000000058` | `oss000000058_add_account_choices.py` | `oss000000057` | section 3.4 |
-| `oss000000059` | `oss000000059_add_mcps_oauth_attempts_owner_kind.py` | `oss000000058` | section 3.5 |
+| `oss000000056` | `oss000000056_add_mcp_token_secret_kind.py` | `oss000000055` | `ALTER TYPE secretkind_enum ADD VALUE IF NOT EXISTS 'MCP_TOKEN'`, inside `op.get_context().autocommit_block()` |
+| `oss000000057` | `oss000000057_add_personal_secrets.py` | `oss000000056` | section 3.2 |
+| `oss000000058` | `oss000000058_add_personal_gateway_connections.py` | `oss000000057` | section 3.3 |
+| `oss000000059` | `oss000000059_add_account_choices.py` | `oss000000058` | section 3.4 |
+| `oss000000060` | `oss000000060_add_mcps_oauth_attempts_owner_kind.py` | `oss000000059` | section 3.5 |
 
-Other open pull requests on main also use `oss000000055` and higher. The final numbers are set when the package goes into a release. Every package pull request says so in its body.
+Other open pull requests on main also used `oss000000055` and higher. When the package went into release v0.128.0, its revisions were renumbered to `oss000000056` to `oss000000060`, after the release head `oss000000055_copy_channel_people_lists_to_bindings`.
 
 Rules for every revision (from `api/AGENTS.md` and the build's 055):
 
@@ -596,7 +596,7 @@ A file belongs to one builder. "After X" means that the builder edits the file o
 
 | Area | Files |
 | --- | --- |
-| Migrations (A1) | `api/oss/databases/postgres/migrations/core_oss/versions/oss000000055` to `oss000000059` |
+| Migrations (A1) | `api/oss/databases/postgres/migrations/core_oss/versions/oss000000056` to `oss000000060` |
 | Secrets (A1, A2) | `dbs/postgres/secrets/{dbas,dbes,dao,mappings}.py`; `core/secrets/{enums,dtos,services,types,redaction}.py`; `apis/fastapi/vault/{router,models}.py`. In `core/secrets/`: `MCP_TOKEN` in `SecretKind`, `ALWAYS_WRITE_ONLY_KINDS` and `CREDENTIAL_FIELDS`; its data shape reuses the custom secret shape, with one branch in `_validate_secret_data_based_on_kind`; `_name_and_slug_subscription_provider` drops the one-login-per-provider rule and gives a new login a unique slug from its name (spec section 2.4). |
 | Composio connections (A1, A2) | `dbs/postgres/gateway/connections/{dbes,dao,mappings}.py`; `core/gateway/connections/{dtos,interfaces,service,utils}.py`; `core/tools/{dtos,service}.py`; `apis/fastapi/tools/{router,models}.py` |
 | MCP storage (A1 only) | `dbs/postgres/gateways/mcps/dbas.py` (the `owner_kind` column only); `core/gateways/mcps/oauth/storage.py` (`token_slug` only). C owns both after A1. |
