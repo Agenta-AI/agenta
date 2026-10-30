@@ -73,6 +73,11 @@ export interface MCPEndpointFlags {
     is_valid?: boolean
 }
 
+/** The caller's own sign-in to one server. */
+export interface MCPUserSignIn {
+    is_ready: boolean
+}
+
 export interface MCPEndpoint {
     id?: string | null
     slug?: string | null
@@ -85,6 +90,8 @@ export interface MCPEndpoint {
     secret_id?: string | null
     data: MCPEndpointData
     flags?: MCPEndpointFlags
+    /** The caller's own sign-in: null when they have none, absent when personal accounts are off. */
+    user_sign_in?: MCPUserSignIn | null
 }
 
 export interface MCPEndpointCreate {

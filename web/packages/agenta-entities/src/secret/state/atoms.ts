@@ -28,6 +28,7 @@
  *      `@agenta/shared/state.userAtom`, hydrated by OSS `UserListener`.
  */
 
+import {getHostQueryClient} from "@agenta/shared/api"
 import {projectIdAtom, userAtom} from "@agenta/shared/state"
 import type {LlmProvider} from "@agenta/shared/types"
 import {
@@ -41,8 +42,10 @@ import {atomWithStorage} from "jotai/utils"
 import {atomWithMutation, atomWithQuery} from "jotai-tanstack-query"
 import {z} from "zod"
 
+import {invalidatePersonalAccountReads} from "../../accountChoice/state"
 import {safeParseWithLogging} from "../../shared/utils/zodSchema"
 import {createVaultSecret, deleteVaultSecret, fetchVaultSecret, updateVaultSecret} from "../api/api"
+import {USER_SCOPE} from "../api/personalSecrets"
 import {
     getEnvNameMap,
     projectRowsOnly,
@@ -59,6 +62,7 @@ import {
 } from "../core/types"
 
 import {vaultSecretsPersister} from "./persistence"
+import {PERSONAL_SECRETS_KEY} from "./personalSecrets"
 
 interface CreateMutationArgs {
     projectId: string
@@ -312,6 +316,12 @@ export const createCustomSecretAtom = atom(null, async (get, set, provider: LlmP
     }
 })
 
+const invalidatePersonalSecrets = () =>
+    Promise.all([
+        getHostQueryClient().invalidateQueries({queryKey: [...PERSONAL_SECRETS_KEY]}),
+        invalidatePersonalAccountReads(),
+    ])
+
 /**
  * Atom for creating/updating user-named secrets (`custom_secret`).
  *
@@ -331,6 +341,8 @@ export const createCustomNamedSecretAtom = atom(null, async (get, set, secret: N
 
     try {
         const payload = transformCustomSecretPayloadData(secret)
+        // A person's own secret: every route names the owner (`scope=user`).
+        const personal = secret.ownerKind === "user"
 
         const findSecret = namedSecrets.find((s) => s.id === secret.id)
         const secretId = findSecret?.id ?? secret.id
@@ -340,10 +352,15 @@ export const createCustomNamedSecretAtom = atom(null, async (get, set, secret: N
                 projectId,
                 secret_id: secretId,
                 payload: toUpdateSecretPayload(payload),
+                scope: secret.ownerKind,
             })
         } else {
-            await createMutation.mutateAsync({projectId, payload})
+            await createMutation.mutateAsync({
+                projectId,
+                payload: personal ? {...payload, scope: USER_SCOPE} : payload,
+            })
         }
+        if (personal) await invalidatePersonalSecrets()
     } catch (error) {
         console.error("Failed to create/update named secret:", error)
         throw error
@@ -367,6 +384,7 @@ export const deleteSecretAtom = atom(null, async (get, set, provider: LlmProvide
                 secret_id: provider.id,
                 scope: provider.ownerKind,
             })
+            if (provider.ownerKind === "user") await invalidatePersonalSecrets()
         }
     } catch (error) {
         console.error("Failed to delete secret:", error)

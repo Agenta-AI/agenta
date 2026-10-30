@@ -26,7 +26,10 @@ const CONNECTED_ROW = {
 }
 
 const connectionQueries = (scope: StoryScope) => [
-    [[MCP_ENDPOINTS_QUERY_KEY, scope.projectId], [CONNECTED_ROW]] as [unknown[], unknown],
+    [[MCP_ENDPOINTS_QUERY_KEY, undefined, scope.projectId], [CONNECTED_ROW]] as [
+        unknown[],
+        unknown,
+    ],
 ]
 
 /** The handshake refusal a disconnected OAuth connection produces, marker and all. */
