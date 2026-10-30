@@ -4556,6 +4556,16 @@ class SimpleWorkflowsService:
             **WorkflowsService._dump_flags(simple_workflow_create.flags)
         )
 
+        # Role flags live on the artifact. Infer the plugin role before creating it,
+        # not just when its revision is committed.
+        if (
+            simple_workflow_create.data
+            and simple_workflow_create.data.uri == "agenta:custom:plugin:v0"
+        ):
+            simple_workflow_flags.is_application = True
+            simple_workflow_flags.is_evaluator = False
+            simple_workflow_flags.is_snippet = False
+
         workflow_flags = WorkflowFlags(
             **WorkflowsService._dump_flags(simple_workflow_flags),
         )
