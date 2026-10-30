@@ -106,3 +106,33 @@ export function applyCodexAcpUsagePatch(
   }
   return { kind: "patched", source: next };
 }
+
+/** The tool-deny patch: treat denied tool calls as user refusal (action: "decline") instead of cancellation. */
+export const CODEX_ACP_DENY_PATCH = patchSpec.deny;
+
+export type CodexAcpDenyPatchOutcome =
+  | { kind: "patched"; source: string }
+  | { kind: "already-patched" }
+  | { kind: "anchor-missing"; find: string };
+
+/**
+ * Make codex-acp offer "Deny" (Decline) before Cancel and map user refusal to action: "decline",
+ * preventing Codex from retrying denied tool calls (#7764).
+ *
+ * Idempotent like the approval and usage patches: a source that already carries the marker is left alone.
+ * Every anchor must match exactly its expected count, or nothing is written.
+ */
+export function applyCodexAcpDenyPatch(
+  source: string,
+): CodexAcpDenyPatchOutcome {
+  if (source.includes(CODEX_ACP_DENY_PATCH.marker))
+    return { kind: "already-patched" };
+  let next = source;
+  for (const { find, replace, count } of CODEX_ACP_DENY_PATCH.replacements) {
+    if (next.split(find).length - 1 !== count)
+      return { kind: "anchor-missing", find };
+    next = next.split(find).join(replace);
+  }
+  return { kind: "patched", source: next };
+}
+
