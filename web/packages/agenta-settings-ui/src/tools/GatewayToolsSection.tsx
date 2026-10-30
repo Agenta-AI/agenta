@@ -203,8 +203,8 @@ export default function GatewayToolsSection({
         refetch: refetchPersonal,
     } = usePersonalToolConnections()
     const yours = showsYours(access) && (personalConnections !== null || !!personalError)
-    // The dialog offers "Only me" only where "Yours" shows.
-    const connectOwners = yours ? addAccountOwners(access, canEdit) : undefined
+    // The switch alone decides the owners, so a pending list read never defaults to the project.
+    const connectOwners = addAccountOwners(access, canEdit)
     const {handleDelete, handleRevoke} = useToolConnectionActions()
     // The catalog's first page: the logos, and the Popular rows.
     const {integrations, isLoading: integrationsLoading} = useToolsIntegrations()
