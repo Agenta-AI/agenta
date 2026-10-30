@@ -106,11 +106,10 @@ class MembershipsDAOInterface(ABC):
         self,
         *,
         organization_id: UUID,
-        workspace_id: UUID,
         name: str,
         is_default: bool,
     ) -> CreatedProject:
-        """Raises WorkspaceNotFound."""
+        """A project of the organization, with no workspace."""
 
     @abstractmethod
     async def transfer_ownership(

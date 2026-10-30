@@ -13,7 +13,10 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { createPiFileSpanExporter } from "../../src/tracing/pi-file-exporter.ts";
-import { piTraceFileName } from "../../src/tracing/pi-spool-protocol.ts";
+import {
+  piTraceDoneFileName,
+  piTraceFileName,
+} from "../../src/tracing/pi-spool-protocol.ts";
 
 const dirs: string[] = [];
 
@@ -40,6 +43,27 @@ describe("createPiFileSpanExporter", () => {
     expect([...readFileSync(path)]).toEqual([0, 255, 7]);
     expect(statSync(path).mode & 0o777).toBe(0o600);
     expect(readdirSync(directory)).toEqual([piTraceFileName(channelId, 0)]);
+  });
+
+  it("publishes an empty done marker for the channel", async () => {
+    const directory = mkdtempSync(join(tmpdir(), "agenta-pi-traces-"));
+    dirs.push(directory);
+    const channelId = "a".repeat(32);
+    const exporter = createPiFileSpanExporter({ directory, channelId });
+
+    await exporter.export({
+      body: Uint8Array.from([1]),
+      traceId: "b".repeat(32),
+      spanCount: 1,
+    });
+    exporter.publishDone();
+
+    expect(readdirSync(directory).sort()).toEqual(
+      [piTraceDoneFileName(channelId), piTraceFileName(channelId, 0)].sort(),
+    );
+    expect(statSync(join(directory, piTraceDoneFileName(channelId))).size).toBe(
+      0,
+    );
   });
 
   it("reuses the same sequence after a failed publication", async () => {

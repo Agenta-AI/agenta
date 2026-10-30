@@ -1252,7 +1252,7 @@ async def test_each_stalled_builtin_retry_sends_a_different_request(
     """The built-in route cuts a silent attempt and sends a nudged copy, not the same bytes."""
     import oss.src.core.gateways.llms.catalog as catalog_module
 
-    monkeypatch.setattr(catalog_module, "AGENTA_RESPONSE_HEADERS_TIMEOUT_SECONDS", 0.05)
+    monkeypatch.setattr(catalog_module, "AGENTA_RESPONSE_HEADERS_TIMEOUT_SECONDS", 0.5)
     sent: List[bytes] = []
     frames = (
         'data: {"choices": [{"delta": {"content": "Hi"}, "index": 0}]}\n\n'
@@ -1312,7 +1312,7 @@ async def test_a_5xx_retry_keeps_the_nudge_and_only_a_stall_adds_to_it(
         return None
 
     monkeypatch.setattr(asyncio, "sleep", _no_wait)
-    monkeypatch.setattr(catalog_module, "AGENTA_RESPONSE_HEADERS_TIMEOUT_SECONDS", 0.05)
+    monkeypatch.setattr(catalog_module, "AGENTA_RESPONSE_HEADERS_TIMEOUT_SECONDS", 0.5)
     sent: List[bytes] = []
     frames = (
         'data: {"choices": [{"delta": {"content": "Hi"}, "index": 0}]}\n\n'

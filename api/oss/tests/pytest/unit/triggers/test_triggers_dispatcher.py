@@ -82,10 +82,11 @@ def _make_dao(*, seen=False, claim_lost=False):
     return dao
 
 
-# Raw provider envelope (Composio webhook shape): the message lives under
-# `payload`, the routing ids under `metadata` (`trigger_id` = the provider ti_*,
-# `id` = the per-delivery event id). The dispatcher normalizes this into
-# `event.{event_id,event_type,attributes}` before mapping.
+# Internal trigger event (what ingress enqueues after `normalize_webhook_event`):
+# the message lives under `payload`, the routing ids under `metadata`
+# (`trigger_id` = the provider ti_*, `id` = the provider event id, which is
+# also the delivery dedup key). The dispatcher normalizes this into
+# `event.{event_id,event_type,attributes}`.
 _EVENT = {
     "metadata": {
         "trigger_id": "ti_1",
@@ -284,6 +285,8 @@ async def test_mapping_failure_abandons_the_claimed_session_and_skips_invoke(
     completion = dao.update_delivery.await_args.kwargs
     assert completion["status"].code == "400"
     assert completion["data"].error == "invalid input mapping"
+    # The event is recorded before the mapping resolves, so a failed run still shows it.
+    assert completion["data"].event["attributes"] == {"issue": {"number": 7}}
     assert completion["data"].session_id == claim["session_id"]
     assert completion["delivery_id"] == claim["attribution"].delivery_id
     workflows.invoke_workflow.assert_not_awaited()
@@ -347,6 +350,7 @@ async def test_happy_path_invokes_workflow_and_writes_success():
     assert update_kwargs["status"].code == "200"
     assert update_kwargs["data"].session_id == request.session_id
     assert update_kwargs["data"].inputs == {"number": 7}
+    assert update_kwargs["data"].event["event_id"] == "evt_1"
     # The invoke succeeded, so the claimed session is real — it must not be
     # abandoned (P0-3 only fires on the pre-invoke failure paths).
     dao.abandon_claimed_session.assert_not_awaited()
@@ -378,7 +382,78 @@ async def test_test_subscription_captures_event_and_skips_workflow():
     assert delivery.data.is_test is True
     # Default inputs_fields ("$") captures the whole resolved event context.
     assert delivery.data.inputs["event"]["attributes"] == {"issue": {"number": 7}}
+    assert delivery.data.event["attributes"] == {"issue": {"number": 7}}
     assert delivery.data.error is None
+
+
+async def test_test_subscription_capture_composes_the_message_like_a_real_run():
+    subscription = _make_subscription(
+        is_test=True,
+        inputs_fields={"messages": [{"role": "user", "content": "Triage it"}]},
+    )
+    dao = _make_dao()
+    dispatcher = TriggersDispatcher(
+        run_admission=NoopRunAdmission(),
+        triggers_dao=dao,
+        session_claims_dao=dao,
+        workflows_service=MagicMock(),
+    )
+
+    await dispatcher.dispatch_subscription(
+        project_id=uuid4(), subscription=subscription, event_id="e1", event=_EVENT
+    )
+
+    delivery = dao.write_subscription_delivery_if_live.await_args.kwargs["delivery"]
+    content = delivery.data.inputs["messages"][0]["content"]
+    assert content.startswith("Triage it\n\nEvent data (github.issue.opened):")
+    assert delivery.data.event["event_type"] == "github.issue.opened"
+
+
+async def test_happy_path_messages_mapping_gets_the_event_text():
+    subscription = _make_subscription(
+        references={"workflow": Reference(slug="wf-1")},
+        inputs_fields={
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": "Issue "},
+                        {"type": "text", "text": "$.event.attributes.issue.number"},
+                    ],
+                }
+            ]
+        },
+    )
+    dao = _make_dao()
+    workflows = MagicMock()
+    workflows.invoke_workflow = AsyncMock(
+        return_value=SimpleNamespace(
+            status=SimpleNamespace(code=200, message="success"),
+            outputs={"ok": True},
+            trace_id="tr-1",
+            span_id="sp-1",
+        )
+    )
+    dispatcher = TriggersDispatcher(
+        run_admission=NoopRunAdmission(),
+        triggers_dao=dao,
+        session_claims_dao=dao,
+        workflows_service=workflows,
+    )
+
+    await dispatcher.dispatch_subscription(
+        project_id=uuid4(), subscription=subscription, event_id="e1", event=_EVENT
+    )
+
+    request = workflows.invoke_workflow.await_args.kwargs["request"]
+    parts = request.data.inputs["messages"][0]["content"]
+    assert parts[0] == {"type": "text", "text": "Issue "}
+    # The number is coerced to text, so the agent handler accepts it.
+    assert parts[1] == {"type": "text", "text": "7"}
+    assert parts[2]["text"].startswith("\n\nEvent data (github.issue.opened):")
+    delivery_data = dao.update_delivery.await_args.kwargs["data"]
+    assert delivery_data.inputs == request.data.inputs
+    assert delivery_data.event["attributes"] == {"issue": {"number": 7}}
 
 
 async def test_test_subscription_dedups():
@@ -617,6 +692,8 @@ async def test_first_schedule_event_invokes_workflow():
     update_kwargs = dao.update_delivery.await_args.kwargs
     assert update_kwargs["delivery_id"] == attribution.delivery_id
     assert update_kwargs["status"].code == "200"
+    # Schedules have a synthetic event and record none.
+    assert update_kwargs["data"].event is None
 
 
 async def test_failed_schedule_invoke_records_the_row_the_retry_dedups_on():

@@ -3,10 +3,34 @@ title: "Private agents and chats, and sharing with your project"
 slug: private-agents-and-chats
 date: 2026-10-26
 tags: [v0.125.0]
+improvements:
+  - area: Models
+    text: "Claude Haiku 5.5 is available for agents, also on Pi"
+  - area: Models
+    text: "Built-in Gemini models use Google's native protocol"
+  - area: Runs
+    text: "Agent turns start faster"
+fixes:
+  - area: Chat
+    text: "Stop keeps the partial answer and ends the turn as stopped"
+  - area: Chat
+    text: "A message that you send stays when you switch to another chat"
+  - area: Channels
+    text: "You can write to channel chats in the app, and private agents stay connected to their channels"
+  - area: Runs
+    text: "A turn that reaches its time limit keeps the work it did"
+  - area: Runs
+    text: "Long turns are no longer cut short by the output budget"
 description: "New agents and chats start private. Share a chat with chosen people or with the whole project, make an agent private, and keep existing work as it was."
 ---
 
+import { Stream } from "@cloudflare/stream-react";
+
 <Summary>
+
+<Stream controls src="62669af1430b79044ec5275e0453194f" height="400px" />
+
+<br />
 
 New chats and agents that you create in Agenta now start private. Only you see them until you share them. You can share a chat with chosen people as **Can view** or **Can send**, or make it visible to the whole project. You can also make an agent private.
 
@@ -15,6 +39,10 @@ Chats and agents that existed before this release keep working as before. They a
 </Summary>
 
 {/* truncate */}
+
+<Stream controls src="62669af1430b79044ec5275e0453194f" height="400px" />
+
+<br />
 
 ## Private by default
 

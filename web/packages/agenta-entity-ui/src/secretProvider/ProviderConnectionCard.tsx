@@ -361,11 +361,13 @@ const ProviderConnectionCard = ({
                 : probeRequestFor(kind, credential, connection),
         [readOnly, connection, kind, credential],
     )
-    // A probe that reads the stored organization row runs through the current project, so only
-    // where the project may use it. A typed key is tested on its own, from any project.
+    // A member's probe of the stored organization row runs through the current project, so only
+    // where the project may use it. An owner or admin reads the row from any project, and a
+    // typed key is tested on its own.
     const readsOrganizationSecret = !!organization && !!probeRequest.secret_id
     const testableHere =
         !readsOrganizationSecret ||
+        !readOnly ||
         connection?.availability !== "selected_projects" ||
         (!!projectId && (connection.selectedProjectIds ?? []).includes(projectId))
 

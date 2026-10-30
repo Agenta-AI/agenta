@@ -7,6 +7,7 @@ import {
   TOOL_RESULT_RENDER_MAX_CHARS,
 } from "../../src/engines/sandbox_agent/transcript.ts";
 import type { AgentRunRequest, ContentBlock } from "../../src/protocol.ts";
+import { isWellFormed } from "../utils/well-formed.ts";
 import {
   APPROVED_EXECUTION_RESULT_UNKNOWN,
   TOOL_NOT_EXECUTED_PAUSED,
@@ -156,6 +157,18 @@ describe("tool result render cap", () => {
     assert.match(transcript, /\[\.\.\. 500 chars omitted\]/);
   });
 
+  it("does not split a character that straddles the cap", () => {
+    // The pair sits at code units 3999-4000, the real case that broke a session: the
+    // lone high half became `\ud835` in the ACP body and the daemon rejected it.
+    const body = `${"x".repeat(TOOL_RESULT_RENDER_MAX_CHARS - 1)}𝗰${"y".repeat(500)}`;
+    const transcript = messageTranscript([
+      { type: "tool_result", toolName: OTHER_TOOL, output: body },
+    ]);
+
+    assert.ok(isWellFormed(transcript));
+    assert.match(transcript, /\[\.\.\. 502 chars omitted\]/);
+  });
+
   it("keeps a small tool RESULT body whole, no marker", () => {
     const transcript = messageTranscript([
       { type: "tool_result", toolName: OTHER_TOOL, output: { ok: true } },
@@ -217,6 +230,33 @@ describe("buildTurnText history window", () => {
       assert.match(logs[0], /pendingNudge=false/);
       assert.match(logs[0], /resumeFrame=none/);
       assert.match(logs[0], /turnText \d+ chars/);
+    } finally {
+      restoreEnv();
+    }
+  });
+
+  it("does not split a character that straddles the window start", () => {
+    process.env.AGENTA_AGENT_HISTORY_MAX_CHARS = "1000";
+    try {
+      const logs: string[] = [];
+      // The second message renders as "assistant: " + body, so the window starts at the low
+      // half of the "𝗰" pair placed 999 code units before the end of the transcript.
+      const body = `${"a".repeat(2000)}𝗰${"b".repeat(999)}`;
+      const text = buildTurnText(
+        {
+          messages: [
+            { role: "user", content: "old goal" },
+            { role: "assistant", content: body },
+            { role: "user", content: "continue" },
+          ],
+        },
+        (msg) => logs.push(msg),
+      );
+
+      assert.ok(isWellFormed(text));
+      assert.ok(!text.includes("𝗰"), "the split character is dropped whole");
+      assert.match(logs[0], /transcript \d+->999 chars/);
+      assert.match(logs[0], /evicted 1\/2 messages/);
     } finally {
       restoreEnv();
     }

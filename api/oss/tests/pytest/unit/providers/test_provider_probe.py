@@ -1219,11 +1219,14 @@ ORGANIZATION_ID = uuid4()
 
 
 class _OrganizationVault(_StubVault):
-    """Adds the organization rows available to the project, by id."""
+    """The organization rows by id: `organization` are available to the project,
+    `unavailable` are not. The available-only read misses the second kind; the
+    organization read (a manager's) finds both."""
 
     def __init__(self):
         super().__init__()
         self.organization: dict = {}
+        self.unavailable: dict = {}
         self.permissions: list = []
 
     async def get_available_organization_secret_by_id(
@@ -1232,6 +1235,13 @@ class _OrganizationVault(_StubVault):
         if str(organization_id) != str(ORGANIZATION_ID):
             return None
         return self.organization.get(str(secret_id))
+
+    async def fetch_organization_secret(self, *, organization_id, secret_id):
+        if str(organization_id) != str(ORGANIZATION_ID):
+            return None
+        return self.organization.get(str(secret_id)) or self.unavailable.get(
+            str(secret_id)
+        )
 
 
 def _organization_client(monkeypatch, responder, vault, *, manage: bool):
@@ -1302,10 +1312,12 @@ def test_testing_an_organization_connection_with_changes_needs_an_admin(monkeypa
         monkeypatch, json_response({"data": []}), vault, manage=False
     )
     assert member.post("/providers/probe", json=body).status_code == 403
-    admin, _ = _organization_client(
-        monkeypatch, json_response({"data": []}), vault, manage=True
-    )
-    assert admin.post("/providers/probe", json=body).status_code != 403
+    recorder = Recorder(json_response({"data": []}))
+    admin, _ = _organization_client(monkeypatch, recorder, vault, manage=True)
+    response = admin.post("/providers/probe", json=body)
+    assert response.status_code == 200, response.text
+    (sent,) = recorder.requests
+    assert sent.headers["authorization"] == f"Bearer {STORED_KEY}"
 
 
 def test_an_unavailable_organization_connection_is_not_found(monkeypatch):
@@ -1337,3 +1349,25 @@ def test_an_organization_probe_answer_that_echoes_the_key_is_refused(monkeypatch
     assert response.status_code == 502, response.text
     assert STORED_KEY not in response.text
     assert response.json() == {"detail": router_module.PROBE_CREDENTIAL_ECHO_MESSAGE}
+
+
+def test_an_admin_tests_an_organization_connection_this_project_may_not_use(
+    monkeypatch,
+):
+    vault = _OrganizationVault()
+    secret_id = uuid4()
+    vault.unavailable[str(secret_id)] = _stored_provider_key()
+    body = {"secret_id": str(secret_id), "secret_scope": "organization"}
+
+    recorder = Recorder(json_response({"data": [{"id": "gpt-5.6-luna"}]}))
+    admin, _ = _organization_client(monkeypatch, recorder, vault, manage=True)
+    response = admin.post("/providers/probe", json=body)
+    assert response.status_code == 200, response.text
+    (sent,) = recorder.requests
+    assert sent.headers["authorization"] == f"Bearer {STORED_KEY}"
+    assert STORED_KEY not in response.text
+
+    member, _ = _organization_client(
+        monkeypatch, json_response({"data": []}), vault, manage=False
+    )
+    assert member.post("/providers/probe", json=body).status_code == 404

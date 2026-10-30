@@ -20,6 +20,7 @@ from oss.src.core.triggers.dtos import (
     TriggerSubscriptionCreate,
     TriggerSubscriptionEdit,
     TriggerSubscriptionQuery,
+    TriggerWebhookRegistration,
 )
 
 
@@ -90,8 +91,10 @@ class TriggersGatewayInterface(ABC):
         ...
 
     @abstractmethod
-    async def ensure_webhook_subscription(self, *, webhook_url: str) -> str:
-        """Idempotently ensure the project-level delivery webhook; return its secret."""
+    async def ensure_webhook_subscription(
+        self, *, webhook_url: str
+    ) -> TriggerWebhookRegistration:
+        """Idempotently ensure the project-level delivery webhook; return its registration."""
         ...
 
 
@@ -144,6 +147,7 @@ class TriggersDAOInterface(ABC):
         subscription: TriggerSubscriptionEdit,
         #
         artifact_id: Any = KEEP_ARTIFACT_ID,
+        trigger_id: Optional[str] = None,
     ) -> Optional[TriggerSubscription]: ...
 
     @abstractmethod

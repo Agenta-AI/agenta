@@ -118,7 +118,10 @@ from oss.src.core.sessions.streams.service import (
     SessionStreamsService,
     derive_command_mode,
 )
-from oss.src.core.sessions.commands.service import SessionCommandsService
+from oss.src.core.sessions.commands.service import (
+    SessionCommandsService,
+    steer_cancel_key,
+)
 from oss.src.core.sessions.commands.types import (
     ExecutionExpectationFailed,
     SessionCommandIdempotencyConflict,
@@ -622,6 +625,13 @@ class SessionStreamsRouter:
             methods=["POST"],
             operation_id="set_session_stream",
             tags=["Sessions"],
+            description=(
+                "Send a turn to a session, steer the running turn, or attach to it.\n\n"
+                "**Deprecated:** a call with no non-empty `data.inputs` and with `force` "
+                "false or omitted stops the running turn. This stop mode is deprecated "
+                "and will be removed in a later release. To stop a turn, call "
+                "`POST /sessions/{session_id}/cancel`."
+            ),
         )
         self.router.add_api_route(
             "/sessions/streams/",
@@ -709,6 +719,14 @@ class SessionStreamsRouter:
             raise not_found_exception()
 
         mode = derive_command_mode(payload)
+        if mode == CommandMode.cancel:
+            # Counts the callers left before the deprecated stop mode is removed.
+            log.info(
+                "[SESSIONS] deprecated stop through POST /sessions/streams/ "
+                "project_id=%s session_id=%s",
+                project_id,
+                payload.session_id,
+            )
 
         # A cancel starts nothing, so the per-project concurrency limit must not gate it. Before
         # this, a project at its limit could not stop the very runs that held the limit — the one
@@ -1597,6 +1615,31 @@ class RecordsRouter:
                 terminal_outcome=ending,
             )
 
+        attributes = body.attributes
+        if (
+            self.commands_service is not None
+            and body.record_type == TERMINAL_RECORD_TYPE
+            and body.turn_id
+            and (attributes or {}).get("stopReason") == "cancelled"
+        ):
+            # The runner cannot tell a Steer from a Stop: both abort the turn the same way. The
+            # cancel command can, so name the cause on the record and the transcript does not
+            # call a turn the user's own reply replaced "Stopped".
+            try:
+                if await self.commands_service.cancelled_by_steer(
+                    project_id=UUID(project_id),
+                    session_id=body.session_id,
+                    execution_id=body.turn_id,
+                ):
+                    attributes = {**(attributes or {}), "cancelledBy": "steer"}
+            except Exception:  # noqa: BLE001 - the cause is a label; the record must land
+                log.warning(
+                    "cancel cause lookup failed session=%s turn=%s",
+                    body.session_id,
+                    body.turn_id,
+                    exc_info=True,
+                )
+
         published = await publish_record(
             organization_id=UUID(request.state.organization_id),
             project_id=UUID(project_id),
@@ -1608,7 +1651,7 @@ class RecordsRouter:
                 timestamp=body.timestamp,
                 record_type=body.record_type,
                 record_source=body.record_source,
-                attributes=body.attributes,
+                attributes=attributes,
                 turn_id=body.turn_id,
                 span_id=body.span_id,
             ),
@@ -3551,7 +3594,7 @@ class SessionControlRouter:
                     user_id=UUID(str(user_id)) if user_id else None,
                     session_id=payload.session_id,
                     expected_execution_id=admission.execution_id,
-                    idempotency_key=f"steer:{admission.input.id}",
+                    idempotency_key=steer_cancel_key(admission.input.id),
                     steer_input_id=admission.input.id,
                 )
             except Exception as error:  # noqa: BLE001 - the input is already durable

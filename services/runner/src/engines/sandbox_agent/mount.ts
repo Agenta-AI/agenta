@@ -15,6 +15,7 @@
  */
 
 import { execFile, spawn } from "node:child_process";
+import { existsSync } from "node:fs";
 import { promisify } from "node:util";
 
 import {
@@ -310,6 +311,40 @@ export async function isMounted(
   }
 }
 
+export interface WaitForMountReadyOptions {
+  /** One readiness probe (production: `isMounted`). */
+  check: () => Promise<boolean>;
+  sleep: (ms: number) => Promise<void>;
+  /** True once the geesefs process exited: a foreground geesefs that exited serves nothing. */
+  exited?: () => boolean;
+  timeoutMs?: number;
+  firstIntervalMs?: number;
+  maxIntervalMs?: number;
+  now?: () => number;
+}
+
+/**
+ * Probe until the mount serves I/O, geesefs exits, or the timeout passes. The interval starts at
+ * 50 ms and doubles to a 100 ms cap, so a mount is seen within about 100 ms of attaching instead
+ * of on the next 500 ms tick.
+ */
+export async function waitForMountReady(
+  opts: WaitForMountReadyOptions,
+): Promise<boolean> {
+  const now = opts.now ?? Date.now;
+  const deadline = now() + (opts.timeoutMs ?? 15_000);
+  const maxInterval = opts.maxIntervalMs ?? 100;
+  let interval = opts.firstIntervalMs ?? 50;
+  for (;;) {
+    if (await opts.check()) return true;
+    if (opts.exited?.()) return false;
+    const remaining = deadline - now();
+    if (remaining <= 0) return false;
+    await opts.sleep(Math.min(interval, remaining));
+    interval = Math.min(interval * 2, maxInterval);
+  }
+}
+
 export interface MountStorageDeps {
   /** Injectable mount attempt for tests; the returned stop handle prevents a late FUSE attach. */
   runGeesefs?: (
@@ -317,6 +352,8 @@ export interface MountStorageDeps {
     env: Record<string, string>,
   ) => Promise<{ stop: () => Promise<void> } | void>;
   checkMounted?: (cwd: string) => Promise<boolean>;
+  /** The FUSE device path to check before a real mount attempt. Tests point it elsewhere. */
+  fuseDevice?: string;
   /** Opt-in geesefs behaviors; absent keeps today's argv. */
   geesefs?: GeesefsOptions;
   /** Injectable command/probe seams while retaining production unmountStorage behavior. */
@@ -324,6 +361,9 @@ export interface MountStorageDeps {
   log?: (msg: string) => void;
   signal?: AbortSignal;
 }
+
+/** Set once the missing FUSE device was reported, so the warning is logged once per process. */
+let fuseMissingLogged = false;
 
 /**
  * geesefs-mount the durable prefix at `cwd` on this host (LOCAL sandbox).
@@ -343,6 +383,20 @@ export async function mountStorage(
   const checkMounted = deps.checkMounted ?? ((c: string) => isMounted(c, log));
   const signal = deps.signal;
   throwIfAcquireAborted(signal);
+
+  // A host without FUSE (Kubernetes without a FUSE device, e.g. GKE Autopilot) can never mount.
+  // geesefs would exit at once, and the run falls back to throwaway storage either way, so skip
+  // the attempt and say so once per runner process. An injected attempt (tests) mounts no FUSE.
+  if (!deps.runGeesefs && !existsSync(deps.fuseDevice ?? "/dev/fuse")) {
+    if (!fuseMissingLogged) {
+      fuseMissingLogged = true;
+      log(
+        "WARN no /dev/fuse on this runner host: local drive mounts are skipped and runs use " +
+          "throwaway storage. Give the runner a FUSE device to keep files between sessions.",
+      );
+    }
+    return false;
+  }
 
   log(
     `mountStorage begin cwd=${cwd} bucket=${creds.bucket} prefix=${creds.prefix} ` +
@@ -396,12 +450,13 @@ export async function mountStorage(
         if (s) log(`geesefs stderr: ${s.slice(0, 400)}`);
       });
       child.unref();
-      // Poll up to ~15s for the mountpoint to serve I/O; geesefs logs "successfully mounted"
-      // within ~1s normally. Resolve as soon as it's alive; the caller re-verifies after.
-      for (let i = 0; i < 30; i++) {
-        if (await isMounted(cwd, () => {})) break;
-        await new Promise((r) => setTimeout(r, 500));
-      }
+      // Wait up to ~15s for the mountpoint to serve I/O (geesefs mounts within ~1s normally), and
+      // stop at once if the foreground geesefs exits. The caller re-verifies after.
+      await waitForMountReady({
+        check: () => isMounted(cwd, () => {}),
+        sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+        exited: () => processExited,
+      });
       return {
         stop: async () => {
           const waitForExit = async (): Promise<boolean> => {
@@ -678,60 +733,63 @@ export interface MountStorageRemoteDeps {
   geesefs?: GeesefsOptions;
   mountTimeoutMs?: number;
   /**
-   * Liveness poll budget (attempts x ~5.5s: a 5s exec cap + a 500ms delay). Default 12, about a
-   * minute worst case. Lowered by tests.
+   * How long the mount script waits for the mount to serve I/O (default 10 s, about what the old
+   * twelve probe execs with a 500 ms pause took on Daytona). Each probe is capped at 5 s, and two
+   * capped probes in a row end the wait early. Lowered by tests.
    */
-  aliveAttempts?: number;
+  aliveTimeoutMs?: number;
   log?: (msg: string) => void;
   signal?: AbortSignal;
 }
 
+/** Exit code of the remote mount script when the mount did not serve I/O in time. */
+export const REMOTE_MOUNT_NOT_ALIVE_EXIT = 11;
+
+/** The geesefs log of one remote mount. Mounts run at the same time, so each has its own. */
+export function remoteMountLogFile(cwd: string): string {
+  return `/tmp/geesefs-mount${cwd.replace(/[^A-Za-z0-9._-]+/g, "_")}.log`;
+}
+
 /**
- * Poll a remote mountpoint until it serves I/O, mirroring the local `isMounted` loop.
+ * The whole remote mount as ONE `sh` script, so a mount costs one round trip to the sandbox
+ * instead of four or more (detach, mkdir, start, then one exec per alive probe):
  *
- * Each attempt's exec is capped at 5s, not 10s: on a dead-but-registered mount the `ls` hangs
- * for the FULL per-attempt timeout, so the old 30-attempt/10s budget was a ~5 minute worst
- * case before the caller ever gave up. 12 attempts at ~5.5s each (exec + poll delay) bounds it
- * to about a minute. Some sandbox providers throw on an exec timeout instead of returning a
- * non-zero exit, so a throw counts as one failed attempt rather than aborting the whole poll —
- * but two throws in a row break out early, since that means the sandbox itself is unreachable,
- * not just slow.
+ * 1. Detach whatever is at `cwd` (a reattached sandbox can hold a mount with expired credentials).
+ * 2. `mkdir -p` the mountpoint.
+ * 3. Start geesefs in the background, its output to `logFile`, so it does not hold the exec open.
+ * 4. Probe `mountpoint -q && ls` every 50 ms until `aliveSeconds` pass. Each probe is capped at
+ *    5 s (a dead-but-registered FUSE node hangs it), and two capped probes in a row stop the
+ *    wait, as two timed-out probe execs did before.
+ *
+ * Exit 0 means the mount serves I/O. Exit `REMOTE_MOUNT_NOT_ALIVE_EXIT` means it did not, and the
+ * script prints the tail of the geesefs log for the operator line. The caller detaches on any
+ * non-zero exit. The credentials ride the exec env, never this text.
  */
-async function remoteMountAlive(
-  sandbox: SandboxExec,
+export function remoteMountScript(
   cwd: string,
-  attempts: number,
-  signal?: AbortSignal,
-): Promise<boolean> {
-  let consecutiveThrows = 0;
-  for (let i = 0; i < attempts; i++) {
-    throwIfAcquireAborted(signal);
-    try {
-      const res = await waitForAcquire(
-        () =>
-          sandbox.runProcess({
-            command: "sh",
-            args: [
-              "-c",
-              `mountpoint -q ${shellQuote(cwd)} && ls ${shellQuote(cwd)} >/dev/null 2>&1`,
-            ],
-            timeoutMs: 5_000,
-          }),
-        signal,
-      );
-      consecutiveThrows = 0;
-      if (res?.exitCode === 0) return true;
-    } catch {
-      throwIfAcquireAborted(signal);
-      consecutiveThrows += 1;
-      if (consecutiveThrows >= 2) break;
-    }
-    await waitForAcquire(
-      () => new Promise<void>((resolve) => setTimeout(resolve, 500)),
-      signal,
-    );
-  }
-  return false;
+  geesefsArgs: string[],
+  logFile: string,
+  aliveSeconds: number,
+): string {
+  const q = shellQuote;
+  return [
+    `cwd=${q(cwd)}`,
+    `log=${q(logFile)}`,
+    `fusermount -u "$cwd" 2>/dev/null || umount -l "$cwd" 2>/dev/null || true`,
+    `mkdir -p "$cwd"`,
+    `geesefs --log-file "$log" ${geesefsArgs.map(q).join(" ")} >>"$log" 2>&1 &`,
+    `end=$(( $(date +%s) + ${Math.max(1, Math.ceil(aliveSeconds))} )); hung=0`,
+    `while :; do`,
+    `  timeout 5 sh -c 'mountpoint -q "$1" && ls "$1" >/dev/null 2>&1' _ "$cwd"; rc=$?`,
+    `  [ "$rc" -eq 0 ] && exit 0`,
+    // 124 is a GNU timeout, 143 and 137 a busybox one.
+    `  case "$rc" in 124|137|143) hung=$((hung+1)); [ "$hung" -ge 2 ] && break ;; *) hung=0 ;; esac`,
+    `  [ "$(date +%s)" -ge "$end" ] && break`,
+    `  sleep 0.05 2>/dev/null || sleep 1`,
+    `done`,
+    `tail -5 "$log" 2>/dev/null`,
+    `exit ${REMOTE_MOUNT_NOT_ALIVE_EXIT}`,
+  ].join("\n");
 }
 
 /**
@@ -776,33 +834,23 @@ export async function mountStorageRemote(
   const log = deps.log ?? defaultLog;
   throwIfAcquireAborted(deps.signal);
   try {
-    // A reattached running sandbox may still hold a FUSE mount with expired credentials. Detach
-    // it before remounting; on a fresh sandbox this is one fast best-effort no-op.
-    await waitForAcquire(
-      () => unmountRemoteDeadMount(sandbox, cwd, log),
-      deps.signal,
-    );
-    // Ensure the directory exists before mounting.
-    await waitForAcquire(
-      () =>
-        sandbox.runProcess({
-          command: "sh",
-          args: ["-c", `mkdir -p ${shellQuote(cwd)}`],
-          timeoutMs: 30_000,
-        }),
-      deps.signal,
-    );
-    // Background geesefs with its logs to a file so the RPC returns immediately.
+    // One exec: detach, mkdir, start geesefs in the background, and wait for it to serve I/O.
+    // See `remoteMountScript`. geesefs detaches (no `-f`) so the exec can return.
     const args = geesefsArgs(creds, cwd, deps.endpoint, false, deps.geesefs);
-    const logFile = "/tmp/geesefs-mount.log";
-    const quotedArgs = args.map(shellQuote).join(" ");
-    const geefsCmd = `geesefs --log-file ${shellQuote(logFile)} ${quotedArgs} >>${shellQuote(logFile)} 2>&1 &`;
     log(`remote geesefs argv: ${args.join(" ")}`);
     const res = await waitForAcquire(
       () =>
         sandbox.runProcess({
           command: "sh",
-          args: ["-c", geefsCmd],
+          args: [
+            "-c",
+            remoteMountScript(
+              cwd,
+              args,
+              remoteMountLogFile(cwd),
+              (deps.aliveTimeoutMs ?? 10_000) / 1000,
+            ),
+          ],
           env: credEnv(creds),
           timeoutMs: deps.mountTimeoutMs ?? 60_000,
         }),
@@ -814,33 +862,16 @@ export async function mountStorageRemote(
       },
     );
     if (res?.exitCode !== 0) {
-      log(
-        `remote mount exit=${res?.exitCode}: ${String(res?.stderr).slice(-300)}`,
-      );
-      return false;
-    }
-    // The daemon backgrounds before the FUSE channel serves I/O, so wait for it.
-    if (
-      !(await remoteMountAlive(
-        sandbox,
-        cwd,
-        deps.aliveAttempts ?? 12,
-        deps.signal,
-      ))
-    ) {
-      const tail = await waitForAcquire(
-        () =>
-          sandbox.runProcess({
-            command: "sh",
-            args: ["-c", "tail -5 /tmp/geesefs-mount.log 2>/dev/null"],
-            timeoutMs: 10_000,
-          }),
-        deps.signal,
-      );
-      log(
-        `remote mount not alive ${creds.bucket}:${creds.prefix} -> ${cwd}` +
-          `; geesefs: ${String(tail?.result ?? tail?.stderr ?? "").slice(-400)}`,
-      );
+      if (res?.exitCode === REMOTE_MOUNT_NOT_ALIVE_EXIT) {
+        log(
+          `remote mount not alive ${creds.bucket}:${creds.prefix} -> ${cwd}` +
+            `; geesefs: ${String(res?.result ?? res?.stderr ?? "").slice(-400)}`,
+        );
+      } else {
+        log(
+          `remote mount exit=${res?.exitCode}: ${String(res?.stderr).slice(-300)}`,
+        );
+      }
       // geesefs may have registered the FUSE node without ever serving I/O. Left in place it
       // shadows cwd for every later file op, so detach it before giving up on this mount.
       await unmountRemoteDeadMount(sandbox, cwd, log);

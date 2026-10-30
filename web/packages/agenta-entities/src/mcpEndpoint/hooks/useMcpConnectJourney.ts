@@ -1158,9 +1158,9 @@ export function useMcpConnectJourney({
                 // A row another tab took over is kept on purpose, and an abandoned pending
                 // row is inert, so a refused cleanup is not worth blocking the person on.
             }
-            // The list may never have fetched this row, and a 409 means it is still there.
-            await refreshEndpoints()
         }
+        // A failed attempt can keep a row the list never fetched.
+        if (endpoint) await refreshEndpoints()
     }, [abandonAttempt, projectId, refreshEndpoints, state])
 
     /**
