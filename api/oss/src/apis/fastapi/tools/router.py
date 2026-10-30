@@ -1459,6 +1459,7 @@ class ToolsRouter:
             resolution = await self.tools_service.resolve_tools(
                 project_id=UUID(request.state.project_id),
                 tools=body.tools,
+                omit_unavailable=body.omit_unavailable,
             )
         except ConnectionNotFoundError as e:
             raise HTTPException(status_code=404, detail=e.message) from e
@@ -1476,6 +1477,7 @@ class ToolsRouter:
             builtins=resolution.builtins,
             custom=resolution.custom,
             gateway_connections=resolution.gateway_connections,
+            unavailable_connections=resolution.unavailable_connections,
         )
 
     @intercept_exceptions()
@@ -1819,10 +1821,11 @@ class ToolsRouter:
         has already applied the agent's policy; this route checks identity and access.
         """
         context = body.context
+        # A "user" entry names no connection: the run's own claim names the account.
         if context is None or not (
             context.provider
             and context.integration
-            and context.connection
+            and (context.connection or context.account_source == "user")
             and context.tool
             and context.toolkit_version
         ):
@@ -1853,6 +1856,7 @@ class ToolsRouter:
                 tool_key=context.tool,
                 toolkit_version=context.toolkit_version,
                 arguments=arguments,
+                account_source=context.account_source,
             )
         except ToolKeyNotFoundError as e:
             return _agent_error_result(

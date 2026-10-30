@@ -59,6 +59,7 @@ from oss.src.core.access.principals import (
     envelope_to_claims,
     missing_principal_error,
 )
+from oss.src.core.account_choices.claims import run_accounts_from_claim
 from oss.src.core.access.types import InvalidRunClaims
 from oss.src.core.memberships.service import get_memberships_service
 
@@ -542,6 +543,7 @@ def _build_request_access_from_state(request: Request) -> Optional[RequestAccess
             credential_kind=credential_kind,
             acting_user_id=UUID(str(user_id)),
             envelope=getattr(state, "run_envelope", None),
+            run_accounts=getattr(state, "run_accounts", None) or (),
         )
     except (TypeError, ValueError, ValidationError):
         log.warning("[auth] request access could not be built", exc_info=True)
@@ -1535,6 +1537,13 @@ async def verify_secret_token(
         request.state.gateway_run_id = auth_context.get("gateway_run_id")
         request.state.gateway_run_labels = auth_context.get("gateway_run_labels")
         request.state.gateway_tools = auth_context.get("gateway_tools")
+        # The run's "user" accounts, by id. A malformed claim refuses the credential.
+        try:
+            request.state.run_accounts = run_accounts_from_claim(
+                auth_context.get("run_accounts")
+            )
+        except InvalidRunClaims as exc:
+            raise DecodeError("Secret token carries invalid run accounts.") from exc
         request.state.gateway_platform_run = (
             audience == GATEWAY_TOKEN_AUDIENCE
             and auth_context.get("gateway_platform_run") is True
@@ -1630,8 +1639,12 @@ async def sign_secret_token(
     expires_in: Optional[int] = None,
     *,
     envelope: RunEnvelope,
+    run_accounts: Optional[List[dict]] = None,
 ):
     """Mint a secret token. `expires_in` overrides the default lifetime, in seconds.
+
+    `run_accounts` is the run's `run_accounts` claim (the ready accounts of its "user"
+    items, by id), written only when set. It is not an envelope claim.
 
     `envelope` is required: every run credential carries its principal, authority and
     run context as claims (`principal`, `restrictions`, `authority`, `run`, `sender`,
@@ -1704,6 +1717,9 @@ async def sign_secret_token(
         # Built-in (platform-funded) models accept only a token that carries this mark.
         if gateway_platform_run:
             auth_context["gateway_platform_run"] = True
+
+        if run_accounts:
+            auth_context["run_accounts"] = list(run_accounts)
 
         auth_context.update(envelope_to_claims(envelope=envelope))
 

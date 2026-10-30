@@ -880,6 +880,11 @@ def _resolve_from_secrets(
     if inferred:
         model = model.model_copy(update={"provider": inferred})
     if connection.mode == "self_managed":
+        if connection.account_source == "user":
+            # The run person's own subscription login. No flow stores one yet, so it is
+            # a missing model (Needs setup), and it never falls back to the login of the
+            # runner operator.
+            raise SubscriptionConnectionMissingError(slug="")
         subscription_slug = _stripped(connection.slug)
         if connection.is_organization:
             # The rows here are the project's; an organization login is released by its own

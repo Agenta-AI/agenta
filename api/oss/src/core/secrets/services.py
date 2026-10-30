@@ -1210,6 +1210,22 @@ class VaultService:
                 secret_id=secret_id,
             )
 
+    async def list_personal_secrets_by_ids(
+        self, *, organization_id: UUID, user_id: UUID, secret_ids: Sequence[UUID]
+    ) -> List[SecretResponseDTO]:
+        """The person's custom secrets among these ids, in one statement: the vault's
+        read of a run's "user" secrets."""
+        if not secret_ids:
+            return []
+        with set_data_encryption_key(data_encryption_key=self._data_encryption_key):
+            secrets = await self.secrets_dao.list_by_ids(
+                owner=SecretOwner.for_user(
+                    organization_id=organization_id, user_id=user_id
+                ),
+                secret_ids=list(secret_ids),
+            )
+        return [secret for secret in secrets if secret.kind in PERSONAL_SECRET_KINDS]
+
     async def get_personal_secret_by_slug(
         self, *, organization_id: UUID, user_id: UUID, slug: str
     ) -> Optional[SecretResponseDTO]:
@@ -1268,6 +1284,15 @@ class VaultService:
                 authorize_delete=_authorize_delete,
             )
         return deleted is not None
+
+    async def delete_personal_secrets(
+        self, *, organization_id: UUID, user_id: UUID
+    ) -> int:
+        """Delete every row the person owns in the organization, sign-ins included (they
+        left it). One statement. Returns the count."""
+        return await self.secrets_dao.delete_by_owner(
+            owner=SecretOwner.for_user(organization_id=organization_id, user_id=user_id)
+        )
 
     async def put_personal_secret(
         self,

@@ -22,6 +22,7 @@ from .resolve import resolve_connection, resolve_mcp, resolve_secrets, resolve_t
 from .secrets import (
     AgentaNamedSecretProvider,
     resolve_named_secrets,
+    resolve_user_secrets,
     resolve_provider_keys,
 )
 from .channel_tools import read_channel_tools
@@ -50,6 +51,7 @@ __all__ = [
     "resolve_connection",
     "resolve_mcp",
     "resolve_named_secrets",
+    "resolve_user_secrets",
     "resolve_provider_keys",
     "resolve_secrets",
     "resolve_session_context",

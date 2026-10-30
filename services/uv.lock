@@ -61,7 +61,7 @@ requires-dist = [
     { name = "opentelemetry-instrumentation-sqlalchemy", marker = "extra == 'server-tracing'", specifier = ">=0.64b0,<0.65" },
     { name = "opentelemetry-sdk", specifier = ">=1,<2" },
     { name = "orjson", specifier = ">=3,<4" },
-    { name = "pydantic", specifier = ">=2,<3" },
+    { name = "pydantic", specifier = ">=2.12,<3" },
     { name = "python-jsonpath", specifier = ">=2,<3" },
     { name = "pyyaml", specifier = ">=6,<7" },
     { name = "restrictedpython", specifier = ">=8,<9" },

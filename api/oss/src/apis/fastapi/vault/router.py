@@ -29,7 +29,8 @@ from oss.src.core.secrets.managed import ManagedSecretReadOnlyError
 from oss.src.core.secrets.redaction import (
     organization_connection_response,
     organization_secret_response,
-    organization_subscription_for_runtime,
+    ORGANIZATION_RUNTIME_KINDS,
+    organization_secret_for_runtime,
     project_secret_response,
 )
 from oss.src.core.secrets.subscription_service import (
@@ -57,7 +58,10 @@ from oss.src.core.secrets.types import (
 )
 
 from oss.src.apis.fastapi.vault.models import (
+    ItemSecret,
     SecretProjectsRequest,
+    SecretsResolveRequest,
+    SecretsResolveResponse,
     SubscriptionLoginAttemptResponse,
     SubscriptionLoginFailureRequest,
     SubscriptionLoginFailureResponse,
@@ -68,6 +72,11 @@ from oss.src.apis.fastapi.vault.models import (
 )
 from oss.src.apis.fastapi.shared.runner_auth import assert_runner_token
 from oss.src.apis.fastapi.shared.personal import require_person
+from oss.src.core.access.dtos import RequestCredentialKind
+from agenta.sdk.agents.accounts import user_item_from_key
+
+from oss.src.core.account_choices.claims import run_account
+from oss.src.core.account_choices.items import run_person_id
 
 from oss.src.core.access.context import get_request_access
 from oss.src.core.access.organizations import OrganizationAction, decide_organization
@@ -260,6 +269,14 @@ class VaultRouter:
             operation_id="list_secrets",
             response_model_exclude_none=True,
             response_model=List[PublicSecretResponseDTO],
+        )
+        self.router.add_api_route(
+            "/secrets/resolve",
+            self.resolve_secrets,
+            methods=["POST"],
+            operation_id="resolve_secrets",
+            response_model_exclude_none=True,
+            response_model=SecretsResolveResponse,
         )
         self.router.add_api_route(
             "/secrets/{secret_id_or_slug}",
@@ -520,10 +537,11 @@ class VaultRouter:
             self._for_caller(request, secret_dto) for secret_dto in secrets_dtos
         ] + [organization_connection_response(secret) for secret in organization]
 
-    async def _release_organization_subscription(self, request: Request, slug: str):
-        """The organization subscription login a run named, to the run's own credential
-        (`secret-resolve` grant) of a project the login is available to. The runner uses
-        it like a project login."""
+    async def _release_organization_secret(self, request: Request, slug: str):
+        """The organization subscription login or custom secret a run named, to the
+        run's own credential (`secret-resolve` grant) of a project the row is available
+        to. The runner uses a login like a project login; the sandbox gets a custom
+        secret as a variable."""
         await self._require(request, Permission.VIEW_SECRET)
         organization_id = getattr(request.state, "organization_id", None)
         secret = (
@@ -535,16 +553,16 @@ class VaultRouter:
             if organization_id
             else None
         )
-        if secret is None or secret.kind != SecretKind.SUBSCRIPTION_PROVIDER:
+        if secret is None or secret.kind not in ORGANIZATION_RUNTIME_KINDS:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Secret not found"
             )
         log.info(
-            "[secrets] organization subscription released to a run",
+            "[secrets] organization secret released to a run",
             project_id=str(request.state.project_id),
             secret_id=str(secret.id),
         )
-        return organization_subscription_for_runtime(secret)
+        return organization_secret_for_runtime(secret)
 
     @intercept_exceptions()
     @handle_secrets_exceptions()
@@ -561,7 +579,7 @@ class VaultRouter:
             # The run's own credential gets the login it named; an owner or admin reads
             # the connection by id, without its value.
             if request_has_grant(request, SECRET_RESOLVE_GRANT):
-                return await self._release_organization_subscription(
+                return await self._release_organization_secret(
                     request, secret_id_or_slug
                 )
             organization_id = await self._require_organization(request)
@@ -726,6 +744,58 @@ class VaultRouter:
                         "your organization admin."
                     ),
                 )
+
+    @intercept_exceptions()
+    async def resolve_secrets(
+        self, request: Request, body: SecretsResolveRequest
+    ) -> SecretsResolveResponse:
+        """The values of a run's "user" secrets, for the run's own credential only.
+
+        Only keys that start with `secret:user/` and have an entry in the run's
+        `run_accounts` claim come back; a key with no entry is left out, never an
+        error. Each row is read by id and must still be the run person's own custom
+        secret in the run's organization. One statement."""
+        access = get_request_access()
+        if (
+            access is None
+            or access.credential_kind != RequestCredentialKind.RUN_CREDENTIAL
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail={
+                    "code": "run_credential_required",
+                    "message": "Only a run reads its own secrets here.",
+                },
+            )
+        # The run's principal must still be allowed to read secrets in the project, as
+        # on every other vault read.
+        await self._require(request, Permission.VIEW_SECRET)
+        person_id = run_person_id(access.envelope)
+        # Each requested key with its account: two items may choose one secret.
+        wanted = {}
+        for key in dict.fromkeys(body.item_keys):
+            item = user_item_from_key(key)
+            account = (
+                run_account(access, key) if item and item.kind == "secret" else None
+            )
+            if account is not None and account.secret_id is not None:
+                wanted[key] = account.secret_id
+        if person_id is None or not wanted:
+            return SecretsResolveResponse()
+        secrets = await self.service.list_personal_secrets_by_ids(
+            organization_id=access.authority.organization_id,
+            user_id=person_id,
+            secret_ids=list(set(wanted.values())),
+        )
+        by_id = {secret.id: self._for_caller(request, secret) for secret in secrets}
+        item_secrets = [
+            ItemSecret(item_key=key, secret=by_id[secret_id])
+            for key, secret_id in wanted.items()
+            if secret_id in by_id
+        ]
+        return SecretsResolveResponse(
+            count=len(item_secrets), item_secrets=item_secrets
+        )
 
     async def _read_personal_secret(self, request: Request, secret_id_or_slug: str):
         """One of the caller's own custom secrets, by id or slug. Another kind is not

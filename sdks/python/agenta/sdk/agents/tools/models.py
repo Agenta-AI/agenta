@@ -17,6 +17,8 @@ from pydantic import (
     model_validator,
 )
 
+from ..accounts import AccountSource
+
 
 def _empty_object_schema() -> Dict[str, Any]:
     return {"type": "object", "properties": {}}
@@ -206,7 +208,24 @@ class GatewayConnectionRef(BaseModel):
     # refused when the revision is parsed rather than at run start.
     provider: Literal["composio"] = "composio"
     integration: str = Field(min_length=1)
-    slug: str = Field(min_length=1)
+    # The connection the agent uses. A ``user`` reference names none: the run person's
+    # own connection to the integration fills it at run start.
+    slug: Optional[str] = Field(
+        default=None, min_length=1, exclude_if=lambda value: value is None
+    )
+    # Left out of the dump when unset, so an "agent" reference keeps its saved shape.
+    account_source: Optional[AccountSource] = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+
+    @model_validator(mode="after")
+    def _slug_matches_account_source(self) -> "GatewayConnectionRef":
+        if self.account_source == "user":
+            if self.slug is not None:
+                raise ValueError("a 'user' connection names no slug")
+        elif not self.slug:
+            raise ValueError("a connection needs a slug")
+        return self
 
 
 class GatewayPermissions(BaseModel):
@@ -323,7 +342,15 @@ class ResolvedGatewayIntegration(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     provider: str = Field(min_length=1)
-    connection: str = Field(min_length=1)
+    # The project connection's slug; None for a ``user`` integration, whose account the
+    # run's own claim names.
+    connection: Optional[str] = Field(default=None, min_length=1)
+    account_source: Optional[AccountSource] = Field(
+        default=None,
+        validation_alias=AliasChoices("account_source", "accountSource"),
+        serialization_alias="accountSource",
+        exclude_if=lambda value: value is None,
+    )
     toolkit_version: str = Field(
         min_length=1,
         validation_alias=AliasChoices("toolkit_version", "toolkitVersion"),

@@ -124,6 +124,16 @@ class SecretsDAOInterface:
         """The deleted row, or None when the owner holds no such row."""
         raise NotImplementedError
 
+    async def delete_by_owner(self, *, owner: SecretOwner) -> int:
+        """Delete every row of a person owner. Returns the count."""
+        raise NotImplementedError
+
+    async def list_by_ids(
+        self, *, owner: SecretOwner, secret_ids: Sequence[UUID]
+    ) -> List[SecretResponseDTO]:
+        """The owner's rows among these ids, in one statement."""
+        raise NotImplementedError
+
     async def list_sign_ins(
         self, *, owner: SecretOwner, slugs: Sequence[str]
     ) -> List[SecretResponseDTO]:

@@ -141,6 +141,8 @@ def _router(
         return SimpleNamespace(
             provider_connection_id="acc_1",
             data={"project_id": "proj-1"},
+            user_id=None,
+            organization_id=None,
         )
 
     monkeypatch.setattr(service, "resolve_connection_by_slug", _connection)
