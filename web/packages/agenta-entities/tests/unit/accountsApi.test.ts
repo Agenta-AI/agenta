@@ -203,6 +203,9 @@ describe("the caller's own tool connections", () => {
 
         await createToolConnection(payload as never, "user")
 
-        expect(tools.createToolConnection).toHaveBeenCalledWith({...payload, scope: "user"}, PROJECT)
+        expect(tools.createToolConnection).toHaveBeenCalledWith(
+            {...payload, scope: "user"},
+            PROJECT,
+        )
     })
 })
