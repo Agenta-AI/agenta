@@ -49,7 +49,7 @@ export type {
     ToolResult,
     ToolResultData,
 } from "./core"
-export {isConnectionActive, isConnectionValid} from "./core"
+export {isConnectionActive, isConnectionValid, isConnectionDefault} from "./core"
 
 // ---------------------------------------------------------------------------
 // API — Fern-backed HTTP wrappers
@@ -66,6 +66,7 @@ export {
     fetchToolIntegrations,
     fetchToolProviders,
     getToolsClient,
+    makeDefaultToolConnection,
     projectScopedRequest,
     queryToolConnections,
     refreshToolConnection,
@@ -93,6 +94,8 @@ export {
     toolCatalogIntegrationsInfiniteAtom,
     toolConnectionQueryAtomFamily,
     toolConnectionsQueryAtom,
+    personalToolConnectionsQueryAtom,
+    usePersonalToolConnections,
     toolIntegrationConnectionsAtomFamily,
     toolIntegrationDetailQueryFamily,
     toolIntegrationsCategoryAtom,

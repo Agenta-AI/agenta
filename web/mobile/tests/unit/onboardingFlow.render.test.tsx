@@ -236,6 +236,7 @@ import type {OnboardingCatalog} from "@/features/onboarding/onboardingChoices"
 import {OnboardingFlow, type OnboardingFlowProps} from "@/features/onboarding/OnboardingFlow"
 import {personProperties} from "@/features/onboarding/onboardingQuestions"
 import {
+    isFixedStep,
     onboardingSteps,
     stepIndex,
     type OnboardingStep,
@@ -395,6 +396,18 @@ describe("first agent onboarding", () => {
             "source",
             expect.objectContaining({answers: {persona: "Engineering", source: "GitHub"}}),
         )
+    })
+
+    it("ends on the last question when the flow has only questions", () => {
+        const onStepCompleted = vi.fn()
+        const onQuestionsDone = vi.fn()
+        const steps = onboardingSteps().filter((step) => !isFixedStep(step))
+        render(baseProps({steps, onStepCompleted, onQuestionsDone}))
+        answer(/^Engineering/)
+        expect(onQuestionsDone).not.toHaveBeenCalled()
+        answer(/^GitHub/)
+        expect(onStepCompleted).toHaveBeenLastCalledWith("source", expect.anything())
+        expect(onQuestionsDone).toHaveBeenCalledTimes(1)
     })
 
     it("puts each step in the URL and keeps the answers across a remount", () => {

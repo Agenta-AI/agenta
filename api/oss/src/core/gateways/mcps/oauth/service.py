@@ -1,6 +1,7 @@
 """Run the two-phase MCP OAuth connection flow, and renew the grants it stores."""
 
 import asyncio
+import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -40,6 +41,11 @@ from oss.src.core.gateways.mcps.oauth.registration import (
     registration_covers,
 )
 from oss.src.core.gateways.mcps.oauth.state import STATE_TTL_SECONDS, new_state
+from oss.src.core.gateways.mcps.oauth.sign_ins import (
+    is_sign_in_ready,
+    sign_in_kind,
+    sign_in_slug,
+)
 from oss.src.core.gateways.mcps.oauth.storage import (
     SecretsTokenStorage,
     grant_refresh_due,
@@ -61,7 +67,17 @@ from oss.src.core.gateways.mcps.oauth.types import (
 )
 from oss.src.core.gateways.policy.types import SecretInvalidError
 from oss.src.core.gateways.types import GatewaysError
-from oss.src.core.secrets.dtos import OAuthGrantSettingsDTO
+from oss.src.core.secrets.dtos import (
+    CreateSecretDTO,
+    CustomSecretDTO,
+    CustomSecretSettingsDTO,
+    OAuthGrantSettingsDTO,
+    SecretDTO,
+    SecretOwner,
+    SecretResponseDTO,
+)
+from oss.src.core.secrets.enums import CustomSecretFormat, SecretKind, SecretOwnerKind
+from oss.src.core.shared.dtos import Header
 from oss.src.core.secrets.services import VaultService
 
 
@@ -219,8 +235,12 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         server_url: str,
         scopes: List[str],
         oauth_config: Optional[MCPOAuthConfig] = None,
+        owner_kind: SecretOwnerKind = SecretOwnerKind.PROJECT,
     ) -> MCPOAuthAuthorizationStart:
         """Start a consent: discover, choose the client, and record the attempt.
+
+        `owner_kind` is whose grant the consent writes: the project's, or the own sign-in
+        of `user_id`. The client registration is the project's either way.
 
         All of it under the connection's OAuth lock, discovery included, so a disconnect,
         edit or delete that arrives meanwhile waits for the attempt to exist and then
@@ -238,6 +258,7 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
                 server_url=server_url,
                 scopes=scopes,
                 oauth_config=oauth_config,
+                owner_kind=owner_kind,
             )
 
     async def _begin(
@@ -249,6 +270,7 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         server_url: str,
         scopes: List[str],
         oauth_config: Optional[MCPOAuthConfig],
+        owner_kind: SecretOwnerKind,
     ) -> MCPOAuthAuthorizationStart:
         discovery = await self.client.discover(server_url=server_url)
         redirect_uri = callback_redirect_uri(api_url=self.api_url)
@@ -294,6 +316,7 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
                 client_id=client_info.client_id if strategy == "explicit" else None,
                 expires_at=datetime.now(timezone.utc)
                 + timedelta(seconds=STATE_TTL_SECONDS),
+                owner_kind=owner_kind,
             )
         )
 
@@ -395,14 +418,26 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         project_id: UUID,
         endpoint_id: UUID,
         attempt_id: Optional[UUID] = None,
+        person_id: Optional[UUID] = None,
     ) -> int:
         return await self.attempts_dao.cancel_attempts(
-            project_id=project_id, endpoint_id=endpoint_id, attempt_id=attempt_id
+            project_id=project_id,
+            endpoint_id=endpoint_id,
+            attempt_id=attempt_id,
+            person_id=person_id,
         )
 
     async def has_active_attempts(self, *, project_id: UUID, endpoint_id: UUID) -> bool:
         return await self.attempts_dao.has_active_attempts(
             project_id=project_id, endpoint_id=endpoint_id
+        )
+
+    async def fetch_attempt(
+        self, *, project_id: UUID, endpoint_id: UUID, attempt_id: UUID
+    ) -> Optional[MCPOAuthAttempt]:
+        """One attempt as the browser names it, to check who may follow it."""
+        return await self.attempts_dao.fetch_attempt_by_id(
+            project_id=project_id, endpoint_id=endpoint_id, attempt_id=attempt_id
         )
 
     async def outcome(
@@ -432,8 +467,12 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         *,
         attempt: MCPOAuthAttempt,
         code: str,
+        organization_id: Optional[UUID] = None,
     ) -> MCPOAuthCompletion:
         """Exchange the code, then write and bind the grant, or write nothing at all.
+
+        An attempt for a person (`owner_kind` user) writes that person's own grant in
+        `organization_id`, the project's organization, and binds nothing to the server.
 
         Takes the attempt `claim()` returned rather than the `state` handle: everything
         here writes, so the caller has already authorised itself against that record.
@@ -449,9 +488,19 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         Raises `MCPOAuthAttemptCancelledError` when the attempt no longer applies, and the
         exchange's own refusal, recorded as the attempt's failure, when it fails.
         """
+        for_person = attempt.owner_kind == SecretOwnerKind.USER
+        if for_person and organization_id is None:
+            raise ValueError("a person's sign-in is written in their organization")
+        owner = (
+            SecretOwner.for_user(
+                organization_id=organization_id, user_id=attempt.user_id
+            )
+            if for_person
+            else None
+        )
         try:
             storage, client_id, tokens = await self._exchange(
-                attempt=attempt, code=code
+                attempt=attempt, code=code, owner=owner
             )
         except MCPOAuthAttemptCancelledError:
             await self.settle(attempt=attempt, status=MCPOAuthAttemptStatus.CANCELLED)
@@ -490,6 +539,19 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
                 # the authorization server that actually issued it. `refresh_grant` requires
                 # that pin to still hold before it presents the refresh token anywhere.
                 grant = await storage.write_tokens(tokens, client_id=client_id)
+                if for_person:
+                    # A person's own grant: the server row names the project's grant
+                    # only, so nothing is bound.
+                    await self.settle(
+                        attempt=attempt, status=MCPOAuthAttemptStatus.CONNECTED
+                    )
+                    return MCPOAuthCompletion(
+                        project_id=attempt.project_id,
+                        user_id=attempt.user_id,
+                        endpoint_id=attempt.endpoint_id,
+                        server_url=attempt.server_url,
+                        secret_id=grant.id,
+                    )
                 bound = await self.endpoints_dao.bind_endpoint_secret(
                     project_id=attempt.project_id,
                     user_id=attempt.user_id,
@@ -528,7 +590,11 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         )
 
     async def _exchange(
-        self, *, attempt: MCPOAuthAttempt, code: str
+        self,
+        *,
+        attempt: MCPOAuthAttempt,
+        code: str,
+        owner: Optional[SecretOwner] = None,
     ) -> Tuple[SecretsTokenStorage, str, OAuthToken]:
         """Spend the code at the token endpoint the attempt recorded.
 
@@ -550,6 +616,7 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
             # registration to present is the one `begin()` resolved, and the deployment's
             # address could have changed since the browser left.
             redirect_uri=attempt.redirect_uri,
+            owner=owner,
         )
 
         if attempt.strategy == "document":
@@ -637,6 +704,130 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
             endpoint_id=endpoint_id,
         ).delete_grant()
 
+    # A person's own sign-in
+
+    async def sign_in_with_token(
+        self,
+        *,
+        organization_id: UUID,
+        project_id: UUID,
+        user_id: UUID,
+        endpoint_id: UUID,
+        server_url: Optional[str],
+        token: str,
+    ) -> Optional[SecretResponseDTO]:
+        """Store a person's own token for a token server, replacing the one they had.
+
+        The row is the person's, at `token_slug(endpoint id)`, so one sign-in serves every
+        agent of the project and never touches the project's own key. Under the server's
+        OAuth lock, which an edit and a delete also take, and only while the server still
+        takes a token at `server_url`, the address the person entered it for: a token
+        written after its server was deleted, moved to OAuth or moved to another address
+        would outlive that cleanup and reach a server it was not meant for. None when the
+        server changed.
+        """
+        async with self.endpoints_dao.oauth_lock(
+            project_id=project_id, endpoint_id=endpoint_id
+        ):
+            endpoint = await self.endpoints_dao.fetch_endpoint(
+                project_id=project_id, endpoint_id=endpoint_id
+            )
+            if (
+                endpoint is None
+                or sign_in_kind(endpoint) != SecretKind.MCP_TOKEN
+                or endpoint.data.route.base_url != server_url
+            ):
+                return None
+            return await self.vault_service.put_personal_secret(
+                organization_id=organization_id,
+                user_id=user_id,
+                create_secret_dto=CreateSecretDTO(
+                    slug=sign_in_slug(endpoint),
+                    header=Header(
+                        name=f"MCP token for {endpoint.name or endpoint.slug}"
+                    ),
+                    secret=SecretDTO(
+                        kind=SecretKind.MCP_TOKEN,
+                        data=CustomSecretDTO(
+                            secret=CustomSecretSettingsDTO(
+                                format=CustomSecretFormat.TEXT, content=token
+                            )
+                        ),
+                    ),
+                ),
+            )
+
+    async def sign_out(
+        self,
+        *,
+        organization_id: UUID,
+        project_id: UUID,
+        user_id: UUID,
+        endpoint_id: UUID,
+    ) -> Optional[MCPEndpoint]:
+        """Delete the person's own sign-in to a server, at the slug its mode selects, and
+        cancel their sign-ins in flight. Returns the server, or None when it is gone.
+
+        Under the server's OAuth lock, which a refresh and a completing consent also
+        take, so neither can write the grant back once this returns. Other people's
+        sign-ins and the project's are left alone.
+        """
+        async with self.endpoints_dao.oauth_lock(
+            project_id=project_id, endpoint_id=endpoint_id
+        ):
+            endpoint = await self.endpoints_dao.fetch_endpoint(
+                project_id=project_id, endpoint_id=endpoint_id
+            )
+            if endpoint is None:
+                return None
+            await self.cancel_attempts(
+                project_id=project_id, endpoint_id=endpoint_id, person_id=user_id
+            )
+            slug = sign_in_slug(endpoint)
+            if slug is not None:
+                await self.vault_service.delete_personal_secret_by_slug(
+                    organization_id=organization_id, user_id=user_id, slug=slug
+                )
+            return endpoint
+
+    async def sign_ins(
+        self,
+        *,
+        organization_id: UUID,
+        user_id: UUID,
+        endpoints: List[MCPEndpoint],
+    ) -> Dict[UUID, bool]:
+        """Whether each server the person has a sign-in row for is ready, by server id.
+
+        One read for the whole list, and none when no server takes a sign-in. A server
+        missing from the answer has no sign-in row of this person.
+        """
+        slugs = {
+            slug: endpoint.id
+            for endpoint in endpoints
+            if (slug := sign_in_slug(endpoint)) is not None
+        }
+        if not slugs:
+            return {}
+        rows = await self.vault_service.list_personal_sign_ins(
+            organization_id=organization_id, user_id=user_id, slugs=list(slugs)
+        )
+        now = time.time()
+        return {
+            slugs[row.slug]: is_sign_in_ready(row, now=now)
+            for row in rows
+            if row.slug in slugs
+        }
+
+    async def delete_sign_ins(
+        self, *, organization_id: UUID, project_id: UUID, slugs: List[str]
+    ) -> int:
+        """Delete every sign-in at these slugs, the project's grant and each person's
+        grant or token, when a server changes its mode or address, or is deleted."""
+        return await self.vault_service.delete_sign_ins(
+            organization_id=organization_id, project_id=project_id, slugs=slugs
+        )
+
     # Refresh
 
     @asynccontextmanager
@@ -674,8 +865,13 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
         endpoint_id: UUID,
         server_url: str,
         failed_access_token: Optional[str] = None,
+        owner: Optional[SecretOwner] = None,
     ) -> None:
         """Renew one connection's stored grant, in place.
+
+        `owner` names a person's own sign-in; None is the project's grant, as
+        before. A person's grant that the server refuses for good is deleted, so their
+        sign-in reads as absent rather than ready.
 
         Without `failed_access_token` this renews a grant that is due (see
         `grant_refresh_due`). With it, the upstream refused that token, and the grant is
@@ -709,6 +905,7 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
                 project_id=project_id,
                 server_url=server_url,
                 endpoint_id=endpoint_id,
+                owner=owner,
             )
 
             stored = await storage.get_grant()
@@ -716,75 +913,83 @@ class MCPOAuthConnectService(MCPOAuthRefresherInterface):
                 raise MCPOAuthRefreshFailedError(
                     server_url=server_url, detail="no stored grant"
                 )
-            if failed_access_token is not None:
-                if stored.access_token != failed_access_token:
-                    return
-            elif not grant_refresh_due(stored):
-                # Another caller refreshed while we waited.
-                return
-            if not stored.refresh_token:
-                raise MCPOAuthNoRefreshTokenError(server_url=server_url)
-            if not stored.issuer:
-                # Nothing to check the resource's answer against, so there is no safe
-                # way to present this refresh token. Reconnecting writes the pin.
-                raise MCPOAuthIssuerChangedError(
-                    server_url=server_url, stored_issuer=None, named_issuer=None
-                )
-
-            # The token endpoint is rediscovered rather than stored — it is not part of a
-            # grant, and a server may move it within its own authorization server. The
-            # ISSUER is not rediscovered. Discovery's checks are only internally
-            # consistent: the protected-resource document is published by the MCP server
-            # itself, so a server that was honest at connect time can later name an
-            # authorization server it controls and satisfy every one of them. Pinning the
-            # refresh to the issuer that actually granted these tokens is what stops the
-            # refresh token being handed to that new server.
-            discovery = await self.client.discover(server_url=server_url)
-            if not same_issuer(discovery.authorization_server, stored.issuer):
-                raise MCPOAuthIssuerChangedError(
-                    server_url=server_url,
-                    stored_issuer=stored.issuer,
-                    named_issuer=discovery.authorization_server,
-                )
-            # The pinned value, not the discovered one: the client registration is
-            # addressed by issuer, and this keeps the rewritten grant pinned as it was.
-            storage.authorization_server = stored.issuer
-
-            # The registration this grant was issued against, not the one this
-            # deployment would register today. An authorization server refuses a refresh
-            # presented by a client it never issued those tokens to, so reading "the
-            # current registration for this issuer" is what made a changed public address
-            # quietly stop every connection that was working (D6).
-            client_info = await self._client_info_for_grant(
-                storage=storage,
-                stored=stored,
-                project_id=project_id,
-                endpoint_id=endpoint_id,
-            )
-
             try:
-                refreshed = await self.client.refresh_token(
-                    token_endpoint=discovery.token_endpoint,
-                    refresh_token=stored.refresh_token,
-                    client_info=client_info,
-                    resource=discovery.resource,
+                if failed_access_token is not None:
+                    if stored.access_token != failed_access_token:
+                        return
+                elif not grant_refresh_due(stored):
+                    # Another caller refreshed while we waited.
+                    return
+                if not stored.refresh_token:
+                    raise MCPOAuthNoRefreshTokenError(server_url=server_url)
+                if not stored.issuer:
+                    # Nothing to check the resource's answer against, so there is no safe
+                    # way to present this refresh token. Reconnecting writes the pin.
+                    raise MCPOAuthIssuerChangedError(
+                        server_url=server_url, stored_issuer=None, named_issuer=None
+                    )
+
+                # The token endpoint is rediscovered rather than stored — it is not part of a
+                # grant, and a server may move it within its own authorization server. The
+                # ISSUER is not rediscovered. Discovery's checks are only internally
+                # consistent: the protected-resource document is published by the MCP server
+                # itself, so a server that was honest at connect time can later name an
+                # authorization server it controls and satisfy every one of them. Pinning the
+                # refresh to the issuer that actually granted these tokens is what stops the
+                # refresh token being handed to that new server.
+                discovery = await self.client.discover(server_url=server_url)
+                if not same_issuer(discovery.authorization_server, stored.issuer):
+                    raise MCPOAuthIssuerChangedError(
+                        server_url=server_url,
+                        stored_issuer=stored.issuer,
+                        named_issuer=discovery.authorization_server,
+                    )
+                # The pinned value, not the discovered one: the client registration is
+                # addressed by issuer, and this keeps the rewritten grant pinned as it was.
+                storage.authorization_server = stored.issuer
+
+                # The registration this grant was issued against, not the one this
+                # deployment would register today. An authorization server refuses a refresh
+                # presented by a client it never issued those tokens to, so reading "the
+                # current registration for this issuer" is what made a changed public address
+                # quietly stop every connection that was working (D6).
+                client_info = await self._client_info_for_grant(
+                    storage=storage,
+                    stored=stored,
+                    project_id=project_id,
+                    endpoint_id=endpoint_id,
                 )
-            except MCPOAuthTokenExchangeError as e:
-                if e.temporary:
-                    raise MCPOAuthRefreshUnavailableError(
+
+                try:
+                    refreshed = await self.client.refresh_token(
+                        token_endpoint=discovery.token_endpoint,
+                        refresh_token=stored.refresh_token,
+                        client_info=client_info,
+                        resource=discovery.resource,
+                    )
+                except MCPOAuthTokenExchangeError as e:
+                    if e.temporary:
+                        raise MCPOAuthRefreshUnavailableError(
+                            server_url=server_url, detail=e.detail
+                        ) from e
+                    raise MCPOAuthRefreshFailedError(
                         server_url=server_url, detail=e.detail
                     ) from e
-                raise MCPOAuthRefreshFailedError(
-                    server_url=server_url, detail=e.detail
-                ) from e
 
-            if not refreshed.refresh_token:
-                # RFC 6749 s6: a server that does not rotate returns no new refresh
-                # token, and the old one stays valid. Dropping it would make the next
-                # expiry unrecoverable.
-                refreshed.refresh_token = stored.refresh_token
+                if not refreshed.refresh_token:
+                    # RFC 6749 s6: a server that does not rotate returns no new refresh
+                    # token, and the old one stays valid. Dropping it would make the next
+                    # expiry unrecoverable.
+                    refreshed.refresh_token = stored.refresh_token
 
-            await storage.write_tokens(refreshed, client_id=client_info.client_id)
+                await storage.write_tokens(refreshed, client_id=client_info.client_id)
+            except MCPOAuthRefreshFailedError:
+                # Refused for good. A person's own grant goes, so their list says "not
+                # signed in" and Needs setup asks them again; nothing else marks it dead.
+                # The project's grant stays, and the relay marks its server instead.
+                if owner is not None:
+                    await storage.delete_grant()
+                raise
 
     async def _client_info_for_grant(
         self,

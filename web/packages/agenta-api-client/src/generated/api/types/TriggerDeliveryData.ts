@@ -7,6 +7,7 @@ export interface TriggerDeliveryData {
     session_id?: (string | null) | undefined;
     references?: (Record<string, AgentaApi.Reference | null> | null) | undefined;
     inputs?: (Record<string, unknown> | null) | undefined;
+    event?: (Record<string, unknown> | null) | undefined;
     result?: (Record<string, unknown> | null) | undefined;
     error?: (string | null) | undefined;
     error_details?: (AgentaApi.AgentError | null) | undefined;

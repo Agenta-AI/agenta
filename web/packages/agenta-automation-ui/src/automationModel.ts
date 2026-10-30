@@ -157,12 +157,15 @@ export function generatedAutomationName(a: Automation, agentName: string | null)
  * `status.type` is never set, so the shared `deliveryStatusColor` in `@agenta/entity-ui` returns
  * neutral for every row — do not reach for it here.
  */
-export function deliveryOutcome(delivery: TriggerDelivery): "ok" | "bad" | "pending" {
+export function deliveryOutcome(delivery: TriggerDelivery): "ok" | "bad" | "pending" | "skipped" {
     switch ((delivery.status?.message ?? "").toLowerCase()) {
         case "success":
             return "ok"
         case "failed":
             return "bad"
+        // Not run because the agent's model needs setup: neither a success nor a failure.
+        case "skipped":
+            return "skipped"
         default:
             return "pending"
     }

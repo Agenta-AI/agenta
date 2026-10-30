@@ -32,6 +32,7 @@ export type { WorkflowRevisionCommitRequest } from "./WorkflowRevisionCommitRequ
 export type { WorkflowRevisionCreateRequest } from "./WorkflowRevisionCreateRequest.js";
 export type { WorkflowRevisionDeployRequest } from "./WorkflowRevisionDeployRequest.js";
 export type { WorkflowRevisionEditRequest } from "./WorkflowRevisionEditRequest.js";
+export type { WorkflowRevisionRequirementsQueryRequest } from "./WorkflowRevisionRequirementsQueryRequest.js";
 export type { WorkflowRevisionResolveRequest } from "./WorkflowRevisionResolveRequest.js";
 export type { WorkflowRevisionRetrieveRequest } from "./WorkflowRevisionRetrieveRequest.js";
 export type { WorkflowRevisionsLogRequest } from "./WorkflowRevisionsLogRequest.js";

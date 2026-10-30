@@ -65,6 +65,11 @@ export interface SessionShareDialogProps {
     onNotify?: (message: string) => void
     /** Refetches the sharing state after a 409. */
     onReload?: () => void
+    /**
+     * The agent has items that use each person's own account, so the chat may show what it did
+     * with the owner's accounts: one line says so.
+     */
+    usesPersonalAccounts?: boolean
 }
 
 /** A widening change waiting for the disclosure. */
@@ -94,6 +99,7 @@ export const SessionShareDialog = ({
     onCopyLink,
     onNotify,
     onReload,
+    usesPersonalAccounts = false,
 }: SessionShareDialogProps) => {
     const [picked, setPicked] = useState<SharingPerson[]>([])
     const [inviteRole, setInviteRole] = useState<SessionRole>("viewer")
@@ -270,6 +276,12 @@ export const SessionShareDialog = ({
                     <>
                         {notice === "conflict" ? (
                             <Alert type="warning" showIcon role="status" message={copy.conflict} />
+                        ) : null}
+
+                        {usesPersonalAccounts && isOwner ? (
+                            <p className="m-0 text-xs text-muted-foreground">
+                                {copy.personalAccountsNote}
+                            </p>
                         ) : null}
 
                         {isOwner ? (

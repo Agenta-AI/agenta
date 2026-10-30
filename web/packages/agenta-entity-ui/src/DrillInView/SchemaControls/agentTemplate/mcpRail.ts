@@ -2,26 +2,14 @@
  * The two rules the agent rail's MCP rows follow. Pure, so both the panel and its tests run
  * the same code rather than two descriptions of it.
  */
+import {USER_ACCOUNT_SOURCE, type AccountSource} from "@agenta/entities/accountChoice"
 import {
     buildMcpConnectionRef,
-    getMcpConnectionStatus,
     isLegacyMcpItem,
     RESERVED_TOOL_PREFIX,
     toolPrefixFromName,
     type MCPEndpoint,
 } from "@agenta/entities/mcpEndpoint"
-
-/**
- * Whether this server needs attention before its tools will run.
- *
- * Derived through the data layer's list vocabulary rather than the journey's, so a rail row
- * and a settings row cannot disagree about one connection. Today that is Connected or Login
- * expired; a server that is merely unreachable is not distinguishable, because the only
- * failure signal on the record is written when a call fails with the credential the row
- * still holds, so a server that is simply down never sets it.
- */
-export const mcpLoginExpired = (endpoint: MCPEndpoint | undefined): boolean =>
-    Boolean(endpoint) && getMcpConnectionStatus(endpoint!) !== "connected"
 
 /**
  * Whether a saved MCP item has to open its form rather than its permissions.
@@ -65,3 +53,33 @@ export const buildMcpAgentItem = (option: {
     connection: buildMcpConnectionRef(option.slug),
     policy: {tools: {mode: "all"}},
 })
+
+/** Whose sign-in an MCP item uses: each person's own (`"user"`), or the project's (`"agent"`). */
+export const readMcpAccountSource = (
+    item: Record<string, unknown> | null | undefined,
+): AccountSource => {
+    const connection = item?.connection
+    return connection &&
+        typeof connection === "object" &&
+        (connection as Record<string, unknown>).account_source === USER_ACCOUNT_SOURCE
+        ? USER_ACCOUNT_SOURCE
+        : "agent"
+}
+
+/**
+ * The item with the MCP drawer's "Account" choice written on its connection. A `"user"` item keeps
+ * its slug, because the slug names the project's server and the account is the person's sign-in
+ * to it; the project's sign-in drops `account_source` (contract section 5.1). Only a `custom`
+ * server takes `"user"`, so any other item comes back unchanged.
+ */
+export const withMcpAccountSource = (
+    item: Record<string, unknown>,
+    source: AccountSource,
+): Record<string, unknown> => {
+    const connection = item.connection
+    if (!connection || typeof connection !== "object") return item
+    const {account_source: _previous, ...rest} = connection as Record<string, unknown>
+    const user = source === USER_ACCOUNT_SOURCE
+    if (user && rest.namespace !== "custom") return item
+    return {...item, connection: user ? {...rest, account_source: USER_ACCOUNT_SOURCE} : rest}
+}

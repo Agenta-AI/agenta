@@ -6,7 +6,8 @@ vault's encryption directly.
 The resolver is built per plane (M5). Every plane reads the project's own rows for a
 provider scan and a project slug. Only the LLM plane also answers an organization
 connection, and only one an agent named by scope `organization` (by slug, or by id through
-a bound reference). The MCP plane never reads, lists or answers an organization row.
+a bound reference). The MCP plane never reads, lists or answers an organization row. Only
+the MCP plane answers a person's row: a sign-in, by id, for the person the reference names.
 """
 
 from typing import List, Optional, Set
@@ -165,8 +166,15 @@ class SecretsResolver(SecretsResolverInterface):
                 project_id=scope.project_id,
                 secret_id=ref.secret_id,
             )
-        # An organization reference on a project-only plane, or a user reference (M7):
-        # nothing is read.
+        if ref.owner_kind == SecretOwnerKind.USER and self.plane == GatewayPlane.MCP:
+            # A person's MCP sign-in: only that person's row, in this organization.
+            return await self.vault_service.get_personal_secret_by_id(
+                organization_id=scope.organization_id,
+                user_id=ref.user_id,
+                secret_id=ref.secret_id,
+            )
+        # An organization reference on a project-only plane, or a user reference on the
+        # model plane: nothing is read.
         return None
 
     async def _resolve_bound_secret(

@@ -138,6 +138,8 @@ def _exchange(monkeypatch):
                 resource_type=resource_type,
                 resource_id=None,
                 without_grants=without_grants,
+                workflow_id=None,
+                item_keys=None,
             )
         finally:
             reset_auth_context(token)

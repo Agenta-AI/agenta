@@ -1,6 +1,6 @@
 from datetime import datetime
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 from uuid import UUID
 
 from oss.src.core.channels.dtos import (
@@ -144,6 +144,9 @@ class ChannelsDAOInterface(ABC):
         #
         guard_artifact_id: Optional[UUID] = None,
         guard_user_id: Optional[UUID] = None,
+        # rollout only: also set the installation's allowed_senders, in the
+        # same transaction (the field the previous release reads)
+        installation_senders: Optional[List[str]] = None,
     ) -> ChannelAgent:
         """With `guard_artifact_id`, the write transaction first locks that agent's
         artifact, reads its policy uncached and raises `SharedItemNotFound` for a
@@ -197,6 +200,10 @@ class ChannelsDAOInterface(ABC):
         #
         guard_artifact_id: Optional[UUID] = None,
         guard_user_id: Optional[UUID] = None,
+        guard_artifact_ids: Sequence[UUID] = (),
+        # rollout only: also set the installation's allowed_senders, in the
+        # same transaction (the field the previous release reads)
+        installation_senders: Optional[List[str]] = None,
     ) -> Optional[ChannelAgent]:
         """`guard_artifact_id` and `guard_user_id` as in `create_agent`."""
 
@@ -377,7 +384,12 @@ class ChannelsDAOInterface(ABC):
         user_id: UUID,
         #
         grant: ChannelGrantCreate,
-    ) -> ChannelGrant: ...
+        #
+        guard_artifact_ids: Sequence[UUID] = (),
+        guard_user_id: Optional[UUID] = None,
+    ) -> ChannelGrant:
+        """`guard_artifact_ids`: refuse, inside the write, a private agent whose
+        owner is not `guard_user_id` (SharedItemNotFound)."""
 
     @abstractmethod
     async def fetch_grant(
@@ -425,6 +437,9 @@ class ChannelsDAOInterface(ABC):
         user_id: UUID,
         #
         grant: ChannelGrantEdit,
+        #
+        guard_artifact_ids: Sequence[UUID] = (),
+        guard_user_id: Optional[UUID] = None,
     ) -> Optional[ChannelGrant]: ...
 
     @abstractmethod
@@ -434,6 +449,9 @@ class ChannelsDAOInterface(ABC):
         project_id: UUID,
         #
         grant_id: UUID,
+        #
+        guard_artifact_ids: Sequence[UUID] = (),
+        guard_user_id: Optional[UUID] = None,
     ) -> bool: ...
 
     @abstractmethod
@@ -446,6 +464,18 @@ class ChannelsDAOInterface(ABC):
         #
         windowing: Optional[Windowing] = None,
     ) -> List[ChannelGrant]: ...
+
+    async def query_recent_senders(
+        self,
+        *,
+        project_id: UUID,
+        connection_id: UUID,
+        limit: int,
+    ) -> List[Dict[str, Any]]:
+        """The senders of this connection's newest stored messages, newest
+        first, one entry per message (`{id, name, username}` as the adapter
+        parsed them). For the settings screen's people picker only."""
+        raise NotImplementedError
 
     @abstractmethod
     async def count_grants(

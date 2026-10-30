@@ -113,6 +113,17 @@ describe("until the sharing state of an existing chat is known", () => {
         expect(seen.blocked).toBeNull()
     })
 
+    it("the row read answering no row ends the wait, and a loading read does not", async () => {
+        rows.querySessionStreams.mockReturnValue(new Promise(() => undefined))
+        await mount("existing-pending")
+        expect(seen.accessPending).toBe(true)
+
+        rows.querySessionStreams.mockResolvedValue(notFound)
+        await mount("existing-no-row")
+        await advance(0)
+        expect(seen.accessPending).toBe(false)
+    })
+
     it("failed: nothing may write, and the composer's place says the read failed", async () => {
         rows.querySessionStreams.mockResolvedValue(serverError)
         await mount("existing-failed")

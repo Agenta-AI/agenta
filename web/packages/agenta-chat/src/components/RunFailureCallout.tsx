@@ -14,6 +14,7 @@
  * which renders the same page. Still props, and still omitted rather than faked where a host has
  * nowhere to send the reader, because a button that opens nothing is worse than no button.
  */
+import {AGENT_NEEDS_SETUP_CODE, AGENT_NEEDS_SETUP_TITLE} from "@agenta/entities/workflow"
 import {Button} from "@agenta/ui/ui"
 import {XCircle} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
@@ -88,6 +89,7 @@ export const planLimitTitle = (code?: string | null): string | null =>
  */
 export const REFUSAL_TITLES: Record<string, string> = {
     builtin_models_not_enabled: "This model isn't available for your organization",
+    [AGENT_NEEDS_SETUP_CODE]: AGENT_NEEDS_SETUP_TITLE,
 }
 
 /** The title over a failure the platform worded itself, or `null` for an ordinary failure. */

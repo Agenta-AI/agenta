@@ -62,13 +62,13 @@ export interface ProjectOrgSwitcherViewProps {
 
 type Panel = "projects" | "orgs"
 
-const ROW_CLASS =
+export const ROW_CLASS =
     "flex w-full items-center gap-2 h-8 px-2 rounded-md text-sm leading-none text-left cursor-pointer border-0 bg-transparent [font-family:inherit] outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-colorPrimary text-colorText hover:bg-colorFillTertiary transition-colors"
 
 /** shrink-0 stops the capped scroll list from compressing rows instead of scrolling. */
-const ITEM_ROW_CLASS = "shrink-0"
+export const ITEM_ROW_CLASS = "shrink-0"
 
-const CAPTION_CLASS = "px-2 pt-1.5 pb-1 text-xs font-medium text-colorTextTertiary truncate"
+export const CAPTION_CLASS = "px-2 pt-1.5 pb-1 text-xs font-medium text-colorTextTertiary truncate"
 
 const Row = ({
     onClick,
@@ -115,7 +115,7 @@ const ThemeFlyout = ({theme}: {theme: SwitcherThemeControl}) => {
     )
 }
 
-const EntryList = ({entries, close}: {entries: SwitcherEntry[]; close: () => void}) => (
+export const EntryList = ({entries, close}: {entries: SwitcherEntry[]; close: () => void}) => (
     // Cap the list at 7 item rows (h-8 each) so the actions below it stay on screen.
     <div className="ag-scroll-quiet flex max-h-56 flex-col overflow-y-auto">
         {entries.map((entry) => (

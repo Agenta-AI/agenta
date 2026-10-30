@@ -76,6 +76,7 @@ vi.mock("@agenta/chat/hooks", () => ({
         }
     },
     useAgentModelKeyStatus: () => ({gateActive: false, loading: false}),
+    useAgentModelSetup: () => ({blocked: false, loading: false, canFix: false}),
     useElicitationDock: () => ({
         open: false,
         settlingIds: new Set(),
@@ -92,6 +93,7 @@ vi.mock("@agenta/chat/hooks", () => ({
 }))
 
 vi.mock("@agenta/chat/components", () => ({
+    ModelSetupBanner: () => null,
     ConnectionFocusProvider: ({children}: {children: ReactNode}) => children,
     ConnectionWarningStrip: () => null,
     ConnectionDock: () => <div data-testid="connection-dock" />,
@@ -171,7 +173,13 @@ vi.mock("@agenta/entity-ui/agent", () => ({AgentIntroCard: () => null}))
 vi.mock("@agenta/entity-ui/clientTools", () => ({
     SecretRequestDock: () => <div data-testid="secret-dock" />,
 }))
-vi.mock("@agenta/entity-ui/onboarding", () => ({AgentSetupCard: () => null}))
+vi.mock("@agenta/entity-ui/onboarding", () => ({
+    AgentSetupCard: () => null,
+    PersonalAccountsCard: () => null,
+}))
+vi.mock("@/features/chat/usePersonalSetupStep", () => ({
+    usePersonalSetupStep: () => ({open: false, items: [], pendingKeys: new Set()}),
+}))
 vi.mock("@agenta/shared/utils", () => ({isOnScreen: () => true, isOverlayOpen: () => false}))
 vi.mock("@agenta/ui/app-message", () => ({
     message: {warning: vi.fn()},
@@ -245,6 +253,8 @@ vi.mock("@/features/chat/states/PendingTaskError", () => ({
     ),
 }))
 vi.mock("@/features/chat/ConnectModelStrip", () => ({ConnectModelStrip: () => null}))
+vi.mock("@/features/chat/useOpenModelSetup", () => ({useOpenModelSetup: () => vi.fn()}))
+vi.mock("@/features/chat/setupFailureRefresh", () => ({refreshOnSetupFailure: () => undefined}))
 vi.mock("@/features/chat/Composer", () => ({
     Composer: ({disabled}: {disabled: boolean}) => (
         <div data-testid="composer" data-disabled={disabled ? "true" : "false"} />

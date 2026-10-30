@@ -1452,7 +1452,21 @@ class _RunnerSchema(BaseModel):
 
 class _SandboxSecretReferenceSchema(BaseModel):
     model_config = ConfigDict(extra="forbid", title="Secret reference")
-    slug: str = Field(title="Secret", description="Project secret slug.")
+    slug: Optional[str] = Field(
+        default=None,
+        title="Secret",
+        description="Secret slug. Left out for a 'user' secret.",
+    )
+    namespace: Optional[Literal["organization"]] = Field(
+        default=None,
+        title="Namespace",
+        description="'organization' names an organization secret; left out, a project secret.",
+    )
+    account_source: Optional[Literal["agent", "user"]] = Field(
+        default=None,
+        title="Account",
+        description="'user': the run person's own secret. Left out means 'agent'.",
+    )
 
 
 class _SandboxEnvironmentBindingSchema(BaseModel):

@@ -13,7 +13,9 @@ import {
     platformLabel,
 } from "./helpers"
 import type {
+    ChannelAudiencePerson,
     ChannelBehaviorState,
+    ChannelPerson,
     ChannelConnection,
     ChannelConnections,
     ChannelInstallMode,
@@ -314,8 +316,10 @@ export interface ChannelStoryActionsOptions {
     candidates?: Record<string, ChannelSpaceCandidate[]>
     /** The switches each connection starts with, keyed by connection id. Default: both on. */
     behavior?: Record<string, ChannelBehaviorState>
-    /** The allowed Telegram accounts, keyed by connection id. Default: everyone. */
-    allowedUsers?: Record<string, string[]>
+    /** The people each agent answers, keyed by connection id. Default: everyone. */
+    audience?: Record<string, ChannelAudiencePerson[]>
+    /** What the people picker finds, keyed by connection id. */
+    people?: Record<string, ChannelPerson[]>
     /** The channel tool settings, keyed by connection id. Default: the defaults. */
     toolSettings?: Record<string, ChannelToolSettings>
     toolSettingsError?: string
@@ -323,7 +327,7 @@ export interface ChannelStoryActionsOptions {
     discoverError?: string
     addSpaceError?: string
     behaviorError?: string
-    allowedUsersError?: string
+    audienceError?: string
     credentialsError?: string
     /** Called with the fixture after every change, so a host component can re-render. */
     onChange?: (connections: ChannelConnections) => void
@@ -357,7 +361,7 @@ export const createChannelStoryActions = (
         discoverError,
         addSpaceError,
         behaviorError,
-        allowedUsersError,
+        audienceError,
         credentialsError,
         toolSettingsError,
         onChange,
@@ -371,7 +375,8 @@ export const createChannelStoryActions = (
         ...options.candidates,
     }
     const behavior: Record<string, ChannelBehaviorState> = {...options.behavior}
-    const allowedUsers: Record<string, string[]> = {...options.allowedUsers}
+    const audience: Record<string, ChannelAudiencePerson[]> = {...options.audience}
+    const people: Record<string, ChannelPerson[]> = {...options.people}
     const toolSettings: Record<string, ChannelToolSettings> = {...options.toolSettings}
     let nextSpaceId = 0
 
@@ -490,21 +495,40 @@ export const createChannelStoryActions = (
         },
         readBehavior: async (_platform, connectionId) => {
             await delay(latencyMs)
-            return behavior[connectionId] ?? {dm: true, group: true}
+            return behavior[connectionId] ?? {dm: true, group: true, spaceIds: null}
         },
         writeBehavior: async (_platform, connectionId, next) => {
             await delay(latencyMs)
             if (behaviorError) throw new Error(behaviorError)
             behavior[connectionId] = next
         },
-        readAllowedUsers: async (connectionId) => {
+        readAudience: async (connectionId) => {
             await delay(latencyMs)
-            return allowedUsers[connectionId] ?? []
+            return audience[connectionId] ?? []
         },
-        writeAllowedUsers: async (connectionId, ids) => {
+        writeAudience: async (connectionId, next) => {
             await delay(latencyMs)
-            if (allowedUsersError) throw new Error(allowedUsersError)
-            allowedUsers[connectionId] = ids
+            if (audienceError) throw new Error(audienceError)
+            audience[connectionId] = next
+        },
+        queryPeople: async (connectionId, text) => {
+            await delay(latencyMs)
+            const needle = text.trim().toLowerCase()
+            const found = (people[connectionId] ?? []).filter(
+                (person) =>
+                    !needle ||
+                    [person.name, person.email, person.username, person.id].some((value) =>
+                        (value ?? "").toLowerCase().includes(needle),
+                    ),
+            )
+            return {
+                people: found,
+                directory: {state: "ready", updatedAt: new Date().toISOString()},
+            }
+        },
+        refreshPeople: async () => {
+            await delay(latencyMs)
+            return {state: "ready", updatedAt: new Date().toISOString()}
         },
         updateCredentials: async (connectionId) => {
             await delay(latencyMs)

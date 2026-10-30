@@ -19,6 +19,8 @@ from typing import (
 from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.access.service import get_access_service
 from oss.src.core.access.types import MissingPrincipal
+from oss.src.core.account_choices.claims import sign_run_accounts
+from oss.src.core.account_choices.items import user_items_of_revision
 from oss.src.core.git.dtos import RevisionGrouping
 from urllib.parse import urlparse
 from uuid import UUID, uuid4
@@ -184,6 +186,7 @@ from oss.src.core.workflows.types import (
     WorkflowDetachedStartFailed,
     WorkflowDetachedStartNeverSent,
     WorkflowDetachedStartRejected,
+    service_failure_status,
     answered_by_service,
     detached_start_never_sent,
     transport_never_sent,
@@ -399,6 +402,29 @@ _AGENT_REFERENCE_ORDER = (
     ("workflow", "artifact"),
     ("application", "artifact"),
 )
+
+
+def _artifact_id_of_references(references: Optional[dict]) -> Optional[UUID]:
+    """The agent a run's references name by artifact id, for its account choices, when
+    the request already carried its revision (so nothing was resolved here). No read: an
+    agent named only by revision, variant or slug gets no account choices, and its
+    "user" items fall back to defaults and sign-ins."""
+    for key, level in _AGENT_REFERENCE_ORDER:
+        if level != "artifact":
+            continue
+        reference = (references or {}).get(key)
+        reference_id = (
+            reference.get("id")
+            if isinstance(reference, dict)
+            else getattr(reference, "id", None)
+        )
+        if not reference_id:
+            continue
+        try:
+            return UUID(str(reference_id))
+        except ValueError:
+            continue
+    return None
 
 
 class WorkflowsService:
@@ -1066,7 +1092,12 @@ class WorkflowsService:
                         if detached_start_never_sent(response):
                             raise WorkflowDetachedStartNeverSent(message)
                         if answered_by_service(response):
-                            raise WorkflowDetachedStartRejected(message)
+                            status = service_failure_status(raw)
+                            raise WorkflowDetachedStartRejected(
+                                message,
+                                failure_code=status.get("failure_code"),
+                                failure_details=status.get("details"),
+                            )
                         raise WorkflowDetachedStartFailed(message)
 
                     trace_id = response.headers.get("x-ag-trace-id")
@@ -1405,6 +1436,17 @@ class WorkflowsService:
         if len(artifact_ids) != 1:
             raise AgentReferenceUnresolved()
         return artifact_ids.pop()
+
+    async def fetch_request_revision(
+        self,
+        *,
+        project_id: UUID,
+        request: WorkflowServiceRequest,
+    ) -> Optional[WorkflowRevision]:
+        """The revision a request's references and selector resolve to, or None."""
+        return await self._ensure_request_revision(
+            project_id=project_id, request=request
+        )
 
     async def _ensure_request_revision(
         self,
@@ -3615,7 +3657,7 @@ class WorkflowsService:
 
         request.meta = {**(request.meta or {}), "gateway_run_id": gateway_run_id}
 
-        await self._ensure_request_revision(
+        resolved_revision = await self._ensure_request_revision(
             project_id=project_id,
             request=request,
         )
@@ -3656,6 +3698,19 @@ class WorkflowsService:
             gateway_run_id=gateway_run_id,
             grants=self._service_grants(service_url),
             envelope=envelope,
+            # The accounts of the revision's "user" items, for the run person: one read,
+            # and none for a revision without "user" items.
+            run_accounts=await sign_run_accounts(
+                envelope=envelope,
+                items=user_items_of_revision(revision_data),
+                artifact_id=(
+                    resolved_revision.workflow_id
+                    if resolved_revision is not None
+                    else _artifact_id_of_references(
+                        getattr(request, "references", None)
+                    )
+                ),
+            ),
         )
 
         credentials = f"Secret {secret_token}"

@@ -7,15 +7,14 @@ import {partToolName} from "./parts"
 import type {RenderItem} from "./renderModel"
 import {isNonFinalRunnerError, isSettled} from "./toolSummary"
 
-// The activity fold's steps: reasoning and between-call text are thoughts, each call a tool step.
+// The activity fold's steps: reasoning is a thought, each call a tool step. The agent's messages
+// to the reader are never steps: they show below the fold.
 export type ActivityStep =
     | {
           kind: "thought"
           key: string
           text: string
           streaming: boolean
-          /** Model reasoning, or text it wrote between steps. */
-          source: "reasoning" | "text"
       }
     /** A browser-fulfilled tool (a connect, a question): the host renders its widget in place. */
     | {kind: "client"; key: string; part: ToolUIPart}
@@ -29,10 +28,9 @@ export type ActivityStep =
 
 export interface ActivitySplit {
     steps: ActivityStep[]
-    /** The turn's answer, when its last text item is the last thing in the turn. */
-    answer: TextUIPart | null
-    /** Position in `items` of the answer, so a caller can key it the way it keys the others. */
-    answerIndex: number
+    /** The agent's messages to the reader, in the order it wrote them, each with its position in
+     *  `items` so a caller can key it the way it keys the others. */
+    messages: {index: number; part: TextUIPart}[]
 }
 
 /** A call that ran and failed. Hidden from the fold by product rule; it stays in the parts. */
@@ -94,66 +92,27 @@ const noticesOf = (items: RenderItem[]): McpServerNotice[] =>
 const isFoldable = (item: RenderItem): boolean =>
     item.kind === "tools" ||
     item.kind === "clientTool" ||
-    (item.kind === "part" && (item.part.type === "reasoning" || item.part.type === "text"))
+    (item.kind === "part" && item.part.type === "reasoning")
 
-/** Whether the fold would show anything of this item. */
-const showsInFold = (item: RenderItem, notices: readonly McpServerNotice[] = []): boolean =>
-    item.kind === "tools"
-        ? item.parts.some((part) => !hiddenFromFold(part, notices))
-        : item.kind === "clientTool"
-          ? !hiddenQuestion(item.part)
-          : isFoldable(item)
+const isMessage = (item: RenderItem): item is RenderItem & {kind: "part"; part: TextUIPart} =>
+    item.kind === "part" && item.part.type === "text" && !!(item.part as TextUIPart).text?.trim()
 
-/** Position of the trailing text — the candidate answer — or -1 when something the fold shows follows it. */
-const trailingText = (items: RenderItem[], notices: readonly McpServerNotice[] = []): number => {
-    for (let i = items.length - 1; i >= 0; i--) {
-        const item = items[i]
-        if (item.kind === "part" && item.part.type === "text") return i
-        if (showsInFold(item, notices)) return -1
-    }
-    return -1
-}
-
-const textState = (items: RenderItem[], i: number): string | undefined =>
-    ((items[i] as {part: {state?: string}}).part as {state?: string}).state
-
-const findAnswer = (
-    items: RenderItem[],
-    holdClosedText: boolean,
-    notices: readonly McpServerNotice[] = [],
-): number => {
-    const i = trailingText(items, notices)
-    if (i < 0 || textState(items, i) === "streaming" || holdClosedText) return -1
-    const text = ((items[i] as {part: TextUIPart}).part.text ?? "").trim()
-    return text ? i : -1
-}
-
-/** Whether the turn ends on a text no longer being written: the candidate answer. */
-export const endsOnClosedText = (items: RenderItem[]): boolean => {
-    const i = trailingText(items, noticesOf(items))
-    return i >= 0 && textState(items, i) !== "streaming"
-}
-
-export interface SplitTurnActivityOptions {
-    /** Keep a closed trailing text in the fold: while the run is open a call can still follow it. */
-    holdClosedText?: boolean
-}
-
-export const splitTurnActivity = (
-    items: RenderItem[],
-    {holdClosedText = false}: SplitTurnActivityOptions = {},
-): ActivitySplit => {
+export const splitTurnActivity = (items: RenderItem[]): ActivitySplit => {
     // Read from the turn's own items: a notice can sit in a different message of the same run, so
     // the call it explains is not always beside it by the time the run is merged.
     const notices = noticesOf(items)
-    const answerIndex = findAnswer(items, holdClosedText, notices)
     const steps: ActivityStep[] = []
+    const messages: ActivitySplit["messages"] = []
     // Keyed by ordinal, not raw part position: the stream shuffles positions as it folds messages.
     let thoughts = 0
     items.forEach((item, position) => {
-        if (position === answerIndex || !isFoldable(item)) return
+        if (isMessage(item)) {
+            messages.push({index: position, part: item.part})
+            return
+        }
+        if (!isFoldable(item)) return
         if (item.kind === "part") {
-            const part = item.part as ReasoningUIPart | TextUIPart
+            const part = item.part as ReasoningUIPart
             const text = part.text ?? ""
             if (!text.trim()) return
             steps.push({
@@ -161,7 +120,6 @@ export const splitTurnActivity = (
                 key: `thought-${thoughts++}`,
                 text,
                 streaming: (part as {state?: string}).state === "streaming",
-                source: part.type === "reasoning" ? "reasoning" : "text",
             })
             return
         }
@@ -192,11 +150,7 @@ export const splitTurnActivity = (
             })
         })
     })
-    return {
-        steps,
-        answer: answerIndex >= 0 ? ((items[answerIndex] as {part: TextUIPart}).part ?? null) : null,
-        answerIndex,
-    }
+    return {steps, messages}
 }
 
 /** Files the whole fold wrote, for the collapsed line's outcome. */

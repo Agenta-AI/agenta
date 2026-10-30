@@ -18,6 +18,7 @@
  */
 import {useCallback, useEffect, useMemo, useRef, useState} from "react"
 
+import {organizationLabel} from "@agenta/entities/organization"
 import {
     buildModelOptions,
     connectionPolicyForSave,
@@ -52,6 +53,7 @@ import {
 } from "@agenta/entities/secret"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
 import {projectIdAtom} from "@agenta/shared/state"
+import type {OwnerKind} from "@agenta/shared/types"
 import {message} from "@agenta/ui/app-message"
 import {
     InputAffix,
@@ -68,6 +70,7 @@ import {WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
 import {harnessMetaFor, selectableHarnesses} from "../DrillInView/SchemaControls/harnessMeta"
+import {OwnerRadioGroup} from "../secret/OwnerRadioGroup"
 
 import ActiveModelsSection from "./ActiveModelsSection"
 import HarnessesSection, {type HarnessChoice} from "./HarnessesSection"
@@ -133,7 +136,25 @@ export interface ProviderConnectionCardProps {
      * member, who can still Test it.
      */
     organization?: OrganizationConnectionScope
+    /**
+     * A new connection in Settings, for someone who may manage the organization's connections:
+     * "Who can use it" after the credential, the project (the default) or the organization.
+     * Choosing the organization saves as `organization` would.
+     */
+    ownerChoice?: ProviderOwnerChoice
 }
+
+/** The two owners a new Settings connection can have. */
+export interface ProviderOwnerChoice {
+    /** For "Everyone in {project}". */
+    projectName: string
+    /** The organization's scope, as the organization's own connections get it. */
+    organization: OrganizationConnectionScope
+    /** The organization's connections, for the default-name preview. */
+    connections: ProviderConnection[]
+}
+
+type ProviderOwner = Exclude<OwnerKind, "user">
 
 /** Who a saved organization connection reaches, or null for a project connection. */
 const savedProjectsOf = (
@@ -152,8 +173,14 @@ const ProviderConnectionCard = ({
     connections,
     onSaved,
     onSaveStateChange,
-    organization,
+    organization: organizationScope,
+    ownerChoice: ownerChoiceProp,
 }: ProviderConnectionCardProps) => {
+    // Only a new connection asks; a saved one keeps its owner.
+    const ownerChoice = connection ? undefined : ownerChoiceProp
+    const [owner, setOwner] = useState<ProviderOwner>("project")
+    const organization =
+        ownerChoice && owner === "organization" ? ownerChoice.organization : organizationScope
     const readOnly = !!organization?.readOnly
     const projectId = useAtomValue(projectIdAtom)
     const capabilities = useAtomValue(harnessCapabilitiesAtomFamily(HARNESS_CATALOG_KEY))
@@ -343,7 +370,9 @@ const ProviderConnectionCard = ({
 
     // What an empty name would become. A connection being edited keeps its own name out of the
     // count, so clearing the field previews the name it already has rather than the next one.
-    const otherConnections = connections.filter((candidate) => candidate.id !== connection?.id)
+    const previewPool =
+        ownerChoice && owner === "organization" ? ownerChoice.connections : connections
+    const otherConnections = previewPool.filter((candidate) => candidate.id !== connection?.id)
     // An organization connection's default name says it is the organization's, as the API's does.
     const namePreview = organization
         ? nextConnectionName(
@@ -361,11 +390,13 @@ const ProviderConnectionCard = ({
                 : probeRequestFor(kind, credential, connection),
         [readOnly, connection, kind, credential],
     )
-    // A probe that reads the stored organization row runs through the current project, so only
-    // where the project may use it. A typed key is tested on its own, from any project.
+    // A member's probe of the stored organization row runs through the current project, so only
+    // where the project may use it. An owner or admin reads the row from any project, and a
+    // typed key is tested on its own.
     const readsOrganizationSecret = !!organization && !!probeRequest.secret_id
     const testableHere =
         !readsOrganizationSecret ||
+        !readOnly ||
         connection?.availability !== "selected_projects" ||
         (!!projectId && (connection.selectedProjectIds ?? []).includes(projectId))
 
@@ -657,6 +688,28 @@ const ProviderConnectionCard = ({
                     <span className="text-[11px] text-colorTextTertiary">{done.note}</span>
                 ) : null}
             </section>
+
+            {ownerChoice ? (
+                <div className="flex shrink-0 flex-col gap-1.5">
+                    <span className="font-medium text-colorText">Who can use it</span>
+                    <OwnerRadioGroup<ProviderOwner>
+                        value={owner}
+                        onChange={setOwner}
+                        options={[
+                            {
+                                value: "project",
+                                label: `Everyone in ${ownerChoice.projectName}`,
+                                note: "Stored in this project.",
+                            },
+                            {
+                                value: "organization",
+                                label: `The ${organizationLabel(ownerChoice.organization.name)}`,
+                                note: "Stored once. You choose which projects can use it.",
+                            },
+                        ]}
+                    />
+                </div>
+            ) : null}
 
             {/* A member cannot rename an organization connection, so the field is not offered. */}
             {readOnly ? null : (

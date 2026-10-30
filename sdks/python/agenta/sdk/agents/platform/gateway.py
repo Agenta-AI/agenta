@@ -13,7 +13,7 @@ hint the backend forwards, not a choice the backend makes.
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 import httpx
 from pydantic import ValidationError
@@ -186,6 +186,37 @@ def _to_gateway_reference(tool_config: GatewayToolConfig) -> Dict[str, Any]:
     return reference
 
 
+# One connection a tool reference names: provider, integration, slug ("" for a "user"
+# reference) and account source.
+_ConnectionKey = Tuple[str, str, str, str]
+
+
+def _connection_key(
+    provider: Any, integration: Any, slug: Any, account_source: Any
+) -> _ConnectionKey:
+    return (
+        str(provider),
+        str(integration),
+        str(slug or ""),
+        "user" if account_source == "user" else "agent",
+    )
+
+
+def _unavailable_connections(payload: Any) -> Set[_ConnectionKey]:
+    """The connections the API left out because they need setup."""
+    raw = payload.get("unavailable_connections") if isinstance(payload, dict) else None
+    return {
+        _connection_key(
+            item["provider"],
+            item["integration"],
+            item.get("connection"),
+            item.get("account_source"),
+        )
+        for item in raw or []
+        if isinstance(item, dict) and item.get("provider") and item.get("integration")
+    }
+
+
 class AgentaGatewayToolResolver:
     """Gateway tool and connection resolvers backed by the Agenta platform."""
 
@@ -221,7 +252,10 @@ class AgentaGatewayToolResolver:
             async with httpx.AsyncClient(timeout=self._connection.timeout) as client:
                 response = await client.post(
                     f"{api_base}/tools/resolve",
-                    json={"tools": references},
+                    # A connection that is missing, turned off or signed out (and a
+                    # "user" connection the run person has not set up) is left out and
+                    # named in `unavailable_connections`, instead of failing the run.
+                    json={"tools": references, "omit_unavailable": True},
                     headers=headers,
                 )
         except httpx.HTTPError as exc:
@@ -294,6 +328,27 @@ class AgentaGatewayToolResolver:
             authorization=authorization,
             references=references,
         )
+
+        unavailable = _unavailable_connections(payload)
+        if unavailable:
+            kept = {
+                reference: tool_config
+                for reference, tool_config in configs_by_reference.items()
+                if _connection_key(
+                    tool_config.provider,
+                    tool_config.integration,
+                    tool_config.connection,
+                    None,
+                )
+                not in unavailable
+            }
+            if len(kept) != len(configs_by_reference):
+                log.info(
+                    "agent: %d gateway tool(s) left out: their connection needs setup",
+                    len(configs_by_reference) - len(kept),
+                )
+            configs_by_reference = kept
+            tools = list(kept.values())
 
         raw_specs = payload.get("custom") if isinstance(payload, dict) else None
         if not isinstance(raw_specs, list):
@@ -451,10 +506,23 @@ class AgentaGatewayToolResolver:
             for integration, raw_slice in slices.items()
         }
 
+        unavailable = _unavailable_connections(payload)
         integrations: Dict[str, ResolvedGatewayIntegration] = {}
         warnings: List[str] = []
         for tool_config in tools:
             integration = tool_config.connection.integration
+            if (
+                _connection_key(
+                    tool_config.connection.provider,
+                    integration,
+                    tool_config.connection.slug,
+                    tool_config.connection.account_source,
+                )
+                in unavailable
+            ):
+                # Left out of the run: Needs setup tells the person what to set up.
+                log.info("agent: a gateway connection needs setup and was left out")
+                continue
             catalog = catalogs.get(integration)
             if catalog is None:
                 # The API validates the connection, so a missing slice means the request and
@@ -491,6 +559,7 @@ class AgentaGatewayToolResolver:
             integrations[integration] = ResolvedGatewayIntegration(
                 provider=tool_config.connection.provider,
                 connection=tool_config.connection.slug,
+                account_source=tool_config.connection.account_source,
                 toolkit_version=toolkit_version.strip(),
                 tools=compiled.tools,
             )

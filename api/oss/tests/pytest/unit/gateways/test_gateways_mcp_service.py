@@ -38,6 +38,7 @@ from oss.src.core.gateways.mcps.interfaces import (
 )
 from oss.src.core.gateways.mcps.registry import MCPUpstreamRegistry
 from oss.src.core.gateways.mcps.providers.composio import ComposioMCPAdapter
+from oss.src.core.gateways.mcps.oauth.storage import grant_slug, token_slug
 from oss.src.core.gateways.mcps.service import MCPGatewayService
 from oss.src.core.gateways.mcps.oauth.types import (
     MCPOAuthNoRefreshTokenError,
@@ -344,7 +345,7 @@ async def test_edit_endpoint_delegates_to_dao():
         ),
     )
     edited = await service.edit_endpoint(
-        project_id=uuid4(), user_id=uuid4(), endpoint=edit
+        organization_id=uuid4(), project_id=uuid4(), user_id=uuid4(), endpoint=edit
     )
 
     # One indexed read to see whether the name moved, then the write. The project-wide
@@ -363,7 +364,9 @@ async def test_delete_endpoint_delegates_to_dao():
     )
     dao.calls.clear()
 
-    deleted = await service.delete_endpoint(project_id=uuid4(), endpoint_id=created.id)
+    deleted = await service.delete_endpoint(
+        organization_id=uuid4(), project_id=uuid4(), endpoint_id=created.id
+    )
 
     assert dao.calls == ["fetch_endpoint", "delete_endpoint"]
     assert deleted is True
@@ -376,6 +379,7 @@ async def test_a_sheet_abandoning_its_pending_row_deletes_it():
     pending = await _oauth_endpoint(dao, connected=False)
 
     deleted = await service.delete_endpoint(
+        organization_id=uuid4(),
         project_id=uuid4(),
         endpoint_id=pending.id,
         pending_auth_mode=MCPAuthScheme.OAUTH,
@@ -408,6 +412,7 @@ async def test_a_sheet_abandoning_a_row_another_tab_took_over_keeps_it(auth_mode
 
     with pytest.raises(MCPConnectionChangedError):
         await service.delete_endpoint(
+            organization_id=uuid4(),
             project_id=uuid4(),
             endpoint_id=taken.id,
             pending_auth_mode=MCPAuthScheme.OAUTH,
@@ -1743,7 +1748,13 @@ class _StubRefresher:
         self._failure = failure
 
     async def refresh_grant(
-        self, *, project_id, endpoint_id, server_url, failed_access_token=None
+        self,
+        *,
+        project_id,
+        endpoint_id,
+        server_url,
+        failed_access_token=None,
+        owner=None,
     ) -> None:
         self.calls.append(server_url)
         self.endpoint_ids.append(endpoint_id)
@@ -2163,7 +2174,13 @@ class _UnavailableOnceRefresher(_StubRefresher):
     """A token endpoint that fails on its side once, then answers."""
 
     async def refresh_grant(
-        self, *, project_id, endpoint_id, server_url, failed_access_token=None
+        self,
+        *,
+        project_id,
+        endpoint_id,
+        server_url,
+        failed_access_token=None,
+        owner=None,
     ) -> None:
         await super().refresh_grant(
             project_id=project_id,
@@ -2603,6 +2620,7 @@ async def test_edit_refuses_renaming_onto_another_connections_name():
 
     with pytest.raises(MCPConnectionNameTakenError):
         await service.edit_endpoint(
+            organization_id=uuid4(),
             project_id=project_id,
             user_id=user_id,
             endpoint=MCPEndpointEdit(
@@ -2637,6 +2655,7 @@ async def test_edit_allows_a_connection_to_keep_the_name_it_already_has():
     assert created is not None
 
     edited = await service.edit_endpoint(
+        organization_id=uuid4(),
         project_id=project_id,
         user_id=user_id,
         endpoint=MCPEndpointEdit(
@@ -2665,6 +2684,7 @@ async def test_renaming_a_connection_still_checks_the_name_is_free():
     dao.calls.clear()
 
     await service.edit_endpoint(
+        organization_id=uuid4(),
         project_id=project_id,
         user_id=uuid4(),
         endpoint=MCPEndpointEdit(
@@ -2696,6 +2716,7 @@ async def test_a_rename_onto_a_name_another_connection_answers_to_is_refused():
 
     with pytest.raises(MCPConnectionNameTakenError):
         await service.edit_endpoint(
+            organization_id=uuid4(),
             project_id=project_id,
             user_id=user_id,
             endpoint=MCPEndpointEdit(
@@ -2901,23 +2922,32 @@ async def test_the_url_secret_is_the_project_secret_the_relay_would_send():
 
 
 class _ReleasingRefresher:
-    """Records which grants an edit asked to retire."""
+    """Records which sign-ins an edit or a delete retired, and which consents it
+    cancelled."""
 
     def __init__(self) -> None:
-        self.released: List[UUID] = []
         self.cancelled: List[UUID] = []
+        # The sign-in slugs an edit or a delete removed for every owner.
+        self.deleted_sign_ins: List[str] = []
 
     async def refresh_grant(
-        self, *, project_id, endpoint_id, server_url, failed_access_token=None
+        self,
+        *,
+        project_id,
+        endpoint_id,
+        server_url,
+        failed_access_token=None,
+        owner=None,
     ) -> None:
         raise AssertionError("an edit does not refresh")
-
-    async def release_grant(self, *, project_id, endpoint_id, server_url) -> None:
-        self.released.append(endpoint_id)
 
     async def cancel_attempts(self, *, project_id, endpoint_id, attempt_id=None) -> int:
         self.cancelled.append(endpoint_id)
         return 1
+
+    async def delete_sign_ins(self, *, organization_id, project_id, slugs) -> int:
+        self.deleted_sign_ins.extend(slugs)
+        return len(slugs)
 
 
 class _SigningInRefresher(_ReleasingRefresher):
@@ -2953,6 +2983,7 @@ async def test_a_sheet_abandoning_a_row_another_tab_is_signing_in_on_keeps_it():
 
     with pytest.raises(MCPConnectionChangedError):
         await service.delete_endpoint(
+            organization_id=uuid4(),
             project_id=uuid4(),
             endpoint_id=pending.id,
             pending_auth_mode=MCPAuthScheme.OAUTH,
@@ -2960,7 +2991,7 @@ async def test_a_sheet_abandoning_a_row_another_tab_is_signing_in_on_keeps_it():
 
     assert "delete_endpoint" not in dao.calls
     assert refresher.active == {other_tab_attempt}
-    assert refresher.released == []
+    assert refresher.deleted_sign_ins == []
 
 
 @pytest.mark.asyncio
@@ -2977,13 +3008,14 @@ async def test_a_sheet_abandoning_its_row_after_cancelling_its_sign_in_deletes_i
     )
 
     deleted = await service.delete_endpoint(
+        organization_id=uuid4(),
         project_id=uuid4(),
         endpoint_id=pending.id,
         pending_auth_mode=MCPAuthScheme.OAUTH,
     )
 
     assert deleted is True
-    assert refresher.released == [pending.id]
+    assert grant_slug(pending.id) in refresher.deleted_sign_ins
 
 
 async def _edited_from_oauth(*, auth_mode, base_url, oauth_config=None):
@@ -2994,6 +3026,7 @@ async def _edited_from_oauth(*, auth_mode, base_url, oauth_config=None):
     )
     endpoint = await _oauth_endpoint(dao)
     await service.edit_endpoint(
+        organization_id=uuid4(),
         project_id=uuid4(),
         user_id=uuid4(),
         endpoint=MCPEndpointEdit(
@@ -3017,7 +3050,7 @@ async def test_an_edit_off_oauth_retires_the_grant():
         auth_mode=MCPAuthScheme.API_KEY, base_url="https://example.com/mcp"
     )
 
-    assert refresher.released == [endpoint.id]
+    assert refresher.deleted_sign_ins == [grant_slug(endpoint.id)]
 
 
 @pytest.mark.asyncio
@@ -3026,7 +3059,7 @@ async def test_an_address_change_retires_the_grant_issued_for_the_old_address():
         auth_mode=MCPAuthScheme.OAUTH, base_url="https://mcp.other.example/"
     )
 
-    assert refresher.released == [endpoint.id]
+    assert refresher.deleted_sign_ins == [grant_slug(endpoint.id)]
 
 
 @pytest.mark.asyncio
@@ -3035,17 +3068,16 @@ async def test_an_edit_that_keeps_mode_and_address_retires_nothing():
         auth_mode=MCPAuthScheme.OAUTH, base_url="https://example.com/mcp"
     )
 
-    assert refresher.released == []
+    assert refresher.deleted_sign_ins == []
     assert refresher.cancelled == []
 
 
-@pytest.mark.parametrize(
-    "auth_mode, released", [(MCPAuthScheme.OAUTH, True), (MCPAuthScheme.NONE, False)]
-)
+@pytest.mark.parametrize("auth_mode", [MCPAuthScheme.OAUTH, MCPAuthScheme.NONE])
 @pytest.mark.asyncio
-async def test_deleting_a_connection_takes_its_oauth_grant_with_it(auth_mode, released):
+async def test_deleting_a_connection_takes_every_sign_in_with_it(auth_mode):
     """Deleting the row alone left the grant in the vault with nothing naming it:
-    unreachable, unlistable as a connection, and still holding a live token."""
+    unreachable, unlistable as a connection, and still holding a live token. Every
+    sign-in goes, the project's and each person's, whatever the mode."""
     dao = MockMCPEndpointsDAO()
     refresher = _ReleasingRefresher()
     service = _relay_service(
@@ -3054,9 +3086,13 @@ async def test_deleting_a_connection_takes_its_oauth_grant_with_it(auth_mode, re
     endpoint = await _oauth_endpoint(dao)
     dao._by_id[endpoint.id] = endpoint.model_copy(update={"auth_mode": auth_mode})
 
-    assert await service.delete_endpoint(project_id=uuid4(), endpoint_id=endpoint.id)
+    assert await service.delete_endpoint(
+        organization_id=uuid4(), project_id=uuid4(), endpoint_id=endpoint.id
+    )
 
-    assert refresher.released == ([endpoint.id] if released else [])
+    assert sorted(refresher.deleted_sign_ins) == sorted(
+        [grant_slug(endpoint.id), token_slug(endpoint.id)]
+    )
 
 
 @pytest.mark.asyncio
@@ -3070,11 +3106,11 @@ async def test_a_changed_oauth_client_cancels_the_consents_and_keeps_the_grant()
     )
 
     assert refresher.cancelled == [endpoint.id]
-    assert refresher.released == []
+    assert refresher.deleted_sign_ins == []
 
 
 @pytest.mark.asyncio
-async def test_a_switch_to_oauth_cancels_the_consents_and_retires_nothing():
+async def test_a_switch_to_oauth_cancels_the_consents_and_retires_every_token():
     dao = MockMCPEndpointsDAO()
     refresher = _ReleasingRefresher()
     service = _relay_service(
@@ -3086,6 +3122,7 @@ async def test_a_switch_to_oauth_cancels_the_consents_and_retires_nothing():
     )
 
     await service.edit_endpoint(
+        organization_id=uuid4(),
         project_id=uuid4(),
         user_id=uuid4(),
         endpoint=MCPEndpointEdit(
@@ -3097,4 +3134,4 @@ async def test_a_switch_to_oauth_cancels_the_consents_and_retires_nothing():
     )
 
     assert refresher.cancelled == [endpoint.id]
-    assert refresher.released == []
+    assert refresher.deleted_sign_ins == [token_slug(endpoint.id)]

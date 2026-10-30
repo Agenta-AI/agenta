@@ -5,6 +5,10 @@ import {
   DaytonaReconnectTerminalError,
   daytonaWithLifecycle,
 } from "../../src/engines/sandbox_agent/daytona-provider.ts";
+import {
+  resetCreatedSandboxIds,
+  sandboxSnapshotOf,
+} from "../../src/engines/sandbox_agent/created-sandboxes.ts";
 
 function fakeProvider() {
   return {
@@ -55,6 +59,52 @@ describe("Daytona provider create", () => {
           `DAYTONA_API_KEY=\\.\\.\\. DAYTONA_TARGET=eu uv run build_snapshot\\.py`,
       ),
     );
+  });
+});
+
+describe("Daytona provider snapshot record (capability probe key)", () => {
+  afterEach(() => resetCreatedSandboxIds());
+
+  it("records the configured snapshot for a sandbox this process created", async () => {
+    const provider = daytonaWithLifecycle(
+      { create: { snapshot: "agenta-agent-sandbox-v9" } as any },
+      { client: {} as any, buildBaseProvider: () => ({ ...fakeProvider(), create: async () => "daytona/sb-new" }) },
+    );
+    await provider.create();
+    assert.equal(sandboxSnapshotOf("daytona/sb-new"), "agenta-agent-sandbox-v9");
+    assert.equal(sandboxSnapshotOf("sb-new"), "agenta-agent-sandbox-v9");
+  });
+
+  it("records nothing for an image build", async () => {
+    const provider = daytonaWithLifecycle(
+      { create: {} as any },
+      { client: {} as any, buildBaseProvider: () => ({ ...fakeProvider(), create: async () => "sb-image" }) },
+    );
+    await provider.create();
+    assert.equal(sandboxSnapshotOf("sb-image"), undefined);
+  });
+
+  it("records the snapshot Daytona reports on reconnect, not the configured one", async () => {
+    const provider = daytonaWithLifecycle(
+      { create: { snapshot: "agenta-agent-sandbox-v9" } as any },
+      {
+        client: { get: async () => ({ state: "started", snapshot: "agenta-agent-sandbox-v8" }) } as any,
+        buildBaseProvider: fakeProvider,
+      },
+    );
+    await provider.reconnect("sb-parked");
+    assert.equal(sandboxSnapshotOf("sb-parked"), "agenta-agent-sandbox-v8");
+  });
+
+  it("forgets a stale record when the reconnected sandbox reports no snapshot", async () => {
+    const created = daytonaWithLifecycle(
+      { create: { snapshot: "agenta-agent-sandbox-v9" } as any },
+      { client: {} as any, buildBaseProvider: () => ({ ...fakeProvider(), create: async () => "sb-1" }) },
+    );
+    await created.create();
+    const reconnected = buildProvider({ state: "started" });
+    await reconnected.reconnect("sb-1");
+    assert.equal(sandboxSnapshotOf("sb-1"), undefined);
   });
 });
 

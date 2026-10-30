@@ -3,6 +3,17 @@ title: "Credit-based plans and reliability fixes"
 slug: credit-plans-and-reliability-fixes
 date: 2026-10-12
 tags: [v0.122.5]
+fixes:
+  - area: Analytics
+    text: "A 30-day range that takes too long shows an error instead of empty charts"
+  - area: Analytics
+    text: "Agent runs show in the model charts and the model filter again"
+  - area: Chat
+    text: "Replies in a project other than your default one stream while the model writes"
+  - area: Models
+    text: "Gemini models from a Vertex AI connection run on the pi_core harness"
+  - area: Triggers
+    text: "Triggers added from an agent's config panel bind to the agent by its slug"
 description: "Agenta Cloud plans now use credits, with daily free credits on every plan. Version 0.122.5 also fixes analytics, live replies and Gemini on Vertex AI, and changes defaults for self-hosters."
 ---
 
@@ -27,13 +38,6 @@ Usage on Agenta Cloud is now counted in credits. The plan cards, the billing pag
 - **Concurrent tasks** are 2 on Hobby, 20 on Starter and 50 on Business. A Hobby organization can have one project.
 
 When an organization has no credits left, a new task does not start and is not charged. The chat shows "You're out of credits" and tells you the next step for your plan. Tasks that are already running finish.
-
-## Fixes
-
-- **Analytics:** a 30-day range that takes too long now shows an error with a message to choose a shorter range. Before, the charts stayed empty. Agent runs also keep their model and connection mode on analytics, so the model charts and the model filter include new runs again.
-- **Live replies:** in /m, a reply in a session that belongs to a project other than your default project now streams while the model writes, instead of appearing at the end.
-- **Gemini on Vertex AI:** an agent that uses the `pi_core` harness can now run Gemini models from a Vertex AI connection, including runs with several tool calls in a row.
-- **Triggers:** schedules and event triggers that you add from an agent's config panel now bind to the agent by its slug.
 
 ## For self-hosters
 

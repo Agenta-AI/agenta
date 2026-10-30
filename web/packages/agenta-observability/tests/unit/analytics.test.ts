@@ -155,6 +155,7 @@ describe("runs", () => {
     const root = {
         trace_id: "t1",
         span_id: "s1",
+        span_name: "agent_turn",
         start_time: "2026-10-01T10:00:00Z",
         status_code: "STATUS_CODE_ERROR",
         status_message: "ConnectError: All connection attempts failed",
@@ -175,6 +176,7 @@ describe("runs", () => {
         expect(toAnalyticsRun(root)).toEqual({
             traceId: "t1",
             agentId: "agent-1",
+            name: "agent_turn",
             model: "sonnet",
             startedAt: Date.parse("2026-10-01T10:00:00Z"),
             tokens: 900,
@@ -183,6 +185,16 @@ describe("runs", () => {
             reason: "ConnectError: All connection attempts failed",
             subscription: true,
         })
+    })
+
+    it("keeps the span name for a run from outside Agenta", () => {
+        const external = {
+            ...root,
+            span_name: " chat_turn ",
+            attributes: {},
+        } as unknown as TraceSpan
+        expect(toAnalyticsRun(external)).toMatchObject({agentId: null, name: "chat_turn"})
+        expect(toAnalyticsRun({...external, span_name: ""} as TraceSpan).name).toBeNull()
     })
 
     it("counts tool calls and names the failed ones per run", () => {

@@ -6,6 +6,8 @@ useDefault = true
 
 [allowlist]
 paths = [
+  # URL fixtures such as http://api:8000/api/otlp/v1/traces trip generic-api-key. Not credentials.
+  '''^sdks/python/oss/tests/pytest/unit/test_helpers\.py$''',
   # ------------------------------------------------------- QA RUN RECORDS
   # Gate-run and benchmark result files carry deliberate high-entropy MARKER
   # strings (QA-CWD-*, QA-APPROVE-*) that the release-gate cells write and read

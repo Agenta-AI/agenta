@@ -354,6 +354,10 @@ async def _exchange(access):
             resource_type="service",
             resource_id=None,
             without_grants=False,
+            # A turn of an agent without "user" items names none: the exchange adds no
+            # statement, which this count proves.
+            workflow_id=None,
+            item_keys=None,
         )
 
 

@@ -26,6 +26,7 @@ export {
     type SwitcherThemeControl,
     type SwitcherThemeOption,
 } from "./ProjectOrgSwitcher"
+export {ProjectSwitch, type ProjectSwitchProps} from "./ProjectSwitch"
 export {
     WorkflowPickerView,
     type WorkflowPickerEntry,

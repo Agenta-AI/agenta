@@ -235,6 +235,11 @@ export interface IntegrationPermissionDrawerProps {
     source?: PermissionDrawerSource
     /** The drawer's panel element, so a dialog opened from it can open inside it. */
     panelRef?: Ref<HTMLDivElement>
+    /**
+     * The "Account" block: whose account the item runs under. Drawn above "Default permission",
+     * in the same style. Absent, the drawer shows no account block.
+     */
+    account?: ReactNode
 }
 
 /** The Composio five, in the shape a source supplies its own presets in. */
@@ -494,10 +499,13 @@ export function PermissionDrawerBody({
     controlsDisabled,
     footNote,
     readOnly,
+    account,
     flush = false,
 }: {
     /** Embedded under a host's own header and gutter: no outer padding of its own. */
     flush?: boolean
+    /** The "Account" block, above "Default permission". */
+    account?: ReactNode
     catalog: PermissionDrawerCatalog
     catalogKey: string
     emptyLabel: string
@@ -590,6 +598,8 @@ export function PermissionDrawerBody({
                     controlsDisabled ? "opacity-45" : ""
                 }`}
             >
+                {readOnly ? null : account}
+
                 {readOnly ? null : (
                     <div className="flex flex-col gap-1.5">
                         <span className="text-xs text-[var(--ag-colorTextSecondary)]">
@@ -903,6 +913,7 @@ export function IntegrationPermissionDrawer({
                     controlsDisabled={source.controlsDisabled}
                     footNote={source.footNote}
                     readOnly={source.readOnly}
+                    account={body.account}
                 />
             ) : (
                 <IntegrationDrawerBody {...body} permissions={body.permissions} />

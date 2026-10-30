@@ -258,10 +258,24 @@ export async function mountLocalDurableCwd(
   return false;
 }
 
+/** Options for `mountLocalAgentCwd`. */
+export interface MountLocalAgentCwdOptions {
+  /**
+   * The durable cwd mount, when it runs at the same time as this one. The `agent-files` link
+   * lives inside the cwd, so linking before the cwd mount is live would put the link in the
+   * directory the mount then shadows. The mount itself does not wait: the agent home is a
+   * sibling path (`<cwd>-agent`), never inside the cwd. A rejected cwd mount skips the link,
+   * the README seed, and the guidance; the acquire rethrows that rejection and the teardown
+   * unmounts this mount.
+   */
+  cwdReady?: Promise<unknown>;
+}
+
 /** Mount the agent home on the local host, then run the guidance. Returns whether it is live. */
 export async function mountLocalAgentCwd(
   ctx: AcquireContext,
   deps: MountDeps,
+  opts: MountLocalAgentCwdOptions = {},
 ): Promise<boolean> {
   const plan = ctx.plan;
   const creds = ctx.env.agentMountCreds;
@@ -284,6 +298,8 @@ export async function mountLocalAgentCwd(
       return false;
     }
     ctx.commitLocalMount("agent", mountPath, creds);
+    if (opts.cwdReady && !(await opts.cwdReady.then(() => true, () => false)))
+      return true;
     throwIfAcquireAborted(deps.signal);
     await seedAgentReadme(mountPath, { log: ctx.log });
     await linkAgentFiles(plan.workspace.cwd, mountPath, { log: ctx.log });

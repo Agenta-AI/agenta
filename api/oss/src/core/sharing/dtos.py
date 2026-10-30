@@ -1,6 +1,8 @@
 from datetime import datetime
 from enum import Enum
 from typing import List, Optional
+
+from agenta.sdk.agents.accounts import AccountSource
 from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
@@ -154,7 +156,10 @@ class DisclosedConnection(BaseModel):
 
     provider: str
     integration: str
-    connection: str  # the connection slug in the revision's tools
+    # The project connection's slug in the revision's tools; None for a "user" item,
+    # which uses each person's own connection to the integration and names none.
+    connection: Optional[str] = None
+    account_source: Optional[AccountSource] = None
 
 
 def _trace_readers_can_read() -> bool:

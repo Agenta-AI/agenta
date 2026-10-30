@@ -465,6 +465,7 @@ const AgentConversation = ({
         commitEdit,
         pendingSendRows,
     } = useAgentChatQueue({
+        sessionId,
         messages,
         stopped,
         continuationExecutionId,

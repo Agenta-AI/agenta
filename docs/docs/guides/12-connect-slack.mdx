@@ -66,6 +66,14 @@ After it connects, the Slack panel shows the app as **Live**. Under **Answers in
 
 To add the assistant to a channel, invite it there from Slack (for example, `/invite @outreachdrafter`). The channel then appears under **Channels it's in**. In the video, the assistant is added to an `#outreach` channel with channel replies turned on.
 
+To answer in some channels only, open **Advanced** and set **Channels it answers in** to **Only these channels**, then check the channels. A channel you leave unchecked stays in the list, marked **Off**. A channel the assistant joins later stays off until you check it. Group DMs count as channels.
+
+### Choose who can message it
+
+Under **Access**, **Who can message it** is **Everyone** by default. Choose **Specific people** to limit the assistant to a list. Search people by name, or type a full email. The list applies to this agent only, in direct messages and in channels.
+
+When someone who is not on the list mentions the assistant or sends it a direct message, they get one short private note, at most once a day. The same happens when someone mentions it in a channel it does not answer in, or sends it a direct message while **Direct messages** is off. Only the owner of a private agent can change these settings.
+
 ## 5. Mention the agent in Slack
 
 In the channel, mention the agent and ask for what you need. For example:
@@ -81,7 +89,8 @@ Anyone in the channel can mention the agent the same way to ask questions, reque
 Open the agent's **Publish** panel and click **Slack** to come back to the connection. From there you can:
 
 - Turn **Direct messages** and **Channels** on or off.
-- See the channels the assistant is in.
+- See the channels the assistant is in, and add several at once with **Add channel**.
+- Choose who can message it under **Access**.
 - Update the app credentials under **Access**.
 - Add another workspace or another Slack app.
 - **Disconnect** the app.

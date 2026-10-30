@@ -24,6 +24,12 @@ from oss.src.dbs.postgres.sharing.dao import SharingDAO
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 from oss.src.utils.common import is_ee
 
+from oss.src.core.account_choices.service import (
+    AccountChoicesService,
+    register_account_choices_service,
+)
+from oss.src.dbs.postgres.account_choices.dao import AccountChoicesDAO
+
 
 def bootstrap_access() -> AccessService:
     """Build and register the memberships, sharing and access services. Idempotent: a
@@ -60,6 +66,12 @@ def bootstrap_access() -> AccessService:
     )
 
     register_memberships_service(memberships_service=memberships_service)
+    # The run start of every process (API, workers) resolves a run's "user" accounts.
+    register_account_choices_service(
+        account_choices_service=AccountChoicesService(
+            account_choices_dao=AccountChoicesDAO(engine=get_transactions_engine())
+        )
+    )
     register_sharing_service(sharing_service=sharing_service)
     register_trace_access_service(
         service=TraceAccessService(sharing_service=sharing_service)
