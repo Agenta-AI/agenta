@@ -12,7 +12,7 @@ import {
     restoreRefusedSend as restoreRefusedSendInto,
     sideEffectingToolsInRange,
 } from "@agenta/chat/assets"
-import {mergePendingSendEchoRows} from "@agenta/chat/assets"
+import {getMessageTraceId, mergePendingSendEchoRows} from "@agenta/chat/assets"
 import {getPendingSecretInteractions} from "@agenta/chat/clientTools"
 import {AttachmentDropOverlay, ConnectionFocusProvider} from "@agenta/chat/components"
 import {
@@ -897,6 +897,12 @@ const AgentConversation = ({
                 isStreaming={transcriptBusy && isLast}
                 precededByEmptyAssistant={
                     index > 0 && isEmptyAssistantTurn(transcriptMessages[index - 1])
+                }
+                // A user turn borrows its paired assistant trace id to find its session turn's time.
+                turnTraceId={
+                    message.role === "user" && transcriptMessages[index + 1]
+                        ? getMessageTraceId(transcriptMessages[index + 1])
+                        : undefined
                 }
                 inspected={isInspected}
                 // Whenever the inspector PANEL is open, every assistant turn is click-to-focus —

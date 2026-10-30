@@ -16,6 +16,7 @@ import {
     McpServerNoticeCard,
     TurnFooter,
 } from "@agenta/chat/components"
+import {useSessionTurnFooter} from "@agenta/chat/hooks"
 import {readableTraceError, splitTurnActivity, type TurnViewModel} from "@agenta/chat/model"
 import {messageBodyKey} from "@agenta/chat/state"
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
@@ -46,7 +47,6 @@ import {TurnFiles} from "./TurnFiles"
 import {mobileTurnRowClass} from "./turnRowClass"
 import {UserQuoteBlock} from "./UserQuoteBlock"
 import {ARRIVED_ANSWER_ATTR, LAST_TURN_ATTR} from "./useTranscriptAutoScroll"
-import {useTurnRowFooter} from "./useTurnRowFooter"
 
 import {cn} from "@/lib/utils"
 
@@ -104,7 +104,7 @@ const TurnRowInner = ({
     )
     const usage = getMessageUsage(turn.message)
     // A user turn has no trace of its own: it takes its time from the turn it started.
-    const turnRowFooter = useTurnRowFooter({
+    const sessionTurn = useSessionTurnFooter({
         sessionId,
         traceId: turn.isUser ? turn.turnTraceId : traceId,
     })
@@ -147,9 +147,9 @@ const TurnRowInner = ({
         traceId,
         isStreaming: turn.isStreamingTurn,
         usage,
-        turnRow: turnRowFooter.figures,
-        turnStartedAt: turnRowFooter.startedAt,
-        turnRowsPending: turnRowFooter.pending,
+        sessionTurnFigures: sessionTurn.figures,
+        sessionTurnStartedAt: sessionTurn.startedAt,
+        sessionTurnsPending: sessionTurn.pending,
         copyText,
         // Rewinding the last turn re-runs the current one; hidden, as on desktop.
         onRewind: onRewind && !turn.isLast ? () => onRewind(turn) : undefined,
@@ -262,7 +262,8 @@ const TurnRowInner = ({
                 waitingOnUser={turn.isLast && waitingOnUser}
                 resuming={turn.isLast && resuming}
                 hadGate={turn.hadGate}
-                traceId={traceId}
+                sessionTurnStartedAt={sessionTurn.startedAt}
+                sessionTurnDurationMs={sessionTurn.figures?.durationMs}
                 streamedHere={streamedHereRef.current}
                 runStartedAt={runStartedAt}
                 renderClientTool={renderClientTool}

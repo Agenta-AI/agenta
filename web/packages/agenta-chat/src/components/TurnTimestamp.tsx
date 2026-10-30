@@ -9,10 +9,10 @@ import {messageCreatedAtAtomFamily} from "../state"
 /**
  * When a turn happened — "just now", "5m ago", "13h ago".
  *
- * The time comes from the turn row's start (`startedAt`), not from when the browser first saw the
+ * The time comes from the session turn's start (`startedAt`), not from when the browser first saw the
  * message: a reload re-creates every restored turn at once, so the client-side first-seen stamp
  * would back-date the whole transcript to page-load time. That stamp is only the fallback, for a
- * turn with no row yet (a message you just sent). A user turn borrows the start of the turn it
+ * turn with no session turn yet (a message you just sent). A user turn borrows the start of the turn it
  * started.
  *
  * While the rows load (`pending`), a turn with no stamp holds the slot with a placeholder rather
@@ -26,9 +26,9 @@ export const TurnTimestamp = ({
     pending = false,
 }: {
     messageId: string
-    /** The start time of the turn's row (ISO), when known. */
+    /** The start time of the session turn (ISO), when known. */
     startedAt?: string | null
-    /** The turn rows are still loading. */
+    /** The session's turns are still loading. */
     pending?: boolean
 }) => {
     useAtomValue(nowTickAtom)

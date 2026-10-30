@@ -1,5 +1,5 @@
 /**
- * A session's turn rows, the source of each chat turn's tokens, cost and latency: one read
+ * A session's turns, the source of each chat turn's tokens, cost and latency: one read
  * per session instead of one trace read per turn, and readable by everyone who can read the
  * session, with or without trace access.
  */
@@ -10,7 +10,7 @@ import {atomWithQuery} from "jotai-tanstack-query"
 
 import {querySessionTurns} from "../api/api"
 import type {SessionTurn} from "../core/schema"
-import {turnsByTraceId, turnsMayChange} from "../core/turnUsage"
+import {turnsByTraceId, turnsMayChange} from "../core/turnFigures"
 
 export const sessionTurnsQueryKey = (projectId: string, sessionId: string) =>
     ["session", "turns", projectId, sessionId] as const
@@ -41,7 +41,7 @@ export const sessionTurnsQueryFamily = atomFamily((sessionId: string) =>
     }),
 )
 
-/** The session's turn rows by normalized trace id; empty until the turns load. */
+/** The session's turns by normalized trace id; empty until the turns load. */
 export const sessionTurnsByTraceAtomFamily = atomFamily((sessionId: string) =>
     atom((get) => turnsByTraceId(get(sessionTurnsQueryFamily(sessionId)).data ?? [])),
 )

@@ -5,7 +5,7 @@ import {
     turnFigures,
     turnsByTraceId,
     turnsMayChange,
-} from "../../src/session/core/turnUsage"
+} from "../../src/session/core/turnFigures"
 
 describe("turnFigures", () => {
     it("maps usage to display fields and latency from start and end", () => {
@@ -57,6 +57,17 @@ describe("turnsByTraceId", () => {
         const map = turnsByTraceId([turn, {trace_id: null}])
         expect(map.size).toBe(1)
         expect(map.get(normalizeTraceId("0a1b2c3d00004000800000000000000f"))).toBe(turn)
+    })
+
+    it("leaves out a trace id that several turns share", () => {
+        const own = {trace_id: "b", usage: {total_tokens: 3, source: "runner" as const}}
+        const map = turnsByTraceId([
+            {trace_id: "a", usage: {total_tokens: 1, source: "runner" as const}},
+            own,
+            {trace_id: "a", usage: {total_tokens: 2, source: "runner" as const}},
+        ])
+        expect(map.has("a")).toBe(false)
+        expect(map.get("b")).toBe(own)
     })
 })
 

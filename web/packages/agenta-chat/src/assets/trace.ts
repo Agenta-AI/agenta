@@ -97,8 +97,3 @@ export const getMessageUsage = (message: UIMessage): MessageUsageMetrics | undef
     if (cost !== undefined) out.totalCost = cost
     return Object.keys(out).length > 0 ? out : undefined
 }
-
-/** A turn's figures stored on its turn row: tokens, cost and latency. */
-export interface TurnRowMetrics extends MessageUsageMetrics {
-    durationMs?: number
-}

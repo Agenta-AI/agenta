@@ -150,7 +150,7 @@ export {
     turnsByTraceId,
     turnsMayChange,
     type TurnFigures,
-} from "./core/turnUsage"
+} from "./core/turnFigures"
 export {
     sessionRecordsQueryFamily,
     sessionRecordFileRecencyAtomFamily,

@@ -9,7 +9,7 @@ export interface TurnFigures {
     durationMs?: number
 }
 
-/** Trace ids arrive as a UUID (turn rows) or as 32 hex characters (messages, spans). */
+/** Trace ids arrive as a UUID (session turns) or as 32 hex characters (messages, spans). */
 export const normalizeTraceId = (traceId: string | null | undefined): string =>
     (traceId ?? "").replace(/-/g, "").toLowerCase()
 
@@ -17,8 +17,8 @@ const num = (value: number | null | undefined): number | undefined =>
     typeof value === "number" && Number.isFinite(value) ? value : undefined
 
 /**
- * The figures stored on a turn row: latency from its start and end whenever both exist, tokens
- * and cost from its usage. `undefined` when the row knows none of them. A null usage field stays
+ * The figures stored on a session turn: latency from its start and end whenever both exist, tokens
+ * and cost from its usage. `undefined` when the turn knows none of them. A null usage field stays
  * undefined (unknown), never 0.
  */
 export const turnFigures = (turn: SessionTurn): TurnFigures | undefined => {
@@ -40,13 +40,21 @@ export const turnFigures = (turn: SessionTurn): TurnFigures | undefined => {
     return Object.keys(figures).length > 0 ? figures : undefined
 }
 
-/** The turns of a session keyed by normalized trace id. A turn without a trace is left out. */
+/**
+ * The turns of a session keyed by normalized trace id. A turn without a trace is left out. A trace
+ * id that several turns share (a caller's traceparent reused) is left out too: a message carries
+ * only its trace id, so it cannot tell which of those turns is its own.
+ */
 export const turnsByTraceId = (turns: SessionTurn[]): Map<string, SessionTurn> => {
     const byTrace = new Map<string, SessionTurn>()
+    const shared = new Set<string>()
     for (const turn of turns) {
         const key = normalizeTraceId(turn.trace_id)
-        if (key) byTrace.set(key, turn)
+        if (!key) continue
+        if (byTrace.has(key)) shared.add(key)
+        byTrace.set(key, turn)
     }
+    for (const key of shared) byTrace.delete(key)
     return byTrace
 }
 

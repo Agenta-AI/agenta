@@ -167,7 +167,7 @@ export const revalidateSessionRecordsAtom = atom(null, (get, _set, sessionId: st
         {queryKey: sessionRecordsQueryKey(projectId, sessionId)},
         {cancelRefetch: false},
     )
-    // A finished turn has a new turn row: the footer reads its time and usage from it.
+    // A finished turn has a new session turn: the footer reads its time and usage from it.
     void client.invalidateQueries(
         {queryKey: sessionTurnsQueryKey(projectId, sessionId)},
         {cancelRefetch: false},

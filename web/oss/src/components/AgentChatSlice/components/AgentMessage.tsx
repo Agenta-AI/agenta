@@ -31,6 +31,7 @@ import {
     StartupActivity,
     TurnFooter,
 } from "@agenta/chat/components"
+import {useSessionTurnFooter} from "@agenta/chat/hooks"
 import {
     buildTurnRenderItems,
     deriveTurnStatus,
@@ -90,6 +91,9 @@ interface AgentMessageProps {
     /** The previous turn was also an empty (content-less) assistant turn. Used to collapse a
      * run of "no response" bubbles down to the first one. */
     precededByEmptyAssistant?: boolean
+    /** The turn's trace id for a USER message (its paired assistant's trace): the user turn takes
+     * its session turn's start time, not this browser's first-seen. */
+    turnTraceId?: string
     /** Re-run this failed turn — the same regenerate wiring as the Stopped → Resend affordance.
      * Stable across renders (the message to retry is passed in, not closed over); the parent
      * passes it only on the last turn while a retry can actually run, so it gates position. */
@@ -269,6 +273,7 @@ const AgentMessage = ({
     onRewind,
     onClientToolOutput,
     precededByEmptyAssistant = false,
+    turnTraceId,
     onRetry,
 }: AgentMessageProps) => {
     const message = useMemo(() => displayMessage(sourceMessage), [sourceMessage])
@@ -283,6 +288,11 @@ const AgentMessage = ({
 
     const traceId = getMessageTraceId(message)
     const usage = getMessageUsage(message)
+    // A user turn has no trace of its own: it takes its time from the turn it started.
+    const sessionTurn = useSessionTurnFooter({
+        sessionId,
+        traceId: isUser ? turnTraceId : traceId,
+    })
     // A failed run (e.g. a quota error the runner swallowed into an empty turn) lands as an
     // error on the message's OWN trace; read it so the bubble can render as a failure.
     const ownSummary = useAtomValue(traceDataSummaryAtomFamily(traceId ?? null))
@@ -595,6 +605,9 @@ const AgentMessage = ({
                     isUser={isUser}
                     isStreaming={isStreaming}
                     usage={usage}
+                    sessionTurnFigures={sessionTurn.figures}
+                    sessionTurnStartedAt={sessionTurn.startedAt}
+                    sessionTurnsPending={sessionTurn.pending}
                     copyText={copyText}
                     // Rewinding the LAST turn just re-runs the turn that's already current, so hide it.
                     onRewind={isLastMessage ? undefined : () => onRewind(sourceMessage)}

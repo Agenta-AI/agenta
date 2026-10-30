@@ -1,11 +1,12 @@
 import {useEffect, useRef, useState} from "react"
 
+import type {TurnFigures} from "@agenta/entities/session"
 import {playgroundInspectorEnabledAtom} from "@agenta/shared/state"
 import {ChatActionIconButton, MetaSeparator} from "@agenta/ui/components/presentational"
 import {ArrowClockwise, Check, Copy, TreeStructure} from "@phosphor-icons/react"
 import {useAtomValue} from "jotai"
 
-import type {MessageUsageMetrics, TurnRowMetrics} from "../assets"
+import type {MessageUsageMetrics} from "../assets"
 
 import {TurnMetrics} from "./TurnMetrics"
 import {TurnTimestamp} from "./TurnTimestamp"
@@ -30,9 +31,9 @@ export const TurnFooter = ({
     isUser,
     isStreaming = false,
     usage,
-    turnRow,
-    turnStartedAt,
-    turnRowsPending = false,
+    sessionTurnFigures,
+    sessionTurnStartedAt,
+    sessionTurnsPending = false,
     copyText,
     onRewind,
     onViewTrace,
@@ -46,12 +47,12 @@ export const TurnFooter = ({
     /** The answer is still arriving. Hides copy, which would take a half-written reply. */
     isStreaming?: boolean
     usage?: MessageUsageMetrics
-    /** The figures stored on the turn row; a settled turn shows only these. */
-    turnRow?: TurnRowMetrics
-    /** The start of the turn row (a user turn: the row of the turn it started). */
-    turnStartedAt?: string | null
-    /** The turn rows are still loading. */
-    turnRowsPending?: boolean
+    /** The figures stored on the session turn; a settled turn shows only these. */
+    sessionTurnFigures?: TurnFigures
+    /** The start of the session turn (a user turn: the session turn it started). */
+    sessionTurnStartedAt?: string | null
+    /** The session's turns are still loading. */
+    sessionTurnsPending?: boolean
     /** What the copy button puts on the clipboard. Omitted (or empty) hides the button. */
     copyText?: string
     /** Re-run from this turn. Omitted hides the button. */
@@ -95,13 +96,13 @@ export const TurnFooter = ({
         <>
             <TurnTimestamp
                 messageId={messageId}
-                startedAt={turnStartedAt}
-                pending={turnRowsPending}
+                startedAt={sessionTurnStartedAt}
+                pending={sessionTurnsPending}
             />
             {isUser ? null : (
                 <TurnMetrics
                     usage={usage}
-                    turnRow={turnRow}
+                    sessionTurnFigures={sessionTurnFigures}
                     isStreaming={isStreaming}
                     separator
                     show={metrics}
