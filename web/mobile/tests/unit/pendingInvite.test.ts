@@ -43,5 +43,7 @@ describe("the kept invite", () => {
         rememberInvite(INVITE, 1_000)
         expect(readPendingInvite(1_000 + 30 * 60 * 1000)).toEqual(INVITE)
         expect(readPendingInvite(1_000 + 30 * 60 * 1000 + 1)).toBeNull()
+        // Gone from storage too, so an expired token does not stay behind.
+        expect(readPendingInvite(1_000)).toBeNull()
     })
 })

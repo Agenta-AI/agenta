@@ -27,8 +27,6 @@ import {AgentaLogo} from "@/components/AgentaLogo"
 import {clearEmailCodeAttempt, shouldShowRegionSelector, startOidcSignIn} from "@/lib/auth"
 import {useMotionPresets} from "@/lib/motion/presets"
 
-import {rememberInvite} from "../invite/pendingInvite"
-
 import {providerIcon} from "./providerIcons"
 import {AuthMethodsSkeleton} from "./states/AuthMethodsSkeleton"
 import {NoAuthMethods} from "./states/NoAuthMethods"
@@ -50,7 +48,6 @@ export const SignInScreen = () => {
 
     const flow = useSignInFlow({
         query: router.query,
-        onInvite: rememberInvite,
         startThirdParty: async (thirdPartyId) => {
             // Resolves only on failure — success navigates away.
             await startOidcSignIn(thirdPartyId)

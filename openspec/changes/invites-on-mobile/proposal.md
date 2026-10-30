@@ -25,7 +25,7 @@ None. No existing spec covers invites.
 
 ## Impact
 
-- `api/oss/src/services/organization_service.py`: link path only. No API contract change.
+- `api/oss/src/services/organization_service.py`: the link path, and the order of two checks in the accept. No API contract change.
 - `web/packages/agenta-shared/src/utils/mobileGate/index.ts` and its tests.
 - `web/mobile/src/features/invite/` (new), `web/mobile/src/pages/invite/index.tsx` (new), `SignInScreen.tsx`, `ContextResolver.tsx`, `features/onboarding/*`.
 - `docs/design/onboarding-revamp/questions-and-survey-parity.md`: the old form no longer sends `survey sent` for invites.

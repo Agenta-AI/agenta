@@ -41,6 +41,14 @@ The `/m/invite` screen SHALL accept the kept invite once and show the outcomes o
 - **WHEN** a signed-in person with another email opens the link and the API answers `INVITE_EMAIL_MISMATCH`
 - **THEN** `/m` shows "This invitation is not for you. Sign in with the invited account to accept it." with "Go back to your workspaces" and "Sign in with a different account"
 
+#### Scenario: Different email, invited email has no account
+- **WHEN** a signed-in person opens a link for an email that has no account
+- **THEN** `/m` shows the same message as for a different email
+
+#### Scenario: Signed-in visit
+- **WHEN** a signed-in person with the invited email opens the link
+- **THEN** `/m` accepts the invite and opens the invited project, every time
+
 #### Scenario: Switch account
 - **WHEN** the person picks "Sign in with a different account" and then signs in with the invited email
 - **THEN** `/m` accepts the invite without a new click on the email link

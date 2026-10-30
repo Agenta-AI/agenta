@@ -41,8 +41,10 @@ export function readPendingInvite(now = Date.now()): PendingInvite | null {
         ) {
             return parsed.invite
         }
+        if (raw) forgetInvite()
         return null
     } catch {
+        forgetInvite()
         return null
     }
 }

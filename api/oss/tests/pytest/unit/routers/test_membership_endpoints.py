@@ -496,6 +496,25 @@ async def test_invite_accept_writes_through_set_member_role(invitation, monkeypa
     assert invitation.updates == [{"user_id": str(invitation.user.id), "used": True}]
 
 
+async def test_invite_accept_by_someone_else_when_the_invited_email_has_no_account(
+    invitation, monkeypatch
+):
+    async def _no_user(email):
+        return None
+
+    monkeypatch.setattr(
+        organization_service.db_manager, "get_user_with_email", _no_user
+    )
+
+    with pytest.raises(organization_service.InviteEmailMismatchError):
+        await organization_service.accept_organization_invitation(
+            token="t",
+            organization_id=str(invitation.project.organization_id),
+            email=invitation.user.email,
+            session_email="someone-else@test.agenta.ai",
+        )
+
+
 async def test_invite_accept_for_an_existing_member_is_already_accepted(
     invitation, monkeypatch
 ):

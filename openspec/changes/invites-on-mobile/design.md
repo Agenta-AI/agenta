@@ -11,7 +11,7 @@ Today, an invited person takes this path:
 
 On `/m` today:
 
-- `useSignInFlow` offers an `onInvite` callback for exactly this purpose (`web/packages/agenta-auth-ui/src/useSignInFlow.ts:157-163`), and `SignInScreen.tsx:49-56` does not pass it.
+- `useSignInFlow` offers an `onInvite` callback (`web/packages/agenta-auth-ui/src/useSignInFlow.ts:157-163`), and `SignInScreen.tsx:49-56` does not pass it. The callback runs too late for a signed-in visit, because `AuthGate` can leave `/auth` first.
 - `useAuthSuccess` always goes to `/`, and a signed-in visit to `/auth` also goes to `/` (`features/app/authRoute.ts:19-27`).
 - `/` is `ContextResolver`, which forwards to a project home. It shows "No projects found." when the person has no project (`ContextResolver.tsx:98-103`).
 - A new account gets a pending onboarding mark. Home dismisses the mark when the project has agents, and otherwise starts the full flow (`onboardingPending.ts:70-82`).
@@ -45,7 +45,7 @@ Non-goals:
 
 | Option | Trade-off |
 | --- | --- |
-| **localStorage with a 30 minute window, written through `onInvite`** | The same shape as `?template=`. It survives a provider redirect. The token is removed on every final outcome. A mismatch keeps it, so the invited account can still use it. |
+| **localStorage with a 30 minute window, written by `AuthGate`** | The same shape as `?template=`. It survives a provider redirect. The token is removed on every final outcome. A mismatch keeps it, so the invited account can still use it. |
 | Carry the values in the OAuth state | It needs changes to the SuperTokens call and does nothing for password sign-in. |
 | A cookie | Sent to the server on every request, which a one-time token does not need. |
 
@@ -57,6 +57,10 @@ A person who takes longer than 30 minutes opens the link again, because the link
 | --- | --- |
 | **`ContextResolver`, before it resolves a project** | All sign-in paths and the signed-in visit end at `/`, so there is one reader. It also covers a person with no project yet. |
 | `useAuthSuccess` plus `OidcCallbackScreen` plus `authRoute` | Three places to keep in step. |
+
+### The accept check order
+
+The API looked up an account for the invited email before it checked the signed-in person (`organization_service.py:423-427`). So a person signed in with another email saw a generic error when the invited email had no account, and could learn that the address has no account. The check for the signed-in person now runs first, and the response shape does not change.
 
 ### What the desktop gate tests
 

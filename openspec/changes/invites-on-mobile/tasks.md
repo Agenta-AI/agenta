@@ -12,11 +12,12 @@
 ## 3. Sign-in to accept screen
 
 - [x] 3.1 Add `features/invite/pendingInvite.ts` (remember, read, forget, with a 30 minute window) and unit tests.
-- [x] 3.2 Pass `onInvite` in `SignInScreen.tsx`.
+- [x] 3.2 Keep the invite in `AuthGate`, and hold its redirect until the router has the query.
 - [x] 3.3 Send `ContextResolver` to `/invite` when an invite is kept, before the "No projects found." state, with a test.
 
 ## 4. Accept screen
 
+- [x] 4.0 Run the signed-in person check first in `accept_organization_invitation`.
 - [x] 4.1 Add `pages/invite/index.tsx` and `features/invite/InviteAcceptScreen.tsx`, with the card in `states/`.
 - [x] 4.2 Add a pure outcome mapper for the API error codes and strings, with unit tests.
 - [x] 4.3 Refresh organizations and projects, and open the project.

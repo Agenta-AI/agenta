@@ -83,15 +83,15 @@ export const MembersTab = ({workspaceId: routeWorkspaceId}: SettingsTabProps) =>
     }
 
     const inviteMutation = useMutation({
-        mutationFn: () =>
+        mutationFn: (invitedEmail: string) =>
             inviteToWorkspace({
                 organizationId: organizationId!,
                 workspaceId: workspaceId!,
-                data: [{email: email.trim(), ...(role ? {roles: [role]} : {})}],
+                data: [{email: invitedEmail, ...(role ? {roles: [role]} : {})}],
             }),
-        onSuccess: (response: {url?: unknown}) => {
+        onSuccess: (response: {url?: unknown}, invitedEmail) => {
             if (typeof response?.url === "string") {
-                setInvitedLink({email: email.trim(), url: response.url})
+                setInvitedLink({email: invitedEmail, url: response.url})
             }
             closeInvite()
             onChanged()
@@ -193,7 +193,7 @@ export const MembersTab = ({workspaceId: routeWorkspaceId}: SettingsTabProps) =>
                             disabled={!emailValid || roleMissing || inviteMutation.isPending}
                             onClick={() => {
                                 setError(null)
-                                inviteMutation.mutate()
+                                inviteMutation.mutate(email.trim())
                             }}
                         >
                             {inviteMutation.isPending ? "Sending…" : "Send invitation"}
