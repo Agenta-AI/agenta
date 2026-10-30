@@ -37,13 +37,14 @@ const EMPTY: AgentRequirementItem[] = []
 
 /**
  * The requirements of one revision, or `null` until the server answered. `null` means "not
- * checked", which is different from an empty list ("ready").
+ * checked", which is different from an empty list ("ready"). A failed refetch keeps the last
+ * answer, so a passing network error does not clear the tags or turn Send back on.
  */
 export const agentRequirementsAtomFamily = atomFamily((revisionId: string) =>
     atom((get): AgentRequirementItem[] | null => {
         if (!checkableRevision(revisionId)) return null
         const query = get(agentRequirementsQueryAtomFamily(revisionId))
-        if (!query.isSuccess || !query.data) return null
+        if (!query.data) return null
         return query.data.requirements ?? EMPTY
     }),
 )
