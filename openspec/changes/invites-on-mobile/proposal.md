@@ -11,6 +11,7 @@ Invite emails open the old app. `api/oss/src/services/organization_service.py:13
 - A new invited person answers the onboarding questions only, then opens the invited project.
 - The desktop gate forwards an old invite link to `/m/auth` with its query. Password reset links stay where they are.
 - The mobile gate does not send an invite away from `/m` for a Classic mode user.
+- `/m` Members settings shows the invite link when the deployment has no email service.
 
 ## Capabilities
 

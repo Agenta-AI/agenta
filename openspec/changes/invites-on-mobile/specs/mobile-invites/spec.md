@@ -86,3 +86,14 @@ The gates SHALL send an invite link to `/m` with its query and SHALL leave passw
 #### Scenario: Classic mode on /m
 - **WHEN** a Classic mode person opens `/m/auth` with an invite, or `/m/invite`
 - **THEN** the mobile gate passes
+
+### Requirement: Invite link when email is off
+The `/m` Members settings SHALL show the invite link the API returns when the deployment has no email service.
+
+#### Scenario: Email is off
+- **WHEN** an owner sends an invitation on a deployment with no email service
+- **THEN** `/m` shows a dialog with the email, the link, and a Copy button
+
+#### Scenario: Email is on
+- **WHEN** an owner sends an invitation and the API returns no link
+- **THEN** `/m` closes the invite dialog and shows no link dialog

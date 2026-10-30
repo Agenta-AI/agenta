@@ -29,7 +29,6 @@ Goals:
 
 Non-goals:
 
-- Showing the invite link in `/m` Members settings when email is off (`MembersTab.tsx:90-93`). It is a separate follow-up.
 - Removing the old `/workspaces/accept` page. Nothing emails that URL (`organization_service.py` is the only link producer).
 - Fixing the API text and check order listed as side bugs in the research note.
 
@@ -78,6 +77,10 @@ The forward runs before the opt-out and Classic mode checks, and it keeps the qu
 | Leave `/m` as it is | No work. A viewer in an empty project gets steps written for an owner. |
 
 The accept screen adds an invited mark next to the pending mark and opens onboarding directly, so Home does not change. The onboarding host then shows only the question steps, sends the same events, ends onboarding after the last question, and opens the project home. It also skips seeding tool connections, because that belongs to setting up a new organization.
+
+### Invite link when email is off
+
+The API returns `{url}` when no email service is set up (`organization_service.py:295`), and `MembersTab.tsx` discarded it. `/m` now shows it in `InvitedLinkDialog`. Resending an invite stays out of scope, because `/m` has no resend action yet.
 
 ### Wording
 
