@@ -68,18 +68,14 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
     // permission marks: no lesser role holds it.
     const canModifyRoles = useProjectPermission(projectId, "modify_user_roles")
 
-    // The roles this organization offers. Keyed by organization, because another organization
-    // on another plan offers another set.
+    // The roles this organization offers, which is what an invite and a role change may set.
+    // Keyed by organization, because another organization on another plan offers another set.
     const roles = useQuery({
         queryKey: ["workspace-roles", organizationId, projectId],
         queryFn: () => fetchAllWorkspaceRoles(true, projectId),
         enabled: Boolean(projectId) && (inviteOpen || canModifyRoles),
     })
-    // An invite never names the owner, and a role change cannot set it: ownership moves by
-    // transfer only, and the API refuses it on both routes.
-    const offeredRoles = (roles.data ?? [])
-        .map((entry) => entry.role_name)
-        .filter((entry) => entry !== "owner")
+    const offeredRoles = (roles.data ?? []).map((entry) => entry.role_name)
 
     const emailValid = isValidEmailAddress(email.trim())
     const showEmailError = emailTouched && Boolean(email.trim()) && !emailValid
