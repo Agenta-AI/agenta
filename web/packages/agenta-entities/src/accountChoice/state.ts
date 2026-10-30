@@ -1,6 +1,6 @@
 /**
  * Account choice queries: the "When you run it" line of one agent, and the "Used by" line of the
- * asker's secrets. Both are reads; a write calls `invalidateAccountChoices`.
+ * asker's secrets. Both are reads; an account write calls `invalidatePersonalAccountReads`.
  */
 import {getHostQueryClient} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"

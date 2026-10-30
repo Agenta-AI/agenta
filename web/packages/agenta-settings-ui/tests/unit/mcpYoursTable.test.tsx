@@ -10,13 +10,14 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 import {McpYoursTable, isSignedIn, personalSignInServers} from "../../src/mcp/McpYoursTable"
 
 const hook = vi.hoisted(() => ({
+    pendingId: null as string | null,
     signIn: vi.fn(),
     signInWithToken: vi.fn(async () => true),
     signOut: vi.fn(async () => undefined),
 }))
 
 vi.mock("@agenta/entities/mcpEndpoint", () => ({
-    usePersonalMcpSignIn: () => ({pendingId: null, error: null, ...hook}),
+    usePersonalMcpSignIn: () => ({error: null, ...hook}),
 }))
 
 interface Server {
@@ -46,6 +47,7 @@ const renderTable = (servers: Server[], confirm = vi.fn()) =>
     )
 
 beforeEach(() => {
+    hook.pendingId = null
     hook.signIn.mockClear()
     hook.signInWithToken.mockClear()
     hook.signOut.mockClear()
@@ -99,6 +101,17 @@ describe("McpYoursTable", () => {
         fireEvent.click(screen.getByText("Sign in"))
         expect(hook.signIn).not.toHaveBeenCalled()
         expect(screen.getByText("Sign in to GitHub")).toBeTruthy()
+    })
+
+    it("holds every Sign in while one sign-in runs, since the hook tracks one", () => {
+        hook.pendingId = "linear"
+        renderTable([
+            server({id: "linear", name: "Linear", user_sign_in: null}),
+            server({id: "notion", name: "Notion", user_sign_in: null}),
+        ])
+        for (const button of screen.getAllByRole("button", {name: "Sign in"})) {
+            expect((button as HTMLButtonElement).disabled).toBe(true)
+        }
     })
 
     it("offers Sign out only where the person has a sign-in", () => {

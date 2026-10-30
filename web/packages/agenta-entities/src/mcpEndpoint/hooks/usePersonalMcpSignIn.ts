@@ -31,6 +31,12 @@ const POPUP_FEATURES = "popup,width=520,height=720"
 /** The server was never connected by the project, so a person cannot sign in to it yet. */
 const SERVER_NOT_DISCOVERED = "server_not_discovered"
 
+/**
+ * The newest OAuth sign-in, across every mounted table: all of them share one named popup, so
+ * the answer to an older start request must not touch the popup a newer one uses.
+ */
+let newestSignIn = 0
+
 /** The reads that show a person's sign-in: the server list, the run accounts, Needs setup. */
 const refreshSignInReads = async () => {
     await Promise.all([
@@ -70,7 +76,14 @@ export function usePersonalMcpSignIn(): PersonalMcpSignIn {
         return true
     }, [])
 
-    useEffect(() => () => stopWatchRef.current?.(), [])
+    const mountedRef = useRef(true)
+    useEffect(() => {
+        mountedRef.current = true
+        return () => {
+            mountedRef.current = false
+            stopWatchRef.current?.()
+        }
+    }, [])
 
     const finish = useCallback(async (failure: string | null) => {
         stopWatchRef.current?.()
@@ -88,10 +101,28 @@ export function usePersonalMcpSignIn(): PersonalMcpSignIn {
             // Opened blank inside the click: WebKit blocks a popup opened after an await.
             const popup = window.open("", POPUP_NAME, POPUP_FEATURES)
             const scopes = endpoint.data.oauth_config?.scopes ?? []
+            const signInNumber = ++newestSignIn
+            // The table left, or a newer sign-in took the popup, while the start request ran.
+            const stale = () => !mountedRef.current || signInNumber !== newestSignIn
+            const dropStale = (attemptId?: string | null) => {
+                if (attemptId) {
+                    void cancelMcpConnectAttempt(endpointId, attemptId, projectId).catch(
+                        () => undefined,
+                    )
+                }
+                // The popup is still this sign-in's only when nothing newer started.
+                if (signInNumber === newestSignIn) popup?.close()
+                // Another table took over: this one is free again.
+                if (mountedRef.current) void finish(null)
+            }
             void (async () => {
                 try {
                     const result = await beginMcpConnect(endpointId, scopes, projectId, "user")
                     const {redirect_url: redirectUrl, attempt_id: attemptId} = result
+                    if (stale()) {
+                        dropStale(attemptId)
+                        return
+                    }
                     if (!redirectUrl || !attemptId || !result.expires_in) {
                         popup?.close()
                         await finish("Could not start the sign-in. Try again.")
@@ -122,6 +153,10 @@ export function usePersonalMcpSignIn(): PersonalMcpSignIn {
                     })
                     popup.location.href = redirectUrl
                 } catch (failure) {
+                    if (stale()) {
+                        dropStale()
+                        return
+                    }
                     popup?.close()
                     await finish(
                         gatewayRefusalCode(failure) === SERVER_NOT_DISCOVERED

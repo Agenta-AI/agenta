@@ -223,15 +223,9 @@ export const ProvidersPanel = ({
     const signInGroup = signInTarget
         ? (ownerGroups.find((group) => group.key === signInTarget.groupKey) ?? null)
         : null
-    // The project's cards read the host's list; another group's row reads that group's own.
     const signInConnection =
         signInTarget && signInGroup
-            ? subscriptionConnectionFor(
-                  signInGroup === ownerGroups[0]
-                      ? (subscriptions ?? [])
-                      : signInGroup.source.connections,
-                  signInTarget.provider,
-              )
+            ? subscriptionConnectionFor(signInGroup.source.connections, signInTarget.provider)
             : null
     const openProjectSignIn = useCallback(
         (provider: SubscriptionProvider) =>
