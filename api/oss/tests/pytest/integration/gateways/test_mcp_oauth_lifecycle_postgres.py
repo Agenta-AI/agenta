@@ -27,7 +27,11 @@ from oss.src.core.gateways.mcps.dtos import (
 from oss.src.core.gateways.mcps.oauth.client import MCPOAuthClient
 from oss.src.core.gateways.mcps.oauth.dtos import MCPOAuthAttemptStatus
 from oss.src.core.gateways.mcps.oauth.service import MCPOAuthConnectService
-from oss.src.core.gateways.mcps.oauth.storage import SecretsTokenStorage, grant_slug
+from oss.src.core.gateways.mcps.oauth.storage import (
+    SecretsTokenStorage,
+    grant_slug,
+    token_slug,
+)
 from oss.src.core.gateways.mcps.oauth.types import (
     MCPOAuthAttemptCancelledError,
     MCPOAuthBindFailedError,
@@ -40,11 +44,19 @@ from oss.src.core.gateways.policy.resolution import SecretsResolver
 from oss.src.core.gateways.policy.service import GatewayPolicyService
 from oss.src.core.secrets.dtos import (
     CreateSecretDTO,
+    CustomSecretDTO,
+    CustomSecretSettingsDTO,
+    OAuthGrantDTO,
+    OAuthGrantSettingsDTO,
     SecretDTO,
     StandardProviderDTO,
     StandardProviderSettingsDTO,
 )
-from oss.src.core.secrets.enums import LLMStandardProviderKind, SecretKind
+from oss.src.core.secrets.enums import (
+    CustomSecretFormat,
+    LLMStandardProviderKind,
+    SecretKind,
+)
 from oss.src.core.secrets.services import VaultService
 from oss.src.core.shared.dtos import Header
 from oss.src.dbs.postgres.gateways.mcps import dao as endpoints_dao_module
@@ -143,6 +155,7 @@ async def _edit(gateway, project, endpoint, **changes):
         project_id=project["project_id"], endpoint_id=endpoint.id
     )
     return await gateway.edit_endpoint(
+        organization_id=project["organization_id"],
         project_id=project["project_id"],
         user_id=project["user_id"],
         endpoint=MCPEndpointEdit(
@@ -621,10 +634,13 @@ async def test_a_reader_during_an_address_edit_never_sees_the_new_address_with_t
         project_id=project["project_id"], endpoint_id=endpoint.id
     )
 
-    # A relay reads the row as one of these two, never a mix.
+    # A relay reads the row as one of these two, never a mix. The grant is retired before
+    # the address is written, so while the edit is in flight the row is the old address
+    # with no grant: never the new address with the old grant.
+    assert completion.secret_id is not None
     assert (during.data.route.base_url, during.secret_id) == (
         local_mcp_oauth_provider.server_url,
-        completion.secret_id,
+        None,
     )
     assert (after.data.route.base_url, after.secret_id) == (_NEW_URL, None)
     assert await _grant_ids(project, endpoint.id) == []
@@ -756,3 +772,156 @@ async def test_two_workers_renewing_one_grant_spend_its_refresh_token_once(
         connect, project, endpoint, local_mcp_oauth_provider.server_url
     )
     assert renewed.access_token != issued.access_token
+
+
+# --- people's own sign-ins, against the real vault and secrets table ---------------- #
+
+
+async def _person(organization_id=None) -> tuple:
+    """A user row, and an organization of their own when none is given, for the user
+    foreign key of a person's sign-in."""
+    user_id = uuid4()
+    async with get_transactions_engine().session() as session:
+        await session.execute(
+            text(
+                "INSERT INTO users (id, uid, username, email) "
+                "VALUES (:id, :uid, :username, :email)"
+            ),
+            {
+                "id": user_id,
+                "uid": str(user_id),
+                "username": "mcp-sign-in-test",
+                "email": f"mcp-sign-in-{user_id.hex[:8]}@example.com",
+            },
+        )
+        if organization_id is None:
+            organization_id = uuid4()
+            await session.execute(
+                text(
+                    "INSERT INTO organizations (id, name, owner_id) "
+                    "VALUES (:id, :name, :owner_id)"
+                ),
+                {"id": organization_id, "name": "other-org", "owner_id": user_id},
+            )
+        await session.commit()
+    return organization_id, user_id
+
+
+async def _put_sign_in(vault, *, organization_id, user_id, slug, kind):
+    if kind == SecretKind.OAUTH_GRANT:
+        data = OAuthGrantDTO(
+            grant=OAuthGrantSettingsDTO(
+                server="https://mcp.example.test/", access_token="a", scopes=[]
+            )
+        )
+    else:
+        data = CustomSecretDTO(
+            secret=CustomSecretSettingsDTO(format=CustomSecretFormat.TEXT, content="t")
+        )
+    await vault.put_personal_secret(
+        organization_id=organization_id,
+        user_id=user_id,
+        create_secret_dto=CreateSecretDTO(
+            slug=slug,
+            header=Header(name="sign-in"),
+            secret=SecretDTO(kind=kind, data=data),
+        ),
+    )
+
+
+async def _person_rows(*slugs):
+    async with get_transactions_engine().session() as session:
+        rows = await session.execute(
+            text(
+                "SELECT organization_id, user_id, slug FROM secrets "
+                "WHERE user_id IS NOT NULL AND slug = ANY(:slugs)"
+            ),
+            {"slugs": list(slugs)},
+        )
+        return {(row[0], row[1], row[2]) for row in rows}
+
+
+@pytest.mark.asyncio
+async def test_deleting_a_server_deletes_every_persons_sign_in_and_nothing_else(
+    services, project, local_mcp_oauth_provider
+):
+    connect, gateway, endpoints = services
+    vault = connect.vault_service
+    endpoint = await _connection(
+        endpoints, project, local_mcp_oauth_provider, "pg-person-delete"
+    )
+    other_endpoint = await _connection(
+        endpoints, project, local_mcp_oauth_provider, "pg-person-keep"
+    )
+    organization_id = project["organization_id"]
+    _, ana = await _person(organization_id)
+    _, ben = await _person(organization_id)
+    elsewhere, cyd = await _person()
+    for user_id in (ana, ben):
+        await _put_sign_in(
+            vault,
+            organization_id=organization_id,
+            user_id=user_id,
+            slug=grant_slug(endpoint.id),
+            kind=SecretKind.OAUTH_GRANT,
+        )
+        await _put_sign_in(
+            vault,
+            organization_id=organization_id,
+            user_id=user_id,
+            slug=token_slug(endpoint.id),
+            kind=SecretKind.MCP_TOKEN,
+        )
+    # Kept: the same slug in another organization, and another server's sign-in.
+    await _put_sign_in(
+        vault,
+        organization_id=elsewhere,
+        user_id=cyd,
+        slug=grant_slug(endpoint.id),
+        kind=SecretKind.OAUTH_GRANT,
+    )
+    await _put_sign_in(
+        vault,
+        organization_id=organization_id,
+        user_id=ana,
+        slug=grant_slug(other_endpoint.id),
+        kind=SecretKind.OAUTH_GRANT,
+    )
+
+    assert await gateway.delete_endpoint(
+        organization_id=organization_id,
+        project_id=project["project_id"],
+        endpoint_id=endpoint.id,
+    )
+
+    assert await _person_rows(
+        grant_slug(endpoint.id),
+        token_slug(endpoint.id),
+        grant_slug(other_endpoint.id),
+    ) == {
+        (elsewhere, cyd, grant_slug(endpoint.id)),
+        (organization_id, ana, grant_slug(other_endpoint.id)),
+    }
+
+
+@pytest.mark.asyncio
+async def test_an_address_edit_deletes_every_persons_grant_to_the_old_address(
+    services, project, local_mcp_oauth_provider
+):
+    connect, gateway, endpoints = services
+    endpoint = await _connection(
+        endpoints, project, local_mcp_oauth_provider, "pg-person-move"
+    )
+    organization_id = project["organization_id"]
+    _, ana = await _person(organization_id)
+    await _put_sign_in(
+        connect.vault_service,
+        organization_id=organization_id,
+        user_id=ana,
+        slug=grant_slug(endpoint.id),
+        kind=SecretKind.OAUTH_GRANT,
+    )
+
+    await _edit(gateway, project, endpoint, base_url=_NEW_URL)
+
+    assert await _person_rows(grant_slug(endpoint.id)) == set()
