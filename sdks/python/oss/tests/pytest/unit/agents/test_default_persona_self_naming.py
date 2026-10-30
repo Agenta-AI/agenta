@@ -1,12 +1,11 @@
-"""The default persona's self-naming guidance, and its benchmark mirror.
+"""The default persona asks for no naming, and its benchmark mirror.
 
-Live QA (2026-08-10) showed the split this guards: agents with task-shaped personas
-call `rename_session` unprompted, while the bare product-default persona answers and
-stops — the tool description alone loses to "answer the question". The standing
-guidance therefore rides `_DEFAULT_AGENTS_MD`, and the benchmark scenario
-`name-05-default-persona-session` measures exactly that persona. This test locks the
-two together: a change to the shipped default that forgets the benchmark mirror (or
-vice versa) fails here instead of silently measuring a stale persona.
+The agent service names new sessions and agents beside the first turn
+(`agenta.sdk.agents.naming`), so the persona must not ask the model to call a rename tool:
+that tool call would delay the reply by one model call. The benchmark scenario
+`name-05-default-persona-session` seeds exactly this persona. This test locks the two
+together, so a change to the shipped default that forgets the benchmark mirror (or vice
+versa) fails here instead of silently measuring a stale persona.
 """
 
 from __future__ import annotations
@@ -33,18 +32,10 @@ def _default_agents_md() -> str:
     return build_agent_v0_default()["instructions"]["agents_md"]
 
 
-def test_default_persona_carries_the_self_naming_guidance():
+def test_default_persona_asks_for_no_naming():
     text = _default_agents_md()
-    assert "`rename_session`" in text
-    assert "`rename_agent`" in text
-    # The first-task rename_agent call is PAIRED to the reliable rename_session
-    # call: as a standalone judgment call the model reliably forgot it (live
-    # composer session, 2026-08-10 — raw-request agent name survived a perfect
-    # rename_session turn).
-    assert "same turn" in text
-    # The guards against churn ride along with the guidance itself.
-    assert "only when the topic genuinely shifts" in text
-    assert "only when your identity or purpose" in text
+    assert "rename_session" not in text
+    assert "rename_agent" not in text
 
 
 @pytest.mark.skipif(
@@ -53,7 +44,7 @@ def test_default_persona_carries_the_self_naming_guidance():
 )
 @pytest.mark.parametrize(
     "scenario_id",
-    ["name-05-default-persona-session", "name-06-composer-first-task"],
+    ["name-05-default-persona-session"],
 )
 def test_benchmark_default_persona_scenarios_seed_it_verbatim(scenario_id):
     doc = json.loads(_SCENARIO_FILE.read_text())

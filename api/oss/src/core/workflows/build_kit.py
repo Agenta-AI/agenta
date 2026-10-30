@@ -42,8 +42,6 @@ DEFAULT_BUILD_KIT_OPS: tuple[str, ...] = (
     "commit_revision",
     "test_run",
     "get_current_session",
-    "rename_session",
-    "rename_agent",
     "discover_triggers",
     "create_schedule",
     "create_subscription",

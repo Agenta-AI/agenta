@@ -127,6 +127,50 @@ every request to the API.
 | `AGENTA_AI_SERVICES_ENVIRONMENT_SLUG` | `agenta.ai_services.environment_slug` | `agenta.aiServices.environmentSlug` |
 | `AGENTA_AI_SERVICES_REFINE_PROMPT_KEY` | `agenta.ai_services.refine_prompt_key` | `agenta.aiServices.refinePromptKey` |
 
+## Agenta utility model
+
+On the first turn of a new session, the agent service makes one small model call beside the
+turn. The call reads the first message and names the session. When the agent still has a
+placeholder name such as "New agent", the call also names the agent. These variables choose the
+model for that call. The agent service (the `services` container) reads them.
+
+| Env var | env.py path | values.yaml path |
+|---|---|---|
+| `AGENTA_UTILITY_MODEL` | n/a (SDK-side) | `services.env.AGENTA_UTILITY_MODEL` |
+| `AGENTA_UTILITY_MODEL_API_URL` | n/a (SDK-side) | `services.env.AGENTA_UTILITY_MODEL_API_URL` |
+| `AGENTA_UTILITY_MODEL_API_KEY` | n/a (SDK-side) | `services.extraEnv` (a `secretKeyRef`) |
+
+The agent service picks the model in this order:
+
+1. `AGENTA_UTILITY_MODEL_API_URL` and `AGENTA_UTILITY_MODEL` are set: it calls that
+   OpenAI-compatible endpoint (`<url>/chat/completions`) with that model. It sends
+   `AGENTA_UTILITY_MODEL_API_KEY` as a bearer token when the key is set.
+2. Only `AGENTA_UTILITY_MODEL` is set: it calls that model on the built-in Agenta model
+   provider. This works only on a deployment that serves built-in models.
+3. Nothing is set: it uses the run's own model connection when that connection is OpenAI or an
+   OpenAI-compatible custom provider. For any other connection, such as an Anthropic key or a
+   subscription login, it makes no call.
+
+When no call runs, or the call returns no name, the session keeps its first message (cut to 60
+characters) as its name, and the agent keeps its placeholder name. A failed call is logged by the
+`services` container and never shown to the person.
+
+For example, to name sessions with OpenAI:
+
+```bash
+AGENTA_UTILITY_MODEL_API_URL=https://api.openai.com/v1
+AGENTA_UTILITY_MODEL=gpt-5.4-nano
+AGENTA_UTILITY_MODEL_API_KEY=sk-...
+```
+
+For a local OpenAI-compatible server that needs no key, leave out `AGENTA_UTILITY_MODEL_API_KEY`.
+The agent service then sends no `Authorization` header.
+
+The call sends the first message (up to 2,000 characters) and caps the answer at 200 output
+tokens. Use a model that answers without long thinking. A model that spends the 200 tokens on
+thinking returns no name: `gpt-5-nano` does this at its default setting, and `gpt-5.4-nano` does
+not.
+
 ## Agenta billing
 
 | Env var | env.py path | values.yaml path |

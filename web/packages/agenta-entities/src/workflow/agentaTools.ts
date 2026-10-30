@@ -7,7 +7,6 @@ export type AgentaToolsMap = Record<string, "allow" | "ask">
 /** What a new agent's entry holds. Mirrors `DEFAULT_AGENTA_TOOLS` in the SDK. */
 export const DEFAULT_AGENTA_TOOLS: AgentaToolsMap = {
     get_current_session: "allow",
-    rename_session: "allow",
 }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>

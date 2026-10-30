@@ -260,8 +260,6 @@ class GatewayConnectionToolConfig(BaseModel):
 # a platform op; ``search_skills`` stays in the playground build kit only.
 AGENTA_TOOLS: tuple = (
     "get_current_session",
-    "rename_session",
-    "rename_agent",
     "create_schedule",
     "create_subscription",
     "remove_schedule",
@@ -279,8 +277,11 @@ AGENTA_TOOLS: tuple = (
 # What a new agent's entry holds. The defaults live in the saved entry, never in the resolver.
 DEFAULT_AGENTA_TOOLS: Dict[str, Literal["allow", "ask"]] = {
     "get_current_session": "allow",
-    "rename_session": "allow",
 }
+# Agenta tools that no longer exist. Saved agents still list them, so every run drops them
+# without a warning: the agent service names new sessions and agents itself
+# (`agenta.sdk.agents.naming`).
+RETIRED_AGENTA_TOOLS = frozenset({"rename_session", "rename_agent"})
 
 
 class AgentaToolsConfig(BaseModel):

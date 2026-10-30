@@ -29,9 +29,7 @@ from agenta.sdk.agents.platform import (
     get_platform_op,
 )
 from agenta.sdk.agents.tools import (
-    CallbackToolSpec,
     GatewayToolResolutionError,
-    ToolCall,
     UnknownPlatformOpError,
 )
 
@@ -54,8 +52,6 @@ def test_catalog_ships_platform_builder_ops():
         "apply_skill_update",
         "query_spans",
         "get_current_session",
-        "rename_session",
-        "rename_agent",
         "test_run",
         "commit_revision",
         "annotate_trace",
@@ -295,43 +291,6 @@ async def test_discover_tools_wire_carries_call_not_call_ref(connection):
     assert wire["call"]["path"] == "/api/tools/discover"
 
 
-async def test_rename_session_emits_a_bound_direct_call(connection):
-    resolution = await _resolver(connection).resolve(
-        [PlatformToolConfig(op="rename_session")]
-    )
-    spec = resolution.tool_specs[0]
-
-    assert isinstance(spec, CallbackToolSpec)
-    assert spec.kind == "callback"
-    assert spec.name == "rename_session"
-    assert spec.call_ref is None
-    assert isinstance(spec.call, ToolCall)
-    assert spec.call.method == "POST"
-    # `name_source=automatic` is fixed in the catalog path, so the endpoint can refuse a
-    # rename that would replace a name a person controls. The model fills only the body, so
-    # it cannot claim a person chose the name it is writing.
-    assert (
-        spec.call.path
-        == "/api/sessions/streams/header?session_id={session_id}&name_source=automatic"
-    )
-    assert spec.call.context == {"session_id": "$ctx.session.id"}
-    assert spec.read_only is False
-
-    schema = get_platform_op("rename_session").resolved_input_schema()
-    assert set(schema["properties"]) == {
-        "name",
-        "description",
-        "replacing_name",
-        "replacing_revision",
-    }
-    assert schema["required"] == ["name"]
-    assert spec.input_schema == schema
-
-    wire = spec.to_wire()
-    assert wire["call"]["path"] == spec.call.path
-    assert wire["call"]["context"] == {"session_id": "$ctx.session.id"}
-
-
 async def test_validate_template_is_a_read_only_call_bound_to_this_session(connection):
     resolution = await _resolver(connection).resolve(
         [PlatformToolConfig(op="validate_template")]
@@ -377,70 +336,6 @@ def test_validate_template_description_teaches_the_repair_loop():
     assert "rebuild the zip" in description
     assert "creates no agent, session, skill or automation" in description
     assert "Never tell the user the template is ready" in description
-
-
-def test_rename_session_takes_the_name_it_replaces():
-    # "Rename this session to X" stays possible after the person named it themselves. The
-    # field is the name being replaced, not a bare permission, so the endpoint can refuse a
-    # request the person has since overtaken.
-    schema = get_platform_op("rename_session").resolved_input_schema()
-
-    jsonschema.validate(
-        {"name": "A new name", "replacing_name": "An older name"}, schema
-    )
-    with pytest.raises(jsonschema.ValidationError):
-        jsonschema.validate({"name": "A new name", "replacing_name": True}, schema)
-
-
-def test_rename_session_tells_the_agent_to_adopt_a_person_name():
-    description = get_platform_op("rename_session").description
-
-    assert "replacing_name" in description
-
-
-def test_rename_session_rejects_whitespace_only_name():
-    schema = get_platform_op("rename_session").resolved_input_schema()
-    with pytest.raises(jsonschema.ValidationError):
-        jsonschema.validate({"name": "   "}, schema)
-
-
-async def test_rename_agent_emits_a_bound_direct_call(connection):
-    resolution = await _resolver(connection).resolve(
-        [PlatformToolConfig(op="rename_agent")]
-    )
-    spec = resolution.tool_specs[0]
-
-    assert isinstance(spec, CallbackToolSpec)
-    assert spec.kind == "callback"
-    assert spec.name == "rename_agent"
-    assert spec.call_ref is None
-    assert isinstance(spec.call, ToolCall)
-    assert spec.call.method == "PUT"
-    assert spec.call.path == "/api/workflows/{workflow_id}"
-    assert spec.call.context == {
-        "workflow_id": "$ctx.workflow.artifact.id",
-        "workflow.id": "$ctx.workflow.artifact.id",
-    }
-    assert spec.call.args_into == "workflow"
-    assert spec.read_only is False
-
-    schema = get_platform_op("rename_agent").resolved_input_schema()
-    assert set(schema["properties"]) == {"name", "description"}
-    assert "workflow_id" not in schema["properties"]
-    assert "workflow" not in schema["properties"]
-    assert schema["required"] == ["name"]
-    assert spec.input_schema == schema
-
-    wire = spec.to_wire()
-    assert wire["call"]["path"] == spec.call.path
-    assert wire["call"]["context"] == spec.call.context
-    assert wire["call"]["args_into"] == "workflow"
-
-
-def test_rename_agent_rejects_whitespace_only_name():
-    schema = get_platform_op("rename_agent").resolved_input_schema()
-    with pytest.raises(jsonschema.ValidationError):
-        jsonschema.validate({"name": "   "}, schema)
 
 
 async def test_test_run_emits_handler_call_ref_with_bindings_and_timeout_by_default(

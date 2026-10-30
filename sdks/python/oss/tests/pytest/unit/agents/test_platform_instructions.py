@@ -175,56 +175,40 @@ def test_a_real_name_is_never_read_as_a_placeholder(name):
 
 
 @pytest.mark.parametrize("name", [None, "", "   "])
-def test_an_absent_name_is_unknown_rather_than_a_placeholder(name):
-    # The server sends no name when it could not read one. Calling that a placeholder told the
-    # agent to rename itself over a name nobody had looked at.
-    assert is_placeholder_agent_name(name) is False
-
-
-@pytest.mark.parametrize("name", [None, "", "   "])
 def test_an_unknown_agent_name_renders_no_agent_line(name):
     block = session_context_guidance(
-        SessionContext(agent_name=name, session_name="Q3 notes", first_turn=False),
-        ["rename_agent", "rename_session"],
+        SessionContext(agent_name=name, session_name="Q3 notes", first_turn=False)
     )
     assert "Your name is" not in block
-    assert "`rename_agent`" not in block
-    assert 'This session is named "Q3 notes". Do not rename it.' in block
+    assert 'This session is named "Q3 notes".' in block
 
 
-@pytest.mark.parametrize(
-    "tool_names",
-    [[], ["rename_agent"], ["rename_session"], ["rename_agent", "rename_session"]],
-)
-def test_current_facts_are_present_and_each_action_requires_its_tool(tool_names):
+def test_current_facts_are_present_and_ask_for_no_naming():
     block = session_context_guidance(
-        SessionContext(agent_name="New agent", session_name=None, first_turn=True),
-        tool_names,
+        SessionContext(agent_name="New agent", session_name=None, first_turn=True)
     )
     assert block.startswith("## This session")
-    assert 'Your name is "New agent". That is a placeholder.' in block
+    assert 'Your name is "New agent".' in block
     assert "This session has no name yet." in block
     assert "This is the first turn of the session." in block
-    assert ("`rename_agent`" in block) == ("rename_agent" in tool_names)
-    assert ("`rename_session`" in block) == ("rename_session" in tool_names)
+    # The agent service names the session and the agent; the model is never asked to.
+    assert "rename" not in block.lower()
+    assert "placeholder" not in block
 
 
 @pytest.mark.parametrize("agent_name", ["New agent", "Changelog writer"])
 @pytest.mark.parametrize("session_name", [None, "Q3 notes"])
-def test_only_unnamed_resources_get_naming_actions(agent_name, session_name):
+def test_later_turns_state_the_names_and_ask_for_no_naming(agent_name, session_name):
     block = session_context_guidance(
         SessionContext(
             agent_name=agent_name, session_name=session_name, first_turn=False
-        ),
-        ["rename_agent", "rename_session"],
+        )
     )
-    assert ("`rename_agent`" in block) == (agent_name == "New agent")
-    assert ("`rename_session`" in block) == (session_name is None)
+    assert f'Your name is "{agent_name}".' in block
+    assert "rename" not in block.lower()
     assert "This is not the first turn of the session." in block
-    if agent_name != "New agent":
-        assert "Keep it." in block
     if session_name:
-        assert 'This session is named "Q3 notes". Do not rename it.' in block
+        assert 'This session is named "Q3 notes".' in block
 
 
 def test_an_unknown_turn_position_renders_no_turn_line():
@@ -236,17 +220,15 @@ def test_an_unknown_turn_position_renders_no_turn_line():
 
 def test_an_unread_session_renders_neither_a_session_line_nor_a_turn_line():
     # This is what a composition with no resolver stamps: the agent name is known, the session
-    # was never read. Saying "no name yet" here would make the agent rename a named session.
+    # was never read. Saying "no name yet" here would state a fact nobody read.
     block = session_context_guidance(
         SessionContext(
             agent_name="Changelog writer", session_name=None, first_turn=None
-        ),
-        ["rename_agent", "rename_session"],
+        )
     )
     assert "This session has no name yet." not in block
-    assert "`rename_session`" not in block
     assert "first turn" not in block
-    assert 'Your name is "Changelog writer". Keep it.' in block
+    assert 'Your name is "Changelog writer".' in block
 
 
 def test_a_block_with_nothing_known_is_dropped():

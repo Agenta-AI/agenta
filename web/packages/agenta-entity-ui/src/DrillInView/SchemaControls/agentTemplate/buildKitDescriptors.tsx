@@ -76,14 +76,6 @@ const BUILD_KIT_TOOL_COPY: Record<string, BuildKitCopy> = {
         name: "Test the agent",
         description: "Runs this agent once against test messages and reports the result.",
     },
-    rename_session: {
-        name: "Rename this chat",
-        description: "Gives this chat a name and a recap so it is easy to find later.",
-    },
-    rename_agent: {
-        name: "Rename the agent",
-        description: "Gives this agent a name and a description.",
-    },
     discover_triggers: {
         name: "Find triggers",
         description: "Searches connected apps for events that could run this agent.",
