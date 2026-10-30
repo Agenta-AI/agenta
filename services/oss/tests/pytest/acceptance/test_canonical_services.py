@@ -100,6 +100,7 @@ def _inspect_body(body: dict) -> dict:
 def _direct_invoke_inspect(path: str, body: dict) -> dict | None:
     uri_by_prefix = {
         "/code/v0/invoke": "agenta:custom:code:v0",
+        "/plugin/v0/invoke": "agenta:custom:plugin:v0",
         "/hook/v0/invoke": "agenta:custom:hook:v0",
         "/match/v0/invoke": "agenta:builtin:match:v0",
     }

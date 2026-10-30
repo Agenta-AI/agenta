@@ -54,6 +54,7 @@ from oss.src.managed import (
     builtin_llm_app,
     builtin_match_app,
     custom_code_app,
+    custom_plugin_app,
     custom_hook_app,
     custom_mock_app,
 )
@@ -207,6 +208,7 @@ register_legacy_routes(
 )
 #
 app.mount("/code/v0", custom_code_app)
+app.mount("/plugin/v0", custom_plugin_app)
 app.mount("/hook/v0", custom_hook_app)
 app.mount("/mock/v0", custom_mock_app)
 app.mount("/match/v0", builtin_match_app)

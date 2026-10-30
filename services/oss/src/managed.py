@@ -19,6 +19,7 @@ from agenta.sdk.engines.running.handlers import (
     auto_starts_with_v0,
     auto_webhook_test_v0,
     code_v0,
+    plugin_v0,
     field_match_test_v0,
     hook_v0,
     json_multi_field_match_v0,
@@ -130,3 +131,5 @@ builtin_auto_semantic_similarity_app = _create_managed_service(
     auto_semantic_similarity_v0,
     uri="agenta:builtin:auto_semantic_similarity:v0",
 )
+
+custom_plugin_app = _create_managed_service(plugin_v0, uri="agenta:custom:plugin:v0")
