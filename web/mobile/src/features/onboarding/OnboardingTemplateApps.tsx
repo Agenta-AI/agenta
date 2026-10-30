@@ -30,7 +30,7 @@ export const OnboardingTemplateApps = ({template}: {template: AgentStarterTempla
                 {copy.connects}
                 {toolsEnabled ? ` · ${copy.connectedCount(ready, apps.length)}` : null}
             </span>
-            <ul className="m-0 flex list-none flex-col p-0">
+            <ul className="m-0 flex list-none flex-col p-0 max-sm:gap-2">
                 {apps.map((app) => (
                     <li key={app.key} className="flex min-h-10 items-center gap-2.5">
                         <AppTile
