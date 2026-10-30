@@ -33,6 +33,7 @@ from oss.src.core.triggers.dtos import (
     TriggerSubscription,
 )
 from oss.src.core.triggers.interfaces import TriggersDAOInterface
+from oss.src.core.triggers.utils import compose_event_inputs
 from oss.src.core.sessions.dtos import (
     SessionTriggerAttribution,
     SessionTriggerKind,
@@ -168,6 +169,11 @@ class TriggersDispatcher:
             inputs = resolve_target_fields(
                 template if template is not None else "$", context
             )
+            inputs = compose_event_inputs(
+                inputs if isinstance(inputs, dict) else {"value": inputs},
+                context=context,
+                include_event=subscription.data.include_event,
+            )
             await self._write_subscription_delivery_if_live(
                 project_id=project_id,
                 user_id=subscription.created_by_id,
@@ -178,7 +184,8 @@ class TriggersDispatcher:
                 status=Status(code="200", message="success"),
                 data=TriggerDeliveryData(
                     event_key=subscription.data.event_key,
-                    inputs=inputs if isinstance(inputs, dict) else {"value": inputs},
+                    inputs=inputs,
+                    event=context["event"],
                     is_test=True,
                 ),
             )
@@ -313,10 +320,22 @@ class TriggersDispatcher:
                 entity=entity,
                 project_id=project_id,
             )
+            # Schedules have a synthetic event; only subscriptions record it.
+            recorded_event = context["event"] if is_subscription else None
+            delivery_data = TriggerDeliveryData(
+                session_id=session_id, event=recorded_event
+            )
             template = entity.data.inputs_fields
             inputs = resolve_target_fields(
                 template if template is not None else "$", context
             )
+            inputs = inputs if isinstance(inputs, dict) else {"value": inputs}
+            if is_subscription:
+                inputs = compose_event_inputs(
+                    inputs,
+                    context=context,
+                    include_event=entity.data.include_event,
+                )
             references = (
                 {
                     k: ref.model_dump(mode="json", exclude_none=True)
@@ -336,15 +355,14 @@ class TriggersDispatcher:
                 session_id=session_id,
                 event_key=entity.data.event_key,
                 references=entity.data.references,
-                inputs=inputs if isinstance(inputs, dict) else {"value": inputs},
+                inputs=inputs,
+                event=recorded_event,
             )
             request = WorkflowServiceRequest(
                 references=references,
                 selector=selector,
                 session_id=session_id,
-                data=WorkflowRequestData(
-                    inputs=inputs if isinstance(inputs, dict) else {"value": inputs},
-                ),
+                data=WorkflowRequestData(inputs=inputs),
             )
             target = await self.workflows_service.resolve_request_target(
                 project_id=project_id,
@@ -362,6 +380,7 @@ class TriggersDispatcher:
                 event_id=event_id,
                 reason="agent_deleted",
                 error=_agent_deleted_error(),
+                recorded_event=delivery_data.event,
             )
             return
 
@@ -399,6 +418,7 @@ class TriggersDispatcher:
                         principal_kind=entity.principal.kind,
                         project_id=project_id,
                     ),
+                    recorded_event=delivery_data.event,
                 )
                 return
 
@@ -555,6 +575,7 @@ class TriggersDispatcher:
         event_id: str,
         reason: str,
         error: AgentError,
+        recorded_event: Optional[Dict[str, Any]] = None,
     ) -> None:
         """A refused delivery (status failed, `error` the message, `error_details` the
         envelope) and the trigger paused, in one DAO transaction. A repeated event
@@ -575,6 +596,7 @@ class TriggersDispatcher:
                     references=entity.data.references,
                     error=error.message,
                     error_details=error,
+                    event=recorded_event,
                 ),
             ),
             reason=reason,

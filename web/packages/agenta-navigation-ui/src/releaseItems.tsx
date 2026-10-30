@@ -57,8 +57,8 @@ export const buildReleaseNavItems = (version?: string): SidebarConfig[] => [
     {key: "releases-heading", title: "What's new?", isGroupLabel: true},
     ...RELEASES.slice(0, RECENT_RELEASE_COUNT).map((release, index) => ({
         key: release.id,
-        title: release.title,
-        link: release.link,
+        title: release.features[0]?.title ?? release.id,
+        link: release.features[0]?.link ?? ALL_RELEASES_LINK,
         icon: <ReleaseGlyph first={index === 0} />,
         rowClassName: RELEASE_ROW,
     })),

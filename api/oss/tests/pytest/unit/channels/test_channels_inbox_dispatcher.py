@@ -52,6 +52,17 @@ from oss.src.tasks.asyncio.channels.inbox import InboxDispatcher, TurnRefused
 from oss.tests.pytest.utils.sharing import NoopRunAdmission
 
 
+def _route_through_resolve(service):
+    """The dispatcher calls `resolve_or_refuse`; these tests stub `resolve`."""
+
+    async def _routing(**kwargs):
+        from oss.src.core.channels.dtos import ChannelRouting
+
+        return ChannelRouting(resolution=await service.resolve(**kwargs))
+
+    service.resolve_or_refuse = _routing
+
+
 def _make_event(*, event_id=None, connection_id=None):
     return ChannelInboxEvent(
         id=event_id or uuid4(),
@@ -161,6 +172,7 @@ def _make_channels_service(
     service = MagicMock()
     service.query_inbox_events = AsyncMock(return_value=query_inbox_events_result or [])
     service.resolve = AsyncMock(return_value=resolution)
+    _route_through_resolve(service)
     service.fetch_connection = AsyncMock(return_value=_make_connection())
     # No command sigil, no backfill support: the no-command/no-backfill
     # branches these tests were written against stay a no-op by default.
@@ -522,6 +534,7 @@ class TestIndependence:
         channels_service.resolve = AsyncMock(
             side_effect=[triage_resolution, deploy_resolution]
         )
+        _route_through_resolve(channels_service)
         channels_service.fetch_connection = AsyncMock(return_value=_make_connection())
         channels_service.fetch_capabilities = AsyncMock(
             return_value=ChannelCapabilities(channel="mock")

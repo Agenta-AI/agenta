@@ -38,6 +38,13 @@ describe("parsePickerMessage", () => {
         })
     })
 
+    it("keeps a valid Word block", () => {
+        const block = {kind: "table", index: 2}
+        expect(parsePickerMessage(picked({}, {block}), frame)).toMatchObject({
+            element: {block: {kind: "table", index: 2}},
+        })
+    })
+
     it("accepts pick-cancel and drops extra fields", () => {
         expect(parsePickerMessage({type: "pick-cancel", extra: 1}, frame)).toEqual({
             type: "pick-cancel",
@@ -80,6 +87,8 @@ describe("parsePickerMessage", () => {
         ["a negative width", picked({rect: {...rect, width: -1}})],
         ["a rect outside the frame", picked({rect: {top: 700, left: 0, width: 10, height: 10}})],
         ["a missing text", picked({text: undefined})],
+        ["an unknown block kind", picked({}, {block: {kind: "image", index: 1}})],
+        ["block index 0", picked({}, {block: {kind: "paragraph", index: 0}})],
         ["an unknown type", {type: "pick-start", format: "html"}],
         ["a non-object", "picked"],
     ])("rejects %s", (_label, message) => {

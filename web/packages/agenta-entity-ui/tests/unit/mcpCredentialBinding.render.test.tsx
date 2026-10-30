@@ -1,9 +1,9 @@
 /**
- * The key screen's binding fields: the presets, the preview line, and the Basic helper.
+ * The key screen's binding fields: Send as, Prefix, the preview line, and the Basic helper.
  *
- * The presets only fill the fields, so each case presses one and reads the fields and the
- * preview back. The Basic helper must hand the create drawer one value, base64 of
- * `username:password`, and keep neither half; the drawer is stubbed to see what it was given.
+ * Each case sets the fields and reads the fields and the preview back. The Basic helper
+ * must hand the create drawer one value, base64 of `username:password`, and keep neither
+ * half; the drawer is stubbed to see what it was given.
  */
 import {act, createElement} from "react"
 
@@ -127,6 +127,19 @@ const press = async (label: string) => {
     })
 }
 
+/** Open a Radix select the way the keyboard does, then pick the option whose label starts here. */
+const choose = async (trigger: Element | null, option: string) => {
+    expect(trigger).toBeTruthy()
+    await act(async () =>
+        trigger!.dispatchEvent(new KeyboardEvent("keydown", {key: "ArrowDown", bubbles: true})),
+    )
+    const item = [...document.querySelectorAll('[role="option"]')].find((node) =>
+        node.textContent?.startsWith(option),
+    )
+    expect(item).toBeTruthy()
+    await act(async () => (item as HTMLElement).click())
+}
+
 const type = async (field: HTMLInputElement | null, value: string) => {
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set
     await act(async () => {
@@ -137,6 +150,8 @@ const type = async (field: HTMLInputElement | null, value: string) => {
 
 beforeEach(() => {
     vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
+    Element.prototype.scrollIntoView = vi.fn()
+    Element.prototype.hasPointerCapture = () => false
     drawerProps.current = null
     host = document.createElement("div")
     document.body.appendChild(host)
@@ -150,7 +165,7 @@ afterEach(async () => {
     vi.unstubAllGlobals()
 })
 
-describe("the binding presets", () => {
+describe("the binding fields", () => {
     it("starts a Bearer server at Authorization with Bearer, and previews it", async () => {
         await open()
 
@@ -161,7 +176,7 @@ describe("the binding presets", () => {
 
     it("fills Basic, explains it, and shows the helper", async () => {
         await open()
-        await press("Basic")
+        await choose(control("Prefix"), "Basic")
 
         expect(control("Header name")?.value).toBe("Authorization")
         expect(control("Prefix")?.textContent).toBe("Basic")
@@ -176,7 +191,8 @@ describe("the binding presets", () => {
 
     it("empties the name for a custom header and sends the bare value", async () => {
         await open()
-        await press("Custom header")
+        await choose(control("Prefix"), "None")
+        await type(control("Header name"), "")
 
         expect(control("Header name")?.value).toBe("")
         expect(control("Prefix")?.textContent).toBe("None")
@@ -194,7 +210,7 @@ describe("the binding presets", () => {
 
     it("sends a query parameter, named as one", async () => {
         await open()
-        await press("Query parameter")
+        await choose(control("Send as"), "Query parameter")
 
         expect(control("Send as")?.textContent).toBe("Query parameter")
         expect(control("Header name")).toBeNull()
@@ -242,7 +258,7 @@ describe("a refusal's headline, as a screen reader reads it", () => {
 describe("the Basic helper", () => {
     it("encodes username:password once and hands one value to the create drawer", async () => {
         await open()
-        await press("Basic")
+        await choose(control("Prefix"), "Basic")
 
         expect(button("Create secret")?.disabled).toBe(true)
         await type(labelled("Username"), "login@example.com")
@@ -259,7 +275,7 @@ describe("the Basic helper", () => {
 
     it("refuses a colon in the username, which Basic would read as the end of it", async () => {
         await open()
-        await press("Basic")
+        await choose(control("Prefix"), "Basic")
 
         await type(labelled("Username"), "team:user")
         await type(labelled("Password"), "test-password-one")
@@ -270,7 +286,7 @@ describe("the Basic helper", () => {
 
     it("takes a colon in the password, which Basic keeps whole", async () => {
         await open()
-        await press("Basic")
+        await choose(control("Prefix"), "Basic")
 
         await type(labelled("Username"), "team-user")
         await type(labelled("Password"), "pass:word")
@@ -349,7 +365,7 @@ describe("a key in the URL", () => {
 
     it("asks for In the URL when another binding meets the placeholder", async () => {
         await open(firecrawl)
-        await press("Bearer token")
+        await choose(control("Send as"), "Header")
 
         expect(text()).toContain(
             "This URL contains {secret}. Set Send as to In the URL so the secret replaces it.",

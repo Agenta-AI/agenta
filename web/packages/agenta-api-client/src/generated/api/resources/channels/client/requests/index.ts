@@ -14,6 +14,7 @@ export type { ChannelMessageSendRequest } from "./ChannelMessageSendRequest.js";
 export type { ChannelMessagesReadRequest } from "./ChannelMessagesReadRequest.js";
 export type { ChannelMessagesSearchRequest } from "./ChannelMessagesSearchRequest.js";
 export type { ChannelOutboxEventQueryRequest } from "./ChannelOutboxEventQueryRequest.js";
+export type { ChannelPeopleQueryRequest } from "./ChannelPeopleQueryRequest.js";
 export type { ChannelPolicyResolveRequest } from "./ChannelPolicyResolveRequest.js";
 export type { ChannelSpaceDiscoverRequest } from "./ChannelSpaceDiscoverRequest.js";
 export type { ChannelSpaceEditRequest } from "./ChannelSpaceEditRequest.js";
@@ -38,6 +39,7 @@ export type { ListEmbedConversationsRequest } from "./ListEmbedConversationsRequ
 export type { ListTelegramHostedBindingsRequest } from "./ListTelegramHostedBindingsRequest.js";
 export type { ReadAgentaConversationRequest } from "./ReadAgentaConversationRequest.js";
 export type { ReadEmbedConversationRequest } from "./ReadEmbedConversationRequest.js";
+export type { RefreshChannelPeopleRequest } from "./RefreshChannelPeopleRequest.js";
 export type { SetChannelAgentDefaultRequest } from "./SetChannelAgentDefaultRequest.js";
 export type { SetChannelGrantDefaultRequest } from "./SetChannelGrantDefaultRequest.js";
 export type { SlackInstallCallbackRequest } from "./SlackInstallCallbackRequest.js";

@@ -1,4 +1,4 @@
-import {useMemo} from "react"
+import {useMemo, useState} from "react"
 
 import type {Automation} from "@agenta/automation-ui"
 import {getScheduleMessagePreview} from "@agenta/entities/gatewayTrigger"
@@ -6,6 +6,8 @@ import {Button} from "@agenta/ui/ui"
 import {Play} from "@phosphor-icons/react"
 
 import {useStartTaskSession} from "../chat/useStartTaskSession"
+
+import {runNowText} from "./runNowText"
 
 /**
  * Run this automation now, without waiting for its trigger.
@@ -33,6 +35,7 @@ export const AutomationTestRunButton = ({
     dirty: boolean
 }) => {
     const startTask = useStartTaskSession(base)
+    const [starting, setStarting] = useState(false)
 
     // Shape-agnostic: the message is read straight off the stored inputs, so no agent schema has
     // to resolve before the button can be pressed.
@@ -52,11 +55,16 @@ export const AutomationTestRunButton = ({
                 size="sm"
                 variant="outline"
                 className="text-xs font-normal"
-                disabled={Boolean(blockedReason)}
+                disabled={Boolean(blockedReason) || starting}
                 title={blockedReason || "Run this automation now in a new session"}
-                onClick={() => {
+                onClick={async () => {
                     if (!automation.agentId) return
-                    void startTask(automation.agentId, instruction)
+                    setStarting(true)
+                    const text = await runNowText(automation)
+                    setStarting(false)
+                    // Null: the deliveries call failed. Empty: the pills resolved to nothing.
+                    // Either way there is no message, so no session opens.
+                    if (text) void startTask(automation.agentId, text)
                 }}
             >
                 <Play aria-hidden className="size-3" />

@@ -42,7 +42,6 @@ const echo = (
     id,
     text,
     coveredAtUserCount,
-    createdAtUserCount: coveredAtUserCount - 1,
     ...extra,
 })
 
@@ -98,10 +97,6 @@ describe("retirePendingSendEchoes by count, before the turn id is known", () => 
         const pending = [echo("m1", "one", 3)]
         expect(retire(pending, 2)).toBe(pending)
     })
-
-    it("drops an echo a rewind stranded below its own origin", () => {
-        expect(retire([echo("m1", "one", 5, {createdAtUserCount: 4})], 2)).toEqual([])
-    })
 })
 
 describe("retirePendingSendEchoes by turn id, once the send is acknowledged", () => {
@@ -116,11 +111,6 @@ describe("retirePendingSendEchoes by turn id, once the send is acknowledged", ()
     it("retires exactly when its own saved row is adopted", () => {
         const pending = [echo("m1", "mine", 1, {executionId: "turn-mine"})]
         expect(retire(pending, 1, ["turn-foreign", "turn-mine"])).toEqual([])
-    })
-
-    it("still drops an acknowledged echo a rewind stranded", () => {
-        const pending = [echo("m1", "mine", 5, {createdAtUserCount: 4, executionId: "turn-mine"})]
-        expect(retire(pending, 2, [])).toEqual([])
     })
 })
 

@@ -9,7 +9,6 @@
  * and an open drawer reporting a state the list has already moved past.
  */
 import {getSettingsTabDescription} from "@agenta/settings"
-import {TOUCH_TARGET_MINIMUM_PX, touchTargetHeight} from "@agenta/ui/ui"
 import {act, cleanup, fireEvent, render, screen, within} from "@testing-library/react"
 import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 
@@ -292,12 +291,11 @@ describe("the auth cell", () => {
 })
 
 describe("the status cell", () => {
-    it("reads Connected for a usable connection, with no repair offered", () => {
+    it("reads Connected for a usable connection", () => {
         show([LINEAR])
         const cell = screen.getByTestId("mcp-connection-status")
         expect(within(cell).getByText("Connected")).toBeTruthy()
         expect(statusTone(cell)).toContain("text-colorSuccess")
-        expect(within(cell).queryByRole("button", {name: "Reconnect"})).toBeNull()
     })
 
     it("reads Not signed in for a connection the person disconnected", () => {
@@ -307,7 +305,7 @@ describe("the status cell", () => {
         expect(within(cell).queryByText("Login expired")).toBeNull()
     })
 
-    it("reads Login expired with an inline Reconnect when the grant was revoked", () => {
+    it("reads Login expired when the grant was revoked", () => {
         show([OCTOLENS])
         const cell = screen.getByTestId("mcp-connection-status")
         expect(within(cell).getByText("Login expired")).toBeTruthy()
@@ -315,7 +313,6 @@ describe("the status cell", () => {
         // colour is read as healthy, because the colour is what a scan picks up first.
         expect(statusTone(cell)).toContain("text-colorWarning")
         expect(statusTone(cell)).not.toContain("text-colorSuccess")
-        expect(within(cell).getByRole("button", {name: "Reconnect"})).toBeTruthy()
     })
 
     it("reads Not signed in for a connection whose first sign-in is under way", () => {
@@ -375,15 +372,12 @@ describe("the status cell", () => {
 
     it("opens the reconnect journey without also opening the connection", () => {
         show([OCTOLENS])
+        openRowMenu("Octolens")
         act(() => {
-            fireEvent.click(
-                within(screen.getByTestId("mcp-connection-status")).getByRole("button", {
-                    name: "Reconnect",
-                }),
-            )
+            fireEvent.click(screen.getByRole("menuitem", {name: "Reconnect"}))
         })
         expect(screen.getByTestId("mcp-connect-journey")).toBeTruthy()
-        // The row's own click opens the drawer; the link must not do both.
+        // The row's own click opens the drawer; the menu item must not do both.
         expect(screen.queryByTestId("mcp-connection-detail")).toBeNull()
     })
 })
@@ -656,67 +650,6 @@ describe("read-only", () => {
         const detail = screen.getByTestId("mcp-connection-detail")
         expect(detail.dataset.readonly).toBe("false")
         expect(detail.dataset.canListTools).toBe("true")
-    })
-})
-
-describe("touch targets", () => {
-    /** Control heights in px, restated here so this file does not lean on the kit for them. */
-    const SIZE_BY_CLASS_UNDER_TEST: Record<string, number> = {
-        "h-control-xs": 24,
-        "h-control-sm": 28,
-    }
-
-    /**
-     * The reach, derived here rather than asked of the helper.
-     *
-     * D126 shipped because the helper and its reader shared one assumption, so every site test
-     * asserted the class the helper had written rather than the box a finger gets. Reverting both
-     * together still leaves the site packages green for that reason. This case closes that: it reads
-     * the control's own size class, its own border class and its own `after` inset, and does the
-     * arithmetic with numbers written here. It never calls the helper, so a coordinated change to
-     * the helper and the reader cannot keep it passing.
-     *
-     * The size class is the border box and the inset is measured from inside the border, so the box
-     * at the edge a reader can see is `size - 2 x border + 2 x inset`.
-     */
-    const reachOf = (className: string) => {
-        const classes = className.split(/\s+/).filter(Boolean)
-        const size =
-            SIZE_BY_CLASS_UNDER_TEST[classes.find((c) => c in SIZE_BY_CLASS_UNDER_TEST) ?? ""]
-        const border = classes.includes("border-0") ? 0 : classes.includes("border") ? 1 : 0
-        const inset = classes
-            .map((c) => /^after:-inset-y-(?:\[(\d+)px\]|(\d+(?:\.\d+)?))$/.exec(c))
-            .find(Boolean)
-        const px = inset ? Number(inset[1] ?? Number(inset[2]) * 4) : 0
-        return {size, border, inset: px, reach: size - 2 * border + 2 * px}
-    }
-
-    it("gives the status cell's Reconnect a 44px hit area at its 24px height", () => {
-        // The repair offered where the problem is reported, on a phone. 24px is the control
-        // scale's smallest step and the row rhythm needs it, so the reach is an invisible box.
-        show([OCTOLENS])
-
-        const reconnect = screen.getByRole("button", {name: "Reconnect"})
-        expect(reconnect.className).toContain("h-control-xs")
-        expect(touchTargetHeight(reconnect.className)).toBe(TOUCH_TARGET_MINIMUM_PX)
-        // A tall enough control is no use if the cell beside it covers the control itself. At
-        // phone width the status cell's content overran its column and slid this link 49px under
-        // the actions cell, where the row menu's own hit area took 43 of its 70px. The Button
-        // already refuses to shrink, so the status text beside it is what has to give way: that
-        // is what the indicator's own `truncate` was for, and it could not act while the
-        // indicator's automatic minimum was its own text.
-        const indicator = document.querySelector('[data-testid="mcp-connection-status"] span')
-        expect(indicator, "no status indicator").not.toBeNull()
-        expect(indicator!.className).toContain("min-w-0")
-    })
-
-    it("measures 44px of reach without asking the helper for it", () => {
-        show([OCTOLENS])
-
-        const measured = reachOf(screen.getByRole("button", {name: "Reconnect"}).className)
-        expect(measured.size, "not the 24px control this case is about").toBe(24)
-        expect(measured.border, "not the bordered Button this case is about").toBe(1)
-        expect(measured.reach).toBe(44)
     })
 })
 
