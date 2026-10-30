@@ -1,5 +1,7 @@
 # Tasks
 
+Status: sections 2, 3 and 4, the tombstone cleanup in 1.4, and every QA row except "Turn usage" are replaced by `small-team-roles`. They are not built. The tombstone table and its write shipped in M3.
+
 Prerequisites: M3 in production; M6 merged. Parentheses name the spec requirement.
 
 ## 1. Per-turn usage and tombstone writes (first release)
@@ -9,15 +11,15 @@ Prerequisites: M3 in production; M6 merged. Parentheses name the spec requiremen
 - [ ] 1.3 Runner usage, `record_trace_usage`, turn fields, Fern client, `TurnMetrics`. (Writers and precedence; Displays read the turn; Unavailable is not zero)
 - [ ] 1.4 Tombstone write in `delete_session`; cleanup in the EE retention flush. (Privacy tombstone)
 
-## 2. Linkage
+## 2. Linkage (replaced)
 
 - [ ] 2.1 Stamp the session id on every span in the runner and the SDK agent tracing; ingest promotion. (Linkage)
 
-## 3. Measurement
+## 3. Measurement (replaced)
 
 - [ ] 3.1 Run the measurement in design decision 5; choose the filter payload; record the numbers for owner review. (Span readability rule)
 
-## 4. Read scope
+## 4. Read scope (replaced)
 
 - [ ] 4.1 `SpanReadScope`, `TraceAccessService`, `MaintenanceOperation`; required `scope` on every read. (Caller scope on every read; Maintenance only and fail closed)
 - [ ] 4.2 Pass the caller's scope from the three routers, `query_spans`, saved queries, invocations, annotations, evaluations; maintenance scope only in ingest and usage write-back. (Caller scope on every read)
