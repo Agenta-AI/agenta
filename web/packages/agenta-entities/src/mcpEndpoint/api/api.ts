@@ -1,5 +1,6 @@
 // This domain uses the shared Axios client the host configures.
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
+import type {OwnerKind} from "@agenta/shared/types"
 
 import type {McpToolSummary} from "../core/connectJourney"
 import {
@@ -22,13 +23,12 @@ import type {
     MCPEndpointEdit,
     MCPEndpointResponse,
     MCPEndpointsResponse,
-    MCPOwnerKind,
 } from "../core/types"
 
 const BASE = "/gateways/mcps/endpoints"
 
 /** `owner_kind=user` signs the caller in (or out); omitted, the project's sign-in as before. */
-const connectParams = (projectId?: string, ownerKind?: MCPOwnerKind) => ({
+const connectParams = (projectId?: string, ownerKind?: Exclude<OwnerKind, "organization">) => ({
     ...(projectId ? {project_id: projectId} : {}),
     ...(ownerKind === "user" ? {owner_kind: ownerKind} : {}),
 })
@@ -131,7 +131,7 @@ export const probeMcpUrl = async (
 export const disconnectMcpEndpoint = async (
     endpointId: string,
     projectId?: string,
-    ownerKind?: MCPOwnerKind,
+    ownerKind?: Exclude<OwnerKind, "organization">,
 ): Promise<MCPEndpointResponse> => {
     const response = await axios.delete(`${getAgentaApiUrl()}${BASE}/${endpointId}/connect`, {
         params: connectParams(projectId, ownerKind),
@@ -157,7 +157,7 @@ export const beginMcpConnect = async (
     endpointId: string,
     scopes: string[],
     projectId?: string,
-    ownerKind?: MCPOwnerKind,
+    ownerKind?: Exclude<OwnerKind, "organization">,
 ): Promise<MCPConnectResponse> => {
     const response = await axios.post(
         `${getAgentaApiUrl()}${BASE}/${endpointId}/connect`,
@@ -168,7 +168,7 @@ export const beginMcpConnect = async (
 }
 
 /** The caller signs in to a token server with their own token. Nothing redirects. */
-export const signInMcpWithToken = async (
+export const connectMcpEndpointWithToken = async (
     endpointId: string,
     token: string,
     projectId?: string,

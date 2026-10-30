@@ -3,14 +3,14 @@
  * shows, and the "Used by" line of a person's secret. Pure, so the pages and the tests share it.
  */
 
-/** Whose account: the person's own, or the current project's. */
-export type AccountOwner = "user" | "project"
+import type {PersonalAccountsAccess} from "@agenta/entities/secret"
+import type {OwnerKind} from "@agenta/shared/types"
 
-/** The deployment switch as `personalAccountsAccessAtom` reads it. */
-export type PersonalAccess = "loading" | "on" | "off" | "error"
+/** Whose account a Settings page adds: the person's own, or the current project's. */
+type AccountOwner = Exclude<OwnerKind, "organization">
 
 /** "Yours" shows only when the switch is known to be on. */
-export const showsYours = (access: PersonalAccess): boolean => access === "on"
+export const showsYours = (access: PersonalAccountsAccess): boolean => access === "on"
 
 /**
  * Who may own an account added on a Settings page; the first is the default.
@@ -20,7 +20,7 @@ export const showsYours = (access: PersonalAccess): boolean => access === "on"
  * - Switch off (or not known yet): `undefined`, which is today's behaviour, the project's.
  */
 export const addAccountOwners = (
-    access: PersonalAccess,
+    access: PersonalAccountsAccess,
     canEdit: boolean,
 ): AccountOwner[] | undefined => {
     if (!showsYours(access)) return undefined

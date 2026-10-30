@@ -9,6 +9,7 @@
 
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
+import type {OwnerKind} from "@agenta/shared/types"
 import {getDefaultStore} from "jotai"
 
 import {safeParseWithLogging} from "../../shared"
@@ -23,7 +24,6 @@ import type {
     ToolCatalogIntegrationsResponse,
     ToolCatalogProvidersResponse,
     ToolConnectionCreatePayload,
-    ToolConnectionOwner,
     ToolConnectionResponse,
     ToolConnectionsResponse,
 } from "../core/types"
@@ -157,9 +157,11 @@ export const fetchToolActionDetail = async (
 // --- Connections ---
 
 /** The project scope plus `scope=user` for the caller's own connections. */
-const ownerScopedRequest = (owner?: ToolConnectionOwner) => {
+const ownerScopedRequest = (ownerKind?: Exclude<OwnerKind, "organization">) => {
     const scope = projectScopedRequest()
-    return owner === "user" ? {queryParams: {...(scope?.queryParams ?? {}), scope: owner}} : scope
+    return ownerKind === "user"
+        ? {queryParams: {...(scope?.queryParams ?? {}), scope: ownerKind}}
+        : scope
 }
 
 export const queryToolConnections = async (params?: {
@@ -167,7 +169,7 @@ export const queryToolConnections = async (params?: {
     integration_key?: string
     lowPriority?: boolean
     /** Whose connections: the project's (default) or the caller's own. */
-    owner?: ToolConnectionOwner
+    ownerKind?: Exclude<OwnerKind, "organization">
 }): Promise<ToolConnectionsResponse> => {
     const client = params?.lowPriority ? getLowPriorityToolsClient() : getToolsClient()
     return client.queryToolConnections(
@@ -175,7 +177,7 @@ export const queryToolConnections = async (params?: {
             provider_key: params?.provider_key,
             integration_key: params?.integration_key,
         },
-        ownerScopedRequest(params?.owner),
+        ownerScopedRequest(params?.ownerKind),
     )
 }
 
@@ -190,11 +192,11 @@ export const fetchToolConnection = async (
 
 export const createToolConnection = async (
     payload: ToolConnectionCreatePayload,
-    owner?: ToolConnectionOwner,
+    ownerKind?: Exclude<OwnerKind, "organization">,
 ): Promise<ToolConnectionResponse> => {
     return getToolsClient().createToolConnection(
         payload as Parameters<ReturnType<typeof getToolsClient>["createToolConnection"]>[0],
-        ownerScopedRequest(owner),
+        ownerScopedRequest(ownerKind),
     )
 }
 

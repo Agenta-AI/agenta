@@ -52,6 +52,7 @@ import {
 } from "@agenta/entities/secret"
 import {harnessCapabilitiesAtomFamily} from "@agenta/entities/workflow"
 import {projectIdAtom} from "@agenta/shared/state"
+import type {OwnerKind} from "@agenta/shared/types"
 import {message} from "@agenta/ui/app-message"
 import {
     InputAffix,
@@ -150,7 +151,7 @@ export interface ProviderOwnerChoice {
     organization: OrganizationConnectionScope
 }
 
-type ProviderOwner = "project" | "organization"
+type ProviderOwner = Exclude<OwnerKind, "user">
 
 /** Who a saved organization connection reaches, or null for a project connection. */
 const savedProjectsOf = (

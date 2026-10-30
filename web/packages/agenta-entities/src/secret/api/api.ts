@@ -7,10 +7,10 @@
  * compatibility, but new callers go through the canonical path.
  */
 
-import type {LlmProvider} from "@agenta/shared/types"
+import type {LlmProvider, OwnerKind} from "@agenta/shared/types"
 
 import {transformSecret} from "../core/transforms"
-import type {NamedSecretOwner, SecretOwnerScope} from "../core/types"
+import type {SecretOwnerScope} from "../core/types"
 
 import {getSecretsClient, projectScopedRequest} from "./client"
 
@@ -31,7 +31,7 @@ type UpdateSecretPayload = Omit<UpdateSecretRequest, "secret_id" | "scope">
  * The owner a by-id route acts for; omitted, the project's row as before. The generated client
  * does not know `user` yet, so the value is widened here until it is regenerated.
  */
-const ownerScope = (scope?: NamedSecretOwner | null) =>
+const ownerScope = (scope?: OwnerKind | null) =>
     scope === "organization" || scope === "user" ? {scope: scope as "organization"} : {}
 
 export const fetchVaultSecret = async ({
@@ -67,7 +67,7 @@ export const updateVaultSecret = async ({
     projectId: string
     secret_id: string
     payload: UpdateSecretPayload
-    scope?: NamedSecretOwner | null
+    scope?: OwnerKind | null
 }): Promise<UpdateSecretResponse> => {
     return getSecretsClient().updateSecret(
         {secret_id, ...payload, ...ownerScope(scope)},
@@ -82,7 +82,7 @@ export const deleteVaultSecret = async ({
 }: {
     projectId: string
     secret_id: string
-    scope?: NamedSecretOwner | null
+    scope?: OwnerKind | null
 }): Promise<DeleteSecretResponse> => {
     const request: DeleteSecretRequest = {secret_id, ...ownerScope(scope)}
     return getSecretsClient().deleteSecret(request, projectScopedRequest(projectId))

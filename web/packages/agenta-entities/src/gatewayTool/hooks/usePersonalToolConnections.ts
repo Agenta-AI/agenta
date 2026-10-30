@@ -1,4 +1,4 @@
-import {projectIdAtom} from "@agenta/shared/state"
+import {projectIdAtom, userAtom} from "@agenta/shared/state"
 import {useAtomValue} from "jotai"
 import {atomWithQuery} from "jotai-tanstack-query"
 
@@ -12,13 +12,15 @@ const statusOf = (error: unknown) => (error as {statusCode?: unknown})?.statusCo
  * accounts are off (the route answers 403), so "Yours" hides instead of failing.
  */
 export const personalToolConnectionsQueryAtom = atomWithQuery<ToolConnection[] | null>((get) => {
+    const user = get(userAtom)
     const projectId = get(projectIdAtom)
     return {
         // Under the shared ["tools", "connections"] key, so every connection write refreshes it.
-        queryKey: ["tools", "connections", "user", projectId],
+        // Keyed by the person too: another sign-in in the same tab must not see these rows.
+        queryKey: ["tools", "connections", "user", user?.id, projectId],
         queryFn: async () => {
             try {
-                return (await queryToolConnections({owner: "user"})).connections ?? []
+                return (await queryToolConnections({ownerKind: "user"})).connections ?? []
             } catch (error) {
                 if (statusOf(error) === 403) return null
                 throw error
@@ -26,7 +28,7 @@ export const personalToolConnectionsQueryAtom = atomWithQuery<ToolConnection[] |
         },
         staleTime: 30_000,
         refetchOnWindowFocus: false,
-        enabled: !!projectId,
+        enabled: !!user && !!projectId,
     }
 })
 

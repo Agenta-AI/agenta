@@ -93,7 +93,7 @@ export const deleteAccountChoice = async ({
 }
 
 /** The account each "user" item of one saved revision gets when the asker runs it. */
-export const resolveItemAccounts = async ({
+export const resolveAccountChoices = async ({
     projectId,
     workflowId,
     revisionId,
@@ -110,7 +110,7 @@ export const resolveItemAccounts = async ({
     const data = safeParseWithLogging(
         itemAccountsResponseSchema,
         response.data,
-        "[resolveItemAccounts]",
+        "[resolveAccountChoices]",
     )
     return data?.item_accounts ?? []
 }

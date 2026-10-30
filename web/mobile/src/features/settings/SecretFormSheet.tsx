@@ -7,7 +7,7 @@ import {
     type NamedSecretRow,
 } from "@agenta/entities/secret"
 import {OwnerRadioGroup} from "@agenta/entity-ui/secret"
-import type {AccountOwner} from "@agenta/settings-ui"
+import type {OwnerKind} from "@agenta/shared/types"
 import {slugifyName} from "@agenta/shared/utils"
 import {
     Button,
@@ -65,7 +65,7 @@ export const SecretFormSheet = ({
      * Who may own a new secret; the first is the default. Two ask "Who can use it", one is used
      * without asking, absent is the project's (today's behaviour). An edit keeps the row's owner.
      */
-    owners?: AccountOwner[]
+    owners?: Exclude<OwnerKind, "organization">[]
     /** The current project's name, for "Everyone in {project}". */
     projectName?: string
 }) => {
@@ -78,7 +78,12 @@ export const SecretFormSheet = ({
     const [value, setValue] = useState("")
     const [error, setError] = useState<string | null>(null)
     const [saving, setSaving] = useState(false)
-    const [owner, setOwner] = useState<AccountOwner>(owners?.[0] ?? "project")
+    const [chosenOwner, setOwner] = useState<Exclude<OwnerKind, "organization">>(
+        owners?.[0] ?? "project",
+    )
+    // The allowed owners can change while the dialog is open (the switch was still loading):
+    // a choice that is no longer allowed falls back to the first allowed owner.
+    const owner = owners?.includes(chosenOwner) ? chosenOwner : (owners?.[0] ?? "project")
 
     const isEditing = Boolean(secret?.id)
 
@@ -230,7 +235,7 @@ export const SecretFormSheet = ({
                             <span className="text-sm font-medium text-foreground">
                                 Who can use it
                             </span>
-                            <OwnerRadioGroup<AccountOwner>
+                            <OwnerRadioGroup<Exclude<OwnerKind, "organization">>
                                 value={owner}
                                 onChange={setOwner}
                                 options={[

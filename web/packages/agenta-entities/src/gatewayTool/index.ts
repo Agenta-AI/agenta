@@ -39,7 +39,6 @@ export type {
     ToolCatalogProvidersResponse,
     ToolConnection,
     ToolConnectionCreate,
-    ToolConnectionOwner,
     ToolConnectionCreateData,
     ToolConnectionCreatePayload,
     ToolConnectionCreatePayloadData,
@@ -50,7 +49,7 @@ export type {
     ToolResult,
     ToolResultData,
 } from "./core"
-export {isConnectionActive, isConnectionValid, isDefaultConnection} from "./core"
+export {isConnectionActive, isConnectionValid, isConnectionDefault} from "./core"
 
 // ---------------------------------------------------------------------------
 // API — Fern-backed HTTP wrappers

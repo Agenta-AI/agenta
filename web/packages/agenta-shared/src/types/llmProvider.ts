@@ -30,6 +30,12 @@ export interface SubscriptionLoginFacts {
     loginError?: string | null
 }
 
+/**
+ * Who owns an account: the project, the organization, or the person (`user`), whose accounts
+ * work in every project. A route that takes fewer owners narrows it with `Exclude`.
+ */
+export type OwnerKind = "project" | "organization" | "user"
+
 export interface LlmProvider {
     title?: string
     key?: string
@@ -74,7 +80,7 @@ export interface LlmProvider {
      * Whose row this is. `organization` marks an organization connection the project may use,
      * `user` one of the caller's own secrets; absent is the project's own row.
      */
-    ownerKind?: "organization" | "user"
+    ownerKind?: Exclude<OwnerKind, "project">
     /** An organization row read by its admin: every project of the organization, or selected ones. */
     availability?: "all_projects" | "selected_projects"
     /** An organization row read by its admin, limited to selected projects: their ids. */

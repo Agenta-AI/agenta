@@ -97,7 +97,8 @@ export const McpYoursTable = ({servers, collapsed, onToggle, confirm}: McpYoursT
                         minWidth={0}
                         renderRow={(record) => {
                             const signedIn = isSignedIn(record)
-                            const pending = pendingId === record.id
+                            // One sign-in action at a time: the hook tracks one.
+                            const pending = pendingId !== null
                             return (
                                 <>
                                     <span className="flex min-w-0 items-center gap-2.5">

@@ -73,9 +73,6 @@ export interface MCPEndpointFlags {
     is_valid?: boolean
 }
 
-/** Whose sign-in: the project's, or the caller's own. */
-export type MCPOwnerKind = "project" | "user"
-
 /** The caller's own sign-in to one server. */
 export interface MCPUserSignIn {
     is_ready: boolean

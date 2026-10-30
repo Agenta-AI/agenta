@@ -56,7 +56,6 @@ export type {
     MCPEndpointData,
     MCPEndpointEdit,
     MCPEndpointFlags,
-    MCPOwnerKind,
     MCPUserSignIn,
     MCPEndpointNamespace,
     MCPEndpointResponse,

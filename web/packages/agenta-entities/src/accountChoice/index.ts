@@ -14,14 +14,15 @@ export {
 export {
     deleteAccountChoice,
     queryAccountChoices,
-    resolveItemAccounts,
+    resolveAccountChoices,
     upsertAccountChoice,
     type AccountPick,
 } from "./api"
 
 export {
     invalidateAccountChoices,
-    itemAccountsKey,
+    invalidatePersonalAccountReads,
+    itemAccountsFamilyKey,
     itemAccountsQueryAtomFamily,
     secretChoicesQueryAtomFamily,
 } from "./state"

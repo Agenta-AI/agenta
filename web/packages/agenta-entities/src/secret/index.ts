@@ -33,7 +33,6 @@ export type {
     AgentConnectionMode,
     AgentConnectionNamespace,
     SecretOwnerScope,
-    NamedSecretOwner,
     AgentSecretBinding,
     AgentModelCandidate,
     AgentModelSelection,

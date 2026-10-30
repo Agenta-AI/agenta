@@ -11,7 +11,6 @@ export interface SettingsProjectGroup {
     /** The project group's heading: the project name as the project switch. */
     projectSwitch?: ReactNode
     projectName?: string
-    organizationName?: string
     /** How many projects the person has in this organization. */
     projectCount?: number
 }
@@ -52,7 +51,6 @@ export const useSettingsProjectGroup = (
                 />
             ),
             projectName,
-            organizationName: currentGroup.organizationName,
             projectCount: currentGroup.projects.length,
         }
     }, [currentGroup, currentProject, projectId, router, tab])

@@ -8,13 +8,15 @@ import {isValidUUID} from "@agenta/shared/utils"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery} from "jotai-tanstack-query"
 
-import {queryAccountChoices, resolveItemAccounts} from "./api"
+import {invalidateAgentRequirements} from "../workflow/state/agentRequirements"
+
+import {queryAccountChoices, resolveAccountChoices} from "./api"
 import type {AccountChoice, ItemAccount} from "./schema"
 
 const ACCOUNT_CHOICES_KEY = ["account-choices"] as const
 
 /** One saved revision of one agent, as `workflowId:revisionId`. */
-export const itemAccountsKey = (workflowId: string, revisionId: string) =>
+export const itemAccountsFamilyKey = (workflowId: string, revisionId: string) =>
     `${workflowId}:${revisionId}`
 
 /** The account each "user" item gets when the asker runs this revision. Idle for a draft. */
@@ -25,7 +27,7 @@ export const itemAccountsQueryAtomFamily = atomFamily((key: string) =>
         return {
             queryKey: [...ACCOUNT_CHOICES_KEY, "resolve", projectId, workflowId, revisionId],
             queryFn: () =>
-                resolveItemAccounts({projectId: projectId as string, workflowId, revisionId}),
+                resolveAccountChoices({projectId: projectId as string, workflowId, revisionId}),
             enabled: !!projectId && isValidUUID(workflowId) && isValidUUID(revisionId),
             staleTime: 30_000,
         }
@@ -50,3 +52,11 @@ export const secretChoicesQueryAtomFamily = atomFamily((secretIdsKey: string) =>
 /** Ask every account choice read again, after a choice, a default or a sign-in changed. */
 export const invalidateAccountChoices = (): Promise<void> =>
     getHostQueryClient().invalidateQueries({queryKey: [...ACCOUNT_CHOICES_KEY]})
+
+/**
+ * A person's account was added, changed or removed: what each agent gets when they run it, and
+ * what Needs setup asks for, may differ. Every write of an account calls this one place.
+ */
+export const invalidatePersonalAccountReads = async (): Promise<void> => {
+    await Promise.all([invalidateAccountChoices(), invalidateAgentRequirements()])
+}

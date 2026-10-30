@@ -1,15 +1,13 @@
 import {useCallback, useEffect, useRef, useState} from "react"
 
-import {invalidateAccountChoices} from "@agenta/entities/accountChoice"
 import {
     createToolConnection,
     fetchToolConnection,
     invalidateToolConnections,
     usePersonalToolConnections,
     useToolConnectionsQuery,
-    type ToolConnectionOwner,
 } from "@agenta/entities/gatewayTool"
-import {invalidateAgentRequirements} from "@agenta/entities/workflow"
+import type {OwnerKind} from "@agenta/shared/types"
 import {defaultConnectionName, generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
 import {EnhancedModal, ModalContent, ModalFooter} from "@agenta/ui"
 import {
@@ -45,7 +43,7 @@ interface Props {
      * Who may own the new connection; the first is the default. Two ask "Who can use it", one
      * is used without asking. Absent, the connection is the project's.
      */
-    owners?: ToolConnectionOwner[]
+    owners?: Exclude<OwnerKind, "organization">[]
     /** The current project's name, for "Everyone in {project}". */
     projectName?: string
 }
@@ -76,7 +74,12 @@ export default function ConnectDrawer({
     owners,
     projectName,
 }: Props) {
-    const [owner, setOwner] = useState<ToolConnectionOwner>(owners?.[0] ?? "project")
+    const [chosenOwner, setOwner] = useState<Exclude<OwnerKind, "organization">>(
+        owners?.[0] ?? "project",
+    )
+    // The allowed owners can change while the dialog is open (the switch was still loading):
+    // a choice that is no longer allowed falls back to the first allowed owner.
+    const owner = owners?.includes(chosenOwner) ? chosenOwner : (owners?.[0] ?? "project")
     const [loading, setLoading] = useState(false)
     /** A failed create said NOTHING before — the spinner just stopped, indistinguishable from
      * a popup that never came. The server's refusal must reach the person who clicked. */
@@ -125,14 +128,7 @@ export default function ConnectDrawer({
 
     // The shared one, not a local copy: it also invalidates ["triggers", "connections"], which
     // this drawer was missing — a tool connected here left the triggers list stale.
-    // A person's new account can change what each agent uses when they run it.
-    const invalidateConnections = useCallback(() => {
-        invalidateToolConnections()
-        if (owner === "user") {
-            void invalidateAccountChoices()
-            void invalidateAgentRequirements()
-        }
-    }, [owner])
+    const invalidateConnections = invalidateToolConnections
 
     const handleSubmit = useCallback(async () => {
         // The name is now the only authored field, so it carries the validation the slug used to.
@@ -203,7 +199,7 @@ export default function ConnectDrawer({
         invalidateConnections,
     ])
 
-    const ownerOptions: OwnerOption<ToolConnectionOwner>[] = [
+    const ownerOptions: OwnerOption<Exclude<OwnerKind, "organization">>[] = [
         {
             value: "user",
             label: "Only me",

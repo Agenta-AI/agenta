@@ -1,11 +1,10 @@
 import {type ReactNode, useCallback, useEffect, useMemo, useRef, useState} from "react"
 
-import {invalidateAccountChoices} from "@agenta/entities/accountChoice"
 import {
     invalidateToolConnections,
     isConnectionActive,
     isConnectionValid,
-    isDefaultConnection,
+    isConnectionDefault,
     makeDefaultToolConnection,
     toolExecutionDrawerAtom,
     toolIntegrationsSearchAtom,
@@ -199,7 +198,8 @@ export default function GatewayToolsSection({
     const access = useAtomValue(personalAccountsAccessAtom)
     const {connections: personalConnections} = usePersonalToolConnections()
     const yours = showsYours(access) && personalConnections !== null
-    const connectOwners = addAccountOwners(access, canEdit)
+    // The dialog offers "Only me" only where "Yours" shows.
+    const connectOwners = yours ? addAccountOwners(access, canEdit) : undefined
     const {handleDelete, handleRevoke} = useToolConnectionActions()
     // The catalog's first page: the logos, and the Popular rows.
     const {integrations, isLoading: integrationsLoading} = useToolsIntegrations()
@@ -291,7 +291,6 @@ export default function GatewayToolsSection({
         try {
             await makeDefaultToolConnection(connection.id)
             invalidateToolConnections()
-            void invalidateAccountChoices()
         } catch {
             message.error("Could not make it your default. Try again.")
         }
@@ -317,7 +316,7 @@ export default function GatewayToolsSection({
                 const integration = catalog.get(connection.integration_key ?? "")
                 const name = connection.name || connection.slug || "—"
                 const pending = isConnectionActive(connection) && !isConnectionValid(connection)
-                const isDefault = personal && isDefaultConnection(connection)
+                const isDefault = personal && isConnectionDefault(connection)
                 return [
                     {
                         key:

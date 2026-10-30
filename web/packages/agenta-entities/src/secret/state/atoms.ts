@@ -42,6 +42,7 @@ import {atomWithStorage} from "jotai/utils"
 import {atomWithMutation, atomWithQuery} from "jotai-tanstack-query"
 import {z} from "zod"
 
+import {invalidatePersonalAccountReads} from "../../accountChoice/state"
 import {safeParseWithLogging} from "../../shared/utils/zodSchema"
 import {createVaultSecret, deleteVaultSecret, fetchVaultSecret, updateVaultSecret} from "../api/api"
 import {USER_SCOPE} from "../api/personalSecrets"
@@ -316,7 +317,10 @@ export const createCustomSecretAtom = atom(null, async (get, set, provider: LlmP
 })
 
 const invalidatePersonalSecrets = () =>
-    getHostQueryClient().invalidateQueries({queryKey: [...PERSONAL_SECRETS_KEY]})
+    Promise.all([
+        getHostQueryClient().invalidateQueries({queryKey: [...PERSONAL_SECRETS_KEY]}),
+        invalidatePersonalAccountReads(),
+    ])
 
 /**
  * Atom for creating/updating user-named secrets (`custom_secret`).
