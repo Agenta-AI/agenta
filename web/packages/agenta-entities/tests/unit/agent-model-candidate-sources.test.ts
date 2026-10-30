@@ -163,3 +163,60 @@ describe("resolveAgentModelCandidateSources", () => {
         expect(state.status).toBe("ready")
     })
 })
+
+describe("a Claude subscription login", () => {
+    const claudeCapabilities = {
+        claude: {
+            providers: ["anthropic"],
+            deployments: ["direct"],
+            connection_modes: ["self_managed"],
+            model_selection: "id",
+            models: {anthropic: ["claude-sonnet-4-5"]},
+            default_models: {anthropic: ["claude-sonnet-4-5"]},
+        },
+    }
+    const claudeLogin = (id: string, loginState: string) => ({
+        id,
+        slug: id,
+        type: "subscription_provider",
+        title: "claude",
+        name: "Claude",
+        provider: "claude",
+        models: ["claude-sonnet-4-5"],
+        hasKey: false,
+        subscription: {provider: "claude", loginState},
+    })
+    const resolve = (rows: unknown[]) =>
+        resolveAgentModelCandidateSources({
+            vaultRows: rows as never,
+            capabilities: claudeCapabilities,
+            subscriptionStatus: null,
+            subscriptionSettled: true,
+            showSubscriptions: true,
+        })
+
+    it("is a runnable route with no provider key, so the add-a-key gate stays off", () => {
+        const state = resolve([claudeLogin("claude-main", "ready")])
+        expect(state.status).toBe("ready")
+        expect(state.candidates).toHaveLength(1)
+        expect(state.candidates[0]).toMatchObject({
+            source: "subscription",
+            mode: "self_managed",
+            harness: "claude",
+            slug: "claude-main",
+        })
+    })
+
+    it("still counts when a second login for the same provider is not signed in", () => {
+        // The accounts package allows more than one login per provider (contract 3.2, spec 2.4).
+        const state = resolve([
+            claudeLogin("claude-pending", "pending_login"),
+            claudeLogin("claude-main", "ready"),
+        ])
+        expect(state.candidates.map((candidate) => candidate.slug)).toEqual(["claude-main"])
+    })
+
+    it("is not a route until it is signed in", () => {
+        expect(resolve([claudeLogin("claude-main", "needs_login")]).candidates).toEqual([])
+    })
+})
