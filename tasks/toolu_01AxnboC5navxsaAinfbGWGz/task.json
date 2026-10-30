@@ -1,0 +1,15 @@
+{
+  "tool_use_id": "toolu_01AxnboC5navxsaAinfbGWGz",
+  "agent_id": "a950aaf8a5a70a3ec",
+  "subagent_type": "general-purpose",
+  "task_description": "Live check of onboarding events",
+  "token_usage": {
+    "input_tokens": 128,
+    "cache_creation_tokens": 263312,
+    "cache_read_tokens": 6910682,
+    "output_tokens": 31754,
+    "api_call_count": 64
+  },
+  "started_at": "2026-10-30T13:40:02.666516134+01:00",
+  "completed_at": "2026-10-30T14:14:49.649327526+01:00"
+}
