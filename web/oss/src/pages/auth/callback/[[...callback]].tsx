@@ -62,7 +62,8 @@ const Callback = () => {
             return
         }
         hasHandledCallback.current = true
-        if (!claimOAuthCode(code)) {
+        // Read the URL, not router.query: this can run before the router is ready.
+        if (!claimOAuthCode(new URLSearchParams(window.location.search).get("code"))) {
             setFailed(true)
             setMessage({message: OAUTH_CODE_USED_MESSAGE, type: "error"})
             return
