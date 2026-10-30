@@ -43,9 +43,9 @@ def bootstrap_access() -> AccessService:
     if is_ee():
         from ee.src.core.access.rbac import PlanRbacEntitlement  # noqa: PLC0415
 
-        rbac = PlanRbacEntitlement()
+        rbac_entitlement = PlanRbacEntitlement()
     else:
-        rbac = NoRbacEntitlement()
+        rbac_entitlement = NoRbacEntitlement()
 
     principals_dao = PrincipalsDAO(engine=get_transactions_engine())
 
@@ -56,7 +56,7 @@ def bootstrap_access() -> AccessService:
 
     access_service = AccessService(
         memberships=memberships_service,
-        rbac_entitlement=rbac,
+        rbac_entitlement=rbac_entitlement,
         principals=principals_dao,
         resource_policy=sharing_service,
     )
