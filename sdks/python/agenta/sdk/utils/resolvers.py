@@ -126,9 +126,9 @@ def resolve_json_selector(value: Any, data: Dict[str, Any]) -> Any:
     """
     if isinstance(value, str):
         try:
-            if value.startswith("$"):
+            if value.startswith("$.") or value.startswith("$["):
                 return resolve_json_path(value, data)
-            if value.startswith("/"):
+            if value.startswith("/") and len(value) > 1 and value[1] != "/":
                 return resolve_json_pointer(value, data)
         except Exception as exc:
             log.debug("Failed to resolve JSON selector %r: %s", value, exc)
