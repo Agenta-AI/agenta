@@ -41,7 +41,8 @@ If none of these moved, you probably do not need this skill.
 
    ```bash
    grep -rn "<old name or field>" docs/ --include=*.md
-   grep -rln "<old name or field>" **/AGENTS.md .claude/skills .agents/skills
+   rg -l "<old name or field>" --glob '**/AGENTS.md' --glob '**/CLAUDE.md' .
+   grep -rln "<old name or field>" .claude/skills .agents/skills
    ```
 
    For an agent-workflows change, the usual surface is:
@@ -52,7 +53,7 @@ If none of these moved, you probably do not need this skill.
      page, its `## Watch for when changing` / `## Required test updates`, the per-category
      README, AND the scan-fast index table in `interfaces/README.md` (the row and its Status
      column: stable / evolving / declared-not-wired).
-   - the relevant `AGENTS.md` / `CLAUDE.md` (e.g. `services/agent/CLAUDE.md` for the wire
+   - the relevant `AGENTS.md` / `CLAUDE.md` (e.g. `services/runner/AGENTS.md` for the wire
      contract) and any skill that names the thing.
    - the project workspace under `docs/design/<project>/` (`status.md` to "landed", plus the
      plan/research if they now mislead).
