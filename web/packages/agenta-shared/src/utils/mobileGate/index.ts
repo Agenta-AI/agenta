@@ -80,9 +80,19 @@ const AUTH_CALLBACK_RE = /^\/auth\/callback(\/|$)/
 
 const AUTH_RE = /^\/auth(\/|$)/
 
+/** The `/m` screen that accepts an invite; the invite itself waits in browser storage. */
+const INVITE_ROUTE_RE = /^\/invite\/?$/
+
+/** An emailed invite: `/auth` with a one-time token and its organization. A reset link has neither the path nor the organization. */
+export function isInviteLink(pathname: string, search: string): boolean {
+    if (!/^\/auth\/?$/.test(pathname)) return false
+    const params = new URLSearchParams(search)
+    return Boolean(params.get("token") && params.get("organization_id"))
+}
+
 /**
- * An `/auth` link carrying a one-time `token` (SuperTokens password reset, invite acceptance —
- * `web/oss/src/pages/auth/[[...path]].tsx` reads `router.query.token`) completes on desktop.
+ * An `/auth` link carrying a one-time `token` (SuperTokens password reset) completes on desktop.
+ * The desktop gate forwards an invite link before it reaches this check.
  *
  * Redirecting it would drop the token twice over: `mapDesktopToMobile` returns a bare `/m/auth`,
  * and the mobile app has no screen that consumes one. Same reasoning as the OAuth callback
@@ -110,7 +120,8 @@ const DESKTOP_EXCEPTIONS = [AUTH_CALLBACK_RE, /^\/post-signup(\/|$)/, /^\/worksp
 /**
  * Routes that finish where they landed, whatever any gate would prefer: an OAuth callback, the
  * post-signup survey, an invite acceptance, and any `/auth` link carrying a one-time token or a
- * policy error. One list, so the middleware and the client-side redirect cannot disagree.
+ * policy error. The desktop gate forwards an invite link before this list. One list, so the
+ * middleware and the client-side redirect cannot disagree.
  */
 export function isDesktopOnlyLink(pathname: string, search: string): boolean {
     if (DESKTOP_EXCEPTIONS.some((re) => re.test(pathname))) return true
@@ -339,6 +350,11 @@ export function decideDesktopGate(input: GateInput): GateDecision {
             }
         }
 
+        // Before the opt-out and Classic mode: invites join through /m, and the link lives 7 days.
+        if (isInviteLink(input.pathname, input.search)) {
+            return {kind: "redirect", location: `/m/auth${input.search}`}
+        }
+
         // The mobile-started callback is handled above, before the flag.
         if (isDesktopOnlyLink(input.pathname, input.search)) return {kind: "pass"}
         if (input.cookie(MOBILE_OPTOUT_COOKIE)) return {kind: "pass"}
@@ -401,6 +417,10 @@ export function decideMobileGate(input: GateInput): GateDecision {
         // An OAuth landing completes wherever it lands — bouncing it drops the
         // one-time code and strands the flow.
         if (AUTH_CALLBACK_RE.test(input.pathname)) return {kind: "pass"}
+        // Same for an invite: the desktop route for it would drop the token.
+        if (INVITE_ROUTE_RE.test(input.pathname) || isInviteLink(input.pathname, input.search)) {
+            return {kind: "pass"}
+        }
         if (input.cookie(MOBILE_OPTIN_COOKIE)) return {kind: "pass"}
 
         // The desktop gate ranks Classic mode above the device heuristic (`wantsClassic`), so a

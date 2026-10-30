@@ -35,6 +35,7 @@ import {
 } from "@agenta/ui/ui"
 import {useMutation, useQuery, useQueryClient} from "@tanstack/react-query"
 
+import {InvitedLinkDialog, type InvitedLink} from "./InvitedLinkDialog"
 import type {SettingsTabProps} from "./settingsTabProps"
 import {useSettingsOrg} from "./useSettingsOrg"
 
@@ -54,6 +55,7 @@ export const MembersTab = ({workspaceId: routeWorkspaceId}: SettingsTabProps) =>
     const [emailTouched, setEmailTouched] = useState(false)
     const [pendingRemoval, setPendingRemoval] = useState<WorkspaceMember | null>(null)
     const [error, setError] = useState<string | null>(null)
+    const [invitedLink, setInvitedLink] = useState<InvitedLink | null>(null)
     const queryClient = useQueryClient()
 
     // NOT a permission check: it only says we know which workspace to write to. Mobile's access
@@ -81,13 +83,16 @@ export const MembersTab = ({workspaceId: routeWorkspaceId}: SettingsTabProps) =>
     }
 
     const inviteMutation = useMutation({
-        mutationFn: () =>
+        mutationFn: (invitedEmail: string) =>
             inviteToWorkspace({
                 organizationId: organizationId!,
                 workspaceId: workspaceId!,
-                data: [{email: email.trim(), ...(role ? {roles: [role]} : {})}],
+                data: [{email: invitedEmail, ...(role ? {roles: [role]} : {})}],
             }),
-        onSuccess: () => {
+        onSuccess: (response: {url?: unknown}, invitedEmail) => {
+            if (typeof response?.url === "string") {
+                setInvitedLink({email: invitedEmail, url: response.url})
+            }
             closeInvite()
             onChanged()
         },
@@ -188,7 +193,7 @@ export const MembersTab = ({workspaceId: routeWorkspaceId}: SettingsTabProps) =>
                             disabled={!emailValid || roleMissing || inviteMutation.isPending}
                             onClick={() => {
                                 setError(null)
-                                inviteMutation.mutate()
+                                inviteMutation.mutate(email.trim())
                             }}
                         >
                             {inviteMutation.isPending ? "Sending…" : "Send invitation"}
@@ -196,6 +201,8 @@ export const MembersTab = ({workspaceId: routeWorkspaceId}: SettingsTabProps) =>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
+
+            <InvitedLinkDialog invited={invitedLink} onClose={() => setInvitedLink(null)} />
 
             <AlertDialog
                 open={Boolean(pendingRemoval)}

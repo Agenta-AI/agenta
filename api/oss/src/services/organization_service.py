@@ -137,7 +137,7 @@ async def send_invitation_email(
     project_param = quote(project_id, safe="")
 
     invite_link = (
-        f"{env.agenta.web_url}/auth"
+        f"{env.agenta.web_url}/m/auth"
         f"?token={token_param}"
         f"&email={email_param}"
         f"&organization_id={org_param}"
@@ -420,12 +420,6 @@ async def accept_organization_invitation(
         HTTPException: If there is an error retrieving the workspace.
     """
 
-    user_exists = await db_manager.get_user_with_email(
-        email=email,
-    )
-    if user_exists is None:
-        raise HTTPException(status_code=400, detail="User does not exist")
-
     invitation = (
         await db_manager.get_project_invitation_by_organization_token_and_email(
             organization_id=organization_id,
@@ -444,6 +438,12 @@ async def accept_organization_invitation(
         raise InviteEmailMismatchError(
             invited_email=invitation.email,
         )
+
+    user_exists = await db_manager.get_user_with_email(
+        email=email,
+    )
+    if user_exists is None:
+        raise HTTPException(status_code=400, detail="User does not exist")
 
     scoped = await db_manager.fetch_project_with_workspace_organization(
         project_id=str(invitation.project_id),

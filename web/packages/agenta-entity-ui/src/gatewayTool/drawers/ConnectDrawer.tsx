@@ -4,8 +4,10 @@ import {
     createToolConnection,
     fetchToolConnection,
     invalidateToolConnections,
+    usePersonalToolConnections,
     useToolConnectionsQuery,
 } from "@agenta/entities/gatewayTool"
+import type {OwnerKind} from "@agenta/shared/types"
 import {defaultConnectionName, generateDefaultSlug, randomAlphanumeric} from "@agenta/shared/utils"
 import {EnhancedModal, ModalContent, ModalFooter} from "@agenta/ui"
 import {
@@ -19,6 +21,7 @@ import {
 } from "@agenta/ui/ui"
 import Image from "next/image"
 
+import {OwnerRadioGroup, type OwnerOption} from "../../secret/OwnerRadioGroup"
 import {openToolAuthPopup} from "../utils/openToolAuthPopup"
 
 const DEFAULT_PROVIDER = "composio"
@@ -33,9 +36,17 @@ interface Props {
     integrationDescription?: string
     authSchemes: string[]
     onClose: () => void
-    onSuccess?: () => void
+    /** The connection is made; `owner` is who it belongs to. */
+    onSuccess?: (owner: Exclude<OwnerKind, "organization">) => void
     /** A drawer panel to open inside, masking only that drawer. Absent = the page. */
     container?: HTMLElement | null
+    /**
+     * Who may own the new connection; the first is the default. Two ask "Who can use it", one
+     * is used without asking. Absent, the connection is the project's.
+     */
+    owners?: Exclude<OwnerKind, "organization">[]
+    /** The current project's name, for "Everyone in {project}". */
+    projectName?: string
 }
 
 function resolveAvailableModes(authSchemes: string[]): AuthMode[] {
@@ -61,7 +72,15 @@ export default function ConnectDrawer({
     onClose,
     onSuccess,
     container = null,
+    owners,
+    projectName,
 }: Props) {
+    const [chosenOwner, setOwner] = useState<Exclude<OwnerKind, "organization">>(
+        owners?.[0] ?? "project",
+    )
+    // The allowed owners can change while the dialog is open (the switch was still loading):
+    // a choice that is no longer allowed falls back to the first allowed owner.
+    const owner = owners?.includes(chosenOwner) ? chosenOwner : (owners?.[0] ?? "project")
     const [loading, setLoading] = useState(false)
     /** A failed create said NOTHING before — the spinner just stopped, indistinguishable from
      * a popup that never came. The server's refusal must reach the person who clicked. */
@@ -70,7 +89,9 @@ export default function ConnectDrawer({
     const slugSuffixRef = useRef(randomAlphanumeric(3))
 
     // The slug is derived, not authored. Still sent: the API 500s on a null one.
-    const {connections} = useToolConnectionsQuery()
+    const {connections: projectConnections} = useToolConnectionsQuery()
+    const {connections: personalConnections} = usePersonalToolConnections()
+    const connections = owner === "user" ? (personalConnections ?? []) : (projectConnections ?? [])
     const existingCount = connections.filter(
         (connection) => connection.integration_key === integrationKey,
     ).length
@@ -102,8 +123,9 @@ export default function ConnectDrawer({
         setNameError(null)
         setSubmitError(null)
         setLoading(false)
+        setOwner(owners?.[0] ?? "project")
         onClose()
-    }, [onClose, seedName])
+    }, [onClose, seedName, owners])
 
     // The shared one, not a local copy: it also invalidates ["triggers", "connections"], which
     // this drawer was missing — a tool connected here left the triggers list stale.
@@ -120,15 +142,18 @@ export default function ConnectDrawer({
         try {
             setLoading(true)
 
-            const result = await createToolConnection({
-                connection: {
-                    slug,
-                    name: name || slug,
-                    provider_key: DEFAULT_PROVIDER,
-                    integration_key: integrationKey,
-                    data: {auth_scheme: selectedMode},
+            const result = await createToolConnection(
+                {
+                    connection: {
+                        slug,
+                        name: name || slug,
+                        provider_key: DEFAULT_PROVIDER,
+                        integration_key: integrationKey,
+                        data: {auth_scheme: selectedMode},
+                    },
                 },
-            })
+                owner,
+            )
 
             invalidateConnections()
 
@@ -149,13 +174,13 @@ export default function ConnectDrawer({
                         }
                         invalidateConnections()
                         handleClose()
-                        onSuccess?.()
+                        onSuccess?.(owner)
                     })()
                 })
                 if (!popupCleanupRef.current) setLoading(false)
             } else {
                 handleClose()
-                onSuccess?.()
+                onSuccess?.(owner)
             }
         } catch (error) {
             console.error("[ConnectDrawer] create connection failed", error)
@@ -164,7 +189,29 @@ export default function ConnectDrawer({
             )
             setLoading(false)
         }
-    }, [slug, name, selectedMode, integrationKey, handleClose, onSuccess, invalidateConnections])
+    }, [
+        slug,
+        name,
+        selectedMode,
+        integrationKey,
+        owner,
+        handleClose,
+        onSuccess,
+        invalidateConnections,
+    ])
+
+    const ownerOptions: OwnerOption<Exclude<OwnerKind, "organization">>[] = [
+        {
+            value: "user",
+            label: "Only me",
+            note: `Used when you run an agent that uses each person's own ${integrationName}. Your first ${integrationName} account becomes your default.`,
+        },
+        {
+            value: "project",
+            label: `Everyone in ${projectName ?? "this project"}`,
+            note: "An agent in this project can use it as the agent's account, for every person who runs it.",
+        },
+    ]
 
     return (
         <EnhancedModal
@@ -222,6 +269,18 @@ export default function ConnectDrawer({
                             }}
                         />
                     </Field>
+
+                    {owners && owners.length > 1 ? (
+                        <Field label="Who can use it">
+                            <OwnerRadioGroup
+                                value={owner}
+                                options={ownerOptions.filter((option) =>
+                                    owners.includes(option.value),
+                                )}
+                                onChange={setOwner}
+                            />
+                        </Field>
+                    ) : null}
 
                     {availableModes.length > 1 && (
                         <Field label="Auth Method">

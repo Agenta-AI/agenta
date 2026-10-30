@@ -83,19 +83,21 @@ async def test_environment_reference_leaves_artifact_null():
     assert dao.create_schedule.await_args.kwargs["artifact_id"] is None
 
 
-async def test_edit_keeps_principal_recomputes_artifact():
+async def test_edit_writes_the_editor_and_recomputes_artifact():
     new_artifact = uuid4()
     service, dao = _service(revision_artifact_id=new_artifact)
+    editor = PrincipalRef(kind=PrincipalKind.HUMAN, id=uuid4())
     await service.edit_schedule(
         project_id=uuid4(),
-        user_id=uuid4(),
+        user_id=editor.id,
         schedule=TriggerScheduleEdit(
             id=uuid4(), data=_schedule_data({"workflow": {"id": str(new_artifact)}})
         ),
+        principal=editor,
     )
     kwargs = dao.edit_schedule.await_args.kwargs
     assert kwargs["artifact_id"] == new_artifact
-    assert "principal" not in kwargs
+    assert kwargs["principal"] == editor
 
 
 def test_create_body_cannot_set_principal():

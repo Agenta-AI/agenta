@@ -36,6 +36,7 @@ export {
     type AttachmentDropOverlayProps,
 } from "./AttachmentDropOverlay"
 export {default as RevealCollapse} from "./RevealCollapse"
+export {ModelSetupBanner, type ModelSetupBannerProps} from "./ModelSetupBanner"
 export {
     CollapsibleMessageBody,
     COLLAPSED_MESSAGE_MAX_PX,

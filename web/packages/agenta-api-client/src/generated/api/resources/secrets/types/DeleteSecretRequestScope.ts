@@ -3,5 +3,6 @@
 export const DeleteSecretRequestScope = {
     Project: "project",
     Organization: "organization",
+    User: "user",
 } as const;
 export type DeleteSecretRequestScope = (typeof DeleteSecretRequestScope)[keyof typeof DeleteSecretRequestScope];

@@ -1,7 +1,18 @@
 import {useMemo, useState} from "react"
 
-import {CustomSecretFormat, useVaultSecret, type AgentSecretBinding} from "@agenta/entities/secret"
-import {commitAgentCredentialsAtom, workflowMolecule} from "@agenta/entities/workflow"
+import {
+    CustomSecretFormat,
+    isUserSecretBinding,
+    useVaultSecret,
+    type AgentSecretBinding,
+} from "@agenta/entities/secret"
+import {
+    agentRequirementsAtomFamily,
+    commitAgentCredentialsAtom,
+    needsSetupReasonLabel,
+    requirementForItem,
+    workflowMolecule,
+} from "@agenta/entities/workflow"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -18,8 +29,11 @@ import {Key, PencilSimple, Plus, Trash} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 import {createPortal} from "react-dom"
 
+import {ACCOUNT_COPY} from "../../../accounts/copy"
 import {AgentSecretAttachmentModal} from "../../../secret"
 import {useSectionDrawerPanel} from "../sectionDrawerPanel"
+
+import {NeedsSetupTag} from "./NeedsSetupTag"
 
 export interface AgentSecretsSectionProps {
     revisionId?: string | null
@@ -47,6 +61,8 @@ export function AgentSecretsSection({
     const commitCredentials = useSetAtom(commitAgentCredentialsAtom)
     const artifactName = useAtomValue(workflowMolecule.selectors.artifactName(revisionId ?? ""))
     const workflowDirty = useAtomValue(workflowMolecule.selectors.isDirty(revisionId ?? ""))
+    // The server's needs-setup check; a tagged secret is fixed through the same Edit button.
+    const requirements = useAtomValue(agentRequirementsAtomFamily(revisionId ?? ""))
     const dirty = workflowDirty || localDraftDirty
     const [modalOpen, setModalOpen] = useState(false)
     const [editingIndex, setEditingIndex] = useState<number | null>(null)
@@ -80,14 +96,10 @@ export function AgentSecretsSection({
 
     const commitBinding: React.ComponentProps<
         typeof AgentSecretAttachmentModal
-    >["commitBinding"] = async ({secretSlug, envVar, editIndex}) => {
+    >["commitBinding"] = async ({credential, editIndex}) => {
         const next = [...bindings]
-        const value: AgentSecretBinding = {
-            secret: {slug: secretSlug},
-            binding: {type: "env", name: envVar},
-        }
-        if (editIndex === undefined) next.push(value)
-        else next[editIndex] = value
+        if (editIndex === undefined) next.push(credential)
+        else next[editIndex] = credential
         return saveBindings(next)
     }
 
@@ -155,10 +167,19 @@ export function AgentSecretsSection({
                 // -mx/px: the hover fill bleeds 4px, within the panel's scroll clip.
                 <div className="-mx-1 flex flex-col gap-0.5">
                     {bindings.map((binding, index) => {
-                        const secretName = namesBySlug.get(binding.secret.slug)
+                        const personal = isUserSecretBinding(binding)
+                        const secretName = personal
+                            ? ACCOUNT_COPY.userSecretRow
+                            : namesBySlug.get(binding.secret.slug ?? "")
+                        const requirement = requirements
+                            ? requirementForItem(requirements, {
+                                  kinds: ["secret"],
+                                  slug: binding.secret.slug,
+                              })
+                            : undefined
                         return (
                             <div
-                                key={`${binding.secret.slug}-${binding.binding.name}`}
+                                key={`${binding.secret.slug ?? "user"}-${binding.binding.name}`}
                                 className="flex items-center gap-2.5 rounded-md px-1 py-1.5 transition-colors hover:bg-accent"
                             >
                                 <span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-colorFillSecondary text-muted-foreground">
@@ -168,11 +189,19 @@ export function AgentSecretsSection({
                                     <span className="truncate text-[13px] font-medium leading-5 text-foreground">
                                         {binding.binding.name}
                                     </span>
-                                    <span className="truncate text-xs leading-4 text-muted-foreground">
-                                        {secretName ?? `${binding.secret.slug} (unavailable)`}
-                                    </span>
+                                    {requirement ? (
+                                        <NeedsSetupTag
+                                            tag={false}
+                                            reason={needsSetupReasonLabel(requirement.reason)}
+                                        />
+                                    ) : (
+                                        <span className="truncate text-xs leading-4 text-muted-foreground">
+                                            {secretName ?? binding.secret.slug}
+                                        </span>
+                                    )}
                                 </span>
                                 <span className="flex shrink-0 items-center gap-0.5">
+                                    {requirement ? <NeedsSetupTag className="mr-1" /> : null}
                                     <Button
                                         variant="ghost"
                                         size="icon-sm"

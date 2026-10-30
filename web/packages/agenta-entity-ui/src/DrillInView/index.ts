@@ -481,3 +481,5 @@ export type {
 // The panel's instructions file row, reused read-only by surfaces that show an agent's brief
 // without editing it (the agent overview).
 export {InstructionsFileRow, ItemRow} from "./SchemaControls/agentTemplate/ItemRow"
+export {NeedsSetupTag, type NeedsSetupTagProps} from "./SchemaControls/agentTemplate/NeedsSetupTag"
+export {needsSetupStatus} from "./SchemaControls/agentTemplate/needsSetup"

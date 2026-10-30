@@ -44,7 +44,10 @@ import {
     PlaygroundSubscriptionsSection,
 } from "./PlaygroundProviderSections"
 import ProviderCatalogList from "./ProviderCatalogList"
-import ProviderConnectionCard, {type ProviderCardSaveState} from "./ProviderConnectionCard"
+import ProviderConnectionCard, {
+    type ProviderCardSaveState,
+    type ProviderOwnerChoice,
+} from "./ProviderConnectionCard"
 import {providerIconFor} from "./providerIcon"
 import SubscriptionConnectionCard from "./SubscriptionConnectionCard"
 import SubscriptionPairCard, {type SubscriptionPairCardSaveState} from "./SubscriptionPairCard"
@@ -87,6 +90,11 @@ export interface ProviderDrawerProps {
      * completion playground): listed in Connected, disabled, as agents only.
      */
     organizationConnections?: ProviderConnection[]
+    /**
+     * Settings only: a new connection asks "Who can use it", the project or the organization.
+     * For someone who may manage the organization's connections.
+     */
+    ownerChoice?: ProviderOwnerChoice
 }
 
 /** Which level the drawer is showing. `pushed` records whether a back arrow belongs on it. */
@@ -149,6 +157,7 @@ const ProviderDrawer = ({
     width = DRAWER_WIDTH,
     organization,
     organizationConnections,
+    ownerChoice,
 }: ProviderDrawerProps) => {
     const [view, setView] = useState<DrawerView>({level: "catalog"})
     const readOnly = !!organization?.readOnly
@@ -411,6 +420,7 @@ const ProviderDrawer = ({
                     connection={cardConnection}
                     connections={ownConnections}
                     organization={organization}
+                    ownerChoice={context === "settings" ? ownerChoice : undefined}
                     onSaveStateChange={setCardSave}
                     onSaved={(savedConnectionId) => {
                         onSaved?.(savedConnectionId)

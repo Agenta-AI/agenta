@@ -1,11 +1,12 @@
 from datetime import datetime
 from enum import Enum
-from typing import Optional, Union
+from typing import Optional, Tuple, Union
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
 from oss.src.core.access.permissions.types import Permission
+from oss.src.core.account_choices.dtos import RunAccount
 
 
 class RoleRequirement(BaseModel):
@@ -187,6 +188,9 @@ class RequestAccess(BaseModel):
     credential_kind: RequestCredentialKind
     acting_user_id: UUID  # == request.state.user_id
     envelope: Optional[RunEnvelope] = None  # run_credential only
+    # run_credential only: the ready accounts of the run's "user" items (the
+    # `run_accounts` claim). Read through `account_choices.claims.run_account`.
+    run_accounts: Tuple[RunAccount, ...] = ()
 
 
 class UserPrincipals(BaseModel):

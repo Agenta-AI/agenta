@@ -37,7 +37,11 @@ vi.mock("@agenta/entities/mcpEndpoint", async (importOriginal) => ({
     disconnectMcpEndpointAtom: atoms.disconnect,
 }))
 
-vi.mock("@agenta/entities/secret", () => ({customNamedSecretsAtom: atoms.secrets}))
+vi.mock("@agenta/entities/secret", () => ({
+    customNamedSecretsAtom: atoms.secrets,
+    // Unknown to the jotai stub below, so it reads as personal accounts off: no "Yours" group.
+    personalAccountsAccessAtom: {toString: () => "personalAccessAtom"},
+}))
 
 // The connect journey is a 566-line state machine over the network; the drawer reads the tool
 // list. Neither is this file's subject, so both are stubbed. The drawer stub reports the state

@@ -67,9 +67,11 @@ class EvaluationsDAOInterface(ABC):
         run_id: UUID,
         principal: PrincipalRef,
         user_id: Optional[UUID] = None,
-    ) -> None:
+        open_only: bool = False,
+    ) -> bool:
         """Set the principal the run executes as (an explicit start or rerun), with
-        the acting user of the request that set it."""
+        the acting user of the request that set it. With `open_only`, a closed run is
+        left as it is. Returns whether a row changed."""
         raise NotImplementedError
 
     @abstractmethod
@@ -100,7 +102,9 @@ class EvaluationsDAOInterface(ABC):
         user_id: UUID,
         #
         run: EvaluationRunEdit,
+        principal: Optional[PrincipalRef] = None,
     ) -> Optional[EvaluationRun]:
+        """With a `principal`, the edit also writes it as the executing principal."""
         raise NotImplementedError
 
     @abstractmethod
@@ -111,7 +115,10 @@ class EvaluationsDAOInterface(ABC):
         user_id: UUID,
         #
         runs: List[EvaluationRunEdit],
+        principal: Optional[PrincipalRef] = None,
     ) -> List[EvaluationRun]:
+        """With a `principal`, the edit also writes it as each run's executing
+        principal."""
         raise NotImplementedError
 
     @abstractmethod

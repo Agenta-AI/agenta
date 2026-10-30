@@ -630,6 +630,12 @@ _SUBSCRIPTION_RUNS: Dict[str, _SubscriptionRun] = {
 }
 
 
+def subscription_runs_on(provider: str, harness: str) -> bool:
+    """Whether a subscription login of ``provider`` can drive ``harness``."""
+    run = _SUBSCRIPTION_RUNS.get(provider)
+    return run is not None and run.harness == harness
+
+
 @dataclass
 class _SubscriptionCandidate:
     """One ``subscription_provider`` vault record, as the resolver reads it."""
@@ -713,7 +719,7 @@ def _resolve_subscription(
     # The pair is checked before the login state: signing in again would not help a run
     # that cannot consume the credential in the first place.
     run = _SUBSCRIPTION_RUNS.get(chosen.provider)
-    if run is None or harness != run.harness:
+    if not subscription_runs_on(chosen.provider, harness):
         raise SubscriptionNotSupportedError(
             harness=harness,
             provider=chosen.provider,
@@ -880,6 +886,11 @@ def _resolve_from_secrets(
     if inferred:
         model = model.model_copy(update={"provider": inferred})
     if connection.mode == "self_managed":
+        if connection.account_source == "user":
+            # The run person's own subscription login. No flow stores one yet, so it is
+            # a missing model (Needs setup), and it never falls back to the login of the
+            # runner operator.
+            raise SubscriptionConnectionMissingError(slug="")
         subscription_slug = _stripped(connection.slug)
         if connection.is_organization:
             # The rows here are the project's; an organization login is released by its own

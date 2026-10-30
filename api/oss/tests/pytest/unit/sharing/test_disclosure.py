@@ -91,3 +91,42 @@ def test_no_tools_gives_empty_connections():
         disclosure = build_share_disclosure(parameters=parameters)
         assert disclosure.connections == []
         _assert_fixed_statements(disclosure)
+
+
+def test_a_user_item_is_listed_by_its_integration_without_a_slug():
+    """A personal Gmail tool names no connection: the disclosure says each person's own
+    Gmail, never a slug, and never fails the sharing read."""
+    parameters = {
+        "agent": {
+            "tools": [
+                {
+                    "type": "gateway_connection",
+                    "connection": {
+                        "provider": "composio",
+                        "integration": "gmail",
+                        "account_source": "user",
+                    },
+                },
+                {
+                    "type": "gateway_connection",
+                    "connection": {
+                        "provider": "composio",
+                        "integration": "slack",
+                        "slug": "team-slack",
+                    },
+                },
+            ]
+        }
+    }
+    disclosure = build_share_disclosure(parameters=parameters)
+    assert disclosure.connections == [
+        DisclosedConnection(
+            provider="composio",
+            integration="gmail",
+            connection=None,
+            account_source="user",
+        ),
+        DisclosedConnection(
+            provider="composio", integration="slack", connection="team-slack"
+        ),
+    ]

@@ -172,6 +172,7 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                 sessionName: target.name ?? "",
                 workspaceId,
                 projectId,
+                agentId: target.appId,
             })
         },
         [openShare, projectURL],

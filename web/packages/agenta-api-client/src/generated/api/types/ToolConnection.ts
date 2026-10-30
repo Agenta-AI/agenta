@@ -20,4 +20,7 @@ export interface ToolConnection {
     integration_key: string;
     data?: (Record<string, AgentaApi.FullJsonOutput | null> | null) | undefined;
     status?: (AgentaApi.ToolConnectionStatus | null) | undefined;
+    organization_id?: (string | null) | undefined;
+    user_id?: (string | null) | undefined;
+    is_default?: boolean | undefined;
 }

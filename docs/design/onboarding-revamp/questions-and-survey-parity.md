@@ -121,8 +121,9 @@ position in the registry, and `step_key`, the question id), `onboarding_create_c
 credits is step 4 of 5 now, not 3 of 4. Build funnels on `step_key`.
 
 `survey sent` has two senders, and both use the same survey and question ids. The post-signup
-form sends it for sign-in links that keep the old app (`redirectToPath`, invites). The onboarding
-sends it once the person completes the last question. The onboarding's event answers role, size,
+form sends it for sign-in links that keep the old app (`redirectToPath`). The onboarding sends it
+once the person completes the last question. That includes a new person who joins through an
+invite: they answer the questions only, and they skip the credits and first agent steps. The onboarding's event answers role, size,
 referral source and email, and it leaves out agent experience and intent, so those responses are
 blank on the survey results for people who signed up through `/m`. A write-in is sent as the typed
 line without the `Other:` prefix, as the form does, and referral source is sent as a list.

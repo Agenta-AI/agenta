@@ -18,10 +18,9 @@ import type {ItemRowStatus} from "../../src/DrillInView/SchemaControls/agentTemp
 import {
     buildMcpAgentItem,
     mcpItemNeedsRepair,
-    mcpLoginExpired,
 } from "../../src/DrillInView/SchemaControls/agentTemplate/mcpRail"
+import {needsSetupStatus} from "../../src/DrillInView/SchemaControls/agentTemplate/needsSetup"
 
-import {StatusIndicator} from "@agenta/ui/components/presentational"
 import {
     readMcpConnectionSlug,
     RESERVED_TOOL_PREFIX,
@@ -82,7 +81,20 @@ const renderSection = async ({
         if (!slug || !registry.has(slug)) return undefined
         return endpoint(slug, {expired: expired.has(slug)})
     }
-    const loginExpired = (row: unknown) => mcpLoginExpired(endpointFor(row))
+    // The server's needs-setup check reports an expired sign-in; the test plays its answer.
+    const signInRequirement = (row: unknown) => {
+        const slug = readMcpConnectionSlug((row ?? {}) as Record<string, unknown>)
+        if (!slug || !expired.has(slug)) return undefined
+        return {
+            key: `mcp_sign_in:${slug}`,
+            kind: "mcp_sign_in",
+            label: slug,
+            reference: {slug},
+            paths: [],
+            reason: "needs_sign_in",
+            blocks_run: false,
+        }
+    }
 
     await act(async () => {
         root.render(
@@ -97,16 +109,10 @@ const renderSection = async ({
                         : openPermissions(index),
                 removeItem: vi.fn(),
                 closeEditor: vi.fn(),
-                statusFor: (row): ItemRowStatus | undefined =>
-                    loginExpired(row) ? {tone: "incomplete"} : undefined,
-                extraFor: (row) =>
-                    loginExpired(row)
-                        ? createElement(StatusIndicator, {
-                              tone: "warning",
-                              label: "Login expired",
-                              className: "text-xs",
-                          })
-                        : undefined,
+                statusFor: (row): ItemRowStatus | undefined => {
+                    const req = signInRequirement(row)
+                    return req ? needsSetupStatus(req) : undefined
+                },
             }),
         )
     })
@@ -156,24 +162,23 @@ describe("the MCP rail rows", () => {
         expect(rowNodes()[0]!.getAttribute("style") ?? "").not.toContain("Warning")
     })
 
-    it("marks an expired connection with a warning border and the state in words", async () => {
+    it("tags an expired sign-in Needs setup, with the reason on a second line", async () => {
         await renderSection({items: [LINEAR, OCTOLENS], expired: new Set(["octolens"])})
 
         expect(rowNodes()[1]!.getAttribute("style")).toContain("colorWarningBorder")
-        expect(rowNodes()[1]!.textContent).toContain("Login expired")
+        expect(rowNodes()[1]!.textContent).toContain("Needs setup")
+        expect(rowNodes()[1]!.textContent).toContain("Sign-in expired")
         // The healthy row beside it stays unmarked, so the mark means something.
         expect(rowNodes()[0]!.getAttribute("style") ?? "").not.toContain("colorWarningBorder")
-        expect(rowNodes()[0]!.textContent).not.toContain("Login expired")
+        expect(rowNodes()[0]!.textContent).not.toContain("Needs setup")
     })
 
-    it("states the expiry once, not as a tag and a line saying the same thing", async () => {
+    it("states the reason once, in place of the row's description", async () => {
         await renderSection({items: [OCTOLENS], expired: new Set(["octolens"])})
 
         const row = rowNodes()[0]!
-        expect((row.textContent ?? "").split("Login expired").length - 1).toBe(1)
-        // Not an empty tag either: a labelless status tints the border and draws nothing.
-        // The spec's rail row is the name and the caret, so there is no badge at all.
-        expect(row.querySelectorAll('[data-slot="badge"]')).toHaveLength(0)
+        expect((row.textContent ?? "").split("Sign-in expired").length - 1).toBe(1)
+        expect((row.textContent ?? "").split("Needs setup").length - 1).toBe(1)
     })
 
     it("keeps the Remove control on every row", async () => {

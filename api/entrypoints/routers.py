@@ -181,6 +181,9 @@ from oss.src.core.tools.providers.composio import ComposioToolsAdapter
 from oss.src.core.tools.registry import ToolsGatewayRegistry
 from oss.src.core.tools.service import ToolsService
 from oss.src.apis.fastapi.tools.router import ToolsRouter
+from oss.src.apis.fastapi.account_choices.router import AccountChoicesRouter
+from oss.src.core.account_choices.lifecycle import AccountsLifecycle
+from oss.src.core.account_choices.service import get_account_choices_service
 from oss.src.dbs.postgres.triggers.dao import TriggersDAO
 from oss.src.core.triggers.providers.composio import ComposioTriggersAdapter
 from oss.src.core.triggers.registry import TriggersGatewayRegistry
@@ -266,6 +269,8 @@ from oss.src.dbs.postgres.sessions.inputs.dbes import SessionInputDBE  # noqa: F
 from oss.src.dbs.postgres.sessions.inputs.dao import SessionInputsDAO
 from oss.src.core.sessions.inputs.service import SessionInputsService
 from oss.src.core.sessions.starts.service import SessionStartsService
+from oss.src.core.agent_requirements.guard import ModelSetupGuard
+from oss.src.core.agent_requirements.service import AgentRequirementsService
 from oss.src.core.agent_templates.bindings import TemplateBindingResolver
 from oss.src.core.agent_templates.catalog import AgentTemplateCatalog
 from oss.src.core.agent_templates.compiler import TemplateCompiler
@@ -1004,6 +1009,14 @@ connections_service = ConnectionsService(
     adapter_registry=connections_adapter_registry,
 )
 
+# A person's own accounts in an organization end when they leave it, on both paths
+# that remove a member.
+get_memberships_service().set_member_removed_hook(
+    AccountsLifecycle(
+        vault_service=vault_service, connections_service=connections_service
+    ).end_for_member
+)
+
 # Shared catalog adapter + service (providers + integrations; tools AND triggers)
 _composio_catalog_adapters = {}
 if env.composio.enabled:
@@ -1570,6 +1583,23 @@ mcp_gateway_service = MCPGatewayService(
     managed_tools=managed_mcp_adapter,
 )
 
+# The needs-setup check reads the vault, the LLM and MCP gateways and the app connections,
+# so it is built once they exist and handed to the routes and services that use it.
+agent_requirements_service = AgentRequirementsService(
+    vault_service=vault_service,
+    llm_gateway_service=llm_gateway_service,
+    mcp_gateway_service=mcp_gateway_service,
+    connections_service=connections_service,
+    account_choices_service=get_account_choices_service(),
+)
+workflows.requirements_service = agent_requirements_service
+needs_setup_guard = ModelSetupGuard(
+    workflows_service=workflows_service,
+    requirements_service=agent_requirements_service,
+)
+triggers_service.needs_setup_guard = needs_setup_guard
+channels_service.needs_setup_guard = needs_setup_guard
+
 gateway_credentials_router = GatewayCredentialsRouter()
 llm_gateway_router = LLMGatewayRouter(llm_gateway_service=llm_gateway_service)
 llm_gateway_proxy = LLMGatewayProxy(llm_gateway_service=llm_gateway_service)
@@ -2086,6 +2116,17 @@ app.include_router(
     router=tools.router,
     prefix="/tools",
     tags=["Tools"],
+)
+
+account_choices = AccountChoicesRouter(
+    account_choices_service=get_account_choices_service(),
+    workflows_service=workflows_service,
+)
+
+app.include_router(
+    router=account_choices.router,
+    prefix="/account-choices",
+    tags=["Account Choices"],
 )
 
 app.include_router(
