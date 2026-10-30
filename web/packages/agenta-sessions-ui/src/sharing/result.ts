@@ -40,15 +40,32 @@ export const defaultProviderLabel = (connection: DisclosedConnection): string =>
         .map((word, index) => (index === 0 ? word[0].toUpperCase() + word.slice(1) : word))
         .join(" ")
 
-/** The distinct provider display names of a disclosure, in their first order. */
-export const disclosureAccountNames = (
-    disclosure: ShareDisclosure | null | undefined,
-    providerLabel: (connection: DisclosedConnection) => string = defaultProviderLabel,
+const distinctNames = (
+    connections: readonly DisclosedConnection[],
+    providerLabel: (connection: DisclosedConnection) => string,
 ): string[] => {
     const names: string[] = []
-    for (const connection of disclosure?.connections ?? []) {
+    for (const connection of connections) {
         const name = providerLabel(connection)
         if (name && !names.includes(name)) names.push(name)
     }
     return names
 }
+
+const isPersonal = (connection: DisclosedConnection) => connection.account_source === "user"
+
+/** The distinct display names of the agent's own accounts in a disclosure, in their first order. */
+export const disclosureAccountNames = (
+    disclosure: ShareDisclosure | null | undefined,
+    providerLabel: (connection: DisclosedConnection) => string = defaultProviderLabel,
+): string[] =>
+    distinctNames(
+        (disclosure?.connections ?? []).filter((connection) => !isPersonal(connection)),
+        providerLabel,
+    )
+
+/** The distinct display names of the items that use each person's own account. */
+export const disclosurePersonalAccountNames = (
+    disclosure: ShareDisclosure | null | undefined,
+    providerLabel: (connection: DisclosedConnection) => string = defaultProviderLabel,
+): string[] => distinctNames((disclosure?.connections ?? []).filter(isPersonal), providerLabel)

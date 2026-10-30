@@ -20,12 +20,12 @@ import {
     type DetectedAccount,
 } from "@agenta/entities/workflow"
 import {Button, Spinner} from "@agenta/ui/ui"
-import {MagnifyingGlass, Plus, X} from "@phosphor-icons/react"
-import clsx from "clsx"
+import {MagnifyingGlass, Plus} from "@phosphor-icons/react"
 import Image from "next/image"
 
 import AccountRow from "./AccountRow"
 import {SETUP_COPY, setupBadge, setupFootnote, setupLead, setupTitle} from "./copy"
+import {SetupCardFrame} from "./SetupCardFrame"
 
 export interface AgentSetupCardProps {
     /** Rows, in order: template-declared first, then text matches (see `detectAccounts`). */
@@ -159,48 +159,27 @@ const AgentSetupCard = ({
     const fromTemplate = accounts.some((account) => account.origin === "template")
 
     return (
-        <div
-            className={clsx(
-                "flex flex-col",
-                variant === "card"
-                    ? "rounded-xl border border-solid border-[var(--ag-colorBorderSecondary)] bg-[var(--ag-colorBgContainer)]"
-                    : // Docked: the host's frame is the frame; only a bottom divider separates
-                      // the step from the editor beneath it.
-                      "border-x-0 border-b border-t-0 border-solid border-[var(--ag-colorSplit)]",
-                className,
-            )}
+        <SetupCardFrame
+            title={setupTitle(status)}
+            badge={badge}
+            onDismiss={onDismiss}
+            dismissLabel={SETUP_COPY.dismiss}
+            variant={variant}
+            className={className}
+            // Empty for blocked: the rows carry it.
+            footnote={setupFootnote(status)}
+            action={
+                hideCreate ? null : (
+                    <Button
+                        onClick={() => onCreate({accounts, connectedSlugs})}
+                        disabled={!canCreate || creating}
+                    >
+                        {creating ? <Spinner size="small" /> : null}
+                        {createLabel}
+                    </Button>
+                )
+            }
         >
-            <div className="flex items-center gap-2 border-x-0 border-t-0 border-b border-solid border-[var(--ag-colorSplit)] px-4 py-3">
-                <span className="flex-1 truncate text-xs font-semibold text-[var(--ag-colorText)]">
-                    {setupTitle(status)}
-                </span>
-                {badge ? (
-                    <span
-                        className={clsx(
-                            "shrink-0 rounded-full border border-solid px-2 py-0.5 text-[10px] font-medium",
-                            badge.tone === "warning"
-                                ? "border-[var(--ag-colorWarningBorder)] text-[var(--ag-colorWarning)]"
-                                : badge.tone === "success"
-                                  ? "border-[var(--ag-colorSuccessBorder)] text-[var(--ag-colorSuccess)]"
-                                  : "border-[var(--ag-colorBorderSecondary)] text-[var(--ag-colorTextSecondary)]",
-                        )}
-                    >
-                        {badge.text}
-                    </span>
-                ) : null}
-                {onDismiss ? (
-                    <button
-                        type="button"
-                        onClick={onDismiss}
-                        aria-label={SETUP_COPY.dismiss}
-                        title={SETUP_COPY.dismiss}
-                        className="-mr-1 flex shrink-0 cursor-pointer items-center rounded border-0 bg-transparent p-1 text-[var(--ag-colorTextTertiary)] transition-colors hover:text-[var(--ag-colorText)]"
-                    >
-                        <X size={13} />
-                    </button>
-                ) : null}
-            </div>
-
             <div className="flex flex-col gap-2 px-4 py-3">
                 {/* A template card says nothing above the rows: the title and the sections
                     already say what is needed, and on a phone the lead sentence was two lines
@@ -277,30 +256,7 @@ const AgentSetupCard = ({
                     </div>
                 ) : null}
             </div>
-
-            {/* The footer exists only for what it carries. With no permission control left, a
-                docked card whose state has no footnote would otherwise draw an empty bordered
-                strip under the rows. */}
-            {setupFootnote(status) || !hideCreate ? (
-                <div className="flex flex-wrap items-center justify-end gap-3 border-x-0 border-b-0 border-t border-solid border-[var(--ag-colorSplit)] px-4 py-3">
-                    {/* Empty for blocked (the rows carry it) — render nothing, not a bare span. */}
-                    {setupFootnote(status) ? (
-                        <span className="text-xs text-[var(--ag-colorTextTertiary)]">
-                            {setupFootnote(status)}
-                        </span>
-                    ) : null}
-                    {hideCreate ? null : (
-                        <Button
-                            onClick={() => onCreate({accounts, connectedSlugs})}
-                            disabled={!canCreate || creating}
-                        >
-                            {creating ? <Spinner size="small" /> : null}
-                            {createLabel}
-                        </Button>
-                    )}
-                </div>
-            ) : null}
-        </div>
+        </SetupCardFrame>
     )
 }
 

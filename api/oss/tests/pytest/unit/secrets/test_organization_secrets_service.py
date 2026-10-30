@@ -9,7 +9,11 @@ import pytest
 
 import oss.src.core.secrets.services as services_module
 from oss.src.core.secrets.dtos import CreateSecretDTO, UpdateSecretDTO
-from oss.src.core.secrets.enums import SecretAvailability, SecretOwnerKind
+from oss.src.core.secrets.enums import (
+    SecretAvailability,
+    SecretKind,
+    SecretOwnerKind,
+)
 from oss.src.core.secrets.limits import NoProjectLimits
 from oss.src.core.secrets.services import VaultService
 from oss.src.core.secrets.subscription_login import RunnerLoginAttempt
@@ -121,34 +125,44 @@ async def test_derived_slug_and_name_for_an_unnamed_key(world):
     assert created.slug and len(created.slug.rsplit("-", 1)[-1]) == 12
 
 
-async def test_refuses_custom_secret_and_sso_kinds(world):
+async def test_refuses_sso_kind(world):
     vault = world["vault"]()
-    for dto in (
-        _custom_secret(),
-        CreateSecretDTO.model_validate(
-            {
-                "header": {"name": "SSO"},
-                "secret": {
-                    "kind": "sso_provider",
-                    "data": {
-                        "provider": {
-                            "client_id": "c",
-                            "client_secret": SENTINEL_KEY,
-                            "issuer_url": "https://idp.example.com",
-                            "scopes": ["openid"],
-                        }
-                    },
+    dto = CreateSecretDTO.model_validate(
+        {
+            "header": {"name": "SSO"},
+            "secret": {
+                "kind": "sso_provider",
+                "data": {
+                    "provider": {
+                        "client_id": "c",
+                        "client_secret": SENTINEL_KEY,
+                        "issuer_url": "https://idp.example.com",
+                        "scopes": ["openid"],
+                    }
                 },
-            }
-        ),
-    ):
-        with pytest.raises(OrganizationSecretKindNotShareable):
-            await vault.create_organization_secret(
-                organization_id=world["organization_id"],
-                create_secret_dto=dto,
-                user_id=uuid4(),
-            )
+            },
+        }
+    )
+    with pytest.raises(OrganizationSecretKindNotShareable):
+        await vault.create_organization_secret(
+            organization_id=world["organization_id"],
+            create_secret_dto=dto,
+            user_id=uuid4(),
+        )
     assert world["dao"].records == {}
+
+
+async def test_an_organization_custom_secret_is_created_write_only(world):
+    """An organization may hold a custom secret (API only). It is never readable back."""
+    created = await world["vault"]().create_organization_secret(
+        organization_id=world["organization_id"],
+        create_secret_dto=_custom_secret(),
+        user_id=uuid4(),
+    )
+    assert created.kind == SecretKind.CUSTOM_SECRET
+    assert created.owner.kind == SecretOwnerKind.ORGANIZATION
+    assert created.write_only is True
+    assert created.slug
 
 
 async def test_an_organization_subscription_login_is_created_pending_for_all_projects(
@@ -171,7 +185,8 @@ async def test_an_organization_subscription_login_is_created_pending_for_all_pro
     )
     assert created.owner.kind == SecretOwnerKind.ORGANIZATION
     assert created.header.name == "ChatGPT (Organization)"
-    assert created.slug == "chatgpt"
+    # A unique slug made from the name: an owner may hold several logins.
+    assert created.slug.startswith("chatgpt-organization-")
     assert created.availability == SecretAvailability.ALL_PROJECTS
     assert created.data.login_state == "pending_login"
     assert world["registrar"].calls == []

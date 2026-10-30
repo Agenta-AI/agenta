@@ -1138,6 +1138,7 @@ def test_primary_credential_fields_cover_every_secret_kind():
     assert set(PRIMARY_CREDENTIAL_FIELDS) == {
         "provider_key",
         "custom_provider",
+        "mcp_token",
         "webhook_provider",
         "sso_provider",
         "custom_secret",

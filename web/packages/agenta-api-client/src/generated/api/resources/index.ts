@@ -1,5 +1,7 @@
 export * from "./access/client/requests/index.js";
 export * as access from "./access/index.js";
+export * from "./accountChoices/client/requests/index.js";
+export * as accountChoices from "./accountChoices/index.js";
 export * from "./annotations/client/requests/index.js";
 export * as annotations from "./annotations/index.js";
 export * from "./applications/client/requests/index.js";
@@ -26,6 +28,7 @@ export * from "./gatewayLlm/client/requests/index.js";
 export * as gatewayLlm from "./gatewayLlm/index.js";
 export * from "./gatewayMcp/client/requests/index.js";
 export * as gatewayMcp from "./gatewayMcp/index.js";
+export * from "./gatewayMcp/types/index.js";
 export * from "./invocations/client/requests/index.js";
 export * as invocations from "./invocations/index.js";
 export * from "./keys/client/requests/index.js";

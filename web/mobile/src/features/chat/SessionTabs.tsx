@@ -77,6 +77,7 @@ export const SessionTabs = ({
                 sessionName={query.data?.name ?? ""}
                 workspaceId={workspaceId}
                 projectId={projectId}
+                agentId={agentId}
             />
             {chatMaximized ? null : (
                 <>

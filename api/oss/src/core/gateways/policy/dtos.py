@@ -8,7 +8,7 @@ from enum import Enum
 from typing import Optional, Union
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
@@ -57,10 +57,20 @@ class BoundSecretRef(BaseModel):
 
     `owner_kind` says whose row the id names. A project reference keeps the project-scoped
     read by id; an organization reference answers only an organization row available to the
-    project. Neither ever substitutes another row (M5)."""
+    project; a user reference answers only the row of the person `user_id` names, in the
+    request's organization. None ever substitutes another row (M5)."""
 
     secret_id: UUID
     owner_kind: SecretOwnerKind = SecretOwnerKind.PROJECT
+    # The person whose row a user reference names: the run person, never the caller's
+    # choice. Set exactly when `owner_kind` is `user`.
+    user_id: Optional[UUID] = None
+
+    @model_validator(mode="after")
+    def _user_id_only_for_a_user_reference(self) -> "BoundSecretRef":
+        if (self.owner_kind == SecretOwnerKind.USER) != (self.user_id is not None):
+            raise ValueError("a user reference, and only one, names its person")
+        return self
 
 
 SecretRef = Union[ProviderKeyRef, BoundSecretRef]

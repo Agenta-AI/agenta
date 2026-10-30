@@ -31,10 +31,10 @@ def prelude(monkeypatch):
         ),
     )
     service = WorkflowsService(workflows_dao=AsyncMock())
-    service._ensure_request_revision = AsyncMock()
+    service._ensure_request_revision = AsyncMock(return_value=None)
     service._stamp_session_context = AsyncMock()
     service._get_revision_data = lambda request: SimpleNamespace(
-        url="http://services/agent", uri=None
+        parameters=None, url="http://services/agent", uri=None
     )
     return SimpleNamespace(
         service=service, project_id=project_id, organization_id=organization_id

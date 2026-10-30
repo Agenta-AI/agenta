@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
+from agenta.sdk.agents.accounts import AccountSource
 from fastapi import APIRouter, Request, Response, status
 
 from oss.src.apis.fastapi.gateways.mcps.utils import (
@@ -28,6 +29,7 @@ from oss.src.core.gateways.mcps.types import (
     MCPAuthRequiredError,
     MCPEndpointNotFoundError,
     MCPScopeInsufficientError,
+    MCPSignInMissingError,
     MCPToolNotAllowedError,
     MCPUpstreamError,
 )
@@ -58,6 +60,7 @@ _MAPPED_EXCEPTIONS = (
     GatewayEndpointInactiveError,
     ValueError,
     MCPEndpointNotFoundError,
+    MCPSignInMissingError,
     PolicyDeniedError,
     EntitlementDeniedError,
     MCPToolNotAllowedError,
@@ -151,6 +154,16 @@ def _map_gateway_exception(e: BaseException) -> Response:
             cause="endpoint_not_found",
             data={"namespace": e.namespace.value, "name": e.name},
         )
+    if isinstance(e, MCPSignInMissingError):
+        # A "user" item with no sign-in of the run person. The runner then does not
+        # register the server; it never falls back to the project's sign-in.
+        return _protocol_error(
+            status_code=status.HTTP_404_NOT_FOUND,
+            code=_JSONRPC_SERVER_ERROR,
+            message=e.message,
+            cause="sign_in_missing",
+            data={"target": e.target},
+        )
     if isinstance(e, PolicyDeniedError):
         return _protocol_error(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -197,8 +210,9 @@ def _map_gateway_exception(e: BaseException) -> Response:
         scope_data: Dict[str, Any] = {"target": e.target, "scopes": e.scopes}
         if e.endpoint_id is not None:
             # Reopen scope discovery so the client can request the required scopes.
+            query = "?owner_kind=user" if e.for_person else ""
             scope_data["connect"] = GatewayConnectAffordance(
-                endpoint=f"/gateways/mcps/endpoints/{e.endpoint_id}/connect",
+                endpoint=f"/gateways/mcps/endpoints/{e.endpoint_id}/connect{query}",
                 body={},
             ).model_dump(mode="json")
         return _protocol_error(
@@ -290,6 +304,7 @@ class MCPGatewayProxy:
         name: str,
         provider: Optional[str] = None,
         integration: Optional[str] = None,
+        account_source: AccountSource = "agent",
     ) -> Response:
         # Checked before the body is read: with the plane off there is nothing to relay to,
         # and a runner holding a gateway URL needs the refusal, not a parse error.
@@ -314,6 +329,7 @@ class MCPGatewayProxy:
                 body=body,
                 headers=headers,
                 request=request,
+                account_source=account_source,
             )
         except _MAPPED_EXCEPTIONS as e:
             return _map_gateway_exception(e)
@@ -348,11 +364,16 @@ class MCPGatewayProxy:
         )
 
     @intercept_exceptions()
-    async def relay_custom(self, request: Request, slug: str) -> Response:
+    async def relay_custom(
+        self, request: Request, slug: str, account_source: AccountSource = "agent"
+    ) -> Response:
+        # `account_source=user` marks a "user" item: the run person's own sign-in to
+        # this project server (the SDK adds it to the gateway URL of such an item).
         return await self._relay(
             request=request,
             namespace=GatewayEndpointNamespace.CUSTOM,
             name=slug,
+            account_source=account_source,
         )
 
     async def reject_stream_verbs(self) -> Response:

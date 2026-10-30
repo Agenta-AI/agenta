@@ -1,4 +1,4 @@
-import {memo, useCallback, useMemo, useRef} from "react"
+import {memo, useCallback, useEffect, useMemo, useRef} from "react"
 
 import {
     getMessageTraceId,
@@ -42,6 +42,7 @@ import {quotedMessageParts} from "./quotedMessageParts"
 import {describeRunFailure, RunErrorMessage} from "./RunErrorMessage"
 import {RunErrorRecovery} from "./RunErrorRecovery"
 import {runRetryAction} from "./runRetry"
+import {refreshOnSetupFailure} from "./setupFailureRefresh"
 import {turnFiles} from "./turnFileList"
 import {TurnFiles} from "./TurnFiles"
 import {mobileTurnRowClass} from "./turnRowClass"
@@ -172,6 +173,9 @@ const TurnRowInner = ({
               onSignIn: openProviders,
           })
         : null
+    // The latest turn failing for needs-setup refreshes the tags and the banner.
+    const lastErrorCode = turn.isLast && errorText ? turn.status.errorCode : null
+    useEffect(() => refreshOnSetupFailure(lastErrorCode), [lastErrorCode, turn.message.id])
     const streamedHereRef = useRef(false)
     if (turn.isStreamingTurn) streamedHereRef.current = true
     // The fold holds the work; every message the agent wrote to the reader shows below it, so a

@@ -576,6 +576,7 @@ async def test_add_steps_appends_new_columns():
         user_id=uuid4(),
         run_id=run_id,
         steps=[_step("evaluator")],
+        principal=any_principal(),
     )
 
     assert result == edited
@@ -584,7 +585,7 @@ async def test_add_steps_appends_new_columns():
 
 
 @pytest.mark.asyncio
-async def test_add_steps_skips_existing_key():
+async def test_add_steps_with_an_existing_key_keeps_the_steps():
     run_id = uuid4()
     run = EvaluationRun(
         id=run_id,
@@ -594,6 +595,7 @@ async def test_add_steps_skips_existing_key():
     evaluations_service = SimpleNamespace(
         fetch_run=AsyncMock(return_value=run),
         edit_run=AsyncMock(),
+        set_run_principal=AsyncMock(),
     )
     service = _simple_service(evaluations_service=evaluations_service)
 
@@ -602,11 +604,15 @@ async def test_add_steps_skips_existing_key():
         user_id=uuid4(),
         run_id=run_id,
         steps=[_step("input")],
+        principal=any_principal(),
     )
 
-    # all keys already present -> no edit, run returned unchanged
-    assert result is run
+    # all keys already present -> no configuration write; only the editor is written
     evaluations_service.edit_run.assert_not_awaited()
+    assert evaluations_service.set_run_principal.await_args.kwargs["open_only"]
+    # The stored run is read again after the write.
+    assert result is run
+    assert evaluations_service.fetch_run.await_count == 2
 
 
 @pytest.mark.asyncio
@@ -629,6 +635,7 @@ async def test_remove_steps_drops_named_columns():
         user_id=uuid4(),
         run_id=run_id,
         step_keys=["evaluator"],
+        principal=any_principal(),
     )
 
     assert result == edited
@@ -637,7 +644,7 @@ async def test_remove_steps_drops_named_columns():
 
 
 @pytest.mark.asyncio
-async def test_remove_steps_unknown_key_is_noop():
+async def test_remove_steps_with_an_unknown_key_keeps_the_steps():
     run_id = uuid4()
     run = EvaluationRun(
         id=run_id,
@@ -647,6 +654,7 @@ async def test_remove_steps_unknown_key_is_noop():
     evaluations_service = SimpleNamespace(
         fetch_run=AsyncMock(return_value=run),
         edit_run=AsyncMock(),
+        set_run_principal=AsyncMock(),
     )
     service = _simple_service(evaluations_service=evaluations_service)
 
@@ -655,10 +663,15 @@ async def test_remove_steps_unknown_key_is_noop():
         user_id=uuid4(),
         run_id=run_id,
         step_keys=["missing"],
+        principal=any_principal(),
     )
 
-    assert result is run
+    # nothing to remove -> no configuration write; only the editor is written
     evaluations_service.edit_run.assert_not_awaited()
+    assert evaluations_service.set_run_principal.await_args.kwargs["open_only"]
+    # The stored run is read again after the write.
+    assert result is run
+    assert evaluations_service.fetch_run.await_count == 2
 
 
 @pytest.mark.asyncio
@@ -683,6 +696,7 @@ async def test_set_repeats_sets_run_data_repeats():
         user_id=uuid4(),
         run_id=run_id,
         repeats=3,
+        principal=any_principal(),
     )
 
     assert result == edited
@@ -701,6 +715,7 @@ async def test_set_repeats_returns_none_when_run_missing():
         user_id=uuid4(),
         run_id=uuid4(),
         repeats=3,
+        principal=any_principal(),
     )
 
     assert result is None

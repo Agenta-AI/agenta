@@ -12,5 +12,6 @@ import type * as AgentaApi from "../../../../index.js";
  *     }
  */
 export interface ToolConnectionCreateRequest {
+    scope?: AgentaApi.CreateToolConnectionRequestScope;
     connection: AgentaApi.ToolConnectionCreate;
 }

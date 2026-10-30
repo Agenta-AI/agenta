@@ -19,7 +19,7 @@ classifiers = [
 keywords = ["LLMOps", "LLM", "evaluation", "prompt engineering"]
 dependencies = [
     "agenta-client",
-    "pydantic>=2,<3",
+    "pydantic>=2.12,<3",
     "httpx>=0.28,<0.29",
     "structlog>=26,<27",
     "opentelemetry-api>=1,<2",

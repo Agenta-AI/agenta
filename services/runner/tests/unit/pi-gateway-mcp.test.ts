@@ -1006,6 +1006,8 @@ describe("the Pi MCP client's own SSRF posture (CR9)", () => {
     for (const url of [
       "http://api:8000/gateways/mcps/custom/ok",
       "https://agenta.example.test/api/gateways/mcps/custom/ok",
+      // A "user" item: the run person's own sign-in, said in the query, kept as is.
+      "http://api:8000/gateways/mcps/custom/ok?account_source=user",
     ]) {
       const servers = piGatewayMcpServersFromWire([
         {

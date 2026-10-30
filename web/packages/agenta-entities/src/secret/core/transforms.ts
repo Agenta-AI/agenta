@@ -100,8 +100,10 @@ const storageFacts = (secret: SecretResponseDto) => ({
     hasKey: secret.value_status.configured,
     keyPreview: secret.value_status.preview ?? undefined,
     managementPolicy: secret.management?.policy,
-    // An organization row carries its owner; a project row stays as it always was.
-    ...(secret.owner?.kind === "organization" ? {ownerKind: "organization" as const} : {}),
+    // An organization or a person's row carries its owner; a project row stays as it always was.
+    ...(secret.owner?.kind === "organization" || secret.owner?.kind === "user"
+        ? {ownerKind: secret.owner.kind}
+        : {}),
     ...(secret.availability ? {availability: secret.availability} : {}),
     ...(secret.selected_project_ids ? {selectedProjectIds: secret.selected_project_ids} : {}),
 })

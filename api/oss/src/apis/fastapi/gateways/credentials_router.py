@@ -25,6 +25,7 @@ from oss.src.apis.fastapi.gateways.flags import require_mcp_gateway_enabled
 from oss.src.core.gateways.policy.dtos import GatewayPlane
 from oss.src.core.gateways.types import LLMGatewayDisabledError
 from oss.src.core.gateways.run_claims import (
+    run_accounts,
     gateway_run_id,
     gateway_run_labels,
     gateway_tools,
@@ -162,6 +163,8 @@ class GatewayCredentialsRouter:
             # how long a turn could reach a gateway rather than a bound on exposure.
             expires_in=env.gateway_credentials.ttl_seconds,
             envelope=envelope,
+            # The run's "user" accounts travel with it, never more.
+            run_accounts=run_accounts(request),
         )
 
         return GatewayCredentialsResponse(credentials=f"Secret {token}")

@@ -209,6 +209,14 @@ class AccessConfig(BaseModel):
         or "false"
     ).lower() in _TRUTHY
 
+    # People may store their own accounts (custom secrets, Composio connections, MCP
+    # sign-ins), and an agent's "user" items use them. Off until every API pod and runner
+    # of the deployment runs the release that added them: an older pod reads a person's
+    # row as an organization row.
+    personal_accounts_enabled: bool = _parse_bool_env(
+        "AGENTA_ACCESS_PERSONAL_ACCOUNTS_ENABLED", False
+    )
+
     plans: dict | None = _load_json_env_dict("AGENTA_ACCESS_PLANS")
     roles: dict | None = _load_json_env_dict("AGENTA_ACCESS_ROLES")
     roles_overlay: dict | None = _load_json_env_dict("AGENTA_ACCESS_ROLES_OVERLAY")

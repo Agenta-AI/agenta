@@ -16,6 +16,7 @@ from oss.src.core.gateways.mcps.oauth.dtos import (
     MCPOAuthAttemptStatus,
 )
 from oss.src.core.gateways.mcps.oauth.interfaces import MCPOAuthAttemptsDAOInterface
+from oss.src.core.secrets.enums import SecretOwnerKind
 
 
 class InMemoryMCPOAuthAttemptsDAO(MCPOAuthAttemptsDAOInterface):
@@ -76,6 +77,7 @@ class InMemoryMCPOAuthAttemptsDAO(MCPOAuthAttemptsDAOInterface):
         project_id,
         endpoint_id,
         attempt_id=None,
+        person_id=None,
     ) -> int:
         cancelled = [
             state
@@ -85,6 +87,13 @@ class InMemoryMCPOAuthAttemptsDAO(MCPOAuthAttemptsDAOInterface):
             and record.status
             in (MCPOAuthAttemptStatus.PENDING, MCPOAuthAttemptStatus.CLAIMED)
             and (attempt_id is None or record.id == attempt_id)
+            and (
+                person_id is None
+                or (
+                    record.owner_kind == SecretOwnerKind.USER
+                    and record.user_id == person_id
+                )
+            )
         ]
         for state in cancelled:
             self.attempts[state] = self.attempts[state].model_copy(

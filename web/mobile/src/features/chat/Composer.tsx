@@ -48,6 +48,7 @@ export const Composer = ({
     onSteer,
     onRefusedOverDraft,
     disabled = false,
+    sendDisabled = false,
     waitingOnUser = false,
     streaming = false,
     stopping = false,
@@ -78,6 +79,8 @@ export const Composer = ({
     onRefusedOverDraft?: (input: {text: string; parts?: FileUIPart[]}) => void
     /** No resolvable agent yet, or the screen is still hydrating. */
     disabled?: boolean
+    /** Typing stays on and Send is off: the agent's model needs setup. */
+    sendDisabled?: boolean
     /** The run is parked on the user (pending approval) — sends will queue. */
     waitingOnUser?: boolean
     /** A run is streaming from this device — the send button becomes Stop. */
@@ -166,7 +169,7 @@ export const Composer = ({
         // Enter and the send button (and a voice take completing) can all fire while an upload
         // is still in flight; a second pass would re-send the same staged tray. Returning false
         // synchronously keeps the text in the editor.
-        if (sending.current) {
+        if (sendDisabled || sending.current) {
             if (extraFiles.length) attachments.addFiles(extraFiles)
             return false
         }
@@ -370,6 +373,7 @@ export const Composer = ({
                             onChange={draft.handleComposerChange}
                             slashCommands={slash.sections}
                             disabled={disabled}
+                            sendDisabled={sendDisabled}
                             composerDisabled={disabled}
                             dictating={dictating}
                             dictationAnalyserRef={voice.dictationAnalyserRef}

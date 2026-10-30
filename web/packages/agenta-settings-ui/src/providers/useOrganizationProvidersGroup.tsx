@@ -1,13 +1,14 @@
 /**
- * AI providers → Organization tab.
+ * AI providers → the organization's group.
  *
- * An organization owner or admin sees every organization connection with who may use it, then
- * today's catalog, and connects a provider once for the projects they choose. Anyone else sees
- * only the connections their project may use, read-only: no catalog, no row menu, and a locked
+ * An organization owner or admin sees every organization connection with who may use it, and
+ * connects a provider once for the projects they choose (the drawer's "Who can use it"). Anyone
+ * else sees only the connections their project may use, read-only: no row menu, and a locked
  * drawer that keeps Test.
  */
-import {type ReactNode, useMemo} from "react"
+import {useMemo} from "react"
 
+import {organizationLabel} from "@agenta/entities/organization"
 import {
     deleteSecretAtom,
     isSubscriptionConnection,
@@ -26,23 +27,11 @@ import {
     type OrganizationConnectionScope,
 } from "@agenta/entity-ui/secretProvider"
 import {message} from "@agenta/ui/app-message"
-import {Button} from "@agenta/ui/ui"
-import {WarningCircle} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {ProvidersPanel, type ProviderRemovalState, type ProvidersSource} from "./ProvidersPanel"
+import {LoadFailed} from "../shared/LoadFailed"
 
-/** The deployment kinds the LLM gateway does not serve, so they cannot belong to the organization. */
-const NOT_SHAREABLE = {
-    kinds: new Set(["bedrock"]),
-    note: "Can't belong to the organization. Connect Bedrock in each project.",
-}
-
-export interface OrganizationProvidersPanelProps {
-    scope: Omit<OrganizationConnectionScope, "readOnly" | "projects">
-    renderRemoveDialog?: (state: ProviderRemovalState) => ReactNode
-    subscriptionDocsUrl: string
-}
+import type {ProvidersGroup, ProvidersSource} from "./ProvidersPanel"
 
 /**
  * Who may use a connection, in the row's words. Selected projects are named; until every name is
@@ -68,18 +57,6 @@ const rowDescription = (connection: ProviderConnection, projects: string | null)
         .filter(Boolean)
         .join(" · ")
 
-const LoadFailed = ({onRetry}: {onRetry: () => void}) => (
-    <div className="flex items-center gap-3 text-sm text-colorTextSecondary">
-        <span className="flex items-center gap-1.5">
-            <WarningCircle size={16} className="text-colorError" />
-            Couldn&apos;t load the organization connections.
-        </span>
-        <Button variant="outline" size="sm" onClick={onRetry}>
-            Try again
-        </Button>
-    </div>
-)
-
 const EmptyNote = ({manage}: {manage: boolean}) => (
     <div className="flex flex-col gap-0.5">
         <span className="text-[14.5px] font-medium leading-5 text-foreground">
@@ -93,11 +70,20 @@ const EmptyNote = ({manage}: {manage: boolean}) => (
     </div>
 )
 
-export const OrganizationProvidersPanel = ({
-    scope,
-    renderRemoveDialog,
-    subscriptionDocsUrl,
-}: OrganizationProvidersPanelProps) => {
+export interface OrganizationProvidersGroup {
+    /** The group, or null while there is nothing to show (a member with no connection). */
+    group: ProvidersGroup | null
+    /** The scope a new organization connection saves with; set only for a manager. */
+    manageScope: OrganizationConnectionScope | null
+}
+
+/**
+ * The organization's group of the AI providers page: its rows, how they open and save, and the
+ * scope the drawer's "Who can use it" saves an organization connection with.
+ */
+export const useOrganizationProvidersGroup = (
+    scope: Omit<OrganizationConnectionScope, "readOnly" | "projects"> | null,
+): OrganizationProvidersGroup => {
     const access = useAtomValue(organizationConnectionsAccessAtom)
     const query = useAtomValue(organizationSecretsQueryAtom)
     // A member's rows come from the project's vault read, so its state is theirs to show.
@@ -111,26 +97,35 @@ export const OrganizationProvidersPanel = ({
     const manage = access === "manage"
     // Choosing projects needs every project of the organization: until the list is in, the
     // choice waits as it does for the plan. Other tiers read the list only to name rows.
-    const choosing = manage && scope.projectChoice === "choose"
+    const choosing = manage && scope?.projectChoice === "choose"
     const projects = useMemo(() => projectsQuery.data ?? [], [projectsQuery.data])
-    const drawerScope = useMemo<OrganizationConnectionScope>(
-        () => ({
-            ...scope,
-            projects,
-            projectChoice: choosing && !projectsQuery.data ? "pending" : scope.projectChoice,
-            readOnly: !manage,
-        }),
+    const drawerScope = useMemo<OrganizationConnectionScope | null>(
+        () =>
+            scope
+                ? {
+                      ...scope,
+                      projects,
+                      projectChoice:
+                          choosing && !projectsQuery.data ? "pending" : scope.projectChoice,
+                      readOnly: !manage,
+                  }
+                : null,
         [scope, projects, choosing, projectsQuery.data, manage],
     )
 
-    const source = useMemo<ProvidersSource>(() => {
+    // A failed refetch keeps the cached rows, so the failure line shows beside them.
+    const memberVaultFailed = access === "view" && vault.isError
+    const projectsFailed = choosing && projectsQuery.isError
+    const failed =
+        access === "error" || (manage && query.isError) || memberVaultFailed || projectsFailed
+
+    const source = useMemo<ProvidersSource | null>(() => {
+        if (!scope || !drawerScope) return null
         const connections = manage ? managed : available
         const names = new Map(projects.map((project) => [project.id, project.name]))
         return {
             connections,
-            rows: manage
-                ? connections.filter((connection) => !isSubscriptionConnection(connection))
-                : connections,
+            rows: connections,
             loading: access === "loading" || (access === "view" && vault.isPending),
             describe: (connection: ProviderConnection) =>
                 isSubscriptionConnection(connection)
@@ -141,7 +136,7 @@ export const OrganizationProvidersPanel = ({
                           connection,
                           manage ? projectsSummary(connection, names) : null,
                       ),
-            // A member's subscription row has no drawer: there is nothing to test.
+            // A subscription row opens its sign-in for a manager; a member has nothing to do there.
             canOpen: (connection: ProviderConnection) =>
                 manage || !isSubscriptionConnection(connection),
             manage,
@@ -153,45 +148,49 @@ export const OrganizationProvidersPanel = ({
             removeFailed: (failure: unknown, connection: ProviderConnection) =>
                 organizationRefusal(failure, scope.name) ??
                 `Agenta could not remove ${connection.name}. Try again.`,
-            catalog: manage ? {notShareable: NOT_SHAREABLE} : undefined,
-            subscriptions: manage ? managed : undefined,
-            emptyFooter: <EmptyNote manage={manage} />,
+            failure: failed ? (
+                <LoadFailed
+                    message="Couldn't load the organization connections."
+                    onRetry={() =>
+                        void (memberVaultFailed
+                            ? vault.refetch()
+                            : projectsFailed
+                              ? projectsQuery.refetch()
+                              : query.refetch())
+                    }
+                />
+            ) : undefined,
+            emptyFooter: manage ? <EmptyNote manage /> : undefined,
             organization: drawerScope,
+            // A manager signs the organization in to ChatGPT or Claude here.
+            offersSubscriptions: manage,
+            onSaved: () => void refresh(),
         }
     }, [
+        scope,
+        drawerScope,
         manage,
         managed,
         available,
         projects,
         access,
-        vault.isPending,
+        vault,
         deleteSecret,
         refresh,
-        scope.name,
-        drawerScope,
+        failed,
+        memberVaultFailed,
+        projectsFailed,
+        projectsQuery,
+        query,
     ])
 
-    const memberVaultFailed = access === "view" && vault.isError && !vault.data
-    const projectsFailed = choosing && projectsQuery.isError
-    if (access === "error" || memberVaultFailed || projectsFailed) {
-        return (
-            <LoadFailed
-                onRetry={() =>
-                    void (memberVaultFailed
-                        ? vault.refetch()
-                        : projectsFailed
-                          ? projectsQuery.refetch()
-                          : query.refetch())
-                }
-            />
-        )
-    }
-
-    return (
-        <ProvidersPanel
-            source={source}
-            renderRemoveDialog={renderRemoveDialog}
-            subscriptionDocsUrl={subscriptionDocsUrl}
-        />
+    return useMemo(
+        () => ({
+            group: source
+                ? {key: "organization", label: organizationLabel(scope?.name ?? ""), source}
+                : null,
+            manageScope: manage ? drawerScope : null,
+        }),
+        [source, scope?.name, manage, drawerScope],
     )
 }

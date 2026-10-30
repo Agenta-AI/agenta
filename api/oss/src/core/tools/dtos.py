@@ -10,6 +10,8 @@ from agenta.sdk.agents.tools import (
 from agenta.sdk.models.workflows import JsonSchemas
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from agenta.sdk.agents.accounts import AccountSource
+
 from oss.src.core.workflows.dtos import WorkflowRevisionDelta
 
 from oss.src.core.gateway.catalog.dtos import (
@@ -197,6 +199,9 @@ class ToolCallContext(BaseModel):
     provider: Optional[str] = None
     integration: Optional[str] = None
     connection: Optional[str] = None
+    # ``user``: the run person's own connection, from the run's `run_accounts` claim;
+    # then ``connection`` is null. The runner copies it from the resolved reference.
+    account_source: Optional[AccountSource] = None
     tool: Optional[str] = None
     toolkit_version: Optional[str] = None
     # ``gateway.search`` ranks across every configured integration at once, so it carries
@@ -321,7 +326,9 @@ class ResolvedGatewayConnection(BaseModel):
 
     provider: str
     integration: str
-    connection: str
+    # The project connection's slug; null for a ``user`` entry, which names none.
+    connection: Optional[str] = None
+    account_source: Optional[AccountSource] = None
     toolkit_version: str
     tools: List[ResolvedGatewayTool] = Field(default_factory=list)
 
@@ -347,6 +354,15 @@ class GatewaySearchResults(BaseModel):
     results: List[GatewaySearchResult] = Field(default_factory=list)
 
 
+class UnavailableToolConnection(BaseModel):
+    """A connection a tool reference names that is not usable now (needs setup)."""
+
+    provider: str
+    integration: str
+    connection: Optional[str] = None
+    account_source: Optional[AccountSource] = None
+
+
 class ToolsResolution(BaseModel):
     """Outcome of resolving a ``tools`` list.
 
@@ -358,6 +374,11 @@ class ToolsResolution(BaseModel):
     builtins: List[str] = Field(default_factory=list)
     custom: List[ResolvedTool] = Field(default_factory=list)
     gateway_connections: List[ResolvedGatewayConnection] = Field(default_factory=list)
+    # Connections left out because they need setup (missing, turned off, signed out),
+    # only when the caller asked for that instead of a refusal.
+    unavailable_connections: List[UnavailableToolConnection] = Field(
+        default_factory=list
+    )
 
 
 # ---------------------------------------------------------------------------

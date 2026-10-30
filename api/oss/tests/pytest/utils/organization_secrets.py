@@ -19,6 +19,7 @@ from oss.src.core.secrets.dtos import (
 )
 from oss.src.core.secrets.enums import (
     ORGANIZATION_SECRET_KINDS,
+    SIGN_IN_SECRET_KINDS,
     SecretAvailability,
     SecretOwnerKind,
 )
@@ -36,7 +37,7 @@ def owner_scope(owner: SecretOwner) -> Tuple[Optional[UUID], Optional[UUID]]:
         return owner.id, None
     if owner.kind == SecretOwnerKind.ORGANIZATION:
         return None, owner.id
-    raise ValueError("User-owned secrets are not stored in this release.")
+    return None, owner.organization_id
 
 
 def make_auth_scope(
@@ -254,6 +255,47 @@ class InMemorySecretsDAO:
         self.records.pop(secret_id, None)
         self.selected.pop(secret_id, None)
         return stored
+
+    # MCP sign-ins ----------------------------------------------------------------
+
+    async def list_sign_ins(self, *, owner, slugs):
+        self.calls.append("list_sign_ins")
+        return [
+            r
+            for r in self._of(owner)
+            if r.slug in set(slugs) and r.kind in SIGN_IN_SECRET_KINDS
+        ]
+
+    async def list_by_ids(self, *, owner, secret_ids):
+        self.calls.append("list_by_ids")
+        return [r for r in self._of(owner) if r.id in set(secret_ids)]
+
+    async def delete_by_owner(self, *, owner):
+        self.calls.append("delete_by_owner")
+        doomed = [r.id for r in self._of(owner)]
+        for secret_id in doomed:
+            self.records.pop(secret_id, None)
+        return len(doomed)
+
+    async def delete_sign_ins(self, *, organization_id, project_id, slugs):
+        self.calls.append("delete_sign_ins")
+        doomed = [
+            r.id
+            for r in self.records.values()
+            if r.slug in set(slugs)
+            and r.kind in SIGN_IN_SECRET_KINDS
+            and r.owner is not None
+            and (
+                (r.owner.kind == SecretOwnerKind.PROJECT and r.owner.id == project_id)
+                or (
+                    r.owner.kind == SecretOwnerKind.USER
+                    and r.owner.organization_id == organization_id
+                )
+            )
+        ]
+        for secret_id in doomed:
+            self.records.pop(secret_id, None)
+        return len(doomed)
 
     # effective set ----------------------------------------------------------------
 

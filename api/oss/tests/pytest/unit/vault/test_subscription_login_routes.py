@@ -412,7 +412,7 @@ class TestCreateAndRead:
         assert read["data"]["login_version"] == 4
         assert read["value_status"]["configured"] is True
 
-    def test_a_second_chatgpt_connection_is_a_conflict(self, harness):
+    def test_a_second_chatgpt_connection_is_its_own_row(self, harness):
         _create(harness.client)
 
         response = harness.client.post(
@@ -423,7 +423,7 @@ class TestCreateAndRead:
             },
         )
 
-        assert response.status_code == 409
+        assert response.status_code == 200, response.text
 
 
 class TestLoginAttemptRoutes:
@@ -1408,7 +1408,7 @@ class TestClaudeSubscriptionToken:
 
         read = harness.client.get(f"/secrets/{secret_id}").json()
 
-        assert read["slug"] == "claude"
+        assert read["slug"].startswith("claude-")
         assert read["data"]["login_state"] == "pending_login"
         assert read["data"]["harnesses"] == ["claude"]
         assert "claude/sonnet" in read["data"]["model_keys"]
@@ -1587,7 +1587,7 @@ class TestClaudeSubscriptionToken:
         assert harness.anthropic.requests == []
         assert _stored_login(harness, secret_id).get("login") is None
 
-    def test_a_second_claude_connection_is_a_conflict(self, harness):
+    def test_a_second_claude_connection_is_its_own_row(self, harness):
         _create_claude(harness.client)
 
         response = harness.client.post(
@@ -1601,7 +1601,7 @@ class TestClaudeSubscriptionToken:
             },
         )
 
-        assert response.status_code == 409
+        assert response.status_code == 200, response.text
 
 
 class TestAClaudeConnectionHasNoDeviceLogin:

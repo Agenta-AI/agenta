@@ -7,10 +7,9 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import text
 
-import oss.src.dbs.postgres.secrets.dao as dao_module
 from oss.src.core.secrets.context import set_data_encryption_key
 from oss.src.core.secrets.dtos import CreateSecretDTO, SecretOwner, UpdateSecretDTO
-from oss.src.core.secrets.enums import SecretAvailability, SecretKind, SecretOwnerKind
+from oss.src.core.secrets.enums import SecretAvailability, SecretOwnerKind
 from oss.src.core.secrets.types import (
     ProjectNotInOrganization,
     SecretSlugConflict,
@@ -381,4 +380,3 @@ async def test_kind_null_rows_are_skipped_by_the_effective_read(org):
         )
     entry = await SecretsDAO().load_effective(project_id=project_id)
     assert entry.secrets == []
-    assert dao_module.SecretKind is SecretKind
