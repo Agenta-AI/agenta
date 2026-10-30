@@ -6,7 +6,8 @@ vi.mock("@agenta/sdk/resources", () => ({
     getAccessClient: () => ({checkPermissions}),
 }))
 
-import {fetchProjectPermission} from "../../src/features/context/useProjectPermission"
+// The fetcher moved to `@agenta/entities/access`, so the packages gate on the same answer.
+import {fetchProjectPermission} from "@agenta/entities/access"
 
 describe("mobile project permissions", () => {
     beforeEach(() => checkPermissions.mockReset())
