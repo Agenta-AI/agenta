@@ -51,7 +51,8 @@ export const usePersonalSetupStep = (sessionId: string, revisionId: string): Per
         if (!current) return
         setPendingKeys(new Set(current.map((item) => item.key)))
         setLatched((rows) => (rows.length === 0 && current.length > 0 ? current : rows))
-    }, [current])
+        // `sessionId`: the reset above empties the rows, and the same answer must fill them again.
+    }, [current, sessionId])
 
     return {
         open: !closed && access === "on" && latched.length > 0 && Boolean(workflowId),

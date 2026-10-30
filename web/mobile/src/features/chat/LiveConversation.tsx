@@ -130,6 +130,7 @@ export const LiveConversation = ({
     agentId,
     readOnly = null,
     canSend = true,
+    accessPending = false,
     embedded = false,
 }: {
     entityId: string
@@ -154,6 +155,8 @@ export const LiveConversation = ({
      * yet: every control that sends, approves, answers or re-runs is off, shortcuts included.
      */
     canSend?: boolean
+    /** The session row read has not answered yet. */
+    accessPending?: boolean
     /** Rendered inside a workspace pane — the shell and its rail belong to the parent. */
     embedded?: boolean
 }) => {
@@ -1024,8 +1027,10 @@ export const LiveConversation = ({
                             </div>
                         ) : null}
                         {/* The viewer's own accounts for this agent's "user" items. After the
-                        template step, which asks first when both would show. */}
-                        {personalSetup.open && !setup.open && !locked ? (
+                        template step, which asks first when both would show. Not `locked`: a
+                        reloaded chat with no turns has no session row, so sending stays off, and
+                        the card holds no message. */}
+                        {personalSetup.open && !setup.open && !readOnly && !accessPending ? (
                             <div className="bg-background shrink-0 px-3 pt-3 pb-0">
                                 <ContentRail>
                                     <PersonalAccountsCard

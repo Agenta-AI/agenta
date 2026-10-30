@@ -48,8 +48,8 @@ let container: HTMLDivElement
 let step: PersonalSetupStep
 let store: ReturnType<typeof createStore>
 
-const Probe = () => {
-    step = usePersonalSetupStep("session-1", "revision-1")
+const Probe = ({sessionId = "session-1"}: {sessionId?: string}) => {
+    step = usePersonalSetupStep(sessionId, "revision-1")
     return null
 }
 
@@ -66,6 +66,20 @@ const answer = (value: AgentRequirementItem[] | null) =>
     act(() => store.set(requirementsAtom.current, value))
 
 describe("usePersonalSetupStep", () => {
+    it("fills the rows when the answer lands before the session id settles", () => {
+        answer([req("secret:user/A")])
+        expect(step.open).toBe(true)
+
+        // The answer does not change, so only the new session id can fill the rows again.
+        act(() =>
+            root.render(
+                createElement(Provider, {store}, createElement(Probe, {sessionId: "session-2"})),
+            ),
+        )
+        expect(step.open).toBe(true)
+        expect(step.items.map((item) => item.key)).toEqual(["secret:user/A"])
+    })
+
     it("keeps the rows pending while the next answer is loading or failed", () => {
         answer([req("secret:user/A"), req("secret:user/B")])
         expect(step.open).toBe(true)
