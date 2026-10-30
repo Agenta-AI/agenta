@@ -1,0 +1,34 @@
+---
+title: "First-agent onboarding and more dependable event automations"
+slug: first-agent-onboarding-and-automation-fixes
+date: 2026-10-29
+tags: [v0.127.0]
+description: "New signups enter first-agent onboarding, event automation delivery is repaired, and organizations replace workspace records."
+---
+
+<Summary>
+
+New signups in an empty project now enter first-agent onboarding. The questions use the same role, company-size and referral choices as the signup survey, so people do not need to answer conflicting versions of them.
+
+- Event automations now receive Composio V3 webhook events instead of silently dropping them.
+- Editing an automation's event filters now updates its Composio trigger.
+- Organizations replace workspace records; self-hosted operators should read the upgrade notes before deploying.
+
+</Summary>
+
+{/* truncate */}
+
+## First-agent onboarding
+
+New signups in an empty project now enter the [first-agent flow](https://github.com/Agenta-AI/agenta/pull/7853). They can answer its questions, create an agent or skip the step. An existing project with agents keeps its normal Home experience. The flow and the cloud signup survey now use aligned choices for role, company size and referral source.
+
+## Improvements
+
+Organizations now answer where a workspace used to. New workspace records are no longer written, and workspace-shaped API fields carry the organization identity. The classic app keeps its route shape, while workspace create and rename requests return `410`. [See the migration](https://github.com/Agenta-AI/agenta/pull/7798).
+
+**Self-hosting:** Read the [v0.127.0 upgrade notes](/self-host/upgrading#upgrading-to-01270-workspaces-are-removed) and take a database dump first. The data migrations have no down migration. Run v0.126.0 on every pod before rolling out v0.127.0; a rolling upgrade from v0.124.x or older is not supported.
+
+## Bug fixes
+
+- Composio V3 [webhook events reach event automations](https://github.com/Agenta-AI/agenta/pull/7870) with their event data.
+- Editing an automation's connection, event or filters [updates its Composio trigger](https://github.com/Agenta-AI/agenta/pull/7877). GitHub event filters [use the required owner/repository form](https://github.com/Agenta-AI/agenta/pull/7878) where applicable.

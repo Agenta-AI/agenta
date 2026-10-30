@@ -1,0 +1,29 @@
+---
+title: "Security updates and agent-run fixes"
+slug: security-and-agent-run-fixes-125-3
+date: 2026-10-27
+tags: [v0.125.3]
+description: "Refresh vulnerable dependencies and fix selected agent, session and model-picker failures."
+---
+
+<Summary>
+
+This release updates vulnerable dependencies across the web app, API, SDK and runner.
+
+- A self-hosted Codex run no longer waits indefinitely on its first turn when `HOME` is overridden.
+- Agent runs send their project even when the request has no authorization header.
+- The model picker shows a readable Kimi K3.1 Pro label, and session names no longer show a lock icon.
+
+</Summary>
+
+{/* truncate */}
+
+## Security dependency updates
+
+This release refreshes packages identified in security reviews across the web app, API, Python locks, agent sandbox and runner. The changes include [runner dependency updates](https://github.com/Agenta-AI/agenta/pull/7852) and [web dependency updates](https://github.com/Agenta-AI/agenta/pull/7847). This is a dependency refresh, not a claim that a particular deployment was exploited.
+
+## Bug fixes
+
+- The runner [bounds Codex adapter initialization](https://github.com/Agenta-AI/agenta/pull/7850) and seeds the pinned adapter under a `HOME` override. This addresses first turns that stayed running on that self-hosted setup.
+- Agent runs in the app [always include their project](https://github.com/Agenta-AI/agenta/pull/7840), so a member's default project is not used in place of the shared project they opened.
+- The model list [shows Kimi K3.1 Pro by name](https://github.com/Agenta-AI/agenta/pull/7833). Session names [no longer carry a lock icon](https://github.com/Agenta-AI/agenta/pull/7844).
