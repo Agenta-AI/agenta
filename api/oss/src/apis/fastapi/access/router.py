@@ -22,6 +22,7 @@ from oss.src.core.access.dtos import RequestCredentialKind, RunEnvelope
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.account_choices.claims import sign_run_accounts
 from oss.src.core.account_choices.dtos import MAX_RUN_ITEM_KEYS
+from oss.src.core.account_choices.policy import personal_accounts_enabled
 from oss.src.core.gateways.run_claims import run_accounts
 from oss.src.core.access.context import get_request_access
 from oss.src.core.access.principals import access_denied_error
@@ -176,6 +177,9 @@ async def _run_accounts_of_exchange(
         access is not None
         and access.credential_kind == RequestCredentialKind.RUN_CREDENTIAL
     ):
+        # A renewed credential drops the claim once the switch is off.
+        if not personal_accounts_enabled():
+            return None
         return run_accounts(request) or None
     items = [
         item

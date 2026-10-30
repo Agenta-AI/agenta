@@ -12,6 +12,7 @@ from typing import Any, List, Optional, Sequence, Tuple
 from uuid import UUID
 
 from pydantic import ValidationError
+from sqlalchemy.exc import DBAPIError
 
 from agenta.sdk.agents.accounts import UserItem
 
@@ -23,6 +24,15 @@ from oss.src.core.account_choices.policy import personal_accounts_enabled
 from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
+
+
+def _is_unreadable_data(error: DBAPIError) -> bool:
+    """A data exception (SQLSTATE class 22) or a failed decryption (class 39)."""
+    orig = getattr(error, "orig", None)
+    sqlstate = getattr(orig, "sqlstate", None) or getattr(
+        getattr(orig, "__cause__", None), "sqlstate", None
+    )
+    return isinstance(sqlstate, str) and sqlstate[:2] in ("22", "39")
 
 
 def run_accounts_claim(item_accounts: Sequence[ItemAccount]) -> List[dict]:
@@ -52,8 +62,10 @@ def run_accounts_from_claim(value: Any) -> Tuple[RunAccount, ...]:
 
 
 def run_account(access: Optional[RequestAccess], item_key: str) -> Optional[RunAccount]:
-    """The run's account for one item key, or None when the run has none."""
-    if access is None:
+    """The run's account for one item key, or None when the run has none. With the
+    deployment switch off, a claim signed while it was on is not read: every "user" item
+    is missing."""
+    if access is None or not personal_accounts_enabled():
         return None
     return next(
         (account for account in access.run_accounts if account.item_key == item_key),
@@ -81,11 +93,20 @@ async def sign_run_accounts(
         get_account_choices_service,
     )
 
-    item_accounts = await get_account_choices_service().resolve(
-        organization_id=envelope.authority.organization_id,
-        project_id=envelope.authority.project_id,
-        artifact_id=artifact_id,
-        user_id=run_person_id(envelope),
-        items=items,
-    )
+    try:
+        item_accounts = await get_account_choices_service().resolve(
+            organization_id=envelope.authority.organization_id,
+            project_id=envelope.authority.project_id,
+            artifact_id=artifact_id,
+            user_id=run_person_id(envelope),
+            items=items,
+        )
+    except DBAPIError as error:
+        # A stored row the statement cannot read (a grant that does not decrypt, or not
+        # as JSON) leaves the "user" items out; it never fails the run. Any other
+        # database failure stays an error.
+        if not _is_unreadable_data(error):
+            raise
+        log.error("[accounts] the run's user accounts could not be read", exc_info=True)
+        return None
     return run_accounts_claim(item_accounts)

@@ -24,6 +24,7 @@ from agenta.sdk.agents.tools.models import GatewayConnectionRef
 from agenta.sdk.middlewares.routing import auth as auth_module
 from agenta.sdk.utils.cache import TTLLRUCache
 
+AGENT_ID = "0193d1a0-0000-7000-8000-0000000000aa"
 GMAIL = {
     "type": "gateway_connection",
     "connection": {
@@ -253,19 +254,19 @@ def exchange(monkeypatch):
 
 async def test_the_exchange_names_a_turns_user_items_and_skips_the_cache(exchange):
     body = {
-        "references": {"application": {"id": "agent-1"}},
+        "references": {"application": {"id": AGENT_ID}},
         "data": {"parameters": _agent(tools=[GMAIL])},
     }
     for _ in range(2):
         await auth_module.get_credentials(_BodyRequest(body), "http://agenta.test")
     assert len(exchange.calls) == 2
-    assert exchange.calls[0]["workflow_id"] == "agent-1"
+    assert exchange.calls[0]["workflow_id"] == AGENT_ID
     assert exchange.calls[0]["item_keys"] == ["app_connection:user/gmail"]
 
 
 async def test_a_turn_without_user_items_sends_nothing_new_and_is_cached(exchange):
     body = {
-        "references": {"application": {"id": "agent-1"}},
+        "references": {"application": {"id": AGENT_ID}},
         "data": {"parameters": _agent(tools=[])},
     }
     for _ in range(2):
@@ -279,4 +280,13 @@ async def test_an_unsaved_agent_still_names_its_user_items(exchange):
     body = {"data": {"parameters": _agent(tools=[GMAIL])}}
     await auth_module.get_credentials(_BodyRequest(body), "http://agenta.test")
     assert exchange.calls[0]["item_keys"] == ["app_connection:user/gmail"]
+    assert "workflow_id" not in exchange.calls[0]
+
+
+async def test_a_malformed_agent_id_is_left_out_not_sent(exchange):
+    body = {
+        "references": {"workflow": {"id": "not-a-uuid"}},
+        "data": {"parameters": _agent(tools=[GMAIL])},
+    }
+    await auth_module.get_credentials(_BodyRequest(body), "http://agenta.test")
     assert "workflow_id" not in exchange.calls[0]

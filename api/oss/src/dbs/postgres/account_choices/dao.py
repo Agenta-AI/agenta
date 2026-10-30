@@ -88,7 +88,12 @@ sign_ins AS (
            CASE WHEN s.kind = 'MCP_TOKEN' THEN true ELSE (
                SELECT coalesce(g ->> 'refresh_token', '') <> ''
                       OR g ->> 'expires_at' IS NULL
-                      OR (g ->> 'expires_at')::double precision > extract(epoch FROM now())
+                      -- A malformed expiry reads as expired, never as an error.
+                      OR (
+                          g ->> 'expires_at' ~ '^[0-9]+(\.[0-9]+)?$'
+                          AND (g ->> 'expires_at')::double precision
+                              > extract(epoch FROM now())
+                      )
                FROM (SELECT pgp_sym_decrypt(s.data, CAST(:key AS text))::jsonb -> 'grant'
                      AS g) grant_data
            ) END AS is_ready

@@ -185,7 +185,7 @@ def _connection(owner_id: UUID, organization_id: UUID):
     )
 
 
-async def test_a_user_tool_reads_the_claims_connection_by_id():
+async def test_a_user_tool_reads_the_claims_connection_by_id(switch_on):
     person = uuid4()
     envelope = make_envelope(kind="human", principal_id=person)
     connection_id = uuid4()

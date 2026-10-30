@@ -1,6 +1,7 @@
 from typing import Any, Callable, Optional, Dict
 from os import getenv
 from json import dumps
+from uuid import UUID
 
 import httpx
 
@@ -149,10 +150,15 @@ async def _run_accounts_params(request: Request) -> Dict[str, Any]:
     references = body.get("references")
     workflow_id = None
     if isinstance(references, dict):
-        for family in ("workflow", "application", "evaluator"):
+        # The artifact keys the API reads for a run's agent, in its order.
+        for family in ("workflow", "application"):
             reference = references.get(family)
-            if isinstance(reference, dict) and reference.get("id"):
-                workflow_id = str(reference["id"])
+            raw = reference.get("id") if isinstance(reference, dict) else None
+            try:
+                workflow_id = str(UUID(str(raw))) if raw else None
+            except ValueError:
+                workflow_id = None
+            if workflow_id:
                 break
     if not items:
         return {}

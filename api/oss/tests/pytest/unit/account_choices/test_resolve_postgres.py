@@ -462,3 +462,45 @@ async def test_the_vault_reads_a_persons_secrets_by_id_and_deletes_them_all(worl
         )
         == 2
     )
+
+
+async def test_a_corrupt_grant_never_fails_the_run(world, monkeypatch):
+    import oss.src.core.account_choices.policy as policy_module
+    import oss.src.core.account_choices.service as service_module
+    from oss.src.core.account_choices.claims import sign_run_accounts
+    from oss.tests.pytest.utils.principals import make_envelope
+
+    async with get_transactions_engine().session() as session:
+        await session.execute(
+            text(
+                "INSERT INTO secrets (id, organization_id, user_id, slug, kind, data) "
+                "VALUES (:id, :o, :u, :slug, 'OAUTH_GRANT', "
+                "pgp_sym_encrypt('not json', :key))"
+            ),
+            {
+                "id": uuid.uuid4(),
+                "o": world["organization_id"],
+                "u": world["alice"],
+                "slug": grant_slug(world["oauth_server"]),
+                "key": env.agenta.crypt_key,
+            },
+        )
+        await session.commit()
+    monkeypatch.setattr(
+        policy_module.env.agenta.access, "personal_accounts_enabled", True
+    )
+    monkeypatch.setattr(service_module, "_account_choices_service", _service())
+    envelope = make_envelope(
+        kind="human",
+        principal_id=world["alice"],
+        organization_id=world["organization_id"],
+        project_id=world["project_id"],
+    )
+    assert (
+        await sign_run_accounts(
+            envelope=envelope,
+            items=[item("mcp_server", "linear"), item("secret", "GITHUB_TOKEN")],
+            artifact_id=world["artifact_id"],
+        )
+        is None
+    )

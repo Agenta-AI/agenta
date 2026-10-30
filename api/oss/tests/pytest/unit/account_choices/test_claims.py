@@ -87,7 +87,7 @@ def test_the_run_person_is_a_human_principal_only():
     assert run_person_id(None) is None
 
 
-def test_the_claim_lists_only_ready_accounts_and_round_trips():
+def test_the_claim_lists_only_ready_accounts_and_round_trips(switch_on):
     ready = ItemAccount(
         item_key=GMAIL,
         match=AccountMatch.DEFAULT,
@@ -199,3 +199,20 @@ def test_the_agent_of_a_run_is_read_from_any_artifact_reference():
     )
     assert _artifact_id_of_references({"workflow_revision": {"id": str(agent)}}) is None
     assert _artifact_id_of_references(None) is None
+
+
+def test_a_claim_is_not_read_once_the_switch_is_off(monkeypatch):
+    claim = run_accounts_from_claim(
+        [{"item_key": GMAIL, "gateway_connection_id": str(uuid4())}]
+    )
+    access = make_request_access(
+        envelope=make_envelope(kind="human"), credential_kind="run_credential"
+    ).model_copy(update={"run_accounts": claim})
+    monkeypatch.setattr(
+        policy_module.env.agenta.access, "personal_accounts_enabled", True
+    )
+    assert run_account(access, GMAIL) is not None
+    monkeypatch.setattr(
+        policy_module.env.agenta.access, "personal_accounts_enabled", False
+    )
+    assert run_account(access, GMAIL) is None
