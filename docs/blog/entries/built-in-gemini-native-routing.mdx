@@ -10,9 +10,7 @@ description: "Built-in Gemini agent runs use Google's native protocol, with fixe
 
 Built-in Gemini agent runs now use Google's native protocol instead of its OpenAI-compatible endpoint. This changes the route used for model calls that could stall on follow-up turns.
 
-- Bedrock and SageMaker credentials now travel with each call instead of being set in the shared process environment.
-- The Python SDK accepts an `AGENTA_API_URL` without a URL scheme.
-- CSV preview comments no longer show a stray colon when a column has no header.
+Bedrock and SageMaker credentials now travel with each call instead of being set in the shared process environment. The Python SDK also accepts an `AGENTA_API_URL` without a URL scheme, and CSV preview comments no longer show a stray colon when a column has no header.
 
 </Summary>
 
