@@ -94,6 +94,7 @@ export {
 export {
     resolveWorkflowRevisionRefs,
     type ResolvedWorkflowRevision,
+    type StoredRef,
     type WorkflowRevisionRefs,
 } from "./api/resolveRevision"
 export {

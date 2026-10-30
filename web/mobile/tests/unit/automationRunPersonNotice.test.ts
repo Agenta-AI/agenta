@@ -1,6 +1,7 @@
 /**
- * The run person notice shows only when saving makes the viewer the automation's run person and
- * the agent has "user" items (spec 3.8 and 5.6). The notice checks the revision the next run uses.
+ * The two rules behind the run person notice (spec 3.8 and 5.6): whether a save makes the viewer
+ * the automation's run person, and which revision the next run reads, so the notice checks that
+ * revision for "user" items.
  */
 import {automationRevisionRefs, saveChangesRunPerson, type Automation} from "@agenta/automation-ui"
 import {describe, expect, it} from "vitest"
@@ -24,43 +25,61 @@ describe("saveChangesRunPerson", () => {
 })
 
 describe("automationRevisionRefs", () => {
-    const automation = (references: Record<string, {id?: string; slug?: string}>): Automation =>
+    const automation = (
+        references: Record<string, {id?: string; slug?: string; version?: string}>,
+    ): Automation =>
         ({
             agentId: "agent-1",
             raw: {data: {references}},
         }) as unknown as Automation
 
-    it("resolves the stored references, the pinned revision first", () => {
+    it("keeps the stored family, the pinned revision included", () => {
         expect(
             automationRevisionRefs(
                 automation({workflow: {id: "agent-1"}, workflow_revision: {id: "rev-3"}}),
                 "agent-1",
             ),
-        ).toEqual({workflowId: "agent-1", variantId: undefined, revisionId: "rev-3"})
+        ).toEqual({workflow: {id: "agent-1"}, revision: {id: "rev-3"}})
     })
 
-    it("reads the application family too", () => {
+    it("keeps a revision pinned by slug or version, not only by id", () => {
         expect(
-            automationRevisionRefs(automation({application_variant: {id: "var-1"}}), "agent-1"),
-        ).toMatchObject({variantId: "var-1"})
+            automationRevisionRefs(
+                automation({workflow: {id: "agent-1"}, workflow_revision: {slug: "v3-slug"}}),
+                null,
+            ),
+        ).toEqual({workflow: {id: "agent-1"}, revision: {slug: "v3-slug"}})
+    })
+
+    it("reads the application family first, as the trigger service does", () => {
+        expect(
+            automationRevisionRefs(
+                automation({application_variant: {id: "var-1"}, workflow: {id: "other"}}),
+                "agent-1",
+            ),
+        ).toEqual({variant: {id: "var-1"}})
     })
 
     it("resolves the newest revision of the agent an unsaved rebind names", () => {
         expect(automationRevisionRefs(automation({workflow: {id: "agent-1"}}), "agent-2")).toEqual({
-            workflowId: "agent-2",
+            workflow: {id: "agent-2"},
         })
     })
 
-    it("keeps an environment binding, with the agent's slug for the deployment's key", () => {
+    it("keeps an environment binding, with the agent's slug as the deployment's key", () => {
         expect(
             automationRevisionRefs(
                 automation({environment: {slug: "production"}, application: {slug: "support"}}),
                 null,
             ),
         ).toEqual({
-            environment: {id: null, slug: "production"},
-            workflowId: "agent-1",
-            workflowSlug: "support",
+            workflow: {slug: "support"},
+            environment: {slug: "production"},
+            key: "support.revision",
         })
+    })
+
+    it("has nothing to read without stored references", () => {
+        expect(automationRevisionRefs(automation({}), null)).toBeNull()
     })
 })

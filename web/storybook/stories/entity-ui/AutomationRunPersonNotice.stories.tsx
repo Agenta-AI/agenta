@@ -56,7 +56,7 @@ const seeded = (missing: boolean) => ({
                         "workflows",
                         "resolved-revision",
                         scope.projectId,
-                        resolvedWorkflowRevisionFamilyKey({workflowId: AGENT}),
+                        resolvedWorkflowRevisionFamilyKey({workflow: {id: AGENT}}),
                     ],
                     {
                         id: REVISION,

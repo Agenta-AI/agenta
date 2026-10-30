@@ -10,6 +10,5 @@ export {
     type AgentSecretAttachmentTarget,
     type AgentSecretRequestSeed,
 } from "./AgentSecretAttachmentModal"
-export {agentSecretBinding} from "./agentSecretBinding"
 
 export {OwnerRadioGroup, type OwnerOption, type OwnerRadioGroupProps} from "./OwnerRadioGroup"

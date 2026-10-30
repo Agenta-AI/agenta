@@ -7,7 +7,7 @@ import {Button} from "@agenta/ui/ui"
 import {Key} from "@phosphor-icons/react"
 import {useAtomValue, useSetAtom} from "jotai"
 
-import {AgentSecretAttachmentModal, agentSecretBinding} from "../secret"
+import {AgentSecretAttachmentModal} from "../secret"
 
 interface SecretRequestDockProps {
     meta: ClientToolMeta
@@ -169,14 +169,7 @@ export const SecretRequestDock = ({
                 dirty={dirty}
                 disabled={!entity || !canEditSecrets}
                 canCreateSecret={canEditSecrets}
-                commitBinding={async ({
-                    baseRevisionId,
-                    secretSlug,
-                    accountSource,
-                    envVar,
-                    editIndex,
-                }) => {
-                    const binding = agentSecretBinding({secretSlug, accountSource, envVar})
+                commitBinding={async ({baseRevisionId, binding, editIndex}) => {
                     const nextBindings =
                         editIndex === undefined
                             ? [...bindings, binding]
@@ -188,12 +181,8 @@ export const SecretRequestDock = ({
                     setTargetId(result.revisionId)
                     return result
                 }}
-                onAttached={({secretSlug, accountSource, envVar, revisionId: next}) =>
-                    configured(
-                        agentSecretBinding({secretSlug, accountSource, envVar}).secret,
-                        envVar,
-                        next,
-                    )
+                onAttached={({binding, revisionId: next}) =>
+                    configured(binding.secret, binding.binding.name, next)
                 }
             />
         </>

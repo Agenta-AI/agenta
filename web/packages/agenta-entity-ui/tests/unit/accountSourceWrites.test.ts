@@ -87,7 +87,7 @@ describe("Composio entry account", () => {
         const tools = [projectEntry]
         expect(
             setGatewayConnectionAccount(tools, {provider: "composio", integration: "x"}, {
-                kind: "user",
+                accountSource: "user",
             }),
         ).toBe(tools)
     })

@@ -13,12 +13,7 @@ import {
 
 /** The key of {@link resolvedWorkflowRevisionQueryAtomFamily}; empty means "nothing to resolve". */
 export const resolvedWorkflowRevisionFamilyKey = (refs: WorkflowRevisionRefs | null): string =>
-    refs &&
-    (refs.workflowId ||
-        refs.variantId ||
-        refs.revisionId ||
-        refs.environment?.id ||
-        refs.environment?.slug)
+    refs && (refs.workflow || refs.variant || refs.revision || refs.environment)
         ? JSON.stringify(refs)
         : ""
 

@@ -30,7 +30,7 @@ import {useAtomValue, useSetAtom} from "jotai"
 import {createPortal} from "react-dom"
 
 import {ACCOUNT_COPY} from "../../../accounts/copy"
-import {AgentSecretAttachmentModal, agentSecretBinding} from "../../../secret"
+import {AgentSecretAttachmentModal} from "../../../secret"
 import {useSectionDrawerPanel} from "../sectionDrawerPanel"
 
 import {NeedsSetupTag} from "./NeedsSetupTag"
@@ -96,11 +96,10 @@ export function AgentSecretsSection({
 
     const commitBinding: React.ComponentProps<
         typeof AgentSecretAttachmentModal
-    >["commitBinding"] = async ({secretSlug, accountSource, envVar, editIndex}) => {
+    >["commitBinding"] = async ({binding, editIndex}) => {
         const next = [...bindings]
-        const value = agentSecretBinding({secretSlug, accountSource, envVar})
-        if (editIndex === undefined) next.push(value)
-        else next[editIndex] = value
+        if (editIndex === undefined) next.push(binding)
+        else next[editIndex] = binding
         return saveBindings(next)
     }
 

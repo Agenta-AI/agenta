@@ -40,10 +40,8 @@ export interface AgentSecretRequestSeed {
 }
 
 export interface AgentSecretAttachmentResult {
-    /** Empty for each person's own secret. */
-    secretSlug: string
-    accountSource?: "user"
-    envVar: string
+    /** The `sandbox.credentials[]` entry the attach wrote. */
+    binding: AgentSecretBinding
     revisionId: string
 }
 
@@ -61,10 +59,8 @@ export interface AgentSecretAttachmentModalProps {
     canCreateSecret?: boolean
     commitBinding: (input: {
         baseRevisionId: string
-        /** Empty for each person's own secret. */
-        secretSlug: string
-        accountSource?: "user"
-        envVar: string
+        /** The entry to add, or to put at `editIndex`. */
+        binding: AgentSecretBinding
         editIndex?: number
     }) => Promise<{revisionId: string}>
     onAttached?: (result: AgentSecretAttachmentResult) => void
@@ -264,22 +260,19 @@ export function AgentSecretAttachmentModal({
         if (disabled || dirty || (!slug && !personal) || !envOk || attaching) return
         setAttaching(true)
         setError(null)
-        const accountSource = personal ? ("user" as const) : undefined
-        const secretSlug = personal ? "" : slug
+        // A "user" secret names no slug: each person who runs the agent gives their own value
+        // (contract section 5.1).
+        const binding: AgentSecretBinding = {
+            secret: personal ? {account_source: "user"} : {slug},
+            binding: {type: "env", name: envVar.trim()},
+        }
         try {
             const result = await commitBinding({
                 baseRevisionId,
-                secretSlug,
-                accountSource,
-                envVar: envVar.trim(),
+                binding,
                 editIndex: editingBinding?.index,
             })
-            onAttached?.({
-                secretSlug,
-                accountSource,
-                envVar: envVar.trim(),
-                revisionId: result.revisionId,
-            })
+            onAttached?.({binding, revisionId: result.revisionId})
             onClose()
         } catch (cause) {
             setError(

@@ -9,7 +9,6 @@ import {
     integrationAccountValue,
     mcpAccountOptions,
 } from "../../src/DrillInView/SchemaControls/agentTemplate/accounts/accountOptions"
-import {agentSecretBinding} from "../../src/secret/agentSecretBinding"
 
 const connections = [
     {slug: "gmail-main", name: "Gmail (main)"},
@@ -91,23 +90,5 @@ describe("MCP Account select", () => {
         expect(
             mcpAccountOptions({source: "agent", personalAccounts: false, authMode: "oauth"}),
         ).toHaveLength(1)
-    })
-})
-
-describe("Attach a secret writes", () => {
-    it("each person's own secret: account_source user and no slug", () => {
-        expect(
-            agentSecretBinding({secretSlug: "", accountSource: "user", envVar: "GITHUB_TOKEN"}),
-        ).toEqual({
-            secret: {account_source: "user"},
-            binding: {type: "env", name: "GITHUB_TOKEN"},
-        })
-    })
-
-    it("a project secret: its slug and no account_source", () => {
-        expect(agentSecretBinding({secretSlug: "jira-token", envVar: "JIRA_TOKEN"})).toEqual({
-            secret: {slug: "jira-token"},
-            binding: {type: "env", name: "JIRA_TOKEN"},
-        })
     })
 })
