@@ -80,19 +80,19 @@ def _project_key(admin_api, *, project_id, user_id):
 
 @pytest.fixture(scope="module")
 def team(admin_api):
-    """An owner's organization with one `member` and one `admin`, each with a key in the
-    owner's project."""
+    """An owner's organization with one `member`, one `admin` and one `viewer` (a role
+    the plan no longer offers), each with a key in the owner's project."""
     uid = uuid4().hex[:12]
     emails = {
         label: f"member-role-{label}-{uid}@test.agenta.ai"
-        for label in ("owner", "member", "admin")
+        for label in ("owner", "member", "admin", "viewer")
     }
     owner = _create_account(admin_api, email=emails["owner"], plan=_OWNER_PLAN)
     organization_id = _first_id(owner["organizations"])
     project_id = _first_id(owner["projects"])
     headers = {}
     try:
-        for label in ("member", "admin"):
+        for label in ("member", "admin", "viewer"):
             account = _create_account(admin_api, email=emails[label])
             _add_member(
                 admin_api,
@@ -275,3 +275,18 @@ def test_admin_cannot_delete_a_project(admin_api, team):
         headers=team["headers"]["admin"],
     )
     assert resp.status_code == 403, resp.text
+
+
+def test_a_stored_viewer_keeps_viewer_permissions(admin_api, team):
+    # A role the plan does not offer keeps its catalog permissions: reads, no writes.
+    reads = _call(admin_api, team, "viewer", "POST", "/spans/query", {})
+    assert reads.status_code == 200, reads.text
+    writes = _call(
+        admin_api,
+        team,
+        "viewer",
+        "POST",
+        "/simple/workflows/",
+        {"workflow": {"slug": f"v-{uuid4().hex[:8]}", "name": "v"}},
+    )
+    assert writes.status_code == 403, writes.text
