@@ -303,8 +303,9 @@ export const LiveConversation = ({
     // parked task must NOT go out on that same unknown — see `pendingTaskPolicy`.
     const modelKeyLoading = modelKey.loading || walletPending || modelSetup.loading
 
-    // The vault wait is bounded (`pendingTaskPolicy`). This stays 0 while the wait is on and
-    // becomes the elapsed time when the deadline fires, which is the render that releases the task.
+    // The wait for the vault, the wallet and the needs-setup check is bounded (`pendingTaskPolicy`).
+    // This stays 0 while the wait is on and becomes the elapsed time when the deadline fires, which
+    // is the render that releases the task.
     const modelKeyWaitStartRef = useRef<number | null>(null)
     const [modelKeyWaitedMs, setModelKeyWaitedMs] = useState(0)
     useEffect(() => {

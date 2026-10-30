@@ -472,11 +472,15 @@ describe("an agent whose model needs setup", () => {
         expect(byId("task-retry")?.dataset.disabled).toBe("true")
     })
 
-    it("holds the Home task while the check has not answered", async () => {
+    it("keeps Retry off while the check has not answered, and on once it has", async () => {
         modelSetup.loading = true
         await render({readOnly: null, canSend: true})
 
         expect(byId("composer")?.dataset.sendDisabled).toBe("false")
         expect(byId("task-retry")?.dataset.disabled).toBe("true")
+
+        modelSetup.loading = false
+        await render({readOnly: null, canSend: true})
+        expect(byId("task-retry")?.dataset.disabled).toBe("false")
     })
 })

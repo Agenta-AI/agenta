@@ -110,11 +110,11 @@ export const useSubscriptionSignIn = ({
         const attempt = pending
         closeAttempt(attempt)
 
+        // A sign-in can fix an agent without a new revision. `unreadable` probably landed too.
+        if (outcome === "succeeded" || outcome === "unreadable") void invalidateAgentRequirements()
         if (outcome === "succeeded") {
             setError(null)
             void refreshVault()
-            // A sign-in can fix an agent without a new revision.
-            void invalidateAgentRequirements()
             return
         }
         if (outcome === "unreadable") {

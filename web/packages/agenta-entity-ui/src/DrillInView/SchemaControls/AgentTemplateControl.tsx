@@ -400,15 +400,16 @@ export const AgentTemplateControl = memo(function AgentTemplateControl({
     const revisionId = drillIn?.entityId ?? null
     revisionIdRef.current = revisionId
     // The server's needs-setup check for this saved revision; null until it answers.
-    // A "user" item belongs to each person who runs the agent, so the editor skips it.
+    // A "user" item belongs to each person who runs the agent, so the editor skips it. The path
+    // and item lookups skip it themselves; the section summaries below filter it here.
     const requirements = useAtomValue(agentRequirementsAtomFamily(revisionId ?? ""))
     const editorRequirements = useMemo(
         () => requirements?.filter((r) => !isUserRequirement(r)) ?? null,
         [requirements],
     )
     const modelReq = editorRequirements ? modelRequirement(editorRequirements) : undefined
-    const secretReq = editorRequirements
-        ? requirementAtPath(editorRequirements, "sandbox.credentials")
+    const secretReq = requirements
+        ? requirementAtPath(requirements, "sandbox.credentials")
         : undefined
     const mcpNeedsSetup = Boolean(
         editorRequirements?.some((r) => r.kind === "mcp_server" || r.kind === "mcp_sign_in"),
