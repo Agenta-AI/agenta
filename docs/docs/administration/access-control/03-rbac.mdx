@@ -9,34 +9,31 @@ slug: /administration/access-control/rbac
 Agenta uses role-based access control (RBAC) to manage what members can do inside an **organization** and its **projects**.
 
 :::info[Availability]
-RBAC is enabled in every edition of Agenta, including the open source edition, where it is always enforced. On Agenta Cloud and Enterprise, enforcement follows the plan: legacy or non-RBAC plans grant full access to all members regardless of role.
+Roles apply in every edition and on every plan. The plan decides only which roles you can give:
+
+| Edition or plan | Roles you can give |
+|---|---|
+| Open source, Cloud Hobby, Cloud Pro | Admin, Member |
+| Cloud Business, Enterprise | Admin, Member, Developer, Editor, Annotator, Viewer |
+
+Nobody can give the Owner role. Ownership moves only when the owner transfers the organization. A member who has a role that the plan does not offer, such as a Viewer in the open source edition, keeps that role and its permissions.
 :::
 
 ## Roles
 
-Agenta provides six built-in roles arranged in a linear hierarchy. Each role inherits all permissions from the roles below it.
+Agenta has seven built-in roles. Each role is a set of permissions.
 
 | Role | What it is for |
 |------|----------------|
-| **Owner** | Full control of the organization, including billing, member management, and destructive operations |
-| **Admin** | Manage workspace settings, members, and roles |
-| **Developer** | Deploy to environments, manage API keys, and everything Editors can do |
-| **Editor** | Edit prompts, testsets, evaluators, workflows, and other project resources |
-| **Annotator** | Run evaluations, annotate traces, and review results |
-| **Viewer** | Read-only access to all project resources |
+| **Owner** | The one person who owns the organization. Has every permission, deletes projects, and transfers or deletes the organization |
+| **Admin** | Manages members, roles, projects and billing, and reads traces and analytics |
+| **Member** | Uses and builds agents, chats and automations. Cannot read traces, analytics or evaluations, and cannot manage members or billing |
+| **Developer** | Deploys to environments, manages API keys, reads traces, and does everything an Editor can |
+| **Editor** | Edits prompts, testsets, evaluators, workflows, and other project resources |
+| **Annotator** | Runs evaluations, annotates traces, and reviews results |
+| **Viewer** | Reads all project resources and changes nothing |
 
-### Role hierarchy
-
-Permissions are cumulative from bottom to top:
-
-```
-Owner        ← full control (billing, org management, destructive ops)
-  Admin      ← + workspace/member management, role assignment
-    Developer  ← + deployments, API keys, environments
-      Editor     ← + edit prompts, testsets, evaluators, workflows
-        Annotator  ← + run evaluations, annotate traces
-          Viewer     ← read-only access
-```
+A new invite without a role gets **Member** on the open source edition, Hobby and Pro, and **Viewer** on Business and Enterprise.
 
 ## Permissions
 
@@ -49,13 +46,14 @@ Under the hood, Agenta authorizes requests using granular permissions. These per
 - Secrets and API keys (Developer and above)
 - Deployments and environments (Developer and above)
 - Workspace membership and roles (Admin and above)
-- Billing (Owner only)
+- Billing (Owner and Admin)
 
 ### Key permission boundaries
 
 | Capability | Minimum role required |
 |-----------|----------------------|
 | View project resources | Viewer |
+| Read traces, analytics and evaluations | Viewer (every role except Member) |
 | Run evaluations and annotate traces | Annotator |
 | Edit prompts, testsets, evaluators, workflows | Editor |
 | Create and rename projects | Admin |
@@ -64,16 +62,23 @@ Under the hood, Agenta authorizes requests using granular permissions. These per
 | View and manage API keys | Developer |
 | Invite members and assign roles | Admin |
 | Take ownership of an agent whose owner left the project (`manage_agent_ownership`) | Admin |
-| Manage billing | Owner |
+| Manage billing | Admin |
+| See the credit balance | Viewer (every role) |
 
-An API key acts with the role of the member who created it, and only in the project it belongs to. On a plan without RBAC, every member can create, rename and delete projects.
+An API key acts with the role of the member who created it, and only in the project it belongs to.
+
+### What a Member cannot read
+
+A Member runs agents and chats, and the traces of those runs are stored. A Member cannot read traces, spans, analytics, or evaluations, and cannot read an invocation or an annotation by its trace id. The API answers `403` to these reads. A Member sees the tokens and cost of each chat turn, because these are stored on the turn.
+
+Owners and Admins can read every trace in the project, also the traces of a private chat. A private chat is private from other members, not from Owners and Admins.
 
 ## Private agents and chats
 
 Roles decide what a member can do with the items they can see. They do not open private items. A private agent or chat is visible only to its owner and, for a chat, the people the owner added. The Owner and Admin roles do not change this: an organization owner or a project admin cannot see another member's private agent or chat.
 
 - **Taking ownership.** Admins and Owners have the `manage_agent_ownership` permission. It lets them take ownership of a shared agent whose owner left the project. It does not open private agents.
-- **Sending in a shared chat.** The **Can send** role in a chat works only for a member whose project role can run chats (Editor or above). A Viewer or Annotator can only read a chat that is shared with them.
+- **Sending in a shared chat.** The **Can send** role in a chat works only for a member whose project role can run chats (Member, Editor or above). A Viewer or Annotator can only read a chat that is shared with them.
 
 See [Share agents and chats](/guides/share-agents-and-chats).
 
@@ -81,15 +86,19 @@ See [Share agents and chats](/guides/share-agents-and-chats).
 
 ### Assign a Role
 
-When inviting a member, choose a role from **Settings** → **Members**.
+When you invite a member in **Settings** → **Members**, choose one of the roles that your plan offers.
 
 ### Change a Role
 
-Owners and Admins can change roles through the API. Roles change only through the API for now; the app has no control for it yet.
+1. Open **Settings** → **Members**.
+2. In the member's row, choose a new role in the **Role** column.
+
+Owners and Admins can change roles. The owner's role has no control, because ownership moves only by a transfer. Removing a member's role through the API gives them the plan's floor role: Member on the open source edition, Hobby and Pro, and Viewer on Business and Enterprise.
 
 ## Best Practices
 
-- Give most contributors **Editor** access, which covers day-to-day prompt and evaluation work.
+- On Hobby, Pro and the open source edition, give **Member** to people who use agents and chats, and **Admin** to people who debug traces or manage the team.
+- On Business and Enterprise, give most contributors **Editor** access, which covers day-to-day prompt and evaluation work.
 - Use **Developer** for team members who need to deploy to environments or manage API keys.
 - Use **Annotator** for teammates focused on running evaluations and labeling traces.
 - Use **Viewer** for stakeholders who need visibility but should not change anything.
@@ -107,8 +116,13 @@ Custom roles are not currently supported. This will be available in the future.
 
 ### What's the difference between Owner and Admin?
 
-- **Owner**: Full control of the organization, including billing and destructive operations (deleting the workspace or organization).
-- **Admin**: Can manage members, assign roles, and configure workspace settings, but cannot manage billing or perform destructive organization-level operations.
+- **Owner**: One person. Has every permission, deletes projects, and transfers or deletes the organization.
+- **Admin**: Can manage members, roles, projects and billing, but cannot delete projects, delete the organization or transfer it.
+
+### What's the difference between Member and Admin?
+
+- **Member**: Can use and build agents, chats and automations, but cannot read traces, analytics or evaluations, or manage members or billing.
+- **Admin**: Can do everything a Member can, and also read traces, analytics and evaluations, and manage members, projects and billing.
 
 ### What's the difference between Developer and Editor?
 
