@@ -137,7 +137,7 @@ async def send_invitation_email(
     project_param = quote(project_id, safe="")
 
     invite_link = (
-        f"{env.agenta.web_url}/auth"
+        f"{env.agenta.web_url}/m/auth"
         f"?token={token_param}"
         f"&email={email_param}"
         f"&organization_id={org_param}"

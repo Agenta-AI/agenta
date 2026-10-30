@@ -80,16 +80,26 @@ const AUTH_CALLBACK_RE = /^\/auth\/callback(\/|$)/
 
 const AUTH_RE = /^\/auth(\/|$)/
 
+/** The `/m` screen that accepts an invite; the invite itself waits in browser storage. */
+const INVITE_ROUTE_RE = /^\/invite\/?$/
+
+/** An emailed invite: `/auth` with a one-time token and its organization. A reset link has neither the path nor the organization. */
+export function isInviteLink(pathname: string, search: string): boolean {
+    if (!/^\/auth\/?$/.test(pathname)) return false
+    const params = new URLSearchParams(search)
+    return Boolean(params.get("token") && params.get("organization_id"))
+}
+
 /**
- * An `/auth` link carrying a one-time `token` (SuperTokens password reset, invite acceptance —
- * `web/oss/src/pages/auth/[[...path]].tsx` reads `router.query.token`) completes on desktop.
+ * Any other `/auth` link carrying a one-time `token` (SuperTokens password reset) completes on
+ * desktop.
  *
  * Redirecting it would drop the token twice over: `mapDesktopToMobile` returns a bare `/m/auth`,
  * and the mobile app has no screen that consumes one. Same reasoning as the OAuth callback
  * exception — a single-use credential must not be bounced.
  */
 export function isTokenBearingAuthLink(pathname: string, search: string): boolean {
-    if (!AUTH_RE.test(pathname)) return false
+    if (!AUTH_RE.test(pathname) || isInviteLink(pathname, search)) return false
     return Boolean(new URLSearchParams(search).get("token"))
 }
 
@@ -339,6 +349,11 @@ export function decideDesktopGate(input: GateInput): GateDecision {
             }
         }
 
+        // Before the opt-out and Classic mode: an invite link only ever completes on /m.
+        if (isInviteLink(input.pathname, input.search)) {
+            return {kind: "redirect", location: `/m/auth${input.search}`}
+        }
+
         // The mobile-started callback is handled above, before the flag.
         if (isDesktopOnlyLink(input.pathname, input.search)) return {kind: "pass"}
         if (input.cookie(MOBILE_OPTOUT_COOKIE)) return {kind: "pass"}
@@ -401,6 +416,10 @@ export function decideMobileGate(input: GateInput): GateDecision {
         // An OAuth landing completes wherever it lands — bouncing it drops the
         // one-time code and strands the flow.
         if (AUTH_CALLBACK_RE.test(input.pathname)) return {kind: "pass"}
+        // Same for an invite: the desktop route for it would drop the token.
+        if (INVITE_ROUTE_RE.test(input.pathname) || isInviteLink(input.pathname, input.search)) {
+            return {kind: "pass"}
+        }
         if (input.cookie(MOBILE_OPTIN_COOKIE)) return {kind: "pass"}
 
         // The desktop gate ranks Classic mode above the device heuristic (`wantsClassic`), so a

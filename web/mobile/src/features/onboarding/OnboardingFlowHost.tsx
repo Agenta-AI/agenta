@@ -31,7 +31,7 @@ import {
     type OnboardingIconPick,
 } from "./onboardingDraft"
 import {OnboardingFlow} from "./OnboardingFlow"
-import {endOnboarding, isOnboardingPending} from "./onboardingPending"
+import {endOnboarding, isOnboardingInvited, isOnboardingPending} from "./onboardingPending"
 import {personProperties, signupSurveyProperties} from "./onboardingQuestions"
 import {isFixedStep, onboardingSteps, stepIndex, type OnboardingStep} from "./onboardingRoute"
 import {useOnboardingModel} from "./useOnboardingModel"
@@ -58,6 +58,8 @@ export const OnboardingFlowHost = ({
 }) => {
     // Without a pending mark the page is a preview: no analytics and no tool seeding.
     const [preview] = useState(() => !userId || !isOnboardingPending(userId))
+    // An account that joined through an invite answers the questions and goes to the project.
+    const [invited] = useState(() => !preview && !!userId && isOnboardingInvited(userId))
     const router = useRouter()
     const templates = useAtomValue(agentTemplatesAtom)
     const templatesStatus = useAtomValue(agentTemplatesStatusAtom)
@@ -73,7 +75,11 @@ export const OnboardingFlowHost = ({
         () => (walletsEnabled ? autoModel : {...autoModel, credits: null}),
         [walletsEnabled, autoModel],
     )
-    const steps = useMemo(() => onboardingSteps(), [])
+    const steps = useMemo(
+        () =>
+            invited ? onboardingSteps().filter((step) => !isFixedStep(step)) : onboardingSteps(),
+        [invited],
+    )
     const configuration = useAtomValue(useMemo(() => draftConfigurationAtom(entityId), [entityId]))
     const updateConfiguration = useSetAtom(workflowMolecule.actions.updateConfiguration)
     const toolsEnabled = useMemo(() => isToolsEnabled(), [])
@@ -81,7 +87,7 @@ export const OnboardingFlowHost = ({
     const {connections} = connectionsQuery
     const apps = useMemo(() => connectedApps(connections), [connections])
     useSeedToolConnections({
-        enabled: toolsEnabled && !preview,
+        enabled: toolsEnabled && !preview && !invited,
         connections,
         loaded: !connectionsQuery.isLoading && !connectionsQuery.error,
     })
@@ -180,6 +186,11 @@ export const OnboardingFlowHost = ({
         return created
     }
 
+    const onQuestionsDone = () => {
+        if (userId) endOnboarding(userId)
+        void router.replace(homeUrl)
+    }
+
     const onSkip = () => {
         track("onboarding_skipped", {step: stepIndex("templates") + 1, step_key: "templates"})
         if (!preview) captureIntent({source: "skipped"})
@@ -199,6 +210,7 @@ export const OnboardingFlowHost = ({
             error={newAgent.error}
             attachments={attachments}
             onStepCompleted={onStepCompleted}
+            onQuestionsDone={invited ? onQuestionsDone : undefined}
             onCreate={onCreate}
             onSkip={onSkip}
         />

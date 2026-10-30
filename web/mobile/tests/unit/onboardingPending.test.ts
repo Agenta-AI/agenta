@@ -10,7 +10,9 @@ import {
 import {
     clearOnboardingPending,
     endOnboarding,
+    isOnboardingInvited,
     isOnboardingPending,
+    markOnboardingInvited,
     markOnboardingPending,
     resolvePendingOnboarding,
     UNOWNED_PENDING_MAX_AGE_MS,
@@ -70,6 +72,17 @@ describe("onboarding pending mark", () => {
         expect(readOnboardingDraft(onboardingDraftKey("u1"))).toEqual(EMPTY_ONBOARDING_DRAFT)
         expect(isOnboardingPending("u2")).toBe(true)
         expect(readOnboardingDraft(onboardingDraftKey("u2")).answers.persona).toBe("Engineering")
+    })
+})
+
+describe("the invited mark", () => {
+    it("goes with the pending mark", () => {
+        markOnboardingPending("u1")
+        markOnboardingInvited("u1")
+        expect(isOnboardingInvited("u1")).toBe(true)
+        expect(isOnboardingInvited("u2")).toBe(false)
+        endOnboarding("u1")
+        expect(isOnboardingInvited("u1")).toBe(false)
     })
 })
 

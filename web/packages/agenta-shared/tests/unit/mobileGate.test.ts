@@ -741,3 +741,60 @@ describe("cookie policy", () => {
         expect(GATE_COOKIE_MAX_AGE).toBe(60 * 60 * 24 * 180)
     })
 })
+
+describe("invite links", () => {
+    const INVITE_SEARCH =
+        "?token=abc&email=a%40b.c&organization_id=o1&workspace_id=w1&project_id=p1"
+    const cookies =
+        (jar: Record<string, string>): GateInput["cookie"] =>
+        (name) =>
+            jar[name]
+
+    it("forwards an old invite link to /m with its whole query, for every kind of user", () => {
+        for (const jar of [
+            {},
+            {[CLASSIC_MODE_COOKIE]: "1"},
+            {[MOBILE_OPTOUT_COOKIE]: "1"},
+        ] as Record<string, string>[]) {
+            for (const ua of [DESKTOP_UA, MOBILE_UA]) {
+                expect(
+                    decideDesktopGate(
+                        input({
+                            pathname: "/auth",
+                            search: INVITE_SEARCH,
+                            headers: docHeaders(ua),
+                            cookie: cookies(jar),
+                        }),
+                    ),
+                ).toEqual({kind: "redirect", location: `/m/auth${INVITE_SEARCH}`})
+            }
+        }
+    })
+
+    it("leaves a password reset link where it works today", () => {
+        const reset = input({
+            pathname: "/auth/reset-password",
+            search: "?token=abc&tenantId=public",
+            headers: docHeaders(DESKTOP_UA),
+        })
+        expect(decideDesktopGate(reset)).toEqual({kind: "pass"})
+    })
+
+    it("keeps an invite on /m for a Classic mode user", () => {
+        const classic = cookies({[CLASSIC_MODE_COOKIE]: "1"})
+        const headers = docHeaders(DESKTOP_UA)
+        expect(
+            decideMobileGate(
+                input({pathname: "/auth", search: INVITE_SEARCH, headers, cookie: classic}),
+            ),
+        ).toEqual({kind: "pass"})
+        expect(decideMobileGate(input({pathname: "/invite", headers, cookie: classic}))).toEqual({
+            kind: "pass",
+        })
+        // A plain sign-in visit still follows the preference.
+        expect(decideMobileGate(input({pathname: "/auth", headers, cookie: classic}))).toEqual({
+            kind: "redirect",
+            location: "/auth",
+        })
+    })
+})
