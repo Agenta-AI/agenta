@@ -12,7 +12,11 @@ vi.mock("../../src/session/api/api", async (importOriginal) => {
 })
 
 import type {SessionTurn} from "../../src/session/core/schema"
-import {revalidateSessionTurnsAtom, sessionTurnsQueryFamily} from "../../src/session/state/turns"
+import {
+    revalidateSessionTurnsAtom,
+    revalidateSessionTurnsOnTurnEndAtom,
+    sessionTurnsQueryFamily,
+} from "../../src/session/state/turns"
 
 const SESSION_ID = "session-turns-refresh"
 
@@ -42,8 +46,7 @@ const makeStore = () => {
 }
 
 describe("the session turns refresh at a turn's end", () => {
-    // The read in flight saw the turn still running. Kept, its answer would cache `end_time: null`,
-    // and a running turn starts no polling, so the footer would never get the turn's figures.
+    // A kept stale read would cache `end_time: null`, and a running turn starts no polling.
     it("follows a first read in flight with one more read", async () => {
         let answerStaleRead: (turns: SessionTurn[]) => void = () => {}
         querySessionTurnsMock
@@ -95,6 +98,40 @@ describe("the session turns refresh at a turn's end", () => {
                 expect(store.get(sessionTurnsQueryFamily(`${SESSION_ID}-2`)).data).toEqual(ended),
             )
             expect(querySessionTurnsMock).toHaveBeenCalledTimes(3)
+        } finally {
+            unsubscribe()
+        }
+    })
+
+    it("reads nothing for a running turn's records events, and once at its end", async () => {
+        const sessionId = `${SESSION_ID}-3`
+        querySessionTurnsMock.mockReset()
+        querySessionTurnsMock.mockResolvedValueOnce(running).mockResolvedValue(ended)
+        const store = makeStore()
+        const unsubscribe = store.sub(sessionTurnsQueryFamily(sessionId), () => {})
+        try {
+            await vi.waitFor(() =>
+                expect(store.get(sessionTurnsQueryFamily(sessionId)).data).toEqual(running),
+            )
+            const reads = querySessionTurnsMock.mock.calls.length
+
+            // Tool calls and deltas of the running turn: no ended turn in the records.
+            for (let event = 0; event < 6; event += 1) {
+                store.set(revalidateSessionTurnsOnTurnEndAtom, {sessionId, endedTraceIds: []})
+            }
+            await new Promise((resolve) => setTimeout(resolve, 50))
+            expect(querySessionTurnsMock.mock.calls.length).toBe(reads)
+
+            // The turn ends, and later records events still show it ended.
+            for (let event = 0; event < 3; event += 1) {
+                store.set(revalidateSessionTurnsOnTurnEndAtom, {sessionId, endedTraceIds: ["t1"]})
+            }
+            await vi.waitFor(() =>
+                expect(store.get(sessionTurnsQueryFamily(sessionId)).data).toEqual(ended),
+            )
+            store.set(revalidateSessionTurnsOnTurnEndAtom, {sessionId, endedTraceIds: ["t1"]})
+            await new Promise((resolve) => setTimeout(resolve, 50))
+            expect(querySessionTurnsMock.mock.calls.length).toBe(reads + 1)
         } finally {
             unsubscribe()
         }

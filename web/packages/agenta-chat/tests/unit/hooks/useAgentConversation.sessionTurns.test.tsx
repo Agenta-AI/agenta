@@ -1,9 +1,6 @@
 // @vitest-environment jsdom
 //
-// The /m live chat refreshes the session turns, the source of each footer's figures, on both paths
-// that see a turn end: its own stream's finish, and a records refresh (how an observer sees
-// another tab's turn end). The turns query does not poll while a turn runs, so without these the
-// footer kept a running turn's empty figures.
+// The /m live chat reads the session turns at its stream's end and for records that show an ended turn.
 import {createElement, type ReactNode} from "react"
 
 import {projectIdAtom} from "@agenta/shared/state"
@@ -12,9 +9,10 @@ import type {UIMessage} from "ai"
 import {createStore, Provider} from "jotai"
 import {beforeEach, describe, expect, it, vi} from "vitest"
 
-const {loadSessionMessagesMock, turnsRefreshed} = vi.hoisted(() => ({
+const {loadSessionMessagesMock, turnsRefreshed, turnEndsSeen} = vi.hoisted(() => ({
     loadSessionMessagesMock: vi.fn(),
     turnsRefreshed: vi.fn(),
+    turnEndsSeen: vi.fn(),
 }))
 
 vi.mock("../../../src/assets/loadSession", async (importOriginal) => ({
@@ -38,6 +36,11 @@ vi.mock("@agenta/entities/session", async (importOriginal) => {
         revalidateSessionTurnsAtom: atom(null, (_get, _set, sessionId: string) =>
             turnsRefreshed(sessionId),
         ),
+        // The read rule is tested in entities; here the hook hands it only the ended turns.
+        revalidateSessionTurnsOnTurnEndAtom: atom(
+            null,
+            (_get, _set, args: {sessionId: string; endedTraceIds: string[]}) => turnEndsSeen(args),
+        ),
         fetchSessionRecordsAtom: atom(null, () => ({records: null, refreshed: null})),
         fetchSessionInteractionStatesAtom: atom(null, () => new Map()),
         fetchSessionSnapshot: vi.fn(async () => null),
@@ -48,6 +51,7 @@ vi.mock("@agenta/entities/session", async (importOriginal) => {
 
 vi.mock("@agenta/entities/trace", () => ({markTraceAsFresh: vi.fn()}))
 
+import type {SessionTranscript} from "../../../src/assets/loadSession"
 import {useAgentConversation} from "../../../src/hooks/useAgentConversation"
 import {peekSessionChat} from "../../../src/state/sessionChats"
 import {acceptedRunBySession, markSessionFresh} from "../../../src/state/sessionEphemera"
@@ -100,16 +104,41 @@ describe("the live chat refreshes the session turns when a turn ends", () => {
         expect(turnsRefreshed).toHaveBeenCalledWith(sessionId)
     })
 
-    it("on a records refresh, as an observer of another tab's turn", async () => {
+    it("on a records refresh, passing only the turns that ended", async () => {
         const sessionId = nextSessionId()
         markSessionFresh(sessionId)
         const {result} = mount(sessionId)
-        turnsRefreshed.mockReset()
-
-        await act(async () => {
-            await result.current.revalidate()
+        turnEndsSeen.mockReset()
+        const user = {id: "u1", role: "user", parts: [{type: "text", text: "go"}]}
+        const assistant = (metadata: Record<string, unknown>, text: string) => ({
+            id: "a1",
+            role: "assistant",
+            parts: [{type: "text", text}],
+            metadata: {traceId: "0a1b2c3d00004000800000000000000f", ...metadata},
         })
+        const transcript = (messages: unknown[], recordCount: number) =>
+            ({messages, recordCount}) as unknown as SessionTranscript
 
-        expect(turnsRefreshed).toHaveBeenCalledWith(sessionId)
+        // A running turn's records events: tool calls, deltas.
+        for (let n = 2; n <= 6; n += 1) {
+            await act(async () => {
+                await result.current.revalidate(transcript([user, assistant({}, `step ${n}`)], n))
+            })
+        }
+        expect(turnEndsSeen.mock.calls.every(([args]) => args.endedTraceIds.length === 0)).toBe(
+            true,
+        )
+
+        // The turn ends.
+        await act(async () => {
+            await result.current.revalidate(
+                transcript([user, assistant({recordTerminal: true}, "done")], 7),
+            )
+        })
+        expect(turnEndsSeen).toHaveBeenLastCalledWith({
+            sessionId,
+            endedTraceIds: ["0a1b2c3d00004000800000000000000f"],
+        })
+        expect(turnsRefreshed).not.toHaveBeenCalled()
     })
 })

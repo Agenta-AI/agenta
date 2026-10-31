@@ -58,10 +58,7 @@ export const turnsByTraceId = (turns: SessionTurn[]): Map<string, SessionTurn> =
     return byTrace
 }
 
-// A turn's figures from the trace land after it ends, once ingest has the trace. A running turn
-// gives the footer nothing new (it shows the streamed usage), and the turn's end refetches the
-// turns, so only an ended turn is watched, for 2 minutes. Source `trace` does not end the watch:
-// ingest recomputes per batch, so a later batch of the same trace can still change the figures.
+// Only an ended turn is watched; source `trace` does not end it, as later trace batches can still change it.
 const ENDED_WATCH_MS = 2 * 60_000
 
 /** Whether an ended turn may still get (or correct) its figures within the window above. */

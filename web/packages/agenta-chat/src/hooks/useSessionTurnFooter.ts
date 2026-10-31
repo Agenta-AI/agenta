@@ -1,7 +1,7 @@
 import {
     normalizeTraceId,
     sessionTurnsByTraceAtomFamily,
-    sessionTurnsQueryFamily,
+    sessionTurnsPendingAtomFamily,
     turnFigures,
     type TurnFigures,
 } from "@agenta/entities/session"
@@ -28,13 +28,13 @@ export const useSessionTurnFooter = ({
     sessionId: string
     traceId?: string | null
 }): SessionTurnFooter => {
-    const query = useAtomValue(sessionTurnsQueryFamily(sessionId))
+    const pending = useAtomValue(sessionTurnsPendingAtomFamily(sessionId))
     const byTrace = useAtomValue(sessionTurnsByTraceAtomFamily(sessionId))
     const key = normalizeTraceId(traceId)
     const sessionTurn = key ? byTrace.get(key) : undefined
     return {
         figures: sessionTurn ? turnFigures(sessionTurn) : undefined,
         startedAt: sessionTurn?.start_time ?? null,
-        pending: query.isLoading,
+        pending,
     }
 }

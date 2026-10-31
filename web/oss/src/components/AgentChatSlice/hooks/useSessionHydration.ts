@@ -8,7 +8,7 @@ import {
 } from "@agenta/chat/assets"
 import {useMountGeneration} from "@agenta/chat/hooks"
 import {withoutSharedSenderAcceptanceMessages} from "@agenta/chat/model"
-import {hasSessionChat, isSessionFresh} from "@agenta/chat/state"
+import {hasSessionChat, isSessionFresh, refreshSessionTurnsOnTurnEndAtom} from "@agenta/chat/state"
 import {
     fetchSessionInteractionStatesAtom,
     fetchSessionRecordsAtom,
@@ -16,7 +16,6 @@ import {
     interactionStatesFromWatchEvent,
     revalidateSessionInteractionsAtom,
     revalidateSessionRecordsAtom,
-    revalidateSessionTurnsAtom,
     type SessionInteractionRowStates,
     shouldAdoptServerTranscript,
 } from "@agenta/entities/session"
@@ -543,7 +542,7 @@ export const useSessionHydration = ({
     const activeSessionId = useAtomValue(activeSessionIdAtomFamily(scopeKey))
     const projectId = useAtomValue(projectIdAtom)
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
-    const revalidateSessionTurns = useSetAtom(revalidateSessionTurnsAtom)
+    const refreshSessionTurnsOnTurnEnd = useSetAtom(refreshSessionTurnsOnTurnEndAtom)
     const revalidateSessionInteractions = useSetAtom(revalidateSessionInteractionsAtom)
     const fetchSessionInteractionStates = useSetAtom(fetchSessionInteractionStatesAtom)
     const refreshFromRecords = useCallback(
@@ -574,10 +573,10 @@ export const useSessionHydration = ({
                 })
             )
                 return false
-            // A refresh, with or without a supplied transcript, is how an observer sees a turn end:
-            // the session turns hold the footer's figures.
-            revalidateSessionTurns(sessionId)
+            // A refresh is how an observer sees a turn end. Only an ended turn reads the session
+            // turns (the footer's figures); a running turn's events do not.
             if (isSessionTranscript(transcript)) {
+                refreshSessionTurnsOnTurnEnd({sessionId, messages: transcript.messages})
                 return adoptOrConfirm(transcript)
             }
             // A tick usually lands inside the records query's stale window, so the shared cache would
@@ -589,6 +588,7 @@ export const useSessionHydration = ({
             } catch {
                 return false
             }
+            if (refreshed) refreshSessionTurnsOnTurnEnd({sessionId, messages: refreshed.messages})
             // Adoption-point recheck: the entry check above only covers the window BEFORE this
             // fetch started. `loadSessionMessages` is a real network round trip, and a client-tool
             // settle can land while it's in flight — without re-checking here, that settle arrives
@@ -611,7 +611,7 @@ export const useSessionHydration = ({
             recordWatermarkRef,
             sequenceWatermarkRef,
             revalidateSessionRecords,
-            revalidateSessionTurns,
+            refreshSessionTurnsOnTurnEnd,
             readLog,
         ],
     )

@@ -1,22 +1,19 @@
-/**
- * A session's turns, the source of each chat turn's tokens, cost and latency: one read
- * per session instead of one trace read per turn, and readable by everyone who can read the
- * session, with or without trace access.
- */
+/** A session's turns: each chat turn's tokens, cost and latency, in one read per session. */
 import {projectIdAtom} from "@agenta/shared/state"
 import {atom} from "jotai"
+import {selectAtom} from "jotai/utils"
 import {atomFamily} from "jotai-family"
 import {atomWithQuery, queryClientAtom} from "jotai-tanstack-query"
 
 import {querySessionTurns} from "../api/api"
 import type {SessionTurn} from "../core/schema"
-import {turnsByTraceId, turnsMayChange} from "../core/turnFigures"
+import {normalizeTraceId, turnsByTraceId, turnsMayChange} from "../core/turnFigures"
 
 export const sessionTurnsQueryKey = (projectId: string, sessionId: string) =>
     ["session", "turns", projectId, sessionId] as const
 
 const SESSION_TURNS_STALE_MS = 15_000
-/** Re-read while a turn that just ended waits for its figures from the trace. */
+/** Re-read while a turn that just ended waits for its trace figures. */
 const SESSION_TURNS_POLL_MS = 10_000
 
 export const sessionTurnsQueryFamily = atomFamily((sessionId: string) =>
@@ -41,18 +38,22 @@ export const sessionTurnsQueryFamily = atomFamily((sessionId: string) =>
     }),
 )
 
-/** The session's turns by normalized trace id; empty until the turns load. */
-export const sessionTurnsByTraceAtomFamily = atomFamily((sessionId: string) =>
-    atom((get) => turnsByTraceId(get(sessionTurnsQueryFamily(sessionId)).data ?? [])),
+// Selected fields, so a fetch-status change re-renders no footer.
+const sessionTurnsDataAtomFamily = atomFamily((sessionId: string) =>
+    selectAtom(sessionTurnsQueryFamily(sessionId), (query) => query.data),
 )
 
-/**
- * Mark a session's turns stale (a finished turn has its end and its runner figures), and read them
- * again. A read in flight may have seen the turn still running: kept, its answer would cache
- * `end_time: null`, which starts no polling. So a read in flight is replaced (`cancelRefetch`), and
- * a first read, which TanStack Query cannot replace while it has no data, is followed by one more
- * read once it settles. Fire-and-forget.
- */
+/** The session's turns are still loading (the first read). */
+export const sessionTurnsPendingAtomFamily = atomFamily((sessionId: string) =>
+    selectAtom(sessionTurnsQueryFamily(sessionId), (query) => query.isLoading),
+)
+
+/** The session's turns by normalized trace id; empty until the turns load. */
+export const sessionTurnsByTraceAtomFamily = atomFamily((sessionId: string) =>
+    atom((get) => turnsByTraceId(get(sessionTurnsDataAtomFamily(sessionId)) ?? [])),
+)
+
+// Replaces a read in flight, which may cache a running turn and so start no polling.
 export const revalidateSessionTurnsAtom = atom(null, (get, _set, sessionId: string) => {
     const projectId = get(projectIdAtom) ?? ""
     if (!projectId || !sessionId) return
@@ -61,6 +62,7 @@ export const revalidateSessionTurnsAtom = atom(null, (get, _set, sessionId: stri
     const refetch = () => void client.invalidateQueries({queryKey}, {cancelRefetch: true})
     const cache = client.getQueryCache()
     const query = cache.find({queryKey, exact: true})
+    // TanStack Query cannot replace a first read (no data yet): read once more after it.
     if (query && query.state.data === undefined && query.state.fetchStatus !== "idle") {
         const unsubscribe = cache.subscribe((event) => {
             if (event.query !== query || query.state.fetchStatus !== "idle") return
@@ -71,3 +73,27 @@ export const revalidateSessionTurnsAtom = atom(null, (get, _set, sessionId: stri
     }
     refetch()
 })
+
+// Asks once per ended turn the cache lacks as ended; a running turn's events pass no ids.
+const askedForEndBySession = new Map<string, Set<string>>()
+
+export const revalidateSessionTurnsOnTurnEndAtom = atom(
+    null,
+    (get, set, {sessionId, endedTraceIds}: {sessionId: string; endedTraceIds: string[]}) => {
+        const projectId = get(projectIdAtom) ?? ""
+        if (!projectId || !sessionId || endedTraceIds.length === 0) return
+        const cached = get(queryClientAtom).getQueryData<SessionTurn[] | null>(
+            sessionTurnsQueryKey(projectId, sessionId),
+        )
+        const asked = askedForEndBySession.get(sessionId) ?? new Set<string>()
+        const missing = endedTraceIds.map(normalizeTraceId).filter((key) => {
+            if (!key || asked.has(key)) return false
+            const turn = (cached ?? []).find((row) => normalizeTraceId(row.trace_id) === key)
+            return !turn || !turn.end_time
+        })
+        if (missing.length === 0) return
+        for (const key of missing) asked.add(key)
+        askedForEndBySession.set(sessionId, asked)
+        set(revalidateSessionTurnsAtom, sessionId)
+    },
+)

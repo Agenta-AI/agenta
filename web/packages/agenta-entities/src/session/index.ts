@@ -141,7 +141,9 @@ export {pickCwdMount} from "./core/mountSelection"
 export {listedEntryAt, parentFolderOf} from "./core/pathUtils"
 export {
     revalidateSessionTurnsAtom,
+    revalidateSessionTurnsOnTurnEndAtom,
     sessionTurnsByTraceAtomFamily,
+    sessionTurnsPendingAtomFamily,
     sessionTurnsQueryFamily,
     sessionTurnsQueryKey,
 } from "./state/turns"

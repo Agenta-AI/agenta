@@ -112,6 +112,7 @@ import {
     setSessionStatusAtom,
     holdSessionStatusAtom,
 } from "../state/sessionMessages"
+import {refreshSessionTurnsOnTurnEndAtom} from "../state/sessionTurnsRefresh"
 import {clearTurnClockAtom, startTurnClockAtom} from "../state/turnClock"
 
 import {useAgentChatQueue, type QueuedMessage} from "./useAgentChatQueue"
@@ -313,6 +314,7 @@ export const useAgentConversation = ({
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
     // The footer's figures: a turn's end and its runner usage land on the session turn.
     const revalidateSessionTurns = useSetAtom(revalidateSessionTurnsAtom)
+    const refreshSessionTurnsOnTurnEnd = useSetAtom(refreshSessionTurnsOnTurnEndAtom)
     const revalidateSessionInteractions = useSetAtom(revalidateSessionInteractionsAtom)
     const fetchSessionInteractionStates = useSetAtom(fetchSessionInteractionStatesAtom)
     const pruneExpanded = useSetAtom(pruneExpandedAtom)
@@ -1101,10 +1103,10 @@ export const useAgentConversation = ({
                     (currentWatermark ?? 0) >= candidateWatermark
                 )
             }
-            // A refresh, with or without a supplied transcript, is how an observer sees another
-            // tab's turn end: the session turns hold the footer's figures.
-            revalidateSessionTurns(sessionId)
+            // A refresh is how an observer sees another tab's turn end. Only an ended turn reads
+            // the session turns (the footer's figures); a running turn's events do not.
             if (isSessionTranscript(transcript)) {
+                refreshSessionTurnsOnTurnEnd({sessionId, messages: transcript.messages})
                 return adoptOrConfirm(transcript)
             }
             revalidateSessionRecords(sessionId)
@@ -1117,9 +1119,16 @@ export const useAgentConversation = ({
             } catch {
                 return false
             }
+            if (refreshed) refreshSessionTurnsOnTurnEnd({sessionId, messages: refreshed.messages})
             return adoptOrConfirm(refreshed) || adopted
         },
-        [adoptServerTranscript, mount, revalidateSessionRecords, revalidateSessionTurns, sessionId],
+        [
+            adoptServerTranscript,
+            mount,
+            revalidateSessionRecords,
+            refreshSessionTurnsOnTurnEnd,
+            sessionId,
+        ],
     )
 
     const {
