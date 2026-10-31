@@ -36,15 +36,22 @@ describe("fetchOfferedRoles", () => {
         ])
     })
 
-    it("lists nothing when the answer offers nothing", async () => {
-        fetchAccessRolesMock.mockResolvedValue({project: [entry("admin")]})
+    it("asks for the default project when none is named", async () => {
+        fetchAccessRolesMock.mockResolvedValue({
+            project: [entry("admin")],
+            offered: {roles: [], floor_role: "member"},
+        })
 
         expect(await fetchOfferedRoles()).toEqual([])
         expect(fetchAccessRolesMock).toHaveBeenCalledWith({queryParams: undefined})
     })
 
-    it("fails on an answer that does not validate", async () => {
-        fetchAccessRolesMock.mockResolvedValue({project: "not a list"})
+    it.each([
+        {project: "not a list", offered: {roles: [], floor_role: "member"}},
+        {project: [entry("admin")]},
+        {offered: {roles: ["admin"], floor_role: "member"}},
+    ])("fails on an answer that does not validate: %j", async (answer) => {
+        fetchAccessRolesMock.mockResolvedValue(answer)
 
         await expect(fetchOfferedRoles("project-1")).rejects.toThrow()
     })

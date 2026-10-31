@@ -27,10 +27,8 @@ const roleCatalogEntrySchema = z.object({
 })
 
 const accessRolesResponseSchema = z.object({
-    project: z.array(roleCatalogEntrySchema).optional(),
-    offered: z
-        .object({roles: z.array(z.string()).optional(), floor_role: z.string().optional()})
-        .optional(),
+    project: z.array(roleCatalogEntrySchema),
+    offered: z.object({roles: z.array(z.string()), floor_role: z.string()}),
 })
 
 /**
@@ -52,9 +50,9 @@ export const fetchOfferedRoles = async (
     })
     const data = safeParseWithLogging(accessRolesResponseSchema, raw, "[fetchOfferedRoles]")
     if (!data) throw new Error("The roles answer did not validate")
-    const offered = new Set(data.offered?.roles ?? [])
+    const offered = new Set(data.offered.roles)
     // The API offers roles from the project catalog, which the access check reads.
-    return (data.project ?? [])
+    return data.project
         .filter((entry) => offered.has(entry.role))
         .map((entry) => ({
             role_name: entry.role,
