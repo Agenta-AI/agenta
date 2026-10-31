@@ -16,6 +16,7 @@ import {
     McpServerNoticeCard,
     TurnFooter,
 } from "@agenta/chat/components"
+import {useSessionTurnFooter} from "@agenta/chat/hooks"
 import {readableTraceError, splitTurnActivity, type TurnViewModel} from "@agenta/chat/model"
 import {messageBodyKey} from "@agenta/chat/state"
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
@@ -102,6 +103,11 @@ const TurnRowInner = ({
         turn.message.parts as {state?: string; errorText?: string}[],
     )
     const usage = getMessageUsage(turn.message)
+    // A user turn has no trace of its own: it takes its time from the turn it started.
+    const sessionTurn = useSessionTurnFooter({
+        sessionId,
+        traceId: turn.isUser ? turn.turnTraceId : traceId,
+    })
     const openProviders = useProviderRecovery()
     const openBilling = useBillingRoute()
     const canBuyCredits = useCanBuyCredits(turn.status.errorCode)
@@ -139,9 +145,11 @@ const TurnRowInner = ({
     const footer = {
         messageId: turn.message.id,
         traceId,
-        turnTraceId: turn.turnTraceId,
         isStreaming: turn.isStreamingTurn,
         usage,
+        sessionTurnFigures: sessionTurn.figures,
+        sessionTurnStartedAt: sessionTurn.startedAt,
+        sessionTurnsPending: sessionTurn.pending,
         copyText,
         // Rewinding the last turn re-runs the current one; hidden, as on desktop.
         onRewind: onRewind && !turn.isLast ? () => onRewind(turn) : undefined,
@@ -254,7 +262,8 @@ const TurnRowInner = ({
                 waitingOnUser={turn.isLast && waitingOnUser}
                 resuming={turn.isLast && resuming}
                 hadGate={turn.hadGate}
-                traceId={traceId}
+                sessionTurnStartedAt={sessionTurn.startedAt}
+                sessionTurnDurationMs={sessionTurn.figures?.durationMs}
                 streamedHere={streamedHereRef.current}
                 runStartedAt={runStartedAt}
                 renderClientTool={renderClientTool}

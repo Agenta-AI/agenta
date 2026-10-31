@@ -8,6 +8,7 @@
 export {
     querySessionRecords,
     querySessionTranscript,
+    querySessionTurns,
     fetchSessionSnapshot,
     queryInteractions,
     fetchInteraction,
@@ -73,6 +74,10 @@ export {
     sessionSnapshotSchema,
     pendingSessionInputSchema,
     sessionsQueryResponseSchema,
+    sessionTurnSchema,
+    sessionTurnsResponseSchema,
+    type SessionTurn,
+    type SessionTurnUsage,
     type SessionRecord,
     type SessionRecordsQueryResponse,
     type SessionInteraction,
@@ -134,6 +139,21 @@ export {shouldAdoptServerTranscript, type TranscriptAdoptionInput} from "./core/
 export {deriveMountRows, mountBreadcrumbs, type MountRow} from "./core/mountBrowser"
 export {pickCwdMount} from "./core/mountSelection"
 export {listedEntryAt, parentFolderOf} from "./core/pathUtils"
+export {
+    revalidateSessionTurnsAtom,
+    revalidateSessionTurnsOnTurnEndAtom,
+    sessionTurnsByTraceAtomFamily,
+    sessionTurnsPendingAtomFamily,
+    sessionTurnsQueryFamily,
+    sessionTurnsQueryKey,
+} from "./state/turns"
+export {
+    normalizeTraceId,
+    turnFigures,
+    turnsByTraceId,
+    turnsMayChange,
+    type TurnFigures,
+} from "./core/turnFigures"
 export {
     sessionRecordsQueryFamily,
     sessionRecordFileRecencyAtomFamily,

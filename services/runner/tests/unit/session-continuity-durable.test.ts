@@ -19,6 +19,7 @@ import {
   hydrateHarnessSessionFromDurable,
   readLatestSessionTurn,
   SessionTurnIndexTaken,
+  turnUsageBody,
 } from "../../src/engines/sandbox_agent/session-continuity-durable.ts";
 import {
   SessionContinuityStore,
@@ -724,6 +725,58 @@ describe("completeSessionTurn", () => {
       agent_session_id: "agent-1",
       end_time: "2026-07-21T10:02:00.000Z",
     });
+  });
+});
+
+describe("completeSessionTurn usage", () => {
+  const bodyOf = async (usage?: Parameters<typeof turnUsageBody>[0]) => {
+    const calls: Array<Record<string, unknown>> = [];
+    await completeSessionTurn(
+      "sess-1",
+      3,
+      { endTime: "2026-07-21T10:02:00.000Z", ...(usage ? { usage } : {}) },
+      {
+        apiBase: "http://api:8000",
+        authorization: "ApiKey abc",
+        fetchImpl: (async (_url: string, init?: RequestInit) => {
+          calls.push(JSON.parse(init!.body as string));
+          return okResponse({ turn: {} });
+        }) as unknown as typeof fetch,
+        log: SILENT,
+      },
+    );
+    return calls[0];
+  };
+
+  it("sends the turn's tokens and cost in the completion call", async () => {
+    const body = await bodyOf({ input: 10, output: 5, total: 15, cost: 0.0021 });
+    assert.deepEqual(body["usage"], {
+      input_tokens: 10,
+      output_tokens: 5,
+      total_tokens: 15,
+      cost: 0.0021,
+    });
+  });
+
+  it("omits an unknown cost, and keeps a measured zero cost", async () => {
+    assert.deepEqual((await bodyOf({ input: 1, output: 2, total: 3 }))["usage"], {
+      input_tokens: 1,
+      output_tokens: 2,
+      total_tokens: 3,
+    });
+    assert.deepEqual(
+      (await bodyOf({ input: 1, output: 2, total: 3, cost: 0 }))["usage"],
+      { input_tokens: 1, output_tokens: 2, total_tokens: 3, cost: 0 },
+    );
+  });
+
+  it("sends no tokens for a cost-only reading and no usage when nothing is known", async () => {
+    assert.deepEqual(
+      (await bodyOf({ input: 0, output: 0, total: 0, cost: 0.5 }))["usage"],
+      { cost: 0.5 },
+    );
+    assert.equal("usage" in (await bodyOf({ input: 0, output: 0, total: 0 })), false);
+    assert.equal("usage" in (await bodyOf()), false);
   });
 });
 

@@ -395,3 +395,30 @@ export type Mount = z.infer<typeof mountSchema>
 
 /** Stream command modes (prompt × force matrix). */
 export type CommandMode = "send" | "steer" | "cancel" | "attach"
+
+/** A turn's usage. Absent, or a null field, means unknown: never read it as zero. */
+export const sessionTurnUsageSchema = z.object({
+    input_tokens: z.number().nullish(),
+    output_tokens: z.number().nullish(),
+    total_tokens: z.number().nullish(),
+    cost: z.number().nullish(),
+    source: z.string().nullish(),
+})
+
+/** The fields of a `session_turns` row the chat reads: its trace, times and usage. */
+export const sessionTurnSchema = z.object({
+    id: z.string().nullish(),
+    turn_index: z.number().nullish(),
+    trace_id: z.string().nullish(),
+    start_time: z.string().nullish(),
+    end_time: z.string().nullish(),
+    usage: sessionTurnUsageSchema.nullish(),
+})
+
+export const sessionTurnsResponseSchema = z.object({
+    count: z.number().nullish(),
+    turns: z.array(sessionTurnSchema).nullish(),
+})
+
+export type SessionTurnUsage = z.infer<typeof sessionTurnUsageSchema>
+export type SessionTurn = z.infer<typeof sessionTurnSchema>
