@@ -2,6 +2,8 @@
 
 ## Purpose
 
+Replaced by `small-team-roles`. Do not build or archive these requirements. They stay as the record of the replaced design.
+
 Let only the people who may read a session read its traces, also after deletion.
 
 ## ADDED Requirements
