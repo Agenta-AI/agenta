@@ -14,4 +14,4 @@ The access control docs SHALL describe the roles each plan offers, that roles ap
 
 #### Scenario: Reader checks Pro
 - **WHEN** a reader looks up roles on Pro
-- **THEN** the docs SHALL say Owner, Admin and Member.
+- **THEN** the docs SHALL say that Pro has the roles Owner, Admin and Member, that only Admin and Member can be invited or assigned, and that Owner changes only by transfer.
