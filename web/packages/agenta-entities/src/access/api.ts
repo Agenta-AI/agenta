@@ -28,9 +28,12 @@ export const fetchProjectPermission = async (
     }
 }
 
+/** The key prefix of every permission answer; invalidate it when the reader's role changes. */
+export const projectPermissionQueryPrefix = ["project-permission"] as const
+
 /** One cache entry per project and action, shared by the app hook and the package atoms. */
 export const projectPermissionQueryKey = (projectId: string, action: string) => [
-    "project-permission",
+    ...projectPermissionQueryPrefix,
     projectId,
     action,
 ]

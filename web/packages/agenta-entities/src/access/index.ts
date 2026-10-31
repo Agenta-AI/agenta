@@ -3,6 +3,10 @@
  *
  * Roles are enforced by the API; these atoms let a surface hide what the API would refuse.
  */
-export {fetchProjectPermission, projectPermissionQueryKey} from "./api"
+export {
+    fetchProjectPermission,
+    projectPermissionQueryKey,
+    projectPermissionQueryPrefix,
+} from "./api"
 
 export {canViewSpansAtom, projectPermissionAtomFamily} from "./state"

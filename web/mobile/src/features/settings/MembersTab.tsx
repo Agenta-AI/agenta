@@ -1,6 +1,7 @@
 import {useState} from "react"
 
 import {isValidEmailAddress} from "@agenta/auth"
+import {projectPermissionQueryPrefix} from "@agenta/entities/access"
 import type {WorkspaceMember} from "@agenta/entities/organization"
 import {
     assignWorkspaceRole,
@@ -66,16 +67,20 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
     // reader may do, so no control appears that the API would refuse.
     const scopeKnown = Boolean(organizationId && workspaceId)
     const canInvite = useProjectPermission(projectId, "add_new_user_to_workspace")
-    // Changing a role needs `modify_user_roles`; removing a member needs the admin or owner
-    // role. Only those two roles hold that permission, so one answer decides both.
-    const isAdminOrOwner = useProjectPermission(projectId, "modify_user_roles")
+    const canChangeRoles = useProjectPermission(projectId, "modify_user_roles")
+    // The remove route requires the admin role itself (or the organization owner), whatever
+    // permissions a custom role holds, so this reads the reader's own role.
+    const signedInMember = members.find((member) => member.user.id === signedInUser?.id)
+    const canRemove =
+        (Boolean(ownerId) && signedInUser?.id === ownerId) ||
+        (signedInMember ? ["admin", "owner"].includes(memberRole(signedInMember)) : false)
 
     // The roles this organization offers, which is what an invite and a role change may set.
     // Keyed by organization, because another organization on another plan offers another set.
     const roles = useQuery({
-        queryKey: ["workspace-roles", organizationId, projectId],
+        queryKey: ["offered-roles", organizationId, projectId],
         queryFn: () => fetchOfferedRoles(projectId, true),
-        enabled: Boolean(projectId) && (inviteOpen || isAdminOrOwner),
+        enabled: Boolean(projectId) && (inviteOpen || canChangeRoles),
     })
     const offeredRoles = (roles.data ?? []).map((entry) => entry.role_name)
 
@@ -139,7 +144,12 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
                 },
                 true,
             ),
-        onSuccess: () => onChanged(),
+        onSuccess: () => {
+            onChanged()
+            // The change can be the reader's own role (an admin who makes themself a member):
+            // every cached permission answer, the trace gate included, must be asked again.
+            void queryClient.invalidateQueries({queryKey: projectPermissionQueryPrefix})
+        },
         // The API's refusal is a sentence written for the reader ("This role is not available on
         // your plan."); anything else gets the plain fallback, never the transport's own text.
         onError: (cause: unknown) => {
@@ -159,13 +169,13 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
             signedInUser={signedInUser}
             ownerId={ownerId}
             canInviteMembers={scopeKnown && canInvite}
-            canRemoveMembers={scopeKnown && isAdminOrOwner}
+            canRemoveMembers={scopeKnown && canRemove}
             renderRoleCell={(member) => (
                 <MemberRoleCell
                     member={member}
                     isOwner={Boolean(ownerId) && member.user.id === ownerId}
                     offeredRoles={offeredRoles}
-                    canChange={scopeKnown && isAdminOrOwner}
+                    canChange={scopeKnown && canChangeRoles}
                     pending={
                         roleMutation.isPending &&
                         roleMutation.variables?.member.user.id === member.user.id
