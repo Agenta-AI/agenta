@@ -1,6 +1,6 @@
 # Plugin POC validation
 
-The plugin backend, MCP adapter, browser bridge, and demo are implemented. The real Linear demo is not yet verified because it needs the user's Linear and model connections.
+The plugin backend, MCP adapter, browser bridge, and demo are implemented. Real Linear page reads and MCP reads and writes are verified. The linked agent is visible in the demo project; a model connection is still needed to verify its real chat and approval flow.
 
 ## Checked
 
@@ -26,6 +26,17 @@ The initial direct sandbox call took 23.76 seconds. Later calls took 2.64 to 3.0
 - Viewer permission errors can arrive inside a service failure. The page translates those into a clear access-denied message.
 - Label updates preserve existing labels, limit batches to five issues, and report partial completion without retries.
 
+## Real Linear verification
+
+- Inspected the connected server's tool schemas. The current server uses `save_issue` and object-valued priorities. The demo now uses `addLabels` to preserve existing labels without replacing them.
+- The page loaded 14 real open issues in 3.17 seconds. Warm direct calls took 2.95–3.01 seconds. Desktop and mobile rendering were inspected.
+- Both plugin MCP tools succeeded against real Linear. The write re-added a label already on the selected issue; a read-back confirmed that its label set did not change.
+- Gateway audit records show the same caller for the plugin and downstream Linear calls.
+- The agent is visible and linked to the plugin, with `bulk_label` requiring approval. It has no model connection yet.
+- Six demo tests pass. The three review fixes passed 38 API regression tests and nine focused SDK tests.
+
 ## Remaining acceptance checks
 
-Connect Linear and a model in the demo project, seed the Linear triage plugin and agent link, confirm the real server's argument schemas, and exercise page reads and selected label writes. Repeat the agent read and approval flow with that connection. Measure cold and warm calls and confirm the caller in the Linear relay audit record. Do not mark the POC complete until these checks pass.
+Connect a model to the linked agent, then verify a real chat read, the approval pause before a label write, and the completed agent call's audit records. Cold real-server timings remain unmeasured. Do not mark the POC complete until these checks pass.
+
+The prior Railway acceptance run failed three personal-account requirement tests. This has not yet been reproduced on the base branch, so it is not classified as an unrelated failure. The latest CI run must also be checked.

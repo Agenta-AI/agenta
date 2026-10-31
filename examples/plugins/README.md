@@ -6,7 +6,7 @@ The proof of concept requires the Daytona code runner. It does not add a plugin 
 
 ## Seed
 
-Create a custom Linear MCP connection with slug `linear` and an agent in the same project. Configure the agent's model connection normally. The Linear server must expose `list_issues`, `get_issue`, and `update_issue`.
+Create a custom Linear MCP connection and an agent in the same project. Set `LINEAR_MCP_SLUG` to the connection slug shown in Settings if it is not `linear`. Configure the agent's model connection normally. The Linear server must expose `list_issues`, `get_issue`, and `save_issue`.
 
 Set `AGENTA_API_URL`, `AGENTA_API_KEY`, `PROJECT_ID`, and `AGENT_ID` in your environment, then run:
 

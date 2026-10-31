@@ -15,9 +15,9 @@ test('scores open issues and excludes completed ones',async()=>{
 });
 test('preserves existing labels and adds only once',async()=>{
  let saved;
- const {ops,ctx}=operations(async(name,args)=>name==='get_issue'?result({labels:['Bug','Urgent']}):(saved=args,result({success:true})));
+ const {ops,ctx}=operations(async(name,args)=>{assert.equal(name,'save_issue');saved=args;return result({success:true});});
  await ops.bulk_label({ids:['a','a'],label:'Urgent'},ctx);
- assert.deepEqual(JSON.parse(JSON.stringify(saved)),{id:'a',labels:['Bug','Urgent']});
+ assert.deepEqual(JSON.parse(JSON.stringify(saved)),{id:'a',addLabels:['Urgent']});
 });
 test('reports partial completion and does not retry an uncertain write',async()=>{
  const writes=[];
@@ -37,4 +37,10 @@ test('treats an unreadable write response as uncertain',async()=>{
  const {ops,ctx}=operations(async(name)=>name==='get_issue'?result({labels:[]}):{content:[{type:'text',text:'Updated'}]});
  const response=await ops.bulk_label({ids:['a']},ctx);
  assert.equal(response.uncertain,'a');assert.match(response.error,/Check Linear/);
+});
+
+test('handles current Linear priority objects and status types',async()=>{
+ const {ops,ctx}=operations(async()=>result({issues:[{id:'a',priority:{value:0},statusType:'backlog'},{id:'b',priority:{value:1},statusType:'started'},{id:'c',priority:{value:1},statusType:'completed'}]}));
+ const issues=JSON.parse(JSON.stringify(await ops.my_open_issues({},ctx)));
+ assert.deepEqual(issues.map(i=>[i.id,i.score]),[['b',4],['a',0]]);
 });

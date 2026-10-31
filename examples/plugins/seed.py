@@ -3,7 +3,7 @@
 # ///
 """Seed the demo using AGENTA_API_URL, AGENTA_API_KEY, PROJECT_ID and AGENT_ID.
 
-The creator must already have a custom MCP connection named `linear`. No credentials
+The creator must have a custom Linear MCP connection. LINEAR_MCP_SLUG defaults to `linear`. No credentials
 are persisted by this script. Existing agent settings and MCP entries are preserved.
 """
 
@@ -51,6 +51,9 @@ def seed():
     agent_id = os.environ["AGENT_ID"]
     source = Path(__file__).parent / "linear-triage"
     manifest = json.loads((source / "plugin.json").read_text())
+    manifest["mcps"][0]["connection"]["slug"] = os.environ.get(
+        "LINEAR_MCP_SLUG", "linear"
+    )
     with httpx.Client(
         headers={"Authorization": f"ApiKey {key}", "Accept": "application/json"},
         params={"project_id": project_id},
@@ -95,7 +98,7 @@ def seed():
                 notification.raise_for_status()
                 tools = rpc(mcp, url, "tools/list", {}, 2)["tools"]
                 available = {tool["name"] for tool in tools}
-                required = {"list_issues", "get_issue", "update_issue"}
+                required = {"list_issues", "get_issue", "save_issue"}
                 if not required <= available:
                     raise RuntimeError(
                         "Linear tool names differ from the demo. Inspect tools/list and update the demo before seeding."
