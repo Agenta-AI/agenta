@@ -153,7 +153,10 @@ def seed():
                     },
                     "policy": {
                         "permission": "allow",
-                        "tool_permissions": {"bulk_label": "ask"},
+                        "tool_permissions": {
+                            "my_open_issues": "allow",
+                            "bulk_label": "ask",
+                        },
                     },
                 }
             )
