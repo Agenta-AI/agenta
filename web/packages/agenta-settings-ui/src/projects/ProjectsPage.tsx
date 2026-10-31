@@ -71,8 +71,10 @@ export interface ProjectsPageProps {
     renderDeleteDialog?: (state: ProjectDialogState<void>) => React.ReactNode
     /** Whether the reader may create a project. Defaults to "yes wherever a dialog exists". */
     canCreate?: boolean
-    /** Whether the reader may rename a project or make it the default. Same default. */
+    /** Whether the reader may rename a project. Same default. */
     canEdit?: boolean
+    /** Whether the reader may make a project the default. Defaults to `canEdit`. */
+    canSetDefault?: boolean
     /** Whether the reader may delete a project. Same default; the API allows the owner only. */
     canDelete?: boolean
     /**
@@ -92,6 +94,7 @@ export const ProjectsPage = ({
     renderDeleteDialog,
     canCreate,
     canEdit: canEditProp,
+    canSetDefault: canSetDefaultProp,
     canDelete,
     onChanged,
 }: ProjectsPageProps) => {
@@ -115,6 +118,7 @@ export const ProjectsPage = ({
     // nothing. A host that knows the reader's reach says so, and each verb follows its own flag.
     const hasDialogs = Boolean(renderCreateDialog || renderDeleteDialog)
     const canEdit = canEditProp ?? hasDialogs
+    const canSetDefault = canSetDefaultProp ?? canEdit
     const showCreate = (canCreate ?? hasDialogs) && Boolean(renderCreateDialog)
     const showDelete = (canDelete ?? hasDialogs) && Boolean(renderDeleteDialog)
     const canDeleteProjects = scopedProjects.length > 1
@@ -307,7 +311,7 @@ export const ProjectsPage = ({
                                     key: "default",
                                     label: "Set as default",
                                     icon: <CheckCircle size={14} />,
-                                    hidden: !canEdit || Boolean(record.is_default_project),
+                                    hidden: !canSetDefault || Boolean(record.is_default_project),
                                     disabled: defaultMutation.isPending,
                                     onClick: () => defaultMutation.mutate(record.project_id),
                                 },

@@ -323,7 +323,9 @@ def test_admin_cannot_delete_a_project(admin_api, team):
     assert resp.status_code == 403, resp.text
 
 
-def test_member_creates_and_renames_a_project_but_cannot_delete_it(admin_api, team):
+def test_member_creates_and_renames_a_project_but_cannot_delete_or_make_default(
+    admin_api, team
+):
     created = admin_api(
         "POST",
         "/projects/",
@@ -356,6 +358,24 @@ def test_member_creates_and_renames_a_project_but_cannot_delete_it(admin_api, te
         headers=headers,
     )
     assert deleted.status_code == 403, deleted.text
+
+    # The default project carries organization writes: only owners and admins choose it.
+    made_default = admin_api(
+        "PATCH",
+        f"/projects/{new_id}",
+        params={"project_id": new_id},
+        headers=headers,
+        json={"make_default": True},
+    )
+    assert made_default.status_code == 403, made_default.text
+    created_default = admin_api(
+        "POST",
+        "/projects/",
+        params={"project_id": team["project_id"]},
+        headers=team["headers"]["member"],
+        json={"name": f"member-{uuid4().hex[:8]}", "make_default": True},
+    )
+    assert created_default.status_code == 403, created_default.text
 
 
 def test_a_stored_viewer_keeps_viewer_permissions(admin_api, team):
