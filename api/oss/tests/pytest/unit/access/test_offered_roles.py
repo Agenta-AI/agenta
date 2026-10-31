@@ -251,3 +251,103 @@ async def test_an_invite_stops_when_the_plan_cannot_be_read(monkeypatch, roles):
             _invite(*roles), organization_id=str(uuid4())
         )
     assert error.value.status_code == 503
+
+
+# -- resend -----------------------------------------------------------------------------
+
+
+@pytest.fixture
+def resend(monkeypatch):
+    from datetime import datetime, timedelta, timezone
+
+    organization_id = uuid4()
+    project = SimpleNamespace(id=uuid4(), organization_id=organization_id)
+    state = SimpleNamespace(stored=None, created=[], sent=[])
+
+    def _wire(*, role, expired=False):
+        state.stored = SimpleNamespace(
+            id=uuid4(),
+            email="x@test.agenta.ai",
+            role=role,
+            used=False,
+            token="t",
+            project_id=project.id,
+            expiration_date=datetime.now(timezone.utc)
+            + timedelta(days=-1 if expired else 1),
+        )
+        return state
+
+    db = organization_service.db_manager
+
+    async def _user(*, user_id):
+        return SimpleNamespace(id=user_id, email="admin@test.agenta.ai")
+
+    async def _invitation(*, organization_id, email):
+        return state.stored
+
+    async def _project(*, project_id):
+        return project
+
+    async def _delete(invitation_id):
+        return None
+
+    async def _create(role, project_id, email):
+        state.created.append(role)
+        return SimpleNamespace(token="new")
+
+    async def _send(email, token, **kwargs):
+        state.sent.append(token)
+        return "https://invite.test/link"
+
+    monkeypatch.setattr(db, "get_user_with_id", _user)
+    monkeypatch.setattr(
+        db, "get_project_invitation_by_organization_and_email", _invitation
+    )
+    monkeypatch.setattr(db, "get_project_by_id", _project)
+    monkeypatch.setattr(db, "delete_invitation", _delete)
+    monkeypatch.setattr(organization_service, "create_invitation", _create)
+    monkeypatch.setattr(organization_service, "send_invitation_email", _send)
+    return organization_id, project, _wire
+
+
+async def _resend(organization_id, project):
+    return await organization_service.resend_user_organization_invite(
+        SimpleNamespace(email="x@test.agenta.ai"),
+        project_id=str(project.id),
+        user_id=str(uuid4()),
+        organization_id=str(organization_id),
+    )
+
+
+@pytest.mark.parametrize("expired", [False, True])
+@pytest.mark.parametrize("role", ["viewer", "owner"])
+async def test_a_resend_refuses_a_role_the_plan_does_not_offer(
+    plan, resend, role, expired
+):
+    plan(entitled=False)
+    organization_id, project, wire = resend
+    state = wire(role=role, expired=expired)
+
+    with pytest.raises(HTTPException) as error:
+        await _resend(organization_id, project)
+
+    assert error.value.status_code == 400
+    assert (state.created, state.sent) == ([], [])
+
+
+@pytest.mark.parametrize("expired", [False, True])
+async def test_a_resend_keeps_an_offered_role(plan, resend, expired):
+    plan(entitled=False)
+    organization_id, project, wire = resend
+    state = wire(role="member", expired=expired)
+
+    assert await _resend(organization_id, project) == {
+        "url": "https://invite.test/link"
+    }
+    assert state.created == (["member"] if expired else [])
+    assert len(state.sent) == 1
+
+
+def test_an_owner_invitation_grants_admin():
+    assert organization_service.accepted_invitation_role("owner") == "admin"
+    assert organization_service.accepted_invitation_role("member") == "member"

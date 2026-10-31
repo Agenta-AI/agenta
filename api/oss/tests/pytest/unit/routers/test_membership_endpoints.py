@@ -592,7 +592,7 @@ def invitation(monkeypatch):
     monkeypatch.setattr(db, "get_workspace", _workspace)
     monkeypatch.setattr(db, "update_invitation", _update)
     monkeypatch.setattr(organization_service, "notify_org_admin_invitation", _notify)
-    return SimpleNamespace(user=user, project=project, updates=updates)
+    return SimpleNamespace(user=user, project=project, invite=invite, updates=updates)
 
 
 async def test_invite_accept_writes_through_set_member_role(invitation, monkeypatch):
@@ -619,6 +619,23 @@ async def test_invite_accept_writes_through_set_member_role(invitation, monkeypa
         )
     ]
     assert invitation.updates == [{"user_id": str(invitation.user.id), "used": True}]
+
+
+async def test_an_owner_invitation_is_accepted_as_admin(invitation, monkeypatch):
+    # Only the transfer route makes an owner; an invitation stored as `owner` (OSS has no
+    # migration for them) grants `admin`.
+    invitation.invite.role = "owner"
+    service = _MembershipsService(organization_role=None)
+    monkeypatch.setattr(memberships_module, "_memberships_service", service)
+
+    assert await organization_service.accept_organization_invitation(
+        token="t",
+        organization_id=str(invitation.project.organization_id),
+        email=invitation.user.email,
+        session_email=invitation.user.email,
+    )
+
+    assert service.calls[0][1]["role"] == "admin"
 
 
 async def test_invite_accept_by_someone_else_when_the_invited_email_has_no_account(
