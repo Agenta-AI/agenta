@@ -79,57 +79,31 @@ export const revalidateSessionTurnsAtom = atom(
     },
 )
 
-// Ended turns (by trace id) that need a read: absent from the cache, or cached as running.
-const turnsNeedingRead = (keys: string[], cached: SessionTurn[] | null | undefined): string[] => {
-    const endedByTrace = new Map<string, boolean>()
-    for (const row of cached ?? []) {
-        const key = normalizeTraceId(row.trace_id)
-        if (key) endedByTrace.set(key, Boolean(row.end_time) || endedByTrace.get(key) === true)
-    }
-    return keys.filter((key) => key && endedByTrace.get(key) !== true)
+const endedTurnNeedsRead = (key: string, cached: SessionTurn[] | null | undefined): boolean => {
+    const turn = (cached ?? []).find((row) => normalizeTraceId(row.trace_id) === key)
+    return !turn || !turn.end_time
 }
 
-// The runner writes the terminal record before it completes the turn, so a read can still see it
-// running; it is read again after a pause, a few times at most.
-const TURN_END_RETRY_MS = 3_000
-const TURN_END_MAX_READS = 4
-
-// One read at a time per session; ended turns seen meanwhile wait for it to settle.
+// One read at a time per session; a turn still cached as running is read again on a later event.
 const readingBySession = new Set<string>()
-const waitingBySession = new Map<string, string[]>()
 
 export const revalidateSessionTurnsOnTurnEndAtom = atom(
     null,
     (get, set, {sessionId, endedTraceIds}: {sessionId: string; endedTraceIds: string[]}) => {
         const projectId = get(projectIdAtom) ?? ""
         if (!projectId || !sessionId || endedTraceIds.length === 0) return
-        const keys = endedTraceIds.map(normalizeTraceId)
-        if (readingBySession.has(sessionId)) {
-            waitingBySession.set(sessionId, keys)
-            return
-        }
+        if (readingBySession.has(sessionId)) return
         const client = get(queryClientAtom)
-        const queryKey = sessionTurnsQueryKey(projectId, sessionId)
-        const cachedTurns = () => client.getQueryData<SessionTurn[] | null>(queryKey)
-        const read = (pending: string[], reads: number) => {
-            if (turnsNeedingRead(pending, cachedTurns()).length === 0) {
-                readingBySession.delete(sessionId)
-                return
-            }
-            readingBySession.add(sessionId)
-            void set(revalidateSessionTurnsAtom, sessionId).finally(() => {
-                const next = [...pending, ...(waitingBySession.get(sessionId) ?? [])]
-                waitingBySession.delete(sessionId)
-                if (
-                    reads >= TURN_END_MAX_READS ||
-                    turnsNeedingRead(next, cachedTurns()).length === 0
-                ) {
-                    readingBySession.delete(sessionId)
-                    return
-                }
-                setTimeout(() => read(next, reads + 1), TURN_END_RETRY_MS)
-            })
-        }
-        read(keys, 1)
+        const cached = client.getQueryData<SessionTurn[] | null>(
+            sessionTurnsQueryKey(projectId, sessionId),
+        )
+        const needsRead = endedTraceIds
+            .map(normalizeTraceId)
+            .some((key) => key && endedTurnNeedsRead(key, cached))
+        if (!needsRead) return
+        readingBySession.add(sessionId)
+        void set(revalidateSessionTurnsAtom, sessionId).finally(() => {
+            readingBySession.delete(sessionId)
+        })
     },
 )
