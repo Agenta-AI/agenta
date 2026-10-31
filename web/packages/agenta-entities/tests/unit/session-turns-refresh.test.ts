@@ -136,4 +136,61 @@ describe("the session turns refresh at a turn's end", () => {
             unsubscribe()
         }
     })
+
+    // The runner flushes the terminal record before it completes the turn.
+    it("reads again when the read at a turn's end still shows it running", async () => {
+        const sessionId = `${SESSION_ID}-4`
+        querySessionTurnsMock.mockReset()
+        querySessionTurnsMock
+            .mockResolvedValueOnce(running)
+            .mockResolvedValueOnce(running)
+            .mockResolvedValue(ended)
+        const store = makeStore()
+        const unsubscribe = store.sub(sessionTurnsQueryFamily(sessionId), () => {})
+        try {
+            await vi.waitFor(() => expect(querySessionTurnsMock).toHaveBeenCalledTimes(1))
+            store.set(revalidateSessionTurnsOnTurnEndAtom, {sessionId, endedTraceIds: ["t1"]})
+            await vi.waitFor(() => expect(querySessionTurnsMock).toHaveBeenCalledTimes(2))
+            await new Promise((resolve) => setTimeout(resolve, 20))
+
+            store.set(revalidateSessionTurnsOnTurnEndAtom, {sessionId, endedTraceIds: ["t1"]})
+
+            await vi.waitFor(() =>
+                expect(store.get(sessionTurnsQueryFamily(sessionId)).data).toEqual(ended),
+            )
+            expect(querySessionTurnsMock).toHaveBeenCalledTimes(3)
+        } finally {
+            unsubscribe()
+        }
+    })
+
+    it("reads again after a failed read at a turn's end", async () => {
+        const sessionId = `${SESSION_ID}-5`
+        querySessionTurnsMock.mockReset()
+        querySessionTurnsMock
+            .mockResolvedValueOnce(running)
+            // The read and its two retries fail.
+            .mockResolvedValueOnce(null)
+            .mockResolvedValueOnce(null)
+            .mockResolvedValueOnce(null)
+            .mockResolvedValue(ended)
+        const store = makeStore()
+        const unsubscribe = store.sub(sessionTurnsQueryFamily(sessionId), () => {})
+        try {
+            await vi.waitFor(() => expect(querySessionTurnsMock).toHaveBeenCalledTimes(1))
+            store.set(revalidateSessionTurnsOnTurnEndAtom, {sessionId, endedTraceIds: ["t1"]})
+            await vi.waitFor(() => expect(querySessionTurnsMock).toHaveBeenCalledTimes(4), {
+                timeout: 10_000,
+            })
+            await new Promise((resolve) => setTimeout(resolve, 20))
+
+            store.set(revalidateSessionTurnsOnTurnEndAtom, {sessionId, endedTraceIds: ["t1"]})
+
+            await vi.waitFor(() =>
+                expect(store.get(sessionTurnsQueryFamily(sessionId)).data).toEqual(ended),
+            )
+        } finally {
+            unsubscribe()
+        }
+    }, 20_000)
 })

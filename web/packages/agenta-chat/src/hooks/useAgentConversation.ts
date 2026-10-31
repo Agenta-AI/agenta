@@ -1114,6 +1114,8 @@ export const useAgentConversation = ({
             let refreshed: SessionTranscript | null
             try {
                 refreshed = await loadSessionMessages(sessionId, (fresh) => {
+                    // The returned transcript can be the cached one; this is the fresh read.
+                    refreshSessionTurnsOnTurnEnd({sessionId, messages: fresh.messages})
                     if (adoptOrConfirm(fresh)) adopted = true
                 })
             } catch {

@@ -54,46 +54,68 @@ export const sessionTurnsByTraceAtomFamily = atomFamily((sessionId: string) =>
 )
 
 // Replaces a read in flight, which may cache a running turn and so start no polling.
-export const revalidateSessionTurnsAtom = atom(null, (get, _set, sessionId: string) => {
-    const projectId = get(projectIdAtom) ?? ""
-    if (!projectId || !sessionId) return
-    const client = get(queryClientAtom)
-    const queryKey = sessionTurnsQueryKey(projectId, sessionId)
-    const refetch = () => void client.invalidateQueries({queryKey}, {cancelRefetch: true})
-    const cache = client.getQueryCache()
-    const query = cache.find({queryKey, exact: true})
-    // TanStack Query cannot replace a first read (no data yet): read once more after it.
-    if (query && query.state.data === undefined && query.state.fetchStatus !== "idle") {
-        const unsubscribe = cache.subscribe((event) => {
-            if (event.query !== query || query.state.fetchStatus !== "idle") return
-            unsubscribe()
-            refetch()
-        })
-        return
-    }
-    refetch()
-})
+// Resolves once the new read settles, success or failure.
+export const revalidateSessionTurnsAtom = atom(
+    null,
+    (get, _set, sessionId: string): Promise<void> => {
+        const projectId = get(projectIdAtom) ?? ""
+        if (!projectId || !sessionId) return Promise.resolve()
+        const client = get(queryClientAtom)
+        const queryKey = sessionTurnsQueryKey(projectId, sessionId)
+        const refetch = () => client.invalidateQueries({queryKey}, {cancelRefetch: true})
+        const cache = client.getQueryCache()
+        const query = cache.find({queryKey, exact: true})
+        // TanStack Query cannot replace a first read (no data yet): read once more after it.
+        if (query && query.state.data === undefined && query.state.fetchStatus !== "idle") {
+            return new Promise((resolve) => {
+                const unsubscribe = cache.subscribe((event) => {
+                    if (event.query !== query || query.state.fetchStatus !== "idle") return
+                    unsubscribe()
+                    void refetch().finally(resolve)
+                })
+            })
+        }
+        return refetch()
+    },
+)
 
-// Asks once per ended turn the cache lacks as ended; a running turn's events pass no ids.
-const askedForEndBySession = new Map<string, Set<string>>()
+const endedTurnNeedsRead = (key: string, cached: SessionTurn[] | null | undefined): boolean => {
+    const turn = (cached ?? []).find((row) => normalizeTraceId(row.trace_id) === key)
+    return !turn || !turn.end_time
+}
+
+// One read at a time per session; a turn still cached as running is read again on a later event.
+const readingBySession = new Set<string>()
+// Ended turns a settled read found no session turn for (its row has no trace id).
+const withoutTurnBySession = new Map<string, Set<string>>()
 
 export const revalidateSessionTurnsOnTurnEndAtom = atom(
     null,
     (get, set, {sessionId, endedTraceIds}: {sessionId: string; endedTraceIds: string[]}) => {
         const projectId = get(projectIdAtom) ?? ""
         if (!projectId || !sessionId || endedTraceIds.length === 0) return
-        const cached = get(queryClientAtom).getQueryData<SessionTurn[] | null>(
-            sessionTurnsQueryKey(projectId, sessionId),
+        if (readingBySession.has(sessionId)) return
+        const client = get(queryClientAtom)
+        const queryKey = sessionTurnsQueryKey(projectId, sessionId)
+        const withoutTurn = withoutTurnBySession.get(sessionId) ?? new Set<string>()
+        const keys = endedTraceIds
+            .map(normalizeTraceId)
+            .filter((key) => key && !withoutTurn.has(key))
+        const missing = keys.filter((key) =>
+            endedTurnNeedsRead(key, client.getQueryData<SessionTurn[] | null>(queryKey)),
         )
-        const asked = askedForEndBySession.get(sessionId) ?? new Set<string>()
-        const missing = endedTraceIds.map(normalizeTraceId).filter((key) => {
-            if (!key || asked.has(key)) return false
-            const turn = (cached ?? []).find((row) => normalizeTraceId(row.trace_id) === key)
-            return !turn || !turn.end_time
-        })
         if (missing.length === 0) return
-        for (const key of missing) asked.add(key)
-        askedForEndBySession.set(sessionId, asked)
-        set(revalidateSessionTurnsAtom, sessionId)
+        readingBySession.add(sessionId)
+        void set(revalidateSessionTurnsAtom, sessionId).finally(() => {
+            readingBySession.delete(sessionId)
+            if (client.getQueryState(queryKey)?.status !== "success") return
+            const turns = client.getQueryData<SessionTurn[] | null>(queryKey) ?? []
+            for (const key of missing) {
+                if (!turns.some((row) => normalizeTraceId(row.trace_id) === key)) {
+                    withoutTurn.add(key)
+                }
+            }
+            withoutTurnBySession.set(sessionId, withoutTurn)
+        })
     },
 )

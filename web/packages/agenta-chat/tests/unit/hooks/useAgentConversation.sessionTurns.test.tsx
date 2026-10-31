@@ -141,4 +141,39 @@ describe("the live chat refreshes the session turns when a turn ends", () => {
         })
         expect(turnsRefreshed).not.toHaveBeenCalled()
     })
+
+    it("on the fresh read a records refresh gets after the cached one", async () => {
+        const sessionId = nextSessionId()
+        markSessionFresh(sessionId)
+        const {result} = mount(sessionId)
+        const user = {id: "u1", role: "user", parts: [{type: "text", text: "go"}]}
+        const assistant = (metadata: Record<string, unknown>) => ({
+            id: "a1",
+            role: "assistant",
+            parts: [{type: "text", text: "done"}],
+            metadata: {traceId: "0a1b2c3d00004000800000000000000f", ...metadata},
+        })
+        loadSessionMessagesMock.mockImplementationOnce(
+            async (_id: string, onRefreshed?: (t: SessionTranscript) => void) => {
+                onRefreshed?.({
+                    messages: [user, assistant({recordTerminal: true})],
+                    recordCount: 3,
+                } as unknown as SessionTranscript)
+                return {
+                    messages: [user, assistant({})],
+                    recordCount: 2,
+                } as unknown as SessionTranscript
+            },
+        )
+        turnEndsSeen.mockReset()
+
+        await act(async () => {
+            await result.current.revalidate()
+        })
+
+        expect(turnEndsSeen).toHaveBeenCalledWith({
+            sessionId,
+            endedTraceIds: ["0a1b2c3d00004000800000000000000f"],
+        })
+    })
 })
