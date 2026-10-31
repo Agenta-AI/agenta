@@ -34,3 +34,32 @@ No invite or role change SHALL grant `owner`, on any edition or plan. Ownership 
 #### Scenario: Invite as owner
 - **WHEN** an invite names `owner`, on any edition or plan
 - **THEN** the API SHALL refuse it and SHALL write no invitation.
+
+### Requirement: Resend checks the role
+Resending an invitation SHALL run the offered-role check that invite runs, before the API creates an invitation or sends an email. The API SHALL answer 400 for a role the plan does not offer, `owner` included, and 503 when the plan cannot be read. Resend SHALL NOT change the seat gauge.
+
+#### Scenario: Resend an owner invitation
+- **WHEN** an admin resends an invitation stored as `owner`
+- **THEN** the API SHALL answer 400, SHALL create no invitation and SHALL send no email.
+
+#### Scenario: Resend with the plan unreadable
+- **WHEN** an admin resends an invitation and the plan cannot be read
+- **THEN** the API SHALL answer 503.
+
+### Requirement: Accepting an owner invitation
+Accepting an unused invitation stored as `owner` SHALL grant `admin`. Only the transfer route SHALL grant `owner`. Accepting an invitation with any other stored role SHALL grant that role as stored.
+
+#### Scenario: Accept an owner invitation
+- **WHEN** a person accepts an unused invitation stored as `owner`
+- **THEN** the person SHALL become `admin`.
+
+#### Scenario: Accept an old viewer invitation on OSS
+- **WHEN** a person accepts an invitation stored as `viewer` on OSS
+- **THEN** the person SHALL become `viewer`.
+
+### Requirement: Plan without a subscription
+An EE organization with no subscription, or with an undefined plan, SHALL be offered every catalog role except `owner`, and its floor role SHALL be `viewer`.
+
+#### Scenario: Organization without a subscription
+- **WHEN** an admin opens the invite dialog for an EE organization with no subscription
+- **THEN** the dialog SHALL list every role except Owner, and an invite with no role SHALL get `viewer`.

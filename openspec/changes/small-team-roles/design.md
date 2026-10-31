@@ -45,6 +45,14 @@ Remove the shortcut from `_capability` and from the role check that shares it. A
 
 On EE, `Flag.RBAC` keeps its name and now means "offers every role". One offered-roles helper in `core/access` is the only reader of `Flag.RBAC` for offering, and `Flag.RBAC` gets a comment that says this meaning. It also still controls selected-project credentials, which today read it through `RbacEnforcementInterface.is_enforced` (`EntitlementProjectLimits`). When the shortcut goes, that caller reads `Flag.RBAC` through the offered-roles helper or its own check, so removing `is_enforced` does not change it. OSS offers the short list, so the helper cannot reuse `is_enforced`, which answers true on OSS. `GET /access/roles` and `GET /workspaces/roles/` return the offered roles for the caller's organization, which makes the first route request-aware. Their docstrings say "offered roles". "Catalog" stays the name of the full set. The invite and assign routes refuse any other role, so the API and the screen agree. The role route already refuses `owner` (`_set_member_role`). The invite path does not: `resolve_workspace_invite_role` accepts any catalog role. The offered-roles check closes that, on every edition and plan. The floor role is the role a person gets when an invite names no role, and the role a demotion writes. It is `member` on OSS, Hobby and Pro, and `viewer`, as today, on plans with `Flag.RBAC`. The `organization_members.role` column keeps its server default `viewer`, because every writer passes the role. `DELETE /workspaces/{id}/roles/` demotes to the floor role. Its shipped name, `unassign_role_from_user`, stays, although the route writes a role. `DecisionReason.RBAC_NOT_ENTITLED` is deleted. The catalog keeps all roles, so stored rows and higher plans keep working.
 
+An EE organization with no subscription, or with a plan the helper does not know, is offered every role except `owner`, and its floor role is `viewer`.
+
+Invitations follow the same rule through their whole life:
+
+- Resending an invitation runs the same offered-role check as creating one, before any invitation is created or any email is sent. The API answers 400 for a role the plan does not offer, `owner` included, and 503 when the plan cannot be read. Resend never moves the seat gauge.
+- Accepting an unused invitation that is stored as `owner` grants `admin`. Only the transfer route grants `owner`.
+- Accepting an invitation with any other stored role grants that role as stored. An old OSS invitation for `viewer` still grants `viewer`.
+
 Alternative rejected: keep the shortcut and check only `member` on Hobby and Pro, with no migration. It is smaller, but a stored "viewer" could then do everything, and the app would show roles that are not real.
 
 ## Decision 3: migrate data once, on EE only
@@ -126,6 +134,7 @@ The runner value fills a turn when the write-back cannot: a turn with no trace i
 - **An agent running as a Member** gets a 403 from the `query_spans` and `annotate_trace` operations. Neither is in the default build kit.
 - **`test_run` reads its child run's trace without `VIEW_SPANS`.** The handler reads spans as the service and returns a digest. A Member sees only the digest of a run they started.
 - **An evaluation run whose principal becomes a Member stops.** Runs execute as their stored principal and recheck `EDIT_EVALUATION_RUNS`.
+- **Rollback while `member` rows exist.** Old pods do not know `member`. On Hobby and Pro, the old shortcut lets a member pass every permission. On other plans and on OSS, a member has no permissions until an admin changes the role. There is no translation and no rollback block.
 - **A stray `owner` row on OSS keeps full power.** OSS has no migration. The invite path stops writing new ones.
 
 ## Rollout
@@ -134,6 +143,6 @@ The runner value fills a turn when the write-back cannot: a turn with no trace i
 2. The owner runs a read-only production count of organizations per `subscriptions.plan`, to confirm that no other plan values exist. The build does not run it, because a production read needs the owner's approval. The migration names only `cloud_v0_hobby` and `cloud_v0_pro`, so rows on any other plan value keep their role.
 3. Ship the roles API, the migration and the app gates in one PR. The API change without the app gates shows 403 errors to Members.
 4. Run the data migration, then roll out API pods. Old pods keep the shortcut, so the migrated data is safe with old and new code.
-5. Roll back by redeploying old pods. The shortcut returns, and migrated roles stay valid.
+5. Roll back by redeploying old pods. The shortcut returns, and migrated roles stay valid. Members created after the rollout keep the `member` role, so the rollback limit above applies to them.
 
 There is no feature flag. The migration number is assigned at merge. On main today, it is `ee0000000008` in `core_ee`, revising `ee0000000007`.
