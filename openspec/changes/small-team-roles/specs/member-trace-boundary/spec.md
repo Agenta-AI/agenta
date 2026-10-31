@@ -14,7 +14,7 @@ When the reader lacks `view_spans`, /m SHALL hide the Analytics tab, the Observa
 - **THEN** the app SHALL show the default settings tab.
 
 ### Requirement: Screens hide actions the role lacks
-/m SHALL hide invite, removing a person, create, rename and delete project, billing changes, credit usage and the chat "Buy credits" button from a person whose role lacks them. /m SHALL show the Access & Security controls only to the organization owner.
+/m SHALL hide invite, removing a person, create, rename and delete project, billing changes, credit usage and the chat "Buy credits" button from a person whose role lacks them. Credit usage here means the detailed usage across people and projects, which needs `EDIT_BILLING`; the credit balance reads under `VIEW_BILLING` and stays visible to every role. /m SHALL show the Access & Security controls only to the organization owner.
 
 #### Scenario: Member opens Settings
 - **WHEN** a Member opens the Members, Projects and Billing tabs
@@ -33,4 +33,4 @@ Turn usage SHALL stay readable by everyone who may read the chat, also without `
 
 #### Scenario: Member reads cost
 - **WHEN** a Member opens a chat they may read
-- **THEN** each turn SHALL show the stored tokens and cost.
+- **THEN** each turn SHALL show the stored tokens and cost. A figure the turn does not know (null) SHALL be left out, never shown as zero.
