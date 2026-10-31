@@ -22,7 +22,7 @@ When the reader lacks `view_spans`, /m SHALL hide the Analytics tab, the Observa
 
 #### Scenario: Admin or Member opens Projects
 - **WHEN** an admin or a Member opens the Projects tab
-- **THEN** the app SHALL show create and rename, and SHALL NOT show delete.
+- **THEN** the app SHALL show create and rename, and SHALL NOT show delete. The app SHALL show "Set as default" to an admin and SHALL NOT show it to a Member.
 
 #### Scenario: Member runs out of credits
 - **WHEN** a Member's chat turn fails for lack of credits

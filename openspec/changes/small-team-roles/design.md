@@ -26,7 +26,7 @@ Why: the first item alone leaves trace content readable through the routes above
 
 `member` keeps `EDIT_SPANS`, because its runs must send spans, and `VIEW_BILLING`, because credit balances are read under it.
 
-`member` also gains `CREATE_WORKSPACE` and `EDIT_WORKSPACE`, which `developer` does not have, so it creates and renames projects. Why: a later change gives each person a personal project, and a member must be able to set one up. `DELETE_WORKSPACE` stays with the owner. The domain and SSO routes also check `EDIT_WORKSPACE`, but they require the admin role first, so a member still cannot change them.
+`member` also gains `CREATE_WORKSPACE` and `EDIT_WORKSPACE`, which `developer` does not have, so it creates and renames projects. Why: a later change gives each person a personal project, and a member must be able to set one up. `DELETE_WORKSPACE` stays with the owner. Making a project the default needs the admin role, because organization writes authorize on the default project; `EDIT_WORKSPACE` alone no longer allows it, and /m hides "Set as default" from a member. The domain and SSO routes also check `EDIT_WORKSPACE`, but they require the admin role first, so a member still cannot change them.
 
 `member` exists in all three scopes, with an empty permission list at organization scope, as `admin` and `viewer` have. It joins `RequiredRole` and the reserved slugs in `role_overrides.py`, so an `AGENTA_ACCESS_ROLES` override cannot remove or rebind it. Its description names the exclusion: "Can use and build, but cannot read traces, analytics or evaluations."
 
