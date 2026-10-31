@@ -3,7 +3,7 @@
 ## ADDED Requirements
 
 ### Requirement: Member permissions
-The `member` role SHALL have the `developer` permissions without `VIEW_SPANS`, `VIEW_INVOCATIONS`, `EDIT_INVOCATIONS`, `VIEW_ANNOTATIONS`, `EDIT_ANNOTATIONS` and every evaluation permission. It SHALL keep `EDIT_SPANS` and `VIEW_BILLING`. It SHALL add `CREATE_WORKSPACE` and `EDIT_WORKSPACE`, so a Member creates and renames projects. It SHALL NOT have `DELETE_WORKSPACE`. Making a project the organization's default project SHALL need the admin role, so a Member SHALL NOT do it. `member` SHALL exist in the organization, workspace and project scopes, with no permissions at organization scope. An `AGENTA_ACCESS_ROLES` override SHALL NOT remove or rebind it. Its description SHALL say that it cannot read traces, analytics or evaluations.
+The `member` role SHALL have the `developer` permissions without `VIEW_SPANS`, `VIEW_INVOCATIONS`, `EDIT_INVOCATIONS`, `VIEW_ANNOTATIONS`, `EDIT_ANNOTATIONS` and every evaluation permission. It SHALL keep `EDIT_SPANS` and `VIEW_BILLING`. `member` SHALL exist in the organization, workspace and project scopes, with no permissions at organization scope. An `AGENTA_ACCESS_ROLES` override SHALL NOT remove or rebind it. Its description SHALL say that it cannot read traces, analytics or evaluations.
 
 #### Scenario: Member runs an agent
 - **WHEN** a Member sends a chat message to an agent they may use
@@ -13,10 +13,6 @@ The `member` role SHALL have the `developer` permissions without `VIEW_SPANS`, `
 - **WHEN** an admin opens the Members tab and a person has role `member`
 - **THEN** the row SHALL show the Member description, not an error text.
 
-#### Scenario: Member sets up a project
-- **WHEN** a Member creates a project or renames one
-- **THEN** the API SHALL allow it, and SHALL answer 403 when the Member deletes a project or makes a project the default.
-
 #### Scenario: Member asks for a trace
 - **WHEN** a Member reads a span, a trace, analytics, or an invocation or annotation by trace id
 - **THEN** the API SHALL answer 403.
@@ -24,6 +20,13 @@ The `member` role SHALL have the `developer` permissions without `VIEW_SPANS`, `
 #### Scenario: Member starts an evaluation
 - **WHEN** a Member reads or starts an evaluation
 - **THEN** the API SHALL answer 403.
+
+### Requirement: Member sets up projects
+The `member` role SHALL also have `CREATE_WORKSPACE` and `EDIT_WORKSPACE`, so a Member creates and renames projects. It SHALL NOT have `DELETE_WORKSPACE`. Making a project the organization's default project SHALL need the admin role, so a Member SHALL NOT do it.
+
+#### Scenario: Member sets up a project
+- **WHEN** a Member creates a project or renames one
+- **THEN** the API SHALL allow it, and SHALL answer 403 when the Member deletes a project or makes a project the default.
 
 ### Requirement: Other roles keep trace access
 Owner, admin and developer SHALL keep `VIEW_SPANS`. Admin SHALL gain `EDIT_BILLING`. No other existing catalog role SHALL change.
