@@ -262,7 +262,7 @@ def resend(monkeypatch):
 
     organization_id = uuid4()
     project = SimpleNamespace(id=uuid4(), organization_id=organization_id)
-    state = SimpleNamespace(stored=None, created=[], sent=[])
+    state = SimpleNamespace(stored=None, created=[], sent=[], deleted=[])
 
     def _wire(*, role, expired=False):
         state.stored = SimpleNamespace(
@@ -289,7 +289,8 @@ def resend(monkeypatch):
         return project
 
     async def _delete(invitation_id):
-        return None
+        state.deleted.append(invitation_id)
+        state.stored = None
 
     async def _create(role, project_id, email):
         state.created.append(role)
@@ -332,7 +333,7 @@ async def test_a_resend_refuses_a_role_the_plan_does_not_offer(
         await _resend(organization_id, project)
 
     assert error.value.status_code == 400
-    assert (state.created, state.sent) == ([], [])
+    assert (state.created, state.sent, state.deleted) == ([], [], [])
 
 
 @pytest.mark.parametrize("expired", [False, True])
@@ -351,3 +352,34 @@ async def test_a_resend_keeps_an_offered_role(plan, resend, expired):
 def test_an_owner_invitation_grants_admin():
     assert organization_service.accepted_invitation_role("owner") == "admin"
     assert organization_service.accepted_invitation_role("member") == "member"
+
+
+@pytest.mark.parametrize("expired", [False, True])
+async def test_a_resend_that_cannot_read_the_plan_keeps_the_invitation(
+    monkeypatch, resend, expired
+):
+    organization_id, project, wire = resend
+    state = wire(role="member", expired=expired)
+    unreadable = AccessService(
+        memberships=None,
+        rbac_entitlement=_UnreadablePlan(),
+        principals=None,
+        resource_policy=None,
+    )
+    monkeypatch.setattr(organization_service, "get_access_service", lambda: unreadable)
+
+    with pytest.raises(HTTPException) as error:
+        await _resend(organization_id, project)
+
+    assert error.value.status_code == 503
+    assert state.stored is not None
+    assert (state.created, state.sent, state.deleted) == ([], [], [])
+
+    # The retry the 503 asks for finds the invitation and goes through.
+    readable = _service(entitled=False)
+    monkeypatch.setattr(organization_service, "get_access_service", lambda: readable)
+    assert await _resend(organization_id, project) == {
+        "url": "https://invite.test/link"
+    }
+    assert len(state.sent) == 1
+    assert len(state.deleted) == (1 if expired else 0)

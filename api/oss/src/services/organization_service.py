@@ -357,38 +357,40 @@ async def resend_user_organization_invite(
 
     user_performing_action = await db_manager.get_user_with_id(user_id=user_id)
 
-    # Check if the email address already has a valid, unused invitation for the workspace
+    # Read the unused invitation without deleting an expired one: the role check below
+    # can fail with "try again", and a retry must still find it.
     if organization_id:
-        (
-            existing_invitation,
-            existing_role,
-        ) = await check_existing_organization_invitation(
+        stored = await db_manager.get_project_invitation_by_organization_and_email(
             organization_id=organization_id, email=payload.email
         )
     else:
-        existing_invitation, existing_role = await check_existing_invitation(
-            project_id, payload.email
+        stored = await db_manager.get_project_invitation_by_email(
+            project_id=project_id, email=payload.email
         )
-    if not existing_invitation and not existing_role:
+    if (
+        stored is None
+        or stored.used
+        or stored.email != payload.email
+        or (not organization_id and str(stored.project_id) != project_id)
+    ):
         raise HTTPException(
             status_code=404,
             detail="No existing invitation found for the user",
         )
 
     # A resent invitation keeps its role only while the plan still offers it, as a new
-    # invite would: no invitation is created or sent before this check. (An expired one
-    # is already gone: the lookup above deletes it.)
-    stored_role = existing_invitation.role if existing_invitation else existing_role
+    # invite would: nothing is deleted, created or sent before this check.
     project_db = await db_manager.get_project_by_id(project_id=project_id)
     await check_invite_role(
-        stored_role, organization_id=str(project_db.organization_id)
+        stored.role, organization_id=str(project_db.organization_id)
     )
 
-    if existing_invitation:
-        invitation = existing_invitation
+    if stored.expiration_date > datetime.now(timezone.utc):
+        invitation = stored
     else:
-        # Create a new invitation with the previous role
-        invitation = await create_invitation(existing_role, project_id, payload.email)
+        # Replace the expired invitation with a new one that keeps its role.
+        await db_manager.delete_invitation(str(stored.id))
+        invitation = await create_invitation(stored.role, project_id, payload.email)
 
     # Send the invitation email
     send_email = await send_invitation_email(
