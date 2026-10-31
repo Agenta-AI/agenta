@@ -31,10 +31,11 @@ export interface SettingsAccess {
     isEE: boolean
     isOwner: boolean
     /** Whether the reader may read trace content: without it the Analytics tab has no data and
-     * the API refuses every request behind it. Defaults to visible for a host that omits it. */
+     * the API refuses every request behind it. Optional because the classic app (/w), which takes
+     * no new edits, does not pass it and keeps the tab. */
     canViewAnalytics?: boolean
-    /** Whether the reader may read the plan and its limits. Defaults to the owner check, which is
-     * what hosts that omit it have always used. */
+    /** Whether the reader may read the plan and its limits. /m passes true for every role; the
+     * classic app (/w) does not pass it and keeps its owner-only check. */
     canViewBilling?: boolean
     /** Whether the credit wallet is on. Only then does its debug view have data behind it. */
     walletsEnabled?: boolean

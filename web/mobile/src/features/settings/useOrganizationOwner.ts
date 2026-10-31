@@ -5,8 +5,8 @@ import {useSettingsOrg} from "./useSettingsOrg"
 /**
  * Is the signed-in person the owner of this organization?
  *
- * A few things belong to the owner on every plan (Access & Security, deleting a project), and the
- * API decides them by the organization's owner id, not by a permission. `pending` holds while the
+ * Access & Security belongs to the owner on every plan, and the API decides it by the
+ * organization's owner id, not by a permission. `pending` holds while the
  * profile or the organization is still loading, so a screen never sends the owner away before it
  * knows who they are.
  */

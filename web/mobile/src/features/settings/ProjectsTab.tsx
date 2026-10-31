@@ -18,7 +18,6 @@ import {useProjectPermission} from "../context/useProjectPermission"
 import {NameDialog} from "./NameDialog"
 import type {SettingsTabProps} from "./settingsTabProps"
 import {switchSettingsContext} from "./switchContext"
-import {useOrganizationOwner} from "./useOrganizationOwner"
 import {useSettingsOrg} from "./useSettingsOrg"
 
 /**
@@ -32,9 +31,9 @@ export const ProjectsTab = ({workspaceId, projectId}: SettingsTabProps) => {
     const {projects: query} = useSettingsOrg(workspaceId)
     const canCreate = useProjectPermission(projectId, "create_workspace")
     const canEdit = useProjectPermission(projectId, "edit_workspace")
-    // Deleting a project loses its data for good, so the API keeps it with the organization
-    // owner on every plan. No permission marks that: the owner id does.
-    const canDelete = useOrganizationOwner(workspaceId).isOwner
+    // Deleting a project loses its data for good: the route checks `delete_workspace`, which only
+    // the owner role holds by default.
+    const canDelete = useProjectPermission(projectId, "delete_workspace")
     return (
         <ProjectsPage
             projects={query.data ?? []}
