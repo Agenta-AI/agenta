@@ -1,6 +1,6 @@
 # Plugin POC validation
 
-The plugin backend, MCP adapter, browser bridge, and demo are implemented. Real Linear page reads and MCP reads and writes are verified. The linked agent is visible in the demo project; a model connection is still needed to verify its real chat and approval flow.
+The plugin backend, MCP adapter, browser bridge, and demo are implemented. Real Linear page reads and MCP reads and writes are verified. Real chat through OpenRouter and the approval flow are verified in the demo project.
 
 ## Checked
 
@@ -8,7 +8,7 @@ The plugin backend, MCP adapter, browser bridge, and demo are implemented. Real 
 - API gateway suite: 2,223 passed and 12 skipped.
 - Services unit suite: 226 passed.
 - Shared workflow frontend tests: 26 passed. Mobile list and plugin error tests: 13 passed.
-- Linear demo unit tests: five passed. These check scoring, preserving labels, partial completion, and batch limits.
+- Linear demo unit tests: six passed. These check scoring, preserving labels, partial completion, and batch limits.
 - Mobile TypeScript and scoped ESLint checks passed. The generated API client was refreshed from the running API.
 - A Daytona sandbox initialized an MCP connection and listed tools through the gateway with the caller's credential. Node was version 22.22.1.
 - The agent called a plugin through the gateway, and the plugin called the mock MCP server. Audit records had the same caller on both calls. With ask enabled, the agent paused before executing the plugin.
@@ -32,11 +32,19 @@ The initial direct sandbox call took 23.76 seconds. Later calls took 2.64 to 3.0
 - The page loaded 14 real open issues in 3.17 seconds. Warm direct calls took 2.95–3.01 seconds. Desktop and mobile rendering were inspected.
 - Both plugin MCP tools succeeded against real Linear. The write re-added a label already on the selected issue; a read-back confirmed that its label set did not change.
 - Gateway audit records show the same caller for the plugin and downstream Linear calls.
-- The agent is visible and linked to the plugin, with `bulk_label` requiring approval. It has no model connection yet.
+- The agent is visible and linked to the plugin, with `bulk_label` requiring approval. It uses OpenRouter with the user-selected model.
 - Six demo tests pass. The three review fixes passed 38 API regression tests and nine focused SDK tests.
 
-## Remaining acceptance checks
+## Real chat and approval verification
 
-Connect a model to the linked agent, then verify a real chat read, the approval pause before a label write, and the completed agent call's audit records. Cold real-server timings remain unmeasured. Do not mark the POC complete until these checks pass.
+- Fixed two demo deployment faults: the model gateway was disabled, and the runner watcher had no server process. Enabled the gateway and restarted only the demo runner.
+- Corrected the seed policy to explicitly allow `my_open_issues`. A per-tool table otherwise defaults unnamed tools to ask. `bulk_label` remains ask.
+- A fresh chat returned 14 real Linear issues without an approval prompt. The browser displayed 22 seconds for the turn.
+- The label operation paused with issue `MAR-168` and label `marketing` shown. Gateway write counts did not increase before approval.
+- After approval, the operation completed. A separate Linear read confirmed that the issue still had exactly its original `marketing` label. Plugin and downstream calls retained the same caller.
+- The final responses survived reload. Desktop and 390-pixel mobile layouts were inspected without horizontal overflow.
+- The browser recording includes setup and the QA scenarios: https://www.browserbase.com/sessions/27cf6b06-0493-4abc-be85-c2c236fdd5c8 .
 
-The prior Railway acceptance run failed three personal-account requirement tests. This has not yet been reproduced on the base branch, so it is not classified as an unrelated failure. The latest CI run must also be checked.
+## Remaining checks
+
+Cold real-server plugin timings remain unmeasured. The previous Railway run's three personal-account requirement failures reproduce on the demo (three failed, three passed). Personal accounts are disabled on this deployment. The relevant account reader, feature gate, and requirements service are unchanged against the release base, but a separate base deployment has not been tested. Latest PR CI still needs to finish; do not treat the whole PR as green.
