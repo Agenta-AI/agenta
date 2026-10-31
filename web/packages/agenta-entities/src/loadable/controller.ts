@@ -39,7 +39,7 @@ import {getDefaultStore} from "jotai/vanilla"
 import {atomFamily} from "jotai-family"
 import {queryClientAtom} from "jotai-tanstack-query"
 
-import {canViewSpansAtom} from "../access"
+import {canViewSpansAtom, canViewSpansPendingAtom} from "../access"
 import {loadableColumnsFromRunnableAtomFamily} from "../runnable/bridge"
 import {SYSTEM_FIELDS, type Testcase} from "../testcase/core"
 import {testcaseMolecule} from "../testcase/state/molecule"
@@ -1763,7 +1763,9 @@ export const traceDataSummaryAtomFamily = atomFamily((traceId: string | null) =>
 
         if (!traceId) return emptyResult
         // A reader without `view_spans` never reads a trace: the summary stays empty and every
-        // display built on it falls back to what the turn itself carries.
+        // display built on it falls back to what the turn itself carries. While the check is in
+        // flight the summary is pending, so no "no answer" text shows before the trace loads.
+        if (get(canViewSpansPendingAtom)) return {...emptyResult, isPending: true}
         if (!get(canViewSpansAtom)) return emptyResult
 
         // Lightweight fetch: root span + errored spans only (cached by TanStack Query).

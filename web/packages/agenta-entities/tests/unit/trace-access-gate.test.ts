@@ -91,6 +91,8 @@ describe("trace reads without view_spans", () => {
 
         expect(jotai.get(canViewSpansAtom)).toBe(false)
         expect(traces.fetch).not.toHaveBeenCalled()
+        // Pending, not empty: a reader who may read traces sees no "no answer" text yet.
+        expect(jotai.get(traceDataSummaryAtomFamily("trace-1")).isPending).toBe(true)
         stop()
     })
 })

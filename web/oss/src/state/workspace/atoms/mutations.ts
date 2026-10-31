@@ -97,8 +97,9 @@ export const workspaceRolesQueryAtom = atomWithQuery<Omit<WorkspaceRole, "permis
         const projectId = get(projectIdAtom)
 
         return {
-            queryKey: ["workspaceRoles"],
-            queryFn: () => fetchOfferedRoles(),
+            // The offered roles depend on the organization's plan, which the project names.
+            queryKey: ["workspaceRoles", projectId],
+            queryFn: () => fetchOfferedRoles(projectId ?? undefined),
             staleTime: 1000 * 60 * 10, // 10 minutes - roles don't change often
             refetchOnWindowFocus: false,
             refetchOnReconnect: false,

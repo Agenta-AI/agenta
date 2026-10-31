@@ -39,3 +39,11 @@ export const projectPermissionAtomFamily = atomFamily((action: string) =>
  * trace or analytics request at all instead of collecting refusals that read as missing data.
  */
 export const canViewSpansAtom = projectPermissionAtomFamily("view_spans")
+
+/**
+ * Is the `view_spans` check still in flight? A reader who may read traces should see
+ * "loading", not "no data", until the answer is in.
+ */
+export const canViewSpansPendingAtom = atom(
+    (get) => get(projectPermissionQueryAtomFamily("view_spans")).isLoading,
+)

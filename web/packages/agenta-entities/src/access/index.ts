@@ -9,4 +9,4 @@ export {
     projectPermissionQueryPrefix,
 } from "./api"
 
-export {canViewSpansAtom, projectPermissionAtomFamily} from "./state"
+export {canViewSpansAtom, canViewSpansPendingAtom, projectPermissionAtomFamily} from "./state"
