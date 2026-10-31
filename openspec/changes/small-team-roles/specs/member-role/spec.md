@@ -3,7 +3,7 @@
 ## ADDED Requirements
 
 ### Requirement: Member permissions
-The `member` role SHALL have the `developer` permissions without `VIEW_SPANS`, `VIEW_INVOCATIONS`, `EDIT_INVOCATIONS`, `VIEW_ANNOTATIONS`, `EDIT_ANNOTATIONS` and every evaluation permission. It SHALL keep `EDIT_SPANS` and `VIEW_BILLING`. `member` SHALL exist in the organization, workspace and project scopes, with no permissions at organization scope. An `AGENTA_ACCESS_ROLES` override SHALL NOT remove or rebind it. Its description SHALL say that it cannot read traces, analytics or evaluations.
+The `member` role SHALL have the `developer` permissions without `VIEW_SPANS`, `VIEW_INVOCATIONS`, `EDIT_INVOCATIONS`, `VIEW_ANNOTATIONS`, `EDIT_ANNOTATIONS` and every evaluation permission. It SHALL keep `EDIT_SPANS` and `VIEW_BILLING`. It SHALL add `CREATE_WORKSPACE` and `EDIT_WORKSPACE`, so a Member creates and renames projects. It SHALL NOT have `DELETE_WORKSPACE`. `member` SHALL exist in the organization, workspace and project scopes, with no permissions at organization scope. An `AGENTA_ACCESS_ROLES` override SHALL NOT remove or rebind it. Its description SHALL say that it cannot read traces, analytics or evaluations.
 
 #### Scenario: Member runs an agent
 - **WHEN** a Member sends a chat message to an agent they may use
@@ -12,6 +12,10 @@ The `member` role SHALL have the `developer` permissions without `VIEW_SPANS`, `
 #### Scenario: Members tab shows the role
 - **WHEN** an admin opens the Members tab and a person has role `member`
 - **THEN** the row SHALL show the Member description, not an error text.
+
+#### Scenario: Member sets up a project
+- **WHEN** a Member creates a project or renames one
+- **THEN** the API SHALL allow it, and SHALL answer 403 when the Member deletes a project.
 
 #### Scenario: Member asks for a trace
 - **WHEN** a Member reads a span, a trace, analytics, or an invocation or annotation by trace id

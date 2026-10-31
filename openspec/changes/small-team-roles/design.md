@@ -26,6 +26,8 @@ Why: the first item alone leaves trace content readable through the routes above
 
 `member` keeps `EDIT_SPANS`, because its runs must send spans, and `VIEW_BILLING`, because credit balances are read under it.
 
+`member` also gains `CREATE_WORKSPACE` and `EDIT_WORKSPACE`, which `developer` does not have, so it creates and renames projects. Why: a later change gives each person a personal project, and a member must be able to set one up. `DELETE_WORKSPACE` stays with the owner. The domain and SSO routes also check `EDIT_WORKSPACE`, but they require the admin role first, so a member still cannot change them.
+
 `member` exists in all three scopes, with an empty permission list at organization scope, as `admin` and `viewer` have. It joins `RequiredRole` and the reserved slugs in `role_overrides.py`, so an `AGENTA_ACCESS_ROLES` override cannot remove or rebind it. Its description names the exclusion: "Can use and build, but cannot read traces, analytics or evaluations."
 
 The roles are a set, not a ladder. `member` holds `EDIT_WORKFLOWS`, which `annotator` and `viewer` lack, and lacks `VIEW_SPANS`, which `viewer` holds.
@@ -91,7 +93,7 @@ Without this gate, a 403 reads as "trace not found", and the drawer stays on its
 
 Removing the shortcut also exposes actions that /m shows to everyone today, because the app leaves the decision to the API. The same hook gates them:
 
-- Invite: `add_new_user_to_workspace`. Create project: `create_workspace`. Rename project: `edit_workspace`. Delete project: `delete_workspace`, which only the owner has.
+- Invite: `add_new_user_to_workspace`. Create project: `create_workspace`. Rename project: `edit_workspace`. Owners, admins and members have both, so a member can set up a project of their own. Delete project: `delete_workspace`, which only the owner has.
 - Billing portal, plan change, credit usage and the chat "Buy credits" button: `edit_billing`.
 - Remove a person: an admin or owner check, because that route requires the admin role.
 

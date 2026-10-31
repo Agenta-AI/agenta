@@ -20,8 +20,8 @@ When the reader lacks `view_spans`, /m SHALL hide the Analytics tab, the Observa
 - **WHEN** a Member opens the Members, Projects and Billing tabs
 - **THEN** no control that the API would refuse SHALL be shown.
 
-#### Scenario: Admin opens Projects
-- **WHEN** an admin opens the Projects tab
+#### Scenario: Admin or Member opens Projects
+- **WHEN** an admin or a Member opens the Projects tab
 - **THEN** the app SHALL show create and rename, and SHALL NOT show delete.
 
 #### Scenario: Member runs out of credits
