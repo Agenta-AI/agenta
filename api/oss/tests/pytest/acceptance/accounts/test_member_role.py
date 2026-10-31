@@ -92,9 +92,11 @@ def team(admin_api):
     organization_id = _first_id(owner["organizations"])
     project_id = _first_id(owner["projects"])
     headers = {}
+    user_ids = {}
     try:
         for label in ("member", "admin", "viewer"):
             account = _create_account(admin_api, email=emails[label])
+            user_ids[label] = account["user"]["id"]
             _add_member(
                 admin_api,
                 organization_id=organization_id,
@@ -111,6 +113,7 @@ def team(admin_api):
             "workspace_id": _first_id(owner["workspaces"]),
             "project_id": project_id,
             "headers": headers,
+            "user_ids": user_ids,
             "emails": emails,
             "owner_headers": {"Authorization": f"ApiKey {owner['api_keys']['key']}"},
         }
@@ -318,6 +321,41 @@ def test_admin_cannot_delete_a_project(admin_api, team):
         headers=team["headers"]["admin"],
     )
     assert resp.status_code == 403, resp.text
+
+
+def test_member_creates_and_renames_a_project_but_cannot_delete_it(admin_api, team):
+    created = admin_api(
+        "POST",
+        "/projects/",
+        params={"project_id": team["project_id"]},
+        headers=team["headers"]["member"],
+        json={"name": f"member-{uuid4().hex[:8]}"},
+    )
+    assert created.status_code == 201, created.text
+    new_id = created.json()["project_id"]
+    assert created.json()["user_role"] == "member"
+
+    # A key belongs to one project, so the member gets a key for the new project. The
+    # accounts, with their projects, go when the fixture ends.
+    key = _project_key(admin_api, project_id=new_id, user_id=team["user_ids"]["member"])
+    headers = {"Authorization": f"ApiKey {key}"}
+
+    renamed = admin_api(
+        "PATCH",
+        f"/projects/{new_id}",
+        params={"project_id": new_id},
+        headers=headers,
+        json={"name": f"renamed-{uuid4().hex[:8]}"},
+    )
+    assert renamed.status_code == 200, renamed.text
+
+    deleted = admin_api(
+        "DELETE",
+        f"/projects/{new_id}",
+        params={"project_id": new_id},
+        headers=headers,
+    )
+    assert deleted.status_code == 403, deleted.text
 
 
 def test_a_stored_viewer_keeps_viewer_permissions(admin_api, team):
