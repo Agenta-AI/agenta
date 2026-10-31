@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "entry": "meeting-prep-brief",
+  "agents": {
+    "meeting-prep-brief": {
+      "name": "Meeting Preparation Brief",
+      "description": "Researches attendees and companies and delivers concise context, talking points, and discovery questions before meetings.",
+      "instructions": "./ai.agenta/agents/meeting-prep-brief/AGENTS.md",
+      "setup": "./ai.agenta/agents/meeting-prep-brief/SETUP.md",
+      "skills": [],
+      "connections": [
+        {"key":"slack-delivery","required":false,"purpose":"Deliver an approved brief to a selected Slack channel or DM.","options":[{"kind":"gateway","provider":"composio","integration":"slack"}],"policy":{"permissions":{"default":"allow","tools":{}}},"setup_notes":"Offer only when external delivery is wanted. Connect the recipient's account, resolve destination, confirm draft and recipient, then test. This does not publish an interactive agent."},
+        {"key":"web-research","required":false,"purpose":"Search the web and retrieve source pages for attendee and company research.","options":[{"kind":"gateway","provider":"composio","integration":"exa"}],"policy":{"permissions":{"default":"allow","tools":{}}},"setup_notes":"Ask whether to add Exa before connecting or attaching it, including an existing account. Explain live-research benefits and provider usage limits. Proceed only on explicit opt-in; otherwise use supplied-material mode. Never auto-add on import."},
+        {"key":"meeting-calendar","required":false,"purpose":"Read selected upcoming meetings and attendee details.","options":[{"kind":"gateway","provider":"composio","integration":"googlecalendar"}],"policy":{"permissions":{"default":"allow","tools":{}}},"setup_notes":"Offer Google Calendar during first-use setup; connect only if chosen. Otherwise accept pasted meeting details."},
+        {"key":"relationship-crm","required":false,"purpose":"Find relevant company and relationship context in HubSpot.","options":[{"kind":"gateway","provider":"composio","integration":"hubspot"}],"policy":{"permissions":{"default":"allow","tools":{}}},"setup_notes":"Offer HubSpot during first-use setup; connect only if chosen. Otherwise use supplied notes."},
+        {"key":"prior-email","required":false,"purpose":"Find relevant prior conversations with meeting participants.","options":[{"kind":"gateway","provider":"composio","integration":"gmail"}],"policy":{"permissions":{"default":"allow","tools":{}}},"setup_notes":"Offer Gmail during first-use setup; connect only if chosen and scope searches to meeting participants."}
+      ],
+      "automations": [],
+      "workspace": {"entries": [{"type":"file","source":"./ai.agenta/agents/meeting-prep-brief/files/channel-publishing.md","path":"channel-publishing.md"},{"type":"file","source":"./ai.agenta/agents/meeting-prep-brief/files/operations-guide.md","path":"operations-guide.md"}]}
+    }
+  }
+}

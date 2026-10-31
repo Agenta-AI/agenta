@@ -1,6 +1,27 @@
 {
   "schema_version": 1,
   "templates": {
+    "meeting-prep-brief": {
+      "latest": "1.5.8",
+      "versions": {"1.5.8": "packages/meeting-prep-brief/1.5.8"},
+      "metadata": {
+        "author_id": "sam-methnani",
+        "summary": "Prepare sourced meeting context, talking points and discovery questions.",
+        "category": "Productivity",
+        "tags": ["meetings", "research", "sales"],
+        "display": {
+          "initials": "MP",
+          "color": "#113955",
+          "instructions_summary": "Research companies and attendees, connect relevant context, and produce a concise meeting brief with sources.",
+          "trigger": "On demand",
+          "trigger_description": "Prepare briefs on request; optionally configure daily or pre-meeting automation during setup.",
+          "seed_message": "Help me set up my meeting preparation assistant.",
+          "model": "claude-sonnet-4-5",
+          "connection_tools": {}
+        },
+        "media": []
+      }
+    },
     "pr-reviewer": {
       "latest": "1.0.0",
       "versions": {
