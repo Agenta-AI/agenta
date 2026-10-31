@@ -1101,12 +1101,13 @@ export const useAgentConversation = ({
                     (currentWatermark ?? 0) >= candidateWatermark
                 )
             }
+            // A refresh, with or without a supplied transcript, is how an observer sees another
+            // tab's turn end: the session turns hold the footer's figures.
+            revalidateSessionTurns(sessionId)
             if (isSessionTranscript(transcript)) {
                 return adoptOrConfirm(transcript)
             }
-            // A records refresh is how an observer sees another tab's turn end.
             revalidateSessionRecords(sessionId)
-            revalidateSessionTurns(sessionId)
             let adopted = false
             let refreshed: SessionTranscript | null
             try {

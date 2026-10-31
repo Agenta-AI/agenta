@@ -574,14 +574,15 @@ export const useSessionHydration = ({
                 })
             )
                 return false
+            // A refresh, with or without a supplied transcript, is how an observer sees a turn end:
+            // the session turns hold the footer's figures.
+            revalidateSessionTurns(sessionId)
             if (isSessionTranscript(transcript)) {
                 return adoptOrConfirm(transcript)
             }
             // A tick usually lands inside the records query's stale window, so the shared cache would
             // resolve unchanged; invalidate first, then adopt through the SAME guard as every other path.
-            // The turns too: a records tick is how an observer sees a turn end (the footer's figures).
             revalidateSessionRecords(sessionId)
-            revalidateSessionTurns(sessionId)
             let refreshed: SessionTranscript | null
             try {
                 refreshed = await readLog()

@@ -46,13 +46,28 @@ export const sessionTurnsByTraceAtomFamily = atomFamily((sessionId: string) =>
     atom((get) => turnsByTraceId(get(sessionTurnsQueryFamily(sessionId)).data ?? [])),
 )
 
-/** Mark a session's turns stale (a finished turn has its end and its runner figures). Fire-and-
- * forget; `cancelRefetch: false` keeps a first read in flight. */
+/**
+ * Mark a session's turns stale (a finished turn has its end and its runner figures), and read them
+ * again. A read in flight may have seen the turn still running: kept, its answer would cache
+ * `end_time: null`, which starts no polling. So a read in flight is replaced (`cancelRefetch`), and
+ * a first read, which TanStack Query cannot replace while it has no data, is followed by one more
+ * read once it settles. Fire-and-forget.
+ */
 export const revalidateSessionTurnsAtom = atom(null, (get, _set, sessionId: string) => {
     const projectId = get(projectIdAtom) ?? ""
     if (!projectId || !sessionId) return
-    void get(queryClientAtom).invalidateQueries(
-        {queryKey: sessionTurnsQueryKey(projectId, sessionId)},
-        {cancelRefetch: false},
-    )
+    const client = get(queryClientAtom)
+    const queryKey = sessionTurnsQueryKey(projectId, sessionId)
+    const refetch = () => void client.invalidateQueries({queryKey}, {cancelRefetch: true})
+    const cache = client.getQueryCache()
+    const query = cache.find({queryKey, exact: true})
+    if (query && query.state.data === undefined && query.state.fetchStatus !== "idle") {
+        const unsubscribe = cache.subscribe((event) => {
+            if (event.query !== query || query.state.fetchStatus !== "idle") return
+            unsubscribe()
+            refetch()
+        })
+        return
+    }
+    refetch()
 })
