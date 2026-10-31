@@ -14,6 +14,7 @@ from .errors import (
 )
 from .interfaces import MCPSecretProvider
 from .models import (
+    PLUGIN_PROVIDER,
     HeaderCredentialBinding,
     MCPConnection,
     MCPGatewayConnection,
@@ -62,6 +63,8 @@ def _gateway_mcp_route(
             return f"{route}?account_source=user"
         return route
     assert connection.provider is not None
+    if connection.namespace == "builtin" and connection.provider == PLUGIN_PROVIDER:
+        return f"{base}/builtin/plugin/{connection.slug}"
     if connection.namespace == "builtin":
         # Agenta's builtin is the run-scoped bridge to the callback tools already
         # resolved for this turn.  Every other builtin provider serves one endpoint

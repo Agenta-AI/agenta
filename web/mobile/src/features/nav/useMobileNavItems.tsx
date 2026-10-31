@@ -235,6 +235,12 @@ export const useMobileNavItems = (projectURL: string): SidebarConfig[] => {
                         autoFocusSearch: false,
                     }),
             },
+            {
+                key: "plugins",
+                title: "Plugins",
+                icon: createElement(SquaresFourIcon, {size: 16}),
+                link: `${projectURL}/plugins`,
+            },
             // After Agents: an automation is something an agent has, and Skills is what it uses.
             {
                 key: "automations",

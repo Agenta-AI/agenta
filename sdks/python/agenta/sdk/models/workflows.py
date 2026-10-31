@@ -81,6 +81,7 @@ class WorkflowFlags(BaseModel):
     is_feedback: bool = False
     is_agent: bool = False
     is_skill: bool = False
+    is_plugin: bool = False
     # interface-derived
     ## schema
     is_chat: bool = False
@@ -112,6 +113,7 @@ class WorkflowQueryFlags(BaseModel):
     is_feedback: Optional[bool] = None
     is_agent: Optional[bool] = None
     is_skill: Optional[bool] = None
+    is_plugin: Optional[bool] = None
     # interface-derived
     ## schema
     is_chat: Optional[bool] = None

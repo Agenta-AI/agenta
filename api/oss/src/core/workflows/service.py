@@ -4104,6 +4104,16 @@ return 0
 
 
 class SimpleWorkflowsService:
+    @staticmethod
+    def _creation_flags(request: SimpleWorkflowCreate) -> WorkflowFlags:
+        flags = WorkflowFlags(**WorkflowsService._dump_flags(request.flags))
+        # Roles belong to the artifact, including on the idempotent creation path.
+        if request.data and request.data.uri == "agenta:custom:plugin:v0":
+            flags.is_application = True
+            flags.is_evaluator = False
+            flags.is_snippet = False
+        return flags
+
     def __init__(
         self,
         *,
@@ -4352,9 +4362,7 @@ class SimpleWorkflowsService:
             )
             replayed = workflow is not None
             if workflow is None:
-                workflow_flags = WorkflowFlags(
-                    **WorkflowsService._dump_flags(request.flags)
-                )
+                workflow_flags = self._creation_flags(request)
                 try:
                     workflow = await self.workflows_service.create_workflow(
                         project_id=project_id,
@@ -4389,9 +4397,7 @@ class SimpleWorkflowsService:
                 request_fingerprint=request_fingerprint,
             )
 
-            workflow_flags = WorkflowFlags(
-                **WorkflowsService._dump_flags(request.flags)
-            )
+            workflow_flags = self._creation_flags(request)
             variant = await self.workflows_service.fetch_workflow_variant(
                 project_id=project_id,
                 workflow_ref=Reference(id=workflow_id),
@@ -4552,13 +4558,7 @@ class SimpleWorkflowsService:
         _reject_unreadable_agent_instructions(simple_workflow_create.data)
         _reject_unrunnable_agent_connection(simple_workflow_create.data)
 
-        simple_workflow_flags = SimpleWorkflowFlags(
-            **WorkflowsService._dump_flags(simple_workflow_create.flags)
-        )
-
-        workflow_flags = WorkflowFlags(
-            **WorkflowsService._dump_flags(simple_workflow_flags),
-        )
+        workflow_flags = self._creation_flags(simple_workflow_create)
 
         workflow_create = WorkflowCreate(
             slug=simple_workflow_create.slug,

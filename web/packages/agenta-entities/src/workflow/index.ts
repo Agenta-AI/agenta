@@ -259,6 +259,7 @@ export {
     unarchiveWorkflow,
     // Batch
     fetchWorkflowAgentFlags,
+    fetchLatestWorkflowRevisions,
     fetchWorkflowsBatch,
     // Schema
     fetchAgTypeSchema,

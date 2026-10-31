@@ -1356,37 +1356,35 @@ export async function fetchWorkflowAgentFlags(
     workflowIds: string[],
     opts?: {lowPriority?: boolean},
 ): Promise<Map<string, boolean>> {
-    const flags = new Map<string, boolean>()
+    const revisions = await fetchLatestWorkflowRevisions(projectId, workflowIds, opts)
+    return new Map(
+        revisions.map((revision) => [
+            revision.workflow_id ?? revision.id,
+            revision.flags?.is_agent === true,
+        ]),
+    )
+}
 
-    if (!projectId || workflowIds.length === 0) return flags
-
+/** Latest revisions by artifact. Grouping cannot be combined with a revision flag filter. */
+export async function fetchLatestWorkflowRevisions(
+    projectId: string,
+    workflowIds: string[],
+    opts?: {lowPriority?: boolean},
+): Promise<Workflow[]> {
+    if (!projectId || workflowIds.length === 0) return []
     const response = await axios.post(
         `${getAgentaApiUrl()}/workflows/revisions/query`,
         {
             workflow_refs: workflowIds.map((id) => ({id})),
             grouping: {by: "artifact", get: "latest"},
-            // Archived workflows are classified too: the archived Agents tab needs them split the
-            // same way, and their revisions are not themselves archived.
             include_archived: true,
         },
-        {params: {project_id: projectId}, ...lowPriorityWhenCached(opts?.lowPriority)},
+        {
+            params: {project_id: projectId},
+            ...lowPriorityWhenCached(opts?.lowPriority),
+        },
     )
-
-    const validated = safeParseWithLogging(
-        workflowRevisionsResponseSchema,
-        response.data,
-        "[fetchWorkflowAgentFlags]",
-    )
-    if (!validated) return flags
-
-    // `workflowRevisionsResponseSchema` already parsed every row; re-parsing each one item by item
-    // (as `fetchWorkflowsBatch` does) just doubles the work on a payload we are here to shrink.
-    for (const revision of validated.workflow_revisions) {
-        const key = revision.workflow_id ?? revision.id
-        if (key) flags.set(key, revision.flags?.is_agent === true)
-    }
-
-    return flags
+    return workflowRevisionsResponseSchema.parse(response.data).workflow_revisions
 }
 
 /**

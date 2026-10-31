@@ -210,3 +210,89 @@ console.log(JSON.stringify({{ result: result }}));
 """,
     },
 }
+
+
+PLUGIN_TEMPLATES = {
+    "javascript": r"""
+const params = JSON.parse({params_json!r});
+// `mcps` maps each declared name to its gateway URL, resolved in Python by plugin_v0.
+const {{ operation, args, mcps }} = params.inputs;
+const credentials = process.env.AGENTA_CREDENTIALS || "";
+
+async function readRpc(res, id) {{
+  const type = res.headers.get("content-type") || "";
+  const text = await res.text();
+  if (!type.includes("text/event-stream")) {{
+    const msg = text ? JSON.parse(text) : null;
+    return msg && msg.id === id ? msg : null;
+  }}
+  // One event = consecutive `data:` lines, joined with newlines; events end at a blank line.
+  const events = text.split(/\r?\n\r?\n/).map((block) =>
+    block.split(/\r?\n/).filter((l) => l.startsWith("data:")).map((l) => l.slice(5).replace(/^ /, "")).join("\n"));
+  for (const data of events) {{
+    if (!data) continue;
+    let msg; try {{ msg = JSON.parse(data); }} catch {{ continue; }}
+    if (msg && msg.id === id && (msg.result !== undefined || msg.error !== undefined)) return msg;
+  }}
+  return null;
+}}
+
+function makeClient(name, url) {{
+  let session = null, protocol = null, ready = null, nextId = 1;
+  async function post(body) {{
+    const headers = {{
+      "content-type": "application/json",
+      "accept": "application/json, text/event-stream",
+      "X-AG-Credentials": credentials,
+    }};
+    if (session) headers["mcp-session-id"] = session;
+    if (protocol) headers["mcp-protocol-version"] = protocol;
+    const res = await fetch(url, {{ method: "POST", headers, body: JSON.stringify(body) }});
+    session = res.headers.get("mcp-session-id") || session;
+    if (!res.ok) throw new Error(`MCP ${{name}}: HTTP ${{res.status}} ${{await res.text()}}`);
+    if (body.id === undefined) return null; // notification: an empty 202 is fine
+    const msg = await readRpc(res, body.id);
+    if (!msg) throw new Error(`MCP ${{name}}: no response for request ${{body.id}}`);
+    return msg;
+  }}
+  async function init() {{
+    const hello = await post({{ jsonrpc: "2.0", id: nextId++, method: "initialize",
+      params: {{ protocolVersion: "2025-06-18", capabilities: {{}}, clientInfo: {{ name: "agenta-plugin", version: "0" }} }} }});
+    if (hello.error) throw new Error(`MCP ${{name}}: ${{JSON.stringify(hello.error)}}`);
+    protocol = (hello.result && hello.result.protocolVersion) || null;
+    await post({{ jsonrpc: "2.0", method: "notifications/initialized" }});
+  }}
+  return {{
+    async call(tool, toolArgs) {{
+      ready = ready || init();
+      await ready;
+      const msg = await post({{ jsonrpc: "2.0", id: nextId++, method: "tools/call", params: {{ name: tool, arguments: toolArgs || {{}} }} }});
+      if (msg.error) throw new Error(`MCP ${{name}}.${{tool}}: ${{JSON.stringify(msg.error)}}`);
+      if (msg.result && msg.result.isError) throw new Error(`MCP ${{name}}.${{tool}} failed: ${{JSON.stringify(msg.result.content)}}`);
+      return msg.result;
+    }},
+  }};
+}}
+
+const clients = Object.create(null);
+const ctx = {{
+  mcp(name) {{
+    const url = Object.hasOwn(mcps || {{}}, name) ? mcps[name] : null;
+    if (!url) throw new Error(`MCP server "${{name}}" is not declared in this plugin`);
+    clients[name] = clients[name] || makeClient(name, url);
+    return clients[name];
+  }},
+}};
+
+{user_code}
+
+(async () => {{
+  if (typeof operations !== "object" || typeof operations[operation] !== "function") {{
+    throw new Error(`Operation "${{operation}}" is not defined in the plugin code`);
+  }}
+  const value = await operations[operation](args || {{}}, ctx);
+  // Wrapped so null and integers survive the runner's version "3" normalization.
+  console.log(JSON.stringify({{ result: {{ value: value === undefined ? null : value }} }}));
+}})().catch((err) => {{ console.error(String(err && err.stack || err)); process.exit(1); }});
+"""
+}

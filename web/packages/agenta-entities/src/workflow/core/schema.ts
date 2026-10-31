@@ -99,6 +99,7 @@ export const workflowFlagsSchema = z
         is_feedback: z.boolean().optional().default(false),
         is_agent: z.boolean().optional().default(false),
         is_skill: z.boolean().optional().default(false),
+        is_plugin: z.boolean().optional().default(false),
         // Interface-derived
         is_chat: z.boolean().optional().default(false),
         has_url: z.boolean().optional().default(false),
@@ -149,6 +150,7 @@ export interface WorkflowQueryFlags {
     is_snippet?: boolean
     // Revision-level role flag (matched against head revisions server-side)
     is_skill?: boolean
+    is_plugin?: boolean
 }
 
 // ============================================================================
@@ -370,6 +372,7 @@ export const workflowSchemas = createEntitySchemaSet({
             is_match: false,
             is_feedback: false,
             is_skill: false,
+            is_plugin: false,
             // Interface-derived
             is_chat: false,
             has_url: false,

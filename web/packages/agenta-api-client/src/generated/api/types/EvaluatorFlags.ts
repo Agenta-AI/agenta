@@ -16,6 +16,7 @@ export interface EvaluatorFlags {
     is_feedback?: boolean | undefined;
     is_agent?: boolean | undefined;
     is_skill?: boolean | undefined;
+    is_plugin?: boolean | undefined;
     is_chat?: boolean | undefined;
     has_url?: boolean | undefined;
     has_script?: boolean | undefined;

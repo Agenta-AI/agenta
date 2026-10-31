@@ -1,0 +1,48 @@
+{
+  "operations": [
+    {
+      "name": "my_open_issues",
+      "description": "List and score my open Linear issues.",
+      "input_schema": {
+        "type": "object",
+        "properties": {},
+        "additionalProperties": false
+      }
+    },
+    {
+      "name": "bulk_label",
+      "description": "Add a label to up to five selected Linear issues, preserving existing labels.",
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1,
+            "maxItems": 5
+          },
+          "label": {
+            "type": "string",
+            "default": "Urgent"
+          }
+        },
+        "required": [
+          "ids"
+        ],
+        "additionalProperties": false
+      }
+    }
+  ],
+  "mcps": [
+    {
+      "name": "linear",
+      "connection": {
+        "type": "gateway",
+        "namespace": "custom",
+        "slug": "linear"
+      }
+    }
+  ]
+}

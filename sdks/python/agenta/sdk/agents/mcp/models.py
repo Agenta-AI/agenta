@@ -16,6 +16,8 @@ from pydantic import (
 from ..accounts import AccountSource
 
 
+PLUGIN_PROVIDER = "plugin"
+
 Permission = Literal["allow", "ask", "deny"]
 
 
@@ -92,6 +94,11 @@ class MCPGatewayConnection(BaseModel):
         if self.namespace == "custom":
             if not self.slug or self.provider:
                 raise ValueError("custom gateway MCP routes require slug only")
+        elif self.namespace == "builtin" and self.provider == PLUGIN_PROVIDER:
+            if not self.slug or not all(c.isalnum() or c in "_-" for c in self.slug):
+                raise ValueError(
+                    "plugin gateway MCP routes require a valid workflow slug"
+                )
         elif not self.provider or self.slug:
             raise ValueError(
                 f"{self.namespace} gateway MCP routes require provider only"
