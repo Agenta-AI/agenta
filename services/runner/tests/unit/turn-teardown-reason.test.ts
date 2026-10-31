@@ -218,3 +218,61 @@ describe("keep-alive engine runCold teardown", () => {
     assert.deepEqual(destroyed, ["failed-turn"]);
   });
 });
+describe("keep-alive engine Daytona heartbeat", () => {
+  it("refreshes activity during a long turn and stops when the turn finishes", async () => {
+    vi.useFakeTimers();
+
+    const refreshActivity = vi.fn().mockResolvedValue(undefined);
+    let finishTurn!: (result: AgentRunResult) => void;
+
+    mocks.runTurn.mockReset();
+    mocks.runTurn.mockImplementation(
+      () =>
+        new Promise<AgentRunResult>((resolve) => {
+          finishTurn = resolve;
+        }),
+    );
+
+    try {
+      const engine = makeKeepaliveEngine(() => ({}));
+
+      const turnPromise = engine.runTurn(
+        {
+          sessionId: undefined,
+          logger: () => {},
+          plan: { isDaytona: true },
+          sandbox: {
+            sandbox: { refreshActivity },
+            sandboxId: "sandbox-1",
+          },
+        } as any,
+        REQUEST,
+        (() => {}) as any,
+        new AbortController().signal,
+        { seededDecisions: [] },
+      );
+
+      await vi.advanceTimersByTimeAsync(20 * 60 * 1000);
+
+      assert.ok(
+        refreshActivity.mock.calls.length > 0,
+        "Expected activity to refresh while the turn was running",
+      );
+
+      const callsDuringTurn = refreshActivity.mock.calls.length;
+
+      finishTurn(COMPLETED);
+      await turnPromise;
+
+      await vi.advanceTimersByTimeAsync(20 * 60 * 1000);
+
+      assert.equal(
+        refreshActivity.mock.calls.length,
+        callsDuringTurn,
+        "Expected heartbeat to stop after the turn finished",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
