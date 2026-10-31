@@ -23,7 +23,7 @@ Organization
 
 ### Creating an Organization
 
-Organizations are created during signup or from the organization switcher. This applies to Agenta Cloud and to self-hosted deployments of both editions; self-hosters can restrict who creates organizations with [`AGENTA_ACCESS_ALLOWED_OWNER_EMAILS`](/self-host/guides/restrict-organization-creation). Role-based access control is enforced in the open source edition; on Cloud and Enterprise it follows the plan (non-RBAC plans grant full access). Domain verification and SSO remain Enterprise features.
+Organizations are created during signup or from the organization switcher. This applies to Agenta Cloud and to self-hosted deployments of both editions; self-hosters can restrict who creates organizations with [`AGENTA_ACCESS_ALLOWED_OWNER_EMAILS`](/self-host/guides/restrict-organization-creation). Roles apply in every edition and on every plan. Domain verification and SSO remain Enterprise features.
 
 ### Switching Organizations
 
@@ -39,7 +39,7 @@ Projects live inside an organization and contain:
 
 Who sees a project depends on the edition. In the open source edition, every organization member is a member of every project, with their organization role. On Agenta Cloud and Enterprise, a member sees the projects where they have a project membership. A new project adds every organization member with their organization role.
 
-Creating and renaming a project needs the Owner or Admin role. Deleting a project needs the Owner role. On a plan without RBAC, every member can create, rename and delete projects.
+Creating and renaming a project needs the Owner or Admin role. Deleting a project needs the Owner role.
 
 ### Switching Projects
 
@@ -52,7 +52,7 @@ If your organization has multiple projects, use the project switcher in the UI t
 1. Navigate to **Settings** → **Members**
 2. Click **Invite member**
 3. Enter the email address
-4. Choose a role (role selection is hidden on Cloud and Enterprise plans without RBAC, where all members get full access)
+4. Choose a role. The open source edition, Hobby and Pro offer Admin and Member. Business and Enterprise offer every role except Owner
 5. Send the invitation
 
 ### Roles
@@ -61,8 +61,9 @@ Roles control what members can do within an organization and its projects:
 
 | Role | Summary |
 |------|---------|
-| **Owner** | Full control of the organization, including billing and member management |
-| **Admin** | Manage workspace settings, members, and roles |
+| **Owner** | Full control of the organization, including deleting projects and transferring the organization |
+| **Admin** | Manage members, roles, projects and billing |
+| **Member** | Use and build agents, chats and automations, without access to traces, analytics or evaluations |
 | **Developer** | Deploy to environments and manage API keys |
 | **Editor** | Edit prompts, testsets, evaluators, and workflows |
 | **Annotator** | Run evaluations and annotate traces |
@@ -72,7 +73,7 @@ See [RBAC](/administration/access-control/rbac) for details.
 
 ### Changing Roles
 
-Owners and Admins can change roles through the API. Roles change only through the API for now; the app has no control for it yet.
+Owners and Admins change a role in **Settings** → **Members**, in the member's **Role** column. The owner's role changes only by a transfer of the organization.
 
 ### Removing Members
 

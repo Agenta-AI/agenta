@@ -12,6 +12,7 @@ import { fetchControlPlane } from "../../sessions/control-plane-fetch.ts";
 import { apiBase } from "../../apiBase.ts";
 import { runnerTokenHeader } from "../../sessions/auth.ts";
 import type { ReferenceKey } from "../../sessions/interactions.ts";
+import type { AgentUsage } from "../../protocol.ts";
 import type { SessionContinuityStore } from "./session-continuity.ts";
 
 function defaultLog(msg: string): void {
@@ -67,6 +68,38 @@ export interface SessionTurnAppend {
 export interface SessionTurnCompletion {
   agentSessionId?: string;
   endTime: string;
+  /** This turn's usage. The API stores it only when the turn has none yet. */
+  usage?: AgentUsage;
+}
+
+/** The completion's `usage` body field, or undefined when nothing is known. Tokens are sent only
+ * when the turn counted some (a cost-only reading carries zero placeholders), and cost only when
+ * the harness reported one: an absent cost is unknown, never zero. */
+export function turnUsageBody(
+  usage: AgentUsage | undefined,
+):
+  | {
+      input_tokens?: number;
+      output_tokens?: number;
+      total_tokens?: number;
+      cost?: number;
+    }
+  | undefined {
+  if (!usage) return undefined;
+  const body: {
+    input_tokens?: number;
+    output_tokens?: number;
+    total_tokens?: number;
+    cost?: number;
+  } = {};
+  if (usage.total > 0) {
+    body.input_tokens = usage.input;
+    body.output_tokens = usage.output;
+    body.total_tokens = usage.total;
+  }
+  if (typeof usage.cost === "number" && Number.isFinite(usage.cost))
+    body.cost = usage.cost;
+  return Object.keys(body).length ? body : undefined;
 }
 
 export type CompleteSessionTurnFn = (
@@ -263,6 +296,7 @@ export async function completeSessionTurn(
   deps: DurableContinuityDeps,
 ): Promise<void> {
   const log = deps.log ?? defaultLog;
+  const usage = turnUsageBody(turn.usage);
   try {
     const res = await postLedgerWrite(deps, (doFetch, base, init) =>
       doFetch(`${base}/sessions/turns/complete`, {
@@ -275,6 +309,7 @@ export async function completeSessionTurn(
             ? { agent_session_id: turn.agentSessionId }
             : {}),
           end_time: turn.endTime,
+          ...(usage ? { usage } : {}),
         }),
       }),
     );

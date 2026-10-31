@@ -65,6 +65,16 @@ class Status(BaseModel):
     stacktrace: Optional[str] = None
 
 
+class RunUsage(BaseModel):
+    """Tokens and cost of one run (a trace root, a session turn). A null field is
+    unknown, never zero."""
+
+    input_tokens: Optional[int] = None
+    output_tokens: Optional[int] = None
+    total_tokens: Optional[int] = None
+    cost: Optional[float] = None
+
+
 class FolderScope(BaseModel):
     folder_id: Optional[UUID] = None
 

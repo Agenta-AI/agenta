@@ -6,12 +6,14 @@ Keeps the same batching, grouping, and entitlements logic.
 """
 
 import asyncio
+from functools import partial
 from typing import Dict, List, Set, Tuple, Optional
 from uuid import UUID
 from redis.asyncio import Redis
 
 from oss.src.core.tracing.service import TracingService
 from oss.src.core.tracing.dtos import OTelFlatSpan
+from oss.src.core.sessions.turns.service import SessionTurnsService
 from oss.src.utils.logging import get_module_logger
 from oss.src.utils.common import is_ee
 from oss.src.core.tracing.streaming import deserialize_span
@@ -44,7 +46,8 @@ class TracingWorker(StreamConsumer):
     4. Check entitlements per org (Layer 2 - authoritative)
     5. Bulk create spans per project/user if allowed
     6. Recompute the totals of every trace the batch touched
-    7. ACK + DEL messages — StreamConsumer
+    7. Write the usage of each trace's root to the turn with that trace id
+    8. ACK + DEL messages — StreamConsumer
     """
 
     log_prefix = "[INGEST]"
@@ -52,6 +55,7 @@ class TracingWorker(StreamConsumer):
     def __init__(
         self,
         service: TracingService,
+        turns_service: SessionTurnsService,
         redis_client: Redis,
         stream_name: str,
         consumer_group: str,
@@ -72,6 +76,8 @@ class TracingWorker(StreamConsumer):
             max_batch_mb=max_batch_mb,
         )
         self.service = service
+        # Writes a trace's priced usage to its turn (step 7).
+        self.turns_service = turns_service
 
     async def process_batch(
         self, batch: List[Tuple[bytes, Dict[bytes, bytes]]]
@@ -211,6 +217,11 @@ class TracingWorker(StreamConsumer):
                     await self.service.recompute_trace_totals(
                         project_id=project_id,
                         trace_id=trace_id,
+                        on_root_usage=partial(
+                            self.turns_service.set_turn_usage_from_trace,
+                            project_id=project_id,
+                            trace_id=trace_id,
+                        ),
                     )
                     break
                 except Exception:

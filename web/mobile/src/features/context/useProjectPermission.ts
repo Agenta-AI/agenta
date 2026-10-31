@@ -1,36 +1,33 @@
-import {getAccessClient} from "@agenta/sdk/resources"
+import {fetchProjectPermission, projectPermissionQueryKey} from "@agenta/entities/access"
 import {useQuery} from "@tanstack/react-query"
 
-export const fetchProjectPermission = async (
+/**
+ * Read one effective project permission from the authenticated backend.
+ *
+ * It answers false while the check is in flight and false on an error, so a control gated on it
+ * appears only once the backend has confirmed the reader may use it. The fetcher and the cache key
+ * are the package's, so the atoms the `@agenta/*` surfaces gate on read the same answer.
+ */
+export const useProjectPermission = (projectId: string, action: string): boolean =>
+    useProjectPermissionState(projectId, action).allowed
+
+/**
+ * The same check, with its waiting state.
+ *
+ * A screen that sends the reader somewhere else when the answer is "no" needs to tell "no" from
+ * "not yet", or it would send everyone away while the first check is still in flight.
+ */
+export const useProjectPermissionState = (
     projectId: string,
     action: string,
-): Promise<boolean> => {
-    try {
-        await getAccessClient().checkPermissions(
-            {
-                action,
-                scope_type: "project",
-                scope_id: projectId,
-                resource_type: "service",
-            },
-            // Match auth scope to scope_id; session auth otherwise selects the default project.
-            {queryParams: {project_id: projectId}},
-        )
-        return true
-    } catch {
-        return false
-    }
-}
-
-/** Read one effective project permission from the authenticated backend. */
-export const useProjectPermission = (projectId: string, action: string): boolean => {
+): {allowed: boolean; pending: boolean} => {
     const query = useQuery({
-        queryKey: ["mobile", "project-permission", projectId, action],
+        queryKey: projectPermissionQueryKey(projectId, action),
         queryFn: () => fetchProjectPermission(projectId, action),
         enabled: Boolean(projectId),
         staleTime: 30_000,
         retry: false,
     })
 
-    return query.data === true
+    return {allowed: query.data === true, pending: !projectId || query.isPending}
 }

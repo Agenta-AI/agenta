@@ -24,7 +24,7 @@ The runner SHALL send its usage on turn completion, stored only if the turn has 
 Chat turn metrics SHALL take tokens and cost from the turn and latency from its start and end times, without a trace read. Turn usage SHALL be readable exactly by the principals who may read the session.
 
 #### Scenario: Session reader without trace access
-- **WHEN** a Viewer of a shared session has no `VIEW_SPANS`
+- **WHEN** a person who may read the session has no `VIEW_SPANS`, such as a `member`
 - **THEN** the turn footers SHALL show cost and tokens from the turn rows.
 
 #### Scenario: Private session of another user

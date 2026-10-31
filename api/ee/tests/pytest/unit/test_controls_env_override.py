@@ -532,7 +532,7 @@ class TestRolesOverride:
         )
         lines = out.splitlines()
         # owner + viewer minima first, custom role last.
-        assert lines[0] == "owner,admin,viewer,reviewer"
+        assert lines[0] == "owner,admin,member,viewer,reviewer"
         assert lines[1] == "view_workflows"
 
     def test_project_override_is_mirrored_to_workspace_today(self):
@@ -553,7 +553,7 @@ class TestRolesOverride:
                 )
             },
         )
-        assert out.strip() == "owner,admin,viewer,reviewer"
+        assert out.strip() == "owner,admin,member,viewer,reviewer"
 
     def test_unknown_permission_fails_startup(self):
         _fails(
@@ -854,7 +854,7 @@ class TestRolesOverlay:
                 )
             },
         )
-        assert out.strip() == "owner,admin,viewer"
+        assert out.strip() == "owner,admin,member,viewer"
 
     def test_overlay_non_project_scope_fails_startup(self):
         _fails(

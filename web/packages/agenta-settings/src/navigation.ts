@@ -30,6 +30,13 @@ export interface SettingsAccess {
     canViewEvents: boolean
     isEE: boolean
     isOwner: boolean
+    /** Whether the reader may read trace content: without it the Analytics tab has no data and
+     * the API refuses every request behind it. Optional because the classic app (/w), which takes
+     * no new edits, does not pass it and keeps the tab. */
+    canViewAnalytics?: boolean
+    /** Whether the reader may read the plan and its limits. /m passes true for every role; the
+     * classic app (/w) does not pass it and keeps its owner-only check. */
+    canViewBilling?: boolean
     /** Whether the credit wallet is on. Only then does its debug view have data behind it. */
     walletsEnabled?: boolean
     /** Whether credits stop this organization's work (its wallet is enforced). */
@@ -248,7 +255,9 @@ export const isSettingsTabVisible = (key: SettingsTabKey, access: SettingsAccess
         case "auditLog":
             return access.isEE && access.canViewEvents
         case "billing":
-            return access.isEE && access.isOwner
+            return access.isEE && (access.canViewBilling ?? access.isOwner)
+        case "analytics":
+            return access.canViewAnalytics ?? true
         case "credits":
             return access.isEE && Boolean(access.walletsEnabled && access.walletEnforced)
         case "account":

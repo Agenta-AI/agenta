@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from oss.src.core.access.interfaces import RbacEnforcementInterface
+from oss.src.core.access.interfaces import RbacEntitlementInterface
 from oss.src.core.secrets.interfaces import ProjectLimitsInterface
 
 
@@ -11,8 +11,10 @@ class EntitlementProjectLimits(ProjectLimitsInterface):
 
     Reuses the access layer's entitlement check, with its process memo."""
 
-    def __init__(self, *, rbac: RbacEnforcementInterface):
-        self.rbac = rbac
+    def __init__(self, *, rbac_entitlement: RbacEntitlementInterface):
+        self.rbac_entitlement = rbac_entitlement
 
     async def allows_selected_projects(self, *, organization_id: UUID) -> bool:
-        return bool(await self.rbac.is_enforced(organization_id=organization_id))
+        return bool(
+            await self.rbac_entitlement.is_entitled(organization_id=organization_id)
+        )

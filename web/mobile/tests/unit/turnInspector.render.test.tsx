@@ -12,6 +12,11 @@ import {TurnRow} from "@/features/chat/TurnRow"
 import {WithQueryClient} from "../support/queryClient"
 
 vi.mock("next/router", () => import("../support/nextRouter").then((m) => m.nextRouterModule))
+// The trace action belongs to a reader who may read traces; the gate has its own suite.
+vi.mock("@agenta/entities/access", async (original) => {
+    const {atom} = await import("jotai")
+    return {...(await original<object>()), canViewSpansAtom: atom(true)}
+})
 ;(globalThis as typeof globalThis & {IS_REACT_ACT_ENVIRONMENT: boolean}).IS_REACT_ACT_ENVIRONMENT =
     true
 

@@ -1,3 +1,4 @@
+import {canViewSpansAtom} from "@agenta/entities/access"
 import {agentWorkflowsListQueryStateAtom, workflowMolecule} from "@agenta/entities/workflow"
 import {projectIdAtom} from "@agenta/shared/state"
 import isEqual from "fast-deep-equal"
@@ -87,7 +88,7 @@ export const analyticsBucketsAtomFamily = atomFamily(
                 queryKey: ["analytics", "buckets", projectId, key],
                 queryFn: ({signal}) =>
                     fetchAnalyticsBuckets({projectId: projectId as string, ...key, signal}),
-                enabled: Boolean(projectId),
+                enabled: Boolean(projectId) && get(canViewSpansAtom),
                 ...QUERY_OPTIONS,
             }
         }),
@@ -129,7 +130,7 @@ export const analyticsSplitAtomFamily = atomFamily(
                     )
                     return Object.fromEntries(entries)
                 },
-                enabled: Boolean(projectId) && key.keys.length > 0,
+                enabled: Boolean(projectId) && key.keys.length > 0 && get(canViewSpansAtom),
                 ...QUERY_OPTIONS,
             }
         }),
@@ -176,7 +177,7 @@ export const analyticsModelProvidersAtomFamily = atomFamily(
                     )
                     return out
                 },
-                enabled: Boolean(projectId) && key.enabled,
+                enabled: Boolean(projectId) && key.enabled && get(canViewSpansAtom),
                 ...QUERY_OPTIONS,
             }
         }),
@@ -203,7 +204,7 @@ export const analyticsRunsAtomFamily = atomFamily(
                     (await fetchAnalyticsRunSpans({projectId: projectId as string, ...key})).map(
                         toAnalyticsRun,
                     ),
-                enabled: Boolean(projectId) && key.enabled !== false,
+                enabled: Boolean(projectId) && key.enabled !== false && get(canViewSpansAtom),
                 ...QUERY_OPTIONS,
             }
         }),
@@ -221,7 +222,7 @@ export const analyticsRunToolsAtomFamily = atomFamily(
                     toolsByRun(
                         await fetchAnalyticsToolSpans(projectId as string, traceIds, window),
                     ),
-                enabled: Boolean(projectId) && traceIds.length > 0,
+                enabled: Boolean(projectId) && traceIds.length > 0 && get(canViewSpansAtom),
                 ...QUERY_OPTIONS,
             }
         }),

@@ -4,8 +4,8 @@
 `AccessService.decide` or `check_eligibility` runs, counted by phase
 (`count_statements_by_phase`). The real `PrincipalsDAO` and `MembershipsDAO` read
 Postgres; the cache is the fake one with the real serializer. OSS runs with
-`AlwaysEnforcedRbac`; under `AGENTA_LICENSE=ee` the EE cases run with the real
-`EntitlementsRbacEnforcement`, whose subscription read goes through the same cache.
+`NoRbacEntitlement`; under `AGENTA_LICENSE=ee` the EE cases run with the real
+`PlanRbacEntitlement`. `decide` reads no plan, so neither adapter sends a statement.
 """
 
 from uuid import uuid4
@@ -16,7 +16,7 @@ import oss.src.core.memberships.service as memberships_module
 import oss.src.dbs.postgres.access.dao as principals_module
 from oss.src.core.access.dtos import PrincipalKind, PrincipalRef
 from oss.src.core.access.permissions.types import Permission
-from oss.src.core.access.rbac import AlwaysEnforcedRbac
+from oss.src.core.access.rbac import NoRbacEntitlement
 from oss.src.core.access.service import AccessService
 from oss.src.core.memberships.dtos import MembershipPolicy
 from oss.src.core.memberships.service import MembershipsService
@@ -97,19 +97,19 @@ async def seeded():
 
 def _service(edition: str) -> AccessService:
     if edition == "ee":
-        from ee.src.core.access.rbac import EntitlementsRbacEnforcement
+        from ee.src.core.access.rbac import PlanRbacEntitlement
 
-        rbac = EntitlementsRbacEnforcement()
+        rbac = PlanRbacEntitlement()
         policy = MembershipPolicy.PROJECT_ROWS
     else:
-        rbac = AlwaysEnforcedRbac()
+        rbac = NoRbacEntitlement()
         policy = MembershipPolicy.ORGANIZATION_WIDE
     engine = get_transactions_engine()
     return AccessService(
         memberships=MembershipsService(
             memberships_dao=MembershipsDAO(engine=engine), policy=policy
         ),
-        rbac=rbac,
+        rbac_entitlement=rbac,
         principals=PrincipalsDAO(engine=engine),
         resource_policy=AllowAllResourcePolicy(),
     )

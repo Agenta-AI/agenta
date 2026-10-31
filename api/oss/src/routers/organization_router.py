@@ -190,6 +190,11 @@ async def invite_user_to_organization(
                 },
             )
 
+        # Before the user gauge moves, so a refused role reserves no seat.
+        role = await organization_service.resolve_workspace_invite_role(
+            payload[0], organization_id=organization_id
+        )
+
         if is_ee():
             owner = await db_manager.get_organization_owner(organization_id)
             owner_domain = owner.email.split("@")[-1].lower() if owner else ""
@@ -214,6 +219,7 @@ async def invite_user_to_organization(
             payload=payload[0],
             project_id=str(project.id),
             user_id=request.state.user_id,
+            role=role,
             organization_id=organization_id,
         )
         return invitation_response

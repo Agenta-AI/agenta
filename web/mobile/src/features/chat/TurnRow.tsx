@@ -16,8 +16,10 @@ import {
     McpServerNoticeCard,
     TurnFooter,
 } from "@agenta/chat/components"
+import {useSessionTurnFooter} from "@agenta/chat/hooks"
 import {readableTraceError, splitTurnActivity, type TurnViewModel} from "@agenta/chat/model"
 import {messageBodyKey} from "@agenta/chat/state"
+import {canViewSpansAtom} from "@agenta/entities/access"
 import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
 import {openTraceDrawerAtom} from "@agenta/observability/traceDrawer"
 import {buildRenderMap} from "@agenta/playground/agent-chat"
@@ -90,6 +92,8 @@ const TurnRowInner = ({
     runStartedAt?: number
 }) => {
     const inspectorEnabled = useAtomValue(playgroundInspectorEnabledAtom)
+    // A reader whose role has no trace access gets no trace action and no trace read.
+    const canViewSpans = useAtomValue(canViewSpansAtom)
     const openTraceDrawer = useSetAtom(openTraceDrawerAtom)
     const traceId = getMessageTraceId(turn.message)
     // `render.kind` rides as a sibling `data-render` part, so widget dispatch needs the map.
@@ -102,6 +106,11 @@ const TurnRowInner = ({
         turn.message.parts as {state?: string; errorText?: string}[],
     )
     const usage = getMessageUsage(turn.message)
+    // A user turn has no trace of its own: it takes its time from the turn it started.
+    const sessionTurn = useSessionTurnFooter({
+        sessionId,
+        traceId: turn.isUser ? turn.turnTraceId : traceId,
+    })
     const openProviders = useProviderRecovery()
     const openBilling = useBillingRoute()
     const canBuyCredits = useCanBuyCredits(turn.status.errorCode)
@@ -139,13 +148,15 @@ const TurnRowInner = ({
     const footer = {
         messageId: turn.message.id,
         traceId,
-        turnTraceId: turn.turnTraceId,
         isStreaming: turn.isStreamingTurn,
         usage,
+        sessionTurnFigures: sessionTurn.figures,
+        sessionTurnStartedAt: sessionTurn.startedAt,
+        sessionTurnsPending: sessionTurn.pending,
         copyText,
         // Rewinding the last turn re-runs the current one; hidden, as on desktop.
         onRewind: onRewind && !turn.isLast ? () => onRewind(turn) : undefined,
-        onViewTrace: (id: string) => openTraceDrawer({traceId: id}),
+        onViewTrace: canViewSpans ? (id: string) => openTraceDrawer({traceId: id}) : undefined,
         // The time is the fold's line ("Worked for 11s"); the meta keeps the rest.
         metrics: ASSISTANT_META,
     }
@@ -254,7 +265,8 @@ const TurnRowInner = ({
                 waitingOnUser={turn.isLast && waitingOnUser}
                 resuming={turn.isLast && resuming}
                 hadGate={turn.hadGate}
-                traceId={traceId}
+                sessionTurnStartedAt={sessionTurn.startedAt}
+                sessionTurnDurationMs={sessionTurn.figures?.durationMs}
                 streamedHere={streamedHereRef.current}
                 runStartedAt={runStartedAt}
                 renderClientTool={renderClientTool}
