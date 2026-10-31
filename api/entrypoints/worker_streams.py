@@ -125,6 +125,7 @@ async def _build_spans_worker(redis_client: Redis) -> StreamConsumer:
         redis_client=redis_client,
         stream_name="streams:spans",
         consumer_group="worker-spans",
+        turns_service=SessionTurnsService(turns_dao=SessionTurnsDAO()),
     )
 
 

@@ -4,7 +4,7 @@ Status: proposed, not implemented. Version 3 (2026-10-22), after three Codex rev
 
 This file is the single source for the names, rules and ownership boundaries that the OpenSpec changes share. A change specifies only its own additions and points here for everything else. When a change and this file disagree, this file wins, and the change must be fixed.
 
-Changes: M1 `project-membership-resolver`, M2 `run-principal`, M3 `agent-session-sharing`, M4 `remove-workspaces-org-storage`, M5 `organization-credentials`, M6 `personal-project-and-doors`, M9 `session-trace-privacy`, M7 `personal-credentials-bindings`, M8 `agent-use-grants` (deferred design note only).
+Changes: M1 `project-membership-resolver`, M2 `run-principal`, M3 `agent-session-sharing`, M4 `remove-workspaces-org-storage`, M5 `organization-credentials`, M6 `personal-project-and-doors`, M9 `session-trace-privacy` (M9a only; M9b is replaced by `small-team-roles`), `small-team-roles`, M7 `personal-credentials-bindings` (shipped), M8 `agent-use-grants` (deferred design note only).
 
 ## 1. Tenancy
 
@@ -75,7 +75,7 @@ AccessService.decide(*, authority: RunAuthority | None, principal: PrincipalRef,
                      project_id: UUID | None = None, resource: ResourceRef | None = None) -> Decision
 ```
 
-- Order, fixed: (1) membership eligibility, (2) authority restrictions, (3) capability (EE no-RBAC and organization-owner shortcuts apply only here), (4) resource policy (M3 and later).
+- Order, fixed: (1) membership eligibility, (2) authority restrictions, (3) capability (the organization-owner shortcut applies only here; `small-team-roles` removes the EE no-RBAC shortcut), (4) resource policy (M3 and later).
 - From M3, `AccessService` requires a resource policy, and every composition root passes it. Startup fails without it.
 - Denial reasons, fixed: `principal_inactive` (a deleted key, a disconnected binding, a removed user), `not_member`, `restricted_by_authority`, `missing_capability`, `resource_denied`.
 - The tenant scope comes from the requested project, never from a human identity record.
@@ -132,15 +132,16 @@ M3 design, as built: [interfaces](interfaces/m3/interfaces.md), [technical desig
 - Refused when: an active run exists, a slug clashes, a reference resolves in the source, or a mount in the move set uses an old path.
 - Doors run on the server. The sandbox never gets a credential for another project. Only web runs by a human in their own personal project get doors. Doors are: find agents, read files, run an agent (an execution door).
 - Door rule: the parent's delegation limits AND the principal's current access in the target AND the target resource policy.
-- Activation gate: the run-an-agent door stays off until M9 enforcement runs everywhere, because before M9 target trace readers could read the child result. The find-agents and read-files doors do not wait.
+- Activation gate: the run-an-agent door stays off until `small-team-roles` is live, so the people who can read the child result are the trace-reading roles only. The find-agents and read-files doors do not wait.
 - Later, not planned here: a read-sessions operation for agent-to-agent communication, so a run acting as a user can read other sessions that user can read. It reuses `decide` with a session resource, the same check M3 adds. Across projects it becomes one more door. The reader's session then holds a copy of that content, so the R4 sharing rule applies to it.
 - A move refuses an agent that is deployed to an environment. It never deletes a deployment.
 
 ## 11. Trace privacy (M9)
 
-- One read-scope boundary for all user-triggered trace reads, including saved queries. Unrestricted scope only for named maintenance operations.
-- A deleted private session leaves a privacy tombstone until its traces expire.
-- Query strategy is chosen after measuring; the change specifies the semantics only.
+- M9a: tokens and cost are stored on each turn, and displays read the turn.
+- M9b (trace reads filtered by session access) is replaced by `small-team-roles`. Trace content is readable by roles with `VIEW_SPANS`, which is every catalog role except `member`. On Hobby, Pro and OSS, that means owner and admin.
+- Private chats are private from members, not from admins and owners.
+- The privacy tombstone written by M3 stays until a separate cleanup.
 
 ## 12. Migrations and rollout
 
@@ -172,7 +173,8 @@ Two kinds of dependency. An implementation dependency means the code of one piec
 | M6c | Sharing by move |
 | M6d | Doors (find agents, read files, run an agent) |
 | M9a | Cost and token usage stored on each turn |
-| M9b | Trace reads filtered by session access |
+| M9b | Trace reads filtered by session access. Replaced by `small-team-roles` |
+| small-team-roles | The `member` role, roles enforced on every plan, offered roles per plan |
 | M7 | Personal credentials and bindings, durable-work edit rule |
 | M8 | Use grants (deferred, not planned) |
 
@@ -191,8 +193,9 @@ Two kinds of dependency. An implementation dependency means the code of one piec
 | M6c | M3, M4b mount step, M6b (it calls `is_organization_keyed`) | M6d |
 | M6d | M2, M6b | M6c |
 | M9a | nothing | everything |
-| M9b | M3 | M6 |
-| M7 | M5, M6a, M3 (session personal-use mark) | M9b |
+| M9b | replaced by `small-team-roles` | |
+| small-team-roles | M1, M2 (`AccessService`) | M6 |
+| M7 | M5, M6a, M3 (session personal-use mark) | shipped |
 
 ### Release dependencies (what must be live first)
 
@@ -207,10 +210,11 @@ Two kinds of dependency. An implementation dependency means the code of one piec
 | M6a | M2 |
 | M6b | M3 and M5 (a personal project needs organization keys to be usable) |
 | M6c | the M4b mount step and M6b |
-| M6d | M6a (doors refuse keys and installations only once those are service accounts) and M6b; the run-an-agent door also needs M9b |
+| M6d | M6a (doors refuse keys and installations only once those are service accounts) and M6b; the run-an-agent door also needs `small-team-roles` |
 | M9a | nothing |
-| M9b | M3 |
-| M7 | M5, M6a and M9b |
+| M9b | replaced by `small-team-roles` |
+| small-team-roles | M9a (reduced PR #7881, so chat reads no trace) |
+| M7 | M5 and M6a. It shipped without M9b. |
 
 ### Parallel tracks
 
@@ -218,4 +222,4 @@ Two kinds of dependency. An implementation dependency means the code of one piec
 - Track 2 (start now, independent): M4a and M9a.
 - Track 3 (after M2's types exist): M5.
 - Track 4 (after M1 is live): M4b.
-- Track 5 (after M3 is live): M9b, which unlocks the run-an-agent door and M7.
+- Track 5 (after M3 is live): `small-team-roles`, which replaces M9b and unlocks the run-an-agent door. M7 did not wait for it.

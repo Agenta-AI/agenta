@@ -22,9 +22,10 @@ from oss.src.core.sessions.turns.dtos import (
     SessionTurnComplete,
     SessionTurnCreate,
     SessionTurnQuery,
+    SessionTurnUsageSource,
 )
 from oss.src.core.sessions.turns.interfaces import SessionTurnsDAOInterface
-from oss.src.core.shared.dtos import Reference, Windowing
+from oss.src.core.shared.dtos import Reference, RunUsage, Windowing
 from oss.src.core.sessions.turns.types import (
     SessionTurnCursorInvalid,
     SessionTurnStreamMismatch,
@@ -36,6 +37,7 @@ from oss.src.dbs.postgres.sessions.turns.mappings import (
     map_turn_attribution_to_columns,
     map_turn_dbe_to_dto,
     map_turn_dto_to_dbe_create,
+    map_turn_usage_to_columns,
 )
 from oss.src.dbs.postgres.sessions.turns.utils import query_turn_references
 from oss.src.dbs.postgres.shared.engine import (
@@ -127,6 +129,13 @@ class SessionTurnsDAO(SessionTurnsDAOInterface):
         values = {"end_time": turn.end_time}
         if turn.agent_session_id is not None:
             values["agent_session_id"] = turn.agent_session_id
+        if turn.usage is not None:
+            # Fills only empty fields (see `set_turn_usage_from_trace` on the interface).
+            for column, value in map_turn_usage_to_columns(
+                usage=turn.usage, source=SessionTurnUsageSource.RUNNER
+            ).items():
+                typed = literal(value, type_=SessionTurnDBE.__table__.c[column].type)
+                values[column] = func.coalesce(getattr(SessionTurnDBE, column), typed)
         if turn.envelope is not None:
             # One group: every attribution column takes the completing envelope's
             # value only when the row recorded no principal; otherwise every column
@@ -179,6 +188,49 @@ class SessionTurnsDAO(SessionTurnsDAOInterface):
         if dbe is None:
             return None
         return map_turn_dbe_to_dto(turn_dbe=dbe)
+
+    async def set_turn_usage_from_trace(
+        self,
+        *,
+        project_id: UUID,
+        trace_id: UUID,
+        usage: RunUsage,
+    ) -> int:
+        values = {
+            column: (
+                value
+                if column == "usage_source"
+                else func.coalesce(
+                    literal(value, type_=SessionTurnDBE.__table__.c[column].type),
+                    getattr(SessionTurnDBE, column),
+                )
+            )
+            for column, value in map_turn_usage_to_columns(
+                usage=usage, source=SessionTurnUsageSource.TRACE
+            ).items()
+        }
+        # A shared trace (a caller's traceparent reused) writes no turn.
+        turns_of_trace = (
+            select(func.count())
+            .select_from(SessionTurnDBE)
+            .where(
+                SessionTurnDBE.project_id == project_id,
+                SessionTurnDBE.trace_id == trace_id,
+            )
+            .scalar_subquery()
+        )
+        async with self.engine.session() as session:
+            result = await session.execute(
+                sa_update(SessionTurnDBE)
+                .where(
+                    SessionTurnDBE.project_id == project_id,
+                    SessionTurnDBE.trace_id == trace_id,
+                    turns_of_trace == 1,
+                )
+                .values(**values)
+            )
+            await session.commit()
+            return result.rowcount or 0
 
     async def fetch_turn(
         self,

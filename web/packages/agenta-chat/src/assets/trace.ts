@@ -80,7 +80,7 @@ export interface MessageUsageMetrics {
 /**
  * Usage (tokens + cost) the service stamps onto `message.metadata.usage` via the
  * `finish` part's messageMetadata (`{input, output, total, cost}`), mapped to the
- * metrics-display field names. The fallback for figures the trace does not carry.
+ * metrics-display field names. The footer shows it while the turn runs.
  */
 export const getMessageUsage = (message: UIMessage): MessageUsageMetrics | undefined => {
     const usage = (message.metadata as {usage?: Record<string, unknown>} | undefined)?.usage
@@ -97,20 +97,3 @@ export const getMessageUsage = (message: UIMessage): MessageUsageMetrics | undef
     if (cost !== undefined) out.totalCost = cost
     return Object.keys(out).length > 0 ? out : undefined
 }
-
-/**
- * A turn's figures: the trace root's cumulative metrics, and the streamed usage for any figure
- * the trace lacks (not ingested yet, or no totals). The trace is the priced record: the runner
- * cannot report a cost for every turn (a Claude session reloaded into a new sandbox), and the API
- * then prices the spans from tokens.
- */
-export const mergeTurnMetrics = <T extends MessageUsageMetrics>(
-    traceMetrics: T,
-    usage?: MessageUsageMetrics,
-): T => ({
-    ...traceMetrics,
-    promptTokens: traceMetrics.promptTokens ?? usage?.promptTokens,
-    completionTokens: traceMetrics.completionTokens ?? usage?.completionTokens,
-    totalTokens: traceMetrics.totalTokens ?? usage?.totalTokens,
-    totalCost: traceMetrics.totalCost ?? usage?.totalCost,
-})
