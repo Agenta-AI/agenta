@@ -57,16 +57,18 @@ def test_member_is_in_every_scope(scope):
         assert entry["permissions"] == []
 
 
-def test_member_is_developer_without_trace_content():
+def test_member_is_developer_without_trace_content_plus_project_setup():
     member = set(get_role_permissions("project", "member"))
     developer = set(get_role_permissions("project", "developer"))
-    assert member == developer - {p.value for p in _TRACE_CONTENT}
+    project_setup = {Permission.CREATE_WORKSPACE.value, Permission.EDIT_WORKSPACE.value}
+    assert member == (developer - {p.value for p in _TRACE_CONTENT}) | project_setup
     # Its runs export spans with its credential, and credit balances read under
     # `VIEW_BILLING`.
     assert Permission.EDIT_SPANS.value in member
     assert Permission.VIEW_BILLING.value in member
     assert Permission.RUN_SESSIONS.value in member
     assert Permission.EDIT_BILLING.value not in member
+    assert Permission.DELETE_WORKSPACE.value not in member
 
 
 def test_admin_gains_edit_billing_and_keeps_traces():

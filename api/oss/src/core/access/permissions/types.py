@@ -301,9 +301,11 @@ class Permission(str, Enum):
             cls.VIEW_EVALUATION_QUEUES,
             cls.EDIT_EVALUATION_QUEUES,
         }
+        # A member also creates and renames projects, so a member can set up a project
+        # of their own. Deleting a project stays with the owner.
         MEMBER_PERMISSIONS = [
             p for p in DEVELOPER_PERMISSIONS if p not in MEMBER_EXCLUDED
-        ]
+        ] + [cls.CREATE_WORKSPACE, cls.EDIT_WORKSPACE]
         defaults = {
             DefaultRole.OWNER: [p for p in cls],
             DefaultRole.ADMIN: ADMIN_PERMISSIONS,
