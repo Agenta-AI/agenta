@@ -1,1 +1,1 @@
-{"parameters":[{"name":"endpoint_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Endpoint Id"}}]}
+{"parameters":[{"name":"endpoint_id","in":"path","required":true,"schema":{"type":"string","format":"uuid","title":"Endpoint Id"}},{"name":"owner_kind","in":"query","required":false,"schema":{"enum":["project","user"],"type":"string","default":"project","title":"Owner Kind"}}]}
