@@ -50,7 +50,8 @@ export const fetchOfferedRoles = async (
     })
     const data = (response.data ?? {}) as AccessRolesResponse
     const offered = new Set(data.offered?.roles ?? [])
-    return (data.workspace ?? [])
+    // The API offers roles from the project catalog, which the access check reads.
+    return (data.project ?? [])
         .filter((entry) => offered.has(entry.role))
         .map((entry) => ({
             role_name: entry.role,
