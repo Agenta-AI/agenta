@@ -1,3 +1,5 @@
+import pytest
+
 from agenta.sdk.engines.running.utils import (
     AGENTA_CUSTOM_PLUGIN_URI,
     infer_flags_from_data,
@@ -29,9 +31,17 @@ def test_plugin_uri_derives_is_plugin_and_roles():
     assert flags.is_agent is False
 
 
-def test_other_uris_are_not_plugins():
+@pytest.mark.parametrize(
+    "uri",
+    [
+        "agenta:custom:code:v0",
+        "agenta:custom:plugin:v1",
+        "other:custom:plugin:v0",
+    ],
+)
+def test_other_uris_are_not_plugins(uri):
     flags = infer_flags_from_data(
-        flags=None, data=WorkflowRevisionData(uri="agenta:custom:code:v0", script="x")
+        flags=None, data=WorkflowRevisionData(uri=uri, script="x")
     )
     assert flags.is_plugin is False
 

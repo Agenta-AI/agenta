@@ -753,7 +753,7 @@ def infer_flags_from_data(
     is_feedback = key == "feedback"
     is_agent = key == "agent"
     is_skill = key == "skill"
-    is_plugin = key == "plugin"
+    is_plugin = uri == AGENTA_CUSTOM_PLUGIN_URI
 
     # schema-derived flags
     inputs_schema = (

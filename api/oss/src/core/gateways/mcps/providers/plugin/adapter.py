@@ -50,10 +50,14 @@ class PluginMCPAdapter:
     ) -> MCPRelayResult:
         try:
             payload = json.loads(body)
-        except (ValueError, UnicodeDecodeError) as exc:
-            raise ValueError("MCP request body must be valid JSON-RPC") from exc
+        except (ValueError, UnicodeDecodeError):
+            return self._response(
+                None, error={"code": -32700, "message": "Parse error"}
+            )
         if not isinstance(payload, dict):
-            raise ValueError("MCP request body must be a JSON object")
+            return self._response(
+                None, error={"code": -32600, "message": "Invalid request"}
+            )
         request_id = payload.get("id")
         revision = await self._revision(project_id=project_id, slug=slug)
         if request_id is None:

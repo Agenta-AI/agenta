@@ -101,3 +101,21 @@ async def test_notification_has_no_response(setup):
     result = await relay(setup[0], "notifications/initialized")
     assert result.status_code == 202
     assert result.body == b""
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "body, code",
+    [(b"{", -32700), (b"\xff", -32700), (b"[]", -32600), (b"null", -32600)],
+)
+async def test_bad_request_returns_rpc_error_without_dispatch(setup, body, code):
+    adapter, _, service, router = setup
+    result = await adapter.relay(
+        request=NS(), project_id=uuid4(), slug="triage", body=body
+    )
+    payload = json.loads(result.body)
+    assert payload["id"] is None
+    assert payload["error"]["code"] == code
+    assert result.status_code < 500
+    service.retrieve_workflow_revision.assert_not_awaited()
+    router.call_tool.assert_not_awaited()

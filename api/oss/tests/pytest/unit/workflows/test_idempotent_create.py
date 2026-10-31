@@ -423,3 +423,19 @@ async def test_create_idempotent_passes_the_owner_when_the_create_wrote_no_row()
     )
 
     assert store.commit_owners == [USER_ID, USER_ID]
+
+
+@pytest.mark.asyncio
+async def test_plugin_idempotent_creation_sets_artifact_application_role():
+    service, store = _service()
+    kwargs = _kwargs()
+    kwargs["simple_workflow_create"] = SimpleWorkflowCreate(
+        slug="plugin", data=SimpleWorkflowData(uri="agenta:custom:plugin:v0")
+    )
+    first = await service.create_idempotent(**kwargs)
+    replay = await service.create_idempotent(**kwargs)
+    assert replay.workflow.id == first.workflow.id
+    artifact = next(iter(store.artifacts.values()))
+    assert artifact.flags.is_application is True
+    assert artifact.flags.is_evaluator is False
+    assert artifact.flags.is_snippet is False
