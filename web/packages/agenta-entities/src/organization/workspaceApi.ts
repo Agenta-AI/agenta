@@ -1,6 +1,10 @@
+import {getAccessClient} from "@agenta/sdk/resources"
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 import {projectIdAtom} from "@agenta/shared/state"
 import {getDefaultStore} from "jotai"
+import {z} from "zod"
+
+import {safeParseWithLogging} from "../shared/utils/zodSchema"
 
 import {toSafeIdSegment} from "./idSegments"
 import type {Workspace, WorkspaceMember, WorkspaceRole} from "./types"
@@ -16,18 +20,18 @@ const getProjectValues = () => ({projectId: getDefaultStore().get(projectIdAtom)
 //  - delete: DELETE data from server
 
 /** `/access/roles`: the catalog per scope, and the roles this organization may set now. */
-interface AccessRolesResponse {
-    organization?: RoleCatalogEntry[]
-    workspace?: RoleCatalogEntry[]
-    project?: RoleCatalogEntry[]
-    offered?: {roles?: string[]; floor_role?: string}
-}
+const roleCatalogEntrySchema = z.object({
+    role: z.string(),
+    description: z.string().nullish(),
+    permissions: z.array(z.string()).optional(),
+})
 
-interface RoleCatalogEntry {
-    role: string
-    description?: string | null
-    permissions?: string[]
-}
+const accessRolesResponseSchema = z.object({
+    project: z.array(roleCatalogEntrySchema).optional(),
+    offered: z
+        .object({roles: z.array(z.string()).optional(), floor_role: z.string().optional()})
+        .optional(),
+})
 
 /**
  * The roles an invite or a role change may set in this organization, in catalog order.
@@ -42,13 +46,12 @@ interface RoleCatalogEntry {
  */
 export const fetchOfferedRoles = async (
     projectId?: string,
-    ignoreAxiosError = false,
 ): Promise<Omit<WorkspaceRole, "permissions">[]> => {
-    const response = await axios.get(`${getAgentaApiUrl()}/access/roles`, {
-        params: projectId ? {project_id: projectId} : undefined,
-        _ignoreError: ignoreAxiosError,
+    const raw = await getAccessClient().fetchAccessRoles({
+        queryParams: projectId ? {project_id: projectId} : undefined,
     })
-    const data = (response.data ?? {}) as AccessRolesResponse
+    const data = safeParseWithLogging(accessRolesResponseSchema, raw, "[fetchOfferedRoles]")
+    if (!data) throw new Error("The roles answer did not validate")
     const offered = new Set(data.offered?.roles ?? [])
     // The API offers roles from the project catalog, which the access check reads.
     return (data.project ?? [])

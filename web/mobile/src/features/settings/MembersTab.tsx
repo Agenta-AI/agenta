@@ -79,7 +79,7 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
     // Keyed by organization, because another organization on another plan offers another set.
     const roles = useQuery({
         queryKey: ["offered-roles", organizationId, projectId],
-        queryFn: () => fetchOfferedRoles(projectId, true),
+        queryFn: () => fetchOfferedRoles(projectId),
         enabled: Boolean(projectId) && (inviteOpen || canChangeRoles),
     })
     const offeredRoles = (roles.data ?? []).map((entry) => entry.role_name)
