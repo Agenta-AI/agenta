@@ -86,8 +86,6 @@ const endedTurnNeedsRead = (key: string, cached: SessionTurn[] | null | undefine
 
 // One read at a time per session; a turn still cached as running is read again on a later event.
 const readingBySession = new Set<string>()
-// Ended turns a settled read found no session turn for (its row has no trace id).
-const withoutTurnBySession = new Map<string, Set<string>>()
 
 export const revalidateSessionTurnsOnTurnEndAtom = atom(
     null,
@@ -96,26 +94,16 @@ export const revalidateSessionTurnsOnTurnEndAtom = atom(
         if (!projectId || !sessionId || endedTraceIds.length === 0) return
         if (readingBySession.has(sessionId)) return
         const client = get(queryClientAtom)
-        const queryKey = sessionTurnsQueryKey(projectId, sessionId)
-        const withoutTurn = withoutTurnBySession.get(sessionId) ?? new Set<string>()
-        const keys = endedTraceIds
-            .map(normalizeTraceId)
-            .filter((key) => key && !withoutTurn.has(key))
-        const missing = keys.filter((key) =>
-            endedTurnNeedsRead(key, client.getQueryData<SessionTurn[] | null>(queryKey)),
+        const cached = client.getQueryData<SessionTurn[] | null>(
+            sessionTurnsQueryKey(projectId, sessionId),
         )
-        if (missing.length === 0) return
+        const needsRead = endedTraceIds
+            .map(normalizeTraceId)
+            .some((key) => key && endedTurnNeedsRead(key, cached))
+        if (!needsRead) return
         readingBySession.add(sessionId)
         void set(revalidateSessionTurnsAtom, sessionId).finally(() => {
             readingBySession.delete(sessionId)
-            if (client.getQueryState(queryKey)?.status !== "success") return
-            const turns = client.getQueryData<SessionTurn[] | null>(queryKey) ?? []
-            for (const key of missing) {
-                if (!turns.some((row) => normalizeTraceId(row.trace_id) === key)) {
-                    withoutTurn.add(key)
-                }
-            }
-            withoutTurnBySession.set(sessionId, withoutTurn)
         })
     },
 )

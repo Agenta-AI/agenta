@@ -193,4 +193,25 @@ describe("the session turns refresh at a turn's end", () => {
             unsubscribe()
         }
     }, 20_000)
+
+    // Accepted: no history per turn, so a trace with no session turn reads again later.
+    it("reads again for an ended turn that has no session turn", async () => {
+        const sessionId = `${SESSION_ID}-6`
+        querySessionTurnsMock.mockReset()
+        querySessionTurnsMock.mockResolvedValue(ended)
+        const store = makeStore()
+        const unsubscribe = store.sub(sessionTurnsQueryFamily(sessionId), () => {})
+        try {
+            await vi.waitFor(() => expect(querySessionTurnsMock).toHaveBeenCalledTimes(1))
+            store.set(revalidateSessionTurnsOnTurnEndAtom, {sessionId, endedTraceIds: ["t9"]})
+            await vi.waitFor(() => expect(querySessionTurnsMock).toHaveBeenCalledTimes(2))
+            await new Promise((resolve) => setTimeout(resolve, 20))
+
+            store.set(revalidateSessionTurnsOnTurnEndAtom, {sessionId, endedTraceIds: ["t9"]})
+
+            await vi.waitFor(() => expect(querySessionTurnsMock).toHaveBeenCalledTimes(3))
+        } finally {
+            unsubscribe()
+        }
+    })
 })
