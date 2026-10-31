@@ -9,7 +9,7 @@ default in line with that.
 - Rewrites every row with role='member' to role='viewer'.
 - Changes the column server default from 'member' to 'viewer'.
 
-The downgrade reverses both, restoring the previous behavior.
+The downgrade restores the column default only (see `downgrade`).
 
 Revision ID: a1b2c3d4e5f7
 Revises: 9d3e8f0a1b2c
@@ -46,8 +46,6 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    conn = op.get_bind()
-
     op.alter_column(
         "organization_members",
         "role",
@@ -56,6 +54,5 @@ def downgrade() -> None:
         existing_nullable=False,
     )
 
-    conn.execute(
-        text("UPDATE organization_members SET role = 'member' WHERE role = 'viewer'")
-    )
+    # No role rewrite: `member` is now a real role, so turning viewers into members
+    # would give them more permissions.

@@ -9,9 +9,9 @@ behavior flip on a management endpoint:
 The EE suite mirrors this with an entitled business account; see
 ee/tests/pytest/acceptance/accounts/test_rbac_enforcement_ee.py.
 
-On EE these tests run too. An EE organization without the RBAC entitlement lets every
-member pass by design, so on EE the owner's account is pinned to a plan with the
-entitlement (`_OWNER_PLAN`): the tests then check the role rule, not the plan.
+On EE these tests run too, with the owner's account pinned to a plan with the RBAC
+entitlement (`_OWNER_PLAN`). Roles apply on every plan; the pin keeps the tests on one
+plan. The invite names `member`, which every plan offers.
 """
 
 from uuid import uuid4
@@ -155,7 +155,7 @@ class TestRbacEnforcementOss:
                 f"/organizations/{organization_id}/workspaces/{workspace_id}/invite",
                 params={"project_id": project_id},
                 headers=owner_headers,
-                json=[{"email": target_email, "roles": ["viewer"]}],
+                json=[{"email": target_email, "roles": ["member"]}],
             )
             assert invite_resp.status_code == 200, invite_resp.text
 
@@ -213,7 +213,7 @@ class TestRbacEnforcementOss:
                 f"/organizations/{organization_id}/workspaces/{workspace_id}/invite",
                 params={"project_id": project_id},
                 headers=viewer_headers,
-                json=[{"email": target_email, "roles": ["viewer"]}],
+                json=[{"email": target_email, "roles": ["member"]}],
             )
             assert viewer_invite.status_code == 403, viewer_invite.text
         finally:

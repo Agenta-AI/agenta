@@ -18,6 +18,8 @@ from oss.src.models.api.workspace_models import (
     ResendInviteRequest,
 )
 from oss.src.core.access.controls import get_role
+from oss.src.core.access.service import ROLE_SCOPE, get_access_service
+from oss.src.core.access.types import RbacEntitlementUnavailable, RoleNotOffered
 from oss.src.core.access.permissions.types import DefaultRole, Permission
 
 log = get_module_logger(__name__)
@@ -163,25 +165,60 @@ async def send_invitation_email(
     return True
 
 
-def resolve_workspace_invite_role(payload: InviteRequest) -> str:
-    """Resolve the workspace role for an invite, defaulting to the catalog floor.
+async def resolve_workspace_invite_role(
+    payload: InviteRequest, *, organization_id: str
+) -> str:
+    """Resolve the role of an invite: the named role, or the plan's floor role.
 
-    Shared by OSS and EE invite paths. Validates against the effective workspace
-    catalog (env-overridable via AGENTA_ACCESS_ROLES in EE) since the API model
-    accepts any string for forward-compatibility with custom roles.
+    Shared by OSS and EE invite paths. The role must be in the effective catalog
+    (env-overridable via AGENTA_ACCESS_ROLES in EE) and offered by the
+    organization's plan, which never offers `owner`.
     """
 
     raw = payload.roles[0] if payload.roles else None
     role = getattr(raw, "value", None) or (str(raw) if raw is not None else None)
-    role = role or DefaultRole.VIEWER.value
+    if not role:
+        # The floor role is always offered and in the catalog.
+        try:
+            offered = await get_access_service().offered_roles(
+                organization_id=UUID(str(organization_id))
+            )
+        except RbacEntitlementUnavailable as exc:
+            raise HTTPException(status_code=503, detail=exc.message) from exc
+        return offered.floor_role
 
-    if get_role("workspace", role) is None:
+    await check_invite_role(role, organization_id=organization_id)
+    return role
+
+
+async def check_invite_role(role: str, *, organization_id: str) -> None:
+    """Refuse an invitation role that the catalog lacks (400) or that the organization's
+    plan does not offer (400, `owner` included), or whose plan cannot be read (503). The
+    one check of a new invite and of a resent one."""
+
+    if get_role(ROLE_SCOPE, role) is None:
         raise HTTPException(
             status_code=400,
             detail=f"Workspace role '{role}' is invalid.",
         )
+    try:
+        await get_access_service().require_offered_role(
+            organization_id=UUID(str(organization_id)), role=role
+        )
+    except RoleNotOffered as exc:
+        raise HTTPException(status_code=400, detail=exc.message) from exc
+    except RbacEntitlementUnavailable as exc:
+        raise HTTPException(status_code=503, detail=exc.message) from exc
 
-    return role
+
+def accepted_invitation_role(stored_role: str) -> str:
+    """The role an accepted invitation grants. An invitation stored as `owner` (written
+    before invites refused it; OSS has no migration for them) grants `admin`: only the
+    transfer route makes an owner."""
+
+    if stored_role == DefaultRole.OWNER.value:
+        return DefaultRole.ADMIN.value
+    return stored_role
 
 
 async def create_invitation(role: str, project_id: str, email: str):
@@ -215,6 +252,7 @@ async def invite_user_to_organization(
     payload: InviteRequest,
     project_id: str,
     user_id: str,
+    role: str,
     organization_id: str | None = None,
 ):
     """
@@ -262,8 +300,6 @@ async def invite_user_to_organization(
         )
 
         await assert_invite_domain_allowed(organization_id, payload.email)
-
-    role = resolve_workspace_invite_role(payload)
 
     log.info(
         "[invite] creating invitation",
@@ -321,31 +357,40 @@ async def resend_user_organization_invite(
 
     user_performing_action = await db_manager.get_user_with_id(user_id=user_id)
 
-    # Check if the email address already has a valid, unused invitation for the workspace
+    # Read the unused invitation without deleting an expired one: the role check below
+    # can fail with "try again", and a retry must still find it.
     if organization_id:
-        (
-            existing_invitation,
-            existing_role,
-        ) = await check_existing_organization_invitation(
+        stored = await db_manager.get_project_invitation_by_organization_and_email(
             organization_id=organization_id, email=payload.email
         )
     else:
-        existing_invitation, existing_role = await check_existing_invitation(
-            project_id, payload.email
+        stored = await db_manager.get_project_invitation_by_email(
+            project_id=project_id, email=payload.email
         )
-    if existing_invitation:
-        invitation = existing_invitation
-    elif existing_role:
-        # Create a new invitation with the previous role
-        invitation = await create_invitation(existing_role, project_id, payload.email)
-    else:
+    if (
+        stored is None
+        or stored.used
+        or stored.email != payload.email
+        or (not organization_id and str(stored.project_id) != project_id)
+    ):
         raise HTTPException(
             status_code=404,
             detail="No existing invitation found for the user",
         )
 
-    # Get project by id
+    # A resent invitation keeps its role only while the plan still offers it, as a new
+    # invite would: nothing is deleted, created or sent before this check.
     project_db = await db_manager.get_project_by_id(project_id=project_id)
+    await check_invite_role(
+        stored.role, organization_id=str(project_db.organization_id)
+    )
+
+    if stored.expiration_date > datetime.now(timezone.utc):
+        invitation = stored
+    else:
+        # Replace the expired invitation with a new one that keeps its role.
+        await db_manager.delete_invitation(str(stored.id))
+        invitation = await create_invitation(stored.role, project_id, payload.email)
 
     # Send the invitation email
     send_email = await send_invitation_email(
@@ -492,7 +537,7 @@ async def accept_organization_invitation(
     await get_memberships_service().set_member_role(
         organization_id=project.organization_id,
         user_id=user_exists.id,
-        role=invitation.role,
+        role=accepted_invitation_role(invitation.role),
         join_all_projects=True,
         actor_user_id=user_exists.id,
     )

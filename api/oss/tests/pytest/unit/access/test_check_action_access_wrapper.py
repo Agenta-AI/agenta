@@ -227,7 +227,7 @@ async def test_malformed_or_unknown_project_id_denies(monkeypatch):
             memberships=MembershipsService(
                 memberships_dao=dao, policy=MembershipPolicy.ORGANIZATION_WIDE
             ),
-            rbac=RecordingRbac(),
+            rbac_entitlement=RecordingRbac(),
             principals=HumanPrincipalsDAO(),
             resource_policy=AllowAllResourcePolicy(),
         )

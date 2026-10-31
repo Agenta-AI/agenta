@@ -149,7 +149,7 @@ async def test_agenta_channel_refuses_key_with_missing_creator():
             memberships_dao=InMemoryMembershipsDAO(),
             policy=MembershipPolicy.ORGANIZATION_WIDE,
         ),
-        rbac=RecordingRbac(),
+        rbac_entitlement=RecordingRbac(),
         principals=principals,
         resource_policy=AllowAllResourcePolicy(),
     )

@@ -5,12 +5,10 @@ rolled-back transaction (`rolled_back_connection`) and reads through the real DA
 that connection, so the shared database keeps none of the global repair.
 """
 
-from uuid import UUID
-
 import pytest
 from sqlalchemy import text
 
-from oss.src.core.access.interfaces import RbacEnforcementInterface
+from oss.src.core.access.rbac import NoRbacEntitlement
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.access.service import AccessService
 from oss.src.core.memberships.dtos import MembershipPolicy
@@ -72,7 +70,7 @@ async def test_bearer_list_and_capability_agree(policy):
         memberships = MembershipsService(memberships_dao=dao, policy=policy)
         access = AccessService(
             memberships=memberships,
-            rbac=RecordingRbac(enforced=True),
+            rbac_entitlement=RecordingRbac(entitled=True),
             principals=HumanPrincipalsDAO(),
             resource_policy=AllowAllResourcePolicy(),
         )
@@ -108,14 +106,6 @@ async def test_bearer_list_and_capability_agree(policy):
             await delete_seeded_organization(seeded)
 
 
-class _NoRbacFor(RbacEnforcementInterface):
-    def __init__(self, organization_ids):
-        self._no_rbac = set(organization_ids)
-
-    async def is_enforced(self, *, organization_id: UUID) -> bool:
-        return organization_id not in self._no_rbac
-
-
 @pytest.mark.parametrize("edition", ["oss", "ee"])
 async def test_legacy_shapes_decide_as_expected(edition, monkeypatch):
     import entrypoints.memberships_check as check_module
@@ -123,10 +113,10 @@ async def test_legacy_shapes_decide_as_expected(edition, monkeypatch):
     shapes = await seed_legacy_shapes()
     p2b_org = shapes["P2b"].organization_id
 
-    async def _rbac_enforced(organization_id):
+    async def _rbac_entitled(organization_id):
         return organization_id != p2b_org
 
-    monkeypatch.setattr(check_module, "_rbac_enforced", _rbac_enforced)
+    monkeypatch.setattr(check_module, "_rbac_entitled", _rbac_entitled)
     monkeypatch.setattr(check_module, "is_ee", lambda: edition == "ee")
 
     policy = (
@@ -172,7 +162,7 @@ async def test_legacy_shapes_decide_as_expected(edition, monkeypatch):
                     memberships_dao=MembershipsDAO(engine=ConnectionEngine(connection)),
                     policy=policy,
                 ),
-                rbac=_NoRbacFor([p2b_org]),
+                rbac_entitlement=NoRbacEntitlement(),
                 principals=HumanPrincipalsDAO(),
                 resource_policy=AllowAllResourcePolicy(),
             )

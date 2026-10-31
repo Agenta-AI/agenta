@@ -37,7 +37,7 @@ def test_new_signup_has_no_workspace_and_works(admin_api, team):
         f"/organizations/{org}/workspaces/{org}/invite",
         params={"project_id": team.project_id},
         headers=team.headers("owner"),
-        json=[{"email": unique_email("invitee"), "roles": ["viewer"]}],
+        json=[{"email": unique_email("invitee"), "roles": ["member"]}],
     )
     assert resp.status_code == 200, resp.text
 
@@ -83,7 +83,7 @@ def test_role_routes_with_the_organization_id_write_no_workspace_row(admin_api, 
         f"/workspaces/{org}/roles/",
         params={"project_id": team.project_id},
         headers=team.headers("owner"),
-        json={"email": team.emails["m"], "role": "editor", "organization_id": org},
+        json={"email": team.emails["m"], "role": "admin", "organization_id": org},
     )
     assert resp.status_code == 200, resp.text
     resp = admin_api("GET", f"/organizations/{org}", headers=team.headers("owner"))
@@ -94,4 +94,4 @@ def test_role_routes_with_the_organization_id_write_no_workspace_row(admin_api, 
         for m in details["default_workspace"]["members"]
         if m["roles"]
     }
-    assert roles[team.emails["m"]] == "editor"
+    assert roles[team.emails["m"]] == "admin"

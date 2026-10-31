@@ -18,7 +18,7 @@ from oss.src.services import db_manager
 from oss.src.core.memberships.dtos import ProjectListing
 from oss.src.core.memberships.service import get_memberships_service
 from oss.src.core.access.permissions.service import check_action_access
-from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.permissions.types import Permission, RequiredRole
 
 from oss.src.utils.logging import get_module_logger
 
@@ -64,6 +64,18 @@ async def _require(request: Request, project_id, permission: Permission) -> None
         user_uid=str(request.state.user_id),
         project_id=str(project_id),
         permission=permission,
+    )
+    if not allowed:
+        raise HTTPException(status_code=403, detail=_PERMISSION_DENIED)
+
+
+async def _require_admin(request: Request, project_id) -> None:
+    # The default project carries organization writes, so choosing it is for owners and
+    # admins, also where a member may create and rename projects.
+    allowed = await check_action_access(
+        user_uid=str(request.state.user_id),
+        project_id=str(project_id),
+        role=RequiredRole.ADMIN,
     )
     if not allowed:
         raise HTTPException(status_code=403, detail=_PERMISSION_DENIED)
@@ -220,6 +232,8 @@ async def create_project(
     except NoResultFound as exc:
         raise HTTPException(status_code=400, detail=_CONTEXT_REQUIRED) from exc
     await _require(request, default_project_id, Permission.CREATE_WORKSPACE)
+    if payload.make_default:
+        await _require_admin(request, default_project_id)
 
     project_name = payload.name.strip()
 
@@ -311,13 +325,14 @@ async def update_project(
     await _require(request, project_id, Permission.EDIT_WORKSPACE)
     if payload.make_default:
         # Making a project the default changes which project carries organization
-        # writes, so it also needs the permission on the organization's current default
-        # (its first project by the same order when it has no default).
+        # writes, so it needs the admin role here and on the organization's current
+        # default (its first project by the same order when it has no default).
+        await _require_admin(request, project_id)
         current = await db_manager.get_project_by_workspace(
             str(listing.summary.organization_id)
         )
         if str(current.id) != str(project_id):
-            await _require(request, current.id, Permission.EDIT_WORKSPACE)
+            await _require_admin(request, current.id)
 
     if payload.name is None and payload.make_default is None:
         raise HTTPException(

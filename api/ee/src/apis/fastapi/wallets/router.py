@@ -6,8 +6,8 @@ runner is told the same switch (`AGENTA_WALLETS_ENABLED`) and does not call them
 
 The two read routes answer for the whole organization while the permission check reads one
 project. The summary is balances only, like the billing routes, so `VIEW_BILLING` gates it.
-The usage detail names users and spans every project, so it takes `EDIT_BILLING`, which only
-the organization owner holds by default.
+The usage detail names users and spans every project, so it takes `EDIT_BILLING`, which the
+owner and admin roles hold by default.
 """
 
 from typing import Optional
