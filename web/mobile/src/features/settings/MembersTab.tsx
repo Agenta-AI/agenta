@@ -9,7 +9,7 @@ import {
     inviteToWorkspace,
     removeFromWorkspace,
 } from "@agenta/entities/organization"
-import {updateUsername, useProfile} from "@agenta/entities/profile"
+import {resetPassword, updateUsername, useProfile} from "@agenta/entities/profile"
 import {MembersPage} from "@agenta/settings-ui"
 import {LoadError} from "@agenta/ui/components/presentational"
 import {
@@ -41,6 +41,7 @@ import {useProjectPermission} from "../context/useProjectPermission"
 
 import {InvitedLinkDialog, type InvitedLink} from "./InvitedLinkDialog"
 import {memberRole, MemberRoleCell, memberRoleLabel} from "./MemberRoleCell"
+import {ResetPasswordLinkDialog} from "./ResetPasswordLinkDialog"
 import type {SettingsTabProps} from "./settingsTabProps"
 import {useSettingsOrg} from "./useSettingsOrg"
 
@@ -60,6 +61,7 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
     const [error, setError] = useState<string | null>(null)
     // A role change happens on the table, not in a dialog, so its failure is said there.
     const [roleError, setRoleError] = useState<string | null>(null)
+    const [resetTarget, setResetTarget] = useState<WorkspaceMember | null>(null)
     const [invitedLink, setInvitedLink] = useState<InvitedLink | null>(null)
     const queryClient = useQueryClient()
 
@@ -67,6 +69,7 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
     // reader may do, so no control appears that the API would refuse.
     const scopeKnown = Boolean(organizationId && workspaceId)
     const canInvite = useProjectPermission(projectId, "add_new_user_to_workspace")
+    const canResetPassword = useProjectPermission(projectId, "reset_password")
     const canChangeRoles = useProjectPermission(projectId, "modify_user_roles")
     // The remove route requires the admin role itself (or the organization owner), whatever
     // permissions a custom role holds, so this reads the reader's own role.
@@ -170,6 +173,7 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
             ownerId={ownerId}
             canInviteMembers={scopeKnown && canInvite}
             canRemoveMembers={scopeKnown && canRemove}
+            canResetPassword={canResetPassword}
             renderRoleCell={(member) => (
                 <MemberRoleCell
                     member={member}
@@ -191,6 +195,7 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
                 setError(null)
                 setPendingRemoval(member)
             }}
+            onResetPassword={(member) => setResetTarget(member)}
             onRenameSelf={async (_member, name) => {
                 await updateUsername(name)
                 await queryClient.invalidateQueries({queryKey: ["profile"]})
@@ -266,6 +271,12 @@ export const MembersTab = ({workspaceId: routeWorkspaceId, projectId}: SettingsT
             </Dialog>
 
             <InvitedLinkDialog invited={invitedLink} onClose={() => setInvitedLink(null)} />
+
+            <ResetPasswordLinkDialog
+                target={resetTarget}
+                onRequest={(member) => resetPassword(member.user.id)}
+                onClose={() => setResetTarget(null)}
+            />
 
             <AlertDialog
                 open={Boolean(pendingRemoval)}
