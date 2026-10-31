@@ -138,7 +138,7 @@ describe("the session turns refresh at a turn's end", () => {
     })
 
     // The runner flushes the terminal record before it completes the turn.
-    it("reads again when the read at a turn's end still shows it running", async () => {
+    it("reads again after a pause when the read at a turn's end still shows it running", async () => {
         const sessionId = `${SESSION_ID}-4`
         querySessionTurnsMock.mockReset()
         querySessionTurnsMock
@@ -149,20 +149,18 @@ describe("the session turns refresh at a turn's end", () => {
         const unsubscribe = store.sub(sessionTurnsQueryFamily(sessionId), () => {})
         try {
             await vi.waitFor(() => expect(querySessionTurnsMock).toHaveBeenCalledTimes(1))
-            store.set(revalidateSessionTurnsOnTurnEndAtom, {sessionId, endedTraceIds: ["t1"]})
-            await vi.waitFor(() => expect(querySessionTurnsMock).toHaveBeenCalledTimes(2))
-            await new Promise((resolve) => setTimeout(resolve, 20))
 
             store.set(revalidateSessionTurnsOnTurnEndAtom, {sessionId, endedTraceIds: ["t1"]})
 
-            await vi.waitFor(() =>
-                expect(store.get(sessionTurnsQueryFamily(sessionId)).data).toEqual(ended),
+            await vi.waitFor(
+                () => expect(store.get(sessionTurnsQueryFamily(sessionId)).data).toEqual(ended),
+                {timeout: 10_000},
             )
             expect(querySessionTurnsMock).toHaveBeenCalledTimes(3)
         } finally {
             unsubscribe()
         }
-    })
+    }, 20_000)
 
     it("reads again after a failed read at a turn's end", async () => {
         const sessionId = `${SESSION_ID}-5`
@@ -178,40 +176,68 @@ describe("the session turns refresh at a turn's end", () => {
         const unsubscribe = store.sub(sessionTurnsQueryFamily(sessionId), () => {})
         try {
             await vi.waitFor(() => expect(querySessionTurnsMock).toHaveBeenCalledTimes(1))
-            store.set(revalidateSessionTurnsOnTurnEndAtom, {sessionId, endedTraceIds: ["t1"]})
-            await vi.waitFor(() => expect(querySessionTurnsMock).toHaveBeenCalledTimes(4), {
-                timeout: 10_000,
-            })
-            await new Promise((resolve) => setTimeout(resolve, 20))
 
             store.set(revalidateSessionTurnsOnTurnEndAtom, {sessionId, endedTraceIds: ["t1"]})
 
-            await vi.waitFor(() =>
-                expect(store.get(sessionTurnsQueryFamily(sessionId)).data).toEqual(ended),
+            await vi.waitFor(
+                () => expect(store.get(sessionTurnsQueryFamily(sessionId)).data).toEqual(ended),
+                {timeout: 15_000},
             )
+        } finally {
+            unsubscribe()
+        }
+    }, 25_000)
+
+    it("keeps a turn's end that arrives while a read is in flight", async () => {
+        const sessionId = `${SESSION_ID}-6`
+        const both = [
+            ended[0],
+            {trace_id: "t2", start_time: "2026-10-30T10:01:00Z", end_time: "2026-10-30T10:01:05Z"},
+        ]
+        const inFlight = deferred()
+        querySessionTurnsMock.mockReset()
+        querySessionTurnsMock
+            .mockResolvedValueOnce(running)
+            .mockImplementationOnce(() => inFlight.promise)
+            .mockResolvedValue(both)
+        const store = makeStore()
+        const unsubscribe = store.sub(sessionTurnsQueryFamily(sessionId), () => {})
+        try {
+            await vi.waitFor(() => expect(querySessionTurnsMock).toHaveBeenCalledTimes(1))
+            store.set(revalidateSessionTurnsOnTurnEndAtom, {sessionId, endedTraceIds: ["t1"]})
+            await vi.waitFor(() => expect(querySessionTurnsMock).toHaveBeenCalledTimes(2))
+
+            store.set(revalidateSessionTurnsOnTurnEndAtom, {sessionId, endedTraceIds: ["t1", "t2"]})
+            inFlight.resolve(ended as SessionTurn[])
+
+            await vi.waitFor(
+                () => expect(store.get(sessionTurnsQueryFamily(sessionId)).data).toEqual(both),
+                {timeout: 10_000},
+            )
+            expect(querySessionTurnsMock).toHaveBeenCalledTimes(3)
         } finally {
             unsubscribe()
         }
     }, 20_000)
 
-    // Accepted: no history per turn, so a trace with no session turn reads again later.
-    it("reads again for an ended turn that has no session turn", async () => {
-        const sessionId = `${SESSION_ID}-6`
+    it("stops after a few reads for an ended turn that has no session turn", async () => {
+        const sessionId = `${SESSION_ID}-7`
         querySessionTurnsMock.mockReset()
         querySessionTurnsMock.mockResolvedValue(ended)
         const store = makeStore()
         const unsubscribe = store.sub(sessionTurnsQueryFamily(sessionId), () => {})
         try {
             await vi.waitFor(() => expect(querySessionTurnsMock).toHaveBeenCalledTimes(1))
-            store.set(revalidateSessionTurnsOnTurnEndAtom, {sessionId, endedTraceIds: ["t9"]})
-            await vi.waitFor(() => expect(querySessionTurnsMock).toHaveBeenCalledTimes(2))
-            await new Promise((resolve) => setTimeout(resolve, 20))
 
             store.set(revalidateSessionTurnsOnTurnEndAtom, {sessionId, endedTraceIds: ["t9"]})
 
-            await vi.waitFor(() => expect(querySessionTurnsMock).toHaveBeenCalledTimes(3))
+            await vi.waitFor(() => expect(querySessionTurnsMock).toHaveBeenCalledTimes(5), {
+                timeout: 15_000,
+            })
+            await new Promise((resolve) => setTimeout(resolve, 3_500))
+            expect(querySessionTurnsMock).toHaveBeenCalledTimes(5)
         } finally {
             unsubscribe()
         }
-    })
+    }, 30_000)
 })
