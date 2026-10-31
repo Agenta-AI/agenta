@@ -15,6 +15,7 @@ vi.mock("@agenta/entities/session", () => ({
     fetchSessionInteractionStatesAtom: atom(null, async () => interactionRowStates),
     revalidateSessionInteractionsAtom: atom(null, async () => undefined),
     revalidateSessionRecordsAtom: atom(null, () => undefined),
+    revalidateSessionTurnsAtom: atom(null, () => undefined),
 }))
 
 const {loadSessionMessages, reloadSessionMessages} = await import("../../../src/assets/loadSession")

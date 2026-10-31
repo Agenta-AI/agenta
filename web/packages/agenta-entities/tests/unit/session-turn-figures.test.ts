@@ -81,23 +81,15 @@ describe("turnsMayChange", () => {
         expect(turnsMayChange([{end_time: null}], now)).toBe(false)
     })
 
-    it("is true for a turn that ended under 2 minutes ago without trace figures", () => {
-        expect(
-            turnsMayChange(
-                [{end_time: "2026-10-28T10:04:30Z", usage: {total_tokens: 3, source: "runner"}}],
-                now,
-            ),
-        ).toBe(true)
-        expect(turnsMayChange([{end_time: "2026-10-28T10:04:30Z", usage: null}], now)).toBe(true)
-    })
-
-    it("is false as soon as the figures come from the trace", () => {
-        expect(
-            turnsMayChange(
-                [{end_time: "2026-10-28T10:04:30Z", usage: {cost: 0.01, source: "trace"}}],
-                now,
-            ),
-        ).toBe(false)
+    it("is true for a turn that ended under 2 minutes ago, whatever its source", () => {
+        for (const usage of [
+            {total_tokens: 3, source: "runner"},
+            // A later ingest batch of the same trace can still change trace figures.
+            {cost: 0.01, source: "trace"},
+            null,
+        ]) {
+            expect(turnsMayChange([{end_time: "2026-10-28T10:04:30Z", usage}], now)).toBe(true)
+        }
     })
 
     it("is false once the turn ended 2 minutes ago or more", () => {

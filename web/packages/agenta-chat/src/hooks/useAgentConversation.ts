@@ -29,6 +29,7 @@ import {
     revalidateSessionMountsAtom,
     revalidateSessionInteractionsAtom,
     revalidateSessionRecordsAtom,
+    revalidateSessionTurnsAtom,
     shouldAdoptServerTranscript,
 } from "@agenta/entities/session"
 import {markTraceAsFresh} from "@agenta/entities/trace"
@@ -310,6 +311,8 @@ export const useAgentConversation = ({
     const holdSessionStatus = useSetAtom(holdSessionStatusAtom)
     const revalidateSessionMounts = useSetAtom(revalidateSessionMountsAtom)
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
+    // The footer's figures: a turn's end and its runner usage land on the session turn.
+    const revalidateSessionTurns = useSetAtom(revalidateSessionTurnsAtom)
     const revalidateSessionInteractions = useSetAtom(revalidateSessionInteractionsAtom)
     const fetchSessionInteractionStates = useSetAtom(fetchSessionInteractionStatesAtom)
     const pruneExpanded = useSetAtom(pruneExpandedAtom)
@@ -492,6 +495,7 @@ export const useAgentConversation = ({
             markTraceAsFresh(getMessageTraceId(message))
             revalidateSessionMounts(sessionId)
             revalidateSessionRecords(sessionId)
+            revalidateSessionTurns(sessionId)
             // The first turn is what creates the durable session row; every later one changes its
             // title, preview and activity. Nothing else tells the session lists, so a brand-new
             // session surfaced only on their next remount past the stale time.
@@ -1100,7 +1104,9 @@ export const useAgentConversation = ({
             if (isSessionTranscript(transcript)) {
                 return adoptOrConfirm(transcript)
             }
+            // A records refresh is how an observer sees another tab's turn end.
             revalidateSessionRecords(sessionId)
+            revalidateSessionTurns(sessionId)
             let adopted = false
             let refreshed: SessionTranscript | null
             try {
@@ -1112,7 +1118,7 @@ export const useAgentConversation = ({
             }
             return adoptOrConfirm(refreshed) || adopted
         },
-        [adoptServerTranscript, mount, revalidateSessionRecords, sessionId],
+        [adoptServerTranscript, mount, revalidateSessionRecords, revalidateSessionTurns, sessionId],
     )
 
     const {

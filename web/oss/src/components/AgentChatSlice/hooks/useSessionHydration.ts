@@ -16,6 +16,7 @@ import {
     interactionStatesFromWatchEvent,
     revalidateSessionInteractionsAtom,
     revalidateSessionRecordsAtom,
+    revalidateSessionTurnsAtom,
     type SessionInteractionRowStates,
     shouldAdoptServerTranscript,
 } from "@agenta/entities/session"
@@ -542,6 +543,7 @@ export const useSessionHydration = ({
     const activeSessionId = useAtomValue(activeSessionIdAtomFamily(scopeKey))
     const projectId = useAtomValue(projectIdAtom)
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
+    const revalidateSessionTurns = useSetAtom(revalidateSessionTurnsAtom)
     const revalidateSessionInteractions = useSetAtom(revalidateSessionInteractionsAtom)
     const fetchSessionInteractionStates = useSetAtom(fetchSessionInteractionStatesAtom)
     const refreshFromRecords = useCallback(
@@ -577,7 +579,9 @@ export const useSessionHydration = ({
             }
             // A tick usually lands inside the records query's stale window, so the shared cache would
             // resolve unchanged; invalidate first, then adopt through the SAME guard as every other path.
+            // The turns too: a records tick is how an observer sees a turn end (the footer's figures).
             revalidateSessionRecords(sessionId)
+            revalidateSessionTurns(sessionId)
             let refreshed: SessionTranscript | null
             try {
                 refreshed = await readLog()
@@ -606,6 +610,7 @@ export const useSessionHydration = ({
             recordWatermarkRef,
             sequenceWatermarkRef,
             revalidateSessionRecords,
+            revalidateSessionTurns,
             readLog,
         ],
     )
