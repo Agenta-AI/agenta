@@ -1,6 +1,10 @@
 /** Browser file downloads. No-ops during SSR. */
 
-const downloadBlob = (content: string | BlobPart[], filename: string, type: string): void => {
+export const downloadBlob = (
+    content: string | BlobPart[],
+    filename: string,
+    type: string,
+): void => {
     if (typeof window === "undefined") return
 
     const blob = new Blob(Array.isArray(content) ? content : [content], {type})

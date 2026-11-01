@@ -46,7 +46,7 @@ export function parseSkillMarkdown(md: string): {
     const m = clean.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/)
     if (!m) return {body: clean.trim()}
     const fm = m[1] ?? ""
-    const body = (m[2] ?? "").replace(/^[\r\n]+/, "")
+    const body = (m[2] ?? "").replace(/^[\r\n]+/, "").trimEnd()
     let metadata: unknown
     try {
         metadata = loadYaml(fm)

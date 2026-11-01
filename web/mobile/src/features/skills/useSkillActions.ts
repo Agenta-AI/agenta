@@ -1,9 +1,12 @@
 import {useCallback} from "react"
 
+import {downloadSkill} from "@agenta/entity-ui/drill-in"
 import {projectIdAtom} from "@agenta/shared/state"
-import {archiveSkill, unarchiveSkill} from "@agenta/skills"
+import {archiveSkill, fetchSkillRevisions, unarchiveSkill} from "@agenta/skills"
 import {invalidateSkillsListCache} from "@agenta/skills/state"
+import {skillRevisionsQueryKey} from "@agenta/skills-ui"
 import {message} from "@agenta/ui/app-message"
+import {useQueryClient} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
 
 /**
@@ -12,6 +15,7 @@ import {useAtomValue} from "jotai"
  */
 export const useSkillActions = () => {
     const projectId = useAtomValue(projectIdAtom) ?? ""
+    const queryClient = useQueryClient()
 
     const archive = useCallback(
         async (workflowId: string) => {
@@ -35,5 +39,26 @@ export const useSkillActions = () => {
         [projectId],
     )
 
-    return {archive, restore}
+    // The drawer's own query key, so a skill already opened downloads from cache.
+    const download = useCallback(
+        async (workflowId: string) => {
+            const queryKey = skillRevisionsQueryKey(projectId, workflowId)
+            const hide = queryClient.getQueryData(queryKey)
+                ? undefined
+                : message.loading("Preparing download…", 0)
+            const skill = await queryClient
+                .fetchQuery({
+                    queryKey,
+                    queryFn: () => fetchSkillRevisions({projectId, workflowId}),
+                    staleTime: 15_000,
+                })
+                .then((revisions) => revisions[0]?.skill)
+                .catch(() => undefined)
+                .finally(() => hide?.())
+            if (!skill || !downloadSkill(skill)) message.error("Couldn't download this skill")
+        },
+        [projectId, queryClient],
+    )
+
+    return {archive, restore, download}
 }
