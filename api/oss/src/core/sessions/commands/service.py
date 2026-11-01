@@ -1966,10 +1966,18 @@ class SessionCommandsService:
     async def deliver_input_admission(
         self, admission: InputContinuationAdmission
     ) -> None:
-        receipt = await self._deliver(admission.command)
+        try:
+            receipt = await self._deliver(admission.command)
+        except Exception as error:  # noqa: BLE001 - the promotion already committed
+            log.warning(
+                "promoted input delivery failed command=%s: %s",
+                admission.command.id,
+                error,
+            )
+            receipt = None
         if receipt is None or receipt.status != "accepted":
-            await self._mark_continuation_recoverable(admission, receipt)
-            admission.execution_state = SessionExecutionState.recoverable
+            if await self._mark_continuation_recoverable(admission, receipt):
+                admission.execution_state = SessionExecutionState.recoverable
 
     async def settle_execution_ended(
         self,

@@ -1040,6 +1040,38 @@ async def test_a_lost_turn_promotes_the_next_queued_input():
 
 
 @pytest.mark.asyncio
+async def test_a_raised_delivery_leaves_the_promoted_input_recoverable():
+    project_id = uuid4()
+    executions = _Executions(
+        project_id=project_id, session_id="session-1", source_id="source-1"
+    )
+
+    class _Raising(_Unreachable):
+        async def deliver(self, **kwargs):
+            raise RuntimeError("refusal settlement failed")
+
+    service = SessionCommandsService(
+        commands_dao=_Commands(),
+        streams_service=None,
+        interactions_service=None,
+        lock_engine=None,
+        delivery=_Raising(),
+        executions_dao=executions,
+        inputs_dao=_Inputs([_pending_input(project_id, policy="queue", position=1)]),
+    )
+    settlement = await service.settle_execution_lost(
+        project_id=project_id,
+        session_id="session-1",
+        execution_id="source-1",
+        settled_at=datetime.now(timezone.utc),
+    )
+
+    await service.deliver_input_admission(settlement.admission)
+
+    assert executions.continuation.state == SessionExecutionState.recoverable
+
+
+@pytest.mark.asyncio
 async def test_a_lost_turn_that_was_stopping_leaves_the_queue_parked():
     project_id = uuid4()
     executions = _Executions(
