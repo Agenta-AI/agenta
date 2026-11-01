@@ -3,8 +3,9 @@ import {useMemo, type ReactNode} from "react"
 import {ProjectSwitch, type SwitcherEntry} from "@agenta/navigation-ui"
 import {useRouter} from "next/router"
 
-import {switchProjectContext} from "../context/switchProjectContext"
 import {useOrganizationProjects} from "../nav/useOrganizationProjects"
+
+import {switchSettingsContext} from "./switchContext"
 
 export interface SettingsProjectGroup {
     /** The project group's heading: the project name as the project switch. */
@@ -29,7 +30,7 @@ export const useSettingsProjectGroup = (
             name: project.project_name ?? "Project",
             isActive: project.project_id === projectId,
             onSelect: () =>
-                switchProjectContext(router, {
+                switchSettingsContext(router, {
                     workspaceId: project.workspace_id,
                     projectId: project.project_id,
                 }),

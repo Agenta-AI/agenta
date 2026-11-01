@@ -13,7 +13,7 @@ import {useMutation} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
 import {useLogout} from "../auth/useLogout"
-import {switchProjectContext} from "../context/switchProjectContext"
+import {switchSettingsContext} from "../settings/switchContext"
 import {LiveChatNavButton} from "../support/LiveChatNavButton"
 import {useLiveChatEnabled} from "../support/useLiveChatEnabled"
 
@@ -50,7 +50,7 @@ export const DrawerProjectSwitcher = ({
     )
 
     const goTo = (nextWorkspaceId: string, nextProjectId: string) =>
-        switchProjectContext(router, {workspaceId: nextWorkspaceId, projectId: nextProjectId})
+        switchSettingsContext(router, {workspaceId: nextWorkspaceId, projectId: nextProjectId})
 
     const projects = useMemo<SwitcherEntry[]>(
         () =>

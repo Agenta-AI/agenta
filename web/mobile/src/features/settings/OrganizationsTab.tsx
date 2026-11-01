@@ -29,15 +29,15 @@ import {
 import {useQuery, useQueryClient} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
-import {fetchProjects} from "@/lib/context"
-
-import {switchProjectContext} from "../context/switchProjectContext"
 import {groupByOrganization} from "../context/workspaceGroups"
 
 import {ConfirmModal} from "./ConfirmModal"
 import {NameDialog} from "./NameDialog"
 import type {SettingsTabProps} from "./settingsTabProps"
+import {switchSettingsContext} from "./switchContext"
 import {useSettingsOrg} from "./useSettingsOrg"
+
+import {fetchProjects} from "@/lib/context"
 
 const errorText = (error: unknown, fallback: string): string => {
     const axiosLike = error as {response?: {data?: {detail?: string}}; message?: string}
@@ -101,7 +101,7 @@ export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
                     message.info(`${org.name ?? "This organization"} has no project to open yet`)
                     return
                 }
-                switchProjectContext(router, {
+                switchSettingsContext(router, {
                     workspaceId: group.workspaceId,
                     projectId: first.project_id,
                 })
