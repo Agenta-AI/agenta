@@ -81,6 +81,26 @@ describe("loading a value into the rich-text editor", () => {
         expect(onChange.mock.lastCall?.[0].textContent).toContain("# Skill edited")
     })
 
+    it("reports an edit that only adds a backslash escape", async () => {
+        const onChange = vi.fn()
+        const {container} = await renderLoaded(onChange, "```\nC:temp.txt\n```\n", "C:temp.txt")
+        const editor = (
+            container.querySelector("[contenteditable]") as HTMLElement & {
+                __lexicalEditor: LexicalEditor
+            }
+        ).__lexicalEditor
+        await act(async () => {
+            editor.update(() => {
+                const code = $getRoot().getFirstChild()
+                if ($isElementNode(code)) {
+                    code.clear()
+                    code.append($createTextNode("C:temp\\.txt"))
+                }
+            })
+        })
+        await waitFor(() => expect(onChange).toHaveBeenCalled())
+    })
+
     it("treats a value set back after an edit as a fresh load", async () => {
         const onChange = vi.fn()
         let discard = () => {}

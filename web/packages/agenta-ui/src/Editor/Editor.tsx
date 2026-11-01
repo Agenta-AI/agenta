@@ -229,9 +229,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                     if (updateTags.has(HYDRATE_FROM_VALUE_UPDATE_TAG)) {
                         // The loaded text is the baseline later updates are compared against.
                         editorState.read(() => {
-                            lastRichTextRef.current = stripBackslashEscapes(
-                                $getRichTextAsMarkdownString(),
-                            )
+                            lastRichTextRef.current = $getRichTextAsMarkdownString()
                         })
                         return true
                     }
@@ -293,16 +291,14 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                             }
                         } else {
                             const emitRichTextChange = () => {
-                                const textContent = stripBackslashEscapes(
-                                    $getRichTextAsMarkdownString(),
-                                )
+                                const markdown = $getRichTextAsMarkdownString()
                                 // Transform registrations and the like rerun updates that change no text.
-                                if (textContent === lastRichTextRef.current) return
-                                lastRichTextRef.current = textContent
+                                if (markdown === lastRichTextRef.current) return
+                                lastRichTextRef.current = markdown
                                 const tokens: unknown[] = [] // Extract tokens if needed
                                 const result = {
                                     value: "", // Omit this for now
-                                    textContent,
+                                    textContent: stripBackslashEscapes(markdown),
                                     tokens,
                                 }
 
@@ -310,6 +306,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                                     _editor,
                                     isLargeRichTextDocument(result.textContent),
                                 )
+                                lastEmittedTextRef.current = result.textContent
                                 const callbackStartMs = getNow()
                                 onChange(result)
                                 const callbackMs = getNow() - callbackStartMs
@@ -463,7 +460,8 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
 
         const isInitRef = useRef(false)
         const lastHydratedRef = useRef<string>("")
-        /** The editor's own markdown as of the last load or emitted edit; also the echo check. */
+        const lastEmittedTextRef = useRef<string>("")
+        /** The editor's raw markdown as of the last load or emitted edit. */
         const lastRichTextRef = useRef<string>("")
         const onChangeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
         const isFocusedRef = useRef(false)
@@ -483,7 +481,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                 // The markdown round-trip (serialize → emit → hydrate → deserialize)
                 // can produce different text than $getRoot().getTextContent() due to
                 // trailing newline differences, causing an infinite re-hydration loop.
-                if (next === lastRichTextRef.current) {
+                if (next === lastEmittedTextRef.current) {
                     return false
                 }
 
