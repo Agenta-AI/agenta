@@ -1,7 +1,4 @@
-/**
- * Loading bodies for the config drawers, shown by `EnhancedDrawer`'s `bodyFallback` on the opening
- * frame so the drawer paints at once and its heavy body (Lexical, item forms) fills in after.
- */
+/** Loading bodies for the config drawers, passed as `EnhancedDrawer`'s `bodyFallback`. */
 import {SkeletonBlock, SkeletonRows} from "@agenta/ui/ui"
 
 /** Label + field pairs: the shape of the item and section forms. */

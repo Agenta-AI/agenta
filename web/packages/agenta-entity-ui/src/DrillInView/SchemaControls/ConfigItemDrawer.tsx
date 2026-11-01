@@ -92,7 +92,7 @@ export interface ConfigItemDrawerProps {
      * The JSON view keeps its padding regardless. @default false
      */
     contentFlush?: boolean
-    /** Body shown while the drawer opens, before `form` mounts. @default FormDrawerSkeleton */
+    /** Body shown while the drawer opens, before `form` mounts. */
     loadingBody?: ReactNode
 }
 

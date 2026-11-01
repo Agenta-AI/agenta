@@ -79,7 +79,7 @@ export interface MarkdownEditorProps {
     defaultView?: MarkdownView
     /** Controlled view. When set, the toggle calls `onViewChange` instead of local state. */
     view?: MarkdownView
-    /** Shown while the editor loads, so a host can keep its own layout (e.g. a drawer skeleton). */
+    /** Skeleton shown while the editor configuration loads. */
     loadingSkeleton?: ReactNode
     onViewChange?: (view: MarkdownView) => void
     /** Fires once the Lexical editor has taken the requested view (the first paint may precede it). */

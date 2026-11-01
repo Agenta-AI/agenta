@@ -114,10 +114,7 @@ export interface EnhancedDrawerProps extends DrawerProps {
     children?: React.ReactNode
     /** The panel element — what a confirm scoped to the drawer portals into. */
     panelRef?: React.Ref<HTMLDivElement>
-    /**
-     * Shown in the body on the opening frame; `children` mount once the panel has painted, so a
-     * heavy body (an editor, a large form) cannot hold the drawer back with nothing on screen.
-     */
+    /** Body shown until the panel has painted; `children` mount after it. */
     bodyFallback?: React.ReactNode
 }
 
