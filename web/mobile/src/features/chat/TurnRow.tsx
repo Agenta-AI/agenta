@@ -228,7 +228,15 @@ const TurnRowInner = ({
                 : [],
         [turn.isUser, turn.items],
     )
-    const writtenFiles = useMemo(() => turnFiles(activity.steps), [activity.steps])
+    const writtenFiles = useMemo(
+        () =>
+            // The links only matter once the turn settles; skip the scan while text streams.
+            turnFiles(
+                activity.steps,
+                live ? [] : activity.messages.map((message) => message.part.text),
+            ),
+        [activity.steps, activity.messages, live],
+    )
 
     const body = turn.isUser ? (
         <div className="flex min-w-0 max-w-full flex-col gap-2">

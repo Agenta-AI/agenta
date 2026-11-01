@@ -3,7 +3,7 @@ import type {FileActivity} from "@agenta/entities/session"
 import type {ToolUIPart} from "ai"
 import {describe, expect, it} from "vitest"
 
-import {turnFiles} from "@/features/chat/turnFileList"
+import {answerLinkedPaths, turnFiles} from "@/features/chat/turnFileList"
 
 const part = {
     type: "tool-write",
@@ -49,5 +49,61 @@ describe("turnFiles", () => {
 
     it("is empty for a turn with no tool steps", () => {
         expect(turnFiles([])).toEqual([])
+    })
+
+    it("adds a file the answer links to that no step wrote, such as a zip a shell built", () => {
+        const answer = "Saved.\n\n- **Zip:** [shorts-1.0.0.zip](templates/shorts-1.0.0.zip)"
+        expect(turnFiles([tool("1", [write("notes.md")])], [answer])).toEqual([
+            {op: "write", path: "notes.md", toolName: "write"},
+            {op: "link", path: "templates/shorts-1.0.0.zip"},
+        ])
+    })
+
+    it("does not add a linked file a step already wrote under its sandbox path", () => {
+        const written = write("/var/lib/agenta/mounts/s/m/report.md")
+        expect(turnFiles([tool("1", [written])], ["See [report](./report.md)."])).toEqual([written])
+    })
+
+    it("matches a link into agent-files to a write under the agent mount", () => {
+        const written = write("/var/lib/agenta/mounts/s/m-agent/plan.md")
+        expect(turnFiles([tool("1", [written])], ["[plan](agent-files/plan.md)"])).toEqual([
+            written,
+        ])
+    })
+
+    it("keeps a linked file that only shares a name with a written one", () => {
+        const written = write("/var/lib/agenta/mounts/s/m/notes/report.md")
+        expect(turnFiles([tool("1", [written])], ["[report](report.md)"])).toEqual([
+            written,
+            {op: "link", path: "report.md"},
+        ])
+    })
+})
+
+describe("answerLinkedPaths", () => {
+    it("keeps relative file links once each, in order", () => {
+        expect(
+            answerLinkedPaths([
+                "[a](./out/a.zip) and [b](b%20c.md) and [a again](out/a.zip#top)",
+                "[deep](/var/lib/agenta/mounts/s/m/x.csv)",
+            ]),
+        ).toEqual(["out/a.zip", "b c.md", "/var/lib/agenta/mounts/s/m/x.csv"])
+    })
+
+    it("keeps parentheses in a file name", () => {
+        expect(answerLinkedPaths(['[zip](out/a(1).zip) and [b](<b.zip> "title")'])).toEqual([
+            "out/a(1).zip",
+            "b.zip",
+        ])
+    })
+
+    it("skips web links, images, folders, parent paths and links shown as code", () => {
+        expect(
+            answerLinkedPaths([
+                "[site](https://agenta.ai/x.zip) [host](//evil.com/x.zip) [top](#intro)",
+                "![chart](chart.png) [folder](templates/) [up](../secret.md)",
+                "`[code](a.zip)`\n```\n[block](b.zip)\n```",
+            ]),
+        ).toEqual([])
     })
 })
