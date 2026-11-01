@@ -1,12 +1,12 @@
 import {GatewayToolsSection} from "@agenta/settings-ui"
 
+import {INTEGRATIONS_SECTION_COPY} from "@/lib/integrationsCopy"
+
 import {useProjectPermission} from "../context/useProjectPermission"
 
 import type {SettingsTabProps} from "./settingsTabProps"
 import {useConfirmModal} from "./useConfirmModal"
 import {useSettingsProjectGroup} from "./useSettingsProjectGroup"
-
-import {INTEGRATIONS_SECTION_COPY} from "@/lib/integrationsCopy"
 
 /** Settings > Integrations; `edit_tools` decides whether connect asks "Who can use it". */
 export const IntegrationsTab = ({workspaceId, projectId}: SettingsTabProps) => {

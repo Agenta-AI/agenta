@@ -29,6 +29,8 @@ import {
 import {useQuery, useQueryClient} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
+import {fetchProjects} from "@/lib/context"
+
 import {groupByOrganization} from "../context/workspaceGroups"
 
 import {ConfirmModal} from "./ConfirmModal"
@@ -36,8 +38,6 @@ import {NameDialog} from "./NameDialog"
 import type {SettingsTabProps} from "./settingsTabProps"
 import {switchSettingsContext} from "./switchContext"
 import {useSettingsOrg} from "./useSettingsOrg"
-
-import {fetchProjects} from "@/lib/context"
 
 const errorText = (error: unknown, fallback: string): string => {
     const axiosLike = error as {response?: {data?: {detail?: string}}; message?: string}
