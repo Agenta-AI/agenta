@@ -2,7 +2,8 @@ import {useCallback} from "react"
 
 import {sessionRoutePath} from "@agenta/sessions/link"
 import {nearestSurvivingTab, sessionTabScope, useCloseSessionTabs} from "@agenta/sessions/state"
-import {useRouter} from "next/router"
+
+import {navigateToSession} from "./navigateToSession"
 
 /**
  * Close session tabs, and go wherever losing the current one leaves you.
@@ -21,7 +22,6 @@ export const useSessionTabClose = ({
     /** `/w/:workspace/p/:project` */
     base: string
 }) => {
-    const router = useRouter()
     const close = useCloseSessionTabs(sessionTabScope(agentId))
     return useCallback(
         (ids: readonly string[], ordered: readonly string[]) => {
@@ -33,11 +33,11 @@ export const useSessionTabClose = ({
             }
             // Land on the survivor BEFORE dropping the tab: the session you are on always rejoins
             // the set, so closing it while still routed to it would reopen it a beat later.
-            void router.push(sessionRoutePath(base, survivor)).then(
+            void navigateToSession(sessionRoutePath(base, survivor)).then(
                 () => close(ids),
                 () => close(ids),
             )
         },
-        [base, close, router, sessionId],
+        [base, close, sessionId],
     )
 }

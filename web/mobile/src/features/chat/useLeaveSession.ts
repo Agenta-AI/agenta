@@ -10,6 +10,7 @@ import {
 import {useStore} from "jotai"
 import Router, {useRouter} from "next/router"
 
+import {navigateToSession} from "./navigateToSession"
 import {startBlankSession} from "./useStartBlankSession"
 
 /** The session a verb removed, and the agent whose rail it sat in. */
@@ -88,7 +89,7 @@ export const useLeaveSession = (base: string) => {
             const openTabIds = store.get(renderedSessionTabsAtomFamily(scope))
             const survivor = nearestSurvivingTab(openTabIds, new Set([sessionId]), sessionId)
             if (survivor && survivor !== sessionId) {
-                await settle(router.push(sessionRoutePath(base, survivor)))
+                await settle(navigateToSession(sessionRoutePath(base, survivor)))
             } else if (appId) {
                 // `startBlankSession` owns its navigation (and de-duplicates a double tap), so
                 // its landing is watched on the router rather than awaited — unless the one it

@@ -8,7 +8,6 @@ import {
 } from "@agenta/sessions-ui"
 import {userAtom} from "@agenta/shared/state"
 import {useAtomValue} from "jotai"
-import {useRouter} from "next/router"
 
 import {PageTitle} from "@/components/PageTitle"
 
@@ -16,6 +15,7 @@ import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
 import {ConfigRevealButton} from "./ConfigRevealButton"
 import {InspectSessionButton} from "./InspectSessionButton"
+import {navigateToSession} from "./navigateToSession"
 import {SessionHistoryMenu} from "./SessionHistoryMenu"
 import {SessionSharingControl} from "./SessionSharingControl"
 import {useSessionHeader} from "./useSessionHeader"
@@ -52,7 +52,6 @@ export const SessionTabs = ({
     /** A null `agentId` is not yet the answer. */
     agentResolving?: boolean
 }) => {
-    const router = useRouter()
     const base = `/w/${workspaceId}/p/${projectId}`
     const chatMaximized = useAtomValue(chatPanelMaximizedAtom)
     // The SAME verbs the sessions pane and the sessions list bind — rename, pin, archive, delete
@@ -137,11 +136,11 @@ export const SessionTabs = ({
                 onClose={(vm, ordered) => closeTabs([vm.id], ordered)}
                 onCloseMany={closeTabs}
                 onSelect={(vm) => {
-                    if (vm.id !== sessionId) void router.push(`${base}/sessions/${vm.id}`)
+                    if (vm.id !== sessionId) void navigateToSession(`${base}/sessions/${vm.id}`)
                 }}
                 // A session created here routes the same way, before the list has caught up.
                 onSelectUnlisted={(id) => {
-                    if (id !== sessionId) void router.push(`${base}/sessions/${id}`)
+                    if (id !== sessionId) void navigateToSession(`${base}/sessions/${id}`)
                 }}
                 // Starting a session needs an agent to start it with.
                 // A blank session to type into — NOT the agent's overview, which is where this
