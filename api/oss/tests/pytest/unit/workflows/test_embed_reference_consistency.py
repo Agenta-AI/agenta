@@ -94,7 +94,8 @@ async def test_run_time_refusal_names_the_broken_entry():
         )
 
     assert _NAMED_SLUG in caught.value.message
-    assert _ACTUAL_SLUG in caught.value.message
+    # The resolved workflow may be one the caller cannot read.
+    assert _ACTUAL_SLUG not in caught.value.message
     assert "add it again" in caught.value.message
 
 

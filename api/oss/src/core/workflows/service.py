@@ -138,7 +138,6 @@ from oss.src.core.workflows.dtos import (
 from oss.src.core.git.types import (
     InlineResolveInvalid,
     RevisionConflict,
-    RetrieveRefsInconsistent,
     RevisionUnchanged,
     VariantForkError,
     validate_revision_refs_sufficient,
@@ -200,10 +199,12 @@ from oss.src.core.embeds.dtos import (
     ResolutionInfo,
 )
 from oss.src.core.embeds.exceptions import (
+    EmbedError,
     EmbedReferenceInconsistentError,
     NonEmbeddableWorkflowReferenceError,
 )
 from oss.src.core.embeds.utils import (
+    create_universal_resolver,
     find_object_embeds,
     find_snippet_embeds,
     find_string_embeds,
@@ -2335,18 +2336,21 @@ class WorkflowsService:
             *find_snippet_embeds(configuration),
         )
 
+        # The run-time resolver itself, so commit applies the same lookup and retry rules.
+        resolve = create_universal_resolver(
+            project_id=project_id,
+            include_archived=True,
+            workflows_service=self,
+        )
+
         async def check(refs: Dict[str, Reference]) -> None:
             try:
-                await self.fetch_workflow_revision(
-                    project_id=project_id,
-                    workflow_ref=refs.get("workflow"),
-                    workflow_variant_ref=refs.get("workflow_variant"),
-                    workflow_revision_ref=refs.get("workflow_revision"),
-                )
-            except RetrieveRefsInconsistent as e:
-                raise EmbedReferenceInconsistentError(
-                    references=refs, detail=e.message
-                ) from e
+                await resolve(refs)
+            except EmbedReferenceInconsistentError:
+                raise
+            except EmbedError:
+                # Missing or non-embeddable targets are not this check's concern.
+                pass
 
         checks = []
         for embed in embeds:

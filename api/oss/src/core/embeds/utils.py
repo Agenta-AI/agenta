@@ -525,9 +525,7 @@ def create_universal_resolver(
         try:
             return await _resolve(references)
         except RetrieveRefsInconsistent as e:
-            raise EmbedReferenceInconsistentError(
-                references=references, detail=e.message
-            ) from e
+            raise EmbedReferenceInconsistentError(references=references) from e
 
     return resolver_callback
 

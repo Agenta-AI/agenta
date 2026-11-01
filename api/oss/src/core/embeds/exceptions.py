@@ -53,7 +53,7 @@ class EmbedReferenceInconsistentError(EmbedError, RetrieveRefsInconsistent):
     Subclasses the git refusal so every route keeps answering 400 for it.
     """
 
-    def __init__(self, *, references: Dict[str, Any], detail: str):
+    def __init__(self, *, references: Dict[str, Any]):
         named = next(
             (ref.slug for ref in references.values() if getattr(ref, "slug", None)),
             None,
@@ -63,11 +63,12 @@ class EmbedReferenceInconsistentError(EmbedError, RetrieveRefsInconsistent):
         )
         kind = next(iter(references), "workflow").split("_", 1)[0]
         self.slug = named
+        # Names only what the caller sent: the resolved entity may be one it cannot read.
         RetrieveRefsInconsistent.__init__(
             self,
-            f"The configuration references '{named}', but that reference also "
-            f"points at a different {kind} ({detail}). Remove '{named}' from the "
-            "configuration and add it again.",
+            f"The configuration references '{named}', but its identifiers point at "
+            f"different {kind}s. Remove '{named}' from the configuration and add it "
+            "again.",
         )
 
 
