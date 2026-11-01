@@ -150,6 +150,51 @@ describe("loading a value into the rich-text editor", () => {
         await waitFor(() => expect(onChange).toHaveBeenCalledTimes(2))
     })
 
+    it("loads a value the host sets back to an edit it already reported", async () => {
+        const emitted: string[] = []
+        let setHostValue = (_next: string) => {}
+        const Host = () => {
+            const [value, setValue] = useState(LOSSY_MARKDOWN)
+            setHostValue = setValue
+            return (
+                <EditorProvider id="hydration-test" codeOnly={false} showToolbar={false}>
+                    <Editor
+                        id="hydration-test"
+                        codeOnly={false}
+                        showToolbar={false}
+                        initialValue={LOSSY_MARKDOWN}
+                        value={value}
+                        onChange={(next: {textContent: string}) => {
+                            emitted.push(next.textContent)
+                            setValue(next.textContent)
+                        }}
+                    />
+                </EditorProvider>
+            )
+        }
+        const {container} = render(<Host />)
+        await waitFor(() => expect(container.textContent).toContain("While the runs happen"), {
+            timeout: 5000,
+        })
+        const editor = (
+            container.querySelector("[contenteditable]") as HTMLElement & {
+                __lexicalEditor: LexicalEditor
+            }
+        ).__lexicalEditor
+        await act(async () => {
+            editor.update(() => {
+                const first = $getRoot().getFirstChild()
+                if ($isElementNode(first)) first.append($createTextNode(" edited"))
+            })
+        })
+        await waitFor(() => expect(emitted).toHaveLength(1))
+        // The edit reported B; the host then loads C and sets B back.
+        await act(async () => setHostValue("# Other\n"))
+        await waitFor(() => expect(container.textContent).toContain("Other"))
+        await act(async () => setHostValue(emitted[0]))
+        await waitFor(() => expect(container.textContent).toContain("Skill edited"))
+    })
+
     it("keeps the blocks after a markdown code fence as they are", async () => {
         const onChange = vi.fn()
         const {container} = await renderLoaded(onChange, MARKDOWN_FENCE, "Text after the fence.")

@@ -498,6 +498,8 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                 }
 
                 lastHydratedRef.current = next
+                // The loaded value replaces the last emitted one as what the host already knows.
+                lastEmittedTextRef.current = next
                 // The markdown round-trip can be lossy, so the loaded text is not an edit to report.
                 editor.update(
                     () => {
