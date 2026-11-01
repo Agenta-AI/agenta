@@ -319,6 +319,10 @@ export function SkillFormView({
         next.body = parsed.body
         if (parsed.files.length) next.files = parsed.files
         else delete next.files
+        if (parsed.disable_model_invocation) {
+            next.disable_model_invocation = true
+            setAdvancedOpen(true)
+        } else delete next.disable_model_invocation
         onChange(next)
         openEntry("skill")
     }

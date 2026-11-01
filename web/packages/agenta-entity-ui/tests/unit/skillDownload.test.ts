@@ -87,6 +87,7 @@ describe("buildSkillDownload", () => {
         const download = buildSkillDownload({
             name: "pdf-tools",
             description: "Use for PDFs: merge,\nsplit",
+            disable_model_invocation: true,
             body: "# PDF tools\n\nRun the scripts.",
             files: [
                 {path: "scripts/merge.py", content: "print('merge')\n"},
@@ -103,6 +104,7 @@ describe("buildSkillDownload", () => {
                     skill: {
                         name: "pdf-tools",
                         description: "Use for PDFs: merge, split",
+                        disable_model_invocation: true,
                         body: "# PDF tools\n\nRun the scripts.",
                         files: [
                             {path: "scripts/merge.py", content: "print('merge')\n"},

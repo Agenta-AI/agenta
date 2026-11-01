@@ -43,9 +43,7 @@ export const useSkillActions = () => {
     const download = useCallback(
         async (workflowId: string) => {
             const queryKey = skillRevisionsQueryKey(projectId, workflowId)
-            const hide = queryClient.getQueryData(queryKey)
-                ? undefined
-                : message.loading("Preparing download…", 0)
+            const hide = message.loading("Preparing download…", 0)
             const skill = await queryClient
                 .fetchQuery({
                     queryKey,
@@ -55,7 +53,7 @@ export const useSkillActions = () => {
                 })
                 .then((revisions) => revisions[0]?.skill)
                 .catch(() => undefined)
-                .finally(() => hide?.())
+                .finally(() => hide())
             if (!skill || !downloadSkill(skill)) message.error("Couldn't download this skill")
         },
         [projectId, queryClient],
