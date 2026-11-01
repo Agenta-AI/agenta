@@ -79,6 +79,8 @@ export const ON_HYDRATE_FROM_REMOTE_CONTENT = createCommand<{
     hydrateWithRemoteContent: string
     parentId: string
 }>("ON_HYDRATE_FROM_REMOTE_CONTENT")
+/** Tags the update that loads the controlled value, so onChange never echoes it back as an edit. */
+const HYDRATE_FROM_VALUE_UPDATE_TAG = "agenta:hydrate-from-value"
 const extensionFlowLog = createLogger("EditorExtensionFlow", {disabled: true})
 const onChangeLog = createLogger("EditorOnChange", {disabled: true})
 const DEBUG_ENTER_ON_CHANGE_PROFILE = true
@@ -224,6 +226,15 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                     if (updateTags.has(HIGHLIGHT_ONLY_UPDATE_TAG)) {
                         return true
                     }
+                    if (updateTags.has(HYDRATE_FROM_VALUE_UPDATE_TAG)) {
+                        // The loaded text is the baseline later updates are compared against.
+                        editorState.read(() => {
+                            lastRichTextRef.current = stripBackslashEscapes(
+                                $getRichTextAsMarkdownString(),
+                            )
+                        })
+                        return true
+                    }
                     const isEnterUpdate = updateTags.has(ENTER_KEY_UPDATE_TAG)
 
                     // For Enter key updates on large code documents, debounce the
@@ -282,11 +293,16 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                             }
                         } else {
                             const emitRichTextChange = () => {
-                                const textContent = $getRichTextAsMarkdownString()
+                                const textContent = stripBackslashEscapes(
+                                    $getRichTextAsMarkdownString(),
+                                )
+                                // Transform registrations and the like rerun updates that change no text.
+                                if (textContent === lastRichTextRef.current) return
+                                lastRichTextRef.current = textContent
                                 const tokens: unknown[] = [] // Extract tokens if needed
                                 const result = {
                                     value: "", // Omit this for now
-                                    textContent: stripBackslashEscapes(textContent),
+                                    textContent,
                                     tokens,
                                 }
 
@@ -294,7 +310,6 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                                     _editor,
                                     isLargeRichTextDocument(result.textContent),
                                 )
-                                lastEmittedTextRef.current = result.textContent
                                 const callbackStartMs = getNow()
                                 onChange(result)
                                 const callbackMs = getNow() - callbackStartMs
@@ -448,7 +463,8 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
 
         const isInitRef = useRef(false)
         const lastHydratedRef = useRef<string>("")
-        const lastEmittedTextRef = useRef<string>("")
+        /** The editor's own markdown as of the last load or emitted edit; also the echo check. */
+        const lastRichTextRef = useRef<string>("")
         const onChangeDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
         const isFocusedRef = useRef(false)
         const pendingHydrationOnBlurRef = useRef<string | null>(null)
@@ -467,7 +483,7 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                 // The markdown round-trip (serialize → emit → hydrate → deserialize)
                 // can produce different text than $getRoot().getTextContent() due to
                 // trailing newline differences, causing an infinite re-hydration loop.
-                if (next === lastEmittedTextRef.current) {
+                if (next === lastRichTextRef.current) {
                     return false
                 }
 
@@ -484,10 +500,16 @@ const EditorInner = forwardRef<HTMLDivElement, EditorProps>(
                 }
 
                 lastHydratedRef.current = next
-                editor.dispatchCommand(ON_HYDRATE_FROM_REMOTE_CONTENT, {
-                    hydrateWithRemoteContent: next,
-                    parentId: "",
-                })
+                // The markdown round-trip can be lossy, so the loaded text is not an edit to report.
+                editor.update(
+                    () => {
+                        editor.dispatchCommand(ON_HYDRATE_FROM_REMOTE_CONTENT, {
+                            hydrateWithRemoteContent: next,
+                            parentId: "",
+                        })
+                    },
+                    {tag: HYDRATE_FROM_VALUE_UPDATE_TAG, discrete: true},
+                )
 
                 return true
             },
