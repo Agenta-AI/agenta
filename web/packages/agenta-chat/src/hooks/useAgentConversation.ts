@@ -239,8 +239,8 @@ export interface AgentConversation {
     /** Submit the current composer value as a priority Steer input. Pass `after` when the input
      * must follow another write (a dismissed card): the message shows at once, the request waits. */
     steer: (input: SendInput, options?: {after?: Promise<unknown>}) => Promise<void>
-    /** The run is parked on the USER — an approval gate or an unanswered client tool (elicitation,
-     * connect). Typed messages queue rather than send while this holds. */
+    /** The run is parked on the USER: an approval gate or an unanswered client tool (question,
+     * connection, secret). A host answers the dock and steers a message typed over it. */
     hitlPending: boolean
     removeQueued: (id: string) => void
     sendQueuedNow?: (id: string) => void

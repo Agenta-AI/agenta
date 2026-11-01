@@ -124,7 +124,7 @@ export const useConnectionDock = ({
     // the lookup below misses and the front falls back to the agent's first-asked.
     const [frontId, setFrontId] = useState<string | null>(null)
 
-    const {settlingIds, mark, forget, isSettling, settle} = useSettlingIds(pending, onOutput)
+    const {settlingIds, settle, dismiss: dismissAll} = useSettlingIds(pending, onOutput)
 
     // A card whose answer is out steps aside, so the next one comes forward at once.
     const stack = useMemo(() => {
@@ -141,33 +141,12 @@ export const useConnectionDock = ({
     pendingRef.current = pending
 
     const dismiss = useCallback(async () => {
-        // No settle channel means nothing can be written, so nothing is dismissed — the documented
-        // no-op. Checked before the markers go up, which would otherwise close the dock over
-        // requests that are still parked.
-        if (!onOutput) return
-        const targets = pendingRef.current.filter(
-            (meta) => !meta.settled && !isSettling(meta.toolCallId),
+        await dismissAll(
+            pendingRef.current,
+            (meta) => declinedConnectOutput(meta.input) as Record<string, unknown>,
+            "The connection request couldn't be dismissed.",
         )
-        if (targets.length === 0) return
-        mark(targets.map((meta) => meta.toolCallId))
-        try {
-            const landed = await Promise.all(
-                targets.map((meta) =>
-                    onOutput?.({
-                        toolName: meta.toolName,
-                        toolCallId: meta.toolCallId,
-                        output: declinedConnectOutput(meta.input) as Record<string, unknown>,
-                    }),
-                ),
-            )
-            if (landed.some((result) => result === false))
-                throw new Error("The connection request couldn't be dismissed.")
-        } catch (error) {
-            // The requests are still live: give the dock back.
-            forget(targets.map((meta) => meta.toolCallId))
-            throw error
-        }
-    }, [onOutput, mark, forget, isSettling])
+    }, [dismissAll])
 
     // Derived from the group: it keeps its settled entries, so the counter simply reads how many
     // are done rather than watching the pending set shrink.

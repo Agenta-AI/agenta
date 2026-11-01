@@ -4,6 +4,7 @@ export * from "./useAttachmentUploads"
 export * from "./useApprovalDock"
 export * from "./useConnectionDock"
 export * from "./useElicitationDock"
+export * from "./useSecretDock"
 export * from "./useAgentConversation"
 export * from "./useServerSessionInputs"
 // Kept on this lane: the release consolidated this hook into its app copy, which this
