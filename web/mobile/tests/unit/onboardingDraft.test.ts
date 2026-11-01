@@ -23,6 +23,7 @@ import {
 import {
     personProperties,
     recommendedCategory,
+    writeInAnswer,
     type OnboardingQuestionId,
 } from "@/features/onboarding/onboardingQuestions"
 
@@ -167,6 +168,39 @@ describe("onboarding answers", () => {
     it("caps the name at 100 characters", () => {
         const long = onboardingReducer(draft(), {type: "agent", patch: {name: "x".repeat(150)}})
         expect(long.agent.name).toHaveLength(100)
+    })
+
+    it("removes a write-in answer when the text is cleared, keeping it when text is present", () => {
+        const withWriteIn = onboardingReducer(draft(), {
+            type: "answer",
+            question: "persona",
+            value: writeInAnswer("Other", "consultant"),
+        })
+        expect(withWriteIn.answers).toEqual({persona: "Other: consultant"})
+
+        // Clearing the text (component sends []) removes the answer from the draft.
+        const cleared = onboardingReducer(withWriteIn, {
+            type: "answer",
+            question: "persona",
+            value: [],
+        })
+        expect(cleared.answers).toEqual({})
+    })
+
+    it("restores a write-in answer and drops a bare write-in label with no text", () => {
+        // A complete write-in answer survives save and restore.
+        const writeIn = writeInAnswer("Other", "consultant")
+        saveOnboardingDraft("draft", draft({answers: {persona: writeIn}}))
+        expect(readOnboardingDraft("draft").answers).toEqual({persona: writeIn})
+
+        // A bare label (the choice label without the separator and text) is not a valid
+        // write-in answer and is stripped on restore, so reload+clear never leaves a
+        // stale stub in the draft.
+        window.sessionStorage.setItem(
+            "draft",
+            JSON.stringify({...draft(), answers: {persona: "Other"}}),
+        )
+        expect(readOnboardingDraft("draft").answers).toEqual({})
     })
 })
 
