@@ -31,12 +31,12 @@ import {useRouter} from "next/router"
 
 import {fetchProjects} from "@/lib/context"
 
+import {switchProjectContext} from "../context/switchProjectContext"
 import {groupByOrganization} from "../context/workspaceGroups"
 
 import {ConfirmModal} from "./ConfirmModal"
 import {NameDialog} from "./NameDialog"
 import type {SettingsTabProps} from "./settingsTabProps"
-import {switchSettingsContext} from "./switchContext"
 import {useSettingsOrg} from "./useSettingsOrg"
 
 const errorText = (error: unknown, fallback: string): string => {
@@ -101,10 +101,9 @@ export const OrganizationsTab = ({workspaceId}: SettingsTabProps) => {
                     message.info(`${org.name ?? "This organization"} has no project to open yet`)
                     return
                 }
-                switchSettingsContext(router, {
+                switchProjectContext(router, {
                     workspaceId: group.workspaceId,
                     projectId: first.project_id,
-                    tab: "organizationGeneral",
                 })
             }}
             onCreate={() => {

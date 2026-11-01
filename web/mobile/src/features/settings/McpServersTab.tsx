@@ -11,11 +11,7 @@ export const McpServersTab = ({workspaceId, projectId}: SettingsTabProps) => {
     const {confirm, modal} = useConfirmModal()
     const canEdit = useProjectPermission(projectId, "edit_mcp_endpoints")
     const canListTools = useProjectPermission(projectId, "use_mcp_endpoints")
-    const {projectSwitch, projectCount} = useSettingsProjectGroup(
-        workspaceId,
-        projectId,
-        "mcpEndpoints",
-    )
+    const {projectSwitch, projectCount} = useSettingsProjectGroup(workspaceId, projectId)
     return (
         <>
             <McpServersSection

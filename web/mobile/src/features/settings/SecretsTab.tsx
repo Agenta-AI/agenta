@@ -24,7 +24,6 @@ export const SecretsTab = ({workspaceId, projectId}: SettingsTabProps) => {
     const {projectSwitch, projectName, projectCount} = useSettingsProjectGroup(
         workspaceId,
         projectId,
-        "secrets",
     )
     const canEdit = useProjectPermission(projectId, "edit_secret")
     const access = useAtomValue(personalAccountsAccessAtom)

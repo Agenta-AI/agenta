@@ -13,9 +13,10 @@ import {
 import {useQueryClient} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
+import {switchProjectContext} from "../context/switchProjectContext"
+
 import {NameDialog} from "./NameDialog"
 import type {SettingsTabProps} from "./settingsTabProps"
-import {switchSettingsContext} from "./switchContext"
 import {useSettingsOrg} from "./useSettingsOrg"
 
 /**
@@ -36,10 +37,9 @@ export const ProjectsTab = ({workspaceId, projectId}: SettingsTabProps) => {
             // The nav switcher reads its own projects list.
             onChanged={() => void queryClient.invalidateQueries({queryKey: ["mobile", "projects"]})}
             onSwitch={(project) =>
-                switchSettingsContext(router, {
+                switchProjectContext(router, {
                     workspaceId: project.organization_id ?? project.workspace_id ?? workspaceId,
                     projectId: project.project_id,
-                    tab: "projects",
                 })
             }
             renderCreateDialog={({open, onClose, onSubmit, pending}) => (

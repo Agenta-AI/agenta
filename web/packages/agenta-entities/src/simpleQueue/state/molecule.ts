@@ -121,23 +121,11 @@ function deriveQueueStatusFromScenarios(
  */
 export const simpleQueuesListQueryAtom = atomWithQuery((get) => {
     const isSessionReady = get(sessionAtom)
+    const projectId = get(projectIdAtom)
     return {
-        queryKey: ["simpleQueues", "list"],
-        queryFn: async () => {
-            const projectId = getStore().get(projectIdAtom)
-            if (!projectId) {
-                throw new Error("projectId not yet available")
-            }
-            return querySimpleQueues({projectId})
-        },
-        enabled: isSessionReady,
-        retry: (failureCount: number, error: Error) => {
-            if (error?.message === "projectId not yet available" && failureCount < 5) {
-                return true
-            }
-            return false
-        },
-        retryDelay: (attempt: number) => Math.min(200 * 2 ** attempt, 2000),
+        queryKey: ["simpleQueues", "list", projectId],
+        queryFn: () => querySimpleQueues({projectId: projectId as string}),
+        enabled: isSessionReady && !!projectId,
         staleTime: 30_000,
     }
 })
