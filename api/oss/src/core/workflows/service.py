@@ -138,6 +138,7 @@ from oss.src.core.workflows.dtos import (
 from oss.src.core.git.types import (
     InlineResolveInvalid,
     RevisionConflict,
+    RetrieveRefsInconsistent,
     RevisionUnchanged,
     VariantForkError,
     validate_revision_refs_sufficient,
@@ -198,7 +199,10 @@ from oss.src.core.embeds.dtos import (
     ErrorPolicy,
     ResolutionInfo,
 )
-from oss.src.core.embeds.exceptions import NonEmbeddableWorkflowReferenceError
+from oss.src.core.embeds.exceptions import (
+    EmbedReferenceInconsistentError,
+    NonEmbeddableWorkflowReferenceError,
+)
 from oss.src.core.embeds.utils import (
     find_object_embeds,
     find_snippet_embeds,
@@ -2313,6 +2317,54 @@ class WorkflowsService:
                 if slug:
                     raise NonEmbeddableWorkflowReferenceError(slug)
 
+    async def _reject_inconsistent_workflow_embeds(
+        self,
+        *,
+        project_id: UUID,
+        data: Optional[WorkflowRevisionData],
+    ) -> None:
+        """Refuse an embed whose refs name two different workflows (one slug, another's
+        id). Stored, it would fail every run of the revision that carries it."""
+        if not data:
+            return
+
+        configuration = data.model_dump(mode="json", exclude_none=True)
+        embeds = (
+            *find_object_embeds(configuration),
+            *find_string_embeds(configuration),
+            *find_snippet_embeds(configuration),
+        )
+
+        async def check(refs: Dict[str, Reference]) -> None:
+            try:
+                await self.fetch_workflow_revision(
+                    project_id=project_id,
+                    workflow_ref=refs.get("workflow"),
+                    workflow_variant_ref=refs.get("workflow_variant"),
+                    workflow_revision_ref=refs.get("workflow_revision"),
+                )
+            except RetrieveRefsInconsistent as e:
+                raise EmbedReferenceInconsistentError(
+                    references=refs, detail=e.message
+                ) from e
+
+        checks = []
+        for embed in embeds:
+            refs = {
+                entity_type: ref
+                for entity_type, ref in embed.references.items()
+                if self._reference_category(entity_type) == "workflow"
+            }
+            identifiers = sum(
+                value is not None
+                for ref in refs.values()
+                for value in (ref.id, ref.slug, ref.version)
+            )
+            # A single identifier cannot disagree with itself.
+            if identifiers >= 2:
+                checks.append(check(refs))
+        await asyncio.gather(*checks)
+
     def _ref_has_static_id(self, ref: Optional[Reference]) -> bool:
         return (
             ref is not None
@@ -3186,6 +3238,11 @@ class WorkflowsService:
 
         _revision_commit = self._build_revision_commit(
             workflow_revision_commit=workflow_revision_commit,
+        )
+
+        await self._reject_inconsistent_workflow_embeds(
+            project_id=project_id,
+            data=workflow_revision_commit.data,
         )
 
         if not _revision_commit.artifact_id:

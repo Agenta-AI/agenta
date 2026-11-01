@@ -17,7 +17,10 @@ from oss.src.core.shared.dtos import (
 )
 from oss.src.core.git.utils import build_retrieval_info
 from oss.src.core.git.types import CommitLockTimeout
-from oss.src.core.embeds.exceptions import NonEmbeddableWorkflowReferenceError
+from oss.src.core.embeds.exceptions import (
+    EmbedReferenceInconsistentError,
+    NonEmbeddableWorkflowReferenceError,
+)
 from oss.src.apis.fastapi.git.exceptions import handle_git_exceptions
 from oss.src.apis.fastapi.workflows.exceptions import handle_workflow_exceptions
 from oss.src.core.workflows.change_set import ChangeSetError
@@ -2041,6 +2044,20 @@ class WorkflowsRouter:
             raise HTTPException(status_code=422, detail=e.to_detail()) from e
         except ChangeSetError as e:
             raise HTTPException(status_code=422, detail=e.to_detail()) from e
+        except EmbedReferenceInconsistentError as e:
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "code": "inconsistent_embed_reference",
+                    "message": e.message,
+                    "retryable": False,
+                    "next_step": (
+                        "Remove that entry, add it again from the picker, and send the "
+                        "commit again."
+                    ),
+                    "details": {"slug": e.slug},
+                },
+            ) from e
         except NonEmbeddableWorkflowReferenceError as e:
             # One code, one status. This used to answer 422 here and 400 everywhere else
             # the same failure is raised, so a caller had to learn the status per route

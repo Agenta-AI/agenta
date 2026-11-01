@@ -898,8 +898,8 @@ export const LiveConversation = ({
                             </div>
                         ) : conversation.historyUnavailable ? (
                             <p className="text-muted-foreground mt-3 text-center text-xs">
-                                This session&apos;s earlier messages are no longer stored. New
-                                messages still work.
+                                No messages are saved in this session. Messages that failed to send
+                                are not kept, and old messages can expire.
                             </p>
                         ) : null}
                     </div>
