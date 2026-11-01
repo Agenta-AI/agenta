@@ -1,11 +1,12 @@
 import type {Key} from "react"
 import {useCallback, useEffect, useRef, useState} from "react"
 
-import {useObservability, useSessions} from "@agenta/observability"
+import {useObservability} from "@agenta/observability"
 import {ObservabilityRangePicker, ObservabilityToolbar} from "@agenta/observability-ui"
 import {AddActionsDropdown, DeleteTraceModal, deleteTraceModalAtom} from "@agenta/observability-ui"
 import {PageLayout} from "@agenta/ui"
 import {useIsNarrowScreen} from "@agenta/ui/hooks"
+import {useQueryClient} from "@tanstack/react-query"
 import {useSetAtom} from "jotai"
 import {MessagesSquare, Network} from "lucide-react"
 import {useRouter} from "next/router"
@@ -91,7 +92,8 @@ export const ObservabilityScreen = ({
     const bodyRef = useRef<HTMLDivElement | null>(null)
 
     const {fetchTraces} = useObservability()
-    const {refetchSessions} = useSessions()
+    // Not `useSessions()`: that would load sessions and their spans on the Traces tab too.
+    const queryClient = useQueryClient()
 
     // Swallow the refetch results: the toolbar only needs the promise to settle.
     const [selectedRowKeys, setSelectedRowKeys] = useState<Key[]>([])
@@ -105,8 +107,12 @@ export const ObservabilityScreen = ({
 
     const onRefresh = useCallback(async () => {
         if (tab === "traces") await fetchTraces()
-        else await refetchSessions()
-    }, [tab, fetchTraces, refetchSessions])
+        else
+            await Promise.all([
+                queryClient.invalidateQueries({queryKey: ["sessions"]}),
+                queryClient.invalidateQueries({queryKey: ["session_spans"]}),
+            ])
+    }, [tab, fetchTraces, queryClient])
 
     return (
         <>
