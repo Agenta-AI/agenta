@@ -1,3 +1,4 @@
+import {RECENT_TRIGGER_DELIVERIES_LIMIT} from "@agenta/entities/gatewayTrigger"
 import {timeAgo} from "@agenta/shared/utils"
 import {SkeletonBlock} from "@agenta/ui/ui"
 
@@ -6,7 +7,9 @@ import {useAutomationRuns} from "./useAutomationRuns"
 
 /** When an automation last ran and how often — Status says it is on, this says it is doing anything. */
 export const AutomationLastRunCell = ({automation}: {automation: Automation}) => {
-    const {runs, recentCount, counted, isLoading} = useAutomationRuns(automation)
+    const {runs, recentCount, counted, isLoading} = useAutomationRuns(automation, {
+        recent: true,
+    })
     const newest = runs[0]
 
     if (isLoading) {
@@ -24,6 +27,12 @@ export const AutomationLastRunCell = ({automation}: {automation: Automation}) =>
 
     const at = Date.parse(newest.created_at ?? "")
     const when = Number.isFinite(at) ? timeAgo(at) : "—"
+    const countLabel =
+        recentCount > RECENT_TRIGGER_DELIVERIES_LIMIT
+            ? `${RECENT_TRIGGER_DELIVERIES_LIMIT}+ runs`
+            : recentCount === 1
+              ? "1 run"
+              : `${recentCount} runs`
 
     return (
         <span className="flex min-w-0 flex-col">
@@ -35,7 +44,7 @@ export const AutomationLastRunCell = ({automation}: {automation: Automation}) =>
             </span>
             {counted ? (
                 <span className="truncate text-[12px] text-muted-foreground">
-                    {recentCount === 1 ? "1 run" : `${recentCount} runs`} in 30 days
+                    {countLabel} in 30 days
                 </span>
             ) : null}
         </span>

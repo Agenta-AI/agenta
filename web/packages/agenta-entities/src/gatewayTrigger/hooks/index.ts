@@ -25,8 +25,10 @@ export {triggerSubscriptionQueryAtomFamily, useTriggerSubscription} from "./useT
 export {triggerSchedulesQueryAtom, useTriggerSchedules} from "./useTriggerSchedules"
 export {triggerScheduleQueryAtomFamily, useTriggerSchedule} from "./useTriggerSchedule"
 export {
+    RECENT_TRIGGER_DELIVERIES_LIMIT,
     triggerDeliveriesAtomFamily,
     triggerDeliveryQueryAtomFamily,
+    triggerRecentDeliveriesAtomFamily,
     useTriggerDeliveries,
     useTriggerDelivery,
 } from "./useTriggerDeliveries"

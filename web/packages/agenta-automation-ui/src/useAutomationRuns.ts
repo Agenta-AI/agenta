@@ -21,9 +21,9 @@ import {
  * The hook is inert without an automation: the deliveries endpoint is scoped by owner, and the
  * kind (schedule vs subscription) is only known once the automation resolves.
  */
-export const useAutomationRuns = (automation: Automation | null) => {
+export const useAutomationRuns = (automation: Automation | null, {recent = false} = {}) => {
     const owner = useMemo(() => deliveriesOwner(automation), [automation])
-    const {deliveries, isLoading, error, refetch} = useTriggerDeliveries(owner)
+    const {deliveries, isLoading, error, refetch} = useTriggerDeliveries(owner, {recent})
 
     const runs = useMemo<TriggerDelivery[]>(() => sortRuns(deliveries), [deliveries])
     const recentCount = useMemo(() => countRecentRuns(runs), [runs])
