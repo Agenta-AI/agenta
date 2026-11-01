@@ -48,6 +48,66 @@ describe("splitTurnActivity", () => {
         expect(messageTexts(items)).toEqual(["checking"])
     })
 
+    it("folds the messages written between calls once the run is over", () => {
+        const items = [
+            text(0, "I'll check the plugin routes."),
+            tools(1, [tool({})]),
+            text(2, "I'm using the communication skill."),
+            reasoning(3, "plan"),
+            text(4, "Yes. The plugin exposes HTTP and MCP."),
+        ]
+        const split = splitTurnActivity(items, {settled: true})
+        expect(split.steps.map((s) => (s.kind === "thought" ? s.text : s.kind))).toEqual([
+            "I'll check the plugin routes.",
+            "tool",
+            "I'm using the communication skill.",
+            "plan",
+        ])
+        expect(split.messages.map((m) => m.part.text)).toEqual([
+            "Yes. The plugin exposes HTTP and MCP.",
+        ])
+    })
+
+    it("keeps every message after the last step once the run is over", () => {
+        const items = [tools(0, [tool({})]), text(1, "part one"), text(2, "part two")]
+        expect(splitTurnActivity(items, {settled: true}).messages.map((m) => m.part.text)).toEqual([
+            "part one",
+            "part two",
+        ])
+    })
+
+    it("keeps the last message when the run ended on a step", () => {
+        const items = [
+            text(0, "looking"),
+            tools(1, [tool({})]),
+            text(2, "still going"),
+            tools(3, [tool({})]),
+        ]
+        const split = splitTurnActivity(items, {settled: true})
+        expect(split.steps.map((s) => (s.kind === "thought" ? s.text : s.kind))).toEqual([
+            "looking",
+            "tool",
+            "tool",
+        ])
+        expect(split.messages.map((m) => m.part.text)).toEqual(["still going"])
+    })
+
+    it("counts only the steps the fold shows when it picks the answer", () => {
+        const items = [
+            text(0, "checking"),
+            tools(1, [tool({})]),
+            text(2, "part one"),
+            text(3, "part two"),
+            tools(4, [tool({type: "tool-rename_agent", input: {name: "y"}} as never)]),
+        ]
+        const split = splitTurnActivity(items, {settled: true})
+        expect(split.steps.map((s) => (s.kind === "thought" ? s.text : s.kind))).toEqual([
+            "checking",
+            "tool",
+        ])
+        expect(split.messages.map((m) => m.part.text)).toEqual(["part one", "part two"])
+    })
+
     it("shows a message still being written", () => {
         expect(messageTexts([tools(0, [tool({})]), text(1, "I will now", "streaming")])).toEqual([
             "I will now",

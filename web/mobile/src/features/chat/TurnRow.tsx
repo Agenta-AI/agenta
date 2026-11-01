@@ -178,13 +178,15 @@ const TurnRowInner = ({
     useEffect(() => refreshOnSetupFailure(lastErrorCode), [lastErrorCode, turn.message.id])
     const streamedHereRef = useRef(false)
     if (turn.isStreamingTurn) streamedHereRef.current = true
-    // The fold holds the work; every message the agent wrote to the reader shows below it, so a
-    // message followed by a call or a card is never mistaken for thinking.
-    const activity = useMemo(() => splitTurnActivity(turn.items), [turn.items])
-    const answered = activity.messages.length > 0
-    const writing = activity.messages.at(-1)?.part.state === "streaming"
     // Parked on the reader is open too: a message before a question is not the answer yet.
     const runOpen = live || (turn.isLast && (waitingOnUser || resuming))
+    // While the run works, every message shows below the fold; once it is over, only the answer.
+    const activity = useMemo(
+        () => splitTurnActivity(turn.items, {settled: !runOpen}),
+        [turn.items, runOpen],
+    )
+    const answered = activity.messages.length > 0
+    const writing = activity.messages.at(-1)?.part.state === "streaming"
     // An answer present at mount is history (reload, session open); a later one arrived live.
     // By message id alone: adoption can shift the answer's index without it being a new answer.
     // Only once the run is over: an interim message must not pin the scroll while work goes on.
