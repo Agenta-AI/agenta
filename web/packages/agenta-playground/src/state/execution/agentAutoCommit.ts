@@ -199,7 +199,9 @@ const runFlush = async (
             store.set(agentAutoCommitErrorAtomFamily(revisionId), null)
             // The commit atom invalidates everything BUT the latest-revision query, which an
             // unattended writer notices: the next read keeps answering with the superseded id.
-            invalidateAgentCommittedRevisionCache()
+            invalidateAgentCommittedRevisionCache(
+                store.get(workflowMolecule.selectors.data(revisionId))?.workflow_id,
+            )
             const newRevisionId = result.newRevisionId
             if (newRevisionId) {
                 afterCommitHandlers.forEach((handler) => handler(revisionId, newRevisionId))

@@ -1,10 +1,12 @@
 import {useEffect, useRef} from "react"
 
-import {joinTabLeadership, type TabLeadership} from "./tabLeader"
+import {JOIN_WAIT_MS, joinTabLeadership, type TabLeadership} from "./tabLeader"
 
 const RETRY_BASE_MS = 1_000
 const RETRY_MAX_MS = 30_000
 const MIN_INTERVAL_MS = 3_000
+// A lone tab takes the lead on the first watchdog tick after `JOIN_WAIT_MS`, so wait past it.
+const FOLLOWER_READY_DELAY_MS = JOIN_WAIT_MS * 2
 
 export const shouldCoalesceWatchEvent = (eventName: string): boolean => eventName !== "interaction"
 
@@ -64,6 +66,7 @@ export const useWatchEventSource = ({
         let source: EventSource | null = null
         let retryHandle: number | undefined
         let trailingHandle: number | undefined
+        let followerReadyHandle: number | undefined
         let disposed = false
         let lastNotifiedAt: number | null = null
         let attempt = 0
@@ -85,7 +88,14 @@ export const useWatchEventSource = ({
                 onRef.current[eventName]?.(event)
                 return
             }
-            pendingEvents.set(eventName, event)
+            const queued = pendingEvents.get(eventName)
+            // Two different payloads in one window: hand over none, so the handler refreshes broadly.
+            pendingEvents.set(
+                eventName,
+                queued && queued.data !== event.data
+                    ? new MessageEvent(eventName, {data: ""})
+                    : event,
+            )
             const now = Date.now()
             const elapsed = lastNotifiedAt === null ? MIN_INTERVAL_MS : now - lastNotifiedAt
             if (elapsed >= MIN_INTERVAL_MS) {
@@ -166,11 +176,18 @@ export const useWatchEventSource = ({
                 return
             }
             // A tab that follows hears only what happens from now on. `ready` is what a stream
-            // sends on every connect to cover the gap, so the tab raises it for itself.
-            if (eventNames.includes("ready")) notify("ready", new MessageEvent("ready", {data: ""}))
+            // sends on every connect to cover the gap, so a follower raises it for itself; a
+            // leader's own stream sends it.
+            if (!eventNames.includes("ready")) return
+            followerReadyHandle = window.setTimeout(() => {
+                followerReadyHandle = undefined
+                if (membership && !leading) notify("ready", new MessageEvent("ready", {data: ""}))
+            }, FOLLOWER_READY_DELAY_MS)
         }
 
         const leave = () => {
+            if (followerReadyHandle !== undefined) window.clearTimeout(followerReadyHandle)
+            followerReadyHandle = undefined
             membership?.leave()
             membership = null
             leading = false

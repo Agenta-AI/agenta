@@ -47,57 +47,6 @@ import {
 } from "../core"
 import type {WorkflowDetailParams, WorkflowListParams, WorkflowData} from "../core"
 
-const toUnixMs = (value: string | null | undefined): number => {
-    if (!value) return 0
-    const timestamp = new Date(value).getTime()
-    return Number.isFinite(timestamp) ? timestamp : 0
-}
-
-const workflowRecencyScore = (workflow: Workflow | null | undefined): number => {
-    if (!workflow) return 0
-    return toUnixMs(workflow.created_at) || toUnixMs(workflow.updated_at)
-}
-
-/**
- * Is `a` a later revision than `b`?
- *
- * VERSION decides, not the timestamp. `version` is server-assigned and monotonic; `created_at` is
- * not a reliable ordering — revisions committed by the agent land in bursts that tie to the second,
- * and a tie used to fall through to array order and pick an arbitrary revision as "latest".
- *
- * Timestamps stay as the tie-break for revisions that share a version.
- *
- * `store.ts` carries the same rule. It cannot be shared from there — `state/` imports this
- * module, not the reverse — and this copy exists to stop the two diverging: what stood here was
- * the timestamp-first picker commit 0c9b25b7e2 already replaced on the store side.
- */
-const isLaterWorkflowRevision = (
-    a: Workflow | null | undefined,
-    b: Workflow | null | undefined,
-): boolean => {
-    if (!a) return false
-    if (!b) return true
-    const aVersion = Number(a.version ?? 0)
-    const bVersion = Number(b.version ?? 0)
-    if (aVersion !== bVersion) return aVersion > bVersion
-    return workflowRecencyScore(a) > workflowRecencyScore(b)
-}
-
-/** The newest real revision in a list. Version-0 placeholders carry no config and never win. */
-const pickMostRecentWorkflowRevision = (
-    revisions: (Workflow | null | undefined)[],
-): Workflow | null => {
-    let latest: Workflow | null = null
-
-    for (const revision of revisions) {
-        if (!revision) continue
-        if ((revision.version ?? 0) === 0) continue
-        if (isLaterWorkflowRevision(revision, latest)) latest = revision
-    }
-
-    return latest
-}
-
 // ============================================================================
 // QUERY / LIST (Workflows)
 // ============================================================================
@@ -1269,7 +1218,7 @@ export async function unarchiveWorkflow(
 /**
  * Batch fetch workflow revisions by workflow IDs.
  *
- * Uses the revision query endpoint with workflow_refs to fetch latest revisions.
+ * Groups by artifact so the server returns one row per workflow, its latest revision.
  *
  * Endpoint: `POST /workflows/revisions/query`
  *
@@ -1283,7 +1232,6 @@ export async function fetchWorkflowsBatch(
     opts?: {lowPriority?: boolean},
 ): Promise<Map<string, Workflow>> {
     const results = new Map<string, Workflow>()
-    const groupedByWorkflowId = new Map<string, Workflow[]>()
 
     if (!projectId || workflowIds.length === 0) return results
 
@@ -1291,9 +1239,7 @@ export async function fetchWorkflowsBatch(
         `${getAgentaApiUrl()}/workflows/revisions/query`,
         {
             workflow_refs: workflowIds.map((id) => ({id})),
-            // When fetching for a single workflow, limit to 1 (latest) to reduce payload.
-            // With multiple workflows the global limit would cut across all, so skip it.
-            ...(workflowIds.length === 1 ? {windowing: {limit: 1, order: "descending"}} : {}),
+            grouping: {by: "artifact", get: "latest"},
         },
         {params: {project_id: projectId}, ...lowPriorityWhenCached(opts?.lowPriority)},
     )
@@ -1310,20 +1256,10 @@ export async function fetchWorkflowsBatch(
             const workflow = safeParseWithLogging(workflowSchema, raw, "[fetchWorkflowsBatch:item]")
             if (workflow) {
                 // Key by workflow_id so callers can look up by the workflow ID they passed in
-                const key = workflow.workflow_id ?? workflow.id
-                const current = groupedByWorkflowId.get(key) ?? []
-                groupedByWorkflowId.set(key, [...current, workflow])
+                results.set(workflow.workflow_id ?? workflow.id, workflow)
             }
         } catch (e) {
             console.error("[fetchWorkflowsBatch] Failed to parse workflow:", e, raw)
-        }
-    }
-
-    for (const workflowId of workflowIds) {
-        const candidates = groupedByWorkflowId.get(workflowId) ?? []
-        const mostRecent = pickMostRecentWorkflowRevision(candidates)
-        if (mostRecent) {
-            results.set(workflowId, mostRecent)
         }
     }
 
