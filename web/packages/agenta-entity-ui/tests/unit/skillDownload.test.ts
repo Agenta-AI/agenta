@@ -124,6 +124,7 @@ describe("buildSkillDownload", () => {
                 {path: "../escape.sh", content: "x"},
                 {path: "/abs.txt", content: "x"},
                 {path: "SKILL.md", content: "x"},
+                {path: "./SKILL.md", content: "x"},
                 {path: "ok/notes.md", content: "kept"},
             ],
         })

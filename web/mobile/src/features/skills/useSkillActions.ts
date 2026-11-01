@@ -39,7 +39,7 @@ export const useSkillActions = () => {
         [projectId],
     )
 
-    // The drawer's own query key, so a skill already opened downloads from cache.
+    // The drawer's query key, so an open drawer shares the head this fetch brings.
     const download = useCallback(
         async (workflowId: string) => {
             const queryKey = skillRevisionsQueryKey(projectId, workflowId)
@@ -50,7 +50,8 @@ export const useSkillActions = () => {
                 .fetchQuery({
                     queryKey,
                     queryFn: () => fetchSkillRevisions({projectId, workflowId}),
-                    staleTime: 15_000,
+                    // Always the server's head: a cached one can predate another user's save.
+                    staleTime: 0,
                 })
                 .then((revisions) => revisions[0]?.skill)
                 .catch(() => undefined)

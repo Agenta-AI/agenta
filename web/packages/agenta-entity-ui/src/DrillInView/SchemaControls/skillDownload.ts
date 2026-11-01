@@ -38,7 +38,7 @@ const isSafePath = (path: string): boolean =>
     !path.startsWith("/") &&
     !/^[A-Za-z]:/.test(path) &&
     !path.includes("\\") &&
-    !path.split("/").includes("..") &&
+    !path.split("/").some((segment) => segment === "" || segment === "." || segment === "..") &&
     path.toLowerCase() !== "skill.md"
 
 const bundledFiles = (skill: Record<string, unknown>): {path: string; content: string}[] =>
