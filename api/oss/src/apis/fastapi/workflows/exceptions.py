@@ -9,7 +9,16 @@ from functools import wraps
 
 from fastapi import HTTPException
 
-from oss.src.core.embeds.exceptions import NonEmbeddableWorkflowReferenceError
+from oss.src.core.embeds.exceptions import (
+    CircularEmbedError,
+    EmbedNotFoundError,
+    MaxDepthExceededError,
+    MaxEmbedsExceededError,
+    MixedEntityTypesError,
+    NonEmbeddableWorkflowReferenceError,
+    PathExtractionError,
+    UnsupportedReferenceTypeError,
+)
 from oss.src.core.workflows.types import StaticWorkflowSlug
 
 
@@ -29,6 +38,41 @@ class NonEmbeddableWorkflowReferenceException(HTTPException):
         super().__init__(status_code=400, detail=message)
 
 
+class CircularEmbedException(HTTPException):
+    def __init__(self, message: str = "Circular embed detected."):
+        super().__init__(status_code=400, detail=message)
+
+
+class MaxDepthExceededException(HTTPException):
+    def __init__(self, message: str = "Max embed depth exceeded."):
+        super().__init__(status_code=400, detail=message)
+
+
+class MaxEmbedsExceededException(HTTPException):
+    def __init__(self, message: str = "Max embed count exceeded."):
+        super().__init__(status_code=400, detail=message)
+
+
+class EmbedNotFoundException(HTTPException):
+    def __init__(self, message: str = "Referenced entity not found."):
+        super().__init__(status_code=400, detail=message)
+
+
+class UnsupportedReferenceTypeException(HTTPException):
+    def __init__(self, message: str = "Unsupported reference type."):
+        super().__init__(status_code=400, detail=message)
+
+
+class MixedEntityTypesException(HTTPException):
+    def __init__(self, message: str = "References span multiple entity families."):
+        super().__init__(status_code=400, detail=message)
+
+
+class PathExtractionException(HTTPException):
+    def __init__(self, message: str = "Path not found in configuration."):
+        super().__init__(status_code=400, detail=message)
+
+
 def handle_workflow_exceptions():
     def decorator(func):
         @wraps(func)
@@ -39,6 +83,20 @@ def handle_workflow_exceptions():
                 raise StaticWorkflowSlugException(message=e.message) from e
             except NonEmbeddableWorkflowReferenceError as e:
                 raise NonEmbeddableWorkflowReferenceException(message=str(e)) from e
+            except CircularEmbedError as e:
+                raise CircularEmbedException(message=str(e)) from e
+            except MaxDepthExceededError as e:
+                raise MaxDepthExceededException(message=str(e)) from e
+            except MaxEmbedsExceededError as e:
+                raise MaxEmbedsExceededException(message=str(e)) from e
+            except EmbedNotFoundError as e:
+                raise EmbedNotFoundException(message=str(e)) from e
+            except UnsupportedReferenceTypeError as e:
+                raise UnsupportedReferenceTypeException(message=str(e)) from e
+            except MixedEntityTypesError as e:
+                raise MixedEntityTypesException(message=str(e)) from e
+            except PathExtractionError as e:
+                raise PathExtractionException(message=str(e)) from e
 
         return wrapper
 
