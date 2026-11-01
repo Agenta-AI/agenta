@@ -35,6 +35,8 @@ import {
 import {$createTextNode, $getRoot} from "lexical"
 import {v4 as uuidv4} from "uuid"
 
+import {Skeleton} from "../components/ui/skeleton"
+
 import FormView from "./form/FormView"
 import useEditorConfig from "./hooks/useEditorConfig"
 import {useEditorInvariant} from "./hooks/useEditorInvariant"
@@ -846,6 +848,7 @@ export const EditorProvider = ({
     disableIndentationPlugin = false,
     skipScroll = false,
     useNativeCodeNodes = false,
+    loadingFallback = "skeleton",
 }: EditorProps & {children: ReactNode}) => {
     // Stabilize id across renders — `uuidv4()` as a default parameter would
     // generate a new UUID on every render, which forces the extension useMemo
@@ -1028,6 +1031,15 @@ export const EditorProvider = ({
     }, [extension, id])
 
     if (!config) {
+        if (loadingFallback === "skeleton") {
+            return (
+                <Skeleton
+                    className={clsx("editor-skeleton", className)}
+                    title={false}
+                    paragraph={{rows: singleLine ? 1 : 3}}
+                />
+            )
+        }
         return (
             <div
                 className="bg-[var(--ag-c-FFFFFF)] relative flex flex-col p-2 border border-solid rounded-lg"
@@ -1190,6 +1202,7 @@ const Editor = ({
                     disableIndentationPlugin={disableIndentationPlugin}
                     skipScroll={skipScroll}
                     useNativeCodeNodes={useNativeCodeNodes}
+                    loadingFallback={loadingFallback}
                 >
                     <EditorInner
                         dimensions={

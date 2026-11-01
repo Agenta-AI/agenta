@@ -114,6 +114,11 @@ export interface EnhancedDrawerProps extends DrawerProps {
     children?: React.ReactNode
     /** The panel element — what a confirm scoped to the drawer portals into. */
     panelRef?: React.Ref<HTMLDivElement>
+    /**
+     * Shown in the body on the opening frame; `children` mount once the panel has painted, so a
+     * heavy body (an editor, a large form) cannot hold the drawer back with nothing on screen.
+     */
+    bodyFallback?: React.ReactNode
 }
 
 interface DrawerStyles {
@@ -128,6 +133,7 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
     const {
         children,
         panelRef,
+        bodyFallback,
         open,
         onClose,
         title,
@@ -152,11 +158,30 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
     } = props
 
     const [shouldRender, setShouldRender] = useState(!!open)
+    const defersBody = bodyFallback !== undefined
+    const [bodyReady, setBodyReady] = useState(false)
     const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
     useEffect(() => {
         if (open) setShouldRender(true)
     }, [open])
+
+    // Two frames: the first lets the fallback commit, the second runs after it has painted.
+    useEffect(() => {
+        if (!shouldRender) {
+            setBodyReady(false)
+            return
+        }
+        if (!defersBody || bodyReady) return
+        let second = 0
+        const first = requestAnimationFrame(() => {
+            second = requestAnimationFrame(() => setBodyReady(true))
+        })
+        return () => {
+            cancelAnimationFrame(first)
+            cancelAnimationFrame(second)
+        }
+    }, [shouldRender, defersBody, bodyReady])
 
     // Radix has no `afterOpenChange`; approximate it (open immediately; close after the slide ~300ms).
     useEffect(() => {
@@ -291,7 +316,7 @@ export function EnhancedDrawer(props: EnhancedDrawerProps) {
                     )}
                     style={styles?.body}
                 >
-                    {children}
+                    {defersBody && !bodyReady ? bodyFallback : children}
                 </div>
                 {footer != null ? (
                     <SheetFooter style={styles?.footer} className={slotClassNames?.footer}>

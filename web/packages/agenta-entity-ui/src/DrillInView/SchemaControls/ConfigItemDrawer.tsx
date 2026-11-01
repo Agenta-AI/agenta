@@ -25,6 +25,8 @@ import {type ReactNode} from "react"
 import {EnhancedDrawer} from "@agenta/ui/drawer"
 import {Badge, type BadgeProps, Button} from "@agenta/ui/ui"
 
+import {FormDrawerSkeleton} from "./DrawerSkeletons"
+
 // The badge `color` is an antd preset hue name supplied by the item-kind descriptors
 // (`typeColor: "cyan" | "blue" | …`), which type it as a plain string — so resolve it to a Badge
 // variant here rather than casting, and fall back to the neutral chip for an unknown hue.
@@ -90,6 +92,8 @@ export interface ConfigItemDrawerProps {
      * The JSON view keeps its padding regardless. @default false
      */
     contentFlush?: boolean
+    /** Body shown while the drawer opens, before `form` mounts. @default FormDrawerSkeleton */
+    loadingBody?: ReactNode
 }
 
 export function ConfigItemDrawer({
@@ -111,6 +115,7 @@ export function ConfigItemDrawer({
     width = 600,
     disabled = false,
     contentFlush = false,
+    loadingBody = <FormDrawerSkeleton />,
 }: ConfigItemDrawerProps) {
     // Flush layout only helps the form; keep the JSON editor padded and independently scrollable.
     const flushForm = contentFlush && !jsonOnly
@@ -125,6 +130,7 @@ export function ConfigItemDrawer({
             // Lazy content: children aren't mounted until first open and are torn down on close,
             // so the content component's logic only runs while the drawer is open.
             destroyOnClose
+            bodyFallback={<div className={flushForm ? "h-full p-4" : "h-full"}>{loadingBody}</div>}
             title={
                 // One line: title · subtitle. Stacked, the subtitle doubled the header height for
                 // a few muted words, and the leading icon repeated the row the drawer opened from.
