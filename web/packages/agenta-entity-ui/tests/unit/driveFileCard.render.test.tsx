@@ -8,13 +8,14 @@ import {afterEach, beforeEach, describe, expect, it, vi} from "vitest"
 const state = vi.hoisted(() => ({listed: new Set<string>()}))
 
 vi.mock("../../src/drive/useDriveFileLookup", () => ({
-    useDriveFileLookup: () => (path: string) =>
-        state.listed.has(path)
-            ? {
-                  entry: {path, size: 387},
-                  target: {mount: {id: "m1"}, path},
-              }
-            : {entry: null, target: null},
+    useDriveFileLookup: () => (path: string, exact?: boolean) => {
+        const hit = [...state.listed].find((file) =>
+            exact ? file === path : file === path || path.endsWith(`/${file}`),
+        )
+        return hit
+            ? {entry: {path: hit, size: 387}, target: {mount: {id: "m1"}, path: hit}}
+            : {entry: null, target: null}
+    },
 }))
 vi.mock("../../src/drive/useDriveFileDownload", () => ({useDriveFileDownload: () => vi.fn()}))
 
@@ -59,6 +60,12 @@ describe("DriveFileCard", () => {
 
     it("hides a linked file the drive does not hold", () => {
         render(<DriveFileCard path="missing.zip" listedOnly />)
+        expect(container.innerHTML).toBe("")
+    })
+
+    it("does not point a linked nested file at a root file with the same name", () => {
+        state.listed.add("foo.zip")
+        render(<DriveFileCard path="dir/foo.zip" listedOnly />)
         expect(container.innerHTML).toBe("")
     })
 

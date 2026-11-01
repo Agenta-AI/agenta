@@ -52,10 +52,10 @@ export function DriveFileCard({
 }: {
     path: string
     op?: FileActivityOp
-    /** Render only once the listing holds the file: a link alone does not prove it exists. */
+    /** A drive path from a link: render only once the listing holds that exact file. */
     listedOnly?: boolean
 }) {
-    const {entry, target} = useDriveFileLookup()(path)
+    const {entry, target} = useDriveFileLookup()(path, listedOnly)
     if (listedOnly && !entry) return null
     return <DriveFileTile path={path} op={op} size={entry?.size} target={target} />
 }

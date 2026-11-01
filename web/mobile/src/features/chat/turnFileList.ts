@@ -11,9 +11,9 @@ export interface LinkedFile {
 
 export type TurnFile = FileActivity | LinkedFile
 
-// A markdown link, not an image; the target may sit in `<...>`, hold one `(...)` and carry a title.
+// A markdown link, not an image: a `<...>` target may hold spaces, a bare one one `(...)` group.
 const MARKDOWN_LINK =
-    /(?<!!)\[[^\]\n]*\]\(\s*<?((?:[^()\s>]|\([^()\s]*\))+)>?(?:\s+["'][^"'\n]*["'])?\s*\)/g
+    /(?<!!)\[[^\]\n]*\]\(\s*(?:<([^<>\n]+)>|((?:[^()\s<>]|\([^()\s]*\))+))(?:\s+["'][^"'\n]*["'])?\s*\)/g
 // Code shows a link's syntax; it does not offer the file.
 const CODE = /```[\s\S]*?(?:```|$)|`[^`\n]*`/g
 
@@ -22,7 +22,7 @@ export const answerLinkedPaths = (texts: readonly string[]): string[] => {
     const paths = new Set<string>()
     for (const text of texts) {
         for (const match of text.replace(CODE, "").matchAll(MARKDOWN_LINK)) {
-            const href = match[1]
+            const href = match[1] ?? match[2]
             if (isExternalHref(href) || isProtocolRelativeHref(href)) continue
             const path = decodeDriveHref(href.split(/[?#]/)[0]).replace(/^\.\//, "")
             // A folder has no card, and a `..` segment names a file outside the drive.
@@ -53,9 +53,14 @@ export const turnFiles = (
             byPath.set(file.path, seen?.op === "write" && file.op === "edit" ? seen : file)
         }
     }
-    const written = new Set([...byPath.keys()].map(presentedPath).filter(Boolean))
-    const linked = answerLinkedPaths(answers)
-        .filter((path) => !written.has(presentedPath(path) ?? path))
-        .map((path): LinkedFile => ({op: "link", path}))
+    // Seeded with the written paths, so a link adds a card only for a file no step wrote.
+    const seen = new Set([...byPath.keys()].map(presentedPath).filter(Boolean))
+    const linked: LinkedFile[] = []
+    for (const link of answerLinkedPaths(answers)) {
+        const path = presentedPath(link)
+        if (!path || seen.has(path)) continue
+        seen.add(path)
+        linked.push({op: "link", path})
+    }
     return [...byPath.values(), ...linked]
 }

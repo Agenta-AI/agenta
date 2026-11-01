@@ -230,12 +230,12 @@ const TurnRowInner = ({
     )
     const writtenFiles = useMemo(
         () =>
-            // The links only matter once the turn settles; skip the scan while text streams.
+            // Once settled, `messages` holds only the answer; an open run's text is still interim.
             turnFiles(
                 activity.steps,
-                live ? [] : activity.messages.map((message) => message.part.text),
+                runOpen ? [] : activity.messages.map((message) => message.part.text),
             ),
-        [activity.steps, activity.messages, live],
+        [activity.steps, activity.messages, runOpen],
     )
 
     const body = turn.isUser ? (

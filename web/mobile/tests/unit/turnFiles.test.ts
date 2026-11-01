@@ -80,6 +80,17 @@ describe("turnFiles", () => {
     })
 })
 
+describe("turnFiles linked dedupe", () => {
+    it("adds one card for two links that name the same drive file", () => {
+        const answer = "[zip](foo.zip) and [same zip](/var/lib/agenta/mounts/s/m/foo.zip)"
+        expect(turnFiles([], [answer])).toEqual([{op: "link", path: "foo.zip"}])
+    })
+
+    it("drops a link to an absolute path outside the drive", () => {
+        expect(turnFiles([], ["[hosts](/etc/hosts.txt)"])).toEqual([])
+    })
+})
+
 describe("answerLinkedPaths", () => {
     it("keeps relative file links once each, in order", () => {
         expect(
@@ -88,6 +99,10 @@ describe("answerLinkedPaths", () => {
                 "[deep](/var/lib/agenta/mounts/s/m/x.csv)",
             ]),
         ).toEqual(["out/a.zip", "b c.md", "/var/lib/agenta/mounts/s/m/x.csv"])
+    })
+
+    it("keeps spaces in a target written inside angle brackets", () => {
+        expect(answerLinkedPaths(["[zip](<launch kit.zip>)"])).toEqual(["launch kit.zip"])
     })
 
     it("keeps parentheses in a file name", () => {
