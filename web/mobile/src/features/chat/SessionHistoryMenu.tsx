@@ -4,10 +4,9 @@ import type {SessionRowVm} from "@agenta/sessions/row"
 import {SessionCardList} from "@agenta/sessions-ui"
 import {Button, Popover, PopoverContent, PopoverTrigger, SimpleTooltip} from "@agenta/ui/ui"
 import {ChatsCircleIcon} from "@phosphor-icons/react"
+import {useRouter} from "next/router"
 
 import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
-
-import {navigateToSession} from "./navigateToSession"
 
 /**
  * The tab bar's session history: a clock button beside the `+` that opens every session for this
@@ -30,13 +29,14 @@ export const SessionHistoryMenu = ({
     base: string
     activeSessionId: string
 }) => {
+    const router = useRouter()
     const menu = useSessionRowMenu(base)
     const [open, setOpen] = useState(false)
 
     const openRow = (vm: SessionRowVm) => {
         setOpen(false)
         if (vm.id === activeSessionId) return
-        void navigateToSession(`${base}/sessions/${vm.id}`)
+        void router.push(`${base}/sessions/${vm.id}`)
     }
 
     return (

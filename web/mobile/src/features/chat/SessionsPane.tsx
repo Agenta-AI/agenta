@@ -2,10 +2,10 @@ import type {SessionRowVm} from "@agenta/sessions/row"
 import {SessionCardList, SessionListSkeleton} from "@agenta/sessions-ui"
 import {Button} from "@agenta/ui/ui"
 import {Plus} from "lucide-react"
+import {useRouter} from "next/router"
 
 import {useSessionRowMenu} from "../sessions/useSessionRowMenu"
 
-import {navigateToSession} from "./navigateToSession"
 import {useStartBlankSession} from "./useStartBlankSession"
 
 /**
@@ -29,12 +29,13 @@ export const SessionsPane = ({
     base: string
     activeSessionId: string
 }) => {
+    const router = useRouter()
     const menu = useSessionRowMenu(base)
     const startBlank = useStartBlankSession(base)
 
     const open = (vm: SessionRowVm) => {
         if (vm.id === activeSessionId) return
-        void navigateToSession(`${base}/sessions/${vm.id}`)
+        void router.push(`${base}/sessions/${vm.id}`)
     }
 
     return (

@@ -37,12 +37,12 @@ import {useSessionShortcuts} from "@agenta/ui/shortcuts"
 import {SplitPane, usePaneSlide} from "@agenta/ui/ui"
 import {useAtom, useAtomValue, useSetAtom} from "jotai"
 import dynamic from "next/dynamic"
+import {useRouter} from "next/router"
 
 import {useAutomationUrlSync} from "../automations/useAutomationUrlSync"
 import {AppShell} from "../nav/AppShell"
 
 import {CollapsedConfigRail} from "./CollapsedConfigRail"
-import {navigateToSession} from "./navigateToSession"
 import {selectedRevisionAtomFamily} from "./selectedRevision"
 import {resolveSessionPanes} from "./sessionPanes"
 import {SessionsPane} from "./SessionsPane"
@@ -291,6 +291,7 @@ export const SessionWorkspace = ({
     // The SAME session shortcuts the desktop playground binds. The rail publishes the tabs it
     // renders, so `Alt+1…9` addresses exactly what is on screen. A phone sends no Alt chord, so
     // mounting this on a touch surface is inert rather than harmful.
+    const router = useRouter()
     const tabScope = sessionTabScope(agentId)
     const openTabIds = useAtomValue(renderedSessionTabsAtomFamily(tabScope))
     const shortcutSessions = useMemo(() => openTabIds.map((id) => ({id})), [openTabIds])
@@ -320,9 +321,9 @@ export const SessionWorkspace = ({
         activeId: sessionId,
         onJump: useCallback(
             (id: string) => {
-                if (id !== sessionId) void navigateToSession(sessionRoutePath(base, id))
+                if (id !== sessionId) void router.push(sessionRoutePath(base, id))
             },
-            [base, sessionId],
+            [base, router, sessionId],
         ),
         onRename: requestTabRename,
         onArchive: useCallback(

@@ -1,10 +1,9 @@
 import {useCallback} from "react"
 
 import {markSessionFresh} from "@agenta/chat/state"
+import Router from "next/router"
 
 import {newId} from "@/lib/ids"
-
-import {navigateToSession} from "./navigateToSession"
 
 /**
  * Start a BLANK session with an agent and land on it.
@@ -56,9 +55,7 @@ export const startBlankSession = (
     markSessionFresh(sessionId)
     // Released on both outcomes: a cancelled navigation RESOLVES false rather than throwing,
     // and a refused one throws, and either way the person has to be able to ask again.
-    void Promise.resolve(
-        navigateToSession(`${base}/sessions/${sessionId}?agent=${agentId}`, navigate),
-    )
+    void Promise.resolve(Router[navigate](`${base}/sessions/${sessionId}?agent=${agentId}`))
         .catch(() => undefined)
         .finally(() => {
             if (pending === sessionId) pending = null
