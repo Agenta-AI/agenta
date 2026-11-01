@@ -33,15 +33,17 @@ const EmbedTurnInner = ({
     sessionId,
     live,
     waitingOnUser,
+    resuming,
     fileBlob,
 }: {
     turn: TurnViewModel
     sessionId: string
     live: boolean
     waitingOnUser: boolean
+    resuming: boolean
     fileBlob: (fileId: string) => Promise<Blob>
 }) => {
-    const settled = !live && !(turn.isLast && waitingOnUser)
+    const settled = !live && !(turn.isLast && (waitingOnUser || resuming))
     const activity = useMemo(() => splitTurnActivity(turn.items, {settled}), [turn.items, settled])
     const files = turn.items.flatMap((item) => (item.kind === "files" ? item.parts : []))
     const fileList = files.length ? (

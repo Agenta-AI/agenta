@@ -92,6 +92,22 @@ describe("splitTurnActivity", () => {
         expect(split.messages.map((m) => m.part.text)).toEqual(["still going"])
     })
 
+    it("keeps a folded message between two writes in order", () => {
+        const items = [
+            tools(0, [tool({type: "tool-write", input: {file_path: "a.md"}} as never)]),
+            text(1, "now the second file"),
+            tools(2, [tool({type: "tool-write", input: {file_path: "b.md"}} as never)]),
+            text(3, "both written"),
+        ]
+        const settled = splitTurnActivity(items, {settled: true}).steps
+        expect(settled.map((s) => (s.kind === "thought" ? s.text : s.kind))).toEqual([
+            "tool",
+            "now the second file",
+            "tool",
+        ])
+        expect(splitTurnActivity(items).steps).toHaveLength(1)
+    })
+
     it("counts only the steps the fold shows when it picks the answer", () => {
         const items = [
             text(0, "checking"),

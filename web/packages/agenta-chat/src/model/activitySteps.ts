@@ -150,8 +150,10 @@ export const splitTurnActivity = (
             work++
             const file = fileWritten(part)
             const last = steps[steps.length - 1]
+            // A message folded in after the last step would otherwise land after a later write.
+            const messageBetween = settled && written.at(-1)?.at === steps.length
             // A run of writes reads as one step: "Wrote a.md and 3 others".
-            if (file && last?.kind === "tool" && last.files.length) {
+            if (file && last?.kind === "tool" && last.files.length && !messageBetween) {
                 last.files = dedupeByPath([...last.files, file])
                 return
             }
