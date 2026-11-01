@@ -4,7 +4,8 @@ const retrieveWorkflowRevision = vi.fn()
 const primed: unknown[] = []
 vi.mock("@agenta/entities/workflow", () => ({
     retrieveWorkflowRevision: (...args: unknown[]) => retrieveWorkflowRevision(...args),
-    primeWorkflowRevisionDetailCacheImperative: (revision: unknown) => primed.push(revision),
+    primeWorkflowRevisionDetailCacheImperative: (revision: unknown, options?: unknown) =>
+        primed.push({revision, options}),
 }))
 vi.mock("@agenta/entities/session", () => ({querySessions: vi.fn()}))
 
@@ -47,11 +48,16 @@ describe("retrieveBoundRevision", () => {
         ])
     })
 
-    it("hands the fetched revision to the detail cache, so the molecule skips a refetch", async () => {
+    it("hands the fetched revision and its project to the detail cache, so the molecule skips a refetch", async () => {
         const full = {id: "rev-1", workflow_id: "wf-1", data: {prompt: "hi"}}
         retrieveWorkflowRevision.mockResolvedValueOnce(full)
         await retrieveBoundRevision("p", "wf-1")
-        expect(primed).toEqual([{id: "rev-1", workflow_id: "wf-1", data: {prompt: "hi"}}])
+        expect(primed).toEqual([
+            {
+                revision: {id: "rev-1", workflow_id: "wf-1", data: {prompt: "hi"}},
+                options: {projectId: "p"},
+            },
+        ])
     })
 
     it("is null when no level names the id", async () => {

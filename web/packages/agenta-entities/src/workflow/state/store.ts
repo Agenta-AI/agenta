@@ -168,11 +168,11 @@ function primeWorkflowRevisionDetailCache(
  */
 export function primeWorkflowRevisionDetailCacheImperative(
     workflow: Workflow | null | undefined,
-    options?: StoreOptions,
+    options?: StoreOptions & {projectId?: string},
 ): void {
     if (!workflow?.id) return
     const store = getStore(options)
-    const projectId = store.get(workflowProjectIdAtom)
+    const projectId = options?.projectId ?? store.get(workflowProjectIdAtom)
     if (!projectId) return
     try {
         const qc = store.get(queryClientAtom)
@@ -361,6 +361,8 @@ const workflowLatestRevisionBatchFetcher = createBatchFetcher<
                 "[workflowLatestRevisionBatchFetcher] Failed to fetch latest revisions:",
                 error,
             )
+            // Fail the queries so a refetch keeps the cached revision instead of storing null.
+            throw error
         }
 
         return results
@@ -959,24 +961,17 @@ export const workflowLatestRevisionQueryAtomFamily = atomFamily((workflowId: str
             queryKey: ["workflows", "latestRevision", workflowId, projectId],
             queryFn: async (): Promise<Workflow | null> => {
                 if (!projectId || !workflowId) return null
-                try {
-                    const revision = await workflowLatestRevisionBatchFetcher({
-                        projectId,
-                        workflowId,
-                        queryClient,
-                    })
-                    // Remember the workflow type so the next cold reload knows agent-ness instantly
-                    // (see playgroundEarlyAgentStateAtom) instead of waiting on this round-trip.
-                    if (revision) {
-                        writePersistedAgentType(
-                            workflowId,
-                            deriveWorkflowTypeFromRevision(revision),
-                        )
-                    }
-                    return revision
-                } catch {
-                    return null
+                const revision = await workflowLatestRevisionBatchFetcher({
+                    projectId,
+                    workflowId,
+                    queryClient,
+                })
+                // Remember the workflow type so the next cold reload knows agent-ness instantly
+                // (see playgroundEarlyAgentStateAtom) instead of waiting on this round-trip.
+                if (revision) {
+                    writePersistedAgentType(workflowId, deriveWorkflowTypeFromRevision(revision))
                 }
+                return revision
             },
             enabled: get(sessionAtom) && !!projectId && !!workflowId,
             staleTime: 30_000,
@@ -3080,7 +3075,7 @@ export function invalidateAgentCommittedRevisionCache(
                 ? (query) => {
                       // A host-owned key under this prefix names the workflow in its data.
                       const data = query.state.data as {workflowId?: string | null} | null
-                      return query.queryKey[2] === workflowId || data?.workflowId === workflowId
+                      return query.queryKey.includes(workflowId) || data?.workflowId === workflowId
                   }
                 : undefined,
         })

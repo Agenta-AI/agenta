@@ -64,6 +64,21 @@ describe("invalidateAgentCommittedRevisionCache", () => {
         expect(invalidatedKeys()).not.toContain("workflows/latestRevision/A/p")
     })
 
+    it("re-reads a host key that names the workflow by its bound id and holds no data yet", () => {
+        queryClient.setQueryData(["workflows", "latestRevision", "mobile", "p", "D"], null)
+
+        invalidateAgentCommittedRevisionCache("D")
+
+        expect(invalidatedKeys()).toEqual([
+            "workflows/apps/agentFlags/p",
+            "workflows/inspect/agenta:builtin:agent/svc/p",
+            "workflows/latestRevision/mobile/p/D",
+            "workflows/revisions/variant-of-B/p",
+            "workflows/revisionsByWorkflow/A/p",
+            "workflows/revisionsByWorkflow/B/p",
+        ])
+    })
+
     it("without an id, re-reads every latest revision", () => {
         invalidateAgentCommittedRevisionCache()
 

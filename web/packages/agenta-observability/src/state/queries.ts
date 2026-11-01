@@ -442,11 +442,11 @@ export const sessionSpansQueryAtomFamily = atomFamily((sessionId: string) =>
     }),
 )
 
-// A session whose spans are still pending stays listed; only a known-empty one is hidden.
+// Only a session whose spans loaded empty is hidden; pending and failed ones stay listed.
 export const filteredSessionIdsAtom = atom((get) =>
     get(sessionIdsAtom).filter((id) => {
         const query = get(sessionSpansQueryAtomFamily(id))
-        return query.isPending || (query.data?.length ?? 0) > 0
+        return query.isPending || query.isError || (query.data?.length ?? 0) > 0
     }),
 )
 

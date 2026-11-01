@@ -114,6 +114,20 @@ describe("useWatchEventSource shared across tabs", () => {
         expect(follower).toEqual(["ready"])
     })
 
+    it("a follower that hears the leader's ready first raises none of its own", async () => {
+        useTab()
+        await vi.advanceTimersByTimeAsync(1_000)
+        const stream = FakeEventSource.instances[0]
+        stream.emit("ready")
+        const follower = useTab()
+        await vi.advanceTimersByTimeAsync(10)
+        stream.emit("ready")
+        await vi.advanceTimersByTimeAsync(10_000)
+
+        expect(FakeEventSource.instances).toHaveLength(1)
+        expect(follower).toEqual(["ready"])
+    })
+
     it("a burst naming different workflows hands over no id, so none is dropped", async () => {
         const calls = useTab()
         await vi.advanceTimersByTimeAsync(1_000)

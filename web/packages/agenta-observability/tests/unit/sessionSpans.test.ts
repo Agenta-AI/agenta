@@ -116,4 +116,28 @@ describe("session spans", () => {
 
         unsubs.forEach((unsub) => unsub())
     })
+
+    it("keeps a session listed when its spans fail to load, and hides one that loads empty", async () => {
+        fetchSessionsMock.mockResolvedValue({session_ids: ["f1", "e1"], count: 2})
+        executeTraceQueryMock.mockReset()
+        executeTraceQueryMock.mockImplementation(async ({params}) => {
+            if (sessionIdOf(params) === "f1") throw new Error("spans failed")
+            return {traces: [], traceCount: 0}
+        })
+
+        const store = createStore()
+        store.set(queryClientAtom, new QueryClient({defaultOptions: {queries: {retry: false}}}))
+        store.set(projectIdAtom, "proj-3")
+        store.set(sessionAtom, true)
+        const unsubs = [
+            store.sub(filteredSessionIdsAtom, () => {}),
+            store.sub(sessionsLoadingAtom, () => {}),
+        ]
+
+        await waitFor(() => expect(executeTraceQueryMock).toHaveBeenCalledTimes(2))
+        await waitFor(() => expect(store.get(filteredSessionIdsAtom)).toEqual(["f1"]))
+        expect(store.get(sessionsLoadingAtom)).toBe(false)
+
+        unsubs.forEach((unsub) => unsub())
+    })
 })

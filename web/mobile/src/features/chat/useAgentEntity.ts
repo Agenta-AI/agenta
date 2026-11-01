@@ -27,7 +27,7 @@ export const retrieveBoundRevision = async (projectId: string, boundId: string) 
         const revision = await retrieveWorkflowRevision({projectId, ...ref})
         if (revision?.id) {
             // The workflow molecule reads this id next; without the prime it fetches it again.
-            primeWorkflowRevisionDetailCacheImperative(revision)
+            primeWorkflowRevisionDetailCacheImperative(revision, {projectId})
             return {revisionId: revision.id, workflowId: revision.workflow_id ?? null}
         }
     }

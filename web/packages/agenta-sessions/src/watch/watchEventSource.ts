@@ -152,6 +152,11 @@ export const useWatchEventSource = ({
             if (!payload || typeof payload !== "object") return
             const {name, data} = payload as {name?: unknown; data?: unknown}
             if (typeof name !== "string" || !eventNames.includes(name)) return
+            // The leader's relayed `ready` already covers the gap the follower would raise.
+            if (name === "ready" && followerReadyHandle !== undefined) {
+                window.clearTimeout(followerReadyHandle)
+                followerReadyHandle = undefined
+            }
             notify(name, new MessageEvent(name, {data: typeof data === "string" ? data : ""}))
         }
 

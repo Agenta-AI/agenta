@@ -53,6 +53,26 @@ describe("workflowLatestRevisionQueryAtomFamily", () => {
         unsubscribe()
     })
 
+    it("keeps the cached revision when a refetch fails", async () => {
+        queryClient = new QueryClient({defaultOptions: {queries: {retry: false}}})
+        store.set(queryClientAtom, queryClient)
+        fetchWorkflowsBatch.mockRejectedValue(new Error("network down"))
+        const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined)
+        queryClient.setQueryData(LATEST_KEY, v1)
+        const latest = workflowLatestRevisionQueryAtomFamily("wf-1")
+        const unsubscribe = store.sub(latest, () => undefined)
+        await settle()
+
+        await queryClient.invalidateQueries({queryKey: ["workflows", "latestRevision"]})
+        await settle()
+
+        expect(fetchWorkflowsBatch.mock.calls).toEqual([["proj-1", ["wf-1"]]])
+        expect(store.get(latest).status).toBe("error")
+        expect(store.get(latest).data).toEqual(v1)
+        unsubscribe()
+        consoleError.mockRestore()
+    })
+
     it("does not fetch on mount when the primed value is still fresh", async () => {
         queryClient.setQueryData(LATEST_KEY, v1)
         const latest = workflowLatestRevisionQueryAtomFamily("wf-1")
