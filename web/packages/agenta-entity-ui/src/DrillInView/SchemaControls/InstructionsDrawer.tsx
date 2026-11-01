@@ -151,6 +151,7 @@ export function InstructionsDrawer({
                         defaultView="rendered"
                         hideHeader
                         fill
+                        loadingSkeleton={<MarkdownEditorSkeleton />}
                         placeholder={
                             "# Role\n\nDescribe what the agent does and how it should behave…"
                         }

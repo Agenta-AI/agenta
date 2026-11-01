@@ -55,7 +55,12 @@ const render = async (
         )
     })
     // The drawer mounts its body two frames after it opens.
-    await act(() => new Promise((resolve) => setTimeout(resolve, 40)))
+    await act(
+        () =>
+            new Promise<void>((resolve) =>
+                requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+            ),
+    )
     return onChange
 }
 

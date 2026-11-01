@@ -22,6 +22,7 @@ import {
     type CSSProperties,
     type DragEvent,
     type MouseEvent,
+    type ReactNode,
     type RefObject,
     useCallback,
     useEffect,
@@ -78,6 +79,8 @@ export interface MarkdownEditorProps {
     defaultView?: MarkdownView
     /** Controlled view. When set, the toggle calls `onViewChange` instead of local state. */
     view?: MarkdownView
+    /** Shown while the editor loads, so a host can keep its own layout (e.g. a drawer skeleton). */
+    loadingSkeleton?: ReactNode
     onViewChange?: (view: MarkdownView) => void
     /** Fires once the Lexical editor has taken the requested view (the first paint may precede it). */
     onViewApplied?: () => void
@@ -233,6 +236,7 @@ export function MarkdownEditor({
     grow = false,
     maxHeight,
     onLinkClick,
+    loadingSkeleton,
 }: MarkdownEditorProps) {
     // Stable id shared by the provider and the editor so they target one composer. Colons from
     // useId() are dropped to keep it id/atom-key safe.
@@ -462,6 +466,7 @@ export function MarkdownEditor({
             enableTokens={false}
             showToolbar={false}
             disabled={editorDisabled}
+            loadingSkeleton={loadingSkeleton}
             // `!`: the provider hardcodes a `min-h-[70px]` floor that would block shrinking.
             className={grow ? "!min-h-0 flex-1" : undefined}
         >

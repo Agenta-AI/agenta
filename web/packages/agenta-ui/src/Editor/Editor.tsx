@@ -849,7 +849,12 @@ export const EditorProvider = ({
     skipScroll = false,
     useNativeCodeNodes = false,
     loadingFallback = "skeleton",
-}: EditorProps & {children: ReactNode}) => {
+    loadingSkeleton,
+}: EditorProps & {
+    children: ReactNode
+    /** Shown while the editor config loads, in place of the default skeleton. */
+    loadingSkeleton?: ReactNode
+}) => {
     // Stabilize id across renders — `uuidv4()` as a default parameter would
     // generate a new UUID on every render, which forces the extension useMemo
     // to recompute and remounts the LexicalExtensionComposer (losing focus).
@@ -1031,6 +1036,7 @@ export const EditorProvider = ({
     }, [extension, id])
 
     if (!config) {
+        if (loadingSkeleton !== undefined) return <>{loadingSkeleton}</>
         if (loadingFallback === "skeleton") {
             return (
                 <Skeleton

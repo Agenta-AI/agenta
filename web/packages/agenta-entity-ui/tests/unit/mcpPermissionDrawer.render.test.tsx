@@ -109,7 +109,12 @@ const render = async (extra: Partial<Parameters<typeof McpPermissionDrawer>[0]> 
         root.render(createElement(McpPermissionDrawer, props))
     })
     // The drawer mounts its body two frames after it opens.
-    await act(() => new Promise((resolve) => setTimeout(resolve, 40)))
+    await act(
+        () =>
+            new Promise<void>((resolve) =>
+                requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+            ),
+    )
     return props.onChange
 }
 
