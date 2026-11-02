@@ -26,6 +26,4 @@ export const FIRST_RUN_COPY = {
     templateTitle: (name: string) => `Set up ${name}`,
     create: "Create agent",
     creating: "Creating agent",
-    /** Shown only once a template's prompt has been edited — one tap restores the original. */
-    resetPrompt: "Reset prompt",
 } as const

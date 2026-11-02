@@ -47,7 +47,7 @@ import {
 } from "@agenta/entities/workflow"
 import {AgentIntroCard} from "@agenta/entity-ui/agent"
 import {SecretRequestDock} from "@agenta/entity-ui/clientTools"
-import {AgentSetupCard, PersonalAccountsCard} from "@agenta/entity-ui/onboarding"
+import {PersonalAccountsCard} from "@agenta/entity-ui/onboarding"
 import {isOnScreen, isOverlayOpen} from "@agenta/shared/utils"
 import {message, modal} from "@agenta/ui/app-message"
 import {ChatBubble} from "@agenta/ui/components/presentational"
@@ -95,7 +95,6 @@ import {deriveMobileRemoteTurnPresentation, showTrailingWorkingPulse} from "./tu
 import {useApprovalActions, type ApprovalActions} from "./useApprovalActions"
 import {useOpenModelSetup} from "./useOpenModelSetup"
 import {usePersonalSetupStep} from "./usePersonalSetupStep"
-import {useSessionSetupStep} from "./useSessionSetupStep"
 import {useSessionWatch} from "./useSessionWatch"
 import {useStartBlankSession} from "./useStartBlankSession"
 import {useTranscriptAutoScroll} from "./useTranscriptAutoScroll"
@@ -424,10 +423,6 @@ export const LiveConversation = ({
             store,
         ],
     )
-    // A template create asks for its accounts here, on arrival, instead of on a create surface of
-    // its own. Holds the first message while it does; declines silently when there is nothing to
-    // ask, which is every other way into this screen.
-    const setup = useSessionSetupStep(sessionId)
     // The viewer's own missing "user" items. Optional: it never holds a message.
     const personalSetup = usePersonalSetupStep(sessionId, entityId)
     useEffect(() => {
@@ -439,7 +434,6 @@ export const LiveConversation = ({
             modelKeyLoading,
             modelKeyWaitedMs,
             modelBlocked: modelBlocked || setupBlocked,
-            setupBlocking: setup.blocking,
         })
         if (decision === "hold") return
         if (decision === "abandon") {
@@ -457,7 +451,6 @@ export const LiveConversation = ({
         modelKeyWaitedMs,
         modelBlocked,
         setupBlocked,
-        setup.blocking,
         send,
         sessionId,
         sendPendingTask,
@@ -1009,28 +1002,10 @@ export const LiveConversation = ({
                                 </ContentRail>
                             </div>
                         ) : null}
-                        {/* The template's accounts, asked for once on arrival. Above the model
-                        strip because it is what the user came here holding: the first message is
-                        parked behind it, and "Continue" is what releases it. */}
-                        {setup.open && !locked ? (
-                            <div className="bg-background shrink-0 px-3 pt-3 pb-0">
-                                <ContentRail>
-                                    <AgentSetupCard
-                                        accounts={setup.accounts}
-                                        suggestions={setup.suggestions}
-                                        onAddAccount={setup.addAccount}
-                                        onCreate={setup.resolve}
-                                        onDismiss={setup.resolve}
-                                        createLabel="Continue"
-                                    />
-                                </ContentRail>
-                            </div>
-                        ) : null}
-                        {/* The viewer's own accounts for this agent's "user" items. After the
-                        template step, which asks first when both would show. Not `locked`: a
+                        {/* The viewer's own accounts for this agent's "user" items. Not `locked`: a
                         reloaded chat with no turns has no session row, so sending stays off, and
                         the card holds no message. */}
-                        {personalSetup.open && !setup.open && !readOnly && !accessPending ? (
+                        {personalSetup.open && !readOnly && !accessPending ? (
                             <div className="bg-background shrink-0 px-3 pt-3 pb-0">
                                 <ContentRail>
                                     <PersonalAccountsCard
@@ -1058,18 +1033,15 @@ export const LiveConversation = ({
                                 filenames={pendingTask?.parts?.map(
                                     (part) => part.filename || "Attachment",
                                 )}
-                                // A template task left while its connect step held it comes
-                                // back failed; the step still goes first.
                                 retryDisabled={
                                     locked ||
-                                    setup.blocking ||
                                     isHydrating ||
                                     modelBlocked ||
                                     setupBlocked ||
                                     (modelKeyLoading && modelKeyWaitedMs < MODEL_KEY_WAIT_LIMIT_MS)
                                 }
                                 onRetry={() => {
-                                    if (locked || setup.blocking) return
+                                    if (locked) return
                                     void sendPendingTask({
                                         sessionId,
                                         retry: true,

@@ -23,7 +23,7 @@ export const TemplateUseCard = ({
                         Use this template
                     </LoadingButton>
                     <span className="text-muted-foreground text-center text-xs">
-                        Next, connect its apps. Then Agenta creates the agent.
+                        Agenta creates the agent and opens its first session.
                     </span>
                 </TemplateUseCardGroup>
             </div>

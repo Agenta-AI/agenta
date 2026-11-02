@@ -4,18 +4,15 @@ import {stagedFilesToOutbound, useComposerAttachments} from "@agenta/chat/hooks"
 import {markSessionFresh} from "@agenta/chat/state"
 import {
     agentTemplateLookupAtomFamily,
-    abandonAgentTemplateLoad,
     refetchAgentTemplatesAtom,
     templateBuilderMessage,
     UNAVAILABLE_TEMPLATE_MESSAGE,
-    type AgentSetupSelection,
     type AgentStarterTemplate,
 } from "@agenta/entities/workflow"
-import {AgentSetupCard, useAgentSetupStep} from "@agenta/entity-ui/onboarding"
 import {classifyAgentIntent} from "@agenta/shared/analytics"
 import {HeightCollapse} from "@agenta/ui/height-collapse"
 import type {RichChatInputHandle} from "@agenta/ui/rich-chat-input"
-import {useAtom, useAtomValue, useSetAtom} from "jotai"
+import {useAtomValue, useSetAtom} from "jotai"
 import {useRouter} from "next/router"
 
 import {captureIntent} from "@/features/analytics/client"
@@ -27,7 +24,6 @@ import {FirstRunComposer} from "./FirstRunComposer"
 import {FIRST_RUN_COPY} from "./firstRunCopy"
 import {FirstRunTemplates} from "./FirstRunTemplates"
 import {FirstRunHeroSkeleton} from "./states/FirstRunHeroSkeleton"
-import {templateSetupDraftAtom} from "./templateSetupDraft"
 import {useEphemeralAgent} from "./useEphemeralAgent"
 import {useNewAgentAction} from "./useNewAgentAction"
 
@@ -44,11 +40,8 @@ import {useNewAgentAction} from "./useNewAgentAction"
  * and change what you are about to build. The conversation half is replaced by the create surface
  * until the agent exists; submitting commits that same ephemeral rather than minting a second one.
  *
- * One structure, two offers: blank create shows the template strip; a template pick (here, or a
- * `?template=` arrival from any other page) folds the strip away and docks the connect step's
- * card inside the composer, while the hero names the template with its own prompt as the
- * subtitle. The editor holds that same prompt and stays editable throughout — only the Create
- * action is gated on the step's required connections.
+ * A template pick (here, or a `?template=` arrival from any other page) creates the agent at once.
+ * Accounts the template uses are connected later, when the agent asks for them.
  */
 export const FirstRunScreen = ({
     base,
@@ -59,28 +52,18 @@ export const FirstRunScreen = ({
     base: string
     workspaceId: string
     projectId: string
-    /** A pick made on another page (`?template=`): the step opens on landing. */
+    /** A pick made on another page (`?template=`): the agent is created on landing. */
     templateKey?: string
 }) => {
-    const [pendingDraft, setPendingDraft] = useAtom(templateSetupDraftAtom)
-    const [arrival] = useState(() =>
-        pendingDraft?.base === base && pendingDraft.templateKey === templateKey
-            ? pendingDraft
-            : null,
-    )
-    useEffect(() => {
-        if (arrival) setPendingDraft(null)
-    }, [arrival, setPendingDraft])
     const newAgent = useNewAgentAction(base)
     const router = useRouter()
-    const step = useAgentSetupStep()
     const {entityId, error: mintError, retry} = useEphemeralAgent(true)
     const inputRef = useRef<RichChatInputHandle | null>(null)
 
     // One session id for the whole pre-commit surface: the composer stages attachments against it
     // and the workspace keys its panes off it, so they must agree before the agent exists.
     const [sessionId] = useState(() => {
-        const id = arrival?.sessionId ?? newId()
+        const id = newId()
         markSessionFresh(id)
         return id
     })
@@ -92,58 +75,25 @@ export const FirstRunScreen = ({
      * effect below, on the render after the editor is there to take them.
      */
     const [refill, setRefill] = useState<string | null>(null)
-    /**
-     * The "unedited" reference for the template prompt, captured FROM the editor's own change
-     * event (plain text, the same channel every later comparison uses). Two traps live here:
-     * Lexical applies `setMarkdown` asynchronously, so reading the editor back in the fill
-     * effect returns the PRE-fill state — and `onChange` reports plain text, not markdown — so
-     * any baseline taken outside the change stream makes an untouched prompt read as edited.
-     */
-    const promptBaselineRef = useRef<string | null>(null)
-    /** The next change is the programmatic fill itself — record it, don't compare against it. */
-    const baselinePendingRef = useRef(false)
-    const [promptEdited, setPromptEdited] = useState(false)
     useEffect(() => {
         if (refill === null) return
         inputRef.current?.setMarkdown(refill)
         inputRef.current?.focus()
-        baselinePendingRef.current = true
-        // Provisional, for the (unmounted-editor) case where the fill never emits a change.
-        promptBaselineRef.current = refill
-        setPromptEdited(false)
         setRefill(null)
     }, [refill])
 
-    const handlePromptChange = (text: string) => {
-        if (baselinePendingRef.current) {
-            baselinePendingRef.current = false
-            promptBaselineRef.current = text
-            setPromptEdited(false)
-            return
-        }
-        const baseline = promptBaselineRef.current
-        if (baseline === null) return
-        setPromptEdited(text.trim() !== baseline.trim())
-    }
-
-    /**
-     * The card's create gate, reported back up (`onReadyChange`) — it disables the Create button
-     * in the composer until the required connections are made. The selection rides along: the
-     * button lives outside the card (`hideCreate`), so the screen must hold what the card alone
-     * knows at the moment it is pressed.
-     */
-    const [stepReady, setStepReady] = useState(false)
-    const selectionRef = useRef<AgentSetupSelection | null>(null)
-
-    /** Open the step for a template; its prompt carries the hero AND sits in the locked editor. */
-    const openStepFor = (template: AgentStarterTemplate): boolean => {
-        const seed =
-            (arrival?.templateKey === template.key ? arrival.text : undefined) ??
-            templateBuilderMessage(template)
-        if (!step.open({seedMessage: seed, name: template.name, template})) return false
-        setStepReady(false)
-        setRefill(seed)
-        return true
+    const createFromTemplate = async (template: AgentStarterTemplate) => {
+        if (!entityId) return
+        const prompt = templateBuilderMessage(template)
+        const handedOff = await newAgent.createFromPrompt({
+            text: prompt,
+            name: template.name,
+            templateKey: template.key,
+            sessionId,
+            entityId,
+        })
+        // Put the prompt in the editor so Create retries this template, not a blank agent.
+        if (!handedOff) setRefill(prompt)
     }
 
     const pickTemplate = (template: AgentStarterTemplate) => {
@@ -158,19 +108,11 @@ export const FirstRunScreen = ({
             },
             intentValue: template.category || template.name,
         })
-        if (openStepFor(template)) return
-        if (!entityId) return
-        void newAgent.createFromPrompt({
-            text: templateBuilderMessage(template),
-            name: template.name,
-            templateKey: template.key,
-            entityId,
-        })
+        void createFromTemplate(template)
     }
 
-    // A `?template=` arrival was picked on another page, so the step opens on landing — once per
-    // key, because this surface stays mounted across query-only navigations. `open` declining
-    // means there is nothing to connect, and the navigation here already meant "use it".
+    // A `?template=` arrival was picked on another page, so it is created on landing — once per
+    // key, because this surface stays mounted across query-only navigations.
     //
     // The catalogue is fetched, so the key resolves in three steps: pending (the hero waits), an
     // error (a retry), and only after a successful load "missing" — the existing not-found path,
@@ -189,21 +131,13 @@ export const FirstRunScreen = ({
         if (!arrivedTemplate || !entityId) return
         if (seededTemplate.current === arrivedTemplate.key) return
         seededTemplate.current = arrivedTemplate.key
-        if (openStepFor(arrivedTemplate)) return
-        void newAgent.createFromPrompt({
-            text: arrival?.text ?? templateBuilderMessage(arrivedTemplate),
-            name: arrivedTemplate.name,
-            templateKey: arrivedTemplate.key,
-            sessionId,
-            parts: arrival?.parts,
-            entityId,
-        })
+        void createFromTemplate(arrivedTemplate)
     }, [arrivedTemplate, entityId])
 
-    const create = async (text: string, setup?: AgentSetupSelection) => {
+    const create = async (text: string) => {
         // A `?template=` arrival still resolving must not turn into a blank create under it: keep
         // the typed text and wait for the template (or its retry).
-        if (arrivalPending && !step.draft) {
+        if (arrivalPending) {
             setRefill(text)
             return
         }
@@ -213,17 +147,15 @@ export const FirstRunScreen = ({
         const staged = attachments.files
         // Files over the attachment cap went to the session drive; the text names them.
         const outbound = stagedFilesToOutbound(text, staged, sessionId)
-        const parts = staged.length > 0 ? outbound.parts : arrival?.parts
         // The outcome comes back as a value, not off `newAgent.error`: that flag belongs to THIS
         // render, so reading it after the await would read the state from before the create.
         const handedOff = await newAgent.createFromPrompt({
             text: outbound.text,
-            // A template pick names the agent; a plain description leaves naming to the agent.
-            name: step.draft?.name,
-            templateKey: step.draft?.template?.key,
+            // A `?template=` arrival whose create failed retries as that template.
+            name: arrivedTemplate?.name,
+            templateKey: arrivedTemplate?.key,
             sessionId,
-            parts,
-            setup,
+            parts: staged.length > 0 ? outbound.parts : undefined,
             // Commit the ephemeral the config pane has been editing, not a fresh one.
             entityId: entityId ?? undefined,
         })
@@ -233,47 +165,13 @@ export const FirstRunScreen = ({
             attachments.clearAttachments(staged.map((file) => file.uid))
             return
         }
-        // A create from the step leaves the step open so the card (and `newAgent.error` below it)
-        // can be retried — the description is still in the editor.
-        if (setup) return
         // The input cleared itself on submit, so a failure would swallow the whole description.
         // Only refill an input the user has not started retyping in.
         if (!inputRef.current?.getMarkdown().trim()) setRefill(text)
     }
 
-    // Back to the offer. A dismissed template arrival also drops `?template=` so the hero stops
-    // naming it, and clears a template prompt the user never edited; a typed description stays
-    // in the editor, still the user's to send.
-    const dismissStep = () => {
-        if (step.draft?.template) abandonAgentTemplateLoad(projectId, step.draft.template.key)
-        if (step.draft?.template && !promptEdited) setRefill("")
-        step.close()
-        if (templateKey) {
-            seededTemplate.current = null
-            void router.replace(`${base}/agents/new`, undefined, {shallow: true})
-        }
-    }
-
-    // The template this surface is setting up, if any — the hero speaks about it by name.
-    const template = step.draft?.template ?? arrivedTemplate ?? null
-
-    /**
-     * The strip's fold is sequenced against the card's. Opening the step reads smooth with both
-     * moving at once (the strip folds away while the card grows elsewhere), but closing had the
-     * strip's large unfold fighting the card's fold in the same instant — so on close the card
-     * folds FIRST and the strip unfolds into the space it left. Half of HeightCollapse's own
-     * 300ms, so the two motions overlap without starting together.
-     */
-    const hasDraft = Boolean(step.draft)
-    const [offerOpen, setOfferOpen] = useState(!hasDraft)
-    useEffect(() => {
-        if (hasDraft) {
-            setOfferOpen(false)
-            return
-        }
-        const timer = setTimeout(() => setOfferOpen(true), 150)
-        return () => clearTimeout(timer)
-    }, [hasDraft])
+    // The template being created, if any — the hero speaks about it by name.
+    const template = arrivedTemplate ?? null
 
     const createSurface = (
         // The desktop's shape: the question at the top, then the offer and the composer docked at
@@ -307,15 +205,8 @@ export const FirstRunScreen = ({
                 {/* Pushes everything below to the bottom of the panel, as the desktop does. */}
                 <div className="min-h-6 flex-1" />
 
-                {/* The offer slot: the strip, until a pick answers it — the step itself docks
-                    into the composer below (it belongs to the message being composed), with its
-                    own ✕ in the card header to abandon it. The strip stays MOUNTED and folds
-                    (the same HeightCollapse the composer's own chrome uses), so the swap with
-                    the card below is one continuous motion, and its category/page survive a
-                    cancelled step. */}
-                {/* `slideY` gives the returning strip a small rise as it unfolds, so it reads as
-                    arriving rather than popping into a hole. */}
-                <HeightCollapse open={offerOpen} fade slideY={12}>
+                {/* The offer slot: the strip folds away while a `?template=` arrival creates. */}
+                <HeightCollapse open={!template} fade slideY={12}>
                     <FirstRunTemplates
                         onPick={pickTemplate}
                         onBrowseAll={() => {
@@ -329,53 +220,8 @@ export const FirstRunScreen = ({
                 <FirstRunComposer
                     inputRef={inputRef}
                     attachments={attachments}
-                    step={step}
                     creating={newAgent.creating}
-                    setupHeader={
-                        // Collapsed, not conditionally mounted: the card must still be there
-                        // during the fold, or the height snaps shut the frame the step closes.
-                        // `step.accounts` survives `close()` (only the draft is nulled), so the
-                        // closing frames render the same rows that were on screen.
-                        <HeightCollapse open={Boolean(step.draft)} fade>
-                            {step.accounts.length > 0 ? (
-                                <AgentSetupCard
-                                    variant="docked"
-                                    hideCreate
-                                    accounts={step.accounts}
-                                    suggestions={step.suggestions}
-                                    onAddAccount={step.addAccount}
-                                    // Unused (`hideCreate`) — the composer's button creates, below.
-                                    onCreate={() => undefined}
-                                    onReadyChange={(canCreate, selection) => {
-                                        setStepReady(canCreate)
-                                        selectionRef.current = selection
-                                    }}
-                                    onDismiss={newAgent.creating ? undefined : dismissStep}
-                                    creating={newAgent.creating}
-                                />
-                            ) : null}
-                        </HeightCollapse>
-                    }
-                    stepReady={stepReady}
-                    // The editor holds the prompt (the template's, or the typed one), so what is
-                    // in there IS what gets sent — the draft only backs it up.
-                    onStepCreate={() => {
-                        if (!selectionRef.current) return
-                        void create(
-                            inputRef.current?.getMarkdown().trim() ||
-                                (step.draft?.seedMessage ?? ""),
-                            selectionRef.current,
-                        )
-                    }}
                     onCreate={create}
-                    onParkText={setRefill}
-                    onTextChange={handlePromptChange}
-                    // Edited a template's prompt: one tap brings the original back.
-                    onResetPrompt={
-                        step.draft?.template && promptEdited
-                            ? () => setRefill(step.draft?.seedMessage ?? "")
-                            : undefined
-                    }
                 />
 
                 {/* One error line for the whole surface. A failed mint reports here too, with the
