@@ -74,9 +74,12 @@ class PathExtractionException(HTTPException):
 
 
 def handle_workflow_exceptions():
+    """Return a decorator that translates workflow-domain errors into typed HTTP 400 exceptions."""
+
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
+            """Await the wrapped route handler, converting known domain errors to HTTP exceptions."""
             try:
                 return await func(*args, **kwargs)
             except StaticWorkflowSlug as e:
