@@ -82,8 +82,12 @@ export const FirstRunScreen = ({
         setRefill(null)
     }, [refill])
 
+    // A template pick whose create failed, so Create retries it rather than a blank agent.
+    const [failedTemplate, setFailedTemplate] = useState<AgentStarterTemplate | null>(null)
+
     const createFromTemplate = async (template: AgentStarterTemplate) => {
         if (!entityId) return
+        setFailedTemplate(null)
         const prompt = templateBuilderMessage(template)
         const handedOff = await newAgent.createFromPrompt({
             text: prompt,
@@ -92,8 +96,9 @@ export const FirstRunScreen = ({
             sessionId,
             entityId,
         })
-        // Put the prompt in the editor so Create retries this template, not a blank agent.
-        if (!handedOff) setRefill(prompt)
+        if (handedOff) return
+        setFailedTemplate(template)
+        setRefill(prompt)
     }
 
     const pickTemplate = (template: AgentStarterTemplate) => {
@@ -134,6 +139,9 @@ export const FirstRunScreen = ({
         void createFromTemplate(arrivedTemplate)
     }, [arrivedTemplate, entityId])
 
+    // The template being created or retried, if any — the hero names it and Create reuses it.
+    const template = arrivedTemplate ?? failedTemplate
+
     const create = async (text: string) => {
         // A `?template=` arrival still resolving must not turn into a blank create under it: keep
         // the typed text and wait for the template (or its retry).
@@ -151,9 +159,8 @@ export const FirstRunScreen = ({
         // render, so reading it after the await would read the state from before the create.
         const handedOff = await newAgent.createFromPrompt({
             text: outbound.text,
-            // A `?template=` arrival whose create failed retries as that template.
-            name: arrivedTemplate?.name,
-            templateKey: arrivedTemplate?.key,
+            name: template?.name,
+            templateKey: template?.key,
             sessionId,
             parts: staged.length > 0 ? outbound.parts : undefined,
             // Commit the ephemeral the config pane has been editing, not a fresh one.
@@ -169,9 +176,6 @@ export const FirstRunScreen = ({
         // Only refill an input the user has not started retyping in.
         if (!inputRef.current?.getMarkdown().trim()) setRefill(text)
     }
-
-    // The template being created, if any — the hero speaks about it by name.
-    const template = arrivedTemplate ?? null
 
     const createSurface = (
         // The desktop's shape: the question at the top, then the offer and the composer docked at
@@ -213,7 +217,7 @@ export const FirstRunScreen = ({
                             captureIntent({source: "browse_templates"})
                             void router.push(`${base}/templates`)
                         }}
-                        disabled={newAgent.creating}
+                        disabled={newAgent.creating || !entityId}
                     />
                 </HeightCollapse>
 

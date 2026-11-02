@@ -6,6 +6,7 @@ import {
     createWorkflowFromEphemeralAtom,
     generateSlug,
     loadAgentTemplateFromEphemeralAtom,
+    type AgentSetupSelection,
     type AgentStarterTemplate,
     type AgentTemplateSource,
 } from "@agenta/entities/workflow"
@@ -40,6 +41,8 @@ export interface CreateAgentParams {
     stagingSessionId?: string
     attachmentIds?: string[]
     initialMessage?: string
+    /** Ignored: web/oss still passes it. Connection choices come from the project's live connections. */
+    setup?: AgentSetupSelection
     /** Who sees the new agent. Omitted, the server keeps its default. */
     visibility?: Visibility
 }
