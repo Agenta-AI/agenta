@@ -32,66 +32,60 @@ export const AnnotationNumberField = ({
         onChange(next === null ? null : isInteger ? Math.round(next) : next)
     const ranged = min !== undefined && max !== undefined
 
+    const empty = shown === null
+
     return (
         <div className="flex flex-col gap-1.5">
             <AnnotationFieldLabel
                 label={label}
                 htmlFor={id}
-                canClear={!readOnly && value !== null}
+                canClear={!readOnly && !empty}
                 onClear={() => onChange(null)}
                 trailing={
                     ranged ? (
-                        <InputNumber
-                            id={id}
-                            size="small"
-                            className="w-[70px]"
-                            value={shown}
-                            min={min}
-                            max={max}
-                            step={step}
-                            readOnly={readOnly}
-                            onChange={emit}
-                        />
+                        <div inert={readOnly}>
+                            <InputNumber
+                                id={id}
+                                size="small"
+                                className="w-[70px]"
+                                value={shown}
+                                min={min}
+                                max={max}
+                                step={step}
+                                onChange={emit}
+                            />
+                        </div>
                     ) : null
                 }
             />
             {ranged ? (
-                <div
-                    inert={readOnly}
-                    className="mt-1"
-                    // An empty slider has no thumb, and Radix moves only an existing one: the first
-                    // press sets the value under the pointer, then the drag carries on as usual.
-                    onPointerDown={(event) => {
-                        if (shown !== null || min === undefined || max === undefined) return
-                        const rect = event.currentTarget.getBoundingClientRect()
-                        if (rect.width <= 0) return
-                        const ratio = Math.min(
-                            Math.max((event.clientX - rect.left) / rect.width, 0),
-                            1,
-                        )
-                        emit(Number((min + ratio * (max - min)).toFixed(isInteger ? 0 : 1)))
-                    }}
-                >
+                <div inert={readOnly} className="mt-1">
+                    {/* Radix moves only an existing thumb, so an unset value keeps one at the
+                        minimum and hides it with the filled track: nothing reads as set, and the
+                        first press or drag still lands where the pointer is. */}
                     <Slider
                         aria-label={label}
+                        data-empty={empty || undefined}
+                        className="data-[empty]:[&_[data-slot=slider-range]]:opacity-0 data-[empty]:[&_[data-slot=slider-thumb]]:opacity-0"
                         min={min}
                         max={max}
                         step={step}
-                        value={shown === null ? [] : [shown]}
+                        value={[shown ?? min]}
                         onValueChange={([next]) => {
                             if (next !== undefined) emit(next)
                         }}
                     />
                 </div>
             ) : (
-                <InputNumber
-                    id={id}
-                    className="w-full"
-                    value={shown}
-                    step={step}
-                    readOnly={readOnly}
-                    onChange={emit}
-                />
+                <div inert={readOnly}>
+                    <InputNumber
+                        id={id}
+                        className="w-full"
+                        value={shown}
+                        step={step}
+                        onChange={emit}
+                    />
+                </div>
             )}
         </div>
     )

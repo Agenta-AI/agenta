@@ -51,7 +51,7 @@ export const TraceQueue: Story = {
         const screen = within(canvasElement)
         await expect(await screen.findByText("Annotations")).toBeVisible()
         // Fill a boolean, then save with the keyboard.
-        await userEvent.click(screen.getAllByRole("button", {name: "True"})[0])
+        await userEvent.click(screen.getAllByRole("radio", {name: "True"})[0])
         await expect(screen.getByRole("button", {name: /Mark completed/})).toBeEnabled()
         await userEvent.keyboard("{Control>}{Enter}{/Control}")
         await expect(await screen.findByText("Completed")).toBeVisible()

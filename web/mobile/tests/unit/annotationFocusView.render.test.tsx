@@ -154,6 +154,15 @@ describe("the focus view", () => {
         // No previous item: the left arrow does nothing.
         await press(document.body, {key: "ArrowLeft"})
         expect(callsOf("navigatePrev")).toHaveLength(0)
+
+        // True and False use the arrows themselves.
+        await act(async () =>
+            patchSession({
+                metrics: {"s-1": {tone: {friendly: {value: null, type: "boolean"}}}},
+            }),
+        )
+        await press(host.querySelector("[role=radio]")!, {key: "ArrowRight"})
+        expect(callsOf("navigateNext")).toHaveLength(1)
     })
 
     it("Ctrl Enter submits from inside a text field", async () => {

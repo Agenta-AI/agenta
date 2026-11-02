@@ -50,7 +50,7 @@ export const Boolean: Story = {
     args: {fieldKey: "friendly", field: {value: null, type: "boolean"}},
     play: async ({canvasElement}) => {
         const screen = within(canvasElement)
-        await userEvent.click(screen.getByRole("button", {name: "True"}))
+        await userEvent.click(screen.getByRole("radio", {name: "True"}))
         await expect(screen.getByRole("button", {name: "Clear value"})).toBeEnabled()
     },
 }
@@ -58,9 +58,8 @@ export const Boolean: Story = {
 export const NumberRange: Story = {
     args: {fieldKey: "score", field: {value: null, type: "integer", minimum: 1, maximum: 5}},
     play: async ({canvasElement}) => {
-        const screen = within(canvasElement)
-        // Empty: no thumb on the slider.
-        await expect(screen.queryByRole("slider")).toBeNull()
+        // Empty: the slider's thumb and filled track are hidden.
+        await expect(canvasElement.querySelector("[data-slot=slider][data-empty]")).not.toBeNull()
     },
 }
 

@@ -45,9 +45,12 @@ export const useQueueSessionRoute = (queueId: string) => {
     // the scenario move it causes) merge here instead of the second one undoing the first.
     const wanted = useRef<RouteState>({view, scenarioId})
     const pendingWrites = useRef(0)
-    const initialRoute = useRef<RouteState>({view, scenarioId})
+    // The URL as this render read it. A queue opens with the route of its own page, also when the
+    // screen stays mounted and the router moves it to another queue.
+    const route = useRef<RouteState>({view, scenarioId})
     useEffect(() => {
         routerRef.current = router
+        route.current = {view, scenarioId}
     })
 
     const writeRoute = useCallback((patch: Partial<RouteState>) => {
@@ -70,11 +73,12 @@ export const useQueueSessionRoute = (queueId: string) => {
 
     useEffect(() => {
         if (!queueId) return
+        wanted.current = route.current
         openQueue({
             queueId,
             queueType: "simple",
-            initialView: initialRoute.current.view,
-            initialScenarioId: initialRoute.current.scenarioId ?? null,
+            initialView: route.current.view,
+            initialScenarioId: route.current.scenarioId ?? null,
         })
         return () => {
             closeSession()
@@ -90,7 +94,7 @@ export const useQueueSessionRoute = (queueId: string) => {
         if (stale) return
         wanted.current = {view, scenarioId}
         applyRouteState({view, scenarioId})
-    }, [applyRouteState, view, scenarioId, scenarioCount])
+    }, [applyRouteState, view, scenarioId, scenarioCount, queueId])
 
     useEffect(() => {
         syncScenarioOrder()

@@ -3,7 +3,7 @@ import {useMemo} from "react"
 import {annotationSessionController, categorizeTestcaseFields} from "@agenta/annotation"
 import {traceRootSpanAtomFamily} from "@agenta/entities/trace"
 import {useSettledValue} from "@agenta/shared/hooks"
-import {useAtomValue, useStore} from "jotai"
+import {atom, useAtomValue, type Getter} from "jotai"
 
 import {metricSearchText, type EvaluatorColumn} from "./scenarioListColumns"
 
@@ -24,8 +24,9 @@ const SEARCH_DELAY_MS = 200
 /**
  * Every item in queue order, narrowed by the status filter and the search. The search runs on the
  * client like the old list: ids, the item text and every metric value. It waits for typing to
- * pause, because the queue is not paged and each pass reads every row. It matches the data that
- * has loaded; the rows on screen load theirs as they render.
+ * pause, because the queue is not paged and each pass reads every row. The filter is an atom that
+ * reads the item names and metric values it matches against, so a row that matches only once its
+ * data arrives shows up then.
  */
 export const useScenarioRows = ({
     search,
@@ -36,49 +37,49 @@ export const useScenarioRows = ({
     status: string | null
     columns: EvaluatorColumn[]
 }) => {
-    const store = useStore()
-    const records = useAtomValue(annotationSessionController.selectors.scenarioRecords())
-    const statuses = useAtomValue(annotationSessionController.selectors.scenarioStatuses())
     const term = useSettledValue(search.trim().toLowerCase(), SEARCH_DELAY_MS)
-
-    const rows = useMemo<ScenarioRow[]>(
+    const rowsAtom = useMemo(
         () =>
-            records.map((record, index) => {
-                const scenarioId = String(record.id ?? index)
-                return {scenarioId, index, status: statuses[scenarioId] ?? null}
+            atom((get) => {
+                const controller = annotationSessionController.selectors
+                const records = get(controller.scenarioRecords())
+                const statuses = get(controller.scenarioStatuses())
+                const rows = records.map((record, index): ScenarioRow => {
+                    const scenarioId = String(record.id ?? index)
+                    return {scenarioId, index, status: statuses[scenarioId] ?? null}
+                })
+                const byStatus = status ? rows.filter((row) => row.status === status) : rows
+                if (!term) return byStatus
+                return byStatus.filter((row) =>
+                    searchTexts(get, row.scenarioId, columns).some((text) =>
+                        text.toLowerCase().includes(term),
+                    ),
+                )
             }),
-        [records, statuses],
+        [status, term, columns],
     )
+    return useAtomValue(rowsAtom)
+}
 
-    return useMemo(() => {
-        const byStatus = status ? rows.filter((row) => row.status === status) : rows
-        if (!term) return byStatus
-        const controller = annotationSessionController.selectors
-        return byStatus.filter((row) => {
-            const {traceId} = store.get(controller.scenarioTraceRef(row.scenarioId))
-            const {testcaseId} = store.get(controller.scenarioTestcaseRef(row.scenarioId))
-            const itemText = traceId
-                ? store.get(traceRootSpanAtomFamily(traceId))?.span_name
-                : testcaseId
-                  ? metricSearchText(
-                        firstTestcaseInput(
-                            store.get(controller.testcaseData(testcaseId)).data?.data,
-                        ),
-                    )
-                  : ""
-            const metricTexts = columns.flatMap((column) =>
-                column.metrics.map((metric) => {
-                    const resolved = store.get(
-                        controller.scenarioMetricForEvaluator({
-                            scenarioId: row.scenarioId,
-                            ...metric.lookup,
-                        }),
-                    )
-                    return metricSearchText(resolved.value ?? resolved.stats)
-                }),
+/** What a search can match for one item: its ids, its item text and every metric value. */
+const searchTexts = (get: Getter, scenarioId: string, columns: EvaluatorColumn[]): string[] => {
+    const controller = annotationSessionController.selectors
+    const {traceId} = get(controller.scenarioTraceRef(scenarioId))
+    const {testcaseId} = get(controller.scenarioTestcaseRef(scenarioId))
+    const itemText = traceId
+        ? (get(traceRootSpanAtomFamily(traceId))?.span_name ?? "")
+        : testcaseId
+          ? metricSearchText(
+                firstTestcaseInput(get(controller.testcaseData(testcaseId)).data?.data),
             )
-            const haystack = [row.scenarioId, traceId, testcaseId, itemText, ...metricTexts]
-            return haystack.some((text) => text?.toLowerCase().includes(term))
-        })
-    }, [rows, status, term, columns, store])
+          : ""
+    const metricTexts = columns.flatMap((column) =>
+        column.metrics.map((metric) => {
+            const {value, stats} = get(
+                controller.scenarioMetricForEvaluator({scenarioId, ...metric.lookup}),
+            )
+            return metricSearchText(value ?? stats)
+        }),
+    )
+    return [scenarioId, traceId, testcaseId, itemText, ...metricTexts]
 }

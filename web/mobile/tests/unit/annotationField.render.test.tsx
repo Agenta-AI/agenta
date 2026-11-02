@@ -133,22 +133,27 @@ describe("an annotation field", () => {
 
     it("An empty number field shows no value on the slider", async () => {
         await render({value: null, type: "number", minimum: 0, maximum: 1})
-        expect(host.querySelector("[data-slot=slider]")).not.toBeNull()
-        // No thumb at the minimum: an unset metric must not look set.
-        expect(host.querySelectorAll("[role=slider]")).toHaveLength(0)
+        // The thumb and the filled track are hidden: an unset metric must not look set.
+        expect(host.querySelector("[data-slot=slider][data-empty]")).not.toBeNull()
         expect((host.querySelector("input") as HTMLInputElement).value).toBe("")
 
-        // The first press on the empty track sets the value under the pointer.
-        const track = host.querySelector("[data-slot=slider]")!.parentElement as HTMLDivElement
-        track.getBoundingClientRect = () => ({left: 0, width: 200}) as DOMRect
+        // The hidden thumb still takes the first move, from the minimum.
+        const thumb = host.querySelector("[role=slider]") as HTMLElement
         await act(async () =>
-            track.dispatchEvent(new MouseEvent("pointerdown", {bubbles: true, clientX: 150})),
+            thumb.dispatchEvent(new KeyboardEvent("keydown", {key: "ArrowRight", bubbles: true})),
         )
-        expect(onChange).toHaveBeenLastCalledWith(0.8)
+        expect(onChange).toHaveBeenLastCalledWith(0.1)
 
         await render({value: 0.4, type: "number", minimum: 0, maximum: 1})
-        const thumb = host.querySelector("[role=slider]")
-        expect(thumb?.getAttribute("aria-valuenow")).toBe("0.4")
+        expect(host.querySelector("[data-slot=slider][data-empty]")).toBeNull()
+        expect(host.querySelector("[role=slider]")?.getAttribute("aria-valuenow")).toBe("0.4")
+    })
+
+    it("A read-only number keeps both controls out of reach", async () => {
+        await render({value: 3, type: "integer", minimum: 1, maximum: 5}, true)
+        const input = host.querySelector("input") as HTMLInputElement
+        expect(input.closest("[inert]")).not.toBeNull()
+        expect(host.querySelector("[data-slot=slider]")?.closest("[inert]")).not.toBeNull()
     })
 
     it("A multi select allows only the listed values and sets null when emptied", async () => {

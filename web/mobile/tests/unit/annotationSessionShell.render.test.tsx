@@ -176,6 +176,30 @@ describe("the queue session screen", () => {
         )
     })
 
+    it("Moving to another queue opens it with the route of its own page", async () => {
+        fixture.query.view = "list"
+        await render()
+        fixture.query = {...fixture.query, queue_id: "queue-2", view: "configuration"}
+        await act(async () =>
+            root.render(
+                <Provider store={fakeStore}>
+                    <QueueSessionScreen workspaceId="ws-1" projectId="proj-1" queueId="queue-2" />
+                </Provider>,
+            ),
+        )
+        expect(callsOf("closeSession")).toHaveLength(1)
+        expect(callsOf("openQueue").at(-1)).toEqual({
+            queueId: "queue-2",
+            queueType: "simple",
+            initialView: "configuration",
+            initialScenarioId: null,
+        })
+        expect(callsOf("applyRouteState").at(-1)).toEqual({
+            view: "configuration",
+            scenarioId: undefined,
+        })
+    })
+
     it("Leaving the page closes the session and clears the form drafts", async () => {
         await render()
         expect(callsOf("closeSession")).toHaveLength(0)

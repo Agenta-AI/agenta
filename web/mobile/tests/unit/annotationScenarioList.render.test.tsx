@@ -202,6 +202,21 @@ describe("the All Annotations tab", () => {
         expect(rows()[0].textContent).toContain("run trace-2")
     })
 
+    it("A search shows a row once its matching data arrives", async () => {
+        patchSession({metricValues: {}})
+        await render()
+        const input = host.querySelector<HTMLInputElement>("input[placeholder='Search']")!
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!
+        await act(async () => {
+            setter.call(input, "polite")
+            input.dispatchEvent(new Event("input", {bubbles: true}))
+        })
+        await act(async () => new Promise((resolve) => setTimeout(resolve, 250)))
+        expect(rows()).toHaveLength(0)
+        await act(async () => patchSession({metricValues: {"s-2:friendly": "very polite"}}))
+        expect(rows()).toHaveLength(1)
+    })
+
     it("Clicking a row opens Annotate Scenario", async () => {
         await render()
         await act(async () => rows()[0].click())

@@ -186,6 +186,18 @@ describe("add to testset", () => {
         expect(fixture.toast.success).toHaveBeenCalledTimes(1)
     })
 
+    it("An export that fails after it started says so once", async () => {
+        const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined)
+        await render()
+        const job = {id: "job-4", status: "error", total: 2, processed: 0}
+        await act(async () => patchSession({addToTestsetExportJob: job}))
+        await act(async () => patchSession({isAddToTestsetModalOpen: false}))
+        expect(fixture.toast.error).toHaveBeenCalledTimes(1)
+        expect(fixture.toast.error).toHaveBeenCalledWith("Couldn't add the items to the testset")
+        expect(fixture.toast.success).not.toHaveBeenCalled()
+        consoleError.mockRestore()
+    })
+
     it("The toast has no link while the testsets view is hidden", async () => {
         await render()
         const job = {id: "job-2", status: "success", total: 1, processed: 1, targetTestsetId: "t-9"}
