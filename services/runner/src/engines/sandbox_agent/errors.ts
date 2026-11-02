@@ -183,6 +183,10 @@ export type RunErrorCode =
   | "run_total_time_limit"
   | "credential_delivery_failed"
   | "rate_limited"
+  // The harness did not answer while the run was opening its ACP session, so nothing ran. A
+  // wedged or cold-installing adapter, not a fault of the model or the key: retryable, never an
+  // "add a key" prompt. Set by `HarnessInitTimeoutError` (`harness-session-lifecycle.ts`).
+  | "harness_init_timeout"
   // Not a failure: the turn was REFUSED before it started because another turn already owns
   // this session. Nothing ran, nothing was destroyed, and the user's message was never sent.
   // Clients render it as a "not sent, try again" state and keep the text, never as a run error.
@@ -961,6 +965,26 @@ export function runLimitError(
         ),
         "run_total_time_limit",
       );
+  }
+}
+
+/**
+ * The harness never answered while its ACP session was being opened.
+ *
+ * A CLASS, not a bare `withPublicCode`, because `openSession` must tell a load that timed out
+ * from a load that failed: the second degrades to a create, the first must not. The message is
+ * the line the person in the chat reads (the harness by name and the budget that elapsed);
+ * everything the operator needs (mode, harness id, budget in ms) goes in the runner log at the
+ * throw site.
+ */
+export class HarnessInitTimeoutError extends Error implements PublicError {
+  readonly publicCode: RunErrorCode = "harness_init_timeout";
+
+  constructor(harnessLabel: string, budgetMs: number) {
+    super(
+      `The ${harnessLabel} harness did not start within ${formatRunLimit(budgetMs)}, so the turn was ended. Send the message again to retry.`,
+    );
+    this.name = "HarnessInitTimeoutError";
   }
 }
 

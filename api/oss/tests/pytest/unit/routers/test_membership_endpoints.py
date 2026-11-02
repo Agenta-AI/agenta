@@ -12,7 +12,10 @@ from oss.src.core.auth import service as auth_service_module
 from oss.src.core.memberships.dtos import OrganizationMember
 from oss.src.core.memberships.types import MemberNotFound, OrganizationOwnerProtected
 import oss.src.routers.workspace_router as workspace_router
-from oss.src.core.access.permissions.types import Permission, RequiredRole
+from oss.src.core.access.permissions.types import RequiredRole
+from oss.src.core.access.service import AccessService
+from oss.src.core.access.types import RbacEntitlementUnavailable
+from oss.tests.pytest.utils.memberships import RecordingRbac
 
 
 DENIED = (
@@ -102,63 +105,6 @@ async def test_remove_user_by_a_non_admin_answers_403(monkeypatch, project):
     assert removed == []
 
 
-def _wire_update_workspace(monkeypatch, *, project, workspace_organization_id):
-    access = _Recorder(result=False)
-
-    async def _get_project_by_workspace(workspace_id):
-        return project
-
-    async def _get_workspace(workspace_id):
-        return SimpleNamespace(
-            id=project.workspace_id, organization_id=workspace_organization_id
-        )
-
-    monkeypatch.setattr(organization_router, "check_action_access", access)
-    monkeypatch.setattr(
-        organization_router.db_manager,
-        "get_project_by_workspace",
-        _get_project_by_workspace,
-    )
-    monkeypatch.setattr(organization_router.db_manager, "get_workspace", _get_workspace)
-    return access
-
-
-async def test_update_workspace_checks_edit_workspace(monkeypatch, project):
-    access = _wire_update_workspace(
-        monkeypatch, project=project, workspace_organization_id=project.organization_id
-    )
-
-    response = await organization_router.update_workspace(
-        request=_request(),
-        organization_id=str(project.organization_id),
-        workspace_id=str(project.workspace_id),
-        payload=SimpleNamespace(name="x", description=None),
-    )
-
-    assert response.status_code == 403
-    assert access.calls[0]["permission"] == Permission.EDIT_WORKSPACE
-    assert access.calls[0]["project_id"] == str(project.id)
-
-
-async def test_update_workspace_of_another_organization_is_404(monkeypatch, project):
-    # A legacy project of organization A that points at a workspace of organization
-    # B: an admin of A must not reach B's workspace through it.
-    access = _wire_update_workspace(
-        monkeypatch, project=project, workspace_organization_id=uuid4()
-    )
-
-    for organization_id in (project.organization_id, uuid4()):
-        response = await organization_router.update_workspace(
-            request=_request(),
-            organization_id=str(organization_id),
-            workspace_id=str(project.workspace_id),
-            payload=SimpleNamespace(name="x", description=None),
-        )
-        assert response.status_code == 404
-
-    assert access.calls == []
-
-
 # -- writers through MembershipsService -----------------------------------------------
 
 
@@ -188,10 +134,33 @@ class _MembershipsService:
         )
 
 
+class _UnreadablePlan:
+    async def is_entitled(self, *, organization_id):
+        raise RbacEntitlementUnavailable()
+
+
+def _plan_access(*, entitled):
+    """A real `AccessService` whose only plan answer is `entitled` (None: the plan
+    read fails); the routes read only its offered roles."""
+    return AccessService(
+        memberships=None,
+        rbac_entitlement=(
+            _UnreadablePlan() if entitled is None else RecordingRbac(entitled=entitled)
+        ),
+        principals=None,
+        resource_policy=None,
+    )
+
+
 @pytest.fixture
 def wired(monkeypatch, project):
-    def _wire(service, *, allowed=True):
+    def _wire(service, *, allowed=True, entitled=True):
         monkeypatch.setattr(memberships_module, "_memberships_service", service)
+        monkeypatch.setattr(
+            workspace_router,
+            "get_access_service",
+            lambda: _plan_access(entitled=entitled),
+        )
         monkeypatch.setattr(workspace_router, "check_action_access", _Recorder(allowed))
 
         async def _get_project_by_workspace(workspace_id):
@@ -307,6 +276,88 @@ async def test_assign_role_for_a_non_member_is_404(wired, project):
     assert error.value.detail == "User not found."
 
 
+@pytest.mark.parametrize("role", ["viewer", "editor", "developer", "annotator"])
+async def test_assign_role_refuses_a_role_the_plan_does_not_offer(wired, project, role):
+    service = _MembershipsService(organization_role="member")
+    target = wired(service, entitled=False)
+
+    response = await workspace_router.assign_role_to_user(
+        payload=SimpleNamespace(
+            email=target.email,
+            organization_id=str(project.organization_id),
+            role=role,
+        ),
+        workspace_id=str(project.workspace_id),
+        request=_request(),
+    )
+
+    assert response.status_code == 400
+    assert service.calls == []
+
+
+@pytest.mark.parametrize("entitled", [True, False])
+@pytest.mark.parametrize("role", ["admin", "member"])
+async def test_assign_role_sets_admin_or_member_on_every_plan(
+    wired, project, role, entitled
+):
+    service = _MembershipsService(organization_role="viewer")
+    target = wired(service, entitled=entitled)
+
+    result = await workspace_router.assign_role_to_user(
+        payload=SimpleNamespace(
+            email=target.email,
+            organization_id=str(project.organization_id),
+            role=role,
+        ),
+        workspace_id=str(project.workspace_id),
+        request=_request(),
+    )
+
+    assert result is True
+    assert service.calls[0][1]["role"] == role
+
+
+async def test_unassign_without_rbac_sets_the_member_floor_role(wired, project):
+    service = _MembershipsService(organization_role="admin")
+    target = wired(service, entitled=False)
+
+    result = await workspace_router.unassign_role_from_user(
+        email=target.email,
+        organization_id=str(project.organization_id),
+        role="admin",
+        workspace_id=str(project.workspace_id),
+        request=_request(),
+    )
+
+    assert result is True
+    assert service.calls[0][1]["role"] == "member"
+
+
+async def test_role_writes_stop_when_the_plan_cannot_be_read(wired, project):
+    service = _MembershipsService(organization_role="admin")
+    target = wired(service, entitled=None)
+
+    assigned = await workspace_router.assign_role_to_user(
+        payload=SimpleNamespace(
+            email=target.email,
+            organization_id=str(project.organization_id),
+            role="member",
+        ),
+        workspace_id=str(project.workspace_id),
+        request=_request(),
+    )
+    removed = await workspace_router.unassign_role_from_user(
+        email=target.email,
+        organization_id=str(project.organization_id),
+        role="admin",
+        workspace_id=str(project.workspace_id),
+        request=_request(),
+    )
+
+    assert (assigned.status_code, removed.status_code) == (503, 503)
+    assert service.calls == []
+
+
 async def test_unassign_current_role_sets_viewer(wired, project):
     service = _MembershipsService(organization_role="editor")
     target = wired(service)
@@ -411,10 +462,15 @@ async def test_owner_protected_errors_keep_todays_body_shape(wired, project):
 def auto_join(monkeypatch):
     organization_id = uuid4()
 
-    def _wire(*, already_member: bool):
+    def _wire(*, already_member: bool, entitled: bool = True):
         service = _MembershipsService()
         monkeypatch.setattr(memberships_module, "_memberships_service", service)
         monkeypatch.setattr(auth_service_module, "is_ee", lambda: True)
+        monkeypatch.setattr(
+            auth_service_module,
+            "get_access_service",
+            lambda: _plan_access(entitled=entitled),
+        )
 
         class _Domains:
             async def get_verified_by_slug(self, *, slug):
@@ -449,9 +505,21 @@ async def test_auto_join_does_not_change_an_existing_member_role(auto_join):
     assert service.calls == []
 
 
-async def test_auto_join_adds_a_new_user_as_viewer_in_every_project(auto_join):
+async def test_auto_join_adds_nobody_when_the_plan_cannot_be_read(auto_join):
+    _, wire = auto_join
+    auth, service = wire(already_member=False, entitled=None)
+
+    await auth.enforce_domain_policies(email="new@corp.test", user_id=uuid4())
+
+    assert service.calls == []
+
+
+@pytest.mark.parametrize("entitled, floor_role", [(True, "viewer"), (False, "member")])
+async def test_auto_join_adds_a_new_user_with_the_floor_role_in_every_project(
+    auto_join, entitled, floor_role
+):
     organization_id, wire = auto_join
-    auth, service = wire(already_member=False)
+    auth, service = wire(already_member=False, entitled=entitled)
     user = uuid4()
 
     await auth.enforce_domain_policies(email="new@corp.test", user_id=user)
@@ -462,7 +530,7 @@ async def test_auto_join_adds_a_new_user_as_viewer_in_every_project(auto_join):
             {
                 "organization_id": organization_id,
                 "user_id": user,
-                "role": "viewer",
+                "role": floor_role,
                 "join_all_projects": True,
                 "must_be_absent": True,
                 "actor_user_id": user,
@@ -505,7 +573,7 @@ def invitation(monkeypatch):
     async def _update(invitation_id, values_to_update):
         updates.append(values_to_update)
 
-    async def _notify(workspace, user):
+    async def _notify(**kwargs):
         return True
 
     db = organization_service.db_manager
@@ -524,7 +592,7 @@ def invitation(monkeypatch):
     monkeypatch.setattr(db, "get_workspace", _workspace)
     monkeypatch.setattr(db, "update_invitation", _update)
     monkeypatch.setattr(organization_service, "notify_org_admin_invitation", _notify)
-    return SimpleNamespace(user=user, project=project, updates=updates)
+    return SimpleNamespace(user=user, project=project, invite=invite, updates=updates)
 
 
 async def test_invite_accept_writes_through_set_member_role(invitation, monkeypatch):
@@ -553,6 +621,42 @@ async def test_invite_accept_writes_through_set_member_role(invitation, monkeypa
     assert invitation.updates == [{"user_id": str(invitation.user.id), "used": True}]
 
 
+async def test_an_owner_invitation_is_accepted_as_admin(invitation, monkeypatch):
+    # Only the transfer route makes an owner; an invitation stored as `owner` (OSS has no
+    # migration for them) grants `admin`.
+    invitation.invite.role = "owner"
+    service = _MembershipsService(organization_role=None)
+    monkeypatch.setattr(memberships_module, "_memberships_service", service)
+
+    assert await organization_service.accept_organization_invitation(
+        token="t",
+        organization_id=str(invitation.project.organization_id),
+        email=invitation.user.email,
+        session_email=invitation.user.email,
+    )
+
+    assert service.calls[0][1]["role"] == "admin"
+
+
+async def test_invite_accept_by_someone_else_when_the_invited_email_has_no_account(
+    invitation, monkeypatch
+):
+    async def _no_user(email):
+        return None
+
+    monkeypatch.setattr(
+        organization_service.db_manager, "get_user_with_email", _no_user
+    )
+
+    with pytest.raises(organization_service.InviteEmailMismatchError):
+        await organization_service.accept_organization_invitation(
+            token="t",
+            organization_id=str(invitation.project.organization_id),
+            email=invitation.user.email,
+            session_email="someone-else@test.agenta.ai",
+        )
+
+
 async def test_invite_accept_for_an_existing_member_is_already_accepted(
     invitation, monkeypatch
 ):
@@ -571,69 +675,6 @@ async def test_invite_accept_for_an_existing_member_is_already_accepted(
 
 
 # -- workspace create and ownership transfer --------------------------------------------
-
-
-async def test_workspace_create_seeds_its_default_project_through_create_project(
-    monkeypatch,
-):
-    import oss.src.services.db_manager as db_manager_module
-    from oss.src.core.memberships.dtos import ProjectScope
-
-    organization = SimpleNamespace(id=uuid4())
-    user = SimpleNamespace(id=uuid4())
-    project_id = uuid4()
-    calls = []
-
-    class _Service:
-        async def create_project(self, **kwargs):
-            calls.append(kwargs)
-            return ProjectScope(
-                project_id=project_id,
-                organization_id=organization.id,
-                workspace_id=kwargs["workspace_id"],
-                is_default=True,
-            )
-
-    class _Session:
-        def add(self, obj):
-            if getattr(obj, "id", None) is None:
-                obj.id = uuid4()
-
-        async def commit(self):
-            pass
-
-        async def refresh(self, obj, attribute_names=None):
-            pass
-
-    async def _noop(**kwargs):
-        return None
-
-    async def _fetch_project_by_id(project_id):
-        return SimpleNamespace(id=project_id)
-
-    monkeypatch.setattr(memberships_module, "_memberships_service", _Service())
-    monkeypatch.setattr(db_manager_module, "fetch_project_by_id", _fetch_project_by_id)
-    monkeypatch.setattr(db_manager_module, "add_default_simple_testsets", _noop)
-    import oss.src.core.environments.defaults as environments_defaults
-    import oss.src.core.evaluators.defaults as evaluators_defaults
-
-    monkeypatch.setattr(evaluators_defaults, "create_default_evaluators", _noop)
-    monkeypatch.setattr(environments_defaults, "create_default_environments", _noop)
-
-    workspace, project = await db_manager_module.create_workspace_db_object(
-        _Session(),
-        SimpleNamespace(name="Second", type=None, description=None),
-        organization,
-        user,
-        return_wrk_prj=True,
-    )
-
-    assert len(calls) == 1
-    assert calls[0]["is_default"] is True
-    assert calls[0]["name"] == "Default"
-    assert calls[0]["organization_id"] == organization.id
-    assert calls[0]["actor_user_id"] == user.id
-    assert project.id == str(project_id) or project.id == project_id
 
 
 async def test_transfer_route_calls_the_service_and_maps_errors(monkeypatch):

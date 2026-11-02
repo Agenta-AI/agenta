@@ -27,7 +27,7 @@ PERIOD = MeterPeriod(year=2026, month=10, day=25)
 
 def test_meter_scope_accepts_a_project_without_a_workspace():
     scope = MeterScope(organization_id=ORG, project_id=PRJ, user_id=USR)
-    assert scope.workspace_id is None
+    assert scope.project_id == PRJ
 
 
 def test_compute_meter_id_of_a_switch_row_equals_the_step2_id():
@@ -43,23 +43,6 @@ def test_compute_meter_id_of_a_switch_row_equals_the_step2_id():
             key=Counter.TRACES_RETRIEVED,
         )
         == step2
-    )
-
-
-def test_existing_meter_ids_are_unchanged():
-    legacy = uuid5(
-        AGENTA_METERS_NAMESPACE_UUID,
-        f"d=25|key=traces_retrieved|m=10|org={ORG}|prj={PRJ}|usr={USR}|wrk={WS}|y=2026",
-    )
-    assert (
-        compute_meter_id(
-            scope=MeterScope(
-                organization_id=ORG, workspace_id=WS, project_id=PRJ, user_id=USR
-            ),
-            period=PERIOD,
-            key=Counter.TRACES_RETRIEVED,
-        )
-        == legacy
     )
 
 
@@ -85,4 +68,3 @@ def test_dump_converts_a_row_without_a_workspace():
     )
     dto = _dbe_to_dto(row)
     assert dto.meter_id == stored
-    assert dto.workspace_id is None

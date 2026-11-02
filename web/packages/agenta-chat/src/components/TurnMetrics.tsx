@@ -1,29 +1,30 @@
-import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
+import type {TurnFigures} from "@agenta/entities/session"
 import {ExecutionMetricsDisplay, MetaSeparator} from "@agenta/ui/components/presentational"
-import {SkeletonBlock} from "@agenta/ui/ui"
-import {useAtomValue} from "jotai"
 
-import {mergeTurnMetrics, type MessageUsageMetrics} from "../assets"
+import type {MessageUsageMetrics} from "../assets"
 
 /**
- * A turn's cost, tokens and latency — the same data and component the playground and the trace
- * drawer use.
+ * A turn's cost, tokens and latency, in the component the playground and the trace drawer use.
  *
- * Every figure comes from the trace root's cumulative metrics when the trace has it, and cost and
- * tokens fall back to the streamed message usage (`mergeTurnMetrics`). The runner cannot report a
- * cost for every turn, and the trace is not there until the run ends, so neither source alone
- * covers a turn. While the trace loads, the usage shows and a placeholder holds the latency slot.
+ * A settled turn takes every figure from its session turn: tokens and cost from its usage,
+ * latency from its start and end. No trace is read, so a reader without trace access sees them
+ * too, and opening a chat costs no trace request. A running turn shows the usage streamed so far.
+ * A figure nobody knows (no row yet, no usage stored) is left out, never shown as 0.
  */
 type Metric = "latency" | "tokens" | "cost"
 
 export const TurnMetrics = ({
-    traceId,
     usage,
+    sessionTurnFigures,
+    isStreaming = false,
     separator = false,
     show,
 }: {
-    traceId?: string | null
+    /** The usage streamed while the turn runs. */
     usage?: MessageUsageMetrics
+    /** The figures stored on the session turn. */
+    sessionTurnFigures?: TurnFigures
+    isStreaming?: boolean
     /** Which figures to draw; all of them by default. A host that puts the time elsewhere (the
      * activity fold's "Worked for 11s") leaves latency out. */
     show?: Metric[]
@@ -33,30 +34,8 @@ export const TurnMetrics = ({
      */
     separator?: boolean
 }) => {
-    const summary = useAtomValue(traceDataSummaryAtomFamily(traceId ?? ""))
-    const lead = separator ? <MetaSeparator className="first:hidden" /> : null
-    // Only the latency slot waits on the trace; without it there is nothing to wait for.
-    const wantsLatency = !show || show.includes("latency")
-
-    if (traceId && summary.isPending) {
-        if (!wantsLatency && !usage) return null
-        return (
-            <>
-                {lead}
-                {wantsLatency ? (
-                    <SkeletonBlock active className="h-4 w-10 rounded-control-sm" />
-                ) : null}
-                {usage ? (
-                    <>
-                        {wantsLatency ? <MetaSeparator /> : null}
-                        <ExecutionMetricsDisplay metrics={usage} variant="plain" show={show} />
-                    </>
-                ) : null}
-            </>
-        )
-    }
-    if (!traceId && !usage) return null
-    const metrics = mergeTurnMetrics(summary.metrics, usage)
+    const metrics = pickTurnFigures({usage, sessionTurnFigures, isStreaming})
+    if (!metrics) return null
     // No figure to draw: no lead either, or the next separator in the row shows on its own.
     const hasFigure = (["latency", "tokens", "cost"] as const).some(
         (metric) =>
@@ -68,8 +47,19 @@ export const TurnMetrics = ({
     if (!hasFigure) return null
     return (
         <>
-            {lead}
+            {separator ? <MetaSeparator className="first:hidden" /> : null}
             <ExecutionMetricsDisplay metrics={metrics} variant="plain" show={show} />
         </>
     )
 }
+
+/** The figures a turn's footer draws: the session turn's, else the streamed usage while it runs. */
+export const pickTurnFigures = ({
+    usage,
+    sessionTurnFigures,
+    isStreaming,
+}: {
+    usage?: MessageUsageMetrics
+    sessionTurnFigures?: TurnFigures
+    isStreaming: boolean
+}): TurnFigures | undefined => sessionTurnFigures ?? (isStreaming ? usage : undefined)

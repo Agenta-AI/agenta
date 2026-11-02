@@ -48,6 +48,10 @@ RUN_ID = "0123456789abcdef0123456789abcdef"
 # One route of each kind the question is about.
 LLM_RELAY_PATH = "/gateways/llms/standard/openai/v1/chat/completions"
 MCP_RELAY_PATH = "/gateways/mcps/custom/notion"
+# The organization namespace (M5): an agent that names an organization connection.
+ORG_RELAY_PATH = "/gateways/llms/organization/openai-company/v1/responses"
+# MCP has no organization namespace; the credential is refused there.
+ORG_MCP_PATH = "/gateways/mcps/organization/notion"
 VAULT_PATH = "/vault/v1/secrets/"
 OTHER_PATH = "/workflows/revisions/commit"
 EXCHANGE_PATH = "/gateways/credentials"
@@ -106,7 +110,6 @@ async def _runtime_credential() -> str:
     token = await auth.sign_secret_token(
         user_id=USER_ID,
         project_id=PROJECT_ID,
-        workspace_id=WORKSPACE_ID,
         organization_id=ORGANIZATION_ID,
         gateway_run_id=RUN_ID,
         grants=[auth.SECRET_RESOLVE_GRANT],
@@ -122,7 +125,6 @@ async def _granted_credential_without_run() -> str:
     token = await auth.sign_secret_token(
         user_id=USER_ID,
         project_id=PROJECT_ID,
-        workspace_id=WORKSPACE_ID,
         organization_id=ORGANIZATION_ID,
         grants=[auth.SECRET_RESOLVE_GRANT],
         envelope=envelope_for_claims(
@@ -137,7 +139,6 @@ async def _ungranted_credential() -> str:
     token = await auth.sign_secret_token(
         user_id=USER_ID,
         project_id=PROJECT_ID,
-        workspace_id=WORKSPACE_ID,
         organization_id=ORGANIZATION_ID,
         gateway_run_id=RUN_ID,
         envelope=envelope_for_claims(
@@ -170,7 +171,6 @@ class _RecordingLlmService:
 def _scope() -> AuthScope:
     return AuthScope(
         organization_id=ORGANIZATION_ID,
-        workspace_id=WORKSPACE_ID,
         project_id=PROJECT_ID,
         user_id=USER_ID,
     )
@@ -217,6 +217,14 @@ def _exchange(monkeypatch, llm_service):
 
     @app.get(LLM_RELAY_PATH)
     async def _llm_relay(request: Request):
+        return {"project_id": request.state.project_id}
+
+    @app.get(ORG_RELAY_PATH)
+    async def _org_relay(request: Request):
+        return {"project_id": request.state.project_id}
+
+    @app.get(ORG_MCP_PATH)
+    async def _org_mcp(request: Request):
         return {"project_id": request.state.project_id}
 
     @app.get(MCP_RELAY_PATH)
@@ -295,6 +303,23 @@ async def test_the_sandbox_credential_authenticates_both_gateway_relay_planes(ex
     # which run's callback tools it is serving.
     assert mcp.status_code == 200
     assert mcp.json() == {"run_id": RUN_ID}
+
+
+@pytest.mark.asyncio
+async def test_the_sandbox_credential_authenticates_the_organization_llm_namespace(
+    exchange,
+):
+    """An agent that names an organization connection relays through
+    `/gateways/llms/organization/{slug}/...` with the same sandbox credential (M5)."""
+    credentials = await _sandbox_credential(exchange)
+
+    llm = exchange.get(ORG_RELAY_PATH, headers={"X-AG-Credentials": credentials})
+    mcp = exchange.get(ORG_MCP_PATH, headers={"X-AG-Credentials": credentials})
+
+    assert llm.status_code == 200, llm.text
+    assert llm.json() == {"project_id": PROJECT_ID}
+    assert mcp.status_code == 401
+    assert mcp.json()["reason"] == "audience_mismatch"
 
 
 @pytest.mark.asyncio

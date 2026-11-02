@@ -1,6 +1,10 @@
 from typing import Optional
 from enum import Enum
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
+
+from oss.src.utils.logging import get_module_logger
+
+log = get_module_logger(__name__)
 
 
 class DefaultPlan(str, Enum):
@@ -41,6 +45,9 @@ class Tracker(str, Enum):
 
 
 class Flag(str, Enum):
+    # Offers every catalog role in invites and role changes (not only admin and
+    # member), and lets organization credentials be limited to selected projects.
+    # Roles apply on every plan; this flag never decides an access check.
     RBAC = "rbac"
     AUDIT = "audit"
     ACCESS = "access"
@@ -84,7 +91,6 @@ class Period(str, Enum):
 
 class Scope(str, Enum):
     ORGANIZATION = "organization"
-    WORKSPACE = "workspace"
     PROJECT = "project"
     USER = "user"
 
@@ -102,6 +108,19 @@ class Quota(BaseModel):
     period: Optional[Period] = None
 
     model_config = ConfigDict(extra="forbid")
+
+    @field_validator("scope", mode="before")
+    @classmethod
+    def _workspace_scope_is_the_organization(cls, value):
+        # Workspace removal step 2: a workspace is the organization. An operator plan
+        # override that still names the workspace scope keeps loading.
+        if getattr(value, "value", value) == "workspace":
+            log.warning(
+                "[entitlements] quota scope 'workspace' is read as 'organization' "
+                "(workspaces were removed)"
+            )
+            return Scope.ORGANIZATION
+        return value
 
 
 class Probe(BaseModel):

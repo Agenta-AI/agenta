@@ -75,13 +75,12 @@ async def test_remove_member_log_has_no_email(events):
 
 async def test_project_create_is_logged_with_ids_and_no_email(events):
     dao = InMemoryMembershipsDAO()
-    organization, workspace, actor = uuid4(), uuid4(), uuid4()
+    organization, actor = uuid4(), uuid4()
 
     scope = await MembershipsService(
         memberships_dao=dao, policy=MembershipPolicy.PROJECT_ROWS
     ).create_project(
         organization_id=organization,
-        workspace_id=workspace,
         name="New",
         is_default=False,
         actor_user_id=actor,
@@ -91,7 +90,6 @@ async def test_project_create_is_logged_with_ids_and_no_email(events):
     assert created == [
         {
             "organization_id": str(organization),
-            "workspace_id": str(workspace),
             "project_id": str(scope.project_id),
             "actor_user_id": str(actor),
             "seeded_count": 0,

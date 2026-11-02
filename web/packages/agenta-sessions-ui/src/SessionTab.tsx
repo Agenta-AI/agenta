@@ -42,8 +42,6 @@ export interface SessionTabProps extends Omit<ComponentProps<"div">, "children" 
     statusDot?: ReactNode
     /** Pinned: a leading pin glyph, and why this chip leads the strip. */
     pinned?: boolean
-    /** After the label: the private-chat lock (sharing). */
-    marker?: ReactNode
     /**
      * Called while the chip is hovered or holds focus — and always on a device with no hover, where
      * nothing would ever reveal them. Return null to suppress (a rename input owns the row).
@@ -58,7 +56,6 @@ export const SessionTab = ({
     maskLabel = true,
     statusDot,
     pinned = false,
-    marker,
     renderActions,
     onSelect,
     className,
@@ -130,7 +127,6 @@ export const SessionTab = ({
             >
                 {label}
             </span>
-            {marker}
             {/* Hover actions float over the masked tail — transparent buttons directly on the
                 tag's own fill. No backing: any painted patch reads as a mismatched box against
                 a chip whose only skin is that fill. */}

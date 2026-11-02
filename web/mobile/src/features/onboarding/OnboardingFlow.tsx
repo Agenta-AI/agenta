@@ -60,6 +60,8 @@ export interface OnboardingFlowProps {
     /** The first message's staged files; the host sends them with the create. */
     attachments: ReturnType<typeof useComposerAttachments>
     onStepCompleted: (step: OnboardingStep, draft: OnboardingDraft) => void
+    /** Called after the last step when the flow ends on a question. */
+    onQuestionsDone?: () => void
     /** Resolves `false` when no agent was created. */
     onCreate: (input: FirstAgentInput) => Promise<boolean>
     /** Leaves onboarding without an agent; offered on the first-agent step. */
@@ -88,6 +90,7 @@ export const OnboardingFlow = ({
     error,
     attachments,
     onStepCompleted,
+    onQuestionsDone,
     onCreate,
     onSkip,
 }: OnboardingFlowProps) => {
@@ -131,21 +134,29 @@ export const OnboardingFlow = ({
 
     // Mirrors `draft.completed` synchronously, so a double click reports a step once.
     const completedRef = useRef(new Set(draft.completed))
+    const reportCompleted = (current: OnboardingStep) => {
+        if (completedRef.current.has(current)) return
+        completedRef.current.add(current)
+        dispatch({type: "completed", step: current})
+        onStepCompleted(current, draftRef.current)
+    }
     const go = (
         next: OnboardingRoute,
         options?: {replace?: boolean; returnTo?: OnboardingRoute},
     ) => {
         const current = routeRef.current.step
-        if (stepIndex(next.step) > stepIndex(current) && !completedRef.current.has(current)) {
-            completedRef.current.add(current)
-            dispatch({type: "completed", step: current})
-            onStepCompleted(current, draftRef.current)
-        }
+        if (stepIndex(next.step) > stepIndex(current)) reportCompleted(current)
         navigate(next, options)
     }
     /** A question's timer or key moves the flow only while its own step is current. */
     const advance = (from: OnboardingStep, to: OnboardingStep) => {
-        if (routeRef.current.step === from) go(stepRoute(to))
+        if (routeRef.current.step !== from) return
+        if (to !== from) {
+            go(stepRoute(to))
+            return
+        }
+        reportCompleted(from)
+        onQuestionsDone?.()
     }
 
     // Set when a phone opens a panel over the list, so its Back control pops that entry.
@@ -158,7 +169,7 @@ export const OnboardingFlow = ({
         attachments,
         onChooseModel: () => go({step: "credits"}, {returnTo: routeRef.current}),
         onCreate: async (firstMessage) => {
-            const input = blankAgentInput(draftRef.current.agent, firstMessage)
+            const input = blankAgentInput(firstMessage)
             flushDraft()
             return input ? onCreate(input) : false
         },
@@ -225,7 +236,15 @@ export const OnboardingFlow = ({
             className="bg-background text-foreground flex h-dvh flex-col overflow-y-auto overflow-x-hidden"
         >
             <OnboardingHeader onSkip={step === "templates" && !creating ? onSkip : undefined} />
-            <main className="box-border flex min-w-0 flex-1 items-center justify-center px-4 pb-6 pt-6 sm:px-6 md:pb-24">
+            <main
+                className={cn(
+                    "box-border flex min-w-0 flex-1 items-center justify-center px-4 pb-6 pt-6 sm:px-6",
+                    // The gallery is pinned to the top and fills the height, so its title, chips
+                    // and Use template never move with a longer list or a longer template.
+                    // Below this the whole page scrolls instead of squeezing the panel under the dots.
+                    step === "templates" && "md:min-h-[520px] md:items-stretch md:pb-0",
+                )}
+            >
                 <motion.section
                     key={step}
                     custom={shown.direction}
@@ -236,6 +255,7 @@ export const OnboardingFlow = ({
                     className={cn(
                         "w-full min-w-0",
                         isFixedStep(step) ? WIDTH[step] : QUESTION_WIDTH,
+                        step === "templates" && "md:flex md:min-h-0 md:flex-col",
                     )}
                 >
                     {isFixedStep(step) ? body[step]() : question(step)}

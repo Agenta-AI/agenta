@@ -1198,12 +1198,24 @@ class _ConnectionSchema(BaseModel):
         title="Slug",
         description="The named vault connection (agenta mode only); omit for the project default.",
     )
-    namespace: Optional[Literal["standard", "custom", "builtin"]] = Field(
+    namespace: Optional[Literal["standard", "custom", "builtin", "organization"]] = (
+        Field(
+            default=None,
+            title="Namespace",
+            description=(
+                "The gateway namespace the slug was picked from (agenta mode with a slug only); "
+                "omit to let the gateway infer it. An organization connection uses "
+                "'organization'."
+            ),
+        )
+    )
+    scope: Optional[Literal["project", "organization"]] = Field(
         default=None,
-        title="Namespace",
+        title="Scope",
         description=(
-            "The gateway namespace the slug was picked from (agenta mode with a slug only); "
-            "omit to let the gateway infer it."
+            "Whose connection the slug names: the project's (the default) or the "
+            "organization's. An organization connection needs a slug and namespace "
+            "'organization'."
         ),
     )
 
@@ -1440,7 +1452,21 @@ class _RunnerSchema(BaseModel):
 
 class _SandboxSecretReferenceSchema(BaseModel):
     model_config = ConfigDict(extra="forbid", title="Secret reference")
-    slug: str = Field(title="Secret", description="Project secret slug.")
+    slug: Optional[str] = Field(
+        default=None,
+        title="Secret",
+        description="Secret slug. Left out for a 'user' secret.",
+    )
+    namespace: Optional[Literal["organization"]] = Field(
+        default=None,
+        title="Namespace",
+        description="'organization' names an organization secret; left out, a project secret.",
+    )
+    account_source: Optional[Literal["agent", "user"]] = Field(
+        default=None,
+        title="Account",
+        description="'user': the run person's own secret. Left out means 'agent'.",
+    )
 
 
 class _SandboxEnvironmentBindingSchema(BaseModel):

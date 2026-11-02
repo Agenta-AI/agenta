@@ -19,7 +19,7 @@ The M4b mount step (the release after M4a):
 
 M4b workspace removal:
 
-- The `workspaces` and `workspace_members` tables and `projects.workspace_id` go away, in three releases (accept, switch, contract).
+- The `workspaces` and `workspace_members` tables and `projects.workspace_id` go away, in four releases (accept, switch, stop reading, contract).
 - The classic `/w` app keeps its API shape (CONTRACT.md section 1), including the workspace role scope that its members page reads.
 - The legacy member routes act through M1's `set_member_role` and `remove_member`.
 - Workspace create and rename return HTTP 410. No classic screen calls them.

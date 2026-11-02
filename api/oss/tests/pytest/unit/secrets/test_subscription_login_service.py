@@ -30,13 +30,16 @@ from oss.src.core.secrets.types import (
     SubscriptionLoginAttemptNotFound,
     SubscriptionLoginRunnerNotConfigured,
     SubscriptionLoginRunnerUnavailable,
-    SubscriptionProviderConflict,
     SubscriptionSecretNotFound,
 )
 from oss.src.dbs.postgres.secrets.mappings import (
     map_secrets_dbe_to_dto,
     map_secrets_dto_to_dbe,
     map_secrets_dto_to_dbe_update,
+)
+from oss.tests.pytest.utils.organization_secrets import (
+    load_effective_from_list,
+    owner_scope,
 )
 
 
@@ -84,6 +87,8 @@ def _later(minutes: int = 10) -> str:
 class _FakeSecretsDAO:
     """Stores rows the way the postgres DAO does: mapped, encrypted-shaped, JSON."""
 
+    load_effective = load_effective_from_list
+
     def __init__(self):
         self.rows: dict = {}
         # Counts the updates that actually reached the row, so a test can prove a poll
@@ -91,8 +96,14 @@ class _FakeSecretsDAO:
         self.writes = 0
 
     async def create(
-        self, project_id, organization_id, create_secret_dto, management=None
+        self,
+        *,
+        owner,
+        create_secret_dto,
+        management=None,
+        **_kwargs,
     ):
+        project_id, organization_id = owner_scope(owner)
         dbe = map_secrets_dto_to_dbe(
             project_id=project_id,
             organization_id=organization_id,
@@ -102,14 +113,34 @@ class _FakeSecretsDAO:
         self.rows[str(dbe.id)] = dbe
         return map_secrets_dbe_to_dto(secrets_dbe=dbe)
 
-    async def list(self, project_id, organization_id):
+    async def list(
+        self,
+        *,
+        owner,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         return [map_secrets_dbe_to_dto(secrets_dbe=dbe) for dbe in self.rows.values()]
 
-    async def get_by_id(self, secret_id, project_id, organization_id):
+    async def get_by_id(
+        self,
+        *,
+        owner,
+        secret_id,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         dbe = self.rows.get(str(secret_id))
         return map_secrets_dbe_to_dto(secrets_dbe=dbe) if dbe else None
 
-    async def get_by_slug(self, secret_slug, project_id, organization_id):
+    async def get_by_slug(
+        self,
+        *,
+        owner,
+        secret_slug,
+        **_kwargs,
+    ):
+        project_id, organization_id = owner_scope(owner)
         for dbe in self.rows.values():
             if dbe.slug == secret_slug:
                 return map_secrets_dbe_to_dto(secrets_dbe=dbe)
@@ -117,13 +148,15 @@ class _FakeSecretsDAO:
 
     async def update(
         self,
+        *,
+        owner,
         secret_id,
         update_secret_dto,
-        project_id,
-        organization_id,
         user_id=None,
         resolve_update=None,
+        **_kwargs,
     ):
+        project_id, organization_id = owner_scope(owner)
         dbe = self.rows.get(str(secret_id))
         if dbe is None:
             return None
@@ -148,8 +181,14 @@ class _FakeSecretsDAO:
         return map_secrets_dbe_to_dto(secrets_dbe=dbe)
 
     async def delete(
-        self, secret_id, project_id, organization_id, authorize_delete=None
+        self,
+        *,
+        owner,
+        secret_id,
+        authorize_delete=None,
+        **_kwargs,
     ):
+        project_id, organization_id = owner_scope(owner)
         self.rows.pop(str(secret_id), None)
 
 
@@ -177,11 +216,18 @@ class _FakeRunner:
     def calls(self) -> int:
         return self.started + len(self.deleted)
 
-    async def start_attempt(self, *, provider, project_id, secret_id):
+    async def start_attempt(
+        self, *, provider, project_id, secret_id, organization_id=None
+    ):
         self.started += 1
-        self.started_with.append(
-            {"provider": provider, "project_id": project_id, "secret_id": secret_id}
-        )
+        started = {
+            "provider": provider,
+            "project_id": project_id,
+            "secret_id": secret_id,
+        }
+        if organization_id is not None:
+            started["organization_id"] = organization_id
+        self.started_with.append(started)
         if self.raises is not None:
             raise self.raises
         answer = self.starts.pop(0) if self.starts else None
@@ -267,17 +313,17 @@ class TestCreateRules:
     async def test_a_new_connection_is_named_and_slugged(self, vault):
         secret = await _make_secret(vault)
 
-        assert secret.slug == "chatgpt"
+        assert secret.slug.startswith("chatgpt-")
         assert secret.header.name == "ChatGPT"
         assert secret.data.provider_slug == "chatgpt"
 
-    async def test_a_second_chatgpt_connection_is_a_conflict(self, vault):
-        await _make_secret(vault)
+    async def test_a_second_chatgpt_connection_gets_its_own_slug(self, vault):
+        first = await _make_secret(vault)
+        second = await _make_secret(vault)
 
-        with pytest.raises(SubscriptionProviderConflict):
-            await _make_secret(vault)
+        assert first.slug != second.slug
 
-    async def test_a_caller_cannot_replace_the_provider_storage_slug(self, vault):
+    async def test_a_caller_cannot_choose_the_storage_slug(self, vault):
         secret = await vault.create_secret(
             project_id=PROJECT_ID,
             create_secret_dto=CreateSecretDTO.model_validate(
@@ -289,7 +335,7 @@ class TestCreateRules:
             ),
         )
 
-        assert secret.slug == "chatgpt"
+        assert secret.slug.startswith("personal-chatgpt-")
         assert secret.header.name == "Personal ChatGPT"
         assert secret.data.provider_slug == "personal-chatgpt"
 

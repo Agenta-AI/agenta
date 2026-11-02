@@ -1,5 +1,7 @@
 # Personal credentials and connection bindings (M7)
 
+Status: M7 shipped in v0.128.0 as the accounts package (#7942). It was built from `docs/design/accounts-package/spec.md`, which replaces the account parts of this change. Where this change and that spec disagree, the spec and the shipped code win. The main differences: each item has `account_source` (`agent` or `user`), not a `caller_account | project_default | specific` binding; a missing personal account leaves the item out of the run instead of refusing the run; a channel turn, an API-key run and a child run have no run person and use no personal account; and the durable-work edit rule shipped as "the last editor becomes the executing principal" (#7919), which the `durable-work-edits` spec below follows. M7 needed M6a and shipped without M9b.
+
 ## Why
 
 Every credential belongs to a project or, after M5, to the organization. When Bob uses a shared agent, the agent cannot act with Bob's own Gmail, Claude login, or MCP account. `SecretMode.USER_REQUIRED` reads the project secret, and `SecretMode.USER_OPTIONAL` is a fallback.
@@ -20,13 +22,13 @@ The owner decided the scope on 2026-10-26 and the open rules of the first step o
 - Apply the shared-session rule of CONTRACT.md section 8.
 - A channel turn uses the linked user's own account. A channel turn from an unlinked user is refused on a `caller_account` connection when it runs. Saving or activating a channel binding is never refused for this.
 - Show per turn which account each connection used.
-- Add the edit rule for durable work (CONTRACT.md sections 5 and 6): only the person a schedule, subscription or evaluation run runs as may change what it runs.
+- Add the edit rule for durable work (CONTRACT.md sections 5 and 6): a save through an edit route makes the editor the person a schedule, subscription or evaluation run runs as.
 - Delete a user's personal credentials when the user leaves the organization.
 - EE: an organization policy can forbid personal credentials.
 
 ## Order
 
-M7 does not wait for M6. It needs M3 and M5, and it ships only after M9b (CONTRACT.md section 14). When M6a ships, a personal API key acts as its human and gets that human's own accounts. A service key has no person.
+M7 needs M3, M5 and M6a. It shipped without M9b (CONTRACT.md section 14). When M6a ships, a personal API key acts as its human and gets that human's own accounts. A service key has no person.
 
 ## Later steps
 
@@ -41,7 +43,7 @@ M7 does not wait for M6. It needs M3 and M5, and it ships only after M9b (CONTRA
 - `personal-credentials`: user-owned credentials, personal MCP servers, privacy, lifecycle, EE policy.
 - `connection-bindings`: bindings, the caller rule, signed claims.
 - `personal-credential-sessions`: the shared-session guard, the sticky mark, the channel-turn rule, the per-turn record.
-- `durable-work-edits`: who may change what a schedule, subscription or evaluation run executes.
+- `durable-work-edits`: who a schedule, subscription or evaluation run runs as after an edit.
 
 ### Modified Capabilities
 

@@ -5,18 +5,10 @@ import {personName, type SharingPerson, type SharingWriteResult} from "@agenta/s
 
 import {agentSharingCopy as copy} from "./copy"
 
-/** One channel app bound to the agent (a Slack app in one workspace). Never a channel. */
-export interface AgentChannelConnection {
-    /** Display name, e.g. "Slack". */
-    platform: string
-    workspace?: string | null
-}
-
 export type AgentSharingNotice = "conflict" | "owner_active" | "failed" | null
 
 export interface AgentSharingWritesOptions {
     agentName: string
-    channelConnections?: readonly AgentChannelConnection[]
     onSetVisibility: (visibility: Visibility) => Promise<SharingWriteResult>
     onTakeOwnership: () => Promise<SharingWriteResult>
     onNotify?: (message: string) => void
@@ -26,7 +18,6 @@ export interface AgentSharingWritesOptions {
 /** The agent writes, their notices and their toasts, shared by the panel and the dialog. */
 export const useAgentSharingWrites = ({
     agentName,
-    channelConnections = [],
     onSetVisibility,
     onTakeOwnership,
     onNotify,
@@ -64,13 +55,9 @@ export const useAgentSharingWrites = ({
     const setVisibility = async (visibility: Visibility) => {
         const ok = await attempt("visibility", () => onSetVisibility(visibility))
         if (!ok) return false
-        if (visibility === "private") {
-            const off =
-                channelConnections.length === 1
-                    ? ` ${copy.toastConnectionOff(channelConnections[0].platform)}`
-                    : ""
-            onNotify?.(`${copy.toastPrivate(agentName)}${off}`)
-        } else onNotify?.(copy.toastShared(agentName))
+        onNotify?.(
+            visibility === "private" ? copy.toastPrivate(agentName) : copy.toastShared(agentName),
+        )
         return true
     }
 

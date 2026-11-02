@@ -207,6 +207,42 @@ describe("Stop in the middle of a command", () => {
   }, 30_000);
 });
 
+describe("a turn a time limit stopped (EU session cf7fd5de)", () => {
+  // The runner stops the harness at a time limit the way a Stop does, then keeps the session as
+  // the resume point. That is only right if the stopped turn's work is in the saved file, so a
+  // "continue" on another runner sees what was already done.
+  it("keeps the work done before the stop in the history a later runner resumes", async () => {
+    const fixture = createHostFixture(model.baseUrl);
+    model.script([
+      { tool: "bash", args: { command: "echo cloned-the-repo" } },
+      { tool: "bash", args: { command: "sleep 30; echo never" } },
+      { text: "should not be reached" },
+    ]);
+    const first = await openSession(fixture);
+    const stopped = first.session.prompt(prompt("fix the lock icon"));
+    while ([...fixture.daytona.sandboxes.values()].every((s) => !s.commands.some((c) => c.includes("sleep 30")))) await new Promise((r) => setTimeout(r, 20));
+    await first.host.cancelSession(first.session.id);
+    expect(await stopped).toEqual({ stopReason: "cancelled" });
+    expect(first.session.nativeHistorySaved()).toBe(true);
+
+    const record = await first.persist.getSession(first.session.id);
+    await first.host.destroySession(first.session.id);
+    await first.host.destroySandbox();
+    const persist = new InMemorySessionPersistDriver();
+    await persist.updateSession(record!);
+    const second = fixture.runner({ owner: "runner-b" }).host({ persist });
+    const resumed = await second.host.resumeSession(first.session.id);
+    await resumed.setModel("mock/mock-1");
+    model.script([{ text: "carrying on" }]);
+    expect(await resumed.prompt(prompt("continue"))).toEqual({ stopReason: "end_turn" });
+    const sent = JSON.stringify(model.requests.at(-1)!.messages);
+    expect(sent).toContain("fix the lock icon");
+    expect(sent).toContain("cloned-the-repo");
+    expect(sent).toContain("continue");
+    await second.host.destroySandbox();
+  }, 60_000);
+});
+
 describe("the silence watchdog", () => {
   it("ends a turn whose model request never answers", async () => {
     const fixture = createHostFixture(model.baseUrl);

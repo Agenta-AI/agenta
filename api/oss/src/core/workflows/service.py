@@ -19,7 +19,8 @@ from typing import (
 from oss.src.core.access.dtos import RunEnvelope
 from oss.src.core.access.service import get_access_service
 from oss.src.core.access.types import MissingPrincipal
-from oss.src.core.memberships.workspaces import legacy_workspace_id
+from oss.src.core.account_choices.claims import sign_run_accounts
+from oss.src.core.account_choices.items import user_items_of_revision
 from oss.src.core.git.dtos import RevisionGrouping
 from urllib.parse import urlparse
 from uuid import UUID, uuid4
@@ -178,12 +179,14 @@ from oss.src.core.workflows.dtos import WorkflowServiceDetachedResponse
 from oss.src.core.workflows.types import (
     AgentReferenceUnresolved,
     InvalidAgentHarnessError,
+    InvalidAgentConnectionError,
     InvalidAgentInstructionsError,
     StaticWorkflowSlug,
     WorkflowServiceUrlMissing,
     WorkflowDetachedStartFailed,
     WorkflowDetachedStartNeverSent,
     WorkflowDetachedStartRejected,
+    service_failure_status,
     answered_by_service,
     detached_start_never_sent,
     transport_never_sent,
@@ -323,6 +326,51 @@ def _reject_unreadable_agent_instructions(data: Any) -> None:
         ) from e
 
 
+def _reject_unrunnable_agent_connection(data: Any) -> None:
+    """Refuse a commit whose agent connection the runtime cannot use (M5).
+
+    Runs only when the commit carries ``parameters.agent.llm.connection``; an agent with no
+    connection keeps the project default, as before. One shape is refused: scope
+    ``organization`` without a slug, or with a namespace other than ``organization``. The
+    namespace makes an older runtime refuse the connection instead of reading the slug as a
+    project connection. Nothing here checks whether a named item exists or is usable; the
+    run reports that.
+    """
+    if hasattr(data, "model_dump"):
+        data = data.model_dump(mode="json", exclude_none=True)
+    if not isinstance(data, dict):
+        return
+    agent = (data.get("parameters") or {}).get("agent")
+    if not isinstance(agent, dict):
+        return
+    llm = agent.get("llm")
+    connection = llm.get("connection") if isinstance(llm, dict) else None
+    if not isinstance(connection, dict):
+        return
+    slug = connection.get("slug")
+    slug = slug.strip() if isinstance(slug, str) else ""
+    if connection.get("scope") == "organization" or (
+        connection.get("namespace") == "organization"
+    ):
+        if (
+            connection.get("scope") != "organization"
+            or connection.get("namespace") != "organization"
+            or not slug
+        ):
+            raise InvalidAgentConnectionError(
+                reason="organization_connection_incomplete",
+                message=(
+                    "An organization connection needs scope 'organization', namespace "
+                    "'organization' and the connection's slug."
+                ),
+                next_step=(
+                    'Set agent.llm.connection to {"mode": "agenta", "scope": '
+                    '"organization", "namespace": "organization", "slug": "<slug>"} and '
+                    "send the commit again."
+                ),
+            )
+
+
 def _validate_persisted_shape(data: dict) -> None:
     """The engine's final gate: the finished tree must be storable as it stands.
 
@@ -354,6 +402,29 @@ _AGENT_REFERENCE_ORDER = (
     ("workflow", "artifact"),
     ("application", "artifact"),
 )
+
+
+def _artifact_id_of_references(references: Optional[dict]) -> Optional[UUID]:
+    """The agent a run's references name by artifact id, for its account choices, when
+    the request already carried its revision (so nothing was resolved here). No read: an
+    agent named only by revision, variant or slug gets no account choices, and its
+    "user" items fall back to defaults and sign-ins."""
+    for key, level in _AGENT_REFERENCE_ORDER:
+        if level != "artifact":
+            continue
+        reference = (references or {}).get(key)
+        reference_id = (
+            reference.get("id")
+            if isinstance(reference, dict)
+            else getattr(reference, "id", None)
+        )
+        if not reference_id:
+            continue
+        try:
+            return UUID(str(reference_id))
+        except ValueError:
+            continue
+    return None
 
 
 class WorkflowsService:
@@ -1021,7 +1092,12 @@ class WorkflowsService:
                         if detached_start_never_sent(response):
                             raise WorkflowDetachedStartNeverSent(message)
                         if answered_by_service(response):
-                            raise WorkflowDetachedStartRejected(message)
+                            status = service_failure_status(raw)
+                            raise WorkflowDetachedStartRejected(
+                                message,
+                                failure_code=status.get("failure_code"),
+                                failure_details=status.get("details"),
+                            )
                         raise WorkflowDetachedStartFailed(message)
 
                     trace_id = response.headers.get("x-ag-trace-id")
@@ -1360,6 +1436,17 @@ class WorkflowsService:
         if len(artifact_ids) != 1:
             raise AgentReferenceUnresolved()
         return artifact_ids.pop()
+
+    async def fetch_request_revision(
+        self,
+        *,
+        project_id: UUID,
+        request: WorkflowServiceRequest,
+    ) -> Optional[WorkflowRevision]:
+        """The revision a request's references and selector resolve to, or None."""
+        return await self._ensure_request_revision(
+            project_id=project_id, request=request
+        )
 
     async def _ensure_request_revision(
         self,
@@ -3242,6 +3329,7 @@ class WorkflowsService:
         # tool, the commit endpoint, simple application and workflow create/edit) builds
         # its revision through this method.
         _reject_unreadable_agent_instructions(data)
+        _reject_unrunnable_agent_connection(data)
 
         _revision_slug = workflow_revision_commit.slug or uuid4().hex[-12:]
         return RevisionCommit(
@@ -3569,7 +3657,7 @@ class WorkflowsService:
 
         request.meta = {**(request.meta or {}), "gateway_run_id": gateway_run_id}
 
-        await self._ensure_request_revision(
+        resolved_revision = await self._ensure_request_revision(
             project_id=project_id,
             request=request,
         )
@@ -3606,16 +3694,23 @@ class WorkflowsService:
         secret_token = await sign_secret_token(
             user_id=str(acting_user_id),
             project_id=str(project_id),
-            workspace_id=str(
-                legacy_workspace_id(
-                    workspace_id=project.workspace_id,
-                    organization_id=project.organization_id,
-                )
-            ),
             organization_id=str(project.organization_id),
             gateway_run_id=gateway_run_id,
             grants=self._service_grants(service_url),
             envelope=envelope,
+            # The accounts of the revision's "user" items, for the run person: one read,
+            # and none for a revision without "user" items.
+            run_accounts=await sign_run_accounts(
+                envelope=envelope,
+                items=user_items_of_revision(revision_data),
+                artifact_id=(
+                    resolved_revision.workflow_id
+                    if resolved_revision is not None
+                    else _artifact_id_of_references(
+                        getattr(request, "references", None)
+                    )
+                ),
+            ),
         )
 
         credentials = f"Secret {secret_token}"
@@ -4217,6 +4312,7 @@ class SimpleWorkflowsService:
 
         # Before any write: a refusal at the final commit would leave earlier writes behind.
         _reject_unreadable_agent_instructions(simple_workflow_create.data)
+        _reject_unrunnable_agent_connection(simple_workflow_create.data)
 
         workflow_id = resource_identity(
             project_id,
@@ -4454,6 +4550,7 @@ class SimpleWorkflowsService:
         # Before the artifact exists: refusing only at the final commit would leave the
         # artifact, variant, and blank revision behind.
         _reject_unreadable_agent_instructions(simple_workflow_create.data)
+        _reject_unrunnable_agent_connection(simple_workflow_create.data)
 
         simple_workflow_flags = SimpleWorkflowFlags(
             **WorkflowsService._dump_flags(simple_workflow_create.flags)
@@ -4691,6 +4788,7 @@ class SimpleWorkflowsService:
     ) -> Optional[SimpleWorkflow]:
         # Before any write: a refusal at the final commit would leave earlier writes behind.
         _reject_unreadable_agent_instructions(simple_workflow_edit.data)
+        _reject_unrunnable_agent_connection(simple_workflow_edit.data)
 
         workflow_ref = Reference(id=simple_workflow_edit.id)
 

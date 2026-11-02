@@ -48,10 +48,9 @@ def _assert_policy_registered() -> None:
     sharing_service = get_sharing_service()
     assert isinstance(sharing_service, SharingService)
     assert access_service.resource_policy is sharing_service
-    # The sharing service shares the memberships and principals the access service uses.
+    # The sharing service shares the memberships the access service uses.
     assert sharing_service._memberships is get_memberships_service()
     assert sharing_service._memberships is access_service.memberships
-    assert sharing_service._principals_dao is access_service.principals
 
 
 async def _bob_is_denied_a_private_session() -> None:
@@ -83,7 +82,7 @@ async def _bob_is_denied_a_private_session() -> None:
     for user in (alice, bob):
         principals.human(user)
     access_service._principals = principals
-    access_service._rbac = RecordingRbac()
+    access_service._rbac_entitlement = RecordingRbac()
     sharing_dao = InMemorySharingDAO()
     sharing_service._dao = sharing_dao
     state = sharing_dao.add_session(
@@ -167,7 +166,7 @@ def test_access_service_requires_resource_policy():
                 memberships_dao=InMemoryMembershipsDAO(),
                 policy=MembershipPolicy.ORGANIZATION_WIDE,
             ),
-            rbac=RecordingRbac(),
+            rbac_entitlement=RecordingRbac(),
             principals=InMemoryPrincipalsDAO(),
         )
 

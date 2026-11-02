@@ -923,25 +923,22 @@ async def test_a_start_whose_row_was_created_concurrently_checks_it_before_any_c
 
 
 @pytest.mark.asyncio
-async def test_a_start_whose_row_got_the_channel_policy_checks_it_before_any_claim():
-    """A channel thread named the start's session id, so the insert wrote the channel
-    policy (project-visible, ownerless) instead of the start's. The start checks that
-    row like an existing one before anything is claimed or dispatched."""
-    from oss.src.core.sessions.streams.dtos import SessionStream
+async def test_a_start_on_a_channel_thread_s_id_claims_nothing():
+    """A channel thread names the start's session id: only that channel's run creates
+    the row, so the insert refuses (`SessionIdTombstoned`, answered as a hidden
+    session) and nothing is claimed or dispatched."""
+    from oss.src.core.sessions.streams.types import SessionIdTombstoned
     from oss.src.core.sharing.dtos import AccessPolicy, Visibility
 
     session_id = SessionStartsService.session_id_for(
         project_id=PROJECT_ID, request_key="load-1"
     )
-    row = SessionStream(id=uuid4(), project_id=PROJECT_ID, session_id=session_id)
-    row._has_channel_thread = True
     streams = AsyncMock()
-    streams.create.return_value = row
+    streams.create.side_effect = SessionIdTombstoned(session_id=session_id)
     inputs = AsyncMock()
     workflows = AsyncMock()
-    admission = _refusing_session_admission(session_id)
     service = SessionStartsService(
-        run_admission=admission,
+        run_admission=RecordingRunAdmission(),
         inputs_service=inputs,
         executions_dao=AsyncMock(),
         workflows_service=workflows,
@@ -951,10 +948,9 @@ async def test_a_start_whose_row_got_the_channel_policy_checks_it_before_any_cla
     )
     policy = AccessPolicy(visibility=Visibility.PRIVATE, owner_user_id=USER_ID)
 
-    with pytest.raises(AdmissionDenied):
+    with pytest.raises(SessionIdTombstoned):
         await service.start_once(**_args(), access=policy)
 
-    assert admission.methods() == ["admit_request", "admit"]
     inputs.claim_for_execution.assert_not_awaited()
     inputs.claim_dispatch.assert_not_awaited()
     workflows.invoke_workflow_detached.assert_not_awaited()

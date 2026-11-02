@@ -1,6 +1,5 @@
 import {useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode} from "react"
 
-import {traceDataSummaryAtomFamily} from "@agenta/entities/loadable"
 import {AgentActivityDots, HeightCollapse, type AgentActivityFormat} from "@agenta/ui"
 import {CaretRight, FileText} from "@phosphor-icons/react"
 import type {ToolUIPart} from "ai"
@@ -235,11 +234,7 @@ interface LiveLine {
 
 /** What the collapsed line narrates for a step, in words and in the dots' motion. */
 const liveStep = (step: ActivityStep): LiveLine => {
-    if (step.kind === "thought") {
-        return step.source === "text"
-            ? {text: "Writing", format: "writing"}
-            : {text: "Thinking", format: "thinking"}
-    }
+    if (step.kind === "thought") return {text: "Thinking", format: "thinking"}
     // Reached only once the wait is over, so a gate still `approval-requested` here was just answered.
     const display = resolveToolDisplay(
         partToolName(step.part),
@@ -257,6 +252,8 @@ export interface ActivityTimelineProps {
     streaming: boolean
     /** The answer has begun: the fold settles even though the turn is still streaming. */
     answerStarted: boolean
+    /** The agent is writing a message right now. */
+    writing?: boolean
     /** The session whose turn stage the line narrates until the first step. */
     sessionId?: string
     /** The run is parked on the reader (a question, a connect). */
@@ -265,12 +262,16 @@ export interface ActivityTimelineProps {
     resuming?: boolean
     /** Gate history from the full turn, including tools hidden or merged in the activity steps. */
     hadGate?: boolean
-    /** The turn's trace: once settled, ungated turns can use its duration. */
-    traceId?: string | null
+    /** When the session turn started (ISO): the start of a run this tab met mid-flight. */
+    sessionTurnStartedAt?: string | null
+    /** The session turn's duration, from its start to its end: once settled, ungated turns use it. */
+    sessionTurnDurationMs?: number
     /** This tab streamed the run itself, so its first step is the start. False for a run found
-     * already in progress, whose start has to come from the trace. Defaults to true: a caller
-     * that cannot tell is a caller whose turn began here. */
+     * already in progress, whose start has to come from the session turn. Defaults to true: a
+     * caller that cannot tell is a caller whose turn began here. */
     streamedHere?: boolean
+    /** When the server saved the user message that opened this run (ms). */
+    runStartedAt?: number
     /** Renders a client tool's widget in its step; absent on a read-only host. */
     renderClientTool?: (part: ToolUIPart) => ReactNode
     /** The run failed: the header names it and the server's raw text is the fold's last step. */
@@ -291,12 +292,15 @@ export const ActivityTimeline = ({
     steps,
     streaming,
     answerStarted,
+    writing = false,
     sessionId,
     waitingOnUser = false,
     resuming = false,
     hadGate: recordedGate = false,
-    traceId,
+    sessionTurnStartedAt,
+    sessionTurnDurationMs,
     streamedHere = true,
+    runStartedAt,
     renderClientTool,
     failure,
 }: ActivityTimelineProps) => {
@@ -312,43 +316,47 @@ export const ActivityTimeline = ({
     const live = streaming || hasLiveStep(steps) || resuming
     // A run this tab met mid-flight: it was already going when the tab opened, so there is no local
     // span to count from and the clock would report the age of the TAB, not of the run (#6934). The
-    // trace's root span is when the run began — the same source the timestamp beside this line
+    // session turn's start is when the run began — the same source the timestamp beside this line
     // already trusts over first-seen-here. A run this tab streamed from the start needs none of
-    // this: its own first step IS the start, so it never fetches a trace mid-stream.
+    // this: its own first step IS the start.
     const metMidFlight = live && !streamedHere
-    const trace = useAtomValue(
-        traceDataSummaryAtomFamily((!live || metMidFlight) && traceId ? traceId : ""),
-    )
     const span = useAtomValue(turnSpanAtomFamily(clockId))
     // An open clock inherited on mount may have missed a gate while this timeline was absent.
     const inheritedRunningClock = useRef(Boolean(span && span.endedAt === undefined))
     const hadGate = Boolean(
-        recordedGate ||
-        (span && span.pausedMs > 0) ||
-        resuming ||
-        waitingOnUser ||
-        steps.some(stepHadGate),
+        recordedGate || span?.gated || resuming || waitingOnUser || steps.some(stepHadGate),
     )
-    const startedAt =
-        metMidFlight && !hadGate ? parseTraceTime(trace.rootSpan?.start_time) : undefined
-    // The clock counts the agent's work: from the first step, paused while parked on the reader.
-    const measured = useTurnClock(clockId, live && !awaiting && steps.length > 0, startedAt)
+    // The saved user row is when the run began: before warm-up and before the first step this tab
+    // can see. Only a run streamed here may use it with a gate, because only then were all its
+    // pauses counted here.
+    const fromSend = runStartedAt !== undefined && (streamedHere || !hadGate)
+    const startedAt = fromSend
+        ? runStartedAt
+        : metMidFlight && !hadGate
+          ? parseTraceTime(sessionTurnStartedAt)
+          : undefined
+    // The clock counts the agent's work: from the run's start, paused while parked on the reader.
+    const measured = useTurnClock(clockId, live && !awaiting && steps.length > 0, {
+        startedAt,
+        seenFromSend: fromSend && streamedHere,
+        waitingOnReader: awaiting,
+    })
     // A tab that joined later cannot account for earlier waits. A clock already anchored to
-    // the trace start is also unsafe if gate history arrives after that start was applied.
+    // the session turn's start is also unsafe if gate history arrives after that start was applied.
     const counted =
         hadGate && (!streamedHere || span?.anchored || inheritedRunningClock.current)
             ? null
             : measured
-    // A gate's trace covers the whole run, including the time parked on the user (#7445).
-    // When a turn had a gate, only the local clock saw the actual work time; an unclocked
-    // turn that had a gate falls back to "Worked" rather than reporting the parked time.
-    const traced = live || hadGate ? null : (trace.metrics.durationMs ?? null)
+    // A gated session turn's start and end cover the whole run, including the time parked on the
+    // user (#7445). When a turn had a gate, only the local clock saw the actual work time; an
+    // unclocked turn that had a gate falls back to "Worked" rather than reporting the parked time.
+    const recorded = live || hadGate ? null : (sessionTurnDurationMs ?? null)
     const elapsed =
         live || hadGate
             ? counted
-            : traced === null && counted === null
+            : recorded === null && counted === null
               ? null
-              : Math.max(traced ?? 0, counted ?? 0)
+              : Math.max(recorded ?? 0, counted ?? 0)
     const files = useMemo(() => activityFiles(steps), [steps])
     // A settled step's verb holds for a beat, then the line reads "Working".
     const idle = useHeldFor(live && !awaiting && !current && steps.length > 0, VERB_HOLD_MS)
@@ -378,7 +386,8 @@ export const ActivityTimeline = ({
 
     // A failure shows only once the run is over: a live line still narrates the work.
     const failed = !live && failure ? failure : null
-    if (!steps.length && !live && !failed) return null
+    // A run parked on the reader still says so, even with no step to fold.
+    if (!steps.length && !live && !failed && !awaiting) return null
 
     const count = steps.length
     const detail = failed?.detail || null
@@ -397,7 +406,7 @@ export const ActivityTimeline = ({
             ? {text: stageWord, format: "working"}
             : resuming && !current
               ? {text: "Working", format: "working"}
-              : answerStarted && !current
+              : writing && !current
                 ? {text: "Answering", format: "writing"}
                 : idle || !verbStep
                   ? {text: "Working", format: "working"}

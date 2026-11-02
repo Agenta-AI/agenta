@@ -5,6 +5,8 @@ that quotes what the model said, cleaned, and carries the code marker the runner
 reads (`upstream_error` or `upstream_rejected`). Nothing running: httpx.MockTransport.
 """
 
+from uuid import uuid4
+
 import json
 import time
 from typing import List, Optional
@@ -86,7 +88,7 @@ def _secret(key: str) -> ResolvedSecret:
             ),
             header=Header(name="openai"),
         ),
-        owner=SecretOwner(kind=SecretOwnerKind.PROJECT),
+        owner=SecretOwner(kind=SecretOwnerKind.PROJECT, id=uuid4()),
         origin=SecretOrigin.VAULT,
     )
 

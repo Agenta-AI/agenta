@@ -1,4 +1,4 @@
-from typing import Optional, List
+from typing import List, Literal, Optional
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -7,6 +7,8 @@ from fastapi import Request, HTTPException
 from sqlalchemy.exc import NoResultFound
 from fastapi.responses import JSONResponse
 
+from oss.src.core.access.context import get_request_access
+from oss.src.core.access.organizations import OrganizationAction, decide_organization
 from oss.src.core.access.service import (
     invalidate_scope_after_delete,
     read_scope_principals_before_delete,
@@ -15,9 +17,8 @@ from oss.src.utils.common import is_ee, is_oss, APIRouter
 from oss.src.services import db_manager
 from oss.src.core.memberships.dtos import ProjectListing
 from oss.src.core.memberships.service import get_memberships_service
-from oss.src.core.memberships.types import WorkspaceNotFound
 from oss.src.core.access.permissions.service import check_action_access
-from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.permissions.types import Permission, RequiredRole
 
 from oss.src.utils.logging import get_module_logger
 
@@ -68,6 +69,18 @@ async def _require(request: Request, project_id, permission: Permission) -> None
         raise HTTPException(status_code=403, detail=_PERMISSION_DENIED)
 
 
+async def _require_admin(request: Request, project_id) -> None:
+    # The default project carries organization writes, so choosing it is for owners and
+    # admins, also where a member may create and rename projects.
+    allowed = await check_action_access(
+        user_uid=str(request.state.user_id),
+        project_id=str(project_id),
+        role=RequiredRole.ADMIN,
+    )
+    if not allowed:
+        raise HTTPException(status_code=403, detail=_PERMISSION_DENIED)
+
+
 def _project_to_response(listing: ProjectListing) -> ProjectsResponse:
     summary = listing.summary
     return ProjectsResponse(
@@ -89,6 +102,35 @@ async def _fetch_listing(request: Request, project_id) -> Optional[ProjectListin
     )
 
 
+async def _organization_projects(request: Request) -> List[ProjectsResponse]:
+    """Every project of the request's organization, also the ones the caller is not a
+    member of, for an owner or admin choosing who may use an organization connection."""
+    raw = getattr(request.state, "organization_id", None)
+    organization_id = UUID(str(raw)) if raw else None
+    decision = (
+        await decide_organization(
+            access=get_request_access(),
+            organization_id=organization_id,
+            action=OrganizationAction.MANAGE_ORGANIZATION_SECRETS,
+        )
+        if organization_id
+        else None
+    )
+    if decision is None or not decision.allowed:
+        raise HTTPException(status_code=403, detail=_PERMISSION_DENIED)
+    projects = await db_manager.fetch_projects_by_organization(organization_id)
+    return [
+        ProjectsResponse(
+            organization_id=project.organization_id,
+            workspace_id=project.organization_id,
+            project_id=project.id,
+            project_name=project.project_name,
+            is_default_project=bool(project.is_default),
+        )
+        for project in projects
+    ]
+
+
 @router.get(
     "/",
     operation_id="get_projects",
@@ -96,7 +138,10 @@ async def _fetch_listing(request: Request, project_id) -> Optional[ProjectListin
 )
 async def get_projects(
     request: Request,
+    scope: Literal["member", "organization"] = "member",
 ):
+    if scope == "organization":
+        return await _organization_projects(request)
     try:
         if not (is_oss() or is_ee()):
             return JSONResponse(
@@ -173,21 +218,22 @@ async def create_project(
     request: Request,
     payload: CreateProjectRequest,
 ) -> ProjectsResponse:
-    workspace_id = getattr(request.state, "workspace_id", None)
     organization_id = getattr(request.state, "organization_id", None)
 
-    if not workspace_id or not organization_id:
+    if not organization_id:
         raise HTTPException(status_code=400, detail=_CONTEXT_REQUIRED)
 
     # Creating a project is an organization-level act: it authorizes on the
-    # default project of the request's workspace, like the workspace endpoints.
+    # organization's default project, like the workspace endpoints.
     try:
         default_project_id = await db_manager.get_default_project_id_from_workspace(
-            workspace_id=str(workspace_id)
+            workspace_id=str(organization_id)
         )
     except NoResultFound as exc:
         raise HTTPException(status_code=400, detail=_CONTEXT_REQUIRED) from exc
     await _require(request, default_project_id, Permission.CREATE_WORKSPACE)
+    if payload.make_default:
+        await _require_admin(request, default_project_id)
 
     project_name = payload.name.strip()
 
@@ -199,16 +245,12 @@ async def create_project(
         if refusal:
             raise HTTPException(status_code=403, detail=refusal)
 
-    try:
-        scope = await get_memberships_service().create_project(
-            organization_id=UUID(str(organization_id)),
-            workspace_id=UUID(str(workspace_id)),
-            name=project_name,
-            is_default=payload.make_default,
-            actor_user_id=UUID(str(request.state.user_id)),
-        )
-    except WorkspaceNotFound as exc:
-        raise HTTPException(status_code=400, detail=_CONTEXT_REQUIRED) from exc
+    scope = await get_memberships_service().create_project(
+        organization_id=UUID(str(organization_id)),
+        name=project_name,
+        is_default=payload.make_default,
+        actor_user_id=UUID(str(request.state.user_id)),
+    )
 
     # Import here to avoid circular import at module load time
     from oss.src.core.evaluators.defaults import create_default_evaluators
@@ -238,18 +280,15 @@ async def delete_project(
     project_id: UUID,
     request: Request,
 ):
-    workspace_id = getattr(request.state, "workspace_id", None)
+    organization_id = getattr(request.state, "organization_id", None)
 
-    if not workspace_id:
+    if not organization_id:
         raise HTTPException(status_code=400, detail="Workspace context is required")
 
     project = await db_manager.fetch_project_by_id(project_id=str(project_id))
 
-    # The context is the project's workspace, or its organization id when it has none.
-    if not project or str(workspace_id) not in {
-        str(project.workspace_id),
-        str(project.organization_id),
-    }:
+    # The context is the project's organization.
+    if not project or str(organization_id) != str(project.organization_id):
         raise HTTPException(status_code=404, detail="Project not found")
 
     if await _fetch_listing(request, project_id) is None:
@@ -284,6 +323,16 @@ async def update_project(
         raise HTTPException(status_code=404, detail="Project not found")
 
     await _require(request, project_id, Permission.EDIT_WORKSPACE)
+    if payload.make_default:
+        # Making a project the default changes which project carries organization
+        # writes, so it needs the admin role here and on the organization's current
+        # default (its first project by the same order when it has no default).
+        await _require_admin(request, project_id)
+        current = await db_manager.get_project_by_workspace(
+            str(listing.summary.organization_id)
+        )
+        if str(current.id) != str(project_id):
+            await _require_admin(request, current.id)
 
     if payload.name is None and payload.make_default is None:
         raise HTTPException(

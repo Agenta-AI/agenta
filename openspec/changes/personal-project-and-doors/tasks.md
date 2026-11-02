@@ -7,7 +7,7 @@ Prerequisites, from CONTRACT.md section 14 (the contract wins). One pull request
 | D1 (M6a) | M2 | M2 |
 | D2 (M6b) | M1, M3 | M3 and M5 |
 | D3 (M6c) | M3, the M4b mount step, D2 | the M4b mount step and D2 |
-| D4 (M6d) | M2, D2 | D1 and D2; the run-an-agent door also needs M9b |
+| D4 (M6d) | M2, D2 | D1 and D2; the run-an-agent door also needs `small-team-roles` |
 
 M6 does not wait for the rest of M4.
 

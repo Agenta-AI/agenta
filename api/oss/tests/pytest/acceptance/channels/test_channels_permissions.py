@@ -511,6 +511,20 @@ def _writes(w):
             None,
         ),
         (
+            "query_channel_people",
+            "POST",
+            f"/channels/connections/{connection_id}/people/query",
+            {"people": {"text": ""}},
+            None,
+        ),
+        (
+            "refresh_channel_people",
+            "POST",
+            f"/channels/connections/{connection_id}/people/refresh",
+            None,
+            None,
+        ),
+        (
             "create_channel_agent",
             "POST",
             "/channels/agents/",
@@ -621,6 +635,8 @@ _ALL_OPERATIONS = {
     "archive_channel_connection",
     "unarchive_channel_connection",
     "fetch_channel_connection_setup",
+    "query_channel_people",
+    "refresh_channel_people",
     "create_channel_agent",
     "list_channel_agents",
     "query_channel_agents",
@@ -760,6 +776,8 @@ class TestViewerRole:
 # A foreign key names this project's ids; the handler scopes by the key's own
 # project, so every by-id route answers "not found".
 _FOREIGN_BY_ID = {
+    "query_channel_people",
+    "refresh_channel_people",
     "fetch_channel_agent",
     "fetch_channel_space",
     "discover_channel_spaces",

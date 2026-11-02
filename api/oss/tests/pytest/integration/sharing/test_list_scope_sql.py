@@ -376,7 +376,6 @@ def _sharing() -> SharingService:
                 else MembershipPolicy.ORGANIZATION_WIDE
             ),
         ),
-        principals_dao=AsyncMock(),
     )
 
 

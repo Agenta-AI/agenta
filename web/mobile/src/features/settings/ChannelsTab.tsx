@@ -11,7 +11,6 @@ import {useAtomValue} from "jotai"
 
 import {isMyPrivateAgent} from "../agents/myPrivateAgent"
 import {useAgentChannels} from "../agents/useAgentChannels"
-import {AgentPrivacyDialogHost} from "../chat/AgentPrivacyDialogHost"
 import {useCurrentProject} from "../context/useCurrentProject"
 
 import type {SettingsTabProps} from "./settingsTabProps"
@@ -38,7 +37,6 @@ export const ChannelsTab = ({workspaceId, projectId}: SettingsTabProps) => {
                     id: agent.id,
                     name: agent.name || agent.slug || "Agent",
                     description: agent.description?.trim() || null,
-                    isPrivate: isMyPrivateAgent(agent, me?.id),
                 })),
         [agentsQuery.data, me?.id],
     )
@@ -49,9 +47,6 @@ export const ChannelsTab = ({workspaceId, projectId}: SettingsTabProps) => {
 
     const [picked, setPicked] = useState<string | null>(null)
     const agent = agents.find((candidate) => candidate.id === picked) ?? agents[0]
-    // The agent whose "Privacy and owner" a Share link opened.
-    const [sharing, setSharing] = useState<string | null>(null)
-    const sharingAgent = agents.find((candidate) => candidate.id === sharing)
 
     // The roster landing rebuilds the actions, so the reload that follows names every agent.
     const {connections, loading, loadError, actions} = useAgentChannels(agent?.id ?? "", {
@@ -73,20 +68,7 @@ export const ChannelsTab = ({workspaceId, projectId}: SettingsTabProps) => {
                 renderPanel={(props: ChannelsPanelRenderProps) => <ChannelsPanelSheet {...props} />}
                 confirm={confirm}
                 projectName={project?.project_name}
-                onShareAgent={setSharing}
             />
-            {sharingAgent ? (
-                <AgentPrivacyDialogHost
-                    agentId={sharingAgent.id}
-                    agentName={sharingAgent.name}
-                    workspaceId={workspaceId}
-                    projectId={projectId}
-                    connections={sharingAgent.id === agent?.id ? connections : undefined}
-                    // Make-private and share-again change which bindings are on.
-                    onChanged={() => void actions.reload().catch(() => null)}
-                    onClose={() => setSharing(null)}
-                />
-            ) : null}
             {confirmModal}
         </>
     )

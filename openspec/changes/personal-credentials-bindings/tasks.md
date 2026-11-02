@@ -1,6 +1,8 @@
 Scope: the first step of M7 (owner decision, 2026-10-26). Custom secrets, the `specific` binding and organization-owned MCP servers, Composio connections and custom secrets are later steps (design D11).
 
-Prerequisites, from CONTRACT.md section 14 (the contract wins): the code of M3 and M5. M7 does not wait for M6. It ships only after M5 and M9b are live.
+Status: M7 shipped in v0.128.0 as the accounts package (#7942). It was built from `docs/design/accounts-package/spec.md`, which replaces the account parts of this change. Where this change and that spec disagree, the spec and the shipped code win. The main differences: each item has `account_source` (`agent` or `user`), not a `caller_account | project_default | specific` binding; a missing personal account leaves the item out of the run instead of refusing the run; a channel turn, an API-key run and a child run have no run person and use no personal account; and the durable-work edit rule shipped as "the last editor becomes the executing principal" (#7919), which the `durable-work-edits` spec below follows. M7 needed M6a and shipped without M9b.
+
+Prerequisites, from CONTRACT.md section 14 (the contract wins): the code of M3, M5 and M6a. M7 shipped in v0.128.0 without M9b.
 
 ## 1. Schema and parity
 
@@ -27,7 +29,7 @@ Prerequisites, from CONTRACT.md section 14 (the contract wins): the code of M3 a
 
 ## 5. Durable work edits
 
-- [ ] 5.1 `DurableWorkEditPolicy` in the trigger and evaluation services; refusal names the executing principal; work that runs as an API key changes only with that key; reruns and copies take the starting principal. Spec: durable-work-edits.
+- [ ] 5.1 Every edit route save writes the caller as the executing principal; lifecycle actions keep it; a channel installation may not edit a trigger (#7919). Spec: durable-work-edits.
 - [ ] 5.2 Update the M2 scenario "Bob edits Alice's schedule" in `run-principal` when M7 ships, because this rule replaces it.
 
 ## 6. SDK, web, rollout
@@ -47,7 +49,7 @@ Prerequisites, from CONTRACT.md section 14 (the contract wins): the code of M3 a
 | Shared web session refuses Bob's `caller_account`; it uses the project connection on `project_default` | shared-session rule |
 | A shared session's sandbox never holds a user-owned credential; only the owner sends in a marked session | sandbox reuse |
 | A linked Slack user's turn uses their own account; an unlinked user's turn is refused at run time; the Slack binding saves; an API-key run refuses a `caller_account` connection | caller rule |
-| Bob's change to what Alice's schedule, subscription or evaluation run executes is refused; Bob can pause, stop, archive and delete it; Bob's copy runs as Bob (M7 edit rule) | durable work edits |
+| Bob's edit of Alice's schedule, subscription or evaluation run makes it run as Bob; Bob's pause keeps Alice as the principal; Bob's copy runs as Bob (M7 edit rule) | durable work edits |
 | Each schedule uses its own principal's accounts | caller rule |
 | Door child run uses Alice's account; a run in another organization cannot | organization wall |
 | Alice's and Bob's personal MCP servers with one slug: each run reaches its caller's server; no project fallback | personal MCP servers |

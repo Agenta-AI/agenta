@@ -1,5 +1,7 @@
 # Agent needs setup
 
+Status: shipped in v0.128.0 with the accounts package (#7942). The reason for a missing personal account shipped as `needs_personal_account`; `docs/design/accounts-package/spec.md` adds the `"user"` items to this check.
+
 ## Why
 
 An agent names the exact model, model key, subscription login, MCP server, custom secret or connected app (Composio connection) it uses. Since M5 option B (owner decision, 2026-10-26), nothing is inherited and nothing is replaced by name. So an agent can name an item that does not exist where it runs: an admin deleted it, turned it off or stopped sharing it, a model left the catalog, or, later, the agent was moved or copied.
@@ -44,5 +46,5 @@ None.
 ## Dependencies
 
 - The project scope ships alone.
-- The reason `not_shared` ships with M5 (`organization-credentials`). The reason `needs_your_account` ships with M7 (`personal-credentials-bindings`).
+- The reason `not_shared` ships with M5 (`organization-credentials`). The reason `needs_personal_account` ships with M7 (`personal-credentials-bindings`).
 - The move and copy review step ships when move and copy exist (M6c).

@@ -19,7 +19,7 @@ export type SettingsTabKey =
     | "account"
     | "preferences"
 
-export type SettingsScopeKey = "project" | "organization" | "personal"
+export type SettingsScopeKey = "connections" | "project" | "organization" | "personal"
 
 export interface SettingsAccess {
     billingEnabled: boolean
@@ -30,6 +30,13 @@ export interface SettingsAccess {
     canViewEvents: boolean
     isEE: boolean
     isOwner: boolean
+    /** Whether the reader may read trace content: without it the Analytics tab has no data and
+     * the API refuses every request behind it. Optional because the classic app (/w), which takes
+     * no new edits, does not pass it and keeps the tab. */
+    canViewAnalytics?: boolean
+    /** Whether the reader may read the plan and its limits. /m passes true for every role; the
+     * classic app (/w) does not pass it and keeps its owner-only check. */
+    canViewBilling?: boolean
     /** Whether the credit wallet is on. Only then does its debug view have data behind it. */
     walletsEnabled?: boolean
     /** Whether credits stop this organization's work (its wallet is enforced). */
@@ -63,7 +70,7 @@ const DOCS_BASE = "https://docs.agenta.ai"
 export const SETTINGS_TABS: SettingsTabDefinition[] = [
     {
         key: "llms",
-        scope: "project",
+        scope: "connections",
         description: "Connect the AI providers your agents, prompts, and evaluations run on.",
         docs: {
             label: "Learn more about AI providers",
@@ -72,7 +79,7 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
     },
     {
         key: "tools",
-        scope: "project",
+        scope: "connections",
         description: "Configure integrations your agents can use.",
         docs: {
             label: "Learn more about tools",
@@ -81,18 +88,18 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
     },
     {
         key: "secrets",
-        scope: "project",
+        scope: "connections",
         description: "Store credentials your agents use at runtime.",
     },
     {
         key: "mcpEndpoints",
-        scope: "project",
+        scope: "connections",
         description:
             "MCP servers connected to this project. Each agent chooses which of these to use and what it may run.",
     },
     {
         key: "channels",
-        scope: "project",
+        scope: "connections",
         description:
             "Chat platforms connected to this project. Each connection answers as one agent.",
     },
@@ -188,6 +195,8 @@ export const SETTINGS_TABS: SettingsTabDefinition[] = [
 ]
 
 export const SETTINGS_SCOPES: {key: SettingsScopeKey; title: string}[] = [
+    // What agents connect to, whoever owns it; the `?tab=` links are the same as before.
+    {key: "connections", title: "Connections"},
     {key: "project", title: "Project"},
     {key: "organization", title: "Organization"},
     {key: "personal", title: "Personal"},
@@ -246,7 +255,9 @@ export const isSettingsTabVisible = (key: SettingsTabKey, access: SettingsAccess
         case "auditLog":
             return access.isEE && access.canViewEvents
         case "billing":
-            return access.isEE && access.isOwner
+            return access.isEE && (access.canViewBilling ?? access.isOwner)
+        case "analytics":
+            return access.canViewAnalytics ?? true
         case "credits":
             return access.isEE && Boolean(access.walletsEnabled && access.walletEnforced)
         case "account":

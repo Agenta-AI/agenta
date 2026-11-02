@@ -2,8 +2,9 @@
 
 `count_redis_calls()` wraps `execute_command` of the Redis client behind
 `oss.src.utils.caching` (the volatile cache engine), so every command is recorded, also the
-ones sent indirectly (for example inside `MembershipsService.resolve`). Pipelines and
-`MGET` go through the same method.
+ones sent indirectly (for example inside `MembershipsService.resolve`). `MGET` goes through
+the same method. A pipeline does not: `client.pipeline()` sends its queued commands through
+its own execution path, so a pipelined path is not counted here.
 """
 
 from contextlib import contextmanager

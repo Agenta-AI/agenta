@@ -89,6 +89,7 @@ export const buildSettingsSidebarSections = (
     {getLink}: SettingsSidebarSectionsOptions = {},
 ): SidebarSection[] => {
     const itemsByScope: Record<SettingsScopeKey, SidebarConfig[]> = {
+        connections: [],
         project: [],
         organization: [],
         personal: [],

@@ -90,6 +90,7 @@ export const useSessionRowMenu = (base: string) => {
                 sessionName: target.name ?? "",
                 workspaceId,
                 projectId,
+                agentId: target.appId,
             })
         },
         [base, openShare],

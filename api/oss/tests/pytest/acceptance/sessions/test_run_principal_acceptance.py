@@ -249,14 +249,15 @@ class TestRunPrincipal:
         assert refused.json()["detail"]["details"]["reason"] == "not_member"
 
     def test_role_change_is_refused_at_next_refresh(self, admin_api, team):
-        secret = _secret(admin_api, team["member_key"], action="edit_workflows")
-        _secret(admin_api, secret, action="edit_workflows")  # warm
+        secret = _secret(admin_api, team["member_key"], action="view_spans")
+        _secret(admin_api, secret, action="view_spans")  # warm
 
-        _change_role(admin_api, team, role="viewer")
+        # Every plan offers member, which reads no traces.
+        _change_role(admin_api, team, role="member")
 
-        refused = _exchange(admin_api, secret, action="edit_workflows")
+        refused = _exchange(admin_api, secret, action="view_spans")
         assert refused.status_code == 403, refused.text
-        # The viewer may still do what a viewer may do.
+        # The member may still do what a member may do.
         assert _exchange(admin_api, secret, action="view_workflows").status_code == 200
 
     def test_run_credential_cannot_leave_its_project(self, admin_api, team):
@@ -437,7 +438,7 @@ class TestWorkspaceRoutesWithKeys:
             path,
             params={"project_id": created.json()["project_id"]},
             json=[
-                {"email": f"m2-inv-{uuid4().hex[:8]}@agenta.ai", "roles": ["viewer"]}
+                {"email": f"m2-inv-{uuid4().hex[:8]}@agenta.ai", "roles": ["member"]}
             ],
             headers={"Authorization": f"ApiKey {other_key}"},
         )
@@ -448,7 +449,7 @@ class TestWorkspaceRoutesWithKeys:
             path,
             params={"project_id": team["project_id"]},
             json=[
-                {"email": f"m2-inv-{uuid4().hex[:8]}@agenta.ai", "roles": ["viewer"]}
+                {"email": f"m2-inv-{uuid4().hex[:8]}@agenta.ai", "roles": ["member"]}
             ],
             headers={"Authorization": team["owner_key"]},
         )
@@ -492,13 +493,14 @@ class TestWorkspaceRoutesWithKeys:
         refused = admin_api("DELETE", organization, headers=other)
         assert refused.status_code == 403, refused.text
 
+        # Workspace removal step 2: workspace create answers 410 to every caller.
         refused = admin_api(
             "POST",
             f"{organization}/workspaces/",
             json={"name": "m2-ws"},
             headers=other,
         )
-        assert refused.status_code == 403, refused.text
+        assert refused.status_code == 410, refused.text
 
         if is_ee():
             refused = admin_api(

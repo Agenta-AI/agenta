@@ -191,6 +191,58 @@ describe("a live-frame write answered 403", () => {
   });
 });
 
+describe("a live-frame write answered 409 (not the running turn any more)", () => {
+  // A Stop, a takeover or a newer turn moved the session's running turn while this one still
+  // streams. The API answers 409, not 403: the turn did not lose access, and its own records
+  // (the partial answer and the done record) must still be written.
+  it("does not end the turn as access denied and still writes the turn's records", async () => {
+    const onDenied = vi.fn();
+    const stop = watchAccessDenied("sess-lf409", "turn-lf409", onDenied);
+    const records: string[] = [];
+    let framePosts = 0;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      const body = JSON.parse(String(init!.body));
+      if (Array.isArray(body)) {
+        framePosts += 1;
+        return new Response('{"detail":"not the running turn"}', { status: 409 });
+      }
+      records.push(body.record_type);
+      return new Response('{"ok":true}', { status: 200 });
+    });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const publisher = new LiveFramePublisher({
+        sessionId: "sess-lf409",
+        executionId: "turn-lf409",
+        auth: () => "t",
+        enabled: true,
+      });
+      publisher.emit({ type: "message_start", id: "m" });
+      publisher.emit({ type: "message_delta", id: "m", delta: "partial" });
+      await publisher.whenIdle();
+      assert.ok(framePosts >= 1);
+      assert.equal(onDenied.mock.calls.length, 0, "a 409 is not lost access");
+      assert.equal(accessDenied("sess-lf409", "turn-lf409"), false);
+
+      const { emit, flush } = buildPersistingEmitter(
+        "sess-lf409",
+        () => "t",
+        undefined,
+        undefined,
+        "turn-lf409",
+      );
+      emit({ type: "message", text: "partial" });
+      emit({ type: "done", stopReason: "cancelled" });
+      await flush();
+      assert.deepEqual(records, ["message", "done"]);
+      assert.equal(takePersistFailures("sess-lf409"), 0);
+      assert.equal(recordsIncomplete("sess-lf409"), false);
+    } finally {
+      stop();
+    }
+  });
+});
+
 describe("a heartbeat answered 403", () => {
   it("ends an admitted turn as access denied", async () => {
     let beats = 0;

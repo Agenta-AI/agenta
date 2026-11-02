@@ -9,6 +9,11 @@ import {
     STARTER_CREDIT_CODES,
     SUBSCRIPTION_LOGIN_CODES,
 } from "@agenta/chat/components"
+import {
+    AGENT_NEEDS_SETUP_CODE,
+    AGENT_NEEDS_SETUP_TITLE,
+    MODEL_NEEDS_SETUP_MESSAGE,
+} from "@agenta/entities/workflow"
 import {Coins, CreditCard, Key, SignIn} from "@phosphor-icons/react"
 
 import {proseClassName} from "./AssistantMarkdown"
@@ -53,6 +58,15 @@ export const describeRunFailure = ({
     can,
     onSignIn,
 }: RunErrorInput): RunFailureView => {
+    // The model needs setup: the banner's words; the banner above the composer is the way out.
+    if (code === AGENT_NEEDS_SETUP_CODE) {
+        return {
+            paragraphs: [MODEL_NEEDS_SETUP_MESSAGE],
+            quote: null,
+            failure: {label: AGENT_NEEDS_SETUP_TITLE, detail: text},
+            recoveries: [],
+        }
+    }
     const title = refusalTitle(code)
     // Provider errors, plan limits and worded refusals are finished sentences: show them whole.
     const {paragraphs, quote, kind, provider, raw} = formatRunError(text, {

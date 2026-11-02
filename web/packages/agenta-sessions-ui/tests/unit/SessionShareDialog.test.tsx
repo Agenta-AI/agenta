@@ -5,6 +5,7 @@ import type {
     SessionSharingState,
     ShareDisclosure,
 } from "@agenta/entities/sharing"
+import {getDefaultStore, type PrimitiveAtom} from "jotai"
 import {createRoot, type Root} from "react-dom/client"
 import {afterEach, beforeAll, beforeEach, describe, expect, it, vi} from "vitest"
 
@@ -14,6 +15,16 @@ import {
     SessionShareDialog,
     type SessionShareDialogProps,
 } from "../../src/sharing/SessionShareDialog"
+
+const {accessAtom} = vi.hoisted(() => ({
+    accessAtom: {current: null as unknown as PrimitiveAtom<"loading" | "on" | "off" | "error">},
+}))
+
+vi.mock("@agenta/entities/secret", async () => {
+    const {atom} = await import("jotai")
+    accessAtom.current = atom<"loading" | "on" | "off" | "error">("on")
+    return {personalAccountsAccessAtom: accessAtom.current}
+})
 
 const alice: ProjectMemberProfile = {
     user_id: "u-alice",
@@ -113,6 +124,16 @@ const flush = async () => {
 }
 
 describe("SessionShareDialog", () => {
+    it("says when the agent uses each person's own accounts", () => {
+        render({usesPersonalAccounts: true})
+        expect(text()).toContain(sessionSharingCopy.personalAccountsNote)
+    })
+
+    it("says nothing about personal accounts for an agent without them", () => {
+        render()
+        expect(text()).not.toContain(sessionSharingCopy.personalAccountsNote)
+    })
+
     it("disables confirm until the disclosure was shown", async () => {
         const {onUpsertGrant} = render()
         expect(buttonNamed(sessionSharingCopy.inviteButton)?.disabled).toBe(true)
@@ -130,6 +151,40 @@ describe("SessionShareDialog", () => {
         act(() => buttonNamed(shareDisclosureCopy.share)!.click())
         await flush()
         expect(onUpsertGrant).toHaveBeenCalledWith("u-bob", "viewer")
+    })
+
+    it("lists an item that uses each person's own account on its own line", () => {
+        render({
+            disclosure: {
+                ...disclosure,
+                connections: [
+                    {provider: "composio", integration: "slack", connection: "c2"},
+                    {provider: "composio", integration: "gmail", account_source: "user"},
+                ],
+            },
+        })
+        pickBob()
+        act(() => buttonNamed(sessionSharingCopy.inviteButton)!.click())
+
+        expect(text()).toContain(shareDisclosureCopy.bodySession(["Slack"]))
+        const lines = Array.from(document.querySelectorAll("li")).map((li) => li.textContent)
+        expect(lines).toContain(shareDisclosureCopy.personalAccount("Gmail"))
+    })
+
+    it("names no personal item once personal accounts are off for the deployment", () => {
+        getDefaultStore().set(accessAtom.current, "off")
+        render({
+            disclosure: {
+                ...disclosure,
+                connections: [{provider: "composio", integration: "gmail", account_source: "user"}],
+            },
+        })
+        pickBob()
+        act(() => buttonNamed(sessionSharingCopy.inviteButton)!.click())
+
+        expect(text()).toContain(shareDisclosureCopy.titlePeople(["Bob Lee"]))
+        expect(text()).not.toContain(shareDisclosureCopy.personalAccount("Gmail"))
+        getDefaultStore().set(accessAtom.current, "on")
     })
 
     it("an open disclosure closes and writes nothing once the state is not known or not the owner's", async () => {

@@ -9,18 +9,18 @@ import {
 import {message} from "@agenta/ui/app-message"
 import {KeyboardShortcutsSheet} from "@agenta/ui/shortcuts"
 import {THEME_OPTIONS, themeIcon, useThemeMode} from "@agenta/ui/theme"
-import {useMutation, useQuery} from "@tanstack/react-query"
+import {useMutation} from "@tanstack/react-query"
 import {useRouter} from "next/router"
 
-import {fetchProjects, projectHomeUrl, writeLastContext} from "@/lib/context"
+import {projectHomeUrl, writeLastContext} from "@/lib/context"
 
 import {useLogout} from "../auth/useLogout"
-import {groupByOrganization} from "../context/workspaceGroups"
 import {LiveChatNavButton} from "../support/LiveChatNavButton"
 import {useLiveChatEnabled} from "../support/useLiveChatEnabled"
 
 import {CreateProjectSheet} from "./CreateProjectSheet"
 import {useMobileHelpItem} from "./useMobileNavItems"
+import {useOrganizationProjects} from "./useOrganizationProjects"
 
 /**
  * The drawer's header switcher: the desktop rail's component, bound to mobile's project data.
@@ -45,26 +45,9 @@ export const DrawerProjectSwitcher = ({
         onOpenShortcuts: useCallback(() => setShortcutsOpen(true), []),
     })
     const liveChatEnabled = useLiveChatEnabled(projectId)
-    const query = useQuery({
-        queryKey: ["mobile", "projects"],
-        queryFn: () => fetchProjects(),
-        staleTime: 30_000,
-    })
-    const groups = useMemo(
-        () => (query.data?.kind === "ok" ? groupByOrganization(query.data.projects) : []),
-        [query.data],
-    )
-
-    // Matched on the project, not the workspace: one org can hold several workspaces.
-    const currentGroup =
-        groups.find((group) =>
-            group.projects.some(
-                (project) =>
-                    project.project_id === projectId && project.workspace_id === workspaceId,
-            ),
-        ) ?? groups.find((group) => group.projects.some((p) => p.workspace_id === workspaceId))
-    const currentProject = currentGroup?.projects.find(
-        (project) => project.project_id === projectId,
+    const {query, groups, currentGroup, currentProject} = useOrganizationProjects(
+        workspaceId,
+        projectId,
     )
 
     const goTo = (nextWorkspaceId: string, nextProjectId: string) => {
@@ -114,7 +97,7 @@ export const DrawerProjectSwitcher = ({
             setCreateOpen(false)
             // Refetch first: the destination reads this same query for its title.
             await query.refetch()
-            goTo(created.workspace_id ?? workspaceId, created.project_id)
+            goTo(created.organization_id ?? created.workspace_id ?? workspaceId, created.project_id)
         },
         // The API's refusal is written for people (e.g. the plan's project limit).
         onError: (error) => {

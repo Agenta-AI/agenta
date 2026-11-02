@@ -18,11 +18,13 @@ You set this up in two places: Agenta, where you name the assistant and get its 
 
 You need:
 
-- **An agent in Agenta** that you want your team to use in Slack. The agent must be shared with the project. A private agent cannot answer in Slack: its **Publish** panel shows "Private agents cannot answer in Slack. Share this agent with the project to connect it." in place of the connect buttons. See [Share agents and chats](/guides/share-agents-and-chats).
+- **An agent in Agenta** that you want your team to use in Slack. It can be shared with the project or private. Only the owner of a private agent can connect it. See [Share agents and chats](/guides/share-agents-and-chats).
 - **Permission to create and install apps** in your Slack workspace.
 
 :::info[Who can read Slack conversations]
-Slack conversations with the agent are chats in Agenta that everyone in the project can read, including direct messages. When you pick the agent, Agenta shows this notice with your project's name. For a project named Acme support: "Everyone in Acme support can read the agent's Slack conversations in Agenta, including direct messages." These chats have no owner, and no one can send to them from Agenta. Reply in the Slack thread to continue a conversation.
+Slack conversations with the agent are chats in Agenta, including direct messages. For an agent that is shared with the project, everyone in the project can read these chats and send to them in Agenta. They have no owner. For a private agent, new chats belong to the agent's owner. Only the owner, and the people the owner shares a chat with, can see them. When you pick the agent, Agenta shows this notice with your project's name. For a project named Acme support: "For a shared agent, everyone in Acme support can read its Slack conversations in Agenta, including direct messages. For a private agent, new conversations are private to its owner." Chats that already exist keep who can see them, and the owner can share a private chat.
+
+Everyone in the Slack channel can talk to the agent, also when the agent is private. When someone sends a message to one of these chats in Agenta, the agent's answer also goes to the Slack thread.
 :::
 
 ## 1. Name the assistant in Agenta
@@ -64,6 +66,14 @@ After it connects, the Slack panel shows the app as **Live**. Under **Answers in
 
 To add the assistant to a channel, invite it there from Slack (for example, `/invite @outreachdrafter`). The channel then appears under **Channels it's in**. In the video, the assistant is added to an `#outreach` channel with channel replies turned on.
 
+To answer in some channels only, open **Advanced** and set **Channels it answers in** to **Only these channels**, then check the channels. A channel you leave unchecked stays in the list, marked **Off**. A channel the assistant joins later stays off until you check it. Group DMs count as channels.
+
+### Choose who can message it
+
+Under **Access**, **Who can message it** is **Everyone** by default. Choose **Specific people** to limit the assistant to a list. Search people by name, or type a full email. The list applies to this agent only, in direct messages and in channels.
+
+When someone who is not on the list mentions the assistant or sends it a direct message, they get one short private note, at most once a day. The same happens when someone mentions it in a channel it does not answer in, or sends it a direct message while **Direct messages** is off. Only the owner of a private agent can change these settings.
+
 ## 5. Mention the agent in Slack
 
 In the channel, mention the agent and ask for what you need. For example:
@@ -79,7 +89,8 @@ Anyone in the channel can mention the agent the same way to ask questions, reque
 Open the agent's **Publish** panel and click **Slack** to come back to the connection. From there you can:
 
 - Turn **Direct messages** and **Channels** on or off.
-- See the channels the assistant is in.
+- See the channels the assistant is in, and add several at once with **Add channel**.
+- Choose who can message it under **Access**.
 - Update the app credentials under **Access**.
 - Add another workspace or another Slack app.
 - **Disconnect** the app.
@@ -88,7 +99,9 @@ Changes save automatically.
 
 ## If the agent becomes private
 
-When the owner makes a connected agent private, Agenta turns its Slack connection off. Messages in Slack then get no answer. The connection stays off when the agent is shared again: open the agent's connection in **Channels** and click **Turn on**. **Turn on** is not available while the agent is private.
+When the owner makes a connected agent private, the agent keeps answering in Slack through the connections the owner made. A connection that another member made stops answering; the owner can connect the agent again. New Slack chats with it are private to the owner. Chats that already exist keep who can see them.
+
+If a connection is off, open it in **Channels** and click **Turn on**.
 
 ## Other channels
 

@@ -1,6 +1,6 @@
 import {describe, expect, it} from "vitest"
 
-import {resolveRouteContext, type RouteContextInput} from "./routeContext"
+import {canonicalWorkspacePath, resolveRouteContext, type RouteContextInput} from "./routeContext"
 
 const guard = (overrides: Partial<RouteContextInput> = {}): RouteContextInput => ({
     routeLayer: "project",
@@ -62,5 +62,41 @@ describe("resolveRouteContext", () => {
 
     it("prefers pending over a stale failure", () => {
         expect(resolveRouteContext(guard({isPending: true, failed: true})).isResolving).toBe(true)
+    })
+})
+
+describe("a legacy workspace id after workspace removal step 2", () => {
+    it("rewrites to the project's organization instead of a 404", () => {
+        const ctx = resolveRouteContext(
+            guard({
+                workspaceId: "legacy-ws",
+                workspaceHoldsProject: false,
+                projectInWorkspace: false,
+                projectOrganizationId: "org-1",
+            }),
+        )
+        expect(ctx.isNotFound).toBe(false)
+        expect(ctx.isResolving).toBe(true)
+        expect(ctx.canonicalWorkspaceId).toBe("org-1")
+    })
+
+    it("keeps the 404 for a project the account does not hold", () => {
+        const ctx = resolveRouteContext(
+            guard({workspaceHoldsProject: false, projectInWorkspace: false}),
+        )
+        expect(ctx.isNotFound).toBe(true)
+        expect(ctx.canonicalWorkspaceId).toBeUndefined()
+    })
+
+    it("stays neutral when the URL already names the organization", () => {
+        expect(resolveRouteContext(guard({projectOrganizationId: "ws-1"}))).toEqual(NEUTRAL)
+    })
+
+    it("replaces only the segment and keeps the rest of the address", () => {
+        expect(canonicalWorkspacePath("/w/legacy/p/p-1/apps?tab=x", "org-1")).toBe(
+            "/w/org-1/p/p-1/apps?tab=x",
+        )
+        expect(canonicalWorkspacePath("/w/org-1/p/p-1/apps", "org-1")).toBeNull()
+        expect(canonicalWorkspacePath("/auth", "org-1")).toBeNull()
     })
 })

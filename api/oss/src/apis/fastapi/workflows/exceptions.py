@@ -13,6 +13,7 @@ from oss.src.apis.fastapi.sharing.utils import agent_creation_failed_exception
 from oss.src.core.embeds.exceptions import NonEmbeddableWorkflowReferenceError
 from oss.src.core.sharing.types import AgentCreationFailed
 from oss.src.core.workflows.types import (
+    InvalidAgentConnectionError,
     InvalidAgentInstructionsError,
     StaticWorkflowSlug,
 )
@@ -41,6 +42,11 @@ class InvalidAgentInstructionsException(HTTPException):
         super().__init__(status_code=422, detail=error.to_detail())
 
 
+class InvalidAgentConnectionException(HTTPException):
+    def __init__(self, error: InvalidAgentConnectionError):
+        super().__init__(status_code=422, detail=error.to_detail())
+
+
 def handle_workflow_exceptions():
     def decorator(func):
         @wraps(func)
@@ -53,6 +59,8 @@ def handle_workflow_exceptions():
                 raise NonEmbeddableWorkflowReferenceException(message=str(e)) from e
             except InvalidAgentInstructionsError as e:
                 raise InvalidAgentInstructionsException(e) from e
+            except InvalidAgentConnectionError as e:
+                raise InvalidAgentConnectionException(e) from e
             except AgentCreationFailed as e:
                 raise agent_creation_failed_exception(e) from e
 

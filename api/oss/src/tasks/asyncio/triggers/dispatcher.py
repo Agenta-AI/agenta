@@ -33,6 +33,7 @@ from oss.src.core.triggers.dtos import (
     TriggerSubscription,
 )
 from oss.src.core.triggers.interfaces import TriggersDAOInterface
+from oss.src.core.triggers.utils import compose_event_inputs
 from oss.src.core.sessions.dtos import (
     SessionTriggerAttribution,
     SessionTriggerKind,
@@ -43,13 +44,37 @@ from oss.src.core.sharing.dtos import SharedItemKind
 from oss.src.core.sharing.service import SharingService, get_sharing_service
 from oss.src.core.sharing.types import AdmissionDenied
 from oss.src.core.workflows.service import WorkflowsService
+from oss.src.core.workflows.types import WorkflowDetachedStartRejected
 from oss.src.utils.logging import get_module_logger
 
+from agenta.sdk.agents.requirements import (
+    AGENT_NEEDS_SETUP,
+    AGENT_NEEDS_SETUP_MESSAGE,
+)
 from agenta.sdk.decorators.running import WorkflowServiceRequest
 from agenta.sdk.models.workflows import WorkflowRequestData
 from agenta.sdk.utils.resolvers import resolve_target_fields
 
 log = get_module_logger(__name__)
+
+
+# A fire skipped because the agent's model needs setup: recorded once, never retried, and
+# the trigger stays on. Not the retryable "500", so the claim and the dedup treat it as seen.
+SKIPPED_STATUS_CODE = "422"
+SKIPPED_STATUS_MESSAGE = "skipped"
+
+
+def _needs_setup_details(failure_code: Any, details: Any) -> Optional[AgentError]:
+    """The delivery's error envelope when the run start says the model needs setup."""
+    if failure_code != AGENT_NEEDS_SETUP:
+        return None
+    return AgentError(
+        code=AGENT_NEEDS_SETUP,
+        message=AGENT_NEEDS_SETUP_MESSAGE,
+        retryable=False,
+        next_step="Set up the agent's model. The next run starts as usual.",
+        details=details if isinstance(details, dict) else None,
+    )
 
 
 def _agent_deleted_error() -> AgentError:
@@ -168,6 +193,11 @@ class TriggersDispatcher:
             inputs = resolve_target_fields(
                 template if template is not None else "$", context
             )
+            inputs = compose_event_inputs(
+                inputs if isinstance(inputs, dict) else {"value": inputs},
+                context=context,
+                include_event=subscription.data.include_event,
+            )
             await self._write_subscription_delivery_if_live(
                 project_id=project_id,
                 user_id=subscription.created_by_id,
@@ -178,7 +208,8 @@ class TriggersDispatcher:
                 status=Status(code="200", message="success"),
                 data=TriggerDeliveryData(
                     event_key=subscription.data.event_key,
-                    inputs=inputs if isinstance(inputs, dict) else {"value": inputs},
+                    inputs=inputs,
+                    event=context["event"],
                     is_test=True,
                 ),
             )
@@ -287,7 +318,9 @@ class TriggersDispatcher:
                 entity=entity,
                 event_id=event_id,
                 reason="missing_principal",
-                error=missing_principal_error(next_step="Create the trigger again."),
+                error=missing_principal_error(
+                    next_step="Save the trigger again, then start it."
+                ),
             )
             return
 
@@ -313,10 +346,22 @@ class TriggersDispatcher:
                 entity=entity,
                 project_id=project_id,
             )
+            # Schedules have a synthetic event; only subscriptions record it.
+            recorded_event = context["event"] if is_subscription else None
+            delivery_data = TriggerDeliveryData(
+                session_id=session_id, event=recorded_event
+            )
             template = entity.data.inputs_fields
             inputs = resolve_target_fields(
                 template if template is not None else "$", context
             )
+            inputs = inputs if isinstance(inputs, dict) else {"value": inputs}
+            if is_subscription:
+                inputs = compose_event_inputs(
+                    inputs,
+                    context=context,
+                    include_event=entity.data.include_event,
+                )
             references = (
                 {
                     k: ref.model_dump(mode="json", exclude_none=True)
@@ -336,15 +381,14 @@ class TriggersDispatcher:
                 session_id=session_id,
                 event_key=entity.data.event_key,
                 references=entity.data.references,
-                inputs=inputs if isinstance(inputs, dict) else {"value": inputs},
+                inputs=inputs,
+                event=recorded_event,
             )
             request = WorkflowServiceRequest(
                 references=references,
                 selector=selector,
                 session_id=session_id,
-                data=WorkflowRequestData(
-                    inputs=inputs if isinstance(inputs, dict) else {"value": inputs},
-                ),
+                data=WorkflowRequestData(inputs=inputs),
             )
             target = await self.workflows_service.resolve_request_target(
                 project_id=project_id,
@@ -362,6 +406,7 @@ class TriggersDispatcher:
                 event_id=event_id,
                 reason="agent_deleted",
                 error=_agent_deleted_error(),
+                recorded_event=delivery_data.event,
             )
             return
 
@@ -399,6 +444,7 @@ class TriggersDispatcher:
                         principal_kind=entity.principal.kind,
                         project_id=project_id,
                     ),
+                    recorded_event=delivery_data.event,
                 )
                 return
 
@@ -453,6 +499,25 @@ class TriggersDispatcher:
                     envelope=envelope,
                 )
             except Exception as e:
+                skipped = (
+                    _needs_setup_details(e.failure_code, e.failure_details)
+                    if isinstance(e, WorkflowDetachedStartRejected)
+                    else None
+                )
+                if skipped is not None:
+                    await self._skip_delivery(
+                        project_id=project_id,
+                        delivery_id=delivery_id,
+                        session_id=session_id,
+                        delivery_data=delivery_data,
+                        error=skipped,
+                    )
+                    log.info(
+                        "[TRIGGERS DISPATCHER] skipped entity=%s event=%s: agent needs setup",
+                        entity.id,
+                        event_id,
+                    )
+                    return
                 log.error("[TRIGGERS DISPATCHER] detached invoke failed: %s", e)
                 await self._complete_delivery(
                     project_id=project_id,
@@ -501,6 +566,20 @@ class TriggersDispatcher:
             getattr(response, "data", None), "outputs", None
         )
 
+        skipped = _needs_setup_details(
+            getattr(status_obj, "failure_code", None),
+            getattr(status_obj, "details", None),
+        )
+        if skipped is not None:
+            await self._skip_delivery(
+                project_id=project_id,
+                delivery_id=delivery_id,
+                session_id=session_id,
+                delivery_data=delivery_data,
+                error=skipped,
+            )
+            return
+
         if status_code not in (None, 200):
             await self._complete_delivery(
                 project_id=project_id,
@@ -539,6 +618,28 @@ class TriggersDispatcher:
             event_id,
         )
 
+    async def _skip_delivery(
+        self,
+        *,
+        project_id: UUID,
+        delivery_id: Any,
+        session_id: Any,
+        delivery_data: Any,
+        error: AgentError,
+    ) -> None:
+        """Record a fire the agent could not run (needs setup) and keep the trigger on."""
+        await self._complete_delivery(
+            project_id=project_id,
+            delivery_id=delivery_id,
+            status=Status(code=SKIPPED_STATUS_CODE, message=SKIPPED_STATUS_MESSAGE),
+            data=delivery_data.model_copy(
+                update={"error": error.message, "error_details": error}
+            ),
+        )
+        await self._abandon_claimed_session(
+            project_id=project_id, session_id=session_id
+        )
+
     async def _organization_id(self, *, project_id: UUID) -> UUID:
         organization_id = await self.access_service.project_organization_id(
             project_id=project_id
@@ -555,6 +656,7 @@ class TriggersDispatcher:
         event_id: str,
         reason: str,
         error: AgentError,
+        recorded_event: Optional[Dict[str, Any]] = None,
     ) -> None:
         """A refused delivery (status failed, `error` the message, `error_details` the
         envelope) and the trigger paused, in one DAO transaction. A repeated event
@@ -575,6 +677,7 @@ class TriggersDispatcher:
                     references=entity.data.references,
                     error=error.message,
                     error_details=error,
+                    event=recorded_event,
                 ),
             ),
             reason=reason,

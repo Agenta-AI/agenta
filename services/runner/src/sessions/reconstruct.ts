@@ -21,6 +21,20 @@
 import type { AgentEvent, ChatMessage, ContentBlock } from "../protocol.ts";
 import { APPROVED_EXECUTION_RESULT_UNKNOWN } from "../tracing/otel.ts";
 
+/** Error codes that end a turn without faulting its work: the runner lost the execution, or a
+ * time limit stopped it. The replay keeps that turn's work so a "continue" does not redo it. */
+const WORK_KEPT_ERROR_CODES = new Set([
+  "execution_lost",
+  "turn_time_limit_reached",
+  "run_total_time_limit",
+  "run_idle_time_limit",
+  "tool_call_time_limit",
+]);
+
+function keepsWork(event: AgentEvent): boolean {
+  return event.type === "error" && WORK_KEPT_ERROR_CODES.has(event.code ?? "");
+}
+
 /** One durable record row as `POST /sessions/records/query` returns it. `attributes` is the
  * coalesced `AgentEvent`; `record_source` is the author ("user" | "agent"). */
 export interface SessionRecordRow {
@@ -59,7 +73,7 @@ function eventToBlock(
       };
     }
     case "error":
-      return event.code === "execution_lost"
+      return keepsWork(event)
         ? { type: "text", text: "The previous turn was interrupted. A tool call without a recorded result has an unknown outcome. Verify its effects before repeating it." }
         : null;
     case "tool_result":
@@ -97,9 +111,9 @@ export function reconstructMessages(
 
 function isErrorRecord(row: SessionRecordRow): boolean {
   const event = eventOf(row);
-  // Infrastructure loss is not a provider refusal. Keep already persisted work so the
+  // Infrastructure loss and a time limit are not provider refusals. Keep already persisted work so the
   // next turn can see completed tool actions instead of unknowingly repeating them.
-  return row.record_source !== "user" && event?.type === "error" && event.code !== "execution_lost";
+  return row.record_source !== "user" && event?.type === "error" && !keepsWork(event);
 }
 
 /** What a failed turn leaves out: everything but the person's message. */
@@ -189,7 +203,7 @@ function foldMessages(records: readonly SessionRecordRow[]): ChatMessage[] {
       continue;
     }
 
-    if (event.type === "error" && event.code === "execution_lost" && assistant) {
+    if (keepsWork(event) && assistant) {
       // A call without a result may already have changed external state. Close it with
       // the existing unknown-outcome marker, never the approval replay's retry nudge.
       const completed = new Set(assistant.filter((block) => block.type === "tool_result").map((block) => block.toolCallId));

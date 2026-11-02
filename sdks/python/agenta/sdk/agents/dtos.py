@@ -38,6 +38,7 @@ from pydantic import (
 from agenta.sdk.engines.running.errors import ERRORS_BASE_URL, ErrorStatus
 from agenta.sdk.utils.logging import get_module_logger
 
+from .accounts import AccountSource
 from .connections import EnvironmentCredentialBinding, ModelRef, ResolvedConnection
 from .mcp import (
     MCPServerConfig,
@@ -758,8 +759,28 @@ class AgentResult(BaseModel):
 
 
 class SandboxSecretReference(BaseModel):
+    """The secret a sandbox variable gets. An ``agent`` reference names a slug, in the
+    project's list or, with ``namespace: "organization"``, the organization's. A ``user``
+    reference names nothing: the secret the run person chose for this agent fills it."""
+
     model_config = ConfigDict(extra="forbid")
-    slug: str
+    slug: Optional[str] = None
+    # Left out of the dump when unset, so a saved reference keeps its shape.
+    namespace: Optional[Literal["organization"]] = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+    account_source: Optional[AccountSource] = Field(
+        default=None, exclude_if=lambda value: value is None
+    )
+
+    @model_validator(mode="after")
+    def _slug_matches_account_source(self) -> "SandboxSecretReference":
+        if self.account_source == "user":
+            if self.slug is not None or self.namespace is not None:
+                raise ValueError("a 'user' secret names no slug and no namespace")
+        elif not self.slug:
+            raise ValueError("a secret reference needs a slug")
+        return self
 
 
 class SandboxEnvironmentBinding(BaseModel):
@@ -1095,6 +1116,8 @@ class HarnessAgentTemplate(BaseModel):
         wire: Dict[str, Any] = {"mode": connection.mode}
         if connection.slug is not None:
             wire["slug"] = connection.slug
+        if connection.is_organization:
+            wire["scope"] = connection.scope
         return {"connection": wire}
 
     def wire_model_connection(self) -> Dict[str, Any]:

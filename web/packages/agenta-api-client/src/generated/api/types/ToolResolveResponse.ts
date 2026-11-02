@@ -7,4 +7,5 @@ export interface ToolResolveResponse {
     builtins?: string[] | undefined;
     custom?: AgentaApi.ResolvedTool[] | undefined;
     gateway_connections?: AgentaApi.ResolvedGatewayConnection[] | undefined;
+    unavailable_connections?: AgentaApi.UnavailableToolConnection[] | undefined;
 }

@@ -1,8 +1,10 @@
 # Design: personal credentials and connection bindings (M7)
 
+Status: M7 shipped in v0.128.0 as the accounts package (#7942). It was built from `docs/design/accounts-package/spec.md`, which replaces the account parts of this change. Where this change and that spec disagree, the spec and the shipped code win. The main differences: each item has `account_source` (`agent` or `user`), not a `caller_account | project_default | specific` binding; a missing personal account leaves the item out of the run instead of refusing the run; a channel turn, an API-key run and a child run have no run person and use no personal account; and the durable-work edit rule shipped as "the last editor becomes the executing principal" (#7919), which the `durable-work-edits` spec below follows. M7 needed M6a and shipped without M9b.
+
 ## Context
 
-M7 starts after M1, M2, M3 and M5 and uses the names in CONTRACT.md. It does not wait for M6, and it ships only after M9b (CONTRACT.md section 14). The principal model is the M2 one: `human | api_key | installation`. When M6a ships, a personal API key acts as its human, and a service key and a channel installation act as a service account. Code evidence: `research-personal-credentials-bindings.md`.
+M7 starts after M1, M2, M3 and M5 and uses the names in CONTRACT.md. It needed M6a and shipped without M9b (CONTRACT.md section 14). The principal model is the M2 one: `human | api_key | installation`. When M6a ships, a personal API key acts as its human, and a service key and a channel installation act as a service account. Code evidence: `research-personal-credentials-bindings.md`.
 
 Owner decisions that shape this design (2026-10-26 and 2026-10-28):
 
@@ -119,11 +121,10 @@ A channel session is shared (D6), but a channel turn of a linked user still uses
 CONTRACT.md sections 5 and 6 assign this rule to M7 (owner decision 4, option 3, 2026-10-22). Personal credentials make it necessary: without it, Bob could edit Alice's schedule and make her Gmail send mail.
 
 - Durable work: a trigger schedule, a trigger subscription, an evaluation run. Each stores its executing principal (M2).
-- Only the executing principal may change what the work executes: the target agent or environment reference, the input, and for an evaluation run its configuration (target revisions, testset, evaluators).
-- Others with the capability (`EDIT_TRIGGERS`, `EDIT_EVALUATION_RUNS`) may pause, stop, archive or delete it. These actions never change the executing principal.
+- As shipped (#7919): every save through an edit route writes the caller as the executing principal, in the same database write as the change. The last save wins, also for a save that changes only the name. So Bob's edit of Alice's schedule makes it run as Bob, with Bob's accounts, and never with Alice's.
+- Pause, resume, stop, archive, delete and worker writes keep the stored principal.
+- A trigger edit by a channel installation is refused with 403 `edit_from_channel_not_allowed`.
 - A rerun or a copy is new work. Its executing principal is the person who starts it.
-- The check runs in the trigger and evaluation services, after the capability check, and compares the request principal with the stored principal. A refusal names the person the work runs as.
-- Work that runs as an API key can be changed only with that same key. After M6a, work that runs as a service account can be changed only by that same service account.
 
 ### D11. Later steps
 

@@ -163,3 +163,9 @@ class LLMGatewayConnectionResolution(BaseModel):
     # `provider_key` implies: `gemini` on the built-in Gemini endpoint. A harness that does
     # not know the field keeps the OpenAI-compatible route `provider_key` names.
     protocol: Optional[LLMProtocol] = None
+    # Whether a custom provider serves the route (for tracing). Set for an organization
+    # connection, whose namespace does not tell a key from a custom provider (M5); left
+    # out of the answer otherwise, so a project route answers as before.
+    custom_provider: Optional[bool] = Field(
+        default=None, exclude_if=lambda value: value is None
+    )

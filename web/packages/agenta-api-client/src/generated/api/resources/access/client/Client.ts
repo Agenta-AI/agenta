@@ -4,6 +4,7 @@ import type { BaseClientOptions, BaseRequestOptions } from "../../../../BaseClie
 import { type NormalizedClientOptionsWithAuth, normalizeClientOptionsWithAuth } from "../../../../BaseClient.js";
 import { mergeHeaders } from "../../../../core/headers.js";
 import * as core from "../../../../core/index.js";
+import { toJson } from "../../../../core/json.js";
 import * as environments from "../../../../environments.js";
 import { handleNonStatusCodeError } from "../../../../errors/handleNonStatusCodeError.js";
 import * as errors from "../../../../errors/index.js";
@@ -438,6 +439,8 @@ export class AccessClient {
             resource_type: resourceType,
             resource_id: resourceId,
             without_grants: withoutGrants,
+            workflow_id: workflowId,
+            item_keys: itemKeys,
         } = request;
         const _queryParams: Record<string, unknown> = {
             action,
@@ -446,6 +449,8 @@ export class AccessClient {
             resource_type: resourceType,
             resource_id: resourceId,
             without_grants: withoutGrants,
+            workflow_id: workflowId,
+            item_keys: itemKeys !== undefined ? toJson(itemKeys) : undefined,
         };
         const _authRequest: core.AuthRequest = await this._options.authProvider.getAuthRequest();
         const _headers: core.Fetcher.Args["headers"] = mergeHeaders(

@@ -454,7 +454,7 @@ def test_request_scope_prefers_auth_context_over_request_state():
         scope = request_scope(_make_request())
         assert scope.enabled is True
         assert scope.organization_id == auth_org
-        assert scope.workspace_id == auth_ws
+        assert not hasattr(scope, "workspace_id")
         assert scope.project_id == auth_proj
         assert scope.user_id == auth_user
     finally:

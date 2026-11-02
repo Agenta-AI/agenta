@@ -27,6 +27,7 @@ import {
     demoReturnHintPendingAtom,
     lastNonDemoProjectAtom,
 } from "@/oss/state/project/selectors/project"
+import {canonicalWorkspacePath} from "@/oss/state/project/selectors/routeContext"
 import {urlAtom} from "@/oss/state/url"
 import {playgroundEarlyAgentStateAtom} from "@/oss/state/workflow"
 
@@ -460,8 +461,19 @@ const App: React.FC<LayoutProps> = ({children}) => {
     const router = useRouter()
     // An address naming a workspace or project that does not exist is a 404, and it is owned here
     // rather than per page: every route under /w carries those ids, so one guard covers them all.
-    const {isNotFound: isRouteNotFound} = useAtomValue(routeContextAtom)
+    const {isNotFound: isRouteNotFound, canonicalWorkspaceId} = useAtomValue(routeContextAtom)
     const isBareRoute = isAuthRoute || router.pathname === "/404" || isRouteNotFound
+
+    // A legacy workspace id in the address: replace it once with the project's organization id.
+    // From the browser's address, not `router.asPath`: before the router is ready, asPath still
+    // holds the route pattern (`[project_id]`), and the rewrite must keep the ids and the query.
+    useEffect(() => {
+        if (!canonicalWorkspaceId || !router.isReady || typeof window === "undefined") return
+        const {pathname, search, hash} = window.location
+        const next = canonicalWorkspacePath(`${pathname}${search}${hash}`, canonicalWorkspaceId)
+        if (next) void router.replace(next)
+        // `router` is stable for the page; the target id and readiness are what change.
+    }, [canonicalWorkspaceId, router.isReady])
 
     // One owner for the whole app. A phone keyboard opens over the page, so every frame sized
     // against the layout viewport hides its bottom edge behind it. This publishes the visible

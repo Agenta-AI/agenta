@@ -29,6 +29,7 @@ import {
     revalidateSessionMountsAtom,
     revalidateSessionInteractionsAtom,
     revalidateSessionRecordsAtom,
+    revalidateSessionTurnsAtom,
     shouldAdoptServerTranscript,
 } from "@agenta/entities/session"
 import {markTraceAsFresh} from "@agenta/entities/trace"
@@ -87,6 +88,7 @@ import {
 import {createUserStoppedState, reduceUserStoppedState} from "../model/userStop"
 import {expandedKeysForMessages, pruneExpandedAtom} from "../state/expandState"
 import {stampMessagesCreatedAtAtom} from "../state/messageStamps"
+import {clearPendingSendEchoes} from "../state/pendingSendEchoStore"
 import {
     dropSessionChat,
     hasSessionChat,
@@ -110,6 +112,7 @@ import {
     setSessionStatusAtom,
     holdSessionStatusAtom,
 } from "../state/sessionMessages"
+import {refreshSessionTurnsOnTurnEndAtom} from "../state/sessionTurnsRefresh"
 import {clearTurnClockAtom, startTurnClockAtom} from "../state/turnClock"
 
 import {useAgentChatQueue, type QueuedMessage} from "./useAgentChatQueue"
@@ -174,8 +177,9 @@ export interface UseAgentConversationArgs {
     restoreRefusedSend?: (message: QueuedMessage) => boolean | Promise<boolean>
     /** A durable send was admitted: the turn it started, or `null` for a parked input. */
     onSendAccepted?: (message: {text: string}, executionId: string | null) => void
-    /** A durable send was rejected or refused; no turn will ever carry it. */
-    onSendFailed?: (message: {text: string}) => void
+    /** A durable send was rejected (with the error that rejected it) or refused; no turn will
+     * ever carry it. */
+    onSendFailed?: (message: QueuedMessage, error?: unknown) => void
     /** Override the client-tool predicate. Defaults to the package registry's, so a host does not
      * have to opt IN to elicitation and connect widgets — /m shipped without one for months and
      * silently folded every client tool into the plain "used N tools" group, leaving the run
@@ -234,8 +238,9 @@ export interface AgentConversation {
     queued: QueuedMessage[]
     /** The server currently owns an execution, including one started in another browser. */
     inputBusy: boolean
-    /** Submit the current composer value as a priority Steer input. */
-    steer: (input: SendInput) => Promise<void>
+    /** Submit the current composer value as a priority Steer input. Pass `after` when the input
+     * must follow another write (a dismissed card): the message shows at once, the request waits. */
+    steer: (input: SendInput, options?: {after?: Promise<unknown>}) => Promise<void>
     /** The run is parked on the USER — an approval gate or an unanswered client tool (elicitation,
      * connect). Typed messages queue rather than send while this holds. */
     hitlPending: boolean
@@ -307,6 +312,9 @@ export const useAgentConversation = ({
     const holdSessionStatus = useSetAtom(holdSessionStatusAtom)
     const revalidateSessionMounts = useSetAtom(revalidateSessionMountsAtom)
     const revalidateSessionRecords = useSetAtom(revalidateSessionRecordsAtom)
+    // The footer's figures: a turn's end and its runner usage land on the session turn.
+    const revalidateSessionTurns = useSetAtom(revalidateSessionTurnsAtom)
+    const refreshSessionTurnsOnTurnEnd = useSetAtom(refreshSessionTurnsOnTurnEndAtom)
     const revalidateSessionInteractions = useSetAtom(revalidateSessionInteractionsAtom)
     const fetchSessionInteractionStates = useSetAtom(fetchSessionInteractionStatesAtom)
     const pruneExpanded = useSetAtom(pruneExpandedAtom)
@@ -489,6 +497,7 @@ export const useAgentConversation = ({
             markTraceAsFresh(getMessageTraceId(message))
             revalidateSessionMounts(sessionId)
             revalidateSessionRecords(sessionId)
+            revalidateSessionTurns(sessionId)
             // The first turn is what creates the durable session row; every later one changes its
             // title, preview and activity. Nothing else tells the session lists, so a brand-new
             // session surfaced only on their next remount past the stale time.
@@ -812,6 +821,7 @@ export const useAgentConversation = ({
         pendingSendRows,
         sendInFlight,
     } = useAgentChatQueue({
+        sessionId,
         messages,
         stopped,
         continuationExecutionId,
@@ -1093,7 +1103,10 @@ export const useAgentConversation = ({
                     (currentWatermark ?? 0) >= candidateWatermark
                 )
             }
+            // A refresh is how an observer sees another tab's turn end. Only an ended turn reads
+            // the session turns (the footer's figures); a running turn's events do not.
             if (isSessionTranscript(transcript)) {
+                refreshSessionTurnsOnTurnEnd({sessionId, messages: transcript.messages})
                 return adoptOrConfirm(transcript)
             }
             revalidateSessionRecords(sessionId)
@@ -1101,14 +1114,23 @@ export const useAgentConversation = ({
             let refreshed: SessionTranscript | null
             try {
                 refreshed = await loadSessionMessages(sessionId, (fresh) => {
+                    // The returned transcript can be the cached one; this is the fresh read.
+                    refreshSessionTurnsOnTurnEnd({sessionId, messages: fresh.messages})
                     if (adoptOrConfirm(fresh)) adopted = true
                 })
             } catch {
                 return false
             }
+            if (refreshed) refreshSessionTurnsOnTurnEnd({sessionId, messages: refreshed.messages})
             return adoptOrConfirm(refreshed) || adopted
         },
-        [adoptServerTranscript, mount, revalidateSessionRecords, sessionId],
+        [
+            adoptServerTranscript,
+            mount,
+            revalidateSessionRecords,
+            refreshSessionTurnsOnTurnEnd,
+            sessionId,
+        ],
     )
 
     const {
@@ -1258,14 +1280,20 @@ export const useAgentConversation = ({
     )
 
     const steerInput = useCallback(
-        async ({text, files, parts, stagedFiles}: SendInput) => {
+        async (
+            {text, files, parts, stagedFiles}: SendInput,
+            options?: {after?: Promise<unknown>},
+        ) => {
             const trimmed = text.trim()
             const fileObjs = files ?? []
             const refParts = parts ?? []
             if (!trimmed && fileObjs.length === 0 && refParts.length === 0) return
             const encoded = fileObjs.length ? await filesToParts(fileObjs) : undefined
             const merged = [...(encoded?.parts ?? []), ...refParts]
-            await steer({text: trimmed, fileParts: merged.length ? merged : undefined, stagedFiles})
+            await steer(
+                {text: trimmed, fileParts: merged.length ? merged : undefined, stagedFiles},
+                options,
+            )
             composerDraftBySession.delete(sessionId)
         },
         [sessionId, steer],
@@ -1302,6 +1330,8 @@ export const useAgentConversation = ({
                     if (at < 0) return
                     editedSourceRef.current = current[at]
                     saveDisplayEdit(sessionId, current[at])
+                    // Sends after the rewind point belong to a history that no longer exists.
+                    clearPendingSendEchoes(sessionId)
                     setMessages(current.slice(0, at))
                 } else {
                     clearSessionTurnId(sessionId)

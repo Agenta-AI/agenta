@@ -16,6 +16,7 @@ import pytest
 
 import oss.src.models.db_models  # noqa: F401  (the ORM tables the streams DAO joins)
 from oss.src.core.channels.dtos import (
+    ChannelBindingRestore,
     ChannelAgentCreate,
     ChannelAgentData,
     ChannelAgentDataEdit,
@@ -280,7 +281,6 @@ async def test_first_policy_on_an_agent_without_a_row():
             user_id=alice,
         )
         assert result.policy == _project_policy(alice)
-        assert result.deactivated_channel_agent_ids == []
         rows = await fetch_all(
             "SELECT created_by_id, updated_by_id FROM agent_access "
             "WHERE project_id = :p AND artifact_id = :a",
@@ -304,13 +304,14 @@ async def test_unknown_or_foreign_artifact_is_not_found():
                 )
 
 
-async def test_make_private_deactivates_channel_agents():
+async def test_make_private_keeps_channel_agents_active():
+    """A private agent may answer a channel: a make-private changes no binding."""
+
     async with seeded("alice") as org:
         project_id, alice = _project(org), org.user_ids["alice"]
-        artifact_id, slug, variant_id, revision_id = await _artifact(
+        artifact_id, slug, _variant_id, revision_id = await _artifact(
             project_id, owner=alice
         )
-        other_id, *_ = await _artifact(project_id)
 
         by_id = await _channel_agent(
             project_id,
@@ -318,36 +319,14 @@ async def test_make_private_deactivates_channel_agents():
             flags={"is_active": True, "is_default": False},
         )
         by_slug = await _channel_agent(
-            project_id, references={"workflow": {"slug": slug}}, flags=None
+            project_id,
+            references={"workflow": {"slug": slug}},
+            flags={"is_active": True},
         )
         by_revision = await _channel_agent(
             project_id,
             references={"workflow_revision": {"id": str(revision_id)}},
-            flags={},
-        )
-        by_variant = await _channel_agent(
-            project_id,
-            references={"application_variant": {"id": str(variant_id)}},
             flags={"is_active": True},
-        )
-        unrelated = await _channel_agent(
-            project_id,
-            references={"workflow": {"id": str(other_id)}},
-            flags={"is_active": True},
-        )
-        # JSONB null (not SQL NULL): the write must still produce an object.
-        json_null = await _channel_agent(
-            project_id, references={"workflow": {"id": str(artifact_id)}}
-        )
-        await execute(
-            "UPDATE channel_agents SET flags = 'null'::jsonb "
-            "WHERE project_id = :p AND id = :id",
-            {"p": project_id, "id": json_null},
-        )
-        already_off = await _channel_agent(
-            project_id,
-            references={"workflow": {"id": str(artifact_id)}},
-            flags={"is_active": False},
         )
 
         result = await _dao().set_agent_policy(
@@ -358,43 +337,11 @@ async def test_make_private_deactivates_channel_agents():
             user_id=alice,
         )
 
-        assert set(result.deactivated_channel_agent_ids) == {
-            by_id,
-            by_slug,
-            by_revision,
-            by_variant,
-            json_null,
-        }
-        for agent_id in (
-            by_id,
-            by_slug,
-            by_revision,
-            by_variant,
-            json_null,
-            already_off,
-        ):
+        assert result.policy == _private(alice)
+        for agent_id in (by_id, by_slug, by_revision):
             assert (await _channel_agent_flags(project_id, agent_id))[
                 "is_active"
-            ] is False
-        # The merge keeps the other flags.
-        assert (await _channel_agent_flags(project_id, by_id))["is_default"] is False
-        assert (await _channel_agent_flags(project_id, unrelated)) == {
-            "is_active": True
-        }
-
-        # Making it project-visible again reactivates none.
-        again = await _dao().set_agent_policy(
-            project_id=project_id,
-            artifact_id=artifact_id,
-            expected=_private(alice),
-            policy=_project_policy(alice),
-            user_id=alice,
-        )
-        assert again.deactivated_channel_agent_ids == []
-        for agent_id in (by_id, by_slug, by_revision, by_variant):
-            assert (await _channel_agent_flags(project_id, agent_id))[
-                "is_active"
-            ] is False
+            ] is True
 
 
 # -- sessions ---------------------------------------------------------------------------
@@ -490,6 +437,72 @@ async def test_legacy_row_is_assigned_on_first_read():
                 project_id=project_id, session_id=session_id
             )
         ).policy == _project_policy(alice)
+
+
+async def test_only_the_channel_run_creates_a_channel_thread_s_session():
+    """A channel thread names the session id. Any other creator, another binding's run
+    included, inserts nothing (the id is reserved, answered as a hidden session); the
+    thread's own binding's run inserts the row with the policy it asks for (private to
+    the agent's owner for a private agent)."""
+
+    from oss.src.core.sessions.streams.dtos import SessionStreamCreate
+    from oss.src.core.sessions.streams.types import SessionIdTombstoned
+
+    async with seeded("alice") as org:
+        project_id, alice = _project(org), org.user_ids["alice"]
+        streams = SessionStreamsDAO(engine=get_transactions_engine())
+        session_id, binding_id = f"s-{uuid4().hex}", uuid4()
+        await execute(
+            "INSERT INTO channel_threads (project_id, id, space_id, agent_id, "
+            "session_id) VALUES (:p, :id, :space, :agent, :s)",
+            {
+                "p": project_id,
+                "id": uuid4(),
+                "space": uuid4(),
+                "agent": binding_id,
+                "s": session_id,
+            },
+        )
+        row_of = (
+            "SELECT visibility, owner_user_id FROM session_streams "
+            "WHERE project_id = :p AND session_id = :s"
+        )
+
+        with pytest.raises(SessionIdTombstoned):
+            await streams.create(
+                project_id=project_id,
+                user_id=alice,
+                stream=SessionStreamCreate(
+                    session_id=session_id, access=_private(alice)
+                ),
+            )
+        assert await fetch_all(row_of, {"p": project_id, "s": session_id}) == []
+
+        # Another binding's run refuses too.
+        with pytest.raises(SessionIdTombstoned):
+            await streams.create(
+                project_id=project_id,
+                user_id=None,
+                stream=SessionStreamCreate(
+                    session_id=session_id,
+                    access=_project_policy(None),
+                    channel_binding_id=uuid4(),
+                ),
+            )
+        assert await fetch_all(row_of, {"p": project_id, "s": session_id}) == []
+
+        created = await streams.create(
+            project_id=project_id,
+            user_id=None,
+            stream=SessionStreamCreate(
+                session_id=session_id,
+                access=_private(alice),
+                channel_binding_id=binding_id,
+            ),
+        )
+        assert created.has_channel_thread is True
+        rows = await fetch_all(row_of, {"p": project_id, "s": session_id})
+        assert (rows[0]["visibility"], rows[0]["owner_user_id"]) == ("private", alice)
 
 
 async def test_killed_and_archived_sessions_keep_their_policy():
@@ -751,9 +764,12 @@ async def _active_bindings(project_id: UUID, artifact_id: UUID) -> list:
     )
 
 
-async def test_activation_guard_refuses_a_private_agent():
-    async with seeded("alice") as org:
+async def test_activation_guard_refuses_a_private_agent_of_someone_else():
+    """Only the owner of a private agent writes an active binding of it."""
+
+    async with seeded("alice", "bob") as org:
         project_id, alice = _project(org), org.user_ids["alice"]
+        bob = org.user_ids["bob"]
         private, *_ = await _artifact(project_id, owner=alice)
         await execute(
             "UPDATE agent_access SET visibility = 'private' "
@@ -766,31 +782,44 @@ async def test_activation_guard_refuses_a_private_agent():
         with pytest.raises(SharedItemNotFound):
             await _channels_dao().create_agent(
                 project_id=project_id,
-                user_id=alice,
+                user_id=bob,
                 agent=_binding(private),
                 guard_artifact_id=private,
+                guard_user_id=bob,
             )
         assert await _active_bindings(project_id, private) == []
+
+        # Its owner binds it.
+        await _channels_dao().create_agent(
+            project_id=project_id,
+            user_id=alice,
+            agent=_binding(private),
+            guard_artifact_id=private,
+            guard_user_id=alice,
+        )
+        assert len(await _active_bindings(project_id, private)) == 1
 
         for artifact_id in (shared, ownerless):
             await _channels_dao().create_agent(
                 project_id=project_id,
-                user_id=alice,
+                user_id=bob,
                 agent=_binding(artifact_id),
                 guard_artifact_id=artifact_id,
+                guard_user_id=bob,
             )
             assert len(await _active_bindings(project_id, artifact_id)) == 1
 
-        # Reactivating an inactive binding of a private agent is refused too.
+        # Reactivating an inactive binding of someone else's private agent is refused
+        # too.
         inactive = await _channels_dao().create_agent(
             project_id=project_id,
-            user_id=alice,
+            user_id=bob,
             agent=_binding(private, is_active=False),
         )
         with pytest.raises(SharedItemNotFound):
             await _channels_dao().edit_agent(
                 project_id=project_id,
-                user_id=alice,
+                user_id=bob,
                 agent=ChannelAgentEdit(
                     id=inactive.id,
                     data=ChannelAgentDataEdit(
@@ -799,7 +828,214 @@ async def test_activation_guard_refuses_a_private_agent():
                     flags=ChannelAgentFlags(is_active=True),
                 ),
                 guard_artifact_id=private,
+                guard_user_id=bob,
             )
+        assert len(await _active_bindings(project_id, private)) == 1
+
+
+async def test_unarchive_restores_someone_else_s_private_agent_binding_off():
+    """Restoring a connection restores the bindings archived with it. A binding of a
+    private agent comes back on only for its owner; for anyone else it comes back
+    off, under the same artifact lock as an activation."""
+
+    from datetime import datetime, timezone
+
+    async with seeded("alice", "bob") as org:
+        project_id, alice = _project(org), org.user_ids["alice"]
+        bob = org.user_ids["bob"]
+        private, *_ = await _artifact(project_id, owner=alice)
+        await execute(
+            "UPDATE agent_access SET visibility = 'private' "
+            "WHERE project_id = :p AND artifact_id = :a",
+            {"p": project_id, "a": private},
+        )
+
+        for user_id, expected in ((bob, False), (alice, True)):
+            archived_at = datetime.now(timezone.utc)
+            connection_id, binding_id = uuid4(), uuid4()
+            await execute(
+                "INSERT INTO channel_connections (id, project_id, channel, "
+                "external_key, slug, deleted_at) VALUES (:id, :p, 'agenta', :ek, "
+                ":slug, :at)",
+                {
+                    "id": connection_id,
+                    "p": project_id,
+                    "ek": str(uuid4()),
+                    "slug": f"c-{connection_id.hex[:8]}",
+                    "at": archived_at,
+                },
+            )
+            await execute(
+                "INSERT INTO channel_agents (project_id, id, connection_id, slug, "
+                "data, flags, deleted_at) VALUES (:p, :id, :c, :s, "
+                "CAST(:data AS json), CAST(:flags AS jsonb), :at)",
+                {
+                    "p": project_id,
+                    "id": binding_id,
+                    "c": connection_id,
+                    "s": f"bot-{binding_id.hex[:12]}",
+                    "data": json.dumps(
+                        {"references": {"workflow": {"id": str(private)}}}
+                    ),
+                    "flags": json.dumps({"is_active": True}),
+                    "at": archived_at,
+                },
+            )
+            restored = await _channels_dao().unarchive_connection(
+                project_id=project_id,
+                user_id=user_id,
+                connection_id=connection_id,
+                guard_bindings={
+                    binding_id: ChannelBindingRestore(
+                        references={"workflow": Reference(id=private)},
+                        artifact_id=private,
+                    )
+                },
+                guard_user_id=user_id,
+            )
+            assert restored is not None and restored.deleted_at is None
+            flags = await _channel_agent_flags(project_id, binding_id)
+            assert flags["is_active"] is expected, user_id
+
+
+async def _archived_connection(
+    project_id: UUID, artifact_id: UUID, *, channel="agenta"
+):
+    """An archived connection with one active binding of `artifact_id`, archived with
+    it. Returns (connection_id, binding_id)."""
+
+    from datetime import datetime, timezone
+
+    archived_at = datetime.now(timezone.utc)
+    connection_id, binding_id = uuid4(), uuid4()
+    await execute(
+        "INSERT INTO channel_connections (id, project_id, channel, external_key, slug, "
+        "deleted_at) VALUES (:id, :p, :ch, :ek, :slug, :at)",
+        {
+            "id": connection_id,
+            "p": project_id,
+            "ch": channel,
+            "ek": str(uuid4()),
+            "slug": f"c-{connection_id.hex[:8]}",
+            "at": archived_at,
+        },
+    )
+    await execute(
+        "INSERT INTO channel_agents (project_id, id, connection_id, slug, data, flags, "
+        "deleted_at) VALUES (:p, :id, :c, :s, CAST(:data AS json), "
+        "CAST(:flags AS jsonb), :at)",
+        {
+            "p": project_id,
+            "id": binding_id,
+            "c": connection_id,
+            "s": "default",
+            "data": json.dumps({"references": {"workflow": {"id": str(artifact_id)}}}),
+            "flags": json.dumps({"is_active": True, "is_default": True}),
+            "at": archived_at,
+        },
+    )
+    return connection_id, binding_id
+
+
+async def test_a_binding_retargeted_before_the_restore_comes_back_off():
+    """Bob's restore read a binding of a project agent. Before it runs, Alice points
+    that archived binding at her private agent. The restore checks the binding rows it
+    locks: the binding changed since the read, so it comes back off, not active on
+    Alice's private agent."""
+
+    async with seeded("alice", "bob") as org:
+        project_id, alice = _project(org), org.user_ids["alice"]
+        bob = org.user_ids["bob"]
+        private, *_ = await _artifact(project_id, owner=alice)
+        await execute(
+            "UPDATE agent_access SET visibility = 'private' "
+            "WHERE project_id = :p AND artifact_id = :a",
+            {"p": project_id, "a": private},
+        )
+        shared, *_ = await _artifact(project_id, owner=alice)
+
+        for retarget, expected in ((False, True), (True, False)):
+            connection_id, binding_id = await _archived_connection(project_id, shared)
+            read = {
+                binding_id: ChannelBindingRestore(
+                    references={"workflow": Reference(id=shared)}, artifact_id=shared
+                )
+            }
+            if retarget:
+                await execute(
+                    "UPDATE channel_agents SET data = CAST(:data AS json) "
+                    "WHERE project_id = :p AND id = :id",
+                    {
+                        "p": project_id,
+                        "id": binding_id,
+                        "data": json.dumps(
+                            {"references": {"workflow": {"id": str(private)}}}
+                        ),
+                    },
+                )
+            restored = await _channels_dao().unarchive_connection(
+                project_id=project_id,
+                user_id=bob,
+                connection_id=connection_id,
+                guard_bindings=read,
+                guard_user_id=bob,
+            )
+            assert restored is not None and restored.deleted_at is None
+            flags = await _channel_agent_flags(project_id, binding_id)
+            assert flags["is_active"] is expected, retarget
+
+
+class _AgentOfReferences:
+    """`resolve_agent_artifact_id` that names the agent of the `workflow` reference."""
+
+    async def resolve_agent_artifact_id(self, *, project_id, references):
+        return next(r.id for r in references if r.key == "workflow")
+
+
+async def test_telegram_reconnect_turns_on_the_binding_it_points_at(monkeypatch):
+    """Alice's hosted Telegram connection answered with her private agent and was
+    disconnected. Bob connects it again with a project agent: the restore brings
+    Alice's binding back off (not his to turn on), and the connect points it at Bob's
+    agent and turns it on, so the bind link he gets answers."""
+
+    from unittest.mock import AsyncMock, MagicMock
+
+    from oss.src.core.channels.service import ChannelsService
+
+    monkeypatch.setattr(
+        "oss.src.core.channels.service.invalidate_principals_after_write",
+        AsyncMock(),
+    )
+    async with seeded("alice", "bob") as org:
+        project_id, alice = _project(org), org.user_ids["alice"]
+        bob = org.user_ids["bob"]
+        private, *_ = await _artifact(project_id, owner=alice)
+        await execute(
+            "UPDATE agent_access SET visibility = 'private' "
+            "WHERE project_id = :p AND artifact_id = :a",
+            {"p": project_id, "a": private},
+        )
+        shared, *_ = await _artifact(project_id, owner=alice)
+        connection_id, binding_id = await _archived_connection(
+            project_id, private, channel="telegram_hosted"
+        )
+        service = ChannelsService(
+            channels_dao=_channels_dao(),
+            adapter_registry=MagicMock(),
+            workflows_service=_AgentOfReferences(),
+        )
+
+        connection = await service.ensure_hosted_telegram_connection(
+            project_id=project_id,
+            user_id=bob,
+            guard_user_id=bob,
+            references={"workflow": {"id": str(shared)}},
+        )
+
+        assert connection.id == connection_id and connection.deleted_at is None
+        assert [row["id"] for row in await _active_bindings(project_id, shared)] == [
+            binding_id
+        ]
         assert await _active_bindings(project_id, private) == []
 
 
@@ -815,7 +1051,8 @@ class _ResolvedWorkflows:
 
 async def test_flags_only_reactivation_is_guarded(monkeypatch):
     """A write that sends only `flags.is_active: true` is guarded with the stored
-    references, through `edit_agent` (the route) and the internal row write."""
+    references, through `edit_agent` (the route) and the internal row write: Bob may
+    not reactivate a binding of Alice's private agent."""
 
     from unittest.mock import AsyncMock, MagicMock
 
@@ -826,8 +1063,9 @@ async def test_flags_only_reactivation_is_guarded(monkeypatch):
         AsyncMock(),
     )
 
-    async with seeded("alice") as org:
+    async with seeded("alice", "bob") as org:
         project_id, alice = _project(org), org.user_ids["alice"]
+        bob = org.user_ids["bob"]
         private, *_ = await _artifact(project_id, owner=alice)
         await execute(
             "UPDATE agent_access SET visibility = 'private' "
@@ -845,7 +1083,7 @@ async def test_flags_only_reactivation_is_guarded(monkeypatch):
 
         inactive = await _channels_dao().create_agent(
             project_id=project_id,
-            user_id=alice,
+            user_id=bob,
             agent=_binding(private, is_active=False),
         )
         service = _service(private)
@@ -853,7 +1091,8 @@ async def test_flags_only_reactivation_is_guarded(monkeypatch):
             with pytest.raises(SharedItemNotFound):
                 await write(
                     project_id=project_id,
-                    user_id=alice,
+                    user_id=bob,
+                    guard_user_id=bob,
                     agent=ChannelAgentEdit(
                         id=inactive.id, flags=ChannelAgentFlags(is_active=True)
                     ),
@@ -872,6 +1111,7 @@ async def test_flags_only_reactivation_is_guarded(monkeypatch):
         edited = await _service(shared).edit_agent(
             project_id=project_id,
             user_id=alice,
+            guard_user_id=alice,
             agent=ChannelAgentEdit(
                 id=inactive.id, flags=ChannelAgentFlags(is_active=True)
             ),
@@ -882,12 +1122,12 @@ async def test_flags_only_reactivation_is_guarded(monkeypatch):
 
 
 async def test_activation_against_make_private():
-    """A binding activation and a make-private of the same agent, 20 times: whatever
-    the order, the agent never ends private with an active binding."""
+    """A binding activation and a make-private of the same agent by its owner, 20
+    times: whatever the order, both writes commit and the private agent keeps its
+    active binding (the artifact lock serializes them)."""
 
     async with seeded("alice") as org:
         project_id, alice = _project(org), org.user_ids["alice"]
-        outcomes = {"bound_then_deactivated": 0, "refused": 0}
 
         for attempt in range(20):
             artifact_id, *_ = await _artifact(project_id, owner=alice)
@@ -896,6 +1136,7 @@ async def test_activation_against_make_private():
                 user_id=alice,
                 agent=_binding(artifact_id),
                 guard_artifact_id=artifact_id,
+                guard_user_id=alice,
             )
             make_private = _dao().set_agent_policy(
                 project_id=project_id,
@@ -916,20 +1157,11 @@ async def test_activation_against_make_private():
                 )
 
             assert not isinstance(written, BaseException), written
+            assert not isinstance(created, BaseException), created
             assert await _dao().fetch_agent_policy(
                 project_id=project_id, artifact_id=artifact_id
             ) == _private(alice)
-            assert await _active_bindings(project_id, artifact_id) == []
-            if isinstance(created, SharedItemNotFound):
-                outcomes["refused"] += 1
-            else:
-                assert not isinstance(created, BaseException), created
-                assert written.deactivated_channel_agent_ids == [created.id]
-                outcomes["bound_then_deactivated"] += 1
-
-        assert sum(outcomes.values()) == 20
-        # Both orders happened.
-        assert outcomes["bound_then_deactivated"] and outcomes["refused"], outcomes
+            assert len(await _active_bindings(project_id, artifact_id)) == 1
 
 
 # -- sharing write statement counts --------------------------------------------------------
@@ -937,8 +1169,8 @@ async def test_activation_against_make_private():
 
 async def test_sharing_write_statement_count(monkeypatch):
     """A sharing write is: the `expected` read, then in one transaction the lock read,
-    the compare read and the write (plus the channel-agent deactivation of a
-    make-private). The membership checks read the membership cache, not Postgres.
+    the compare read and the write. The membership checks read the membership cache,
+    not Postgres.
     Pinned numbers (not a hot path; stated in the PR)."""
 
     import oss.src.core.memberships.service as memberships_module
@@ -949,7 +1181,6 @@ async def test_sharing_write_statement_count(monkeypatch):
     from oss.src.dbs.postgres.memberships.dao import MembershipsDAO
     from oss.tests.pytest.utils.cache import FakeCache
     from oss.tests.pytest.utils.principals import (
-        InMemoryPrincipalsDAO,
         make_envelope,
         make_request_access,
     )
@@ -969,7 +1200,6 @@ async def test_sharing_write_statement_count(monkeypatch):
                 memberships_dao=MembershipsDAO(engine=engine),
                 policy=MembershipPolicy.PROJECT_ROWS,
             ),
-            principals_dao=InMemoryPrincipalsDAO(),
         )
         access = make_request_access(
             envelope=make_envelope(
@@ -1014,8 +1244,9 @@ async def test_sharing_write_statement_count(monkeypatch):
                 ),
             )
 
-        # expected read + lock + compare read + upsert + deactivation
-        assert len(make_private) == 5, make_private
+        # expected read + lock + compare read + upsert (a make-private no longer turns
+        # channel bindings off)
+        assert len(make_private) == 4, make_private
         # expected read + lock + compare read + upsert
         assert len(make_project) == 4, make_project
         # session state read + grants read + lock read + locked grants read + upsert

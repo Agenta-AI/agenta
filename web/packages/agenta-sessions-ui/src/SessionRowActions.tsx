@@ -25,7 +25,6 @@ import {useRouter} from "next/router"
 import InlineRenameInput from "./InlineRenameInput"
 import {isMenuDivider} from "./menu"
 import {SessionRowContextMenu} from "./SessionRowContextMenu"
-import {SessionPrivacyMarker} from "./sharing/SessionPrivacyMarker"
 import {useInlineRename} from "./useInlineRename"
 import type {SessionRowChrome} from "./useSessionRowChrome"
 
@@ -35,9 +34,8 @@ export interface SessionRowTarget {
     appId: string | null
     name?: string | null
     archived: boolean
-    /** Sharing: the owner (null = ownerless) and who may see the session. */
+    /** Sharing: the owner (null = ownerless). */
     ownerUserId?: string | null
-    visibility?: "private" | "project" | null
 }
 
 const RENAME = "rename"
@@ -251,10 +249,6 @@ const SessionRowActions = ({
                 <span className="min-w-0 flex-1 truncate font-normal">
                     {linkWithHeldNavigation}
                 </span>
-                <SessionPrivacyMarker
-                    visibility={session.visibility}
-                    ownerUserId={session.ownerUserId}
-                />
                 <span
                     // -mr-2 pulls the kebab out past ROW_BASE's px-3 so it sits at the row's
                     // right edge. Only session rows are wrapped, so no other nav row shifts.

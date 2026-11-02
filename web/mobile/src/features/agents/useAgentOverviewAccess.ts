@@ -5,11 +5,8 @@ import {
     retrieveWorkflowRevision,
     type Workflow,
 } from "@agenta/entities/workflow"
-import {userAtom} from "@agenta/shared/state"
 import {useQuery} from "@tanstack/react-query"
 import {useAtomValue} from "jotai"
-
-import {isMyPrivateAgent} from "./myPrivateAgent"
 
 /**
  * What the agent overview may show (QA D6). The agent list row is the common source. An id the
@@ -24,7 +21,6 @@ export const useAgentOverviewAccess = ({
     agentId: string
     projectId: string
 }) => {
-    const me = useAtomValue(userAtom)
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
     const agent = useMemo<Workflow | undefined>(
         () => (agentsQuery.data ?? []).find((candidate) => candidate.id === agentId),
@@ -42,6 +38,5 @@ export const useAgentOverviewAccess = ({
     return {
         agent,
         notFound: !listed && lookup.isSuccess && !lookup.data?.id,
-        agentPrivate: isMyPrivateAgent(agent, me?.id),
     }
 }

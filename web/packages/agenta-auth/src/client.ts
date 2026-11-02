@@ -208,10 +208,9 @@ export async function completeOidcSignIn(): Promise<OidcCallbackOutcome> {
 /**
  * The signed-in session's access token, or `null` when there is no session.
  *
- * Callers that need to send an explicit `Authorization` header rather than rely on the cookie —
- * the playground's run requests are the case that matters, because the backend only honours the
- * `project_id` query param alongside an Authorization header, and without it a run resolves
- * against the caller's DEFAULT project instead of the one it belongs to.
+ * For callers that send an explicit `Authorization` header rather than rely on the cookie (the
+ * playground's run requests). The project rides the `project_id` query param either way: the API
+ * honours it for a cookie session too.
  */
 export async function getAccessToken(): Promise<string | null> {
     if (typeof window === "undefined") return null

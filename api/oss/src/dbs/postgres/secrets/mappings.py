@@ -4,8 +4,13 @@ from datetime import datetime, timezone
 
 from oss.src.dbs.postgres.secrets.dbes import SecretsDBE
 from oss.src.core.secrets.managed import SecretManagementDTO
-from oss.src.core.secrets.enums import is_always_write_only
+from oss.src.core.secrets.enums import (
+    SecretAvailability,
+    SecretOwnerKind,
+    is_always_write_only,
+)
 from oss.src.core.secrets.dtos import (
+    SecretOwner,
     Header,
     SecretKind,
     LegacyLifecycleDTO,
@@ -49,6 +54,7 @@ def map_secrets_dto_to_dbe(
     organization_id: uuid.UUID | None,
     secret_dto: CreateSecretDTO,
     management: SecretManagementDTO | None = None,
+    user_id: uuid.UUID | None = None,
 ) -> SecretsDBE:
     vault_secret_dbe = SecretsDBE(
         slug=secret_dto.slug,
@@ -56,6 +62,7 @@ def map_secrets_dto_to_dbe(
         description=(secret_dto.header.description if secret_dto.header else None),
         project_id=project_id,
         organization_id=organization_id,
+        user_id=user_id,
         kind=secret_dto.secret.kind.value,
         data=_data_payload(
             # `mode="json"` because the payload is JSON: a field typed as anything but
@@ -116,15 +123,58 @@ def map_secrets_dto_to_dbe_update(
                 setattr(secrets_dbe, key, value)
 
 
-def map_secrets_dbe_to_dto(*, secrets_dbe: SecretsDBE) -> SecretResponseDTO:
+def _secret_kind(kind) -> SecretKind:
+    """The kind as the enum, from the ORM (a member) or from raw SQL (the Postgres enum
+    label, which is the member NAME, for example `PROVIDER_KEY`)."""
+    if isinstance(kind, SecretKind):
+        return kind
+    try:
+        return SecretKind(kind)
+    except ValueError:
+        return SecretKind[kind]
+
+
+def _owner_of(row) -> SecretOwner | None:
+    project_id = getattr(row, "project_id", None)
+    if project_id is not None:
+        return SecretOwner(kind=SecretOwnerKind.PROJECT, id=project_id)
+    organization_id = getattr(row, "organization_id", None)
+    user_id = getattr(row, "user_id", None)
+    if organization_id is not None and user_id is not None:
+        return SecretOwner(
+            kind=SecretOwnerKind.USER, id=user_id, organization_id=organization_id
+        )
+    if organization_id is not None:
+        return SecretOwner(kind=SecretOwnerKind.ORGANIZATION, id=organization_id)
+    return None
+
+
+def map_secrets_dbe_to_dto(
+    *,
+    secrets_dbe,
+    selected_project_ids: list | None = None,
+) -> SecretResponseDTO:
+    """Map a stored row (an ORM `SecretsDBE`, or a raw row with the same column names and
+    a decrypted `data`) to the trusted DTO, with its owner.
+
+    `availability` is set on organization rows only; `selected_project_ids` only when the
+    caller read them (management reads)."""
     data = json.loads(secrets_dbe.data)  # type: ignore
     write_only = bool(data.pop(_WRITE_ONLY_KEY, False))
     management = data.pop(_MANAGEMENT_KEY, None)
+    owner = _owner_of(secrets_dbe)
+
+    availability = None
+    if owner is not None and owner.kind == SecretOwnerKind.ORGANIZATION:
+        availability = SecretAvailability(
+            getattr(secrets_dbe, "availability", None)
+            or SecretAvailability.ALL_PROJECTS.value
+        )
 
     vault_secret_dto = SecretResponseDTO(
         id=secrets_dbe.id,  # type: ignore
         slug=secrets_dbe.slug,
-        kind=SecretKind(secrets_dbe.kind).value,
+        kind=_secret_kind(secrets_dbe.kind).value,
         data=data,
         header=Header(name=secrets_dbe.name, description=secrets_dbe.description),
         lifecycle=LegacyLifecycleDTO(
@@ -133,6 +183,9 @@ def map_secrets_dbe_to_dto(*, secrets_dbe: SecretsDBE) -> SecretResponseDTO:
         ),
         write_only=write_only,
         management=management,
+        owner=owner,
+        availability=availability,
+        selected_project_ids=selected_project_ids,
     )
 
     return vault_secret_dto

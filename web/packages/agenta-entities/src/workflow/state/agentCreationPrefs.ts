@@ -6,7 +6,11 @@
  */
 import {atomWithStorage} from "jotai/utils"
 
-import {connectionNamespaceFrom, type AgentModelSelection} from "../../secret/core"
+import {
+    savedConnectionNamespace,
+    explicitAgentConnection,
+    type AgentModelSelection,
+} from "../../secret/core"
 
 export interface AgentCreationPrefs {
     version: 1
@@ -48,7 +52,7 @@ export function selectionFromAgentCreationPrefs(
         // Under `self_managed` a slug names a stored subscription sign-in; no slug means a
         // login mounted on the runner. Both are real routes, so the slug is kept in either mode.
         slug: prefs.connectionSlug ?? null,
-        namespace: mode === "agenta" ? connectionNamespaceFrom(prefs.connectionNamespace) : null,
+        namespace: savedConnectionNamespace(mode, prefs.connectionNamespace),
         harness: prefs.harness,
     }
 }
@@ -69,13 +73,7 @@ export function applyAgentModelSelection(
     const nextLlm: Record<string, unknown> = {
         ...llm,
         model: selection.modelId,
-        connection: {
-            mode: selection.mode,
-            ...(selection.slug ? {slug: selection.slug} : {}),
-            ...(selection.mode === "agenta" && selection.slug && selection.namespace
-                ? {namespace: selection.namespace}
-                : {}),
-        },
+        connection: explicitAgentConnection(selection),
     }
     if (selection.provider) nextLlm.provider = selection.provider
     else delete nextLlm.provider

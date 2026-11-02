@@ -173,9 +173,10 @@ class RunAdmission:
         session_id: Optional[str],
         project_id: UUID,
         references: Optional[List[SessionReference]],
-    ) -> None:
+    ) -> Optional[UUID]:
         """The heartbeat's check: the agent the beat's `references` name (one indexed
-        read when they name one; `AgentReferenceUnresolved` propagates), then `admit`."""
+        read when they name one; `AgentReferenceUnresolved` propagates), then `admit`.
+        Returns that agent's artifact id (None when the beat names none)."""
 
         agent_artifact_id = await self._workflows_service.resolve_agent_artifact_id(
             project_id=project_id,
@@ -187,6 +188,7 @@ class RunAdmission:
             agent_artifact_id=agent_artifact_id,
             boundary=HEARTBEAT_BOUNDARY,
         )
+        return agent_artifact_id
 
     async def admit_request(
         self,
@@ -196,10 +198,11 @@ class RunAdmission:
         project_id: UUID,
         request: "WorkflowServiceRequest",
         boundary: str,
-    ) -> None:
+    ) -> Optional[UUID]:
         """The server paths' check: resolve the request's target once (it stays on the
         request, so the invoke runs what was checked), then `admit`. A request without
-        references is a draft run: only the session is checked.
+        references is a draft run: only the session is checked. Returns the agent's
+        artifact id that was checked (None when none was).
 
         When no target resolves (the request carries an inline `data.revision`, or its
         references resolve to nothing) but the references name an agent, that agent is
@@ -228,6 +231,7 @@ class RunAdmission:
             agent_artifact_id=agent_artifact_id,
             boundary=boundary,
         )
+        return agent_artifact_id
 
     async def _referenced_agent(
         self,

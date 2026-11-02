@@ -309,6 +309,7 @@ underlying text on purpose, so do not replace it with a trace's error text.
 | `run_first_response_time_limit` | The model did not start to answer within the runtime's limit, so the runtime ended the turn. `errorText` names the limit. | Yes |
 | `run_total_time_limit` | The turn ran longer than the runtime's total limit, so the runtime ended it. `errorText` names the limit. | Yes, with a smaller request |
 | `tool_call_time_limit` | A tool call ran longer than the runtime's limit and did not stop, so the runtime ended the turn. `errorText` names the limit. | Yes, with smaller steps |
+| `harness_init_timeout` | The harness did not answer while the run was opening its session, so nothing ran. `errorText` names the harness and the limit. | Yes |
 | `credential_delivery_failed` | The run's model credential did not reach the model in time (a cloud sandbox race). | Yes |
 | `subscription_login_required` | The subscription sign-in used by this connection is no longer valid. For ChatGPT, the sign-in expired or was revoked. For Claude, the provider refused the setup-token. | No: sign in to ChatGPT again, or paste a new Claude token |
 | `subscription_login_refreshed` | Another session renewed the ChatGPT sign-in during this run. | Yes |

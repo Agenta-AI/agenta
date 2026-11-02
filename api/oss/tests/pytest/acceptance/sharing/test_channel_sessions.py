@@ -1,9 +1,10 @@
-"""Channel sessions and channel bindings (M3), against a running API.
+"""Channel sessions and channel bindings, against a running API.
 
-A channel turn runs as the installation, so its session has no owner and every member
-reads it, even when the sender is a linked member. A private agent cannot be bound to
-a channel, whichever reference family names it. The channel is the mock `agenta`
-channel; its turns are real turns on the mock harness.
+A channel turn runs as the installation. A project agent's channel session has no owner
+and every member reads it, even when the sender is a linked member. A private agent may
+answer a channel (owner ruling 2026-10-26): only its owner binds it, whichever reference
+family names it, and a make-private keeps its bindings on. The channel is the mock
+`agenta` channel; its turns are real turns on the mock harness.
 """
 
 from uuid import uuid4
@@ -18,6 +19,7 @@ from oss.tests.pytest.acceptance.sharing.support import (
     NOT_FOUND_BODY,
     core_rows,
     fetch_sharing,
+    invoke,
     listed_sessions,
     new_agent,
     poll,
@@ -111,6 +113,27 @@ def test_linked_sender_session_ownerless_readable(sharing_cast):
     assert sharing.json()["sharing"]["shareable"] is False
     assert sharing.json()["sharing"]["not_shareable_reason"] == "channel"
 
+    # Bob writes to the channel chat from the web app, as /m sends it: the turn runs
+    # in that session (a member sends to a project channel chat).
+    assert fetch_sharing(sharing_cast["bob"], session_id).json()["sharing"]["can_send"]
+    sent = invoke(
+        sharing_cast["bob"],
+        session_id=session_id,
+        agent=sharing_cast.installation.agent,
+        text="hello from the web",
+    )
+    assert sent.status_code == 200, sent.text
+    bob_id = str(sharing_cast.people["bob"].user_id)
+    bob_turns = poll(
+        lambda: [
+            row
+            for row in turn_rows(sharing_cast.project_id, session_id)
+            if str(row["sender_user_id"]) == bob_id
+        ],
+        timeout=40,
+    )
+    assert bob_turns, "Bob's turn did not run in the channel session"
+
 
 def _bind(caller, cast, references):
     return caller(
@@ -126,16 +149,20 @@ def _bind(caller, cast, references):
     )
 
 
-def test_activate_private_agent_rejected(sharing_cast):
+def test_only_the_owner_binds_a_private_agent(sharing_cast):
     alice = sharing_cast["alice"]
+    bob = sharing_cast["bob"]
     private = new_agent(alice, visibility="private")
+    references = {"workflow_revision": {"id": private["revision_id"]}}
 
-    refused = _bind(
-        alice, sharing_cast, {"workflow_revision": {"id": private["revision_id"]}}
-    )
+    # Bob cannot see Alice's private agent, so he cannot put it in a channel.
+    refused = _bind(bob, sharing_cast, references)
     assert (refused.status_code, refused.json()) == (404, NOT_FOUND_BODY)
+    bound = _bind(alice, sharing_cast, references)
+    assert bound.status_code == 200, bound.text
+    assert bound.json()["agent"]["flags"]["is_active"] is True
 
-    # Made private after it was bound: the binding stops (no new channel turns).
+    # Made private after it was bound: the binding stays on.
     shared = new_agent(alice, visibility="project")
     bound = _bind(
         alice, sharing_cast, {"workflow_revision": {"id": shared["revision_id"]}}
@@ -150,7 +177,7 @@ def test_activate_private_agent_rejected(sharing_cast):
     assert response.status_code == 200, response.text
     binding = alice("GET", f"/channels/agents/{binding_id}")
     assert binding.status_code == 200, binding.text
-    assert binding.json()["agent"]["flags"]["is_active"] is False
+    assert binding.json()["agent"]["flags"]["is_active"] is True
 
 
 def _set_active(caller, binding_id, is_active):
@@ -161,8 +188,9 @@ def _set_active(caller, binding_id, is_active):
     )
 
 
-def test_flags_only_reactivation_of_a_private_agent_rejected(sharing_cast):
+def test_flags_only_reactivation_of_a_private_agent(sharing_cast):
     alice = sharing_cast["alice"]
+    bob = sharing_cast["bob"]
 
     # A project agent's binding: a flags-only edit turns it off and on again.
     shared = new_agent(alice, visibility="project")
@@ -176,18 +204,23 @@ def test_flags_only_reactivation_of_a_private_agent_rejected(sharing_cast):
         assert response.status_code == 200, response.text
         assert response.json()["agent"]["flags"]["is_active"] is is_active
 
-    # Made private, the binding is off, and a flags-only edit cannot turn it on.
+    # Made private and turned off: the owner turns it on with a flags-only edit;
+    # another member cannot.
     response = alice(
         "POST",
         f"/workflows/{shared['id']}/sharing/visibility",
         json={"visibility": "private"},
     )
     assert response.status_code == 200, response.text
-    refused = _set_active(alice, binding_id, True)
+    assert _set_active(alice, binding_id, False).status_code == 200
+    refused = _set_active(bob, binding_id, True)
     assert (refused.status_code, refused.json()) == (404, NOT_FOUND_BODY)
     binding = alice("GET", f"/channels/agents/{binding_id}")
     assert binding.status_code == 200, binding.text
     assert binding.json()["agent"]["flags"]["is_active"] is False
+    turned_on = _set_active(alice, binding_id, True)
+    assert turned_on.status_code == 200, turned_on.text
+    assert turned_on.json()["agent"]["flags"]["is_active"] is True
 
 
 def test_application_family_reference_is_resolved(sharing_cast):
@@ -200,10 +233,96 @@ def test_application_family_reference_is_resolved(sharing_cast):
         ("application_variant", "variant_id"),
         ("application", "id"),
     ):
-        refused = _bind(alice, sharing_cast, {key: {"id": private[field]}})
+        # Each family resolves to the agent: refused for another member, bound for
+        # its owner.
+        refused = _bind(
+            sharing_cast["bob"], sharing_cast, {key: {"id": private[field]}}
+        )
         assert (refused.status_code, refused.json()) == (404, NOT_FOUND_BODY), key
+        bound = _bind(alice, sharing_cast, {key: {"id": private[field]}})
+        assert bound.status_code == 200, (key, bound.text)
 
     bound = _bind(
         alice, sharing_cast, {"application_revision": {"id": shared["revision_id"]}}
     )
     assert bound.status_code == 200, bound.text
+
+
+def test_a_private_agent_s_channel_chat_belongs_to_its_owner(sharing_cast):
+    """Alice binds her private agent to a channel (her API key and a channel run's
+    credential cannot). Someone in the
+    channel writes to it: the turn runs as the binding, and the new chat is private to
+    Alice. She reads it; Bob neither reads nor lists it."""
+
+    alice = sharing_cast["alice"]
+    bob = sharing_cast["bob"]
+    owner_id = str(sharing_cast.people["alice"].user_id)
+    private = new_agent(alice, visibility="private", name="m3 private channel agent")
+    slug = f"m3-private-{uuid4().hex[:8]}"
+    created = alice(
+        "POST",
+        "/channels/connections/",
+        json={"connection": {"channel": "agenta", "slug": slug, "data": {"bot": slug}}},
+    )
+    assert created.status_code == 200, created.text
+    connection = created.json()["connection"]
+    binding = {
+        "agent": {
+            "connection_id": connection["id"],
+            "slug": f"m3-binding-{uuid4().hex[:8]}",
+            "data": {
+                "references": {"workflow_revision": {"id": private["revision_id"]}}
+            },
+        }
+    }
+
+    # An API key acts for Alice, but only Alice as a person binds her private agent.
+    refused = sharing_cast.alice_key("POST", "/channels/agents/", json=binding)
+    assert (refused.status_code, refused.json()) == (404, NOT_FOUND_BODY)
+    # Neither does a channel run's credential (an installation acting for Alice).
+    refused = sharing_cast.installation.caller(
+        "POST", "/channels/agents/", json=binding
+    )
+    assert (refused.status_code, refused.json()) == (404, NOT_FOUND_BODY)
+    bound = alice("POST", "/channels/agents/", json=binding)
+    assert bound.status_code == 200, bound.text
+    binding_id = bound.json()["agent"]["id"]
+    marked = alice("POST", f"/channels/agents/{binding_id}/default")
+    assert marked.status_code == 200, marked.text
+
+    posted = sharing_cast.alice_key(
+        "POST",
+        "/channels/agenta/events/",
+        json={
+            "project": connection["data"]["connection_locator"]["project"],
+            "bot": connection["data"]["connection_locator"]["bot"],
+            "user": f"someone-{uuid4().hex[:8]}",
+            "id": f"msg-{uuid4().hex[:8]}",
+            "text": "hello, private agent",
+        },
+    )
+    assert posted.status_code == 202, posted.text
+
+    def thread_session():
+        rows = core_rows(
+            "SELECT session_id FROM channel_threads"
+            " WHERE project_id = $1::uuid AND agent_id = $2::uuid",
+            str(sharing_cast.project_id),
+            binding_id,
+        )
+        return rows[0]["session_id"] if rows else None
+
+    session_id = poll(thread_session, timeout=40)
+    assert session_id, "the channel message opened no session"
+    turns = poll(lambda: turn_rows(sharing_cast.project_id, session_id), timeout=40)
+    assert turns, "the private agent's channel turn did not run"
+    assert [(row["principal_kind"], str(row["principal_id"])) for row in turns] == [
+        ("installation", binding_id)
+    ]
+
+    row = stream_row(sharing_cast.project_id, session_id)
+    assert (row["visibility"], str(row["owner_user_id"])) == ("private", owner_id)
+    assert stream_is_readable(alice, session_id)
+    assert session_id in listed_sessions(alice)
+    assert not stream_is_readable(bob, session_id)
+    assert session_id not in listed_sessions(bob)

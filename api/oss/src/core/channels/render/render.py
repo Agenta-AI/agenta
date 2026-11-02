@@ -36,6 +36,16 @@ UNSUPPORTED_TEXT = (
 # The person opted out (STOP) or back in (START).
 OPTED_OUT_TEXT = "You won't get more messages from us. Send START to chat again."
 OPTED_IN_TEXT = "Welcome back. Send your message and we'll reply here."
+# A person the agent does not answer addressed it: one private note a day per
+# person and place. The notes name no agent and no owner. Draft copy, pending
+# owner approval.
+REFUSED_SENDER_TEXT = (
+    "This agent only answers chosen people. Ask its owner in Agenta to add you."
+)
+REFUSED_CHANNEL_TEXT = "This agent does not answer in this channel."
+REFUSED_DIRECT_MESSAGE_TEXT = (
+    "This agent does not answer direct messages. Mention it in a channel instead."
+)
 
 
 def render_indicator(*, capabilities: ChannelCapabilities) -> RenderItem:

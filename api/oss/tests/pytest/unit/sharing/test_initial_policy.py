@@ -15,7 +15,6 @@ from oss.src.core.sharing.dtos import (
 )
 from oss.src.core.sharing.service import SharingService
 from oss.tests.pytest.utils.memberships import InMemoryMembershipsDAO
-from oss.tests.pytest.utils.principals import InMemoryPrincipalsDAO
 from oss.tests.pytest.utils.sharing import InMemorySharingDAO
 
 
@@ -29,7 +28,6 @@ def _service() -> SharingService:
             memberships_dao=InMemoryMembershipsDAO(),
             policy=MembershipPolicy.PROJECT_ROWS,
         ),
-        principals_dao=InMemoryPrincipalsDAO(),
     )
 
 

@@ -14,6 +14,7 @@ from starlette.routing import Mount
 from agenta.sdk.utils.exceptions import suppress
 from agenta.sdk.utils.logging import get_module_logger
 from agenta.sdk.models.workflows import (
+    details_of,
     failure_code_of,
     retry_after_of,
     returned_stacktrace,
@@ -589,6 +590,7 @@ async def handle_invoke_failure(exception: Exception) -> Response:
             stacktrace=returned_stacktrace(exception.stacktrace),
             failure_code=failure_code,
             retry_after=retry_after_of(exception),
+            details=details_of(exception),
         )
 
     else:
@@ -619,6 +621,7 @@ async def handle_invoke_failure(exception: Exception) -> Response:
             stacktrace=returned_stacktrace(stacktrace),
             failure_code=failure_code,
             retry_after=retry_after_of(exception),
+            details=details_of(exception),
         )
 
     trace_id = None

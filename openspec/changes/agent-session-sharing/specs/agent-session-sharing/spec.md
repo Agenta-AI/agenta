@@ -8,14 +8,14 @@ A web agent session SHALL have a visibility, an optional owner, and named Viewer
 - **THEN** Carol can read the session and cannot send, answer an approval, rename, or change sharing
 
 ### Requirement: Capabilities and agent access still apply
-Every role SHALL also require the project capability for the action. A send SHALL require agent access for the sender's own authority. Reading history SHALL NOT require agent access. Humans SHALL only read a channel session in Agenta.
+Every role SHALL also require the project capability for the action. A send SHALL require agent access for the sender's own authority. Reading history SHALL NOT require agent access. A channel session SHALL follow the visibility rules below: members read and send to a project-visible one, and a private agent's channel session belongs to the agent's owner.
 
 #### Scenario: Participant sends under his own authority
 - **WHEN** Bob, a Participant, sends a turn in Alice's session after he lost access to the agent
 - **THEN** his turn is refused, and he can still read the history
 
 ### Requirement: Project visibility gives Participant
-Project visibility SHALL give Participant access to members with the project capability in a web session, owned or ownerless, also after the owner left: they read, send and answer approvals. It SHALL take precedence over a Viewer grant. Rename, archive, delete and sharing changes SHALL stay with the owner. An ownerless session SHALL keep today's rename, archive and delete rule: any principal with `EDIT_SESSIONS`. A channel (Slack) session SHALL keep Viewer access for people.
+Project visibility SHALL give Participant access to members with the project capability in a web session, owned or ownerless, also after the owner left: they read, send and answer approvals. It SHALL take precedence over a Viewer grant. Rename, archive, delete and sharing changes SHALL stay with the owner. An ownerless session SHALL keep today's rename, archive and delete rule: any principal with `EDIT_SESSIONS`. A private agent's channel session SHALL be private to the agent's owner.
 
 #### Scenario: Ownerless session
 - **WHEN** a member opens a project-visible session that an API key started
@@ -30,8 +30,8 @@ Project visibility SHALL give Participant access to members with the project cap
 - **THEN** the member can send to it and answer its approvals, and only the owner, when there is one, can rename, archive or delete it
 
 #### Scenario: Channel session
-- **WHEN** a member opens a project-visible session that comes from Slack
-- **THEN** the member can read it and cannot send to it in Agenta
+- **WHEN** a member opens a project-visible session that comes from Slack or Telegram
+- **THEN** the member can read it and send to it in Agenta
 
 ### Requirement: A person's server run runs in its ownerless session
 A person's server run (an event subscription, a child run, an evaluation run) SHALL run in an ownerless session, like any non-human principal: its signed run origin, not the person sending, decides. A turn admitted for such a run SHALL NOT admit the same person's web or browser requests.

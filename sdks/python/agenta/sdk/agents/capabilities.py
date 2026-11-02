@@ -167,6 +167,7 @@ PROVIDER_DEFAULT_MODELS: Dict[str, List[str]] = {
         "anthropic/claude-fable-5-1",
         "anthropic/claude-sonnet-5-5",
         "anthropic/claude-sonnet-5",
+        "anthropic/claude-haiku-5-5",
         "anthropic/claude-haiku-4-5",
     ],
     # New Gemini Flash releases can postdate the pinned pi-ai catalog, so their facts ride the

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * The session tab strip's sharing control: a Slack chat's chip gets the Slack texts, an
+ * The session tab strip's sharing control: a channel chat's chip gets the channel text, an
  * API-key chat's chip the no-owner texts, from the reason the sharing state carries.
  */
 import type {SessionSharingState} from "@agenta/entities/sharing"
@@ -46,7 +46,7 @@ describe("SessionSharingControl", () => {
         chipProps.length = 0
     })
 
-    it("marks a Slack chat as coming from a channel", () => {
+    it("marks a channel chat as coming from a channel", () => {
         sharingState.current = ownerless("channel")
         render()
         expect(chipProps[0]?.fromChannel).toBe(true)

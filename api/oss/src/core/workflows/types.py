@@ -5,6 +5,8 @@ These are raised by the workflows service and translated to HTTP responses at th
 never raise ``HTTPException`` directly.
 """
 
+import json
+
 from math import isfinite
 from typing import Any, Dict, Optional
 
@@ -154,6 +156,35 @@ class InvalidAgentInstructionsError(Exception):
         }
 
 
+class InvalidAgentConnectionError(Exception):
+    """The commit carries ``parameters.agent.llm.connection`` that the runtime cannot use.
+
+    Refused at the write boundary, for the reason :class:`InvalidAgentInstructionsError`
+    gives: an organization connection that does not name its slug with scope and namespace
+    ``organization``.
+    """
+
+    code = "invalid_agent_connection"
+
+    def __init__(self, *, reason: str, message: str, next_step: str) -> None:
+        super().__init__(message)
+        self.reason = reason
+        self.message = message
+        self.next_step = next_step
+
+    def to_detail(self) -> Dict[str, Any]:
+        return {
+            "code": self.code,
+            "message": self.message,
+            "retryable": False,
+            "next_step": self.next_step,
+            "details": {
+                "field": "parameters.agent.llm.connection",
+                "reason": self.reason,
+            },
+        }
+
+
 class WorkflowServiceUrlMissing(WorkflowError):
     """Raised when a revision has no runnable service URL to invoke (batch or detached)."""
 
@@ -181,6 +212,29 @@ class WorkflowDetachedStartRejected(WorkflowDetachedStartFailed):
     failure as the first record. The stamp proves who answered, not that nothing ran. For an
     agent turn it does: the agent handler starts the harness only after the stream commits
     200, so a non-2xx answer comes before any agent work. A gateway 502 or 504 is not this."""
+
+    def __init__(
+        self,
+        message: Optional[str] = None,
+        *,
+        failure_code: Optional[str] = None,
+        failure_details: Optional[dict] = None,
+    ):
+        super().__init__(message)
+        # The service's own failure class (`status.failure_code`) and its structured facts
+        # (`status.details`), when the answer carried them.
+        self.failure_code = failure_code
+        self.failure_details = failure_details
+
+
+def service_failure_status(raw: bytes) -> dict:
+    """The `status` object of a workflow service error body, or an empty dict."""
+    try:
+        body = json.loads(raw)
+    except (ValueError, TypeError):
+        return {}
+    status = body.get("status") if isinstance(body, dict) else None
+    return status if isinstance(status, dict) else {}
 
 
 # The statuses that mean the run was not accepted, whoever answered.

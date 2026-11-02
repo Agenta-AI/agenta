@@ -433,6 +433,8 @@ def _build_channels_inbox_broker() -> tuple[AsyncBroker, int]:
             identity_dao=ChannelIdentityDAO(engine=transactions_engine),
         ),
         respond_interaction_fn=_respond_interaction,
+        # `!stop` sends the same durable cancel as the Stop button.
+        commands_service=commands_service,
         session_queue=session_queue,
         # Inbound images and documents (WhatsApp) reach the agent as session
         # attachments.

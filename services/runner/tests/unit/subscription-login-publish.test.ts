@@ -716,3 +716,90 @@ describe("the log never carries the credential", () => {
     assert.match(text, /decision=stale/);
   });
 });
+
+/**
+ * An organization subscription login is upkept on the organization row. The push and the
+ * failure report carry `?scope=organization`, so the API checks the project's grant and writes
+ * the organization row, never a project row with the same id.
+ */
+describe("the upkeep URL of an organization subscription login", () => {
+  const ORGANIZATION_SUBSCRIPTION: ModelConnectionSubscription = {
+    ...SUBSCRIPTION,
+    owner: "organization",
+  };
+
+  function recordingFetch(urls: string[], body: unknown): typeof fetch {
+    return (async (url: string) => {
+      urls.push(url);
+      return new Response(JSON.stringify(body), { status: 200 });
+    }) as unknown as typeof fetch;
+  }
+
+  it("pushes a refreshed organization login with scope=organization", async () => {
+    const home = tempHome();
+    writeLogin(home, REFRESHED);
+    const urls: string[] = [];
+    const publisher = startSubscriptionPublisher({
+      plan: {
+        isDaytona: false,
+        credentials: {
+          subscription: ORGANIZATION_SUBSCRIPTION,
+          subscriptionHome: home,
+        },
+      },
+      state: subscriptionPublishState(ORGANIZATION_SUBSCRIPTION),
+      sandbox: () => undefined,
+      apiBase: "https://api.test",
+      authorization: "ApiKey test",
+      fetchImpl: recordingFetch(urls, { version: 4, updated: true }),
+      log: () => {},
+      intervalMs: 10,
+    });
+    assert.ok(publisher);
+    running.push(publisher);
+
+    await publisher.reconcile("interval");
+
+    assert.deepEqual(urls, [
+      "https://api.test/secrets/conn-1/subscription-login?scope=organization",
+    ]);
+  });
+
+  it("reports an organization login failure with scope=organization", async () => {
+    const urls: string[] = [];
+    await reportSubscriptionLoginFailure(
+      ORGANIZATION_SUBSCRIPTION,
+      subscriptionPublishState(ORGANIZATION_SUBSCRIPTION),
+      "auth_failed",
+      {
+        apiBase: "https://api.test",
+        authorization: "ApiKey test",
+        fetchImpl: recordingFetch(urls, { stale: false }),
+        log: () => {},
+      },
+    );
+
+    assert.deepEqual(urls, [
+      "https://api.test/secrets/conn-1/subscription-login/failure?scope=organization",
+    ]);
+  });
+
+  it("keeps the project URL for a project login", async () => {
+    const urls: string[] = [];
+    await reportSubscriptionLoginFailure(
+      SUBSCRIPTION,
+      subscriptionPublishState(SUBSCRIPTION),
+      "auth_failed",
+      {
+        apiBase: "https://api.test",
+        authorization: "ApiKey test",
+        fetchImpl: recordingFetch(urls, { stale: false }),
+        log: () => {},
+      },
+    );
+
+    assert.deepEqual(urls, [
+      "https://api.test/secrets/conn-1/subscription-login/failure",
+    ]);
+  });
+});

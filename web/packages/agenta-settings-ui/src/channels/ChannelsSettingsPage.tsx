@@ -52,8 +52,6 @@ export interface ChannelsSettingsPageProps {
     confirm?: ConfirmDestructive
     /** The project's name, for the agent step's audience note. */
     projectName?: string
-    /** Opens "Privacy and owner" for one of the reader's private agents. */
-    onShareAgent?: (agentId: string) => void
 }
 
 const PLATFORM_DESCRIPTIONS: Record<ChannelPlatform, string> = {
@@ -92,7 +90,6 @@ export const ChannelsSettingsPage = ({
     hostedHandle = "@agenta",
     confirm,
     projectName,
-    onShareAgent,
 }: ChannelsSettingsPageProps) => {
     const [retrying, setRetrying] = useState(false)
     const current = agents.find((agent) => agent.id === agentId)
@@ -124,8 +121,6 @@ export const ChannelsSettingsPage = ({
         agents,
         onAgentChange,
         projectName,
-        agentPrivate: !!current?.isPrivate,
-        onShareAgent,
     })
     const {openRoute, openConnection: openPanelConnection} = panel
 
@@ -151,13 +146,16 @@ export const ChannelsSettingsPage = ({
         const connected = (connections.allConnections ?? []).map(
             (connection, index): SettingsCatalogItem => {
                 const {title, detail} = connectionRowText(connection, hostedHandle)
+                const owner = connection.agent?.id
+                // Answers as an agent this member cannot see: the row has nothing to open.
+                const hiddenOwner = !!owner && !agents.some((agent) => agent.id === owner)
                 return {
                     key: connection.connectionId ?? `${connection.platform}-${index}`,
                     logo: platformLogo(connection.platform, 18),
                     name: title,
                     description: `${agentText(connection)} · ${detail}`,
                     ...connectionStatus(connection),
-                    onOpen: () => openConnection(connection),
+                    onOpen: hiddenOwner ? undefined : () => openConnection(connection),
                     menu: (
                         <SettingsRowMenu
                             label="Channel actions"
@@ -169,6 +167,7 @@ export const ChannelsSettingsPage = ({
                                             ? "Finish linking"
                                             : "Manage",
                                     icon: <GearSix size={14} />,
+                                    hidden: hiddenOwner,
                                     onClick: () => openConnection(connection),
                                 },
                                 {type: "divider"},
@@ -218,7 +217,15 @@ export const ChannelsSettingsPage = ({
             {key: "connected", label: "Connected", items: connected},
             {key: "platforms", label: "Messaging platforms", items: platforms},
         ]
-    }, [actions, confirm, connections.allConnections, hostedHandle, openConnection, startConnect])
+    }, [
+        actions,
+        agents,
+        confirm,
+        connections.allConnections,
+        hostedHandle,
+        openConnection,
+        startConnect,
+    ])
 
     const retry = async () => {
         setRetrying(true)

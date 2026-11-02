@@ -94,6 +94,7 @@ from oss.src.dbs.postgres.folders.dao import FoldersDAO
 
 # Services
 from oss.src.core.secrets.services import VaultService
+from oss.src.core.secrets.limits import NoProjectLimits
 from oss.src.core.secrets.claude_token import ClaudeTokenClient
 from oss.src.core.secrets.subscription_login import SubscriptionLoginRunnerClient
 from oss.src.core.secrets.subscription_service import SubscriptionLoginService
@@ -180,6 +181,9 @@ from oss.src.core.tools.providers.composio import ComposioToolsAdapter
 from oss.src.core.tools.registry import ToolsGatewayRegistry
 from oss.src.core.tools.service import ToolsService
 from oss.src.apis.fastapi.tools.router import ToolsRouter
+from oss.src.apis.fastapi.account_choices.router import AccountChoicesRouter
+from oss.src.core.account_choices.lifecycle import AccountsLifecycle
+from oss.src.core.account_choices.service import get_account_choices_service
 from oss.src.dbs.postgres.triggers.dao import TriggersDAO
 from oss.src.core.triggers.providers.composio import ComposioTriggersAdapter
 from oss.src.core.triggers.registry import TriggersGatewayRegistry
@@ -193,6 +197,7 @@ from oss.src.tasks.taskiq.shared.broker import ProducerOnlyRedisStreamBroker
 from oss.src.dbs.postgres.gateways.llms.dao import LLMEndpointsDAO
 from oss.src.dbs.postgres.gateways.mcps.dao import MCPEndpointsDAO
 from oss.src.dbs.postgres.gateways.mcps.oauth_dao import MCPOAuthAttemptsDAO
+from oss.src.core.gateways.policy.dtos import GatewayPlane
 from oss.src.core.gateways.policy.resolution import SecretsResolver
 from oss.src.core.gateways.policy.service import GatewayPolicyService
 from oss.src.core.gateways.llms.registrar import LLMEndpointRegistrar
@@ -264,6 +269,8 @@ from oss.src.dbs.postgres.sessions.inputs.dbes import SessionInputDBE  # noqa: F
 from oss.src.dbs.postgres.sessions.inputs.dao import SessionInputsDAO
 from oss.src.core.sessions.inputs.service import SessionInputsService
 from oss.src.core.sessions.starts.service import SessionStartsService
+from oss.src.core.agent_requirements.guard import ModelSetupGuard
+from oss.src.core.agent_requirements.service import AgentRequirementsService
 from oss.src.core.agent_templates.bindings import TemplateBindingResolver
 from oss.src.core.agent_templates.catalog import AgentTemplateCatalog
 from oss.src.core.agent_templates.compiler import TemplateCompiler
@@ -311,7 +318,6 @@ from oss.src.routers import (
 from oss.src.apis.fastapi.access.router import AccessRouter
 
 from oss.src.utils.env import env
-from oss.src.core.rollout.switches import prefetch_rollout_flags
 from oss.src.core.evaluations.runtime.broker import (
     build_evaluations_broker,
     build_evaluations_worker,
@@ -382,8 +388,6 @@ async def lifespan(*args, **kwargs):
 
     await _triggers_broker.startup()
     await _channels_inbox_broker.startup()
-
-    prefetch_rollout_flags()
 
     # The store bucket is not lazily created; signed mounts need it to exist. Best-effort
     # so a store outage doesn't block API startup (mounts degrade, the rest runs).
@@ -796,11 +800,22 @@ _t_services = time.perf_counter()
 # Membership and access first: every permission check goes through them.
 bootstrap_access()
 
+# The EE project limit of organization credentials reuses the RBAC entitlement (M5).
+if is_ee():
+    from ee.src.core.secrets.limits import EntitlementProjectLimits
+
+    _project_limits = EntitlementProjectLimits(
+        rbac_entitlement=get_access_service().rbac_entitlement
+    )
+else:
+    _project_limits = NoProjectLimits()
+
 vault_service = VaultService(
     secrets_dao=secrets_dao,
     llm_endpoint_registrar=LLMEndpointRegistrar(
         llm_endpoints_dao=llm_endpoints_dao,
     ),
+    project_limits=_project_limits,
 )
 
 subscription_login_service = SubscriptionLoginService(
@@ -994,6 +1009,14 @@ connections_adapter_registry = ConnectionsGatewayRegistry(
 connections_service = ConnectionsService(
     connections_dao=connections_dao,
     adapter_registry=connections_adapter_registry,
+)
+
+# A person's own accounts in an organization end when they leave it, on both paths
+# that remove a member.
+get_memberships_service().set_member_removed_hook(
+    AccountsLifecycle(
+        vault_service=vault_service, connections_service=connections_service
+    ).end_for_member
 )
 
 # Shared catalog adapter + service (providers + integrations; tools AND triggers)
@@ -1348,6 +1371,37 @@ async def _respond_channel_interaction(
     )
 
 
+# Durable session commands (Stop). The control-delivery adapter is chosen by one setting.
+# `direct` posts the command to the runner's own /cancel over the hop that already carries hard
+# kill; `long_poll` is not built yet, and naming it fails at boot rather than silently falling
+# back to a transport the operator did not choose.
+_control_adapter = (env.agenta.sessions.commands.adapter or "direct").strip().lower()
+if _control_adapter != "direct":
+    raise RuntimeError(
+        f"AGENTA_SESSIONS_CONTROL_ADAPTER={_control_adapter!r} is not available in this build. "
+        "Only 'direct' is implemented; the long-poll adapter is a later change."
+    )
+
+session_commands_service = SessionCommandsService(
+    commands_dao=session_commands_dao,
+    streams_service=session_streams_service,
+    interactions_service=interactions_service,
+    lock_engine=_lock_engine,
+    delivery=DirectControlDelivery(
+        continue_interaction=lambda command: deliver_continue_interaction(
+            command=command,
+            interactions_dispatcher=_interactions_dispatcher,
+        ),
+        continue_input=lambda command: deliver_continue_input(
+            command=command,
+            workflows_service=workflows_service,
+            run_admission=run_admission,
+        ),
+    ),
+    executions_dao=session_executions_dao,
+    inputs_dao=session_inputs_dao,
+)
+
 _channels_inbox_dispatcher = InboxDispatcher(
     channels_service=channels_service,
     run_admission=run_admission,
@@ -1355,7 +1409,7 @@ _channels_inbox_dispatcher = InboxDispatcher(
     respond_interaction_fn=_respond_channel_interaction,
     workflows_service=workflows_service,
     identity_service=channels_identity_service,
-    streams_service=session_streams_service,
+    commands_service=session_commands_service,
     session_queue=ChannelSessionQueue(
         inputs_service=SessionInputsService(
             inputs_dao=session_inputs_dao,
@@ -1398,8 +1452,16 @@ channel_tools = ChannelToolsRouter(
 # other DAOs, because the vault's endpoint registrar takes it.
 mcp_endpoints_dao = MCPEndpointsDAO(engine=_transactions_engine)
 
-secrets_resolver = SecretsResolver(
+# One resolver per plane: only the LLM gateway answers an organization connection an
+# agent names. Every other user of a resolver (the MCP gateway, the shared policy service)
+# gets the project-only plane.
+llm_secrets_resolver = SecretsResolver(
     vault_service=vault_service,
+    plane=GatewayPlane.LLM,
+)
+mcp_secrets_resolver = SecretsResolver(
+    vault_service=vault_service,
+    plane=GatewayPlane.MCP,
 )
 
 # The wallet's side of the gateway seam, bound only in EE with the wallet on. Otherwise the
@@ -1451,7 +1513,7 @@ if ee and is_ee() and env.wallets.enabled and env.mock_gateways.enabled:
     )
 
 gateway_policy_service = GatewayPolicyService(
-    resolver=secrets_resolver,
+    resolver=mcp_secrets_resolver,
     spend_admission=gateway_spend_admission,
     usage_sink=gateway_usage_sink,
 )
@@ -1459,7 +1521,7 @@ gateway_policy_service = GatewayPolicyService(
 llm_gateway_service = LLMGatewayService(
     llm_endpoints_dao=llm_endpoints_dao,
     policy=gateway_policy_service,
-    resolver=secrets_resolver,
+    resolver=llm_secrets_resolver,
     upstream_registry=LLMUpstreamRegistry(
         adapters={
             "relay": RelayLLMAdapter(),
@@ -1485,7 +1547,7 @@ mcp_oauth_connect_service = MCPOAuthConnectService(
 mcp_gateway_service = MCPGatewayService(
     mcp_endpoints_dao=mcp_endpoints_dao,
     policy=gateway_policy_service,
-    resolver=secrets_resolver,
+    resolver=mcp_secrets_resolver,
     connections_service=connections_service,
     agenta_tools_router=tools,
     upstream_registry=MCPUpstreamRegistry(
@@ -1522,6 +1584,23 @@ mcp_gateway_service = MCPGatewayService(
     oauth_refresher=mcp_oauth_connect_service,
     managed_tools=managed_mcp_adapter,
 )
+
+# The needs-setup check reads the vault, the LLM and MCP gateways and the app connections,
+# so it is built once they exist and handed to the routes and services that use it.
+agent_requirements_service = AgentRequirementsService(
+    vault_service=vault_service,
+    llm_gateway_service=llm_gateway_service,
+    mcp_gateway_service=mcp_gateway_service,
+    connections_service=connections_service,
+    account_choices_service=get_account_choices_service(),
+)
+workflows.requirements_service = agent_requirements_service
+needs_setup_guard = ModelSetupGuard(
+    workflows_service=workflows_service,
+    requirements_service=agent_requirements_service,
+)
+triggers_service.needs_setup_guard = needs_setup_guard
+channels_service.needs_setup_guard = needs_setup_guard
 
 gateway_credentials_router = GatewayCredentialsRouter()
 llm_gateway_router = LLMGatewayRouter(llm_gateway_service=llm_gateway_service)
@@ -1584,36 +1663,6 @@ sessions_service = SessionsService(
     records_service=records_service,
 )
 
-# Durable session commands (Stop). The control-delivery adapter is chosen by one setting.
-# `direct` posts the command to the runner's own /cancel over the hop that already carries hard
-# kill; `long_poll` is not built yet, and naming it fails at boot rather than silently falling
-# back to a transport the operator did not choose.
-_control_adapter = (env.agenta.sessions.commands.adapter or "direct").strip().lower()
-if _control_adapter != "direct":
-    raise RuntimeError(
-        f"AGENTA_SESSIONS_CONTROL_ADAPTER={_control_adapter!r} is not available in this build. "
-        "Only 'direct' is implemented; the long-poll adapter is a later change."
-    )
-
-session_commands_service = SessionCommandsService(
-    commands_dao=session_commands_dao,
-    streams_service=session_streams_service,
-    interactions_service=interactions_service,
-    lock_engine=_lock_engine,
-    delivery=DirectControlDelivery(
-        continue_interaction=lambda command: deliver_continue_interaction(
-            command=command,
-            interactions_dispatcher=_interactions_dispatcher,
-        ),
-        continue_input=lambda command: deliver_continue_input(
-            command=command,
-            workflows_service=workflows_service,
-            run_admission=run_admission,
-        ),
-    ),
-    executions_dao=session_executions_dao,
-    inputs_dao=session_inputs_dao,
-)
 session_inputs_service = SessionInputsService(
     inputs_dao=session_inputs_dao,
     interactions_dao=interactions_dao,
@@ -2069,6 +2118,17 @@ app.include_router(
     router=tools.router,
     prefix="/tools",
     tags=["Tools"],
+)
+
+account_choices = AccountChoicesRouter(
+    account_choices_service=get_account_choices_service(),
+    workflows_service=workflows_service,
+)
+
+app.include_router(
+    router=account_choices.router,
+    prefix="/account-choices",
+    tags=["Account Choices"],
 )
 
 app.include_router(

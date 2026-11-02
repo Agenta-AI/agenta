@@ -40,13 +40,14 @@
 .blog-post-page a[rel="tag"] {
   display: inline-block;
   font-family: var(--ifm-font-family-monospace);
-  font-size: 11px;
-  line-height: 16px;
-  padding: 1px 6px;
-  border: 1px solid var(--borderdefault);
-  border-radius: 5px;
+  font-size: 12px;
+  letter-spacing: -0.01em;
+  line-height: 18px;
+  padding: 1px 5px;
+  border: 0;
+  border-radius: 4px;
   background-color: var(--bgelevated1);
-  color: var(--contentsecondary);
+  color: var(--contentprimary);
   text-decoration: none;
 }
 

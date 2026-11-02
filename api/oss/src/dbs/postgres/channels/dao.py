@@ -1,6 +1,6 @@
 import json
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
@@ -31,6 +31,7 @@ from oss.src.core.channels.dtos import (
     ChannelAgentCreate,
     ChannelAgentEdit,
     ChannelAgentQuery,
+    ChannelBindingRestore,
     ChannelConnection,
     ChannelConnectionCreate,
     ChannelConnectionEdit,
@@ -100,7 +101,29 @@ from oss.src.dbs.postgres.shared.engine import (
     get_transactions_engine,
 )
 from oss.src.dbs.postgres.shared.utils import apply_windowing
+from oss.src.core.sharing.types import SharedItemNotFound
 from oss.src.dbs.postgres.sharing.dao import guard_agent_activation
+
+
+# Rollout only (remove next release): the people list on the installation, the
+# field the previous release reads. Run first in the write, so the connection
+# row is locked before the agent's artifact, the order a connection restore uses.
+_INSTALLATION_SENDERS_SQL = text(
+    "UPDATE channel_connections "
+    "SET data = jsonb_set("
+    "COALESCE(data::jsonb, '{}'::jsonb), '{allowed_senders}', "
+    "CAST(:senders AS jsonb))::json "
+    "WHERE project_id = :project_id AND id = :connection_id"
+)
+_INSTALLATION_SENDERS_OF_AGENT_SQL = text(
+    "UPDATE channel_connections "
+    "SET data = jsonb_set("
+    "COALESCE(data::jsonb, '{}'::jsonb), '{allowed_senders}', "
+    "CAST(:senders AS jsonb))::json "
+    "WHERE project_id = :project_id AND id = ("
+    "SELECT connection_id FROM channel_agents "
+    "WHERE project_id = :project_id AND id = :agent_id)"
+)
 
 
 class ChannelsDAO(ChannelsDAOInterface):
@@ -201,9 +224,15 @@ class ChannelsDAO(ChannelsDAOInterface):
         connection_id: UUID,
     ) -> Optional[ChannelConnection]:
         async with self.engine.session() as session:
-            stmt = select(ChannelConnectionDBE).where(
-                ChannelConnectionDBE.project_id == project_id,
-                ChannelConnectionDBE.id == connection_id,
+            # the connection row first, then its bindings: the lock order of every
+            # binding write that also touches its installation
+            stmt = (
+                select(ChannelConnectionDBE)
+                .where(
+                    ChannelConnectionDBE.project_id == project_id,
+                    ChannelConnectionDBE.id == connection_id,
+                )
+                .with_for_update()
             )
 
             result = await session.execute(stmt)
@@ -244,14 +273,19 @@ class ChannelsDAO(ChannelsDAOInterface):
         user_id: UUID,
         #
         connection_id: UUID,
+        #
+        guard_bindings: Dict[UUID, ChannelBindingRestore],
+        guard_user_id: Optional[UUID],
     ) -> Optional[ChannelConnection]:
         async with self.engine.session() as session:
-            stmt = select(ChannelConnectionDBE).where(
-                ChannelConnectionDBE.project_id == project_id,
-                ChannelConnectionDBE.id == connection_id,
+            result = await session.execute(
+                select(ChannelConnectionDBE)
+                .where(
+                    ChannelConnectionDBE.project_id == project_id,
+                    ChannelConnectionDBE.id == connection_id,
+                )
+                .with_for_update()
             )
-
-            result = await session.execute(stmt)
             connection_dbe = result.scalar_one_or_none()
 
             if not connection_dbe:
@@ -259,16 +293,59 @@ class ChannelsDAO(ChannelsDAOInterface):
 
             archived_at = connection_dbe.deleted_at
 
-            connection_dbe.deleted_at = None
-            connection_dbe.deleted_by_id = None
-            connection_dbe.updated_by_id = user_id
+            # Lock order: the connection row, each agent's artifact in id order (as a
+            # binding write and `set_agent_policy`), then the binding rows.
+            refused_artifacts = set()
+            artifact_ids = {
+                guard.artifact_id
+                for guard in guard_bindings.values()
+                if guard.artifact_id is not None
+            }
+            for artifact_id in sorted(artifact_ids, key=str):
+                try:
+                    await guard_agent_activation(
+                        session,
+                        project_id=project_id,
+                        artifact_id=artifact_id,
+                        user_id=guard_user_id,
+                    )
+                except SharedItemNotFound:
+                    refused_artifacts.add(artifact_id)
 
             # The mirror of archive's cascade: the agents archived together with
             # the connection (same instant) come back with it. An agent deleted
             # on its own, earlier, stays deleted. Without this, a reconnect
             # after a disconnect recreates the "default" agent and trips the
             # (connection, slug) unique key on the archived row.
+            refused = []
             if archived_at is not None:
+                restored = (
+                    (
+                        await session.execute(
+                            select(ChannelAgentDBE)
+                            .where(
+                                ChannelAgentDBE.project_id == project_id,
+                                ChannelAgentDBE.connection_id == connection_id,
+                                ChannelAgentDBE.deleted_at == archived_at,
+                            )
+                            .order_by(ChannelAgentDBE.id)
+                            .with_for_update()
+                        )
+                    )
+                    .scalars()
+                    .all()
+                )
+                for agent_dbe in restored:
+                    agent = map_agent_dbe_to_dto(agent_dbe=agent_dbe)
+                    if not agent.flags.is_active:
+                        continue
+                    guard = guard_bindings.get(agent.id)
+                    if (
+                        guard is None
+                        or guard.references != agent.data.references
+                        or guard.artifact_id in refused_artifacts
+                    ):
+                        refused.append(agent.id)
                 await session.execute(
                     update(ChannelAgentDBE)
                     .where(
@@ -277,6 +354,26 @@ class ChannelsDAO(ChannelsDAOInterface):
                         ChannelAgentDBE.deleted_at == archived_at,
                     )
                     .values(deleted_at=None, deleted_by_id=None, updated_by_id=user_id)
+                )
+
+            connection_dbe.deleted_at = None
+            connection_dbe.deleted_by_id = None
+            connection_dbe.updated_by_id = user_id
+
+            if refused:
+                flags = cast(ChannelAgentDBE.flags, JSONB)
+                await session.execute(
+                    update(ChannelAgentDBE)
+                    .where(
+                        ChannelAgentDBE.project_id == project_id,
+                        ChannelAgentDBE.id.in_(refused),
+                    )
+                    .values(
+                        flags=func.coalesce(flags, cast(literal("{}"), JSONB)).op("||")(
+                            cast(literal(json.dumps({"is_active": False})), JSONB)
+                        ),
+                        updated_by_id=user_id,
+                    )
                 )
 
             await session.commit()
@@ -360,6 +457,8 @@ class ChannelsDAO(ChannelsDAOInterface):
         agent: ChannelAgentCreate,
         #
         guard_artifact_id: Optional[UUID] = None,
+        guard_user_id: Optional[UUID] = None,
+        installation_senders: Optional[List[str]] = None,
     ) -> ChannelAgent:
         agent_dbe = map_agent_dto_to_dbe_create(
             project_id=project_id,
@@ -369,9 +468,22 @@ class ChannelsDAO(ChannelsDAOInterface):
         )
 
         async with self.engine.session() as session:
+            if installation_senders is not None:
+                await session.execute(
+                    _INSTALLATION_SENDERS_SQL,
+                    {
+                        "senders": json.dumps(installation_senders),
+                        "project_id": project_id,
+                        "connection_id": agent.connection_id,
+                    },
+                )
+
             if guard_artifact_id is not None:
                 await guard_agent_activation(
-                    session, project_id=project_id, artifact_id=guard_artifact_id
+                    session,
+                    project_id=project_id,
+                    artifact_id=guard_artifact_id,
+                    user_id=guard_user_id,
                 )
 
             session.add(agent_dbe)
@@ -463,12 +575,33 @@ class ChannelsDAO(ChannelsDAOInterface):
         agent: ChannelAgentEdit,
         #
         guard_artifact_id: Optional[UUID] = None,
+        guard_user_id: Optional[UUID] = None,
+        guard_artifact_ids: Sequence[UUID] = (),
+        installation_senders: Optional[List[str]] = None,
     ) -> Optional[ChannelAgent]:
         async with self.engine.session() as session:
+            if installation_senders is not None:
+                await session.execute(
+                    _INSTALLATION_SENDERS_OF_AGENT_SQL,
+                    {
+                        "senders": json.dumps(installation_senders),
+                        "project_id": project_id,
+                        "agent_id": agent.id,
+                    },
+                )
+
+            # Before the binding row: the artifact locks come first, in a fixed
+            # order. `guard_artifact_ids`: the agents whose channel limits this
+            # write changes, checked the same way, active binding or not.
+            guarded = set(guard_artifact_ids)
             if guard_artifact_id is not None:
-                # Before the binding row: the artifact lock comes first.
+                guarded.add(guard_artifact_id)
+            for artifact_id in sorted(guarded):
                 await guard_agent_activation(
-                    session, project_id=project_id, artifact_id=guard_artifact_id
+                    session,
+                    project_id=project_id,
+                    artifact_id=artifact_id,
+                    user_id=guard_user_id,
                 )
 
             stmt = select(ChannelAgentDBE).where(
@@ -496,6 +629,33 @@ class ChannelsDAO(ChannelsDAOInterface):
             await session.refresh(agent_dbe)
 
             return map_agent_dbe_to_dto(agent_dbe=agent_dbe)
+
+    async def clear_agent_default(
+        self,
+        *,
+        project_id: UUID,
+        user_id: UUID,
+        #
+        agent_id: UUID,
+    ) -> None:
+        flags = cast(ChannelAgentDBE.flags, JSONB)
+        stmt = (
+            update(ChannelAgentDBE)
+            .where(
+                ChannelAgentDBE.project_id == project_id,
+                ChannelAgentDBE.id == agent_id,
+            )
+            .values(
+                flags=func.coalesce(flags, cast(literal("{}"), JSONB)).op("||")(
+                    cast(literal(json.dumps({"is_default": False})), JSONB)
+                ),
+                updated_at=datetime.now(timezone.utc),
+                updated_by_id=user_id,
+            )
+        )
+        async with self.engine.session() as session:
+            await session.execute(stmt)
+            await session.commit()
 
     async def delete_agent(
         self,
@@ -971,6 +1131,9 @@ class ChannelsDAO(ChannelsDAOInterface):
         user_id: UUID,
         #
         grant: ChannelGrantCreate,
+        #
+        guard_artifact_ids: Sequence[UUID] = (),
+        guard_user_id: Optional[UUID] = None,
     ) -> ChannelGrant:
         grant_dbe = map_grant_dto_to_dbe_create(
             project_id=project_id,
@@ -980,6 +1143,16 @@ class ChannelsDAO(ChannelsDAOInterface):
         )
 
         async with self.engine.session() as session:
+            # the owner checks hold their locks through this write; a fixed lock
+            # order, so two opposite writes cannot deadlock
+            for artifact_id in sorted(set(guard_artifact_ids)):
+                await guard_agent_activation(
+                    session,
+                    project_id=project_id,
+                    artifact_id=artifact_id,
+                    user_id=guard_user_id,
+                )
+
             session.add(grant_dbe)
 
             await session.commit()
@@ -1070,8 +1243,21 @@ class ChannelsDAO(ChannelsDAOInterface):
         user_id: UUID,
         #
         grant: ChannelGrantEdit,
+        #
+        guard_artifact_ids: Sequence[UUID] = (),
+        guard_user_id: Optional[UUID] = None,
     ) -> Optional[ChannelGrant]:
         async with self.engine.session() as session:
+            # the owner checks hold their locks through this write; a fixed lock
+            # order, so two opposite writes cannot deadlock
+            for artifact_id in sorted(set(guard_artifact_ids)):
+                await guard_agent_activation(
+                    session,
+                    project_id=project_id,
+                    artifact_id=artifact_id,
+                    user_id=guard_user_id,
+                )
+
             stmt = select(ChannelGrantDBE).where(
                 ChannelGrantDBE.project_id == project_id,
                 ChannelGrantDBE.id == grant.id,
@@ -1104,8 +1290,21 @@ class ChannelsDAO(ChannelsDAOInterface):
         project_id: UUID,
         #
         grant_id: UUID,
+        #
+        guard_artifact_ids: Sequence[UUID] = (),
+        guard_user_id: Optional[UUID] = None,
     ) -> bool:
         async with self.engine.session() as session:
+            # the owner checks hold their locks through this write; a fixed lock
+            # order, so two opposite writes cannot deadlock
+            for artifact_id in sorted(set(guard_artifact_ids)):
+                await guard_agent_activation(
+                    session,
+                    project_id=project_id,
+                    artifact_id=artifact_id,
+                    user_id=guard_user_id,
+                )
+
             stmt = select(ChannelGrantDBE).where(
                 ChannelGrantDBE.project_id == project_id,
                 ChannelGrantDBE.id == grant_id,
@@ -1176,6 +1375,29 @@ class ChannelsDAO(ChannelsDAOInterface):
             result = await session.execute(stmt)
 
             return len(result.scalars().all())
+
+    async def query_recent_senders(
+        self,
+        *,
+        project_id: UUID,
+        connection_id: UUID,
+        limit: int,
+    ) -> List[Dict[str, Any]]:
+        async with self.engine.session() as session:
+            sender = ChannelInboxEventDBE.data["processed"]["sender"]
+            stmt = (
+                select(sender)
+                .where(
+                    ChannelInboxEventDBE.project_id == project_id,
+                    ChannelInboxEventDBE.connection_id == connection_id,
+                )
+                .order_by(ChannelInboxEventDBE.created_at.desc())
+                .limit(limit)
+            )
+
+            result = await session.execute(stmt)
+
+            return [row for row in result.scalars().all() if isinstance(row, dict)]
 
     # --- threads -------------------------------------------------------- #
 

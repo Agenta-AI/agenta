@@ -1,10 +1,11 @@
 """A channel thread whose session row does not exist yet (the channel inbox writes the
 thread first), against a running API.
 
-Whoever creates the row, it gets the channel policy: project-visible and ownerless.
-A person's first send, from a browser (Bearer) or with a web run credential
-(`Secret`), is checked against that row before any lock and refused, so it reserves no
-turn. A person's first heartbeat is refused too, and the row stays for the channel.
+Only the channel's own run creates that row, with the channel policy it computed
+(private to the agent's owner for a private agent, else project-visible and ownerless).
+A person's first send, from a browser (Bearer) or with a web run credential (`Secret`),
+and a person's first heartbeat, create nothing: the id is reserved and answers like an
+unknown session (404), so no turn is reserved and no row is left.
 """
 
 from uuid import uuid4
@@ -15,7 +16,6 @@ from oss.tests.pytest.acceptance.sharing.support import (
     core_rows,
     heartbeat,
     new_session_id,
-    read_stream,
     run_caller,
     stream_row,
 )
@@ -52,14 +52,8 @@ def _send(caller, session_id):
     )
 
 
-def _assert_channel_row_not_running(cast, caller, session_id):
-    row = stream_row(cast.project_id, session_id)
-    assert row is not None
-    assert (row["visibility"], row["owner_user_id"]) == ("project", None)
-    stream = read_stream(caller, session_id)
-    assert stream.status_code == 200, stream.text
-    flags = stream.json()["stream"]["flags"]
-    assert (flags["is_alive"], flags["is_running"]) == (False, False)
+def _assert_no_row(cast, session_id):
+    assert stream_row(cast.project_id, session_id) is None
 
 
 @pytest.mark.parametrize("credential", ["bearer", "secret"])
@@ -67,20 +61,17 @@ def test_a_person_s_first_send_reserves_no_turn(sharing_cast, credential):
     alice = sharing_cast["alice"]
     caller = alice if credential == "bearer" else run_caller(sharing_cast, "alice")
     session_id = _channel_thread(sharing_cast)
-
     send = _send(caller, session_id)
-    assert send.status_code == 403, send.text
-    _assert_channel_row_not_running(sharing_cast, alice, session_id)
+    assert send.status_code == 404, send.text
+    _assert_no_row(sharing_cast, session_id)
 
 
-def test_a_person_s_first_heartbeat_is_refused_and_the_row_stays(sharing_cast):
-    alice = sharing_cast["alice"]
+def test_a_person_s_first_heartbeat_creates_nothing(sharing_cast):
     session_id = _channel_thread(sharing_cast)
-
     beat = heartbeat(
         run_caller(sharing_cast, "alice"),
         session_id=session_id,
         turn_id=str(uuid4()),
     )
-    assert beat.status_code == 403, beat.text
-    _assert_channel_row_not_running(sharing_cast, alice, session_id)
+    assert beat.status_code == 404, beat.text
+    _assert_no_row(sharing_cast, session_id)

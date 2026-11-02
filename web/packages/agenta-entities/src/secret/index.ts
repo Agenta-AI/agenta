@@ -32,6 +32,7 @@
 export type {
     AgentConnectionMode,
     AgentConnectionNamespace,
+    SecretOwnerScope,
     AgentSecretBinding,
     AgentModelCandidate,
     AgentModelSelection,
@@ -84,6 +85,9 @@ export {
     isAgentDeploymentProviderKind,
     resolveAgentModelSelection,
     connectionNamespaceFrom,
+    savedConnectionNamespace,
+    connectionScopeFrom,
+    explicitAgentConnection,
     selectableAgentHarnesses,
     HIDDEN_AGENT_HARNESSES,
     soleAgentHarnessProviderFamily,
@@ -99,6 +103,7 @@ export {
     StandardProviderKind,
     getEnvNameMap,
     hasStoredKey,
+    isUserSecretBinding,
     transformCustomProviderPayloadData,
     transformCustomSecretPayloadData,
     transformSecret,
@@ -164,6 +169,8 @@ export {
     hasRequiredCredential,
     hostedSubscriptionFamilies,
     isSubscriptionConnection,
+    isOrganizationConnection,
+    httpStatusOf,
     probeFailureMessage,
     probeRequestFor,
     storedCredentialFields,
@@ -181,6 +188,7 @@ export {
 // ============================================================================
 
 export {fetchVaultSecret, createVaultSecret, updateVaultSecret, deleteVaultSecret} from "./api"
+export type {OrganizationProject} from "./api"
 export {
     LOGIN_ATTEMPT_BACKSTOP_MS,
     LOGIN_ATTEMPT_STATES,
@@ -208,6 +216,7 @@ export {
 export {
     vaultMigrationAtom,
     vaultSecretsQueryAtom,
+    vaultSecretsWithOrganizationQueryAtom,
     standardSecretsAtom,
     customSecretsAtom,
     createVaultSecretMutationAtom,
@@ -236,8 +245,21 @@ export {
     setSubscriptionTokenAtom,
     startSubscriptionLoginAtom,
     useVaultSecret,
+    managedOrganizationConnectionsAtom,
+    organizationConnectionsAccessAtom,
+    organizationProviderConnectionsAtom,
+    organizationProjectsQueryAtom,
+    organizationSecretsQueryAtom,
+    setOrganizationConnectionProjectsAtom,
+    PERSONAL_SECRETS_KEY,
+    personalAccountsAccessAtom,
+    personalNamedSecretsAtom,
+    personalSecretsQueryAtom,
+    type PersonalAccountsAccess,
     type LoginAttemptKey,
     type LoginAttemptOutcome,
+    type OrganizationConnectionsAccess,
+    type OrganizationSecretProjects,
 } from "./state"
 
 // ============================================================================

@@ -33,8 +33,6 @@ export {
 export {channelSharingCopy} from "./sharingCopy"
 export {ChannelAgentPicker, type ChannelAgentPickerProps} from "./ChannelAgentPicker"
 export {
-    ChannelAgentPrivateError,
-    isPrivateAgentRefusal,
     buildAgentChannelsActions,
     channelKey,
     connectionsForAgent,
@@ -55,6 +53,10 @@ export type {
     ChannelChatType,
     ChannelBehavior,
     ChannelBehaviorState,
+    ChannelAudiencePerson,
+    ChannelPerson,
+    ChannelPeopleDirectory,
+    ChannelPeopleResult,
     ChannelChat,
     ChannelSpace,
     ChannelSpaceCandidate,

@@ -37,7 +37,7 @@ export const AgentOverviewScreen = ({
 
     const agentsQuery = useAtomValue(agentWorkflowsListQueryStateAtom)
     const agents = useMemo<Workflow[]>(() => agentsQuery.data ?? [], [agentsQuery.data])
-    const {agent, notFound, agentPrivate} = useAgentOverviewAccess({agentId, projectId})
+    const {agent, notFound} = useAgentOverviewAccess({agentId, projectId})
     const name = agent?.name || agent?.slug || "Agent"
     const description = agent?.description?.trim() || null
     const agentNames = useMemo(
@@ -56,9 +56,6 @@ export const AgentOverviewScreen = ({
         resolveAgentName,
         projectId,
         workspaceId,
-        // The reader's own private agent: the panel says it cannot answer in channels (no
-        // Connect), as the playground's panel does.
-        agentPrivate,
     })
 
     // The shared row verbs — rename, pin, archive, delete — bound here, resolved by the rows.

@@ -1,5 +1,6 @@
 import {type TriggerDelivery} from "@agenta/entities/gatewayTrigger"
 
+import {deliveryOutcome} from "./automationModel"
 import {FOCUS_RING} from "./lib/interactive"
 import {cn} from "./lib/utils"
 import {runDotClass, runLabel, runOutcomeLabel, runTimeOfDay} from "./runModel"
@@ -25,6 +26,8 @@ export const AutomationRunRow = ({
 }) => {
     const label = runLabel(delivery)
     const time = runTimeOfDay(delivery)
+    // A skipped run says why on the row: the dot alone reads as one more run in flight.
+    const skipped = deliveryOutcome(delivery) === "skipped"
 
     return (
         <button
@@ -43,7 +46,14 @@ export const AutomationRunRow = ({
                 aria-hidden
                 className={cn("size-2 shrink-0 rounded-full", runDotClass(delivery))}
             />
-            <span className="min-w-0 flex-1 truncate text-[13px] text-foreground">{label}</span>
+            <span className="flex min-w-0 flex-1 flex-col">
+                <span className="truncate text-[13px] text-foreground">{label}</span>
+                {skipped ? (
+                    <span className="truncate text-xs text-muted-foreground">
+                        {runOutcomeLabel(delivery)}
+                    </span>
+                ) : null}
+            </span>
             {time ? <span className="shrink-0 text-xs text-muted-foreground">{time}</span> : null}
         </button>
     )

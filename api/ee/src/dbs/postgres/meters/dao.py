@@ -36,9 +36,8 @@ def _dbe_to_dto(meter: MeterDBE) -> MeterDTO:
             anchor=meter.subscription.anchor,
         )
 
-    return MeterDTO(
+    dto = MeterDTO(
         organization_id=meter.organization_id,
-        workspace_id=meter.workspace_id,
         project_id=meter.project_id,
         user_id=meter.user_id,
         #
@@ -49,10 +48,13 @@ def _dbe_to_dto(meter: MeterDBE) -> MeterDTO:
         key=meter.key,
         value=meter.value,
         synced=meter.synced,
-        meter_id=meter.meter_id,
         #
         subscription=subscription_dto,
     )
+    # Keep the stored id: a row a step-1 pod wrote during the rollout has a `wrk` part
+    # in its id, and the report must bump that row, not the recomputed step-2 id. The
+    # constructor does not get the stored id, so a step-1 row logs no mismatch warning.
+    return dto.model_copy(update={"meter_id": meter.meter_id})
 
 
 def _normalize_period_on_meter(
@@ -86,7 +88,7 @@ def _format_meter_for_log(meter: MeterDTO) -> str:
     """Stable one-line meter description for logs and failure samples."""
     return (
         f"meter_id={meter.meter_id}"
-        f"/{meter.organization_id}-{meter.workspace_id}-{meter.project_id}-{meter.user_id}"
+        f"/{meter.organization_id}-{meter.project_id}-{meter.user_id}"
         f":{meter.year}-{meter.month}-{meter.day}"
         f":{meter.key}={meter.value}|synced={meter.synced}"
     )
@@ -112,7 +114,6 @@ class MetersDAO(MetersDAOInterface):
                     .options(joinedload(MeterDBE.subscription))
                     .order_by(
                         MeterDBE.organization_id,
-                        MeterDBE.workspace_id,
                         MeterDBE.project_id,
                         MeterDBE.user_id,
                         MeterDBE.key,
@@ -151,7 +152,18 @@ class MetersDAO(MetersDAOInterface):
     async def bump(
         self,
         meters: list[MeterDTO],
+        synced_read: Optional[dict] = None,
     ) -> None:
+        """Set `synced` on each meter row, by its stored id.
+
+        With `synced_read` (meter id -> the `synced` value the caller dumped), each update
+        is a compare-and-set: it changes the row only while `synced` still has that value
+        and `value` still covers the new `synced`. A row that was folded or advanced since
+        the dump matches nothing, counts as missing and comes back in the next dump. It is
+        not an identity check: a row recreated under the same id with `synced = 0` can
+        still match (only rows that `ee0000000007` moves can be recreated, and it moves no
+        billed key).
+        """
         if not meters:
             return
 
@@ -191,6 +203,7 @@ class MetersDAO(MetersDAOInterface):
                     chunk_missing_samples,
                 ) = await self._bump_commit_chunk(
                     meters=chunk,
+                    synced_read=synced_read,
                 )
                 updated_count += chunk_updated
                 missing_count += chunk_missing
@@ -215,6 +228,7 @@ class MetersDAO(MetersDAOInterface):
                             row_missing_samples,
                         ) = await self._bump_commit_chunk(
                             meters=[meter],
+                            synced_read=synced_read,
                         )
                         updated_count += row_updated
                         missing_count += row_missing
@@ -252,6 +266,7 @@ class MetersDAO(MetersDAOInterface):
         self,
         *,
         meters: list[MeterDTO],
+        synced_read: Optional[dict] = None,
     ) -> tuple[int, int, list[str]]:
         updated_count = 0
         missing_count = 0
@@ -259,11 +274,13 @@ class MetersDAO(MetersDAOInterface):
 
         async with self.engine.session() as session:
             for meter in meters:
-                stmt = (
-                    update(MeterDBE)
-                    .where(MeterDBE.meter_id == meter.meter_id)
-                    .values(synced=meter.synced)
-                )
+                stmt = update(MeterDBE).where(MeterDBE.meter_id == meter.meter_id)
+                if synced_read is not None:
+                    stmt = stmt.where(
+                        MeterDBE.synced == synced_read.get(meter.meter_id),
+                        MeterDBE.value >= meter.synced,
+                    )
+                stmt = stmt.values(synced=meter.synced)
 
                 result = await session.execute(stmt)
                 rowcount = int(result.rowcount or 0)
@@ -314,13 +331,14 @@ class MetersDAO(MetersDAOInterface):
                 dim is not None
                 for dim in (
                     scope.organization_id,
-                    scope.workspace_id,
                     scope.project_id,
                     scope.user_id,
                 )
             ):
                 stmt = stmt.filter_by(organization_id=scope.organization_id)
-                stmt = stmt.filter_by(workspace_id=scope.workspace_id)
+                # A row with a workspace is legacy (a step-1 pod wrote it during the
+                # rollout): never the current row; the next fold merges it.
+                stmt = stmt.filter(MeterDBE.workspace_id.is_(None))
                 stmt = stmt.filter_by(project_id=scope.project_id)
                 stmt = stmt.filter_by(user_id=scope.user_id)
 
@@ -470,7 +488,6 @@ class MetersDAO(MetersDAOInterface):
                     meter_id=meter.meter_id,
                     #
                     organization_id=meter.organization_id,
-                    workspace_id=meter.workspace_id,
                     project_id=meter.project_id,
                     user_id=meter.user_id,
                     #

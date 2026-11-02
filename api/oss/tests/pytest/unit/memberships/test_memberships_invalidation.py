@@ -111,7 +111,6 @@ async def test_each_writer_invalidates_every_namespace_for_every_project(
     else:
         scope = await service.create_project(
             organization_id=organization,
-            workspace_id=uuid4(),
             name="New",
             is_default=False,
         )

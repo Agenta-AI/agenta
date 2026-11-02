@@ -6,6 +6,7 @@ from sqlalchemy import select
 from oss.src.utils.env import env
 from oss.src.utils.common import is_ee
 from oss.src.utils.logging import get_module_logger
+from oss.src.core.access.service import get_access_service
 from oss.src.core.memberships.service import get_memberships_service
 
 from oss.src.core.auth.dtos import DiscoverResponse
@@ -493,15 +494,18 @@ class AuthService:
                 is_member = any(org.id == org_id for org in user_orgs)
 
                 # An existing member keeps their role: a login by an admin of an
-                # auto-join organization must not demote them to viewer. The check
-                # above skips the write for most logins; `must_be_absent` repeats
-                # it under the organization lock, so an invitation accepted in
-                # between keeps its role.
+                # auto-join organization must not demote them to the floor role. The
+                # check above skips the write for most logins; `must_be_absent`
+                # repeats it under the organization lock, so an invitation accepted
+                # in between keeps its role.
                 if not is_member:
+                    offered = await get_access_service().offered_roles(
+                        organization_id=org_id
+                    )
                     joined = await get_memberships_service().set_member_role(
                         organization_id=org_id,
                         user_id=user_id,
-                        role="viewer",
+                        role=offered.floor_role,
                         join_all_projects=True,
                         must_be_absent=True,
                         actor_user_id=user_id,

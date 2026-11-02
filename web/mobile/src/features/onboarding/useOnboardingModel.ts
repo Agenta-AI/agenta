@@ -5,6 +5,7 @@ import {
     firstAgentModelForConnection,
     providerConnectionsAtom,
     resolveAgentModelSelection,
+    isOrganizationConnection,
     subscriptionConnectionFor,
     useVaultSecret,
     type AgentModelCandidate,
@@ -131,7 +132,11 @@ export const useOnboardingModel = (entityId: string | null, projectId: string): 
         select(pick)
     }, [candidates.candidates, select])
 
-    const chatgptConnection = subscriptionConnectionFor(candidates.connections, "chatgpt")
+    // The project's own connections: onboarding signs in and saves keys for the project only.
+    const projectConnections = candidates.connections.filter(
+        (item) => !isOrganizationConnection(item),
+    )
+    const chatgptConnection = subscriptionConnectionFor(projectConnections, "chatgpt")
     const chatgpt = useOnboardingSubscription({
         connection: chatgptConnection,
         available: Boolean(chatgptConnection || candidates.capabilities?.codex),
@@ -140,7 +145,7 @@ export const useOnboardingModel = (entityId: string | null, projectId: string): 
         arm,
         connectedMessage: ONBOARDING_COPY.model.chatgptConnected,
     })
-    const claudeConnection = subscriptionConnectionFor(candidates.connections, "claude")
+    const claudeConnection = subscriptionConnectionFor(projectConnections, "claude")
     const claude = useOnboardingSubscription({
         connection: claudeConnection,
         available: Boolean(claudeConnection || candidates.capabilities?.claude),
@@ -160,7 +165,7 @@ export const useOnboardingModel = (entityId: string | null, projectId: string): 
         [arm, refreshVault],
     )
 
-    const keyConnections = candidates.connections.filter((item) => !item.subscription)
+    const keyConnections = projectConnections.filter((item) => !item.subscription)
     const walletBalance =
         wallet?.mode === "enforce" && wallet.spendable_musd !== null
             ? Math.max(0, wallet.spendable_musd)

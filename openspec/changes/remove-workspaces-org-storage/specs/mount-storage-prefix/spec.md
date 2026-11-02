@@ -21,6 +21,10 @@ Mount storage SHALL follow CONTRACT.md section 9. The stored `storage_prefix` SH
 - **WHEN** a run asks for credentials for a mount that stores `mounts/O/M`
 - **THEN** the credentials SHALL allow `mounts/O/M/*` and SHALL deny `mounts/O/<other>/*` and `mounts/<project_id>/M/*`.
 
+#### Scenario: One statement writes the organization layout
+- **WHEN** a mount is created after the M4b mount step for a project of organization O
+- **THEN** the insert statement SHALL write `mounts/O/<mount_id>`, reading the organization id inside that statement, and the request SHALL make no additional statement to fetch the organization id.
+
 ### Requirement: One code path builds every mount key
 Every file operation and every STS signing SHALL build the object key from the deployment namespace (when set) and the row's `storage_prefix`. No code SHALL compute a mount key from a project id.
 

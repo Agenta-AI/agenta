@@ -22,6 +22,7 @@ from oss.src.core.gateways.mcps.oauth.dtos import (
 from oss.src.core.gateways.mcps.oauth.interfaces import (
     MCPOAuthAttemptsDAOInterface,
 )
+from oss.src.core.secrets.enums import SecretOwnerKind
 from oss.src.dbs.postgres.gateways.mcps.dbes import MCPOAuthAttemptDBE
 from oss.src.dbs.postgres.shared.engine import (
     TransactionsEngine,
@@ -52,6 +53,7 @@ def _to_dto(row) -> MCPOAuthAttempt:
         strategy=values["strategy"],
         client_id=values.get("client_id"),
         expires_at=values["expires_at"],
+        owner_kind=values["owner_kind"],
         status=values["status"],
         error=values.get("error"),
     )
@@ -97,6 +99,7 @@ class MCPOAuthAttemptsDAO(MCPOAuthAttemptsDAOInterface):
             strategy=attempt.strategy,
             client_id=attempt.client_id,
             expires_at=attempt.expires_at,
+            owner_kind=attempt.owner_kind.value,
         )
 
         async with self.engine.session() as session:
@@ -194,6 +197,7 @@ class MCPOAuthAttemptsDAO(MCPOAuthAttemptsDAOInterface):
         project_id: UUID,
         endpoint_id: UUID,
         attempt_id: Optional[UUID] = None,
+        person_id: Optional[UUID] = None,
     ) -> int:
         stmt = (
             update(self.MCPOAuthAttemptDBE)
@@ -210,6 +214,10 @@ class MCPOAuthAttemptsDAO(MCPOAuthAttemptsDAOInterface):
         )
         if attempt_id is not None:
             stmt = stmt.where(self.MCPOAuthAttemptDBE.id == attempt_id)
+        if person_id is not None:
+            stmt = stmt.where(
+                self.MCPOAuthAttemptDBE.owner_kind == SecretOwnerKind.USER.value
+            ).where(self.MCPOAuthAttemptDBE.user_id == person_id)
 
         async with self.engine.session() as session:
             result = await session.execute(

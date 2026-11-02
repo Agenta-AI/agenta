@@ -3,7 +3,7 @@
 from typing import Dict, List, Optional, Sequence, Tuple
 from uuid import UUID, uuid4
 
-from oss.src.core.access.interfaces import RbacEnforcementInterface
+from oss.src.core.access.interfaces import RbacEntitlementInterface
 from oss.src.core.memberships.dtos import (
     CreatedProject,
     MembershipPolicy,
@@ -216,7 +216,8 @@ class InMemoryMembershipsDAO(MembershipsDAOInterface):
         summary = self.add_project(
             make_summary(
                 organization_id=kwargs["organization_id"],
-                workspace_id=kwargs["workspace_id"],
+                # Step 2: a new project has no workspace; it answers the organization.
+                workspace_id=kwargs["organization_id"],
                 is_default=kwargs["is_default"],
                 project_name=kwargs["name"],
             )
@@ -233,16 +234,16 @@ class InMemoryMembershipsDAO(MembershipsDAOInterface):
         return self.write_results.get("transfer_ownership", MembershipWriteResult())
 
 
-class RecordingRbac(RbacEnforcementInterface):
-    """Records the organization of each `is_enforced` call."""
+class RecordingRbac(RbacEntitlementInterface):
+    """Records the organization of each `is_entitled` call."""
 
-    def __init__(self, enforced: bool = True) -> None:
-        self.enforced = enforced
+    def __init__(self, entitled: bool = True) -> None:
+        self.entitled = entitled
         self.calls: List[UUID] = []
 
-    async def is_enforced(self, *, organization_id: UUID) -> bool:
+    async def is_entitled(self, *, organization_id: UUID) -> bool:
         self.calls.append(organization_id)
-        return self.enforced
+        return self.entitled
 
 
 class FakeAccessCache:

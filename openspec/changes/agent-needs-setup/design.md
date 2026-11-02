@@ -62,7 +62,7 @@ The "model no longer available" design is approved: the model row shows "Needs s
 | `turned_off` | The item exists and is inactive | Turn it on if allowed, pick, or remove |
 | `needs_sign_in` | The sign-in is missing, expired or rejected | Sign in again; the agent does not change |
 | `not_available` | The model is not in the catalog, or the chosen key does not offer it | Pick another model |
-| `needs_your_account` | The connection is "Each person's own account" and this person has not connected one (M7) | Connect your own account; anyone who can run the agent can do this |
+| `needs_personal_account` | The connection is "Each person's own account" and this person has not connected one (M7) | Connect your own account; anyone who can run the agent can do this |
 
 ### D4. When the check runs
 

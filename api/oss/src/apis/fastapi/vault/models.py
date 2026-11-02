@@ -1,9 +1,22 @@
-"""Request and response shapes for the subscription login routes."""
+"""Request and response shapes of the secrets routes that take more than a secret."""
 
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from oss.src.core.account_choices.dtos import MAX_RUN_ITEM_KEYS
+from oss.src.core.secrets.dtos import PublicSecretResponseDTO
+from oss.src.core.secrets.enums import SecretAvailability
+
+
+class SecretProjectsRequest(BaseModel):
+    """Which projects may use an organization connection."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    availability: SecretAvailability
+    project_ids: List[UUID] = Field(default_factory=list)
 
 
 class SubscriptionTokenRequest(BaseModel):
@@ -35,13 +48,21 @@ class SubscriptionLoginOutcomeRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    project_id: UUID
+    # Exactly one owner: the project's row, or the organization's (M5).
+    project_id: Optional[UUID] = None
+    organization_id: Optional[UUID] = None
     secret_id: UUID
     state: Literal["succeeded", "failed", "expired"]
     # The credential, on `succeeded` only.
     login: Optional[Dict[str, Any]] = None
     # The runner's short reason word, on `failed` and `expired`. The service clips it.
     error: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _one_owner(self) -> "SubscriptionLoginOutcomeRequest":
+        if (self.project_id is None) == (self.organization_id is None):
+            raise ValueError("name exactly one of project_id and organization_id")
+        return self
 
 
 class SubscriptionLoginPushRequest(BaseModel):
@@ -98,3 +119,21 @@ class SubscriptionLoginFailureResponse(BaseModel):
     version: int
     generation: int
     login: Optional[Dict[str, Any]] = None
+
+
+class SecretsResolveRequest(BaseModel):
+    """The "user" secret item keys of a run (`secret:user/<variable>`)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    item_keys: List[str] = Field(default_factory=list, max_length=MAX_RUN_ITEM_KEYS)
+
+
+class ItemSecret(BaseModel):
+    item_key: str
+    secret: PublicSecretResponseDTO
+
+
+class SecretsResolveResponse(BaseModel):
+    count: int = 0
+    item_secrets: List[ItemSecret] = Field(default_factory=list)

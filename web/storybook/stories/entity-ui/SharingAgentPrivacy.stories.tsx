@@ -4,7 +4,6 @@ import type {AgentSharingState, ShareDisclosure} from "@agenta/entities/sharing"
 import {
     AgentPrivacyControl,
     AgentPrivacyDialog,
-    type AgentChannelConnection,
     type SharingWriteResult,
 } from "@agenta/entity-ui/sharing"
 import type {Meta, StoryObj} from "@storybook/nextjs"
@@ -38,7 +37,6 @@ interface PrivacyStoryProps {
     loading?: boolean
     loadError?: boolean
     result?: SharingWriteResult
-    channelConnections?: AgentChannelConnection[]
     channelsOff?: string[]
     showDialog?: boolean
 }
@@ -48,7 +46,6 @@ function Privacy({
     loading,
     loadError,
     result = "ok",
-    channelConnections,
     channelsOff,
     showDialog = true,
 }: PrivacyStoryProps) {
@@ -65,7 +62,6 @@ function Privacy({
         loadError,
         onRetry: () => {},
         owner: alice,
-        channelConnections,
         channelsOff,
         onOpenChannels: () => setToast("Open Channels"),
         members: MEMBERS.filter((m) =>
@@ -159,13 +155,6 @@ export const ConflictError: Story = {
         result: "conflict",
     },
     parameters: {docs: {description: {story: 'Pick "Private" and confirm to see the 409 note.'}}},
-}
-export const SlackWarning: Story = {
-    args: {
-        initial: state({policy: {visibility: "project", owner_user_id: alice.user_id}}),
-        channelConnections: [{platform: "Slack", workspace: "Acme workspace"}],
-    },
-    parameters: {docs: {description: {story: 'Pick "Private" to see the channel warning.'}}},
 }
 export const SlackStillOff: Story = {
     args: {

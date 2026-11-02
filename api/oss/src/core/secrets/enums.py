@@ -11,6 +11,10 @@ class SecretKind(str, Enum):
     SUBSCRIPTION_PROVIDER = "subscription_provider"
     OAUTH_PROVIDER = "oauth_provider"
     OAUTH_GRANT = "oauth_grant"
+    # A person's pasted token for a project's MCP server, at `token_slug(server id)`. It
+    # has the custom secret data shape, and its own kind keeps it out of the person's
+    # custom secret lists and the secret picker.
+    MCP_TOKEN = "mcp_token"
 
 
 # Kinds whose credential material may NEVER be read back through a response, whatever a
@@ -28,7 +32,9 @@ class SecretKind(str, Enum):
 # and `_SecretResponseBaseDTO` forces it on the way out so a row stored before this rule —
 # or any row whose mark went missing — is still redacted. The last one is what makes the
 # default fail CLOSED and is why no data migration is needed.
-ALWAYS_WRITE_ONLY_KINDS = frozenset({SecretKind.OAUTH_GRANT})
+#
+# A person's MCP token is the same: only the MCP gateway reads it.
+ALWAYS_WRITE_ONLY_KINDS = frozenset({SecretKind.OAUTH_GRANT, SecretKind.MCP_TOKEN})
 
 
 def is_always_write_only(kind) -> bool:
@@ -45,6 +51,49 @@ def is_always_write_only(kind) -> bool:
     except ValueError:
         # An unknown kind is not one of ours to force. It cannot be an OAuth grant.
         return False
+
+
+# Who owns a stored secret. Storage keeps the typed columns (`project_id`,
+# `organization_id`, `user_id`); the DAO maps the kind to the columns. A user owner is a
+# person inside one organization.
+class SecretOwnerKind(str, Enum):
+    ORGANIZATION = "organization"
+    PROJECT = "project"
+    USER = "user"
+
+
+# Which projects an organization credential reaches. `selected_projects` with no listed
+# project reaches no project; it never means "every project".
+class SecretAvailability(str, Enum):
+    ALL_PROJECTS = "all_projects"
+    SELECTED_PROJECTS = "selected_projects"
+
+
+# The kinds an organization can share with its projects. An agent uses a shared row only
+# when it names it. Every other kind stays project-owned (or, for SSO, organization-only).
+ORGANIZATION_SECRET_KINDS = frozenset(
+    {
+        SecretKind.PROVIDER_KEY,
+        SecretKind.CUSTOM_PROVIDER,
+        SecretKind.SUBSCRIPTION_PROVIDER,
+        SecretKind.CUSTOM_SECRET,
+    }
+)
+
+# The kinds a person may store through the vault routes (`scope=user`). The table also
+# allows subscription logins, OAuth grants and MCP tokens; the MCP routes write the last
+# two, and no flow creates a person's subscription login yet.
+PERSONAL_SECRET_KINDS = frozenset({SecretKind.CUSTOM_SECRET})
+
+# MCP sign-ins, a project's or a person's: OAuth grants and pasted tokens. Only the MCP
+# routes and the MCP gateway write and read them; the vault person routes never serve them.
+SIGN_IN_SECRET_KINDS = frozenset({SecretKind.OAUTH_GRANT, SecretKind.MCP_TOKEN})
+# The organization kinds the LLM gateway serves. Their values never leave the API. An
+# organization subscription login is the one kind that does: it reaches the runner of a
+# run that named it, which uses it like a project login.
+ORGANIZATION_GATEWAY_KINDS = frozenset(
+    {SecretKind.PROVIDER_KEY, SecretKind.CUSTOM_PROVIDER}
+)
 
 
 class ChannelSecretKind(str, Enum):

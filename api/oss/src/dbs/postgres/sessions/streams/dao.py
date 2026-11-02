@@ -192,39 +192,42 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
         values.setdefault("id", uuid.uuid7())
         values.setdefault("owner_user_id", None)
         names = list(values)
-        # A channel thread that names the session id makes it a channel session: it is
-        # project-visible and ownerless, whoever creates the row (CONTRACT section 7,
-        # channel policy first). The same statement applies that policy and says so, so
-        # the row's cache entry needs no extra read.
+        # A channel thread that names the session id makes it a channel session, and
+        # only that thread's own binding creates it (its run), with the channel policy it
+        # computed (private to the agent's owner for a private agent). Any other creator,
+        # another binding included, inserts nothing: the id is reserved, like a
+        # tombstone's. The same statement says whether a thread names the id, so the
+        # row's cache entry needs no extra read.
         threads = sa_table(
             "channel_threads",
             sa_column("project_id", PG_UUID(as_uuid=True)),
             sa_column("session_id", table.c.session_id.type),
+            sa_column("agent_id", PG_UUID(as_uuid=True)),
         )
         in_channel = exists().where(
             threads.c.project_id == project_id,
             threads.c.session_id == stream.session_id,
         )
-        channel_policy = {
-            "visibility": literal(
-                Visibility.PROJECT.value, type_=table.c.visibility.type
-            ),
-            "owner_user_id": literal(None, type_=table.c.owner_user_id.type),
-        }
-
-        def _value(name):
-            value = literal(values[name], type_=table.c[name].type)
-            if name in channel_policy:
-                return case((in_channel, channel_policy[name]), else_=value)
-            return value
 
         tombstone = SessionTraceTombstoneDBE.__table__
-        source = select(*(_value(name) for name in names)).where(
+        source = select(
+            *(literal(values[name], type_=table.c[name].type) for name in names)
+        ).where(
             ~exists().where(
                 tombstone.c.project_id == project_id,
                 tombstone.c.session_id == stream.session_id,
             )
         )
+        if stream.channel_binding_id is None:
+            source = source.where(~in_channel)
+        else:
+            source = source.where(
+                ~exists().where(
+                    threads.c.project_id == project_id,
+                    threads.c.session_id == stream.session_id,
+                    threads.c.agent_id != stream.channel_binding_id,
+                )
+            )
         has_channel_thread = in_channel.label("has_channel_thread")
         statement = (
             insert(table)
@@ -1025,36 +1028,6 @@ class SessionStreamsDAO(SessionStreamsDAOInterface, TriggerSessionClaimsDAOInter
                     SessionStreamDBE.id == stream_id,
                     SessionStreamDBE.turn_id.is_not_distinct_from(turn_id),
                 )
-            )
-            await session.commit()
-            return bool(result.rowcount)
-
-    async def release_refused_turn(
-        self,
-        *,
-        project_id: UUID,
-        session_id: str,
-        stream_id: UUID,
-        turn_id: Optional[str],
-    ) -> bool:
-        """The row a refused first touch inserted stays (it is the channel session's
-        own row), but not as that request's live turn: clear its liveness flags and its
-        turn id, only while the row still holds the turn id the insert wrote (None
-        included). A rename keeps its header,
-        and a turn that adopted the row since is not touched."""
-        flags = func.coalesce(SessionStreamDBE.flags, cast({}, JSONB)).op("||")(
-            cast({"is_alive": False, "is_running": False}, JSONB)
-        )
-        async with self.engine.session() as session:
-            result = await session.execute(
-                sa_update(SessionStreamDBE)
-                .where(
-                    SessionStreamDBE.project_id == project_id,
-                    SessionStreamDBE.session_id == session_id,
-                    SessionStreamDBE.id == stream_id,
-                    SessionStreamDBE.turn_id.is_not_distinct_from(turn_id),
-                )
-                .values(flags=flags, turn_id=None, turn_started_at=None)
             )
             await session.commit()
             return bool(result.rowcount)

@@ -8,11 +8,16 @@ from enum import Enum
 from typing import Optional, Union
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 from oss.src.core.access.permissions.types import Permission
 from oss.src.core.gateways.dtos import GatewayEndpointNamespace
-from oss.src.core.secrets.dtos import SecretResponseDTO
+
+# One owner type for the vault and both gateway planes (CONTRACT section 8). `SecretOwner`
+# is whose stored secret answered the lookup; audit cannot reconstruct it later, which is
+# why it travels with the secret (`secrets.md`).
+from oss.src.core.secrets.dtos import SecretOwner, SecretResponseDTO
+from oss.src.core.secrets.enums import SecretOwnerKind
 
 
 class GatewayPlane(str, Enum):
@@ -26,19 +31,6 @@ class SecretMode(str, Enum):
     USER_OPTIONAL = "user_optional"  # the user's if present, else the project's
     USER_REQUIRED = "user_required"  # the user's, or fail — never fall back
     PROJECT_ONLY = "project_only"  # always the project's; ignore user secrets
-
-
-class SecretOwnerKind(str, Enum):
-    PROJECT = "project"
-    USER = "user"
-
-
-class SecretOwner(BaseModel):
-    """Whose stored secret answered the lookup. Audit cannot reconstruct this
-    later, which is why it travels with the secret (`secrets.md`)."""
-
-    kind: SecretOwnerKind
-    user_id: Optional[UUID] = None  # set exactly when kind is USER
 
 
 class SecretOrigin(str, Enum):
@@ -61,9 +53,24 @@ class ProviderKeyRef(BaseModel):
 
 
 class BoundSecretRef(BaseModel):
-    """A custom endpoint: the row already names its secret (§2.1)."""
+    """A custom endpoint: the row already names its secret (§2.1).
+
+    `owner_kind` says whose row the id names. A project reference keeps the project-scoped
+    read by id; an organization reference answers only an organization row available to the
+    project; a user reference answers only the row of the person `user_id` names, in the
+    request's organization. None ever substitutes another row (M5)."""
 
     secret_id: UUID
+    owner_kind: SecretOwnerKind = SecretOwnerKind.PROJECT
+    # The person whose row a user reference names: the run person, never the caller's
+    # choice. Set exactly when `owner_kind` is `user`.
+    user_id: Optional[UUID] = None
+
+    @model_validator(mode="after")
+    def _user_id_only_for_a_user_reference(self) -> "BoundSecretRef":
+        if (self.owner_kind == SecretOwnerKind.USER) != (self.user_id is not None):
+            raise ValueError("a user reference, and only one, names its person")
+        return self
 
 
 SecretRef = Union[ProviderKeyRef, BoundSecretRef]

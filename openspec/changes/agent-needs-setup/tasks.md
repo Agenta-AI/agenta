@@ -1,6 +1,6 @@
 # Tasks
 
-Prerequisites: none for the project scope. The reason `not_shared` ships with M5; `needs_your_account` ships with M7. Parentheses name the spec requirement.
+Prerequisites: none for the project scope. The reason `not_shared` ships with M5; `needs_personal_account` ships with M7. Parentheses name the spec requirement.
 
 ## 1. Check
 

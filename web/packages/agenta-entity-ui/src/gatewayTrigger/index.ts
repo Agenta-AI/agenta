@@ -25,6 +25,8 @@ export {MessageComposer} from "./drawers/schedule/MessageComposer"
 export {WindowField} from "./drawers/schedule/WindowField"
 export {RunInPlaygroundButton} from "./drawers/schedule/RunInPlaygroundButton"
 export {RunSubscriptionButton} from "./drawers/subscription/RunSubscriptionButton"
+export {EventMessageComposer} from "./drawers/subscription/EventMessageComposer"
+export {EventFieldTags} from "./drawers/subscription/EventFieldTags"
 export {EventSourcePicker, type SampledEvent} from "./drawers/shared/EventSourcePicker"
 // The reference-family rules a rebind has to obey (`application_*` vs `workflow_*`, variant for
 // "latest" vs revision for pinned). A host that rebinds a trigger outside this drawer needs them

@@ -9,7 +9,7 @@ export interface SessionAccessChipProps {
     sharing: SessionSharingState
     /** The owner's profile; absent for an ownerless chat. */
     owner?: SharingPerson | null
-    /** A chat that comes from a channel (Slack). */
+    /** An ownerless chat that comes from a channel (Slack, Telegram). */
     fromChannel?: boolean
 }
 
@@ -21,7 +21,7 @@ export const SessionAccessChip = ({
 }: SessionAccessChipProps) => {
     const ownerless = !sharing.policy.owner_user_id
     const ownerName = personName(owner) || sharing.policy.owner_user_id || ""
-    const canSend = sharing.can_send && !fromChannel
+    const canSend = sharing.can_send
 
     let lines: string[]
     if (fromChannel) lines = [copy.panelChannel]
@@ -34,7 +34,7 @@ export const SessionAccessChip = ({
         if (sharing.policy.visibility === "private") lines.push(copy.panelPrivate(ownerName))
     }
     const infoNote = fromChannel || ownerless || !sharing.owner_is_active
-    if (infoNote && !fromChannel && !canSend) lines.push(copy.panelYouViewOnly)
+    if (infoNote && !canSend) lines.push(copy.panelYouViewOnly)
 
     return (
         <Popover>

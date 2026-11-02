@@ -87,7 +87,6 @@ def test_none_means_not_applicable_not_default():
     with_explicit_nones = compute_meter_id(
         scope=MeterScope(
             organization_id=ORG,
-            workspace_id=None,
             project_id=None,
             user_id=None,
         ),
@@ -98,26 +97,20 @@ def test_none_means_not_applicable_not_default():
 
 
 def test_distinct_scope_shapes_produce_distinct_ids():
-    """Org-monthly, workspace-monthly, project-monthly, user-monthly must
-    never collide for the same (key, year, month)."""
+    """Org-monthly, project-monthly and user-monthly must never collide for the
+    same (key, year, month). (Workspace removal step 2 dropped the workspace shape.)"""
     period = MeterPeriod(year=2026, month=3)
     key = Counter.TRACES_INGESTED
     ids = {
         compute_meter_id(scope=MeterScope(organization_id=ORG), period=period, key=key),
         compute_meter_id(
-            scope=MeterScope(organization_id=ORG, workspace_id=WS),
-            period=period,
-            key=key,
-        ),
-        compute_meter_id(
-            scope=MeterScope(organization_id=ORG, workspace_id=WS, project_id=PRJ),
+            scope=MeterScope(organization_id=ORG, project_id=PRJ),
             period=period,
             key=key,
         ),
         compute_meter_id(
             scope=MeterScope(
                 organization_id=ORG,
-                workspace_id=WS,
                 project_id=PRJ,
                 user_id=USR,
             ),
@@ -125,7 +118,7 @@ def test_distinct_scope_shapes_produce_distinct_ids():
             key=key,
         ),
     }
-    assert len(ids) == 4
+    assert len(ids) == 3
 
 
 def test_distinct_periods_produce_distinct_ids():
@@ -170,7 +163,7 @@ def test_uuid_input_is_case_insensitive():
 
 def test_meter_scope_user_without_project_raises():
     with pytest.raises(ValueError, match="user_id requires project_id"):
-        MeterScope(organization_id=ORG, workspace_id=WS, user_id=USR)
+        MeterScope(organization_id=ORG, user_id=USR)
 
 
 def test_meter_scope_project_without_organization_raises():
@@ -178,16 +171,10 @@ def test_meter_scope_project_without_organization_raises():
         MeterScope(project_id=PRJ)
 
 
-def test_meter_scope_workspace_without_organization_raises():
-    with pytest.raises(ValueError, match="workspace_id requires organization_id"):
-        MeterScope(workspace_id=WS)
-
-
 def test_meter_scope_accepts_organization_only():
     """Org-only is the always-valid baseline scope."""
     scope = MeterScope(organization_id=ORG)
     assert scope.organization_id == ORG
-    assert scope.workspace_id is None
     assert scope.project_id is None
     assert scope.user_id is None
 

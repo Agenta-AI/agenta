@@ -1,0 +1,4 @@
+#!/bin/sh
+# Entire CLI hooks
+# Post-commit hook: condense session data if commit has Entire-Checkpoint trailer
+if command -v entire >/dev/null 2>&1; then entire hooks git post-commit 2>/dev/null || true; else :; fi

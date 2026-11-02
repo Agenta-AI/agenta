@@ -183,6 +183,26 @@ class WriteOnlySecretError(ConnectionResolutionError):
         self.provider = provider
 
 
+class OrganizationConnectionUnavailableError(ConnectionResolutionError):
+    """The agent named an organization connection, and this run cannot use it (M5).
+
+    An organization connection is served only through the LLM gateway, so its value never
+    reaches the runtime. When the gateway does not serve the run, or no gateway is
+    configured, the run fails here. It never falls back to a project connection with the
+    same slug, nor to the project default.
+    """
+
+    status_code = 422
+    failure_code = "organization_connection_unavailable"
+
+    def __init__(self, *, slug: str) -> None:
+        super().__init__(
+            f"The organization connection '{slug}' is used only through the LLM gateway, "
+            "which does not serve this run."
+        )
+        self.slug = slug
+
+
 class InvalidConnectionConfigurationError(AgentConnectionError):
     """Raised when resolved routing and credentials form an unsafe combination."""
 

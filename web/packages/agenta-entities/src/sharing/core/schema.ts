@@ -36,10 +36,12 @@ export const sessionGrantSchema = z.object({
     created_by_id: z.string().nullable().optional(),
 })
 
+/** A "user" item names no connection: each person who runs the agent uses their own account. */
 export const disclosedConnectionSchema = z.object({
     provider: z.string(),
     integration: z.string(),
-    connection: z.string(),
+    connection: z.string().nullable().optional(),
+    account_source: z.enum(["agent", "user"]).nullable().optional(),
 })
 
 /** The three booleans select fixed UI statements; the backend sends no copy. */

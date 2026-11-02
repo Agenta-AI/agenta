@@ -32,7 +32,7 @@ THE LATE-STOP GUARDS. A Stop that arrives after its turn ended must not kill the
 """
 
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING, Any, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, List, Optional, Tuple, Union
 from uuid import UUID, uuid4
 
 
@@ -169,6 +169,11 @@ class CommandOutcomeReport:
 
 class _SettlementRejected(Exception):
     pass
+
+
+def steer_cancel_key(input_id: Union[UUID, str]) -> str:
+    """The idempotency key of the cancel a Steer requests for its own input."""
+    return f"steer:{input_id}"
 
 
 class SessionCommandsService:
@@ -592,6 +597,29 @@ class SessionCommandsService:
             await self._deliver(command)
         return CancelAdmission(
             command=command, execution_id=target_turn_id, accepted=True
+        )
+
+    async def cancelled_by_steer(
+        self,
+        *,
+        project_id: UUID,
+        session_id: str,
+        execution_id: str,
+    ) -> bool:
+        """True when a Steer, not a Stop, cancelled this execution.
+
+        A Steer that bound to a Stop already open keeps that Stop's key, so the turn still reads
+        as stopped by the user."""
+        command = await self._dao.fetch_turn_cancel(
+            project_id=project_id,
+            session_id=session_id,
+            target_turn_id=execution_id,
+        )
+        steer_input_id = ((command.data or {}) if command else {}).get("steer_input_id")
+        return (
+            command is not None
+            and steer_input_id is not None
+            and command.idempotency_key == steer_cancel_key(steer_input_id)
         )
 
     async def respond_interaction(

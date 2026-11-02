@@ -14,6 +14,7 @@ from oss.src.core.gateways.dtos import (
     CredentialEchoScanner,
     credential_echo_envelope,
     injected_credential_values,
+    secret_credential_values,
     outbound_headers,
 )
 from oss.src.core.gateways.egress import (
@@ -51,7 +52,11 @@ from oss.src.core.gateways.llms.providers.passthrough.static_fields import (
     stream_gemini_thoughts,
 )
 from oss.src.core.gateways.llms.types import LLMUpstreamError, LLMUpstreamTimeoutError
-from oss.src.core.gateways.policy.dtos import GatewayUsage, ResolvedSecret
+from oss.src.core.gateways.policy.dtos import (
+    GatewayUsage,
+    ResolvedSecret,
+    SecretOwnerKind,
+)
 
 # LiteLLM's defaults: a route's `timeout_seconds`, else 600 s, bounds each read (the wait for
 # the headers, and every gap between two chunks of a stream), not the length of the answer. A
@@ -104,7 +109,18 @@ async def _outbound_target(
         caller_headers=headers,
         above_caller=outbound_headers(route.headers, auth_headers),
     )
-    return target, injected_credential_values(auth_headers)
+    scanned = injected_credential_values(auth_headers)
+    if (
+        secret is not None
+        and secret.owner is not None
+        and secret.owner.kind == SecretOwnerKind.ORGANIZATION
+    ):
+        # An organization credential is scanned for whole, not only as the headers
+        # carry it: none of its values may come back to the sandbox (M5).
+        scanned = tuple(
+            dict.fromkeys(scanned + secret_credential_values(secret.secret))
+        )
+    return target, scanned
 
 
 # Usage fields differ by protocol but are read without rewriting the response.

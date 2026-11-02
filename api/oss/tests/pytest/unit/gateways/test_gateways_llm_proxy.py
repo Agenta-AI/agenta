@@ -715,6 +715,23 @@ def test_route_table_matches_the_design_exactly():
         ("/builtin/{provider}/v1/models", "GET"): "llm_gateway_list_models_builtin",
         ("/standard/{provider}/v1/models", "GET"): "llm_gateway_list_models_standard",
         ("/custom/{slug}/v1/models", "GET"): "llm_gateway_list_models_custom",
+        # Organization connections an agent named by scope (M5).
+        (
+            "/organization/{slug}/v1/chat/completions",
+            "POST",
+        ): "llm_gateway_chat_completions_organization",
+        (
+            "/organization/{slug}/v1/responses",
+            "POST",
+        ): "llm_gateway_responses_organization",
+        (
+            "/organization/{slug}/v1/messages",
+            "POST",
+        ): "llm_gateway_messages_organization",
+        (
+            "/organization/{slug}/v1/models",
+            "GET",
+        ): "llm_gateway_list_models_organization",
     }
 
 

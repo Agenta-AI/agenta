@@ -6,7 +6,7 @@ of every access decision). Every process that checks access calls it at startup:
 (`entrypoints/routers.py`) and both workers (`worker_streams.py`, `worker_queues.py`).
 """
 
-from oss.src.core.access.rbac import AlwaysEnforcedRbac
+from oss.src.core.access.rbac import NoRbacEntitlement
 from oss.src.core.access.service import AccessService, register_access_service
 from oss.src.core.memberships.dtos import MembershipPolicy
 from oss.src.core.memberships.service import (
@@ -19,6 +19,12 @@ from oss.src.dbs.postgres.memberships.dao import MembershipsDAO
 from oss.src.dbs.postgres.sharing.dao import SharingDAO
 from oss.src.dbs.postgres.shared.engine import get_transactions_engine
 from oss.src.utils.common import is_ee
+
+from oss.src.core.account_choices.service import (
+    AccountChoicesService,
+    register_account_choices_service,
+)
+from oss.src.dbs.postgres.account_choices.dao import AccountChoicesDAO
 
 
 def bootstrap_access() -> AccessService:
@@ -35,28 +41,33 @@ def bootstrap_access() -> AccessService:
     )
 
     if is_ee():
-        from ee.src.core.access.rbac import EntitlementsRbacEnforcement  # noqa: PLC0415
+        from ee.src.core.access.rbac import PlanRbacEntitlement  # noqa: PLC0415
 
-        rbac = EntitlementsRbacEnforcement()
+        rbac_entitlement = PlanRbacEntitlement()
     else:
-        rbac = AlwaysEnforcedRbac()
+        rbac_entitlement = NoRbacEntitlement()
 
     principals_dao = PrincipalsDAO(engine=get_transactions_engine())
 
     sharing_service = SharingService(
         sharing_dao=SharingDAO(engine=get_transactions_engine()),
         memberships_service=memberships_service,
-        principals_dao=principals_dao,
     )
 
     access_service = AccessService(
         memberships=memberships_service,
-        rbac=rbac,
+        rbac_entitlement=rbac_entitlement,
         principals=principals_dao,
         resource_policy=sharing_service,
     )
 
     register_memberships_service(memberships_service=memberships_service)
+    # The run start of every process (API, workers) resolves a run's "user" accounts.
+    register_account_choices_service(
+        account_choices_service=AccountChoicesService(
+            account_choices_dao=AccountChoicesDAO(engine=get_transactions_engine())
+        )
+    )
     register_sharing_service(sharing_service=sharing_service)
     register_access_service(access_service=access_service)
 

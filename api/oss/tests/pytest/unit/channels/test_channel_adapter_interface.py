@@ -118,6 +118,10 @@ def test_every_method_parameter_after_self_is_keyword_only():
     # whose bot cannot list its chats (Telegram) says so by raising.
     # read_history: the channel read tool's live page; a platform whose bots
     # cannot read history (Telegram) says so by raising.
+    # post_ephemeral: a private message in a shared place; a platform without
+    # one answers False and sends nothing.
+    # list_people, find_person_by_email: the people picker; a platform whose
+    # bots cannot list people or emails (Telegram) says so by raising.
     assert set(concrete_methods) == {
         "build_setup_document",
         "verify_connection",
@@ -133,6 +137,9 @@ def test_every_method_parameter_after_self_is_keyword_only():
         "read_history",
         "reopen_conversation",
         "fetch_media",
+        "post_ephemeral",
+        "list_people",
+        "find_person_by_email",
     }
     assert len(methods) == len(ChannelAdapterInterface.__abstractmethods__) + len(
         concrete_methods

@@ -1,5 +1,5 @@
 // Preview comment picker; `installPreviewPicker` ships as a string, so it follows the stub's rules.
-import {QUOTE_EXCERPT_CAP} from "./quotes"
+import {QUOTE_EXCERPT_CAP, type WordBlock} from "./quotes"
 
 /* eslint-disable no-var, @typescript-eslint/prefer-for-of */
 
@@ -16,6 +16,8 @@ export interface PickedElement {
     selector: string
     tag: string
     page?: number
+    /** DOCX only: the Word body block, numbered like python-docx. */
+    block?: WordBlock
     openTag?: string
     point: {x: number; y: number}
 }
@@ -29,11 +31,20 @@ export interface PinQuery {
 export type HostToPicker =
     | {type: "pick-start"; format: PickerFormat; page?: number}
     | {type: "pick-stop"}
+    /** The host can comment here: forward the comment-mode shortcut. */
+    | {type: "pick-keys"}
+    /** A note is open: no hover, and a click or Esc in the frame dismisses the note. */
+    | {type: "pick-hold"; held: boolean}
     | {type: "pins"; pins: PinQuery[]}
+    /** Scroll a pinned comment's element into view. */
+    | {type: "pin-reveal"; id: string}
 
 export type PickerToHost =
     | {type: "picked"; element: PickedElement; text: string; rect: PickerRect}
     | {type: "pick-cancel"}
+    | {type: "pick-dismiss"}
+    /** The comment-mode shortcut was pressed inside the frame. */
+    | {type: "pick-toggle"}
     | {type: "pin-rects"; rects: {id: string; rect: PickerRect | null}[]}
 
 export const PICKER_SELECTOR_CAP = 500
@@ -43,7 +54,21 @@ export const PICKER_TAG_CAP = 40
 export const PICKER_ID_CAP = 100
 export const PICKER_PIN_RECTS_CAP = 200
 
-const HOST_TO_PICKER_TYPES: readonly string[] = ["pick-start", "pick-stop", "pins"]
+const HOST_TO_PICKER_TYPES: readonly string[] = [
+    "pick-start",
+    "pick-stop",
+    "pick-keys",
+    "pick-hold",
+    "pins",
+    "pin-reveal",
+]
+
+/** Alt+M, matched on `code`: macOS Option+M reports `key` as "µ". */
+export const isCommentModeChord = (e: KeyboardEvent): boolean =>
+    e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.repeat && e.code === "KeyM"
+
+/** The DOCX renderer's class on a Word body block: `ag-p<n>` paragraph, `ag-t<n>` table. */
+export const blockClass = (kind: "p" | "t", index: number): string => `ag-${kind}${index}`
 
 export const isHostToPickerType = (type: unknown): boolean =>
     typeof type === "string" && HOST_TO_PICKER_TYPES.indexOf(type) !== -1
@@ -53,6 +78,7 @@ interface PickTarget {
     selector: string
     tag: string
     page: number | null
+    block: WordBlock | null
     slide: boolean
 }
 
@@ -65,7 +91,9 @@ interface PickerInbound {
     type?: unknown
     format?: unknown
     page?: unknown
+    held?: unknown
     pins?: unknown
+    id?: unknown
 }
 
 export function installPreviewPicker(
@@ -76,6 +104,8 @@ export function installPreviewPicker(
     var TEXT_CAP = 2000
     var MAX_STEPS = 12
     var PIN_PREFIX = 80
+    // Matches `blockClass`; this body ships as a string and cannot reach module code.
+    var BLOCK_CLASS = /(?:^|\s)(ag-([pt])(\d+))(?=\s|$)/
     var INLINE_TAGS = "|span|b|i|em|strong|small|code|mark|u|s|sub|sup|"
     var BLOCKED = [
         "pointerdown",
@@ -92,6 +122,8 @@ export function installPreviewPicker(
 
     var PRESS_WINDOW = 1500
     var mode: PickerMode | null = null
+    var held = false
+    var keys = false
     var pressed: {target: EventTarget | null; at: number} | null = null
     // Touch has no hover: a tap's compat mouseover would leave the highlight stuck.
     var touchedAt = 0
@@ -131,6 +163,11 @@ export function installPreviewPicker(
         return null
     }
 
+    function blockSelector(el: Element): string | null {
+        var m = BLOCK_CLASS.exec(el.getAttribute("class") || "")
+        return m ? "." + m[1] : null
+    }
+
     function nthOfType(el: Element): string {
         var n = 1
         var sib = el.previousElementSibling
@@ -142,13 +179,13 @@ export function installPreviewPicker(
     }
 
     function cssPath(el: Element): string {
-        var own = uniqueId(el)
+        var own = uniqueId(el) || blockSelector(el)
         if (own) return own
         var steps: string[] = []
         var prefix = ""
         var node: Element | null = el
         while (node && node !== document.body && node !== document.documentElement) {
-            var anchor = node === el ? null : uniqueId(node)
+            var anchor = node === el ? null : uniqueId(node) || blockSelector(node)
             if (anchor) {
                 prefix = anchor + " > "
                 break
@@ -185,8 +222,19 @@ export function installPreviewPicker(
             selector: cssPath(el),
             tag: el.tagName.toLowerCase(),
             page: null,
+            block: null,
             slide: false,
         }
+    }
+
+    function wordBlock(el: Element): WordBlock | null {
+        var node: Element | null = el
+        while (node) {
+            var m = BLOCK_CLASS.exec(node.getAttribute("class") || "")
+            if (m) return {kind: m[2] === "p" ? "paragraph" : "table", index: Number(m[3])}
+            node = node.parentElement
+        }
+        return null
     }
 
     function pickDocument(target: Element): PickTarget | null {
@@ -194,17 +242,20 @@ export function installPreviewPicker(
         if (!el) return null
         var section = el.closest("section.docx")
         if (!section) return null
-        var sections = document.querySelectorAll("section.docx")
+        // Reflow renders one section, so a page exists only in the Pages layout.
         var page = 0
-        for (var i = 0; i < sections.length; i++) {
-            if (sections[i] === section) page = i + 1
+        if (!document.querySelector("#root.reflow")) {
+            var sections = document.querySelectorAll("section.docx")
+            for (var i = 0; i < sections.length; i++) {
+                if (sections[i] === section) page = i + 1
+            }
         }
-        if (!page) return null
         return {
             el: el,
             selector: cssPath(el),
             tag: el.tagName.toLowerCase(),
-            page: page,
+            page: page || null,
+            block: wordBlock(el),
             slide: false,
         }
     }
@@ -212,7 +263,14 @@ export function installPreviewPicker(
     function pickPresentation(target: Element, page: number | null): PickTarget | null {
         var root = slideRoot()
         if (!root || !root.contains(target)) return null
-        var whole = {el: root, selector: ":scope", tag: "slide", page: page, slide: true}
+        var whole = {
+            el: root,
+            selector: ":scope",
+            tag: "slide",
+            page: page,
+            block: null,
+            slide: true,
+        }
         if (target === root) return whole
         var child: Element = target
         while (child.parentElement && child.parentElement !== root) child = child.parentElement
@@ -233,6 +291,7 @@ export function installPreviewPicker(
             selector: ":scope > :nth-child(" + n + ")",
             tag: child.tagName.toLowerCase(),
             page: page,
+            block: null,
             slide: false,
         }
     }
@@ -300,6 +359,7 @@ export function installPreviewPicker(
             },
         }
         if (found.page !== null) element.page = found.page
+        if (found.block) element.block = found.block
         if (mode.format === "html") {
             var outer = found.el.outerHTML
             var end = outer.indexOf(">")
@@ -328,11 +388,17 @@ export function installPreviewPicker(
         if (type !== "click" || !pressed) return
         var fresh = pressed.target === event.target && Date.now() - pressed.at < PRESS_WINDOW
         pressed = null
-        if (fresh) pick(event as MouseEvent)
+        if (!fresh) return
+        if (held) post({type: "pick-dismiss"})
+        else pick(event as MouseEvent)
     }
 
     function onHover(event: Event): void {
         if (!mode) return
+        if (held) {
+            removeHighlight()
+            return
+        }
         if (noHover || (event as PointerEvent).pointerType === "touch") return
         if (Date.now() - touchedAt < PRESS_WINDOW) return
         var found = pickable(event.target)
@@ -340,10 +406,38 @@ export function installPreviewPicker(
         else removeHighlight()
     }
 
+    function editable(node: EventTarget | null): boolean {
+        var el = toElement(node) as HTMLElement | null
+        if (!el) return false
+        var tag = el.tagName
+        return !!el.isContentEditable || tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT"
+    }
+
     function onKey(event: KeyboardEvent): void {
+        // Matches `isCommentModeChord`; an app's own text field keeps its Option+M.
+        if (
+            event.altKey &&
+            !event.ctrlKey &&
+            !event.metaKey &&
+            !event.shiftKey &&
+            !event.repeat &&
+            event.code === "KeyM" &&
+            keys &&
+            !held &&
+            (mode || !editable(event.target))
+        ) {
+            event.preventDefault()
+            event.stopPropagation()
+            post({type: "pick-toggle"})
+            return
+        }
         if (!mode || event.key !== "Escape") return
         event.preventDefault()
         event.stopPropagation()
+        if (held) {
+            post({type: "pick-dismiss"})
+            return
+        }
         mode = null
         removeHighlight()
         post({type: "pick-cancel"})
@@ -352,18 +446,28 @@ export function installPreviewPicker(
     function resolvePin(pin: PinQuery): Element | null {
         var root = slideRoot()
         var el: Element | null = null
+        var stored = tidy(pin.text)
+        var prefix = stored.slice(0, PIN_PREFIX)
         try {
             if (pin.selector === ":scope") el = root
             else if (pin.selector.indexOf(":scope") === 0)
                 el = root ? root.querySelector(pin.selector) : null
-            else el = document.querySelector(pin.selector)
+            else {
+                // Pages splits a Word paragraph at a page break; both halves share its block class.
+                var matches = document.querySelectorAll(pin.selector)
+                el = matches[0] || null
+                for (var m = 0; m < matches.length; m++) {
+                    if (tidy(matches[m].textContent).indexOf(prefix) === 0) {
+                        el = matches[m]
+                        break
+                    }
+                }
+            }
         } catch (e) {
             el = null
         }
         // A unique id names the element itself, so its text may change (a live counter).
         if (el && /^#[^\s>]+$/.test(pin.selector)) return el
-        var stored = tidy(pin.text)
-        var prefix = stored.slice(0, PIN_PREFIX)
         if (el && tidy(el.textContent).indexOf(prefix) === 0) return el
         // Only a DOM change can bring a missing element back; scrolling skips the scan.
         if (!stored || missing[pin.id]) return null
@@ -462,7 +566,19 @@ export function installPreviewPicker(
             ensureObserver()
         } else if (m.type === "pick-stop") {
             mode = null
+            held = false
             removeHighlight()
+        } else if (m.type === "pick-keys") {
+            keys = true
+        } else if (m.type === "pick-hold") {
+            held = m.held === true
+            if (held) removeHighlight()
+        } else if (m.type === "pin-reveal") {
+            for (var r = 0; r < pins.length; r++) {
+                if (pins[r].id !== m.id) continue
+                var target = resolvePin(pins[r])
+                if (target) target.scrollIntoView({block: "center", inline: "nearest"})
+            }
         } else if (m.type === "pins") {
             var next = readPins(m.pins)
             if (!next) return
@@ -512,6 +628,12 @@ const parsePickedElement = (value: unknown): PickedElement | null => {
         if (!Number.isInteger(value.page) || (value.page as number) < 1) return null
         element.page = value.page as number
     }
+    if (value.block !== undefined) {
+        const block = value.block
+        if (!isRecord(block) || (block.kind !== "paragraph" && block.kind !== "table")) return null
+        if (!Number.isInteger(block.index) || (block.index as number) < 1) return null
+        element.block = {kind: block.kind, index: block.index as number}
+    }
     if (value.openTag !== undefined) {
         const openTag = cappedString(value.openTag, PICKER_OPEN_TAG_CAP)
         if (openTag === null) return null
@@ -527,6 +649,8 @@ export function parsePickerMessage(
 ): PickerToHost | null {
     if (!isRecord(data)) return null
     if (data.type === "pick-cancel") return {type: "pick-cancel"}
+    if (data.type === "pick-dismiss") return {type: "pick-dismiss"}
+    if (data.type === "pick-toggle") return {type: "pick-toggle"}
     if (data.type === "picked") {
         const element = parsePickedElement(data.element)
         const text = cappedString(data.text, PICKER_TEXT_CAP)

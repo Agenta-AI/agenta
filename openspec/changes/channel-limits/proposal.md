@@ -1,5 +1,7 @@
 # Channel limits (M10)
 
+Status: shipped in v0.127.2 (#7890).
+
 ## Why
 
 An agent owner cannot fully choose where an agent answers in Slack or Telegram, or whom it answers. Most of the backend exists in v0.125.0, and the gaps are in the screen and in a few rules:

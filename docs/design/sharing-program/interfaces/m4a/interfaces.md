@@ -153,12 +153,12 @@ storage_prefix = Column(String, nullable=False)          # NEW, on MountDBA
 ```python
 def map_mount_dto_to_dbe_upsert(*, project_id: UUID, user_id: UUID, now: datetime,
                                 mount_id: UUID,          # NEW, no uuid7 inside
-                                storage_prefix: str,     # NEW
+                                storage_prefix: str,     # NEW (M4b widens it to Union[str, ColumnElement[str]])
                                 mount_create: MountCreate) -> Dict[str, Any]: ...
 
 def map_mount_dto_to_dbe_create(*, project_id: UUID, user_id: UUID,
                                 mount_id: UUID,          # NEW, sets MountDBE.id
-                                storage_prefix: str,     # NEW
+                                storage_prefix: str,     # NEW (M4b widens it to Union[str, ColumnElement[str]])
                                 mount_create: MountCreate) -> MountDBE: ...
 
 def map_mount_dbe_to_dto(*, mount_dbe: MountDBE) -> Mount: ...   # sets storage_prefix

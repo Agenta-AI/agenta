@@ -65,6 +65,7 @@ async def test_edit_tools_keeps_references_and_policy():
     await service.edit_agent(
         project_id=uuid4(),
         user_id=uuid4(),
+        guard_user_id=None,
         agent=ChannelAgentEdit(
             id=existing.id,
             data=ChannelAgentDataEdit(
@@ -92,6 +93,7 @@ async def test_edit_without_tools_keeps_stored_tools():
     await service.edit_agent(
         project_id=uuid4(),
         user_id=uuid4(),
+        guard_user_id=None,
         agent=ChannelAgentEdit(
             id=existing.id,
             data=ChannelAgentDataEdit(policy=ChannelPolicy(backfill=False)),
@@ -111,6 +113,7 @@ async def test_editing_one_tools_field_keeps_the_others():
     await service.edit_agent(
         project_id=uuid4(),
         user_id=uuid4(),
+        guard_user_id=None,
         agent=ChannelAgentEdit(
             id=existing.id,
             data=ChannelAgentDataEdit.model_validate(

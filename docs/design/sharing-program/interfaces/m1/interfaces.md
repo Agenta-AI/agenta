@@ -276,6 +276,7 @@ class MembershipsService:
 
     # readers: one DAO call each
     async def resolve(self, *, user_id: UUID, project_id: UUID) -> Optional[ProjectMembership]: ...  # calls _read_membership; M2 adds its cache here
+    async def read_membership(self, *, user_id: UUID, project_id: UUID) -> Optional[ProjectMembership]: ...  # the resolver read without the `resolve_membership` cache; for a caller whose outcome another cache keeps (Bearer workspace-only and no-parameter branches, M4b step 1)
     async def is_member(self, *, user_id: UUID, project_id: UUID) -> bool: ...  # resolve(...) is not None
     async def list_for_user(self, *, user_id: UUID) -> List[ProjectListing]: ...  # not cached
     async def fetch_for_user(self, *, user_id: UUID, project_id: UUID) -> Optional[ProjectListing]: ...

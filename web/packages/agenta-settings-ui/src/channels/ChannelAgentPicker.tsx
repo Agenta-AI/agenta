@@ -1,5 +1,5 @@
 import {Alert, Button} from "@agenta/ui/ui"
-import {CaretRight, LockSimple, Users} from "@phosphor-icons/react"
+import {CaretRight, Users} from "@phosphor-icons/react"
 
 import {AgentMark} from "./AgentMark"
 import {liveCountOf, platformLabel, ROW_BUTTON} from "./helpers"
@@ -14,8 +14,6 @@ export interface ChannelAgentPickerProps {
     platform?: ChannelPlatform
     /** The project's name, for the audience note. No note without it. */
     projectName?: string
-    /** Opens "Privacy and owner" for one of the reader's private agents. No link without it. */
-    onShareAgent?: (agentId: string) => void
 }
 
 /** The first step of a connection made outside an agent's page: which agent answers there. */
@@ -25,11 +23,7 @@ export const ChannelAgentPicker = ({
     onSelect,
     platform,
     projectName,
-    onShareAgent,
 }: ChannelAgentPickerProps) => {
-    // A private agent cannot answer a channel: the reader's own are listed last, not clickable.
-    const open = agents.filter((agent) => !agent.isPrivate)
-    const closed = agents.filter((agent) => agent.isPrivate)
     const label = platform ? platformLabel(platform) : null
 
     return (
@@ -47,7 +41,7 @@ export const ChannelAgentPicker = ({
             <span className="px-0.5 text-[13px] font-semibold text-foreground">Agents</span>
             {agents.length ? (
                 <div className="flex flex-col">
-                    {open.map((agent) => {
+                    {agents.map((agent) => {
                         const live = liveCountOf(connections, agent.id)
                         return (
                             <Button
@@ -72,37 +66,6 @@ export const ChannelAgentPicker = ({
                             </Button>
                         )
                     })}
-                    {closed.map((agent) => (
-                        <div
-                            key={agent.id}
-                            aria-disabled="true"
-                            data-testid={`channels-agent-${agent.id}`}
-                            data-private="true"
-                            className="flex w-full items-center gap-3 px-1 py-3"
-                        >
-                            <span className="flex size-8 flex-none items-center justify-center rounded-lg bg-muted text-muted-foreground">
-                                <LockSimple size={13} aria-hidden />
-                            </span>
-                            <span className="flex min-w-0 flex-1 flex-col gap-px">
-                                <span className="truncate text-sm font-medium text-muted-foreground">
-                                    {agent.name}
-                                </span>
-                                <span className="text-[12.5px] text-muted-foreground">
-                                    {copy.privateAgentRow(label ?? platformLabel("slack"))}
-                                </span>
-                            </span>
-                            {onShareAgent ? (
-                                <Button
-                                    variant="link"
-                                    size="xs"
-                                    onClick={() => onShareAgent(agent.id)}
-                                    data-testid={`channels-agent-share-${agent.id}`}
-                                >
-                                    {copy.share}
-                                </Button>
-                            ) : null}
-                        </div>
-                    ))}
                 </div>
             ) : (
                 <p className="m-0 px-0.5 text-sm text-muted-foreground">

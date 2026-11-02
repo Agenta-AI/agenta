@@ -1,0 +1,31 @@
+---
+title: "More reliable built-in Gemini runs"
+slug: built-in-gemini-native-routing
+date: 2026-10-26
+tags: [v0.125.1]
+description: "Built-in Gemini agent runs use Google's native protocol, with fixes for cloud credentials and SDK API URLs."
+---
+
+<Summary>
+
+Built-in Gemini agent runs now use Google's native protocol instead of its OpenAI-compatible endpoint. This changes the route used for model calls that could stall on follow-up turns.
+
+Bedrock and SageMaker credentials now travel with each call instead of being set in the shared process environment. The Python SDK also accepts an `AGENTA_API_URL` without a URL scheme, and CSV preview comments no longer show a stray colon when a column has no header.
+
+</Summary>
+
+{/* truncate */}
+
+## Built-in Gemini over Google's native protocol
+
+Pi now sends built-in Gemini calls through [a native gateway route](https://github.com/Agenta-AI/agenta/pull/7806) to Vertex AI. The previous OpenAI-compatible route could stall on follow-up calls carrying tool-use data. The native route also preserves the data Gemini needs for those calls. This applies to Agenta's built-in Gemini models, not every connection to Gemini.
+
+## Improvements
+
+- [Bedrock and SageMaker credentials](https://github.com/Agenta-AI/agenta/pull/7812) are passed with each model call. Concurrent calls no longer set one another's AWS credentials through the shared process environment.
+- The Python SDK [adds a default scheme](https://github.com/Agenta-AI/agenta/pull/6453) when `AGENTA_API_URL` has none, so it can form a valid trace endpoint.
+
+## Bug fixes
+
+- A comment on a CSV cell beyond a short header row [shows its value without a dangling colon](https://github.com/Agenta-AI/agenta/pull/7799).
+- The runner [classifies refusals](https://github.com/Agenta-AI/agenta/pull/7819) returned by the native Gemini gateway route.
