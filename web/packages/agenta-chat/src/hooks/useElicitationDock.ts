@@ -162,41 +162,18 @@ export const useElicitationDock = ({
     // `pending` through a ref: the host calls `dismiss` from a send handler with a stale closure.
     const pendingRef = useRef(pending)
     pendingRef.current = pending
-    const {settlingIds, mark, forget, isSettling, settle} = useSettlingIds(pending, onOutput)
+    const {settlingIds, settle, dismiss: dismissAll} = useSettlingIds(pending, onOutput)
 
     const dismiss = useCallback(async () => {
-        // No settle channel means nothing can be written, so nothing is dismissed. Checked before
-        // the markers go up: closing the dock over a question that is still parked would hide it.
-        if (!onOutput) return
-        const targets = pendingRef.current.filter(
-            (meta) => !meta.settled && !isSettling(meta.toolCallId),
+        const dismissed = await dismissAll(
+            pendingRef.current,
+            () => buildCancelResult("Dismissed the request.") as unknown as Record<string, unknown>,
+            "The question couldn't be dismissed.",
         )
-        if (targets.length === 0) return
-        mark(targets.map((meta) => meta.toolCallId))
-        try {
-            const landed = await Promise.all(
-                targets.map((meta) =>
-                    onOutput?.({
-                        toolName: meta.toolName,
-                        toolCallId: meta.toolCallId,
-                        output: buildCancelResult("Dismissed the request.") as unknown as Record<
-                            string,
-                            unknown
-                        >,
-                    }),
-                ),
-            )
-            if (landed.some((result) => result === false))
-                throw new Error("The question couldn't be dismissed.")
-            // Only once they landed: a failed write re-opens the dock, and the cards must find the
-            // answers the user had already typed.
-            for (const meta of targets) discardElicitationDraft(meta.toolCallId)
-        } catch (error) {
-            // The questions are still live: give the dock back.
-            forget(targets.map((meta) => meta.toolCallId))
-            throw error
-        }
-    }, [onOutput, mark, forget, isSettling])
+        // Only once they landed: a failed write re-opens the dock, and the cards must find the
+        // answers the user had already typed.
+        for (const meta of dismissed) discardElicitationDraft(meta.toolCallId)
+    }, [dismissAll])
 
     // A card whose answer is out can never be the front one the actions address. Shown only once
     // its schema is whole and renders; a bad one settles unseen.
