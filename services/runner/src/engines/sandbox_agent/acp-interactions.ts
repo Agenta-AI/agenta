@@ -258,6 +258,16 @@ export function attachPermissionResponder({
     };
   };
 
+  // A gate for a call the pause already closed as not executed parks nothing (see `ParkRun`).
+  // No reply goes to the harness, as for any pause, so the turn must end cold: a live session
+  // would keep waiting on this request after the resume answers the gate that parked.
+  const skipForceSettled = (toolCallId: string | undefined): boolean => {
+    if (!toolCallId || !run.wasForceSettled?.(toolCallId)) return false;
+    onNonParkablePause?.();
+    onPause?.();
+    return true;
+  };
+
   // Only a paused gate creates a durable row; resolving an auto-allowed gate's id would 404.
   const createdInteractionIds = new Set<string>();
 
@@ -277,11 +287,7 @@ export function attachPermissionResponder({
     // count every pending gate. Each gate emits its own card: there is no per-turn cap, so N
     // gated calls in one turn all render and all park (the plural approval path).
     const toolCallId = stringValue(req?.toolCall?.toolCallId);
-    // The pause already closed this call as not executed; the agent asks again next turn.
-    if (toolCallId && run.wasForceSettled?.(toolCallId)) {
-      onPause?.();
-      return;
-    }
+    if (skipForceSettled(toolCallId)) return;
     onUserApprovalGate?.({
       permissionId: id,
       toolCallId: toolCallId ?? "",
@@ -397,11 +403,7 @@ export function attachPermissionResponder({
     spec: ResolvedToolSpec,
   ): void => {
     const toolCallId = stringValue(req?.toolCall?.toolCallId);
-    // The pause already closed this call as not executed; the agent asks again next turn.
-    if (toolCallId && run.wasForceSettled?.(toolCallId)) {
-      onPause?.();
-      return;
-    }
+    if (skipForceSettled(toolCallId)) return;
     // A client-tool ACP pause cannot be answered on the live session across a turn boundary, so
     // flag the turn non-parkable: a turn that mixes this with an approval gate stays cold.
     onNonParkablePause?.();

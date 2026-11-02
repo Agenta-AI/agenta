@@ -281,9 +281,9 @@ export function buildClientToolRelay({
       const correlatedId =
         toolCallIndex?.lookup(request.toolName, request.input) ??
         request.toolCallId;
-      // The runner already closed this call as not executed (another call paused the turn first),
-      // so the agent asks again next turn. Parking it would leave a durable row nothing answers.
+      // Already closed as not executed: skip it (see `ParkRun`).
       if (run.wasForceSettled(correlatedId)) {
+        onNonParkablePause?.();
         log(
           `[client-tool] ${request.toolName} id=${correlatedId} already closed by the pause; not parked`,
         );

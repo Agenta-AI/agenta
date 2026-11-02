@@ -1458,6 +1458,9 @@ export async function runTurn(
             pause,
             recordPendingInteraction,
             toolCallIndex: env.toolCallIndex,
+            onNonParkablePause: () => {
+              env.nonParkablePauseCount += 1;
+            },
             permissionPlan,
             executionGrants,
             log: logger,

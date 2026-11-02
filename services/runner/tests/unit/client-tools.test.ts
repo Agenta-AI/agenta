@@ -68,6 +68,7 @@ function seam(
     toolCallId?: string;
   }> = [];
   let pauses = 0;
+  let nonParkable = 0;
   const index = opts.index ? createToolCallCorrelationIndex() : undefined;
   const relay = buildClientToolRelay({
     responder: responderReturning(verdict),
@@ -85,8 +86,19 @@ function seam(
       recorded.push({ token, toolName, kind, toolCallId });
     },
     toolCallIndex: index,
+    onNonParkablePause: () => {
+      nonParkable += 1;
+    },
   });
-  return { relay, events, pausedToolCalls, recorded, index, pauses: () => pauses };
+  return {
+    relay,
+    events,
+    pausedToolCalls,
+    recorded,
+    index,
+    pauses: () => pauses,
+    nonParkable: () => nonParkable,
+  };
 }
 
 const req: ClientToolRelayRequest = {
@@ -265,6 +277,7 @@ describe("buildClientToolRelay", () => {
     assert.deepEqual(s.events, []);
     assert.deepEqual(s.pausedToolCalls, []);
     assert.deepEqual(s.recorded, []);
+    assert.equal(s.nonParkable(), 1, "the skipped call ends the turn cold");
   });
 
   it("on pendingApproval: emits the interaction, marks the paused call, records it, returns pendingApproval", async () => {

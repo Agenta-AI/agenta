@@ -458,12 +458,16 @@ describe("attachPermissionResponder", () => {
     const created: string[] = [];
     const pausedToolCalls: string[] = [];
     let pauses = 0;
+    let nonParkable = 0;
 
     attachPermissionResponder({
       session,
       run: {
         emitEvent: (event) => events.push(event),
         wasForceSettled: (id) => id === "tool-closed",
+      },
+      onNonParkablePause: () => {
+        nonParkable += 1;
       },
       responder: fakeResponder(
         { kind: "pendingApproval" },
@@ -499,6 +503,9 @@ describe("attachPermissionResponder", () => {
     assert.deepEqual(created, []);
     assert.deepEqual(pausedToolCalls, []);
     assert.equal(pauses, 2);
+    // No reply goes to the harness, so the turn must end cold: a live session kept for a warm
+    // resume would wait on these requests forever.
+    assert.equal(nonParkable, 2);
   });
 
   it("client tool stored output replies instead of forwarding", async () => {

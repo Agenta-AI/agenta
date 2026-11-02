@@ -144,7 +144,7 @@ export function buildGatewayToolGate({
       //
       // Nothing is lost by displaying from the identity: the outer arguments carry `integration`
       // and `tool` inside them, so a card renders `github.CREATE_ISSUE` from its own input.
-      raiseApproval({
+      const raised = raiseApproval({
         run,
         pause,
         recordPendingInteraction,
@@ -164,7 +164,9 @@ export function buildGatewayToolGate({
         // `name` as the identity.
         toolCallExtras: { displayName: plan.display },
       });
-      log(`[gateway] approval target=${plan.display} outcome=pending`);
+      log(
+        `[gateway] approval target=${plan.display} outcome=${raised ? "pending" : "skipped"}`,
+      );
       return { kind: "pendingApproval" };
     },
     onPause: () => pause.pause(),

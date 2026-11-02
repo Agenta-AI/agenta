@@ -81,6 +81,7 @@ function seam(
     toolCallId: string | undefined;
   }> = [];
   let pauses = 0;
+  let nonParkable = 0;
   const toolCallIndex = withIndex
     ? createToolCallCorrelationIndex()
     : undefined;
@@ -107,6 +108,9 @@ function seam(
       recorded.push({ token, toolName, args, kind, toolCallId });
     },
     toolCallIndex,
+    onNonParkablePause: () => {
+      nonParkable += 1;
+    },
     permissionPlan,
     executionGrants,
   });
@@ -119,6 +123,7 @@ function seam(
     toolCallIndex,
     executionGrants,
     pauses: () => pauses,
+    nonParkable: () => nonParkable,
   };
 }
 
@@ -159,6 +164,7 @@ describe("buildExecutableToolGate", () => {
     assert.deepEqual(s.events, []);
     assert.deepEqual(s.pausedToolCalls, []);
     assert.deepEqual(s.recorded, []);
+    assert.equal(s.nonParkable(), 1, "the skipped call ends the turn cold");
   });
 
   it("parks an undecided ask tool with the user_approval payload and pause callback", async () => {
