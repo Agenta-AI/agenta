@@ -5,6 +5,7 @@ import {
     Tray,
     TableIcon,
     GitBranchIcon,
+    FolderSimpleIcon,
 } from "@phosphor-icons/react"
 
 /**
@@ -109,6 +110,14 @@ export const DEVELOPER_VIEWS: readonly DeveloperView[] = [
         description: "Variants of an app, their revisions, and where each is deployed.",
         routes: ["/variants"],
         nav: {icon: GitBranchIcon, section: "developer"},
+        stage: "hidden",
+    },
+    {
+        id: "prompts",
+        label: "Prompts",
+        description: "Show the Prompts page under Developer in the navigation.",
+        routes: ["/prompts"],
+        nav: {icon: FolderSimpleIcon, section: "developer"},
         stage: "hidden",
     },
 ]
