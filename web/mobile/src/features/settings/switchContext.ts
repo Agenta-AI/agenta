@@ -1,14 +1,9 @@
 import type {NextRouter} from "next/router"
 
-import {writeLastContext} from "@/lib/context"
+import {projectSwitchUrl, writeLastContext, type LastContext} from "@/lib/context"
 
-/** Moves to the same settings tab in another project, remembered like the nav switcher does. */
-export const switchSettingsContext = (
-    router: NextRouter,
-    {workspaceId, projectId, tab}: {workspaceId: string; projectId: string; tab: string},
-) => {
-    writeLastContext({workspaceId, projectId})
-    void router.push(
-        `/w/${encodeURIComponent(workspaceId)}/p/${encodeURIComponent(projectId)}/settings?tab=${tab}`,
-    )
+/** Every project switch (drawer and Settings): same screen in the next project, remembered. */
+export const switchSettingsContext = (router: NextRouter, next: LastContext) => {
+    writeLastContext(next)
+    void router.push(projectSwitchUrl(router.asPath, next))
 }

@@ -104,7 +104,7 @@ def test_owner_cannot_be_demoted_through_the_role_endpoint(admin_api, team):
         json={
             "email": team.emails["owner"],
             "organization_id": team.organization_id,
-            "role": "viewer",
+            "role": "member",
         },
     )
     assert resp.status_code == 403, resp.text

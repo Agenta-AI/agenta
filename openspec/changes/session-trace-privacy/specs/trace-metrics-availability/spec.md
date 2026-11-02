@@ -2,6 +2,8 @@
 
 ## Purpose
 
+Replaced by `small-team-roles`. Do not build or archive these requirements. They stay as the record of the replaced design.
+
 Show a hidden figure as unavailable, never as zero.
 
 ## ADDED Requirements

@@ -340,7 +340,6 @@ export function TriggerManagementSection({
                         <ScheduleTriggerRow
                             key={`schedule-${record.id}`}
                             record={record}
-                            entityId={entityId}
                             disabled={disabled}
                             onOpen={() =>
                                 record.id &&

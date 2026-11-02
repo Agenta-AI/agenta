@@ -40,7 +40,7 @@ allowed-tools: Read, Bash
             name: "agent-release-gate",
             description:
                 "Run the agent release gate — a portable, wire-level QA harness. Use it before an agent-workflows release.",
-            body: "# Agent release gate\n",
+            body: "# Agent release gate",
         })
     })
 

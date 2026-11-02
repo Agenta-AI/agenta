@@ -9,8 +9,8 @@ first denial wins:
 2. Restrictions, when an authority is given: the authority names the same principal and
    project, and carries no agent restriction (unsupported in M2)
    (`restricted_by_authority`).
-3. Capability: the EE no-RBAC shortcut, the organization owner, the project owner role,
-   then the role catalog (`missing_capability`).
+3. Capability: the organization owner, the project owner role, then the role catalog
+   (`missing_capability`). It applies on every edition and plan.
 4. Resource policy, only when a resource is given and steps 1 to 3 allowed: the
    `ResourcePolicyInterface` (M3 sharing; `resource_denied`). It runs after every step 3
    shortcut, so no shortcut opens a private item.
@@ -18,7 +18,7 @@ first denial wins:
 The tenant comes only from the requested project and the principal record. On warm
 caches a decision reads two Redis entries (`fetch_principal`, `resolve_membership`) and
 no Postgres row. A member with no role (an EE project row with a null role) passes the
-two shortcuts and is denied every role and permission check (fail closed).
+owner checks and is denied every role and permission check (fail closed).
 """
 
 from datetime import datetime, timezone
@@ -27,11 +27,12 @@ from uuid import UUID
 
 from oss.src.core.access import prefetch
 from oss.src.core.access.context import get_request_access, get_request_memo
-from oss.src.core.access.controls import get_role, get_role_permissions
+from oss.src.core.access.controls import get_role, get_role_permissions, get_roles
 from oss.src.core.access.dtos import (
     Action,
     Decision,
     DecisionReason,
+    OfferedRoles,
     PrincipalKind,
     PrincipalRef,
     RequestAccess,
@@ -46,16 +47,17 @@ from oss.src.core.access.dtos import (
 )
 from oss.src.core.access.interfaces import (
     PrincipalsDAOInterface,
-    RbacEnforcementInterface,
+    RbacEntitlementInterface,
     ResourcePolicyInterface,
 )
-from oss.src.core.access.permissions.types import Permission
+from oss.src.core.access.permissions.types import DefaultRole, Permission
 from oss.src.core.access.types import (
     AccessDenied,
     AccessServiceNotRegistered,
     DecisionInputMissing,
     InvalidPermission,
     InvalidRoleRequirement,
+    RoleNotOffered,
 )
 from oss.src.core.memberships.dtos import ProjectMembership
 from oss.src.core.memberships.service import MembershipsService
@@ -65,7 +67,9 @@ from oss.src.utils.logging import get_module_logger
 
 log = get_module_logger(__name__)
 
-_SCOPE = "project"
+# The catalog scope of every member role: the access check reads it, and the invite and
+# role routes validate and offer from it.
+ROLE_SCOPE = "project"
 _MISSING = object()
 _OWNER_ROLE = "owner"
 
@@ -85,18 +89,18 @@ class AccessService:
         self,
         *,
         memberships: MembershipsService,
-        rbac: RbacEnforcementInterface,
+        rbac_entitlement: RbacEntitlementInterface,
         principals: PrincipalsDAOInterface,
         resource_policy: ResourcePolicyInterface,
     ):
         self._memberships = memberships
-        self._rbac = rbac
+        self._rbac_entitlement = rbac_entitlement
         self._principals = principals
         self._resource_policy = resource_policy
 
     @property
-    def rbac(self) -> RbacEnforcementInterface:
-        return self._rbac
+    def rbac_entitlement(self) -> RbacEntitlementInterface:
+        return self._rbac_entitlement
 
     @property
     def memberships(self) -> MembershipsService:
@@ -197,8 +201,8 @@ class AccessService:
             )
 
         if resource is not None:
-            # Step 4, after every step 3 shortcut (no-RBAC, organization owner, project
-            # owner role): none of them opens a private item.
+            # Step 4, after every step 3 shortcut (organization owner, project owner
+            # role): none of them opens a private item.
             denial = await self._resource_policy.evaluate(
                 principal=principal,
                 action=action,
@@ -603,25 +607,22 @@ class AccessService:
             return DecisionReason.RESTRICTED_BY_AUTHORITY
         return None
 
-    async def role_allows(
-        self,
+    @staticmethod
+    def role_allows(
         *,
-        organization_id: UUID,
         role: Optional[str],
         action: Permission,
     ) -> bool:
         """Whether a member with this project role may do `action` (step 3 of `decide`
-        for that role, without a principal): RBAC not enforced, the owner role, or a
-        role whose permissions include it. For the share dialog, which shows what a
-        grant can do for each member."""
+        for that role, without a principal): the owner role, or a role whose permissions
+        include it. For the share dialog, which shows what a grant can do for each
+        member."""
 
-        if not await self._rbac.is_enforced(organization_id=organization_id):
-            return True
         if role == _OWNER_ROLE:
             return True
-        if role is None or get_role(_SCOPE, role) is None:
+        if role is None or get_role(ROLE_SCOPE, role) is None:
             return False
-        permissions = get_role_permissions(_SCOPE, role)
+        permissions = get_role_permissions(ROLE_SCOPE, role)
         return "*" in permissions or action.value in permissions
 
     async def _capability(
@@ -630,10 +631,6 @@ class AccessService:
         membership: ProjectMembership,
         action: Action,
     ) -> Decision:
-        # EE organizations without the RBAC entitlement: every member passes.
-        if not await self._rbac.is_enforced(organization_id=membership.organization_id):
-            return Decision(allowed=True, reason=DecisionReason.RBAC_NOT_ENTITLED)
-
         # The organization owner passes, as a member.
         if membership.is_organization_owner:
             return Decision(allowed=True, reason=DecisionReason.ORGANIZATION_OWNER)
@@ -646,7 +643,7 @@ class AccessService:
 
         # A role requirement matches the member's role exactly.
         if isinstance(action, RoleRequirement):
-            if get_role(_SCOPE, action.role) is None:
+            if get_role(ROLE_SCOPE, action.role) is None:
                 raise InvalidRoleRequirement()
             if role is not None and role == action.role:
                 return Decision(allowed=True, reason=DecisionReason.ROLE)
@@ -657,7 +654,7 @@ class AccessService:
             raise InvalidPermission()
 
         if role is not None:
-            if get_role(_SCOPE, role) is None:
+            if get_role(ROLE_SCOPE, role) is None:
                 # An organization role slug the project catalog does not define gives
                 # no permissions.
                 log.warning(
@@ -666,11 +663,46 @@ class AccessService:
                     project_id=str(membership.project_id),
                 )
             else:
-                permissions = get_role_permissions(_SCOPE, role)
+                permissions = get_role_permissions(ROLE_SCOPE, role)
                 if "*" in permissions or action.value in permissions:
                     return Decision(allowed=True, reason=DecisionReason.ROLE)
 
         return Decision(allowed=False, reason=DecisionReason.MISSING_CAPABILITY)
+
+    # -- offered roles ----------------------------------------------------------------
+
+    async def offered_roles(self, *, organization_id: UUID) -> OfferedRoles:
+        """The roles an invite or a role change may set in this organization, and its
+        floor role, from the project-scope catalog that the access check reads.
+
+        A plan with the RBAC entitlement offers every catalog role but `owner`, with
+        floor role `viewer`; OSS and the other plans offer admin and member, with floor
+        role `member`. Ownership moves only through the transfer route. Stored roles
+        outside the list keep working. The only reader of the RBAC entitlement for
+        roles; not on the decision path. Raises `RbacEntitlementUnavailable` when the
+        plan cannot be read, so no role write guesses."""
+
+        if await self._rbac_entitlement.is_entitled(organization_id=organization_id):
+            return OfferedRoles(
+                roles=[
+                    entry["role"]
+                    for entry in get_roles(ROLE_SCOPE)
+                    if entry["role"] != _OWNER_ROLE
+                ],
+                floor_role=DefaultRole.VIEWER.value,
+            )
+        return OfferedRoles(
+            roles=[DefaultRole.ADMIN.value, DefaultRole.MEMBER.value],
+            floor_role=DefaultRole.MEMBER.value,
+        )
+
+    async def require_offered_role(self, *, organization_id: UUID, role: str) -> None:
+        """Refuse a role that `offered_roles` does not list for this organization: the
+        one check of the invite and role-change routes."""
+
+        offered = await self.offered_roles(organization_id=organization_id)
+        if role not in offered.roles:
+            raise RoleNotOffered()
 
     # -- audit ------------------------------------------------------------------------
 
