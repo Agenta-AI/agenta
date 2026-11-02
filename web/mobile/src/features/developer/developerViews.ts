@@ -1,4 +1,11 @@
-import {Archive, Plugs as PlugsIcon, type Icon, Tray, TableIcon} from "@phosphor-icons/react"
+import {
+    Archive,
+    Plugs as PlugsIcon,
+    type Icon,
+    Tray,
+    TableIcon,
+    GitBranchIcon,
+} from "@phosphor-icons/react"
 
 /**
  * How far a developer view has rolled out.
@@ -94,6 +101,14 @@ export const DEVELOPER_VIEWS: readonly DeveloperView[] = [
         description: "Show the Test sets page under Developer in the navigation.",
         routes: ["/testsets", "/testsets/archived", "/testsets/[testset_id]"],
         nav: {icon: TableIcon, section: "developer"},
+        stage: "hidden",
+    },
+    {
+        id: "variants",
+        label: "Variants",
+        description: "Variants of an app, their revisions, and where each is deployed.",
+        routes: ["/variants"],
+        nav: {icon: GitBranchIcon, section: "developer"},
         stage: "hidden",
     },
 ]
