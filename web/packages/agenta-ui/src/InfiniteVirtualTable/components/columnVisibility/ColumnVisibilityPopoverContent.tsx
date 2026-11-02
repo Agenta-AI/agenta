@@ -1,7 +1,6 @@
 import {useCallback, useEffect, useMemo, useState} from "react"
 
-import {FolderOpenOutlined, FileOutlined} from "@ant-design/icons"
-import {ArrowCounterClockwise} from "@phosphor-icons/react"
+import {ArrowCounterClockwise, File as FileIcon, FolderOpen} from "@phosphor-icons/react"
 import {LOW_PRIORITY, useSetAtomWithSchedule} from "jotai-scheduler"
 
 import {Button} from "../../../components/ui/button"
@@ -127,7 +126,7 @@ const ColumnVisibilityPopoverContent = <RowType extends object>({
                         label
                     ),
                 searchValues: [typeof label === "string" ? label : undefined, key],
-                icon: hasChildren ? <FolderOpenOutlined /> : <FileOutlined />,
+                icon: hasChildren ? <FolderOpen size="1em" /> : <FileIcon size="1em" />,
             }
         },
         [],
@@ -145,7 +144,7 @@ const ColumnVisibilityPopoverContent = <RowType extends object>({
                 const icon =
                     meta.icon ??
                     defaultMeta.icon ??
-                    (hasChildren ? <FolderOpenOutlined /> : <FileOutlined />)
+                    (hasChildren ? <FolderOpen size="1em" /> : <FileIcon size="1em" />)
                 const searchValues = meta.searchValues ??
                     defaultMeta.searchValues ?? [
                         node.label ?? undefined,

@@ -1,7 +1,7 @@
 import type {Key, ReactNode} from "react"
 import {useCallback, useMemo, useRef, useState} from "react"
 
-import {MinusCircleOutlined, PlusCircleOutlined, LoadingOutlined} from "@ant-design/icons"
+import {CircleNotch, MinusCircle, PlusCircle} from "@phosphor-icons/react"
 import type {TableProps} from "antd/es/table"
 
 import {interactiveStyles} from "../../utils/styles"
@@ -194,11 +194,11 @@ export function useExpandableRows<RecordType extends object, ChildType = unknown
                     }}
                 >
                     {loading ? (
-                        <LoadingOutlined style={{fontSize: 14}} />
+                        <CircleNotch size={14} className="animate-spin" />
                     ) : expanded ? (
-                        <MinusCircleOutlined style={{fontSize: 14}} />
+                        <MinusCircle size={14} />
                     ) : (
-                        <PlusCircleOutlined style={{fontSize: 14}} />
+                        <PlusCircle size={14} />
                     )}
                 </span>
             )
@@ -256,11 +256,11 @@ export function useExpandableRows<RecordType extends object, ChildType = unknown
                     }}
                 >
                     {loading ? (
-                        <LoadingOutlined style={{fontSize: 14}} />
+                        <CircleNotch size={14} className="animate-spin" />
                     ) : expanded ? (
-                        <MinusCircleOutlined style={{fontSize: 14}} />
+                        <MinusCircle size={14} />
                     ) : (
-                        <PlusCircleOutlined style={{fontSize: 14}} />
+                        <PlusCircle size={14} />
                     )}
                 </span>
             )

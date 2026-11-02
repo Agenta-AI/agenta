@@ -8,7 +8,7 @@
 import {axios, getAgentaApiUrl} from "@agenta/shared/api"
 import {slugifyName, validateUUID} from "@agenta/shared/utils"
 
-import type {TestsetRevisionDelta} from "../core"
+import type {TestsetFileType, TestsetRevisionDelta} from "../core"
 
 // ============================================================================
 // TESTSET CRUD
@@ -387,4 +387,92 @@ export async function fetchSimpleTestset(params: {projectId: string; testsetId: 
     })
 
     return response.data?.testset
+}
+
+// ============================================================================
+// FILE UPLOAD
+// ============================================================================
+
+function buildUploadForm(file: File, fileType: TestsetFileType, testsetName?: string) {
+    const formData = new FormData()
+    formData.append("file", file)
+    formData.append("file_type", fileType)
+    if (testsetName) formData.append("testset_name", testsetName)
+    return formData
+}
+
+/**
+ * Upload a CSV or JSON file as a new Testset.
+ * The server parses the file and creates the Testset, variant and first revision.
+ */
+export async function uploadTestsetFile(params: {
+    projectId: string
+    file: File
+    fileType: TestsetFileType
+    testsetName?: string
+}): Promise<{testsetId: string; revisionId: string | null}> {
+    const {projectId, file, fileType, testsetName} = params
+
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/simple/testsets/upload`,
+        buildUploadForm(file, fileType, testsetName),
+        {params: {project_id: projectId}, headers: {"Content-Type": "multipart/form-data"}},
+    )
+
+    const testset = response.data?.testset
+    return {testsetId: testset.id, revisionId: testset.revision_id ?? null}
+}
+
+/**
+ * Upload a CSV or JSON file to an existing Testset. The server creates a new revision.
+ */
+export async function uploadTestsetRevisionFile(params: {
+    projectId: string
+    testsetId: string
+    file: File
+    fileType: TestsetFileType
+}): Promise<{revisionId: string | null}> {
+    const {projectId, testsetId, file, fileType} = params
+
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/simple/testsets/${testsetId}/upload`,
+        buildUploadForm(file, fileType),
+        {params: {project_id: projectId}, headers: {"Content-Type": "multipart/form-data"}},
+    )
+
+    return {revisionId: response.data?.testset?.revision_id ?? null}
+}
+
+// ============================================================================
+// IN-USE CHECK
+// ============================================================================
+
+/**
+ * Return the ids of the evaluation runs that reference any of the given Testsets.
+ *
+ * The API matches references with AND semantics, so one request per Testset id is needed.
+ */
+export async function fetchTestsetsInUse(params: {
+    projectId: string
+    testsetIds: string[]
+}): Promise<string[]> {
+    const {projectId, testsetIds} = params
+
+    const responses = await Promise.all(
+        testsetIds.map((id) =>
+            axios.post(
+                `${getAgentaApiUrl()}/evaluations/runs/query`,
+                {run: {references: [{testset: {id}}]}},
+                {params: {project_id: projectId}},
+            ),
+        ),
+    )
+
+    const runIds = new Set<string>()
+    for (const response of responses) {
+        for (const run of response.data?.runs ?? []) {
+            if (run?.id) runIds.add(run.id)
+        }
+    }
+    return Array.from(runIds)
 }

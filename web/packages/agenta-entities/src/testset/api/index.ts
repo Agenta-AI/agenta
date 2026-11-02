@@ -14,6 +14,7 @@ export {
     fetchRevisionsBatch,
     // Testset
     fetchTestsetsList,
+    queryTestsetsPage,
     fetchTestsetsBatch,
     fetchTestsetDetail,
     // Variant
@@ -32,6 +33,11 @@ export {
     patchRevision,
     commitRevision,
     archiveRevision,
+    // File upload
+    uploadTestsetFile,
+    uploadTestsetRevisionFile,
+    // In-use check
+    fetchTestsetsInUse,
     // File download
     downloadTestset,
     downloadRevision,

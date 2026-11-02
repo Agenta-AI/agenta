@@ -287,6 +287,34 @@ export async function fetchTestsetsList({
 }
 
 /**
+ * Fetch one page of testsets, newest first.
+ * Uses POST /testsets/query. The name filter goes in the body. Errors throw.
+ */
+export async function queryTestsetsPage(params: {
+    projectId: string
+    limit: number
+    cursor?: string | null
+    name?: string
+    includeArchived?: boolean
+}): Promise<{testsets: Testset[]; nextCursor: string | null}> {
+    const {projectId, limit, cursor, name, includeArchived = false} = params
+    const trimmedName = name?.trim()
+
+    const response = await axios.post(
+        `${getAgentaApiUrl()}/testsets/query`,
+        {
+            windowing: {limit, order: "descending", ...(cursor ? {next: cursor} : {})},
+            include_archived: includeArchived,
+            ...(trimmedName ? {testset: {name: trimmedName}} : {}),
+        },
+        {params: {project_id: projectId}},
+    )
+
+    const validated = testsetsResponseSchema.parse(response.data)
+    return {testsets: validated.testsets, nextCursor: validated.windowing?.next ?? null}
+}
+
+/**
  * Fetch multiple testsets by ID in a single API call (metadata only).
  * Uses POST /testsets/query with testset_refs.
  */

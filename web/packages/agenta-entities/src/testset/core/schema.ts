@@ -175,6 +175,7 @@ export const testsetSchema = z
     .object({
         id: z.string(),
         name: z.string(),
+        slug: z.string().nullable().optional(),
         description: z.string().nullable().optional(),
         project_id: z.string().nullable().optional(),
     })
@@ -210,6 +211,12 @@ export type CreateTestset = typeof testsetSchemas.types.Create
 export const testsetsResponseSchema = z.object({
     testsets: z.array(testsetSchema),
     count: z.number().optional(),
+    windowing: z
+        .object({
+            next: z.string().nullable().optional(),
+        })
+        .nullable()
+        .optional(),
 })
 
 export type TestsetsResponse = z.infer<typeof testsetsResponseSchema>
